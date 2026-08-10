@@ -83,6 +83,10 @@ import {
   Ban,
   History,
   RotateCcw,
+  Send,
+  ThumbsUp,
+  Undo2,
+  BookCheck,
 } from "lucide-react";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
@@ -104,13 +108,18 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
+import { useApSummary } from "@/hooks/useApSummary";
 
 
-// Workflow pipeline for Bills
+// Workflow pipeline for Bills.
+// Mirrors the DB lifecycle: draft → submitted → approved → received (posted)
+// → partial → paid. `submitted`/`approved` are pre-GL review states.
 function BillWorkflowPipeline({ status }: { status: string }) {
   const steps = [
     { key: "draft", label: "Draft" },
-    { key: "received", label: "Confirmed" },
+    { key: "submitted", label: "Submitted" },
+    { key: "approved", label: "Approved" },
+    { key: "received", label: "Posted" },
     { key: "partial", label: "Partial" },
     { key: "paid", label: "Paid" },
   ];
@@ -118,9 +127,11 @@ function BillWorkflowPipeline({ status }: { status: string }) {
   const getActiveStep = () => {
     if (status === "void") return -1;
     if (status === "draft") return 0;
-    if (status === "received" || status === "overdue") return 1;
-    if (status === "partial") return 2;
-    if (status === "paid") return 3;
+    if (status === "submitted") return 1;
+    if (status === "approved") return 2;
+    if (status === "received" || status === "overdue") return 3;
+    if (status === "partial") return 4;
+    if (status === "paid") return 5;
     return 0;
   };
 
@@ -186,7 +197,24 @@ export default function Bills() {
   // Custom field filtering
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters, filterEntityIds, isFiltering: isCustomFiltering } = useCustomFieldFiltering("bill");
 
-  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, recordBillPayment, getDefaultDueDate } = useBills();
+  const {
+    bills,
+    isLoading,
+    requireBillApproval,
+    getNextBillNumber,
+    createBill,
+    confirmBill,
+    submitBillForApproval,
+    approveBill,
+    rejectBill,
+    updateBill,
+    deleteBill,
+    recordBillPayment,
+    getDefaultDueDate,
+    refreshBills,
+  } = useBills();
+  // Canonical AP figures (posted documents net of allocations/credits).
+  const { summary: apSummary, refresh: refreshApSummary } = useApSummary();
   const navigate = useNavigate();
   const { contacts } = useContacts();
 
@@ -533,6 +561,8 @@ export default function Bills() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       draft: "secondary",
+      submitted: "outline",
+      approved: "outline",
       received: "default",
       partial: "outline",
       paid: "default",
@@ -540,13 +570,60 @@ export default function Bills() {
       void: "secondary",
     };
     const colors: Record<string, string> = { paid: "bg-green-500", overdue: "bg-red-500" };
-    return <Badge variant={variants[status]} className={colors[status]}>{status}</Badge>;
+    const labels: Record<string, string> = { submitted: "awaiting approval", received: "posted" };
+    return <Badge variant={variants[status]} className={colors[status]}>{labels[status] ?? status}</Badge>;
   };
 
+  // Document-count totals stay client-side (they describe the filtered list).
+  // Money figures come from `get_ap_summary` — the canonical AP projection —
+  // so credit notes, vendor advances and multi-currency are reflected and
+  // pre-posting states (draft/submitted/approved) are excluded.
   const totals = {
     total: filteredBills.reduce((sum, b) => sum + b.total, 0),
-    outstanding: filteredBills.filter((b) => ["received", "partial", "overdue"].includes(b.status)).reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
-    overdue: filteredBills.filter((b) => b.status === "overdue").reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
+    outstanding: apSummary.totalOutstanding,
+    overdue: apSummary.totalOverdue,
+  };
+
+  const pendingApprovalCount = filteredBills.filter(
+    (b) => b.status === "submitted" || b.status === "approved"
+  ).length;
+
+  const handleSubmitForApproval = async (id: string) => {
+    try {
+      await submitBillForApproval(id);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
+  };
+
+  const handleApproveBill = async (id: string) => {
+    try {
+      await approveBill(id);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
+  };
+
+  const handleRejectBill = async (id: string) => {
+    const reason = window.prompt("Reason for rejecting this bill?");
+    if (!reason?.trim()) return;
+    try {
+      await rejectBill(id, reason);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
+  };
+
+  const handlePostBill = async (id: string) => {
+    try {
+      await confirmBill(id);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
   };
 
 
@@ -670,13 +747,21 @@ export default function Bills() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Draft</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {requireBillApproval ? "In approval" : "Draft"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-muted-foreground">
-                {filteredBills.filter(b => b.status === "draft").length}
+                {requireBillApproval
+                  ? pendingApprovalCount
+                  : filteredBills.filter(b => b.status === "draft").length}
               </div>
-              <p className="text-xs text-muted-foreground">Awaiting confirmation — no GL impact</p>
+              <p className="text-xs text-muted-foreground">
+                {requireBillApproval
+                  ? "Submitted or approved — not yet posted, no GL impact"
+                  : "Awaiting confirmation — no GL impact"}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -685,6 +770,9 @@ export default function Bills() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{formatCurrency(totals.outstanding, baseCurrency)}</div>
+              <p className="text-xs text-muted-foreground">
+                {apSummary.openDocumentCount} open AP documents
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -695,6 +783,7 @@ export default function Bills() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{formatCurrency(totals.overdue, baseCurrency)}</div>
+              <p className="text-xs text-muted-foreground">{apSummary.overdueCount} past due</p>
             </CardContent>
           </Card>
         </div>
@@ -711,7 +800,9 @@ export default function Bills() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="submitted">Awaiting approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="received">Posted</SelectItem>
               <SelectItem value="partial">Partial</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
@@ -837,14 +928,46 @@ export default function Bills() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          {bill.status !== "paid" && bill.status !== "void" && (
+                          {/* Approval lifecycle — pre-GL states only */}
+                          {requireBillApproval && bill.status === "draft" && (
+                            <DropdownMenuItem onClick={() => handleSubmitForApproval(bill.id)}>
+                              <Send className="mr-2 h-4 w-4" /> Submit for Approval
+                            </DropdownMenuItem>
+                          )}
+                          {bill.status === "submitted" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleApproveBill(bill.id)}>
+                                <ThumbsUp className="mr-2 h-4 w-4" /> Approve
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleRejectBill(bill.id)} className="text-destructive">
+                                <Undo2 className="mr-2 h-4 w-4" /> Reject (return to draft)
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {bill.status === "approved" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handlePostBill(bill.id)}>
+                                <BookCheck className="mr-2 h-4 w-4" /> Post to Ledger
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleRejectBill(bill.id)} className="text-destructive">
+                                <Undo2 className="mr-2 h-4 w-4" /> Reject (return to draft)
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {!requireBillApproval && bill.status === "draft" && (
+                            <DropdownMenuItem onClick={() => handlePostBill(bill.id)}>
+                              <BookCheck className="mr-2 h-4 w-4" /> Post to Ledger
+                            </DropdownMenuItem>
+                          )}
+                          {(bill.status === "draft" || bill.status === "submitted") && (
                             <DropdownMenuItem onClick={() => {
                               navigate(`/purchases/bills/${bill.id}/edit`);
                             }}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
                           )}
-                          {bill.status !== "paid" && bill.status !== "void" && (
+                          {/* Payment is only legal once the bill is posted to the ledger. */}
+                          {(bill.status === "received" || bill.status === "partial" || bill.status === "overdue") && (
                             <DropdownMenuItem onClick={() => openPaymentDialog(bill.id)}>
                               <CreditCard className="mr-2 h-4 w-4" /> Record Payment
                             </DropdownMenuItem>

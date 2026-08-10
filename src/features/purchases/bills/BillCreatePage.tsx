@@ -36,7 +36,7 @@ import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
-import { useBills, type Bill, type BillItem } from "@/hooks/useBills";
+import { useBills, type Bill, type BillItem, type DuplicateVendorInvoice } from "@/hooks/useBills";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -86,7 +86,16 @@ export default function BillCreatePage() {
   const { products } = useProducts();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
-  const { getNextBillNumber, createBill, getDefaultDueDate } = useBills();
+  const {
+    getNextBillNumber,
+    createBill,
+    getDefaultDueDate,
+    findDuplicateVendorInvoice,
+    requireBillApproval,
+  } = useBills();
+  // Duplicate supplier-invoice warning (C1). The DB trigger is the hard stop;
+  // this surfaces the clashing bill before the user submits.
+  const [duplicates, setDuplicates] = useState<DuplicateVendorInvoice[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -239,10 +248,33 @@ export default function BillCreatePage() {
     });
   };
 
+  // Debounced duplicate lookup on (supplier, vendor invoice #).
+  useEffect(() => {
+    const vendorId = formData.vendor_id;
+    const ref = formData.vendor_invoice_number.trim();
+    if (!vendorId || !ref) {
+      setDuplicates([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const rows = await findDuplicateVendorInvoice(vendorId, ref);
+      if (!cancelled) setDuplicates(rows);
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // findDuplicateVendorInvoice is stable enough (derives from org context).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.vendor_id, formData.vendor_invoice_number]);
+
   const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
   const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
   const grandTotal = subtotal + totalTax - formData.discount_amount;
   const validItems = lineItems.filter((item) => item.description.trim());
+
+
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -275,7 +307,11 @@ export default function BillCreatePage() {
         } as Omit<Bill, "id" | "organization_id" | "business_id" | "branch_id" | "created_at" | "updated_at" | "created_by" | "vendor" | "items" | "currency_rate" | "company_currency_total">,
         validItems,
       );
-      toast.success("Bill created");
+      toast.success(
+        requireBillApproval
+          ? "Bill created and submitted for approval"
+          : "Bill created and posted to accounts payable",
+      );
       navigate(created?.id ? `/purchases/bills/${created.id}` : "/purchases/bills");
     } catch (error) {
       toast.error(normalizeError(error).message || "Failed to create bill");
@@ -319,8 +355,19 @@ export default function BillCreatePage() {
               onChange={(event) =>
                 setFormData({ ...formData, vendor_invoice_number: event.target.value })
               }
+              aria-invalid={duplicates.length > 0}
             />
+            {duplicates.length > 0 && (
+              <p className="text-xs text-destructive" role="alert">
+                Possible duplicate: this supplier already has{" "}
+                {duplicates
+                  .map((d) => `${d.bill_number} (${d.bill_date}, ${d.status})`)
+                  .join(", ")}
+                . Saving may be blocked by company policy.
+              </p>
+            )}
           </div>
+
           <div className="space-y-2">
             <Label>Bill date</Label>
             <Input

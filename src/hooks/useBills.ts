@@ -56,7 +56,15 @@ export interface Bill {
   account_id: string | null;
   bill_number: string;
   vendor_invoice_number: string | null;
-  status: "draft" | "received" | "partial" | "paid" | "overdue" | "void";
+  /**
+   * Lifecycle (ADR: AP approval gate).
+   *   draft → submitted → approved → received (posted) → partial/paid
+   * `submitted` and `approved` are PRE-GL review states: no journal entry
+   * exists yet and they are excluded from AP aging / unposted-liability KPIs.
+   * When the company policy `require_bill_approval` is off, draft → received
+   * remains legal and the review states are simply never used.
+   */
+  status: "draft" | "submitted" | "approved" | "received" | "partial" | "paid" | "overdue" | "void";
   bill_date: string;
   due_date: string;
   subtotal: number;
@@ -120,6 +128,16 @@ export interface BillPayment {
   created_at: string;
 }
 
+/** Row shape returned by the `find_duplicate_vendor_invoice` RPC. */
+export interface DuplicateVendorInvoice {
+  bill_id: string;
+  bill_number: string;
+  bill_date: string;
+  total: number;
+  status: string;
+}
+
+
 export function useBills() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -133,6 +151,13 @@ export function useBills() {
   const { defaultPaymentTerm } = usePaymentTerms();
   const [bills, setBills] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  /**
+   * Company AP policy: when true, a bill must be approved before it can be
+   * posted. The DB trigger `enforce_bill_approval_gate` is the authority —
+   * this flag only shapes the UI so users are not shown an action the server
+   * will refuse.
+   */
+  const [requireBillApproval, setRequireBillApproval] = useState(false);
 
   const fetchBills = useCallback(async () => {
     if (!currentOrg || !currentBusiness) {
@@ -179,6 +204,27 @@ export function useBills() {
     fetchBills();
   }, [fetchBills]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!currentBusiness?.id) {
+        setRequireBillApproval(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("require_bill_approval")
+        .eq("id", currentBusiness.id)
+        .maybeSingle();
+      if (!cancelled && !error) {
+        setRequireBillApproval(Boolean((data as any)?.require_bill_approval));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentBusiness?.id]);
+
   const getNextBillNumber = async (): Promise<string> => {
     if (!currentOrg) throw new Error("No organization selected");
 
@@ -193,6 +239,34 @@ export function useBills() {
     if (error) throw error;
     return data;
   };
+
+  /**
+   * Pre-submit duplicate-invoice lookup (C1).
+   * The DB trigger `trg_bills_unique_vendor_invoice_number` is the hard
+   * guarantee; this is the friendly warning so the user sees the clashing
+   * bill BEFORE hitting a constraint error. Returns [] when the company
+   * allows duplicates or nothing matches.
+   */
+  const findDuplicateVendorInvoice = async (
+    vendorId: string,
+    vendorInvoiceNumber: string,
+    excludeBillId?: string,
+  ): Promise<DuplicateVendorInvoice[]> => {
+    if (!currentOrg || !vendorId || !vendorInvoiceNumber.trim()) return [];
+    const { data, error } = await supabase.rpc("find_duplicate_vendor_invoice", {
+      _org_id: currentOrg.id,
+      _vendor_id: vendorId,
+      _vendor_invoice_number: vendorInvoiceNumber.trim(),
+      _exclude_bill_id: excludeBillId ?? null,
+    } as any);
+    if (error) {
+      // Non-fatal: the DB trigger still blocks true duplicates on write.
+      console.warn("[useBills] duplicate invoice lookup failed", error);
+      return [];
+    }
+    return (data ?? []) as DuplicateVendorInvoice[];
+  };
+
 
   /**
    * Create a bill and auto-post to GL.
@@ -288,21 +362,50 @@ export function useBills() {
       changesSummary: `Created bill ${bill.bill_number} for ${total}`,
     });
 
-    // Auto-confirm and post to GL immediately (atomic RPC)
-    try {
-      const billWithItems = { ...created, items } as unknown as Bill;
-      await confirmBillAndPostGL(billWithItems, {
-        logAction,
-        userId: user.id,
-      });
-    } catch (glError: any) {
-      console.error("Auto GL posting failed for bill:", glError);
-      // Bill is created as draft — surface failure to user so they know to retry
-      toast({
-        title: "Bill created as draft",
-        description: `GL posting failed: ${glError?.message || "Unknown error"}. Please confirm the bill manually from the bill list.`,
-        variant: "destructive",
-      });
+    if (requireBillApproval) {
+      // Approval-gated company: the bill goes out for approval instead of
+      // being posted. `enforce_bill_approval_gate` would refuse the post
+      // anyway, so we never attempt it.
+      const { error: submitError } = await supabase.rpc("submit_bill_atomic", {
+        _bill_id: created.id,
+        _actor: user.id,
+      } as any);
+      if (submitError) {
+        toast({
+          title: "Bill created as draft",
+          description: `Could not submit for approval: ${normalizeError(submitError).message}`,
+          variant: "destructive",
+        });
+      } else {
+        logAction({
+          action: "submitted",
+          entityType: "bill",
+          entityId: created.id,
+          entityName: bill.bill_number,
+          changesSummary: `Submitted bill ${bill.bill_number} for approval`,
+        });
+        toast({
+          title: "Submitted for approval",
+          description: `${bill.bill_number} is awaiting approval before it is posted to the ledger.`,
+        });
+      }
+    } else {
+      // Auto-confirm and post to GL immediately (atomic RPC)
+      try {
+        const billWithItems = { ...created, items } as unknown as Bill;
+        await confirmBillAndPostGL(billWithItems, {
+          logAction,
+          userId: user.id,
+        });
+      } catch (glError: any) {
+        console.error("Auto GL posting failed for bill:", glError);
+        // Bill is created as draft — surface failure to user so they know to retry
+        toast({
+          title: "Bill created as draft",
+          description: `GL posting failed: ${glError?.message || "Unknown error"}. Please confirm the bill manually from the bill list.`,
+          variant: "destructive",
+        });
+      }
     }
 
     // Refresh bills from DB to get accurate status
@@ -321,8 +424,99 @@ export function useBills() {
   };
 
   /**
+   * Submit a draft bill for approval (draft → submitted).
+   * No GL effect — the bill is still a pre-posting document.
+   */
+  const submitBillForApproval = async (id: string) => {
+    if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to submit bills", variant: "destructive" }); throw new Error("Permission denied"); }
+    const bill = bills.find((b) => b.id === id);
+
+    const { error } = await supabase.rpc("submit_bill_atomic", {
+      _bill_id: id,
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      toast({ title: "Cannot submit", description: normalizeError(error).message, variant: "destructive" });
+      throw error;
+    }
+
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "submitted" as const } : b)));
+    logAction({
+      action: "submitted",
+      entityType: "bill",
+      entityId: id,
+      entityName: bill?.bill_number,
+      oldValues: { status: bill?.status },
+      newValues: { status: "submitted" },
+      changesSummary: `Submitted bill ${bill?.bill_number ?? id} for approval`,
+    });
+    toast({ title: "Submitted for approval", description: `${bill?.bill_number ?? "Bill"} is awaiting approval.` });
+  };
+
+  /**
+   * Approve a submitted bill (submitted → approved). The server enforces
+   * segregation of duties (the preparer cannot approve) and blocks approval
+   * while an unresolved three-way match exception exists.
+   */
+  const approveBill = async (id: string) => {
+    if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to approve bills", variant: "destructive" }); throw new Error("Permission denied"); }
+    const bill = bills.find((b) => b.id === id);
+
+    const { error } = await supabase.rpc("approve_bill_atomic", {
+      _bill_id: id,
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      toast({ title: "Cannot approve", description: normalizeError(error).message, variant: "destructive" });
+      throw error;
+    }
+
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "approved" as const } : b)));
+    logAction({
+      action: "approved",
+      entityType: "bill",
+      entityId: id,
+      entityName: bill?.bill_number,
+      oldValues: { status: bill?.status },
+      newValues: { status: "approved" },
+      changesSummary: `Approved bill ${bill?.bill_number ?? id}`,
+    });
+    toast({ title: "Bill approved", description: `${bill?.bill_number ?? "Bill"} can now be posted to the ledger.` });
+  };
+
+  /** Send a submitted/approved bill back to draft with a reason. */
+  const rejectBill = async (id: string, reason: string) => {
+    if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to reject bills", variant: "destructive" }); throw new Error("Permission denied"); }
+    if (!reason?.trim()) throw new Error("A rejection reason is required");
+    const bill = bills.find((b) => b.id === id);
+
+    const { error } = await supabase.rpc("reject_bill_atomic", {
+      _bill_id: id,
+      _reason: reason.trim(),
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      toast({ title: "Cannot reject", description: normalizeError(error).message, variant: "destructive" });
+      throw error;
+    }
+
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "draft" as const } : b)));
+    logAction({
+      action: "rejected",
+      entityType: "bill",
+      entityId: id,
+      entityName: bill?.bill_number,
+      oldValues: { status: bill?.status },
+      newValues: { status: "draft" },
+      changesSummary: `Rejected bill ${bill?.bill_number ?? id}. Reason: ${reason.trim()}`,
+    });
+    toast({ title: "Bill rejected", description: `${bill?.bill_number ?? "Bill"} was returned to draft.` });
+  };
+
+  /**
    * Confirm a bill and post to the General Ledger.
-   * Transitions from "draft" to "received" and creates journal entries.
+   * Transitions "draft" (or "approved", when the approval gate is on) to
+   * "received" and creates journal entries.
    * Per Odoo/QuickBooks standards, only confirmed bills affect the GL.
    *
    * H3 FIX: Delegates to shared confirmBillAndPostGL module (like invoices).
@@ -333,10 +527,21 @@ export function useBills() {
     const bill = bills.find((b) => b.id === id);
     if (!bill) throw new Error("Bill not found");
 
-    if (bill.status !== "draft") {
-      toast({ title: "Cannot confirm", description: "Only draft bills can be confirmed", variant: "destructive" });
-      throw new Error("Only draft bills can be confirmed");
+    if (bill.status !== "draft" && bill.status !== "approved") {
+      toast({ title: "Cannot confirm", description: "Only draft or approved bills can be confirmed", variant: "destructive" });
+      throw new Error("Only draft or approved bills can be confirmed");
     }
+
+    if (requireBillApproval && bill.status === "draft") {
+      toast({
+        title: "Approval required",
+        description: "This company requires bills to be approved before they are posted. Submit it for approval first.",
+        variant: "destructive",
+      });
+      throw new Error("Bill requires approval before posting");
+    }
+
+    const previousStatus = bill.status;
 
     // Optimistic update
     setBills((prev) =>
@@ -353,7 +558,7 @@ export function useBills() {
     } catch (error) {
       // Rollback on error
       setBills((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: "draft" as const } : b))
+        prev.map((b) => (b.id === id ? { ...b, status: previousStatus } : b))
       );
       throw error;
     }
@@ -829,8 +1034,13 @@ export function useBills() {
   return {
     bills,
     isLoading,
+    requireBillApproval,
     getNextBillNumber,
+    findDuplicateVendorInvoice,
     createBill,
+    submitBillForApproval,
+    approveBill,
+    rejectBill,
     confirmBill,
     updateBill,
     deleteBill,
