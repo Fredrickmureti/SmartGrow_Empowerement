@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 import { expandToCommercialPartnerSet } from "@/lib/contactHierarchy";
 import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import { fetchCustomerLedgerRows } from "@/services/finance/customerStatementLedger";
+import { buildStatementDataset } from "@/services/finance/customerStatementDataset";
 import type { AgingBuckets } from "@/services/finance/aging";
 
 
@@ -163,77 +165,36 @@ export function useCustomerStatements() {
       : [input.contact_id];
 
     // ----- Ledger entries (canonical) -----
-    // Pull every entry from the start of time through period_end for the
-    // contact family. We split into "prior" (date < period_start) for the
-    // opening balance and "in period" for the rendered transactions.
-    let ledgerQ = (supabase as any)
-      .from("customer_ledger_entries")
-      .select("*")
-      .eq("business_id", currentBusiness.id)
-      .in("contact_id", contactIds)
-      .lte("entry_date", input.period_end)
-      .order("entry_date", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (branchId) ledgerQ = ledgerQ.eq("branch_id", branchId);
-    const { data: ledgerRows, error: ledgerError } = await ledgerQ;
-    if (ledgerError) throw ledgerError;
+    // ONE read, ONE builder — shared with the PDF / CSV / XLSX snapshot so
+    // every representation of this statement projects the same dataset.
+    const ledgerRows = await fetchCustomerLedgerRows(supabase as any, {
+      organizationId,
+      businessId: currentBusiness.id,
+      branchId,
+      contactIds,
+      periodEnd: input.period_end,
+    });
 
-    const allRows = (ledgerRows ?? []) as Array<{
-      entry_date: string;
-      doc_type: 'invoice' | 'payment' | 'deposit' | 'credit_note' | 'refund';
-      doc_id: string;
-      doc_ref: string;
-      debit: number | string;
-      credit: number | string;
-    }>;
+    const dataset = buildStatementDataset({
+      rows: ledgerRows,
+      periodStart: input.period_start,
+      periodEnd: input.period_end,
+      currency: currentBusiness.base_currency ?? null,
+    });
 
-    const periodStartTs = new Date(input.period_start).getTime();
+    const openingBalance = dataset.openingBalance;
+    const runningBalance = dataset.closingBalance;
+    const transactions: CustomerStatementData['transactions'] = dataset.transactions.map((t) => ({
+      date: t.date,
+      type: t.type,
+      reference: t.reference,
+      description: t.description,
+      debit: t.debit,
+      credit: t.credit,
+      balance: t.balance,
+      sourceId: t.sourceId,
+    }));
 
-    let openingBalance = 0;
-    for (const r of allRows) {
-      if (new Date(r.entry_date).getTime() < periodStartTs) {
-        openingBalance += (Number(r.debit) || 0) - (Number(r.credit) || 0);
-      }
-    }
-
-    // Map ledger doc_type -> the statement UI's narrower 'invoice' |
-    // 'payment' | 'credit_note' union. Deposits (advance customer cash)
-    // and refunds (cash out) both render as 'payment' with a descriptive
-    // label so the existing UI keeps working without a type extension.
-    const mapType = (d: string): 'invoice' | 'payment' | 'credit_note' => {
-      if (d === 'invoice') return 'invoice';
-      if (d === 'credit_note') return 'credit_note';
-      return 'payment'; // payment | deposit | refund
-    };
-    const describe = (d: string, ref: string): string => {
-      switch (d) {
-        case 'invoice': return `Invoice ${ref}`;
-        case 'credit_note': return `Credit note ${ref}`;
-        case 'deposit': return `Customer deposit ${ref}`.trim();
-        case 'refund': return `Refund ${ref}`.trim();
-        default: return `Payment ${ref}`.trim();
-      }
-    };
-
-    const transactions: CustomerStatementData['transactions'] = [];
-    let runningBalance = openingBalance;
-    for (const r of allRows) {
-      const ts = new Date(r.entry_date).getTime();
-      if (ts < periodStartTs) continue;
-      const debit = Number(r.debit) || 0;
-      const credit = Number(r.credit) || 0;
-      runningBalance += debit - credit;
-      transactions.push({
-        date: r.entry_date,
-        type: mapType(r.doc_type),
-        reference: r.doc_ref,
-        description: describe(r.doc_type, r.doc_ref),
-        debit,
-        credit,
-        balance: runningBalance,
-        sourceId: r.doc_id,
-      });
-    }
 
     // ----- Aging buckets (canonical) -----
     // ADR 0027: aging is read from the GL-anchored open-items projection

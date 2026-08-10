@@ -11,6 +11,11 @@ import {
   type StatementAgingBucket,
 } from "../_shared/templateRenderer.ts";
 import { generateDocumentPdf, generateStatementPdf } from "../_shared/pdfGenerator.ts";
+import {
+  buildStatementDataset,
+  type CustomerLedgerRow,
+} from "../_shared/reports/customerStatementDataset.ts";
+
 import { generateHrLetterPdf } from "../_shared/hrLetterGenerator.ts";
 import { fetchHrLetter, getHrLetterTenancy, isHrLetterType } from "./hrLetterFetchers.ts";
 import { mapEtimsToFiscalBlock } from "../_shared/pos/fiscalBlock.ts";
@@ -1354,102 +1359,113 @@ async function fetchCustomerStatement(supabase: any, documentId: string): Promis
   const contactId = stmt.contact_id;
   const orgId = stmt.organization_id;
   const businessId = stmt.business_id;
+  const branchId = stmt.branch_id ?? null;
   const periodStart = stmt.period_start;
   const periodEnd = stmt.period_end;
+  const currency = stmt.business?.base_currency || stmt.organization?.base_currency || "USD";
 
-  // Fetch invoices
-  let invoiceQuery = supabase
-    .from("invoices")
-    .select("invoice_number, issue_date, total, amount_paid, status")
+  // SOURCE OF TRUTH: the posted AR subledger (`customer_ledger_entries`),
+  // folded by the SAME builder the app uses (`customerStatementDataset.ts`,
+  // mirrored into _shared). The emailed PDF, the downloaded PDF and the
+  // on-screen statement therefore project one dataset and cannot diverge.
+  // This fetcher previously re-derived the statement from `invoices` +
+  // `payments` + `credit_notes`, which charged draft/void invoices, ignored
+  // branch and currency, hid refunds/deposits/reversals, and filtered credit
+  // notes on a `credit_note_status` value that does not exist.
+  let ledgerQuery = supabase
+    .from("customer_ledger_entries")
+    .select("entry_date, doc_type, doc_id, doc_ref, debit, credit, currency, created_at")
     .eq("organization_id", orgId)
     .eq("contact_id", contactId)
-    .gte("issue_date", periodStart)
-    .lte("issue_date", periodEnd)
-    .order("issue_date");
-  if (businessId) invoiceQuery = invoiceQuery.eq("business_id", businessId);
-  const { data: invoices } = await invoiceQuery;
+    .lte("entry_date", periodEnd)
+    .order("entry_date", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (businessId) ledgerQuery = ledgerQuery.eq("business_id", businessId);
+  if (branchId) ledgerQuery = ledgerQuery.eq("branch_id", branchId);
+  const { data: ledgerRows, error: ledgerError } = await ledgerQuery;
+  if (ledgerError) throw new Error(`Customer statement ledger: ${ledgerError.message}`);
 
-  // Fetch payments
-  let paymentQuery = supabase
-    .from("payments")
-    .select("receipt_number, payment_date, amount, payment_method")
+  const dataset = buildStatementDataset({
+    rows: (ledgerRows || []) as CustomerLedgerRow[],
+    periodStart,
+    periodEnd,
+    currency,
+  });
+
+  const TYPE_LABEL: Record<string, string> = {
+    invoice: "Invoice",
+    payment: "Payment",
+    credit_note: "Credit Note",
+    deposit: "Deposit",
+    refund: "Refund",
+    payment_reversal: "Payment Reversal",
+  };
+
+  const statementTransactions: StatementTransaction[] = dataset.transactions.map((t) => ({
+    date: t.date,
+    type: TYPE_LABEL[t.docType] ?? t.docType.replace(/_/g, " "),
+    reference: t.reference,
+    description: t.description,
+    charges: t.debit,
+    credits: t.credit,
+    balance: t.balance,
+    source_id: t.sourceId,
+    source_type: t.docType,
+  }));
+
+  // Aging: the GL-anchored open-items projection, aged as of the period end
+  // (never the server clock), so a reprint of a closed period reproduces the
+  // original buckets. Bucket boundaries mirror the SQL definition.
+  let agingQuery = supabase
+    .from("finance_ar_open_items")
+    .select("document_date, due_date, residual_amount, base_residual_amount")
     .eq("organization_id", orgId)
     .eq("contact_id", contactId)
-    .gte("payment_date", periodStart)
-    .lte("payment_date", periodEnd)
-    .order("payment_date");
-  if (businessId) paymentQuery = paymentQuery.eq("business_id", businessId);
-  const { data: payments } = await paymentQuery;
+    .lte("document_date", periodEnd)
+    .gt("residual_amount", 0.01);
+  if (businessId) agingQuery = agingQuery.eq("business_id", businessId);
+  if (branchId) agingQuery = agingQuery.eq("branch_id", branchId);
+  const { data: openItems, error: agingError } = await agingQuery;
+  if (agingError) throw new Error(`Customer statement aging: ${agingError.message}`);
 
-  // Fetch credit notes
-  let cnQuery = supabase
-    .from("credit_notes")
-    .select("credit_note_number, issue_date, total, status")
-    .eq("organization_id", orgId)
-    .eq("contact_id", contactId)
-    .gte("issue_date", periodStart)
-    .lte("issue_date", periodEnd)
-    .in("status", ["issued", "applied", "partially_applied"])
-    .order("issue_date");
-  if (businessId) cnQuery = cnQuery.eq("business_id", businessId);
-  const { data: creditNotes } = await cnQuery;
-
-  // Build structured transactions
-  type TxnEntry = { date: string; type: string; ref: string; desc: string; debit: number; credit: number };
-  const txns: TxnEntry[] = [];
-
-  for (const inv of (invoices || [])) {
-    txns.push({ date: inv.issue_date, type: "Invoice", ref: inv.invoice_number, desc: `Invoice ${inv.invoice_number}`, debit: inv.total || 0, credit: 0 });
-  }
-  for (const pmt of (payments || [])) {
-    txns.push({ date: pmt.payment_date, type: "Payment", ref: pmt.receipt_number || "—", desc: `Payment received${pmt.receipt_number ? ` (${pmt.receipt_number})` : ""}`, debit: 0, credit: pmt.amount || 0 });
-  }
-  for (const cn of (creditNotes || [])) {
-    txns.push({ date: cn.issue_date, type: "Credit Note", ref: cn.credit_note_number, desc: `Credit Note ${cn.credit_note_number}`, debit: 0, credit: cn.total || 0 });
-  }
-
-  txns.sort((a, b) => a.date.localeCompare(b.date));
-
-  let runningBalance = stmt.opening_balance || 0;
-  const statementTransactions: StatementTransaction[] = [];
-
-  for (const txn of txns) {
-    runningBalance += txn.debit - txn.credit;
-    statementTransactions.push({
-      date: txn.date,
-      type: txn.type,
-      reference: txn.ref,
-      description: txn.desc,
-      charges: txn.debit,
-      credits: txn.credit,
-      balance: runningBalance,
-    });
-  }
-
-  // Aging buckets
-  const now = new Date();
-  let agingCurrent = 0, aging30 = 0, aging60 = 0, aging90 = 0, agingOver90 = 0;
-  for (const inv of (invoices || [])) {
-    const balance = (inv.total || 0) - (inv.amount_paid || 0);
-    if (balance <= 0) continue;
-    const daysOld = Math.floor((now.getTime() - new Date(inv.issue_date).getTime()) / (1000 * 60 * 60 * 24));
-    if (daysOld <= 0) agingCurrent += balance;
-    else if (daysOld <= 30) aging30 += balance;
-    else if (daysOld <= 60) aging60 += balance;
-    else if (daysOld <= 90) aging90 += balance;
-    else agingOver90 += balance;
+  const asOf = Date.UTC(
+    Number(periodEnd.slice(0, 4)),
+    Number(periodEnd.slice(5, 7)) - 1,
+    Number(periodEnd.slice(8, 10)),
+  );
+  const buckets = { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0 };
+  for (const row of (openItems || []) as any[]) {
+    const residual = Number(row.base_residual_amount ?? row.residual_amount) || 0;
+    if (residual <= 0.01) continue;
+    const ref = String(row.due_date || row.document_date || periodEnd);
+    const due = Date.UTC(
+      Number(ref.slice(0, 4)),
+      Number(ref.slice(5, 7)) - 1,
+      Number(ref.slice(8, 10)),
+    );
+    const daysOverdue = Math.floor((asOf - due) / 86_400_000);
+    const key =
+      daysOverdue < 0
+        ? "not_due"
+        : daysOverdue <= 30
+          ? "current"
+          : daysOverdue <= 60
+            ? "days30"
+            : daysOverdue <= 90
+              ? "days60"
+              : "days90";
+    buckets[key] += residual;
   }
 
   const statementAging: StatementAgingBucket[] = [
-    { label: "Current", amount: agingCurrent },
-    { label: "1-30 Days", amount: aging30 },
-    { label: "31-60 Days", amount: aging60 },
-    { label: "61-90 Days", amount: aging90 },
-    { label: "90+ Days", amount: agingOver90 },
+    { label: "Not yet due", amount: buckets.not_due },
+    { label: "0–30 days", amount: buckets.current },
+    { label: "31–60 days", amount: buckets.days30 },
+    { label: "61–90 days", amount: buckets.days60 },
+    { label: "90+ days", amount: buckets.days90 },
   ];
 
-  const currency = stmt.business?.base_currency || stmt.organization?.base_currency || "USD";
-  const closingBalance = stmt.closing_balance ?? runningBalance;
+  const closingBalance = dataset.closingBalance;
 
   return {
     document_number: `Statement - ${stmt.contact?.name || "Customer"}`,
@@ -1457,13 +1473,15 @@ async function fetchCustomerStatement(supabase: any, documentId: string): Promis
     document_type_label: "CUSTOMER STATEMENT",
     status: stmt.sent_at ? "sent" : "draft",
     issue_date: stmt.statement_date || stmt.created_at,
-    subtotal: stmt.total_invoiced || 0,
+    subtotal: dataset.totalCharges,
     tax_amount: 0,
     discount_amount: 0,
     total: closingBalance,
-    amount_paid: stmt.total_payments || 0,
+    amount_paid: dataset.totalCredits,
     currency,
-    notes: null,
+    notes: dataset.otherCurrencies.length
+      ? `This statement covers ${currency} activity only. This customer also has activity in: ${dataset.otherCurrencies.join(", ")}.`
+      : null,
     terms: null,
     contact: stmt.contact,
     organization: await mapBusinessToOrg(supabase, stmt.business, stmt.organization, stmt.branch_id),
@@ -1472,12 +1490,13 @@ async function fetchCustomerStatement(supabase: any, documentId: string): Promis
     items: [], // Not used by statement renderer
     statement_transactions: statementTransactions,
     statement_aging: statementAging,
-    statement_opening_balance: stmt.opening_balance || 0,
+    statement_opening_balance: dataset.openingBalance,
     statement_closing_balance: closingBalance,
     statement_period_start: periodStart,
     statement_period_end: periodEnd,
   };
 }
+
 
 // ── Legal Recipient Statement fetcher (ADR-0093 Phase 3) ────────────────────
 //
