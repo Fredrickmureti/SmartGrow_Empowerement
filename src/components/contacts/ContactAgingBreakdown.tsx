@@ -66,7 +66,7 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
     );
   }
 
-  const hasData = (aging?.ar && aging.ar.total > 0) || (aging?.ap && aging.ap.total > 0);
+  const hasData = (aging?.ar && Math.abs(aging.ar.total) > 0.01) || (aging?.ap && Math.abs(aging.ap.total) > 0.01);
   if (!hasData) return null;
 
   const renderBuckets = (buckets: AgingBuckets, label: string) => {
@@ -89,7 +89,7 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
             <div
               key={item.label}
               className={`${item.color} transition-all`}
-              style={{ width: `${(item.amount / buckets.total) * 100}%` }}
+              style={{ width: `${(Math.abs(item.amount) / Math.max(Math.abs(buckets.total), 0.01)) * 100}%` }}
               title={`${item.label}: ${formatCurrency(item.amount)}`}
             />
           ))}
@@ -114,8 +114,8 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {aging?.ar && aging.ar.total > 0 && renderBuckets(aging.ar, "Accounts Receivable")}
-        {aging?.ap && aging.ap.total > 0 && renderBuckets(aging.ap, "Accounts Payable")}
+        {aging?.ar && Math.abs(aging.ar.total) > 0.01 && renderBuckets(aging.ar, "Accounts Receivable")}
+        {aging?.ap && Math.abs(aging.ap.total) > 0.01 && renderBuckets(aging.ap, "Accounts Payable")}
       </CardContent>
     </Card>
   );
