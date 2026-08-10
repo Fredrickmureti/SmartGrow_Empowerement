@@ -7,6 +7,9 @@ import { applyBranchFilter } from "@/lib/branchScope";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 import { expandToCommercialPartnerSet } from "@/lib/contactHierarchy";
+import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import type { AgingBuckets } from "@/services/finance/aging";
+
 
 export interface CustomerStatement {
   id: string;
