@@ -14,6 +14,7 @@ Collections overlays (collector, dunning level, promise-to-pay) are server-deriv
 Customer/vendor statements project ONE dataset folded from customer_ledger_entries / vendor_ledger_entries (screen, PDF, CSV, email); never re-derive from source documents.
 contacts has NO contact_type column — customer selection = type in (customer,both) OR customer_rank > 0, via services/finance/customerIdentity.ts.
 Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_type switch, no clamps — reversals and journals count.
+Salesperson metrics come only from get_salesperson_performance; attribution inherits from the invoice, never from created_by.
 
 
 
