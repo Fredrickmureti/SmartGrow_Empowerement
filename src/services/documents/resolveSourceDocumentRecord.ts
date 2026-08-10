@@ -37,6 +37,7 @@ import {
 } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
+import { fetchAndBuildPurchasesRfqSnapshot } from "@/services/documents/snapshots/purchasesRfq";
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { fetchAndBuildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
