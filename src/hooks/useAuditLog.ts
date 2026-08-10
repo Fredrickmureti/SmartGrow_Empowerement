@@ -14,8 +14,10 @@ export type AuditAction =
   | "paid" 
   | "partial_paid"
   | "converted" 
+  | "submitted"
   | "approved" 
   | "rejected" 
+
   | "cancelled"
   | "voided"
   | "confirmed"
