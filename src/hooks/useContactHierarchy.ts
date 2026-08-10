@@ -68,7 +68,10 @@ export function useContactHierarchy(
     enabled,
   });
 
-  const all = data || [];
+  // ADR-0038 / ADR-0080: a row carrying `child_address_type` is an ADDRESS of
+  // a party, not a party. It belongs in the owning contact's address book —
+  // never in the hierarchy tree, which lists business relationships.
+  const all = (data || []).filter((n) => n.child_address_type == null);
   const self = all.find((n) => n.id === contactId) ?? null;
   const parentId = self?.parent_contact_id ?? null;
   const parent = parentId ? all.find((n) => n.id === parentId) ?? null : null;
@@ -80,6 +83,7 @@ export function useContactHierarchy(
         (n) => n.parent_contact_id === parentId && n.id !== contactId,
       )
     : [];
+
 
   return { self, parent, children, siblings, isLoading };
 }
