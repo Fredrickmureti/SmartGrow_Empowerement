@@ -2345,6 +2345,77 @@ export type Database = {
           },
         ]
       }
+      ar_promises_to_pay: {
+        Row: {
+          base_promised_amount: number
+          baseline_residual: number
+          branch_id: string | null
+          business_id: string
+          client_request_id: string | null
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          document_id: string | null
+          expected_payment_date: string
+          id: string
+          notes: string | null
+          organization_id: string
+          promised_amount: number
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["ar_promise_status"]
+          updated_at: string
+        }
+        Insert: {
+          base_promised_amount?: number
+          baseline_residual?: number
+          branch_id?: string | null
+          business_id: string
+          client_request_id?: string | null
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          document_id?: string | null
+          expected_payment_date: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          promised_amount: number
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["ar_promise_status"]
+          updated_at?: string
+        }
+        Update: {
+          base_promised_amount?: number
+          baseline_residual?: number
+          branch_id?: string | null
+          business_id?: string
+          client_request_id?: string | null
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          document_id?: string | null
+          expected_payment_date?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          promised_amount?: number
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["ar_promise_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_promises_to_pay_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_categories: {
         Row: {
           accumulated_depreciation_account_id: string | null
@@ -88112,6 +88183,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      evaluate_promise_status: {
+        Args: { _business_id?: string }
+        Returns: number
+      }
       execute_due_scheduled_organization_deletions: {
         Args: never
         Returns: Json
@@ -93903,6 +93978,20 @@ export type Database = {
         }
         Returns: string
       }
+      record_promise_to_pay: {
+        Args: {
+          _branch_id?: string
+          _business_id: string
+          _client_request_id?: string
+          _contact_id: string
+          _currency?: string
+          _document_id?: string
+          _expected_payment_date: string
+          _notes?: string
+          _promised_amount: number
+        }
+        Returns: string
+      }
       record_qc_check: {
         Args: {
           p_actual: string
@@ -99414,6 +99503,7 @@ export type Database = {
         | "hired"
         | "rejected"
         | "withdrawn"
+      ar_promise_status: "open" | "kept" | "broken" | "cancelled"
       bill_match_exception_state:
         | "none"
         | "pending_review"
@@ -100561,6 +100651,7 @@ export const Constants = {
         "rejected",
         "withdrawn",
       ],
+      ar_promise_status: ["open", "kept", "broken", "cancelled"],
       bill_match_exception_state: [
         "none",
         "pending_review",
