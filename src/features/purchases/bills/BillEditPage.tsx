@@ -38,7 +38,12 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
-import { useBills, type Bill, type BillItem } from "@/hooks/useBills";
+import {
+  useBills,
+  type Bill,
+  type BillItem,
+  type DuplicateVendorInvoice,
+} from "@/hooks/useBills";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
@@ -67,7 +72,7 @@ export default function BillEditPage() {
   const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const { isDateLocked } = useFiscalPeriods();
-  const { bills, isLoading, updateBill } = useBills();
+  const { bills, isLoading, updateBill, findDuplicateVendorInvoice } = useBills();
 
   const bill = useMemo(
     () => bills.find((b) => b.id === id) ?? null,
@@ -91,6 +96,11 @@ export default function BillEditPage() {
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [primed, setPrimed] = useState(false);
+  /**
+   * Friendly duplicate warning on (supplier, vendor invoice #), excluding the
+   * bill being edited. The DB trigger is still the hard guarantee.
+   */
+  const [duplicates, setDuplicates] = useState<DuplicateVendorInvoice[]>([]);
   /** Vendor tier of the purchase account ladder (ADR 0122). */
   const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
 
@@ -109,6 +119,26 @@ export default function BillEditPage() {
       cancelled = true;
     };
   }, [formData.vendor_id]);
+
+  // Debounced duplicate lookup on (supplier, vendor invoice #), self-excluded.
+  useEffect(() => {
+    const vendorId = formData.vendor_id;
+    const ref = formData.vendor_invoice_number.trim();
+    if (!vendorId || !ref) {
+      setDuplicates([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const rows = await findDuplicateVendorInvoice(vendorId, ref, id);
+      if (!cancelled) setDuplicates(rows);
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.vendor_id, formData.vendor_invoice_number, id]);
 
   useEffect(() => {
     if (!bill || primed) return;
@@ -393,7 +423,17 @@ export default function BillEditPage() {
                     vendor_invoice_number: e.target.value,
                   })
                 }
+                aria-invalid={duplicates.length > 0}
               />
+              {duplicates.length > 0 && (
+                <p className="text-xs text-destructive" role="alert">
+                  Possible duplicate: this supplier already has{" "}
+                  {duplicates
+                    .map((d) => `${d.bill_number} (${d.bill_date}, ${d.status})`)
+                    .join(", ")}
+                  . Saving may be blocked by company policy.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Bill date</Label>
