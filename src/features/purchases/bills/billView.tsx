@@ -14,6 +14,8 @@ import type {
 } from "@/design-system/records";
 import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { BillMatchPanel } from "./BillMatchPanel";
+
 import type { Bill } from "@/hooks/useBills";
 import { useBillRecord } from "./useBillRecord";
 
@@ -119,6 +121,11 @@ export function useBillView(
       lineEmpty: "No line items on this bill.",
       extraSections: bill ? (
         <>
+          <BillMatchPanel
+            billId={bill.id}
+            currency={bill.currency}
+            formatCurrency={formatCurrency}
+          />
           {bill.notes && (
             <Section title="Notes">
               <p className="whitespace-pre-wrap text-sm">{bill.notes}</p>
@@ -127,6 +134,7 @@ export function useBillView(
           <DocumentVersionsSection documentType="bill" documentId={bill.id} />
         </>
       ) : undefined,
+
     };
   }, [bill, loading, error, formatCurrency]);
 

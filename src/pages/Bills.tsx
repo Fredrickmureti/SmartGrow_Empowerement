@@ -109,6 +109,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 import { useApSummary } from "@/hooks/useApSummary";
+import { useBillMatchResults } from "@/hooks/useBillMatch";
+import { BillMatchBadge } from "@/features/purchases/bills/BillMatchPanel";
+
 
 
 // Workflow pipeline for Bills.
@@ -584,9 +587,14 @@ export default function Bills() {
     overdue: apSummary.totalOverdue,
   };
 
+  // Match state for the visible page only — written solely by
+  // `match_bill_atomic`, read here to give the list a Match column.
+  const matchResults = useBillMatchResults(filteredBills.map((b) => b.id));
+
   const pendingApprovalCount = filteredBills.filter(
     (b) => b.status === "submitted" || b.status === "approved"
   ).length;
+
 
   const handleSubmitForApproval = async (id: string) => {
     try {
@@ -856,6 +864,7 @@ export default function Bills() {
                 <TableHead>Bill Date</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Pipeline</TableHead>
+                <TableHead>Match</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -863,9 +872,10 @@ export default function Bills() {
             </TableHeader>
             <TableBody>
               {(isLoading || !currencyReady) ? (
-                <TableRow><TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdmin ? 11 : 10} className="text-center py-8">Loading...</TableCell></TableRow>
               ) : filteredBills.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8 text-muted-foreground">No bills found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdmin ? 11 : 10} className="text-center py-8 text-muted-foreground">No bills found</TableCell></TableRow>
+
               ) : (
                 filteredBills.map((bill) => (
                   <TableRow key={bill.id} className={`cursor-pointer ${selectedBills.has(bill.id) ? "bg-muted/50" : ""}`} onClick={() => setPeekId(bill.id)}>
@@ -889,6 +899,8 @@ export default function Bills() {
                     <TableCell>{format(new Date(bill.bill_date), "MMM d, yyyy")}</TableCell>
                     <TableCell>{format(new Date(bill.due_date), "MMM d, yyyy")}</TableCell>
                     <TableCell><BillWorkflowPipeline status={bill.status} /></TableCell>
+                    <TableCell><BillMatchBadge result={matchResults[bill.id]} /></TableCell>
+
                     <TableCell className="text-right">{formatCurrency(bill.total, bill.currency)}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(bill.total - (bill.amount_paid || 0), bill.currency)}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
