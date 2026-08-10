@@ -73,15 +73,22 @@ export interface RequisitionRow {
 
 type ProfileLite = { id: string; full_name: string | null; email: string | null };
 
+/**
+ * `requester_id` / `actor_user_id` hold `auth.users.id`. `profiles.id` is a
+ * surrogate PK — the auth user is `profiles.user_id`. Joining on `id`
+ * silently returns nothing, which is why the UI fell back to raw UUIDs.
+ */
 async function hydrateProfiles(userIds: string[]): Promise<Map<string, ProfileLite>> {
   const map = new Map<string, ProfileLite>();
   const ids = Array.from(new Set(userIds.filter(Boolean)));
   if (ids.length === 0) return map;
   const { data } = await (supabase as any)
     .from("profiles")
-    .select("id, full_name, email")
-    .in("id", ids);
-  for (const p of (data ?? []) as ProfileLite[]) map.set(p.id, p);
+    .select("id, user_id, full_name, email")
+    .in("user_id", ids);
+  for (const p of (data ?? []) as Array<ProfileLite & { user_id: string }>) {
+    map.set(p.user_id, { id: p.user_id, full_name: p.full_name, email: p.email });
+  }
   return map;
 }
 

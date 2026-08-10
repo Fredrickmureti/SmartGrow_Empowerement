@@ -296,13 +296,14 @@ export async function fetchAndBuildPurchasesRequisitionSnapshot(
   );
   const actorNames = new Map<string, string>();
   if (userIds.length > 0) {
+    // `profiles.id` is a surrogate PK; the auth user id lives in `user_id`.
     const { data: profiles } = await (client as any)
       .from("profiles")
-      .select("id, full_name, email")
-      .in("id", userIds);
+      .select("user_id, full_name, email")
+      .in("user_id", userIds);
     for (const p of (profiles ?? []) as Array<Record<string, unknown>>) {
       const name = (p["full_name"] as string) || (p["email"] as string) || "";
-      if (name) actorNames.set(p["id"] as string, name);
+      if (name) actorNames.set(p["user_id"] as string, name);
     }
   }
 
