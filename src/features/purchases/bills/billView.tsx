@@ -38,6 +38,8 @@ interface Result {
   bill: Bill | null;
   loading: boolean;
   error: string | null;
+  /** Re-fetch the bill after an action mutates it. */
+  refresh: () => void;
   view: DocumentRecordView;
 }
 
@@ -45,7 +47,7 @@ export function useBillView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { record: bill, loading, error } = useBillRecord(id);
+  const { record: bill, loading, error, refetch } = useBillRecord(id);
 
   const view = useMemo<DocumentRecordView>(() => {
     const balance = bill ? Math.max(0, (bill.total ?? 0) - (bill.amount_paid ?? 0)) : 0;
@@ -128,5 +130,5 @@ export function useBillView(
     };
   }, [bill, loading, error, formatCurrency]);
 
-  return { bill, loading, error, view };
+  return { bill, loading, error, refresh: refetch, view };
 }
