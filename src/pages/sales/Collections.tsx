@@ -44,19 +44,28 @@ import {
 } from "lucide-react";
 import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
 
-type Bucket = "all" | "current" | "days30" | "days60" | "days90";
+import {
+  AGING_BUCKET_LABELS,
+  AGING_BUCKET_SHORT_LABELS,
+  type AgingBucketKey,
+} from "@/services/finance/aging";
 
-const BUCKET_LABELS: Record<Exclude<Bucket, "all">, string> = {
-  current: "Current",
-  days30: "1–30 days",
-  days60: "31–60 days",
-  days90: "60+ days",
-};
+/**
+ * Bucket vocabulary is the canonical one owned by SQL — `not_due`, then
+ * 0-30 / 31-60 / 61-90 / 90+ days past due. `in_credit` is not an aging
+ * bucket: it isolates customers whose net position is a credit (unapplied
+ * receipts or credit notes exceed their open invoices).
+ */
+type Bucket = "all" | "in_credit" | AgingBucketKey;
+
+const BUCKET_LABELS = AGING_BUCKET_LABELS;
 
 function filterByBucket(c: AgingContactDetail, bucket: Bucket): boolean {
-  if (bucket === "all") return c.buckets.total > 0;
-  return (c.buckets[bucket] ?? 0) > 0;
+  if (bucket === "all") return c.buckets.total > 0.01;
+  if (bucket === "in_credit") return c.buckets.total < -0.01;
+  return (c.buckets[bucket] ?? 0) > 0.01;
 }
+
 
 export default function Collections() {
   const { data, isLoading } = useAgingReport({ reportType: "ar" });
@@ -80,12 +89,23 @@ export default function Collections() {
   }, [data, bucket, search]);
 
   const summary = data?.summary;
+  // Net AR position: open residuals less unapplied customer credit (the aging
+  // RPC returns credit rows with a negative residual).
   const totalAR = summary?.total ?? 0;
+  // Overdue = every bucket except `not_due`. `current` is 0-30 days PAST DUE,
+  // so excluding it (the old behaviour) understated overdue exposure.
   const overdueTotal =
-    (summary?.days30 ?? 0) + (summary?.days60 ?? 0) + (summary?.days90 ?? 0);
+    (summary?.current ?? 0) +
+    (summary?.days30 ?? 0) +
+    (summary?.days60 ?? 0) +
+    (summary?.days90 ?? 0);
+  const notDueTotal = summary?.not_due ?? 0;
   const pctOverdue = totalAR > 0 ? Math.round((overdueTotal / totalAR) * 100) : 0;
   const customers90Plus = (data?.contacts ?? []).filter(
-    (c) => (c.buckets.days90 ?? 0) > 0,
+    (c) => (c.buckets.days90 ?? 0) > 0.01,
+  ).length;
+  const customersInCredit = (data?.contacts ?? []).filter(
+    (c) => (c.buckets.total ?? 0) < -0.01,
   ).length;
 
   return (
@@ -101,11 +121,12 @@ export default function Collections() {
       </header>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total AR" value={formatCurrency(totalAR)} />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <KpiCard label="Net AR" value={formatCurrency(totalAR)} />
+        <KpiCard label="Not yet due" value={formatCurrency(notDueTotal)} />
         <KpiCard label="Overdue" value={formatCurrency(overdueTotal)} accent />
         <KpiCard label="% Overdue" value={`${pctOverdue}%`} />
-        <KpiCard label="Customers 60+ days" value={String(customers90Plus)} />
+        <KpiCard label="Customers 90+ days" value={String(customers90Plus)} />
       </div>
 
       {/* Filters */}
@@ -120,15 +141,19 @@ export default function Collections() {
           />
         </div>
         <Select value={bucket} onValueChange={(v) => setBucket(v as Bucket)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[200px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All outstanding</SelectItem>
-            <SelectItem value="current">Current</SelectItem>
-            <SelectItem value="days30">1–30 days</SelectItem>
-            <SelectItem value="days60">31–60 days</SelectItem>
-            <SelectItem value="days90">60+ days</SelectItem>
+            <SelectItem value="not_due">{BUCKET_LABELS.not_due}</SelectItem>
+            <SelectItem value="current">{BUCKET_LABELS.current}</SelectItem>
+            <SelectItem value="days30">{BUCKET_LABELS.days30}</SelectItem>
+            <SelectItem value="days60">{BUCKET_LABELS.days60}</SelectItem>
+            <SelectItem value="days90">{BUCKET_LABELS.days90}</SelectItem>
+            <SelectItem value="in_credit">
+              In credit{customersInCredit > 0 ? ` (${customersInCredit})` : ""}
+            </SelectItem>
           </SelectContent>
         </Select>
       </Card>
@@ -140,19 +165,21 @@ export default function Collections() {
             <TableRow>
               <TableHead className="w-8" />
               <TableHead>Customer</TableHead>
-              <TableHead className="text-right">Current</TableHead>
-              <TableHead className="text-right">1–30</TableHead>
-              <TableHead className="text-right">31–60</TableHead>
-              <TableHead className="text-right">60+</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days60}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days90}</TableHead>
+              <TableHead className="text-right">Net outstanding</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={8}>
+                    <TableCell colSpan={9}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -160,14 +187,14 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
                   )
                 : contacts.map((c) => {
                     const isOpen = expanded === c.contact_id;
-                    const isOverdue = (c.buckets.days90 ?? 0) > 0;
+                    const isOverdue = (c.buckets.days90 ?? 0) > 0.01;
                     return (
                       <>
                         <TableRow key={c.contact_id} className="hover:bg-muted/40">
@@ -192,13 +219,19 @@ export default function Collections() {
                               {isOverdue && (
                                 <Badge variant="destructive" className="gap-1">
                                   <AlertTriangle className="h-3 w-3" />
-                                  60+
+                                  90+
                                 </Badge>
+                              )}
+                              {(c.buckets.total ?? 0) < -0.01 && (
+                                <Badge variant="secondary">In credit</Badge>
                               )}
                             </div>
                             {c.company && (
                               <div className="text-xs text-muted-foreground">{c.company}</div>
                             )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCurrency(c.buckets.not_due ?? 0)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCurrency(c.buckets.current ?? 0)}
@@ -211,6 +244,7 @@ export default function Collections() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-destructive">
                             {formatCurrency(c.buckets.days90 ?? 0)}
+
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             {formatCurrency(c.buckets.total ?? 0)}
@@ -252,7 +286,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={8} className="py-3">
+                            <TableCell colSpan={9} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>

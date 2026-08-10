@@ -10,20 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Clock, Loader2 } from "lucide-react";
 import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import { AGING_BUCKET_SHORT_LABELS, type AgingBuckets } from "@/services/finance/aging";
 
 interface Props {
   contactId: string;
   contactType: string;
 }
 
-interface AgingBuckets {
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  days120: number;
-  total: number;
-}
 
 export function ContactAgingBreakdown({ contactId, contactType }: Props) {
   const { currentOrg } = useOrganization();
@@ -73,18 +66,19 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
     );
   }
 
-  const hasData = (aging?.ar && aging.ar.total > 0) || (aging?.ap && aging.ap.total > 0);
+  const hasData = (aging?.ar && Math.abs(aging.ar.total) > 0.01) || (aging?.ap && Math.abs(aging.ap.total) > 0.01);
   if (!hasData) return null;
 
   const renderBuckets = (buckets: AgingBuckets, label: string) => {
-    if (buckets.total <= 0) return null;
+    if (Math.abs(buckets.total) <= 0.01) return null;
     const items = [
-      { label: "Current", amount: buckets.current, color: "bg-emerald-500" },
-      { label: "1-30", amount: buckets.days30, color: "bg-yellow-500" },
-      { label: "31-60", amount: buckets.days60, color: "bg-orange-500" },
-      { label: "61-90", amount: buckets.days90, color: "bg-red-500" },
-      { label: "90+", amount: buckets.days120, color: "bg-red-700" },
+      { label: AGING_BUCKET_SHORT_LABELS.not_due, amount: buckets.not_due, color: "bg-emerald-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.current, amount: buckets.current, color: "bg-yellow-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.days30, amount: buckets.days30, color: "bg-orange-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.days60, amount: buckets.days60, color: "bg-red-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.days90, amount: buckets.days90, color: "bg-red-700" },
     ];
+
 
     return (
       <div className="space-y-2">
@@ -95,7 +89,7 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
             <div
               key={item.label}
               className={`${item.color} transition-all`}
-              style={{ width: `${(item.amount / buckets.total) * 100}%` }}
+              style={{ width: `${(Math.abs(item.amount) / Math.max(Math.abs(buckets.total), 0.01)) * 100}%` }}
               title={`${item.label}: ${formatCurrency(item.amount)}`}
             />
           ))}
@@ -120,8 +114,8 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {aging?.ar && aging.ar.total > 0 && renderBuckets(aging.ar, "Accounts Receivable")}
-        {aging?.ap && aging.ap.total > 0 && renderBuckets(aging.ap, "Accounts Payable")}
+        {aging?.ar && Math.abs(aging.ar.total) > 0.01 && renderBuckets(aging.ar, "Accounts Receivable")}
+        {aging?.ap && Math.abs(aging.ap.total) > 0.01 && renderBuckets(aging.ap, "Accounts Payable")}
       </CardContent>
     </Card>
   );

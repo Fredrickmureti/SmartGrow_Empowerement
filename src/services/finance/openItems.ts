@@ -10,6 +10,18 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import {
+  addToAgingBuckets,
+  daysOverdueFrom,
+  emptyAgingBuckets,
+  EMPTY_AGING_BUCKETS,
+  type AgingBuckets,
+} from "./aging";
+
+/** @deprecated Use `AgingBuckets` / `EMPTY_AGING_BUCKETS` from `./aging`. */
+export type OpenItemAging = AgingBuckets;
+export const EMPTY_OPEN_ITEM_AGING: AgingBuckets = EMPTY_AGING_BUCKETS;
+
 
 export interface OpenItemsSummary {
   openDocumentCount: number;
@@ -144,51 +156,63 @@ export async function fetchTopOpenCounterparties(
     for (const c of contacts || []) names.set(c.id, c.name);
   }
 
-  const today = Date.now();
   const byContact = new Map<string, { name: string; amount: number; daysOverdue: number }>();
   for (const r of rows) {
     const name = (r.contact_id && names.get(r.contact_id)) || "Unknown";
-    const due = r.due_date || r.document_date;
-    const daysOverdue = due
-      ? Math.floor((today - new Date(due).getTime()) / 86_400_000)
-      : 0;
+    const daysOverdue = daysOverdueFrom(r.due_date || r.document_date);
     const existing = byContact.get(name) || { name, amount: 0, daysOverdue: 0 };
     existing.amount += Number(r.residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
     byContact.set(name, existing);
   }
 
+  // Net unapplied customer credit so a customer sitting on an advance is not
+  // ranked as a top exposure. Same rule the aging RPC applies.
+  if (side === "ar") {
+    let cq = supabase
+      .from("customer_credit_balances" as any)
+      .select("contact_id, balance")
+      .eq("organization_id", orgId)
+      .gt("balance", 0.01);
+    if (businessId) cq = cq.eq("business_id", businessId);
+    const { data: credits } = await cq;
+    const creditContactIds = Array.from(
+      new Set(((credits || []) as any[]).map((c) => c.contact_id).filter(Boolean)),
+    ).filter((id) => !names.has(id));
+    if (creditContactIds.length > 0) {
+      const { data: extra } = await supabase
+        .from("contacts")
+        .select("id, name")
+        .in("id", creditContactIds);
+      for (const c of extra || []) names.set(c.id, c.name);
+    }
+    for (const c of (credits || []) as any[]) {
+      const name = (c.contact_id && names.get(c.contact_id)) || "Unknown";
+      const existing = byContact.get(name);
+      if (!existing) continue; // pure credit position — not an exposure to chase
+      existing.amount -= Number(c.balance) || 0;
+    }
+  }
+
   return Array.from(byContact.values())
+    .filter((c) => c.amount > 0.01)
     .sort((a, b) => b.amount - a.amount)
     .slice(0, limit);
 }
 
-export interface OpenItemAging {
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  days120: number;
-  total: number;
-}
-
-export const EMPTY_OPEN_ITEM_AGING: OpenItemAging = {
-  current: 0,
-  days30: 0,
-  days60: 0,
-  days90: 0,
-  days120: 0,
-  total: 0,
-};
 
 /**
- * Per-counterparty open-item aging, straight off the GL-gated projection.
+ * Per-counterparty open-item aging.
  *
  * ADR: contact-level receivable / payable figures MUST come from
  * `finance_ar_open_items` / `finance_ap_open_items`, never from a status list
  * over `invoices` / `bills`. Residual there nets every settlement channel
  * (cash receipts and applied credit notes) and only counts documents with a
  * posted journal entry on the control account.
+ *
+ * Bucketing uses the shared `bucketForDaysOverdue` mirror of the SQL CASE, and
+ * unapplied customer credit is netted in for AR so this figure agrees with the
+ * aging report and the AR summary instead of overstating the receivable.
  */
 export async function fetchContactOpenItemAging(
   side: "ar" | "ap",
@@ -198,7 +222,7 @@ export async function fetchContactOpenItemAging(
     businessId?: string | null;
     branchId?: string | null;
   },
-): Promise<OpenItemAging> {
+): Promise<AgingBuckets> {
   const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
   let q = supabase
     .from(view as any)
@@ -212,21 +236,41 @@ export async function fetchContactOpenItemAging(
   const { data, error } = await q;
   if (error) throw error;
 
-  const now = Date.now();
-  const buckets: OpenItemAging = { ...EMPTY_OPEN_ITEM_AGING };
+  const buckets = emptyAgingBuckets();
   for (const row of (data || []) as any[]) {
     const residual = Number(row.residual_amount) || 0;
     if (residual <= 0.01) continue;
-    const due = row.due_date || row.document_date;
-    const daysOverdue = due
-      ? Math.floor((now - new Date(due).getTime()) / 86_400_000)
-      : 0;
-    if (daysOverdue <= 0) buckets.current += residual;
-    else if (daysOverdue <= 30) buckets.days30 += residual;
-    else if (daysOverdue <= 60) buckets.days60 += residual;
-    else if (daysOverdue <= 90) buckets.days90 += residual;
-    else buckets.days120 += residual;
-    buckets.total += residual;
+    addToAgingBuckets(buckets, residual, daysOverdueFrom(row.due_date || row.document_date));
   }
+
+  if (side === "ar") {
+    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, params.contactId);
+    if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
+  }
+
   return buckets;
 }
+
+/**
+ * Unapplied customer credit (advance receipts / unapplied credit notes) for an
+ * org, optionally narrowed to one contact. This is a genuine credit position on
+ * the customer and reduces the net receivable — `get_ar_ap_aging_from_ledger`
+ * and `get_ar_summary` both net it, so read-side helpers must too.
+ */
+export async function fetchUnappliedCustomerCredit(
+  orgId: string,
+  businessId?: string | null,
+  contactId?: string | null,
+): Promise<number> {
+  let q = supabase
+    .from("customer_credit_balances" as any)
+    .select("balance")
+    .eq("organization_id", orgId)
+    .gt("balance", 0.01);
+  if (businessId) q = q.eq("business_id", businessId);
+  if (contactId) q = q.eq("contact_id", contactId);
+  const { data, error } = await q;
+  if (error) return 0;
+  return ((data || []) as any[]).reduce((sum, r) => sum + (Number(r.balance) || 0), 0);
+}
+

@@ -3,22 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
+import {
+  AGING_BUCKET_KEYS,
+  bucketForDaysOverdue,
+  emptyAgingBuckets,
+  type AgingBucketKey,
+} from "@/services/finance/aging";
 // `differenceInDays` import removed with processAgingData (2026-06-02).
+// Client-side bucket configuration (`DEFAULT_AGING_BUCKETS`) was removed
+// 2026-08-10: bucket boundaries live in SQL only, mirrored once in
+// `src/services/finance/aging.ts`. See ADR-0027 / ADR-0038.
 
-export interface AgingBucketConfig {
-  label: string;
-  minDays: number;
-  maxDays: number | null; // null = unlimited (e.g., 90+)
-}
-
-// Default aging buckets — can be overridden per organization
-export const DEFAULT_AGING_BUCKETS: AgingBucketConfig[] = [
-  { label: "not_due", minDays: -999999, maxDays: -1 },
-  { label: "current", minDays: 0, maxDays: 30 },
-  { label: "days30", minDays: 31, maxDays: 60 },
-  { label: "days60", minDays: 61, maxDays: 90 },
-  { label: "days90", minDays: 91, maxDays: null },
-];
 
 export interface AgingBucket {
   current: number;
@@ -62,7 +57,9 @@ export interface AgingReportData {
 interface UseAgingReportParams {
   reportType: "ar" | "ap";
   asOfDate?: string;
-  buckets?: AgingBucketConfig[]; // Custom aging buckets — uses DEFAULT_AGING_BUCKETS if not provided
+  // Custom client bucket overrides are deliberately NOT supported: boundaries
+  // are owned by SQL so every AR/AP surface ages identically.
+
   /**
    * Optional explicit branch override (typically `filters.branchId` from
    * `ReportFilterContext`). When omitted, falls back to the active
@@ -120,7 +117,7 @@ export function useAgingReport(params: UseAgingReportParams) {
       });
 
       if (error) throw error;
-      const flat = processLedgerAgingRows(data || [], params.reportType, asOfDate, params.buckets);
+      const flat = processLedgerAgingRows(data || [], params.reportType, asOfDate);
       if (!params.rollupToCommercialPartner) return flat;
       return rollupContactsToCommercialPartner(flat, {
         organizationId: currentOrg.id,
@@ -210,12 +207,9 @@ function processLedgerAgingRows(
   rows: any[],
   reportType: "ar" | "ap",
   asOfDateStr: string,
-  customBuckets?: AgingBucketConfig[]
 ): AgingReportData {
-  const buckets = customBuckets || DEFAULT_AGING_BUCKETS;
   const contactMap = new Map<string, AgingContactDetail>();
-  const summary: AgingBucket = { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 };
-  for (const b of buckets) if (!(b.label in summary)) summary[b.label] = 0;
+  const summary: AgingBucket = { ...emptyAgingBuckets() };
 
   for (const row of rows) {
     const residual = Number(row.residual_amount) || 0;
@@ -223,18 +217,11 @@ function processLedgerAgingRows(
     // They must reduce the contact's net position, not be dropped.
     if (Math.abs(residual) <= 0.005) continue;
     const daysOverdue = Number(row.days_overdue) || 0;
-    let bucketLabel = buckets[buckets.length - 1]?.label || "days90";
-    if (residual < 0) {
-      // Credits are never aged.
-      bucketLabel = "current";
-    } else {
-      for (const b of buckets) {
-        if (daysOverdue >= b.minDays && (b.maxDays === null || daysOverdue <= b.maxDays)) {
-          bucketLabel = b.label;
-          break;
-        }
-      }
-    }
+    // The bucket is assigned by SQL (`get_ar_ap_aging_from_ledger`). It is the
+    // single boundary definition; the client only falls back if the RPC ever
+    // omits it, using the mirrored helper — never a second inline copy.
+    const bucketLabel: AgingBucketKey =
+      AGING_BUCKET_KEYS.includes(row.bucket) ? (row.bucket as AgingBucketKey) : bucketForDaysOverdue(daysOverdue, residual);
 
     summary[bucketLabel] = (summary[bucketLabel] || 0) + residual;
     summary.total += residual;
@@ -247,7 +234,7 @@ function processLedgerAgingRows(
         contact_name: row.contact_name || "Unassigned",
         company: row.company || null,
         email: row.email || null,
-        buckets: { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 },
+        buckets: { ...emptyAgingBuckets() },
         documents: [],
       };
       contactMap.set(contactId, contactDetail);
@@ -271,6 +258,7 @@ function processLedgerAgingRows(
 
   return { contacts: Array.from(contactMap.values()).sort((a, b) => b.buckets.total - a.buckets.total), summary, asOfDate: asOfDateStr, reportType };
 }
+
 
 // `processAgingData` (legacy client-side aging from raw invoices/bills) was
 // removed 2026-06-02. Aging is now sourced exclusively from

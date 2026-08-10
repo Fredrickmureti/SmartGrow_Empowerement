@@ -21,7 +21,7 @@ export interface InvoiceFilters {
   status?: string;
   source?: "pos" | string;
   salespersonId?: string;
-  /** Filter by aging bucket: "current", "1-30", "31-60", "61-90", "90+" */
+  /** Canonical aging bucket key: "not_due" | "current" | "days30" | "days60" | "days90" */
   aging?: string;
   /** Invoice-date lower bound (ISO yyyy-mm-dd, inclusive). */
   dateFrom?: string;
@@ -95,34 +95,38 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
         query = query.eq("status", filters.status as "draft" | "sent" | "viewed" | "partial" | "paid" | "overdue" | "cancelled" | "confirmed");
       }
 
-      // Aging filter: restrict to outstanding invoices with due_date in bucket
+      // Aging filter: restrict to outstanding invoices with due_date in bucket.
+      // Bucket boundaries mirror public.finance_aging_bucket() exactly:
+      //   not_due  due_date >  today
+      //   current  today-30  <= due_date <= today      (0-30 days past due)
+      //   days30   today-60  <= due_date <= today-31
+      //   days60   today-90  <= due_date <= today-61
+      //   days90   due_date  <  today-90
       if (filters?.aging) {
         // All aging filters only apply to open invoices
         if (!filters?.status) {
           query = query.in("status", ["sent", "viewed", "partial", "overdue", "confirmed"]);
         }
         const now = new Date();
-        const today = now.toISOString().split("T")[0];
-        if (filters.aging === "current") {
-          // Due today or in the future
-          query = query.gte("due_date", today);
-        } else if (filters.aging === "1-30") {
-          const d30 = new Date(now);
-          d30.setDate(d30.getDate() - 30);
-          query = query.lt("due_date", today).gte("due_date", d30.toISOString().split("T")[0]);
-        } else if (filters.aging === "31-60") {
-          const d31 = new Date(now); d31.setDate(d31.getDate() - 31);
-          const d60 = new Date(now); d60.setDate(d60.getDate() - 60);
-          query = query.lt("due_date", d31.toISOString().split("T")[0]).gte("due_date", d60.toISOString().split("T")[0]);
-        } else if (filters.aging === "61-90") {
-          const d61 = new Date(now); d61.setDate(d61.getDate() - 61);
-          const d90 = new Date(now); d90.setDate(d90.getDate() - 90);
-          query = query.lt("due_date", d61.toISOString().split("T")[0]).gte("due_date", d90.toISOString().split("T")[0]);
-        } else if (filters.aging === "90+") {
-          const d90 = new Date(now); d90.setDate(d90.getDate() - 90);
-          query = query.lt("due_date", d90.toISOString().split("T")[0]);
+        const dayOffset = (days: number) => {
+          const d = new Date(now);
+          d.setDate(d.getDate() - days);
+          return d.toISOString().split("T")[0];
+        };
+        const today = dayOffset(0);
+        if (filters.aging === "not_due") {
+          query = query.gt("due_date", today);
+        } else if (filters.aging === "current") {
+          query = query.lte("due_date", today).gte("due_date", dayOffset(30));
+        } else if (filters.aging === "days30") {
+          query = query.lte("due_date", dayOffset(31)).gte("due_date", dayOffset(60));
+        } else if (filters.aging === "days60") {
+          query = query.lte("due_date", dayOffset(61)).gte("due_date", dayOffset(90));
+        } else if (filters.aging === "days90") {
+          query = query.lt("due_date", dayOffset(90));
         }
       }
+
 
       if (filters?.source === "pos") {
         query = query.eq("source", "pos");
