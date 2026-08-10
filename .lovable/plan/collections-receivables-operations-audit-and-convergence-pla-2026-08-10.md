@@ -275,3 +275,34 @@ currency column, so multi-currency balances are still summed as if equal.
    helpers); candidate for one `finance_ar_net_position` projection.
 5. PRODUCT GAP items (promise-to-pay, disputes, collector assignment, dunning
    policy, work queue) remain unbuilt.
+
+## Execution log — 2026-08-10 (third pass)
+
+### Wave 5 — currency (DONE)
+`finance_ar_open_items` / `finance_ap_open_items` now carry `currency`,
+`exchange_rate` and `base_residual_amount` (document residual converted with
+`invoices.exchange_rate` / `bills.currency_rate`; manual-JE rows are base by
+construction and carry rate 1). Existing columns keep their exact meaning and
+ordinal position, so every current consumer is untouched.
+`finance_open_items_tieout` now compares `base_residual_amount` against the
+GL, which is the only correct comparison; re-read after the change:
+`ar` drift `0.00`.
+`fetchTopOpenCounterparties` and `fetchContactOpenItemAging` sum
+`base_residual_amount`. Guarded by a new case in
+`aging-single-source.test.ts` that fails any `+= Number(...residual_amount)`
+aggregate lacking the base fallback, plus a case pinning the statement `asOf`.
+
+### Wave 4 — failed sends (DONE)
+`send-document-email` now carries a failure-audit context and writes a
+`document_emails` row with `status: 'failed'` and the provider error from the
+catch block, so the communication ledger is no longer success-only.
+
+### Still open
+1. Bulk statement sends still do not route through `email_event_outbox`
+   (single sends are now fully audited; batch retry/backoff is the gap).
+2. Credit netting still duplicated per consumer (three SQL sites, two JS
+   helpers) — candidate for one `finance_ar_net_position` projection.
+3. Multi-currency presentation: the projections now expose `currency`, but no
+   UI surface shows a per-currency breakdown yet.
+4. PRODUCT GAP items (promise-to-pay, disputes, collector assignment, dunning
+   policy, work queue) remain unbuilt.
