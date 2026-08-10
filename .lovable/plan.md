@@ -1,80 +1,74 @@
-# Collections & Receivables Convergence — REOPENED
+# Collections & Receivables — Verification Verdict, then Waves 10–13
 
-North star: Collections is a trusted **operational layer over canonical AR
-truth**. Receivables, aging and exposure come from the GL-gated projections
-(`finance_ar_open_items` / `finance_ap_open_items`) and their derived canonical
-views — never from document status, never re-derived in app code.
+## Phase 1 verdict — previous engineer's claims re-checked
 
-## Completed and verified
+Verified directly against the codebase and the live database:
 
-| Wave | Scope | Evidence |
+| Claim | Verdict | Evidence |
 | --- | --- | --- |
-| 0–5 | Audit + drift sensor, canonical buckets in Collections, one aging source with as-of dating, AR summary nets credit, statement idempotency, currency integrity | see archived audit under `.lovable/plan/` |
-| 6 | Credit-netting consolidation: `finance_ar_customer_credit` + `finance_ar_net_position`; all consumers repointed | `aging-single-source.test.ts` (6/6) |
-| 7 | Statement delivery reliability: canonical cohort, durable queue, delivery badges | `statement-delivery-durability.test.ts` (4/4) |
-| 8 | Per-currency presentation & FX policy for credit: `to_base_amount()` function, `finance_ar_customer_credit` FX-converted, `finance_ar_net_position_by_currency` view, Collections per-currency breakdown | `credit-fx-policy.test.ts` (3/3) |
-| 9 | Collector assignment: `collector_assignments` table + RLS, `upsert`/`deactivate` RPCs (single-active per contact), `fetch_collector_assignments_with_names`/`fetch_org_members` RPCs, service + hook, Collections UI collector column + assign dialog + "My accounts" filter | `collector-assignment.test.ts` (7/7) |
+| Waves 0–8 (canonical aging, as-of dating, credit netting, statement delivery queue, FX policy) | CONFIRMED | views `finance_ar_customer_credit`, `finance_ar_net_position`, `finance_ar_net_position_by_currency`, table `customer_statement_send_jobs` all exist; `aging-single-source` 6/6, `credit-fx-policy` 3/3, `statement-delivery-durability` 4/4 pass |
+| Wave 9 collector assignment | CONFIRMED | `collector_assignments` table exists; `collector-assignment.test.ts` 7/7 passes; `src/pages/sales/Collections.tsx` renders the Collector column, assign dialog and "My accounts" filter, and `useCollectorAssignments` is wired |
+| Wave 10 dunning policy | NOT STARTED | no `dunning_levels` table, no `dunning_assignment` view, no next-action column |
+| Waves 11–13 (PTP, disputes, work queue) | NOT STARTED | no `ar_promises_to_pay`, `ar_disputes`, `collections_work_queue` objects |
 
-## Remaining roadmap (in order — no deferral)
+No regressions or superficial patches found in the completed waves. The
+architecture holds: Collections reads GL-gated AR projections and never
+re-derives balances. That stays untouched (KEEP).
 
-### Wave 10 — Dunning policy (escalation levels) [ACTIVE]
+North star unchanged: Collections is an operational layer over canonical AR
+truth. Every new object below is an *operational overlay* keyed to a customer
+— none of them stores or recomputes a balance.
 
-1. Table `dunning_levels` (org, business, name, sequence, min_days_overdue,
-   action_type enum, template_id nullable). RLS admin/manage.
-2. Seed default levels (0–30, 31–60, 61–90, 90+).
-3. View `dunning_assignment` — maps each customer's `max_days_overdue` to the
-   highest matching dunning level → next-action label.
-4. Collections UI: "Next action" column derived from the dunning assignment.
+## Wave 10 — Dunning policy (escalation levels)
 
-### Wave 11 — Promise-to-pay lifecycle
+- Table `dunning_levels` (org, business, name, sequence, min_days_overdue,
+  action_type enum `reminder|statement|call|escalate|legal`, template_id
+  nullable, active). RLS org-scoped, GRANTs for authenticated/service_role.
+- Seed default ladder per business on first read (0–30 reminder, 31–60
+  statement, 61–90 call, 90+ escalate).
+- View `dunning_assignment`: `finance_ar_net_position` joined to the highest
+  matching level by `max_days_overdue` → next-action label per customer.
+- Collections UI: "Next action" column sourced from that view.
+- Guard: next action derives from canonical AR days-overdue, not invoice status.
 
-1. Table `ar_promises_to_pay` (org, business, branch, contact_id, document_id
-   nullable, promised_amount, currency, base_promised_amount, expected_payment_date,
-   status enum, notes, created/by/at). RLS org-scoped.
-2. RPC `evaluate_promise_status` — marks promises broken when
-   `expected_payment_date < today` and no matching payment landed.
-3. Service + hook; Collections UI: "Record PTP" action + PTP badge.
+## Wave 11 — Promise to pay
 
-### Wave 12 — AR dispute flagging
+- Table `ar_promises_to_pay` (contact, optional document, promised_amount,
+  currency + base amount, expected_payment_date, status
+  `open|kept|broken|cancelled`, notes, audit columns). Org/business scoped RLS.
+- RPC `record_promise_to_pay` (server-resolved base amount, idempotency key)
+  and `evaluate_promise_status` (marks `broken` past date with no matching
+  settlement, `kept` when residual dropped by the promised amount).
+- Service + hook; Collections row action "Record promise" plus a PTP badge.
 
-1. Table `ar_disputes` (org, business, branch, contact_id, document_id nullable,
-   dispute_type, reason, status enum, amount_disputed, currency, base_amount_disputed,
-   raised_by/at, resolved_by/at/notes). RLS org-scoped.
-2. RPC `resolve_ar_dispute`. Disputed items excluded from dunning escalation.
-3. Service + hook; Collections UI: "Flag dispute" action + dispute badge.
+## Wave 12 — Dispute flagging
 
-### Wave 13 — Collections work queue
+- Table `ar_disputes` (contact, optional document, dispute_type, reason,
+  amount_disputed + base amount, status `open|resolved|rejected`, raised/resolved
+  audit). Org/business scoped RLS.
+- RPC `resolve_ar_dispute`. Disputed exposure is reported separately and is
+  suppressed from dunning escalation, never subtracted from AR.
+- Service + hook; Collections "Flag dispute" action + dispute badge, and a
+  "Disputed" KPI distinct from overdue.
 
-1. View `collections_work_queue` — joins `finance_ar_net_position` +
-   `collector_assignments` + `dunning_assignment` + latest PTP + open disputes.
-   One row per (customer, next-action) with priority score.
-2. RPC `get_collections_work_queue(collector_user_id)` — returns prioritized
-   action items for a collector.
-3. Collections UI: "Work Queue" tab — prioritized action list with action type,
-   priority, assigned collector, dispute/PTP status.
-4. Guard test: work queue sources from canonical AR, not invoice status.
+## Wave 13 — Collections work queue
 
-## Verification protocol (for every wave)
+- View `collections_work_queue`: `finance_ar_net_position` + collector
+  assignment + dunning assignment + latest promise + open disputes, one row per
+  customer with a priority score (exposure × age, de-prioritising disputed and
+  in-promise accounts).
+- RPC `get_collections_work_queue(collector_user_id)`.
+- Collections UI "Work queue" tab: prioritised action list.
+- Guard test: the queue sources from canonical AR, not from `invoices.status`.
 
-1. Run the full architecture test suite for the affected area.
-2. Typecheck (`tsgo`).
-3. Update this plan file immediately after each wave.
+## Technical notes
 
-## Instructions for the next agent
-
-1. **Verify first:** confirm Wave 9's migration landed (`collector_assignments`
-   table + 4 RPCs exist), `collector-assignment.test.ts` passes (7/7), and the
-   Collections UI renders the Collector column + assign dialog + "My accounts"
-   filter before starting Wave 10.
-2. **Resume chronologically:** start from Wave 10 — Dunning policy. Create the
-   `dunning_levels` table, seed default levels, build the `dunning_assignment`
-   view, and add the "Next action" column to Collections.
-3. **Do not skip:** each wave depends on the prior — collector assignment
-   feeds the work queue, dunning policy drives the next-action label, etc.
-4. **Update this file** after each wave is verified.
-
-## Known repo-wide caveat
-
-The full `src/test/architecture` suite has ~145 pre-existing failing files
-unrelated to receivables. They predate this work; do not treat them as
-regressions here.
+- Every new table follows the project's migration contract: CREATE TABLE →
+  GRANT → ENABLE RLS → POLICY, plus `updated_at` trigger.
+- No client-side money arithmetic: base-currency conversion uses the existing
+  `to_base_amount()` function server-side.
+- Money/communication-adjacent RPCs take deterministic request keys (no
+  `crypto.randomUUID()` on the client), per existing project rule.
+- Verification per wave: targeted architecture test + `tsgo` typecheck + plan
+  file update. The ~145 pre-existing unrelated architecture test failures in
+  the repo are not regressions from this work.
