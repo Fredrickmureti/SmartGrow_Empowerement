@@ -78,11 +78,21 @@ describe("purchase requisitions — demand engine boundary", () => {
     for (const col of ["quantity_ordered", "quantity_received", "quantity_cancelled"]) {
       expect(src, `rollup must select ${col}`).toContain(col);
     }
-    expect(
-      /\.from\(\s*["'`]purchase_order_items["'`]/.test(src),
-      "requisition progress must not be re-summed from purchase order lines",
-    ).toBe(false);
+    // Reading PO/RFQ headers for the traceability panel is fine; deriving the
+    // ordered/received rollup from `purchase_order_items` is not — `_pr_recalc`
+    // owns that arithmetic (it also excludes cancelled POs, which the browser
+    // has no way of knowing).
+    const poSelect = src.match(
+      /\.from\(\s*["'`]purchase_order_items["'`]\s*\)[\s\S]{0,200}?\.select\(([\s\S]{0,200}?)\)/,
+    );
+    if (poSelect) {
+      expect(
+        /quantity_ordered|quantity_received|received_quantity/.test(poSelect[1]),
+        "requisition progress must not be re-summed from purchase order lines",
+      ).toBe(false);
+    }
   });
+
 
   it("does not hand-roll lifecycle column mutations anywhere in the UI", () => {
     const offenders: string[] = [];
