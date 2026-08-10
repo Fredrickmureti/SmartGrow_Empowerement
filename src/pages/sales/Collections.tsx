@@ -89,12 +89,23 @@ export default function Collections() {
   }, [data, bucket, search]);
 
   const summary = data?.summary;
+  // Net AR position: open residuals less unapplied customer credit (the aging
+  // RPC returns credit rows with a negative residual).
   const totalAR = summary?.total ?? 0;
+  // Overdue = every bucket except `not_due`. `current` is 0-30 days PAST DUE,
+  // so excluding it (the old behaviour) understated overdue exposure.
   const overdueTotal =
-    (summary?.days30 ?? 0) + (summary?.days60 ?? 0) + (summary?.days90 ?? 0);
+    (summary?.current ?? 0) +
+    (summary?.days30 ?? 0) +
+    (summary?.days60 ?? 0) +
+    (summary?.days90 ?? 0);
+  const notDueTotal = summary?.not_due ?? 0;
   const pctOverdue = totalAR > 0 ? Math.round((overdueTotal / totalAR) * 100) : 0;
   const customers90Plus = (data?.contacts ?? []).filter(
-    (c) => (c.buckets.days90 ?? 0) > 0,
+    (c) => (c.buckets.days90 ?? 0) > 0.01,
+  ).length;
+  const customersInCredit = (data?.contacts ?? []).filter(
+    (c) => (c.buckets.total ?? 0) < -0.01,
   ).length;
 
   return (
@@ -110,11 +121,12 @@ export default function Collections() {
       </header>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total AR" value={formatCurrency(totalAR)} />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <KpiCard label="Net AR" value={formatCurrency(totalAR)} />
+        <KpiCard label="Not yet due" value={formatCurrency(notDueTotal)} />
         <KpiCard label="Overdue" value={formatCurrency(overdueTotal)} accent />
         <KpiCard label="% Overdue" value={`${pctOverdue}%`} />
-        <KpiCard label="Customers 60+ days" value={String(customers90Plus)} />
+        <KpiCard label="Customers 90+ days" value={String(customers90Plus)} />
       </div>
 
       {/* Filters */}
@@ -129,15 +141,19 @@ export default function Collections() {
           />
         </div>
         <Select value={bucket} onValueChange={(v) => setBucket(v as Bucket)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[200px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All outstanding</SelectItem>
-            <SelectItem value="current">Current</SelectItem>
-            <SelectItem value="days30">1–30 days</SelectItem>
-            <SelectItem value="days60">31–60 days</SelectItem>
-            <SelectItem value="days90">60+ days</SelectItem>
+            <SelectItem value="not_due">{BUCKET_LABELS.not_due}</SelectItem>
+            <SelectItem value="current">{BUCKET_LABELS.current}</SelectItem>
+            <SelectItem value="days30">{BUCKET_LABELS.days30}</SelectItem>
+            <SelectItem value="days60">{BUCKET_LABELS.days60}</SelectItem>
+            <SelectItem value="days90">{BUCKET_LABELS.days90}</SelectItem>
+            <SelectItem value="in_credit">
+              In credit{customersInCredit > 0 ? ` (${customersInCredit})` : ""}
+            </SelectItem>
           </SelectContent>
         </Select>
       </Card>
@@ -149,14 +165,16 @@ export default function Collections() {
             <TableRow>
               <TableHead className="w-8" />
               <TableHead>Customer</TableHead>
-              <TableHead className="text-right">Current</TableHead>
-              <TableHead className="text-right">1–30</TableHead>
-              <TableHead className="text-right">31–60</TableHead>
-              <TableHead className="text-right">60+</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days60}</TableHead>
+              <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days90}</TableHead>
+              <TableHead className="text-right">Net outstanding</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
