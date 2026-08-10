@@ -584,9 +584,14 @@ export default function Bills() {
     overdue: apSummary.totalOverdue,
   };
 
+  // Match state for the visible page only — written solely by
+  // `match_bill_atomic`, read here to give the list a Match column.
+  const matchResults = useBillMatchResults(filteredBills.map((b) => b.id));
+
   const pendingApprovalCount = filteredBills.filter(
     (b) => b.status === "submitted" || b.status === "approved"
   ).length;
+
 
   const handleSubmitForApproval = async (id: string) => {
     try {
