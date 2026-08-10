@@ -336,6 +336,103 @@ async function handleLegalOrderStatusChanged(row: OutboxRow): Promise<void> {
   await fanoutFinanceAndEss(row);
 }
 
+// --- RFQ sourcing fabric -------------------------------------------------
+// The RFQ domain owns the *intent* to invite a supplier; delivery belongs to
+// the communication subsystem. `rfq_release` / `rfq_invitation_resend` queue
+// invitations and emit rfq.supplier_invitation_requested; this handler drains
+// that intent into actual email sends. A provider failure marks the single
+// invitation `failed` (retried on the next attempt up to 5) and never rolls
+// back the RFQ lifecycle state.
+async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
+  const payload = (row.payload ?? {}) as { rfq_id?: string };
+  const rfqId = payload.rfq_id ?? row.source_doc_id;
+  if (!rfqId) throw new Error("rfq.supplier_invitation_requested: missing rfq_id");
+
+  const { data: claimed, error: claimErr } = await admin.rpc(
+    "rfq_invitations_claim_for_delivery",
+    { _rfq_id: rfqId, _max_attempts: 5, _limit: 50 },
+  );
+  if (claimErr) throw new Error(`claim invitations: ${claimErr.message}`);
+
+  const invitations = (claimed ?? []) as Array<{
+    invitation_id: string;
+    supplier_id: string;
+    contact_email: string | null;
+    rfq_number: string;
+    response_deadline: string | null;
+    attempt: number;
+  }>;
+
+  let permanentFailures = 0;
+  for (const inv of invitations) {
+    if (!inv.contact_email) {
+      await admin.rpc("rfq_invitation_record_delivery", {
+        _invitation_id: inv.invitation_id,
+        _state: "failed",
+        _error: "No email address on file for this supplier",
+      });
+      permanentFailures++;
+      continue;
+    }
+    try {
+      const deadline = inv.response_deadline
+        ? new Date(inv.response_deadline).toISOString().slice(0, 10)
+        : null;
+      const { data, error } = await admin.functions.invoke("send-document-email", {
+        body: {
+          documentType: "rfq",
+          documentId: rfqId,
+          recipientEmail: inv.contact_email,
+          subject: `Request for Quotation ${inv.rfq_number}`,
+          message:
+            `You have been invited to quote on request for quotation ${inv.rfq_number}.` +
+            (deadline ? `\n\nResponses are due by ${deadline}.` : "") +
+            `\n\nPlease submit your quotation through the supplier portal.`,
+          autoGeneratePdf: false,
+        },
+      });
+      if (error) throw new Error(error.message ?? String(error));
+      if (data && (data as { success?: boolean }).success === false) {
+        throw new Error((data as { error?: string }).error ?? "send-document-email reported failure");
+      }
+      await admin.rpc("rfq_invitation_record_delivery", {
+        _invitation_id: inv.invitation_id, _state: "sent", _error: null,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await admin.rpc("rfq_invitation_record_delivery", {
+        _invitation_id: inv.invitation_id, _state: "failed", _error: msg,
+      });
+      console.warn(JSON.stringify({
+        event_id: row.id, event_type: row.event_type,
+        invitation_id: inv.invitation_id, warn: "invitation delivery failed", error: msg,
+      }));
+      permanentFailures++;
+    }
+  }
+
+  // The event itself succeeds: per-invitation outcomes are durable on
+  // rfq_invitations. Requeueing the whole event would re-send to suppliers
+  // that already received it. Retries are user-driven (resend) or picked up
+  // by the next requested event, which re-claims only queued/failed rows.
+  console.log(JSON.stringify({
+    event_id: row.id, event_type: row.event_type, rfq_id: rfqId,
+    attempted: invitations.length, failed: permanentFailures,
+  }));
+}
+
+// Lifecycle topics whose state is already durable in `rfqs` /
+// `rfq_quotations` / `rfq_awards`. They exist for audit, analytics and
+// (later) notification consumers. Registered explicitly so the closed
+// registry does not dead-letter them, and so adding a real consumer later is
+// a one-line change rather than a schema archaeology exercise.
+async function handleRfqLifecycleNoop(row: OutboxRow): Promise<void> {
+  console.log(JSON.stringify({
+    event_id: row.id, event_type: row.event_type,
+    source_doc_id: row.source_doc_id, outcome: "recorded",
+  }));
+}
+
 const HANDLERS: Record<string, HandlerFn> = {
   "pos.sale.committed":              handlePosSaleCommitted,
   "inventory.movement.recorded":     handleInventoryMovementRecorded,
@@ -359,6 +456,18 @@ const HANDLERS: Record<string, HandlerFn> = {
 
   // ADR-0094 Phase 5 — canonical status_changed emitted by the DB trigger
   "legal_order.status_changed":        handleLegalOrderStatusChanged,
+
+  // RFQ / sourcing
+  "rfq.supplier_invitation_requested": handleRfqInvitationRequested,
+  "rfq.submitted":                     handleRfqLifecycleNoop,
+  "rfq.approved":                      handleRfqLifecycleNoop,
+  "rfq.revised":                       handleRfqLifecycleNoop,
+  "rfq.quotation_recorded":            handleRfqLifecycleNoop,
+  "rfq.quotation_withdrawn":           handleRfqLifecycleNoop,
+  "rfq.awarded":                       handleRfqLifecycleNoop,
+  "rfq.converted_to_purchase_order":   handleRfqLifecycleNoop,
+  "rfq.cancelled":                     handleRfqLifecycleNoop,
+  "rfq.expired":                       handleRfqLifecycleNoop,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
