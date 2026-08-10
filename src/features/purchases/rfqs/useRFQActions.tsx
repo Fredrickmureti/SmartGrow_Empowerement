@@ -46,8 +46,10 @@ export function useRFQActions(
   return useMemo<DocumentAction[]>(() => {
     if (!rfq) return [];
     const status = rfq.status as string;
+    const gated = Boolean((rfq as { approval_request_id?: string | null }).approval_request_id);
     const isDraft = status === "draft";
     const isLive = ["sent", "responses_received", "under_evaluation"].includes(status);
+
     const cancellable = [
       "draft",
       "pending_approval",
@@ -77,14 +79,26 @@ export function useRFQActions(
         onSelect: () => submitForApproval(rfq.id),
       },
       {
+        /**
+         * Approval is owned by the ONE canonical governance engine
+         * (`approval_route` / `approval_decide`, configured at
+         * /settings/workspace > Governance). When `approval_request_id` is
+         * set the RFQ is gated: the decision must be taken in Approvals and
+         * `rfq_approve` will refuse. Never add a second approval engine or a
+         * module-local threshold check here.
+         */
         id: "approve",
-        label: "Approve",
+        label: gated ? "Review in Approvals" : "Approve",
         icon: CheckCircle2,
         group: "core",
         primary: status === "pending_approval",
         hidden: status !== "pending_approval",
-        onSelect: () => approveRFQ(rfq.id),
+        onSelect: () =>
+          gated
+            ? navigate("/settings/workspace?tab=governance")
+            : approveRFQ(rfq.id),
       },
+
       {
         id: "release",
         label: "Release to suppliers",
