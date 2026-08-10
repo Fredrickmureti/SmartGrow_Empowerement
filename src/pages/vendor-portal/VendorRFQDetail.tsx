@@ -372,6 +372,37 @@ export default function VendorRFQDetail() {
         </Card>
       )}
 
+      {/*
+        Bid attachments hang off a quotation version, so they only become
+        available once the supplier has submitted a bid. Revising the bid
+        carries the documents forward server-side.
+      */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Supporting documents</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {quotation ? (
+            <BidAttachmentsPanel
+              rfqId={rfq.id}
+              quotationId={quotation.id}
+              canEdit={canSubmit}
+              emptyLabel={
+                canSubmit
+                  ? "Attach technical specs, certificates or a signed price list to your bid."
+                  : "No supporting documents attached."
+              }
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Submit your quote first — supporting documents attach to a bid version.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Your pricing</CardTitle>
