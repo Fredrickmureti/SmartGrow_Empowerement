@@ -222,7 +222,7 @@ export default function RFQs() {
                     rfq_number: rfq.rfq_number,
                     deadline: rfq.deadline ? format(new Date(rfq.deadline), "MMM d, yyyy") : "—",
                     status: rfq.status,
-                    vendors: (rfq.invitations || []).map((v: any) => v.vendor?.name).filter(Boolean).join(", "),
+                    vendors: (rfq.invitations || []).map((v: any) => v.supplier?.name).filter(Boolean).join(", "),
                     items_count: (rfq.items || []).length,
                     estimated_value: getRFQEstimatedValue(rfq),
                   })),
