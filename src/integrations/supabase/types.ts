@@ -88085,6 +88085,26 @@ export type Database = {
           weight_sum_warning: boolean
         }[]
       }
+      fetch_collector_assignments_with_names: {
+        Args: { _org_id: string }
+        Returns: {
+          active: boolean
+          assigned_at: string
+          collector_email: string
+          collector_name: string
+          collector_user_id: string
+          contact_id: string
+          id: string
+        }[]
+      }
+      fetch_org_members: {
+        Args: { _org_id: string }
+        Returns: {
+          email: string
+          full_name: string
+          user_id: string
+        }[]
+      }
       filtered_employee_directory: {
         Args: {
           p_branch_ids?: string[]
