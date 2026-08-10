@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { isBillOverdue } from "@/features/purchases/bills/billStatus";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,8 @@ export default function PurchasesDashboard() {
   // Bill pipeline
   const draftBills = bills.filter(b => b.status === "draft");
   const receivedBills = bills.filter(b => b.status === "received");
-  const overdueBills = bills.filter(b => b.status === "overdue");
+  // Overdue is derived from due date + balance (Step 2b), never stored.
+  const overdueBills = bills.filter(b => isBillOverdue(b));
   const paidBills = bills.filter(b => b.status === "paid");
   const outstandingBills = bills.filter(b => ["received", "partial", "overdue"].includes(b.status));
   const totalPayable = outstandingBills.reduce((s, b) => s + (b.total - (b.amount_paid || 0)), 0);

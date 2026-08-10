@@ -110,6 +110,9 @@ import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 import { useApSummary } from "@/hooks/useApSummary";
 import { useBillMatchResults } from "@/hooks/useBillMatch";
+import { deriveBillStatus } from "@/features/purchases/bills/billStatus";
+import { useBillsPaginated } from "@/hooks/useBillsPaginated";
+import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { BillMatchBadge } from "@/features/purchases/bills/BillMatchPanel";
 
 
@@ -202,7 +205,6 @@ export default function Bills() {
 
   const {
     bills,
-    isLoading,
     requireBillApproval,
     getNextBillNumber,
     createBill,
@@ -256,6 +258,25 @@ export default function Bills() {
   });
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Server-side paged read model for the list. `useBills` above stays the
+  // write surface (create / confirm / approve / pay); the rows on screen come
+  // from `useBillsPaginated`, which pushes search, status and date filters to
+  // the database so an AP ledger of any size loads one page at a time.
+  const {
+    bills: pagedBills,
+    isLoading,
+    isFetching,
+    pagination,
+    setPage,
+    setPageSize,
+    refetch: refetchBillsPage,
+  } = useBillsPaginated({
+    search: searchQuery,
+    status: statusFilter,
+    dateFrom,
+    dateTo,
+  });
+
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
   // isSubmitting removed with the inline create dialog.
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -463,7 +484,7 @@ export default function Bills() {
   // handleRecordPayment removed — using shared RecordBillPaymentDialog
 
   const openPaymentDialog = (billId: string) => {
-    const bill = bills.find((b) => b.id === billId);
+    const bill = pagedBills.find((b) => b.id === billId) ?? bills.find((b) => b.id === billId);
     if (bill) {
       setSelectedBillForPayment(bill);
       setShowPaymentDialog(true);
@@ -541,25 +562,17 @@ export default function Bills() {
   // Export selected bills
   const handleExportSelected = () => {
     const billsToExport = selectedBills.size > 0 
-      ? bills.filter((b) => selectedBills.has(b.id))
-      : bills;
+      ? pagedBills.filter((b) => selectedBills.has(b.id))
+      : pagedBills;
     exportBills(billsToExport);
   };
 
-  const filteredBills = bills.filter((bill) => {
-    const matchesSearch =
-      bill.bill_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bill.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bill.status === statusFilter;
-    let matchesDate = true;
-    if (dateFrom) {
-      matchesDate = matchesDate && bill.bill_date >= dateFrom;
-    }
-    if (dateTo) {
-      matchesDate = matchesDate && bill.bill_date <= dateTo;
-    }
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+  // Search / status / date filtering happens server-side in
+  // `useBillsPaginated`. The only client-side narrowing left is the custom
+  // field filter, which resolves to a set of entity ids.
+  const filteredBills = isCustomFiltering
+    ? pagedBills.filter((bill) => filterEntityIds?.has(bill.id))
+    : pagedBills;
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -599,7 +612,7 @@ export default function Bills() {
   const handleSubmitForApproval = async (id: string) => {
     try {
       await submitBillForApproval(id);
-      await Promise.all([refreshBills(), refreshApSummary()]);
+      await Promise.all([refreshBills(), refetchBillsPage(), refreshApSummary()]);
     } catch {
       /* toast already surfaced by the hook */
     }
@@ -608,7 +621,7 @@ export default function Bills() {
   const handleApproveBill = async (id: string) => {
     try {
       await approveBill(id);
-      await Promise.all([refreshBills(), refreshApSummary()]);
+      await Promise.all([refreshBills(), refetchBillsPage(), refreshApSummary()]);
     } catch {
       /* toast already surfaced by the hook */
     }
@@ -619,7 +632,7 @@ export default function Bills() {
     if (!reason?.trim()) return;
     try {
       await rejectBill(id, reason);
-      await Promise.all([refreshBills(), refreshApSummary()]);
+      await Promise.all([refreshBills(), refetchBillsPage(), refreshApSummary()]);
     } catch {
       /* toast already surfaced by the hook */
     }
@@ -628,7 +641,7 @@ export default function Bills() {
   const handlePostBill = async (id: string) => {
     try {
       await confirmBill(id);
-      await Promise.all([refreshBills(), refreshApSummary()]);
+      await Promise.all([refreshBills(), refetchBillsPage(), refreshApSummary()]);
     } catch {
       /* toast already surfaced by the hook */
     }
@@ -667,8 +680,8 @@ export default function Bills() {
               formats={["excel", "csv", "print", "pdf"]}
               getExportConfig={() => {
                 const billData = selectedBills.size > 0
-                  ? bills.filter((b) => selectedBills.has(b.id))
-                  : bills;
+                  ? pagedBills.filter((b) => selectedBills.has(b.id))
+                  : pagedBills;
                 const cols: ExportColumn[] = [
                   { key: "bill_number", header: "Bill #", width: 14 },
                   { key: "date", header: "Bill Date", width: 12 },
@@ -746,11 +759,11 @@ export default function Bills() {
         <div className="stats-grid grid-cols-2 sm:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Bills</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Bills on this page</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(totals.total, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{filteredBills.length} bills</p>
+              <p className="text-xs text-muted-foreground">{filteredBills.length} of {pagination.totalCount} bills</p>
             </CardContent>
           </Card>
           <Card>
@@ -898,7 +911,7 @@ export default function Bills() {
                     </TableCell>
                     <TableCell>{format(new Date(bill.bill_date), "MMM d, yyyy")}</TableCell>
                     <TableCell>{format(new Date(bill.due_date), "MMM d, yyyy")}</TableCell>
-                    <TableCell><BillWorkflowPipeline status={bill.status} /></TableCell>
+                    <TableCell><BillWorkflowPipeline status={deriveBillStatus(bill)} /></TableCell>
                     <TableCell><BillMatchBadge result={matchResults[bill.id]} /></TableCell>
 
                     <TableCell className="text-right">{formatCurrency(bill.total, bill.currency)}</TableCell>
@@ -1020,6 +1033,12 @@ export default function Bills() {
               )}
             </TableBody>
           </Table>
+          <DataTablePagination
+            pagination={pagination}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            isLoading={isFetching}
+          />
         </div>}
       </div>
 

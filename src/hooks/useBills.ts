@@ -138,6 +138,13 @@ export interface DuplicateVendorInvoice {
 }
 
 
+/**
+ * Safety cap on the write-surface working set. The list view is paginated
+ * (`useBillsPaginated`); anything that needs the full ledger must query the
+ * server, never this array.
+ */
+const BILLS_WORKING_SET = 500;
+
 export function useBills() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -177,7 +184,12 @@ export function useBills() {
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .order("bill_date", { ascending: false });
+        .order("bill_date", { ascending: false })
+        // Bounded read. `useBills` is the WRITE surface (create / confirm /
+        // approve / pay) and only needs a working set; the Bills list reads
+        // through `useBillsPaginated`, which pages server-side. The cap stops
+        // an unbounded AP ledger from being pulled into the browser.
+        .range(0, BILLS_WORKING_SET - 1);
       // Branch isolation: matches active branch OR legacy NULL.
       q = applyBranchFilter(q, currentBranch?.id ?? null);
       const { data, error } = await q;
