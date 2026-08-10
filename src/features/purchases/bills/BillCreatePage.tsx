@@ -86,7 +86,16 @@ export default function BillCreatePage() {
   const { products } = useProducts();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
-  const { getNextBillNumber, createBill, getDefaultDueDate } = useBills();
+  const {
+    getNextBillNumber,
+    createBill,
+    getDefaultDueDate,
+    findDuplicateVendorInvoice,
+    requireBillApproval,
+  } = useBills();
+  // Duplicate supplier-invoice warning (C1). The DB trigger is the hard stop;
+  // this surfaces the clashing bill before the user submits.
+  const [duplicates, setDuplicates] = useState<DuplicateVendorInvoice[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
   const [isSubmitting, setIsSubmitting] = useState(false);
