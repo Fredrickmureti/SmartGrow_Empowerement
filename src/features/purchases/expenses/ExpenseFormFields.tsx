@@ -91,6 +91,8 @@ export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
     expense_date: format(new Date(), "yyyy-MM-dd"),
     amount: 0,
     tax_amount: 0,
+    tax_rate_id: null,
+    tax_treatment: "recoverable",
     description: "",
     reference: "",
     category_id: "",
@@ -101,6 +103,8 @@ export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
     payment_method: "cash",
     payment_account_id: "",
     project_id: null,
+    department_id: null,
+    analytic_account_id: null,
   };
 }
 
