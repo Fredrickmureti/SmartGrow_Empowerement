@@ -41,7 +41,19 @@ import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
 
 export type ExpenseTaxTreatment = "recoverable" | "non_recoverable";
 
+/**
+ * Who funded the outflow. This is the first question the capture flow
+ * asks because it decides the credit side of the posting:
+ *   company      → cash / bank / mobile money (or an explicitly chosen account)
+ *   company_card → the card clearing account
+ *   employee     → the employee reimbursements payable, settled later
+ * `post_expense_gl` resolves the account server-side when none is picked.
+ */
+export type ExpensePaidBy = "company" | "company_card" | "employee";
+
 export interface ExpenseFormValues {
+  paid_by: ExpensePaidBy;
+  employee_id: string | null;
   expense_date: string;
   amount: number;
   /** Server-computed from `tax_rate_id`; read-only in the UI. */
@@ -87,8 +99,36 @@ interface Props {
   disabled?: boolean;
 }
 
+const PAYER_OPTIONS: { value: ExpensePaidBy; label: string; hint: string }[] = [
+  {
+    value: "company",
+    label: "Company cash or bank",
+    hint: "Money left a company account directly.",
+  },
+  {
+    value: "company_card",
+    label: "Company card",
+    hint: "Settled later against the card clearing account.",
+  },
+  {
+    value: "employee",
+    label: "Employee out of pocket",
+    hint: "Creates a reimbursement owed to the employee.",
+  },
+];
+
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: "cash", label: "Cash" },
+  { value: "petty_cash", label: "Petty cash" },
+  { value: "bank", label: "Bank transfer" },
+  { value: "mobile_money", label: "Mobile money" },
+  { value: "cheque", label: "Cheque" },
+];
+
 export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
   return {
+    paid_by: "company",
+    employee_id: null,
     expense_date: format(new Date(), "yyyy-MM-dd"),
     amount: 0,
     tax_amount: 0,
@@ -108,6 +148,7 @@ export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
     analytic_account_id: null,
   };
 }
+
 
 export function ExpenseFormFields({
   value,
