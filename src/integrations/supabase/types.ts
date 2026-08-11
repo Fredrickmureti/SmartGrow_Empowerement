@@ -53402,6 +53402,7 @@ export type Database = {
       }
       purchase_orders: {
         Row: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -53440,6 +53441,7 @@ export type Database = {
           vendor_notes: string | null
         }
         Insert: {
+          approval_client_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           billing_status?: string
@@ -53478,6 +53480,7 @@ export type Database = {
           vendor_notes?: string | null
         }
         Update: {
+          approval_client_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           billing_status?: string
@@ -75729,6 +75732,83 @@ export type Database = {
           },
         ]
       }
+      inventory_expected_supply: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          earliest_expected_date: string | null
+          expected_quantity: number | null
+          open_po_count: number | null
+          organization_id: string | null
+          product_id: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_deliver_to_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_order_effective_kind_defaults: {
         Row: {
           aggregate_cap_membership:
@@ -83922,6 +84002,7 @@ export type Database = {
       acknowledge_purchase_order: {
         Args: { p_po_id: string; p_vendor_notes?: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -84744,8 +84825,9 @@ export type Database = {
         }
       }
       approve_purchase_order: {
-        Args: { p_po_id: string }
+        Args: { p_client_request_id?: string; p_po_id: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -85696,6 +85778,7 @@ export type Database = {
       cancel_purchase_order: {
         Args: { p_po_id: string; p_reason?: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -86518,6 +86601,7 @@ export type Database = {
       close_purchase_order: {
         Args: { p_po_id: string; p_reason?: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -91443,6 +91527,10 @@ export type Database = {
         Args: { _app_id: string }
         Returns: string
       }
+      notify_po_supplier_release: {
+        Args: { _event_id: string; _po_id: string }
+        Returns: undefined
+      }
       notify_probation_expiry: { Args: never; Returns: number }
       open_loading_manifest: {
         Args: {
@@ -94896,6 +94984,7 @@ export type Database = {
       reject_purchase_order: {
         Args: { p_po_id: string; p_reason: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -95005,6 +95094,54 @@ export type Database = {
       release_pos_stock_reservation: {
         Args: { p_product_id?: string; p_register_id: string }
         Returns: undefined
+      }
+      release_purchase_order: {
+        Args: { p_po_id: string }
+        Returns: {
+          approval_client_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          billing_status: string
+          branch_id: string | null
+          business_id: string
+          contract_id: string | null
+          converted_at: string | null
+          converted_bill_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
+          discount_amount: number | null
+          expected_date: string | null
+          id: string
+          is_sample_data: boolean
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          project_id: string | null
+          requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
+          shipping_address: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_confirmed_at: string | null
+          vendor_id: string
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       release_reserved_stock: {
         Args: {
@@ -96214,6 +96351,7 @@ export type Database = {
       revise_purchase_order: {
         Args: { p_po_id: string; p_reason: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -96751,6 +96889,7 @@ export type Database = {
       submit_purchase_order: {
         Args: { p_po_id: string }
         Returns: {
+          approval_client_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           billing_status: string
@@ -99688,6 +99827,14 @@ export type Database = {
       wms_plan_waves: {
         Args: { p_strategy_id?: string; p_warehouse_id: string }
         Returns: Json
+      }
+      wms_po_ensure_expected_inbound: {
+        Args: { _event_id: string; _po_id: string }
+        Returns: undefined
+      }
+      wms_po_withdraw_expected_inbound: {
+        Args: { _event_id: string; _po_id: string }
+        Returns: undefined
       }
       wms_post_incentive_inputs: {
         Args: {
