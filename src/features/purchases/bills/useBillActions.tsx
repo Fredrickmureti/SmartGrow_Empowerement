@@ -230,11 +230,19 @@ export function useBillActions(
       },
       {
         id: "print",
-        label: "Print",
+        label: printing ? "Generating…" : "Print",
         icon: Printer,
         group: "output",
         disabled: printing,
         onSelect: () => void print(bill.id, `Bill ${bill.bill_number}`),
+      },
+      {
+        id: "download",
+        label: downloading ? "Preparing…" : "Download PDF",
+        icon: Download,
+        group: "output",
+        disabled: downloading,
+        onSelect: () => void download(bill.id, `bill-${bill.bill_number}`),
       },
       {
         id: "email",
