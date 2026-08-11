@@ -95,6 +95,22 @@ describe("expense domain — no local engine", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("no client code authors server-owned expense columns at insert", () => {
+    const offenders: string[] = [];
+    for (const file of FILES) {
+      const src = readFileSync(file, "utf8");
+      for (const chain of expenseWrites(src)) {
+        if (!/\.(insert|upsert)\s*\(/.test(chain)) continue;
+        for (const column of INSERT_FORBIDDEN_COLUMNS) {
+          if (new RegExp(`\\b${column}\\s*:`).test(chain)) {
+            offenders.push(`${file} → ${column}`);
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("expense lifecycle transitions use the canonical RPCs", () => {
     const RETIRED = [
       "approve_expense(",
