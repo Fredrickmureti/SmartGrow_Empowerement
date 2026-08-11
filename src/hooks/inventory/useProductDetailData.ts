@@ -198,7 +198,7 @@ export function useProductDetailData({
         identifiers: (identifiersRes as any).data ?? [],
         reorderRules: (rrRes as any).data ?? [],
         recentMovements: (mvRes as any).data ?? [],
-        incomingPo: { totalQty, openOrders: openOrderIds.size },
+        incomingPo: { totalQty, openOrders },
         velocityPerWeek: outbound / 4,
       };
     },
