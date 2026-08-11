@@ -62,11 +62,17 @@ export default function FiscalComplianceWorkspace() {
     queryKey: ["fiscal-workspace-gate", orgId],
     queryFn: async () => {
       if (!orgId) return { enabled: false, provider: null as null | { provider_key: string; provider_name: string } };
+      const sel = (s: string): string => s;
       const { data } = await supabase
         .from("localization_pack_fiscal_providers")
-        .select("provider_key, provider_name, installed:installed_localization_packs!inner(organization_id)")
+        .select(
+          sel(
+            "provider_key, provider_name, installed:installed_localization_packs!inner(organization_id)",
+          ),
+        )
         .eq("installed.organization_id", orgId)
-        .limit(1);
+        .limit(1)
+        .returns<{ provider_key: string; provider_name: string }[]>();
       const row = (data ?? [])[0] as { provider_key: string; provider_name: string } | undefined;
       return { enabled: !!row, provider: row ?? null };
     },
