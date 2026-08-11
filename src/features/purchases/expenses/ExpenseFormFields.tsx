@@ -178,19 +178,59 @@ export function ExpenseFormFields({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tax_amount">Tax amount</Label>
-            <Input
-              id="tax_amount"
-              type="number"
-              step="0.01"
-              min="0"
-              value={value.tax_amount}
-              onChange={(e) =>
-                onChange({ tax_amount: parseFloat(e.target.value) || 0 })
+            <Label htmlFor="tax_rate">Tax rate</Label>
+            <Select
+              value={value.tax_rate_id ?? "none"}
+              onValueChange={(v) =>
+                onChange({ tax_rate_id: v === "none" ? null : v })
               }
               disabled={disabled}
-            />
+            >
+              <SelectTrigger id="tax_rate">
+                <SelectValue placeholder="No tax" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No tax</SelectItem>
+                {activeTaxRates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                    {t.tax_type === "fixed"
+                      ? ` (${t.fixed_amount})`
+                      : ` (${t.rate}%)`}
+                    {t.is_inclusive ? " · inclusive" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Tax of {previewTax.toFixed(2)} — computed on the server from the
+              selected rate.
+            </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tax_treatment">Tax treatment</Label>
+            <Select
+              value={value.tax_treatment}
+              onValueChange={(v) =>
+                onChange({ tax_treatment: v as ExpenseTaxTreatment })
+              }
+              disabled={disabled || !value.tax_rate_id}
+            >
+              <SelectTrigger id="tax_treatment">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recoverable">
+                  Recoverable — claim as input tax
+                </SelectItem>
+                <SelectItem value="non_recoverable">
+                  Non-recoverable — add to expense cost
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="currency">Currency</Label>
