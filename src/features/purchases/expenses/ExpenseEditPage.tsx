@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useContacts } from "@/hooks/useContacts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
+import { isExpenseEditable } from "@/lib/finance/expenseCommands";
 import { useExpensesPaginated } from "@/hooks/useExpensesPaginated";
 import { useExpenseRecord } from "./useExpenseRecord";
 import {
@@ -144,11 +145,11 @@ export default function ExpenseEditPage() {
       />
     );
   }
-  if (record.status !== "pending") {
+  if (!isExpenseEditable(record.status)) {
     return (
       <ErrorState
         title="This expense can no longer be edited"
-        description={`Only pending expenses can be edited. This expense is ${record.status}. Void or delete it first if you need to change the amount.`}
+        description={`Only unposted expenses can be edited. This expense is ${record.status}. Void it first if you need to change the amount.`}
         onRetry={() => navigate("/purchases/expenses")}
       />
     );

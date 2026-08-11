@@ -87,6 +87,8 @@ import {
   Info,
   Eye,
   Ban,
+  Send,
+  Check,
 } from "lucide-react";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
@@ -113,6 +115,7 @@ import { usePeekParam } from "@/design-system";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { normalizeError } from "@/services/resilience";
+import { isExpenseDeletable, isExpenseEditable } from "@/lib/finance/expenseCommands";
 interface PaymentAccount {
   id: string;
   name: string;
@@ -166,6 +169,9 @@ export default function Expenses() {
     setPageSize,
     createExpense,
     updateExpense,
+    submitExpense,
+    approveExpense,
+    rejectExpense,
     deleteExpense,
     voidExpense,
     createCategory,
@@ -303,8 +309,6 @@ export default function Expenses() {
       currency: baseCurrency,
       account_id: null,
       payment_account_id: null,
-      status: "approved",
-      approved_by: null,
       payment_method: row.payment_method || "cash",
     });
   };
@@ -432,7 +436,7 @@ export default function Expenses() {
   const handleOpenDialog = (expense?: Expense) => {
     if (expense) {
       // Accounting lock: approved/paid expenses stay read-only in peek.
-      if (expense.status !== "pending") {
+      if (!isExpenseEditable(expense.status)) {
         setPeekId(expense.id);
         return;
       }
@@ -473,10 +477,8 @@ export default function Expenses() {
         category_id: formData.category_id || null,
         vendor_id: formData.vendor_id || null,
         is_billable: formData.is_billable,
-        status: "approved" as const,
         currency: formData.currency || baseCurrency,
         receipt_url: formData.receipt_url || null,
-        approved_by: null,
         account_id: selectedCategory?.account_id || null,
         payment_method: formData.payment_method || "cash",
         payment_account_id: formData.payment_account_id || null,
@@ -487,14 +489,14 @@ export default function Expenses() {
         await updateExpense(editingExpense.id, expenseData);
         toast({ title: "Expense updated successfully" });
       } else {
-        const result = await createExpense(expenseData);
-        const isAP = !!(expenseData.payment_account_id && defaultAccounts.accounts_payable_id && expenseData.payment_account_id === defaultAccounts.accounts_payable_id);
-        if (isAP && result.billCreated) {
-          toast({ title: "Expense recorded & vendor bill created", description: "The bill is now visible in Purchases → Bills and Finance → Accounts Payable." });
-        } else if (isAP && !result.billCreated) {
-          toast({ title: "Expense recorded (bill creation failed)", description: "Use the 'Create Bill' action on this expense to retry.", variant: "destructive" });
+        const result = await createExpense(expenseData as any);
+        if (result.gated) {
+          toast({
+            title: "Expense submitted for approval",
+            description: "Your approval policy requires a reviewer before this expense is posted.",
+          });
         } else {
-          toast({ title: "Expense recorded successfully" });
+          toast({ title: "Expense recorded and posted" });
         }
       }
       // Dialog surface retired — create/edit now live on
@@ -596,15 +598,47 @@ export default function Expenses() {
 
   const handleDelete = (expense: Expense) => {
     // Only pending expenses can be deleted
-    if (expense.status !== "pending") {
+    if (!isExpenseDeletable(expense.status)) {
       toast({
         title: "Cannot delete",
-        description: "Only pending expenses can be deleted. Use 'Void' for approved or paid expenses.",
+        description: "Only unposted expenses can be deleted. Use 'Void' for approved or paid expenses.",
         variant: "destructive",
       });
       return;
     }
     deleteConfirm.requestDelete(expense);
+  };
+
+  const handleSubmitExpense = async (expense: Expense) => {
+    try {
+      const res = await submitExpense(expense.id);
+      toast({
+        title: res?.gated ? "Submitted for approval" : "Expense approved and posted",
+        description: res?.gated
+          ? "An authorized approver must review this expense before it reaches the ledger."
+          : "No approval rule applied, so the expense posted immediately.",
+      });
+    } catch (error: any) {
+      toast({ title: "Could not submit expense", description: normalizeError(error).message, variant: "destructive" });
+    }
+  };
+
+  const handleApproveExpense = async (expense: Expense) => {
+    try {
+      await approveExpense(expense.id);
+      toast({ title: "Expense approved", description: "The journal entry has been posted." });
+    } catch (error: any) {
+      toast({ title: "Could not approve expense", description: normalizeError(error).message, variant: "destructive" });
+    }
+  };
+
+  const handleRejectExpense = async (expense: Expense) => {
+    try {
+      await rejectExpense(expense.id);
+      toast({ title: "Expense rejected" });
+    } catch (error: any) {
+      toast({ title: "Could not reject expense", description: normalizeError(error).message, variant: "destructive" });
+    }
   };
 
   const handleVoidExpense = async (expense: Expense) => {
@@ -649,11 +683,11 @@ export default function Expenses() {
       // Separate pending (deletable) from posted (must void)
       const pendingIds = allSelected.filter(id => {
         const exp = expenses.find(e => e.id === id);
-        return exp?.status === "pending";
+        return isExpenseDeletable(exp?.status);
       });
       const postedIds = allSelected.filter(id => {
         const exp = expenses.find(e => e.id === id);
-        return exp && exp.status !== "pending" && exp.status !== "voided";
+        return exp && (exp.status === "approved" || exp.status === "paid");
       });
 
       // Void posted expenses
@@ -733,6 +767,8 @@ export default function Expenses() {
 
   const getStatusBadge = (status: Expense["status"]) => {
     const styles: Record<string, string> = {
+      draft: "bg-muted text-muted-foreground",
+      submitted: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
       approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
       rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -740,6 +776,8 @@ export default function Expenses() {
       voided: "bg-muted text-muted-foreground line-through",
     };
     const labels: Record<string, string> = {
+      draft: "Draft",
+      submitted: "Awaiting approval",
       approved: "Approved",
       paid: "Paid",
       pending: "Pending",
@@ -1020,26 +1058,41 @@ export default function Expenses() {
                                 View Details
                               </DropdownMenuItem>
                               {/* Edit — only for pending/draft (Odoo behavior) */}
-                              {expense.status === "pending" && (
+                              {isExpenseEditable(expense.status) && (
                                 <DropdownMenuItem onClick={() => handleOpenDialog(expense)}>
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Edit
                                 </DropdownMenuItem>
                               )}
+                              {/* Lifecycle — the server decides what actually happens */}
+                              {(expense.status === "draft" ||
+                                expense.status === "pending" ||
+                                expense.status === "rejected") && (
+                                <DropdownMenuItem onClick={() => handleSubmitExpense(expense)}>
+                                  <Send className="mr-2 h-4 w-4" />
+                                  Submit for approval
+                                </DropdownMenuItem>
+                              )}
+                              {(expense.status === "submitted" || expense.status === "pending") && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleApproveExpense(expense)}>
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Approve
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleRejectExpense(expense)}
+                                    className="text-destructive"
+                                  >
+                                    <X className="mr-2 h-4 w-4" />
+                                    Reject
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                               {/* Show "Create Bill" for AP expenses without a linked bill */}
                               {isAPAccount(expense.payment_account_id) && !linkedBills[expense.id] && (
                                 <DropdownMenuItem
                                   onClick={async () => {
-                                    const result = await createLinkedBill({
-                                      id: expense.id,
-                                      description: expense.description,
-                                      amount: expense.amount,
-                                      tax_amount: expense.tax_amount || 0,
-                                      expense_date: expense.expense_date,
-                                      vendor_id: expense.vendor_id,
-                                      reference: expense.reference,
-                                      currency: expense.currency,
-                                    });
+                                    const result = await createLinkedBill(expense.id);
                                     if (result.success) {
                                       toast({ title: "Vendor bill created", description: `Bill ${result.bill?.bill_number} is now available in Purchases → Bills.` });
                                       queryClient.invalidateQueries({ queryKey: ["bills"] });
@@ -1064,7 +1117,7 @@ export default function Expenses() {
                                 </DropdownMenuItem>
                               )}
                               {/* Delete — only for pending expenses */}
-                              {expense.status === "pending" && (
+                              {isExpenseDeletable(expense.status) && (
                                 <DropdownMenuItem
                                   onClick={() => handleDelete(expense)}
                                   className="text-destructive"

@@ -9,13 +9,17 @@ import { useToast } from "./use-toast";
 import { useAuditLog } from "./useAuditLog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDefaultAccounts } from "./useDefaultAccounts";
-import { postExpenseGL } from "@/lib/finance/expenseSettlement";
+import {
+  approveExpense as approveExpenseRpc,
+  convertExpenseToBill,
+  isExpenseDeletable,
+  rejectExpense as rejectExpenseRpc,
+  submitExpense as submitExpenseRpc,
+  voidExpenseRpc,
+  type ExpenseStatus,
+} from "@/lib/finance/expenseCommands";
 import { usePermissions } from "./usePermissions";
-import { usePaymentTerms } from "./usePaymentTerms";
-import type { Database } from "@/integrations/supabase/types";
 import { applyBranchFilter } from "@/lib/branchScope";
-
-type BillInsert = Database["public"]["Tables"]["bills"]["Insert"];
 
 export interface ExpenseCategory {
   id: string;
@@ -43,11 +47,17 @@ export interface Expense {
   description: string;
   reference: string | null;
   receipt_url: string | null;
-  status: "pending" | "approved" | "rejected" | "paid" | "voided";
+  status: ExpenseStatus;
   payment_method: string;
+  /** Who fronted the cash: company | employee | company_card. */
+  paid_by?: string | null;
   is_billable: boolean;
   created_by: string | null;
   approved_by: string | null;
+  approval_request_id?: string | null;
+  employee_id?: string | null;
+  base_amount?: number | null;
+  exchange_rate?: number | null;
   journal_entry_id: string | null;
   created_at: string;
   updated_at: string;
@@ -72,7 +82,6 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
   const queryClient = useQueryClient();
   const { accounts } = useDefaultAccounts();
   const { can } = usePermissions();
-  const { defaultPaymentTerm } = usePaymentTerms();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
 
   const { statusFilter, search, pageSize = 50 } = options;
@@ -104,7 +113,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
       query = applyBranchFilter(query, branchId);
 
       if (statusFilter && statusFilter !== "all") {
-        query = query.eq("status", statusFilter as "pending" | "approved" | "rejected" | "paid");
+        query = query.eq("status", statusFilter as ExpenseStatus);
       }
 
       if (search) {
@@ -163,154 +172,103 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
   };
 
   /**
-   * Auto-creates a vendor bill linked to an expense when the expense
-   * credits Accounts Payable. This bridges the gap between the expense
-   * record and the operational payable lifecycle.
-   * 
-   * Includes retry logic: attempts once, retries once on failure.
+   * Converts an expense into a vendor bill.
+   *
+   * The bill is minted by `public.expense_convert_to_bill` in a single
+   * transaction: numbering, header, line and audit entry together, guarded by a
+   * unique index on `bills.source_expense_id` so a retry can never produce a
+   * second bill. The browser no longer composes bills — that was the source of
+   * duplicate payables.
    */
-  const createLinkedBill = async (expenseData: {
-    id: string;
-    description: string;
-    amount: number;
-    tax_amount: number;
-    expense_date: string;
-    vendor_id: string | null;
-    reference: string | null;
-    currency?: string | null;
-  }): Promise<{ success: boolean; bill?: any; error?: string }> => {
-    if (!currentOrg || !currentBusiness || !user) {
-      return { success: false, error: "Missing organization, business, or user context" };
-    }
-
-    const attemptCreate = async (): Promise<any> => {
-      // Get next bill number
-      const { data: billNumber, error: numError } = await supabase.rpc("get_next_bill_number", {
-        _org_id: currentOrg.id,
-        _business_id: currentBusiness.id,
-        _branch_id: currentBranch?.id ?? null,
-      } as any);
-      if (numError) throw numError;
-      if (!billNumber) throw new Error("Failed to generate bill number");
-
-      // Calculate due date from payment terms
-      const billDate = expenseData.expense_date;
-      const dueDate = (() => {
-        const date = new Date(billDate);
-        const days = defaultPaymentTerm?.days || 30;
-        date.setDate(date.getDate() + days);
-        return date.toISOString().split("T")[0];
-      })();
-
-      const subtotal = expenseData.amount - (expenseData.tax_amount || 0);
-
-      const billInsert: BillInsert = {
-        organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
-        // Stage 3: stamp active branch (expense→bill is a runtime event).
-        branch_id: currentBranch?.id ?? null,
-        created_by: user.id,
-        bill_number: billNumber,
-        vendor_id: expenseData.vendor_id,
-        bill_date: billDate,
-        due_date: dueDate,
-        subtotal: subtotal,
-        tax_amount: expenseData.tax_amount || 0,
-        total: expenseData.amount,
-        amount_paid: 0,
-        status: "received",
-        currency: expenseData.currency || currentBusiness?.base_currency,
-        notes: `Auto-created from expense: ${expenseData.description}`,
-        vendor_invoice_number: expenseData.reference,
-        source_expense_id: expenseData.id,
-      } as BillInsert;
-
-      const { data: bill, error: billError } = await supabase
-        .from("bills")
-        .insert(billInsert)
-        .select()
-        .single();
-
-      if (billError) throw billError;
-
-      // Create a single line item for the bill
-      await supabase.from("bill_items").insert({
-        bill_id: bill.id,
-        description: expenseData.description,
-        quantity: 1,
-        unit_price: subtotal,
-        tax_rate: expenseData.tax_amount > 0 ? (expenseData.tax_amount / subtotal) * 100 : 0,
-        tax_amount: expenseData.tax_amount || 0,
-        line_total: subtotal,
-        sort_order: 0,
-      });
-
-      return bill;
-    };
-
-    // Attempt 1
+  const createLinkedBill = async (
+    expenseId: string
+  ): Promise<{ success: boolean; bill?: { id: string; bill_number: string }; error?: string }> => {
     try {
-      const bill = await attemptCreate();
-      
+      const res = await convertExpenseToBill(expenseId);
       logAction({
         action: "created",
         entityType: "bill",
-        entityId: bill.id,
-        entityName: bill.bill_number,
-        changesSummary: `Auto-created bill ${bill.bill_number} from AP expense: ${expenseData.description}`,
+        entityId: res.bill_id,
+        entityName: res.bill_number,
+        changesSummary: `Vendor bill ${res.bill_number} created from expense`,
       });
-
-      return { success: true, bill };
-    } catch (firstError: any) {
-      console.warn("Bill creation attempt 1 failed, retrying:", firstError.message);
-      
-      // Attempt 2 (retry)
-      try {
-        const bill = await attemptCreate();
-        
-        logAction({
-          action: "created",
-          entityType: "bill",
-          entityId: bill.id,
-          entityName: bill.bill_number,
-          changesSummary: `Auto-created bill ${bill.bill_number} from AP expense (retry): ${expenseData.description}`,
-        });
-
-        return { success: true, bill };
-      } catch (retryError: any) {
-        const errorMsg = retryError?.message || "Unknown error";
-        console.error("Bill creation failed after retry:", errorMsg);
-        
-        // Show persistent destructive toast with clear messaging
-        toast({
-          title: "⚠️ Vendor bill was NOT created",
-          description: `The expense was saved and posted to GL, but the linked vendor bill failed: ${errorMsg}. Use the "Create Bill" action on the expense to retry.`,
-          variant: "destructive",
-          duration: 15000, // 15 seconds - much longer than default
-        });
-
-        return { success: false, error: errorMsg };
-      }
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["aging-report"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      return { success: true, bill: { id: res.bill_id, bill_number: res.bill_number } };
+    } catch (err: any) {
+      const errorMsg = err?.message || "Unknown error";
+      toast({
+        title: "Vendor bill was not created",
+        description: errorMsg,
+        variant: "destructive",
+        duration: 12000,
+      });
+      return { success: false, error: errorMsg };
     }
   };
 
+
+  /** Fields the client is allowed to author. Everything else is server-owned. */
+  const stripServerOwned = <T extends Record<string, any>>(input: T) => {
+    const {
+      status,
+      approved_by,
+      approved_at,
+      approval_request_id,
+      journal_entry_id,
+      submitted_by,
+      submitted_at,
+      voided_at,
+      voided_by,
+      rejected_reason,
+      base_amount,
+      reimbursed_at,
+      reimbursed_payslip_id,
+      reimbursed_run_id,
+      category,
+      vendor,
+      payment_account,
+      ...rest
+    } = input as any;
+    return rest;
+  };
+
+  /**
+   * Captures an expense and hands it to the lifecycle engine.
+   *
+   * The row is always inserted as `draft`; `expense_submit` then decides —
+   * from the org's governance rules — whether it waits for approval or is
+   * approved and posted immediately. The browser never writes a status.
+   */
   const createExpense = async (
     expense: Omit<
       Expense,
-      "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "category" | "vendor" | "journal_entry_id"
-    >
-  ): Promise<{ data: any; billCreated: boolean }> => {
+      | "id"
+      | "organization_id"
+      | "created_at"
+      | "updated_at"
+      | "created_by"
+      | "category"
+      | "vendor"
+      | "journal_entry_id"
+      | "status"
+      | "approved_by"
+    > & { submit?: boolean }
+  ): Promise<{ data: any; billCreated: boolean; gated: boolean }> => {
     if (!can("manageFinancials")) throw new Error("Permission denied: cannot create expenses");
     if (!currentOrg || !user) throw new Error("No organization selected");
 
-    const isPayableExpense = isAPAccount(expense.payment_account_id);
+    const { submit = true, ...fields } = expense as any;
 
     const { data, error } = await supabase
       .from("expenses")
       .insert({
-        ...expense,
+        ...stripServerOwned(fields),
+        status: "draft",
         organization_id: currentOrg.id,
         business_id: currentBusiness?.id || null,
+        branch_id: fields.branch_id ?? currentBranch?.id ?? null,
         created_by: user.id,
       } as any)
       .select()
@@ -323,90 +281,27 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
       entityType: "expense",
       entityId: data.id,
       entityName: expense.description,
-      changesSummary: `Created expense: ${expense.description} for ${expense.amount} (${expense.payment_method})${isPayableExpense ? " [AP - linked bill will be created]" : ""}`,
+      changesSummary: `Created expense: ${expense.description} for ${expense.amount} (${expense.payment_method})`,
     });
 
-    let billCreated = false;
-
-    if (isPayableExpense) {
-      // AP expense: create a linked vendor bill + post GL via the expense GL engine
-      if (expense.status === "approved" || expense.status === "paid") {
-        await postExpenseGL(data.id);
-      }
-
-      // Auto-create the linked bill for payable lifecycle management
-      const billResult = await createLinkedBill({
-        id: data.id,
-        description: expense.description,
-        amount: expense.amount,
-        tax_amount: expense.tax_amount || 0,
-        expense_date: expense.expense_date,
-        vendor_id: expense.vendor_id,
-        reference: expense.reference,
-        currency: expense.currency,
-      });
-
-      billCreated = billResult.success;
-
-      // Invalidate bills + aging queries so they appear immediately
-      queryClient.invalidateQueries({ queryKey: ["bills"] });
-      queryClient.invalidateQueries({ queryKey: ["aging-report"] });
-    } else {
-      // Standard expense: post GL normally
-      if (expense.status === "approved" || expense.status === "paid") {
-        await postExpenseGL(data.id);
-      }
+    let gated = false;
+    if (submit) {
+      const res = await submitExpenseRpc(data.id);
+      gated = !!res?.gated;
     }
 
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
-    return { data, billCreated };
+    queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
+    return { data, billCreated: false, gated };
   };
 
+  /** Edits the commercial fields of an unposted expense. Never its state. */
   const updateExpense = async (id: string, updates: Partial<Expense>) => {
-    // Fetch current expense to detect status transitions
-    const currentExpense = result.data.find((e) => e.id === id);
+    const payload = stripServerOwned(updates as any);
 
-    const { error } = await supabase.from("expenses").update(updates as any).eq("id", id);
-
-    if (error) throw error;
-
-    // Post to GL on status transition to approved/paid
-    const statusChanged = updates.status && currentExpense && updates.status !== currentExpense.status;
-    const shouldPostGL = statusChanged && (updates.status === "approved" || updates.status === "paid");
-
-    if (shouldPostGL && currentExpense) {
-      await postExpenseGL(currentExpense.id);
-    }
-
-    // Fix 4: Create linked bill when transitioning to AP account
-    const resolvedPaymentAccountId = updates.payment_account_id !== undefined 
-      ? updates.payment_account_id 
-      : currentExpense?.payment_account_id;
-    
-    if (isAPAccount(resolvedPaymentAccountId || null) && currentExpense) {
-      // Check if a linked bill already exists
-      const { data: existingBill } = await supabase
-        .from("bills")
-        .select("id")
-        .eq("source_expense_id", id)
-        .maybeSingle();
-
-      if (!existingBill) {
-        const mergedExpense = { ...currentExpense, ...updates };
-        await createLinkedBill({
-          id,
-          description: mergedExpense.description || currentExpense.description,
-          amount: mergedExpense.amount || currentExpense.amount,
-          tax_amount: mergedExpense.tax_amount !== undefined ? mergedExpense.tax_amount : currentExpense.tax_amount || 0,
-          expense_date: mergedExpense.expense_date || currentExpense.expense_date,
-          vendor_id: mergedExpense.vendor_id || currentExpense.vendor_id,
-          reference: mergedExpense.reference !== undefined ? mergedExpense.reference : currentExpense.reference,
-          currency: mergedExpense.currency || currentExpense.currency,
-        });
-
-        queryClient.invalidateQueries({ queryKey: ["bills"] });
-        queryClient.invalidateQueries({ queryKey: ["aging-report"] });
-      }
+    if (Object.keys(payload).length > 0) {
+      const { error } = await supabase.from("expenses").update(payload as any).eq("id", id);
+      if (error) throw error;
     }
 
     logAction({
@@ -419,63 +314,67 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
   };
 
+  /** Sends a draft/rejected expense into the approval workflow. */
+  const submitExpense = async (id: string) => {
+    const res = await submitExpenseRpc(id);
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
+    queryClient.invalidateQueries({ queryKey: ["approval-requests"] });
+    return res;
+  };
+
+  /** Approves and posts an expense that policy did not gate. */
+  const approveExpense = async (id: string) => {
+    const res = await approveExpenseRpc(id);
+    logAction({ action: "approved", entityType: "expense", entityId: id, changesSummary: "Approved expense" });
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
+    return res;
+  };
+
+  const rejectExpense = async (id: string, reason?: string) => {
+    const res = await rejectExpenseRpc(id, reason);
+    logAction({ action: "rejected", entityType: "expense", entityId: id, changesSummary: reason ?? "Rejected expense" });
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    return res;
+  };
+
+
   /**
-   * Void an approved/paid expense — creates a reversing JE and preserves the record.
+   * Void an approved/paid expense.
    *
-   * Uses the canonical `void_journal_entry_atomic` RPC which:
-   *  - posts a reversal sub-entry (source_subtype='reversal') in one transaction
-   *  - marks the original JE as 'reversed' (never mutates lines or amounts)
-   *  - is idempotent on double-clicks
-   * This is the ONLY correct way to undo a posted expense.
+   * `expense_void` reverses the journal entry through
+   * `void_journal_entry_atomic`, refuses when the expense has already been
+   * reimbursed or spawned a vendor bill, and records the reason in the audit
+   * trail — all in one transaction.
    */
-  const voidExpense = async (id: string) => {
+  const voidExpense = async (id: string, reason?: string) => {
     const currentExpense = result.data.find((e) => e.id === id);
-    if (!currentExpense) throw new Error("Expense not found");
-    if (currentExpense.status === "pending" || currentExpense.status === "voided") {
-      throw new Error("Only approved or paid expenses can be voided");
-    }
-
-    // Reverse the linked JE atomically (flip dr/cr, mark original reversed)
-    if (currentExpense.journal_entry_id) {
-      const { error: voidErr } = await supabase.rpc("void_journal_entry_atomic", {
-        _entry_id: currentExpense.journal_entry_id,
-        _reason: `Void of expense: ${currentExpense.description}`,
-        _user_id: undefined,
-        _entry_number: null,
-        _reversal_date: null,
-      } as any);
-      if (voidErr) throw voidErr;
-    }
-
-    // Step 2: Set expense status to voided (preserve the record)
-    const { error } = await supabase
-      .from("expenses")
-      .update({ status: "voided" } as any)
-      .eq("id", id);
-    if (error) throw error;
+    const res = await voidExpenseRpc(id, reason ?? (currentExpense ? `Void of expense: ${currentExpense.description}` : null));
 
     logAction({
       action: "voided",
       entityType: "expense",
       entityId: id,
-      entityName: currentExpense.description,
-      changesSummary: `Voided expense: ${currentExpense.description} (${currentExpense.amount}). Reversing JE created.`,
+      entityName: currentExpense?.description,
+      changesSummary: `Voided expense${currentExpense ? `: ${currentExpense.description} (${currentExpense.amount})` : ""}. Reversing JE created.`,
     });
 
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
     queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
+    return res;
   };
 
   /**
-   * Delete an expense — ONLY allowed for pending (unposted) expenses.
+   * Delete an expense — ONLY allowed while nothing has reached the ledger.
    * Approved/paid expenses must be voided instead.
    */
   const deleteExpense = async (id: string) => {
     const currentExpense = result.data.find((e) => e.id === id);
-    
+
     // Safety guard: never hard-delete posted expenses
-    if (currentExpense && currentExpense.status !== "pending") {
-      throw new Error("Only pending expenses can be deleted. Use void for approved/paid expenses.");
+    if (currentExpense && !isExpenseDeletable(currentExpense.status)) {
+      throw new Error("Only unposted expenses can be deleted. Use void for approved/paid expenses.");
     }
 
     const { error } = await supabase.from("expenses").delete().eq("id", id);
@@ -485,11 +384,12 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
       action: "deleted",
       entityType: "expense",
       entityId: id,
-      changesSummary: `Deleted pending expense`,
+      changesSummary: `Deleted unposted expense`,
     });
 
     queryClient.invalidateQueries({ queryKey: ["expenses"] });
   };
+
 
   const createCategory = async (
     category: Omit<ExpenseCategory, "id" | "organization_id" | "created_at"> & { account_id?: string | null }
@@ -574,6 +474,9 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     categories,
     createExpense,
     updateExpense,
+    submitExpense,
+    approveExpense,
+    rejectExpense,
     deleteExpense,
     voidExpense,
     createCategory,
