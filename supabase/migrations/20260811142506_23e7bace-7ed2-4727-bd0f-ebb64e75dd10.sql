@@ -1,0 +1,1 @@
+REVOKE INSERT (reimburse_via_payroll) ON public.expenses FROM authenticated;

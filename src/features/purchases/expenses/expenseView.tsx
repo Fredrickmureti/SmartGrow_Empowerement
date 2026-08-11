@@ -9,6 +9,7 @@ import { format } from "date-fns";
 
 import type { DocumentRecordView } from "@/design-system/records";
 import { Section } from "@/design-system";
+import { describeExpenseSettlement } from "@/lib/finance/expenseCommands";
 import type { ExpenseRecord } from "./useExpenseRecord";
 import { useExpenseRecord } from "./useExpenseRecord";
 
@@ -38,9 +39,9 @@ const PAYER_LABEL: Record<string, string> = {
 const LIFECYCLE_STEPS: { column: string; title: string }[] = [
   { column: "submitted_at", title: "Submitted for approval" },
   { column: "approved_at", title: "Approved" },
-  { column: "reimbursed_at", title: "Reimbursed to employee" },
   { column: "voided_at", title: "Voided" },
 ];
+
 
 export function useExpenseView(
   id: string | null | undefined,
@@ -64,6 +65,11 @@ export function useExpenseView(
     const exchangeRate = num("exchange_rate");
     const baseAmount = num("base_amount");
     const isForeign = !!exchangeRate && exchangeRate !== 1;
+    const settlement = describeExpenseSettlement(
+      (record ?? {}) as Parameters<typeof describeExpenseSettlement>[0],
+    );
+    const reimbursedAt = str("reimbursed_at");
+
 
     return {
       kind: "expense",
@@ -124,6 +130,20 @@ export function useExpenseView(
               actor: "System",
               title: s.title,
             })),
+            ...(settlement.route === "payroll_paid" ||
+            settlement.route === "direct_paid"
+              ? [
+                  {
+                    id: "reimbursed",
+                    at: fmt(reimbursedAt),
+                    actor: "System",
+                    title:
+                      settlement.route === "payroll_paid"
+                        ? "Reimbursed to employee through payroll"
+                        : "Reimbursed to employee by direct payment",
+                  },
+                ]
+              : []),
             ...(record.journal_entry_id
               ? [
                   {
@@ -134,6 +154,7 @@ export function useExpenseView(
                   },
                 ]
               : []),
+
           ]
         : undefined,
       detailFields: record
@@ -178,22 +199,52 @@ export function useExpenseView(
                   : "Recoverable",
             },
             { label: "Reference", value: record.reference || "—" },
+            { label: "Settlement", value: settlement.label },
             { label: "Billable", value: record.is_billable ? "Yes" : "No" },
           ]
         : undefined,
 
-      extraSections: record?.receipt_url ? (
-        <Section title="Receipt">
-          <a
-            href={record.receipt_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            View receipt
-          </a>
-        </Section>
+
+      extraSections: record ? (
+        <>
+          <Section title="Settlement">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{settlement.label}</p>
+              <p className="text-sm text-muted-foreground">
+                {settlement.detail}
+              </p>
+              {settlement.route === "direct_paid" && reimbursedAt && (
+                <p className="text-sm text-muted-foreground">
+                  Paid {fmt(reimbursedAt)}
+                  {record.journal_entry_id
+                    ? " · posted to the general ledger"
+                    : ""}
+                </p>
+              )}
+              {settlement.route === "payroll_paid" &&
+                (str("reimbursed_payslip_id") || str("reimbursed_run_id")) && (
+                  <p className="text-sm text-muted-foreground">
+                    Payroll reference{" "}
+                    {str("reimbursed_payslip_id") ?? str("reimbursed_run_id")}
+                  </p>
+                )}
+            </div>
+          </Section>
+          {record.receipt_url ? (
+            <Section title="Receipt">
+              <a
+                href={record.receipt_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                View receipt
+              </a>
+            </Section>
+          ) : null}
+        </>
       ) : undefined,
+
     };
   }, [record, loading, error, formatCurrency]);
 

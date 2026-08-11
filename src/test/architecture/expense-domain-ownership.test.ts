@@ -63,6 +63,21 @@ const SERVER_OWNED_COLUMNS = [
   "exchange_rate",
 ];
 
+/**
+ * Columns `authenticated` may not author at INSERT either — the entry state,
+ * derived money and the payroll-reimbursement flag are all server-resolved
+ * (grants revoked). Mirrors the update-side list plus the insert-only ones.
+ */
+const INSERT_FORBIDDEN_COLUMNS = [
+  ...SERVER_OWNED_COLUMNS,
+  "expense_number",
+  "tax_amount",
+  "reimburse_via_payroll",
+  "reimbursed_payslip_id",
+  "reimbursed_run_id",
+];
+
+
 describe("expense domain — no local engine", () => {
   it("no client code authors server-owned expense columns", () => {
     const offenders: string[] = [];
@@ -71,6 +86,22 @@ describe("expense domain — no local engine", () => {
       for (const chain of expenseWrites(src)) {
         if (!/\.(insert|update|upsert)\s*\(/.test(chain)) continue;
         for (const column of SERVER_OWNED_COLUMNS) {
+          if (new RegExp(`\\b${column}\\s*:`).test(chain)) {
+            offenders.push(`${file} → ${column}`);
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("no client code authors server-owned expense columns at insert", () => {
+    const offenders: string[] = [];
+    for (const file of FILES) {
+      const src = readFileSync(file, "utf8");
+      for (const chain of expenseWrites(src)) {
+        if (!/\.(insert|upsert)\s*\(/.test(chain)) continue;
+        for (const column of INSERT_FORBIDDEN_COLUMNS) {
           if (new RegExp(`\\b${column}\\s*:`).test(chain)) {
             offenders.push(`${file} → ${column}`);
           }

@@ -142,6 +142,110 @@ export const isEmployeeReimbursable = (e: {
   !e.reimbursed_at &&
   !e.reimbursed_payslip_id;
 
+/**
+ * How the expenditure was (or will be) discharged. Derived from the
+ * server-owned columns only — the browser never authors any of them, so
+ * every surface that renders settlement reads the same truth.
+ */
+export type ExpenseSettlementRoute =
+  | "company" // company cash/bank or card — nothing owed to anyone
+  | "awaiting" // employee payable outstanding, no route chosen
+  | "payroll_queued" // queued for the next payroll run
+  | "payroll_paid" // discharged by payroll (payslip stamped)
+  | "direct_paid" // discharged by a direct bank/cash payment
+  | "not_applicable"; // pre-approval: no obligation exists yet
+
+export interface ExpenseSettlementState {
+  route: ExpenseSettlementRoute;
+  label: string;
+  detail: string;
+  /** Reimbursement actions may be offered. */
+  canSettle: boolean;
+  /** Already queued for payroll — the action is "remove from queue". */
+  queued: boolean;
+}
+
+export const describeExpenseSettlement = (e: {
+  status?: string | null;
+  paid_by?: string | null;
+  payment_method?: string | null;
+  reimburse_via_payroll?: boolean | null;
+  reimbursed_at?: string | null;
+  reimbursed_payslip_id?: string | null;
+  reimbursed_run_id?: string | null;
+}): ExpenseSettlementState => {
+  const employeePaid =
+    e.paid_by === "employee" || e.payment_method === "employee_reimbursement";
+
+  if (!employeePaid) {
+    return {
+      route: "company",
+      label: "Settled by the company",
+      detail:
+        e.paid_by === "company_card"
+          ? "Funded on a company card — the card liability is cleared through card reconciliation."
+          : "Funded from company cash or bank at capture, so nobody is owed a reimbursement.",
+      canSettle: false,
+      queued: false,
+    };
+  }
+
+  if (e.reimbursed_payslip_id || e.reimbursed_run_id) {
+    return {
+      route: "payroll_paid",
+      label: "Reimbursed through payroll",
+      detail:
+        "Paid as a non-taxable reimbursement on the employee's payslip; the payable is cleared.",
+      canSettle: false,
+      queued: false,
+    };
+  }
+
+  if (e.reimbursed_at) {
+    return {
+      route: "direct_paid",
+      label: "Reimbursed by direct payment",
+      detail:
+        "Paid to the employee from a bank or cash account; the employee payable is cleared.",
+      canSettle: false,
+      queued: false,
+    };
+  }
+
+  if (!["approved", "paid"].includes((e.status ?? "") as string)) {
+    return {
+      route: "not_applicable",
+      label: "No obligation yet",
+      detail:
+        "An employee payable is created when the expense is approved and posted.",
+      canSettle: false,
+      queued: false,
+    };
+  }
+
+  if (e.reimburse_via_payroll) {
+    return {
+      route: "payroll_queued",
+      label: "Queued for payroll reimbursement",
+      detail:
+        "The next payroll run will pay this as a non-taxable reimbursement earning.",
+      canSettle: true,
+      queued: true,
+    };
+  }
+
+  return {
+    route: "awaiting",
+    label: "Awaiting reimbursement",
+    detail:
+      "The employee is owed this amount. Discharge it through payroll or a direct payment.",
+    canSettle: true,
+    queued: false,
+  };
+};
+
+
+
 export const queueExpensePayrollReimbursement = (
   expenseId: string,
   employeeId?: string | null,
