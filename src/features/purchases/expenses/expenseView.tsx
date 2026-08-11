@@ -130,6 +130,20 @@ export function useExpenseView(
               actor: "System",
               title: s.title,
             })),
+            ...(settlement.route === "payroll_paid" ||
+            settlement.route === "direct_paid"
+              ? [
+                  {
+                    id: "reimbursed",
+                    at: fmt(reimbursedAt),
+                    actor: "System",
+                    title:
+                      settlement.route === "payroll_paid"
+                        ? "Reimbursed to employee through payroll"
+                        : "Reimbursed to employee by direct payment",
+                  },
+                ]
+              : []),
             ...(record.journal_entry_id
               ? [
                   {
@@ -140,6 +154,7 @@ export function useExpenseView(
                   },
                 ]
               : []),
+
           ]
         : undefined,
       detailFields: record
