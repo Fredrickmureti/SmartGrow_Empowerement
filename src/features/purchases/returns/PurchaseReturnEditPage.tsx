@@ -1,28 +1,30 @@
 /**
  * PurchaseReturnEditPage — `/purchases/returns/:id/edit`.
  *
- * Enterprise UX Standardization (Phase A1): pairs the existing
- * PurchaseReturnCreatePage so every purchase-return record has a full
- * `/new` + `/:id/edit` route on top of RecordFormShell. Only pending
- * returns are editable — the underlying hook enforces this.
+ * Only a `draft` return is editable, and only through
+ * `purchase_return_update_draft` with the `row_version` we read (optimistic
+ * concurrency: a competing edit or a submit in another tab makes this save
+ * fail loudly rather than silently overwrite). Once submitted, the document is
+ * governed — corrections happen by rejecting or cancelling, never by editing.
+ *
+ * Receipt provenance (`goods_receipt_item_id`, lot/serial, landed cost) is
+ * immutable here: quantities, conditions and header narrative are what a draft
+ * amendment can legitimately change. Changing *which* lines go back means
+ * cancelling and re-picking from the receipt.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
-import { ErrorState, LoadingState } from "@/design-system";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
-import { PricedLineRow, PRICED_LINE_COLUMNS_NO_TAX } from "@/components/documents/lines/PricedLineRow";
-import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
-import { useDocumentLineScan, scanCostPrice } from "@/features/sales/scan-session/useDocumentLineScan";
-import { useBusinesses } from "@/hooks/useBusinesses";
-import { useBranches } from "@/hooks/useBranches";
+import { Badge } from "@/components/ui/badge";
+import { NumericInput } from "@/components/ui/numeric-input";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -31,220 +33,121 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import {
-  usePurchaseReturns,
-  type PurchaseReturnItem,
-} from "@/hooks/usePurchaseReturns";
-import { useContacts } from "@/hooks/useContacts";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
-
-type LineItem = Omit<PurchaseReturnItem, "id" | "purchase_return_id">;
-
-const emptyLine = (sort_order = 0): LineItem => ({
-  product_id: null,
-  description: "",
-  quantity: 1,
-  unit_price: 0,
-  line_total: 0,
-  sort_order,
-});
+import {
+  PURCHASE_RETURN_REASON_CODES,
+  updatePurchaseReturnDraft,
+  type PurchaseReturnLineInput,
+} from "@/lib/purchases/purchaseReturnRpcs";
+import { usePurchaseReturnRecord } from "./usePurchaseReturnRecord";
 
 export default function PurchaseReturnEditPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { purchaseReturns, isLoading, editPurchaseReturn } = usePurchaseReturns();
-  const { contacts } = useContacts();
-  const { products } = useProducts();
   const { formatCurrency, baseCurrency } = useCurrency();
-
-  const pr = useMemo(
-    () => purchaseReturns.find((p) => p.id === id) ?? null,
-    [purchaseReturns, id],
-  );
+  const { record, loading, error } = usePurchaseReturnRecord(id);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [primed, setPrimed] = useState(false);
-  const [formData, setFormData] = useState({
-    vendor_id: "",
-    return_date: new Date().toISOString().split("T")[0],
-    reason: "",
-    notes: "",
-  });
-  const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
+  const [returnDate, setReturnDate] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [qty, setQty] = useState<Record<string, number>>({});
+
+  const items = useMemo(
+    () =>
+      ((record?.items ?? []) as NonNullable<typeof record>["items"] extends undefined
+        ? never[]
+        : NonNullable<NonNullable<typeof record>["items"]>)
+        .slice()
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+    [record],
+  );
 
   useEffect(() => {
-    if (!pr || primed) return;
-    setFormData({
-      vendor_id: pr.vendor_id ?? "",
-      return_date: pr.return_date,
-      reason: pr.reason ?? "",
-      notes: pr.notes ?? "",
-    });
-    if (pr.items && pr.items.length > 0) {
-      setLineItems(
-        pr.items.map((item, idx) => ({
-          product_id: item.product_id ?? null,
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          line_total: item.line_total,
-          sort_order: idx,
-          packaging_id: item.packaging_id ?? null,
-          display_uom_id: item.display_uom_id ?? null,
-          display_quantity: item.display_quantity ?? null,
-        })),
-      );
-    }
-    setPrimed(true);
-  }, [pr, primed]);
-
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
-
-  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
-    setLineItems((prev) =>
-      prev.map((line, i) => {
-        if (i !== index) return line;
-        const merged = { ...line, ...patch } as LineItem;
-        return {
-          ...merged,
-          line_total: (Number(merged.quantity) || 0) * (Number(merged.unit_price) || 0),
-        };
-      }),
+    if (!record) return;
+    setReturnDate(record.return_date ?? "");
+    setReasonCode(record.reason_code ?? "");
+    setReason(record.reason ?? "");
+    setNotes(record.notes ?? "");
+    setQty(
+      Object.fromEntries(
+        (record.items ?? []).map((l) => [l.id as string, Number(l.quantity) || 0]),
+      ),
     );
-  }, []);
+  }, [record?.id, record?.row_version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectProduct = useCallback(
-    (index: number, productId: string) => {
-      const product = products.find((p) => p.id === productId);
-      patchLineItem(index, {
-        product_id: productId,
-        ...(product
-          ? {
-              description: product.name,
-              unit_price: product.cost_price || product.unit_price,
-            }
-          : {}),
-      } as Partial<LineItem>);
-    },
-    [products, patchLineItem],
+  const isDraft = record?.status === "draft";
+  const estimated = items.reduce(
+    (sum, l) => sum + (qty[l.id as string] ?? 0) * (Number(l.unit_price) || 0),
+    0,
   );
-
-  const formatLineCurrency = useCallback(
-    (n: number) => formatCurrency(n, baseCurrency),
-    [formatCurrency, baseCurrency],
-  );
-
-  // Scan-to-line — returns to a vendor are priced at cost, and the row
-  // carries no tax column, so the line math stays local to this form.
-  const { currentBusiness } = useBusinesses();
-  const { currentBranch } = useBranches();
-  const { handleScanResolved, handleScanSessionCommit, flashIndex } = useDocumentLineScan<LineItem>({
-    setLines: setLineItems,
-    matchLine: (line, resolved) => !!line.product_id && line.product_id === resolved.productId,
-    isEmptyLine: (line) => !line.product_id && !line.description,
-    buildLine: (resolved, quantity, lines) => {
-      const unit_price = scanCostPrice(resolved);
-      return {
-        product_id: resolved.productId,
-        description: resolved.name,
-        quantity,
-        unit_price,
-        line_total: quantity * unit_price,
-        sort_order: lines.length,
-      } as LineItem;
-    },
-    applyToExisting: (line, quantity) =>
-      ({ quantity, line_total: quantity * (line.unit_price ?? 0) }) as Partial<LineItem>,
-  });
-
-  const addLineItem = useCallback(
-    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
-    [],
-  );
-
-  const removeLineItem = useCallback((index: number) => {
-    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
-  }, []);
-
-  const grandTotal = lineItems.reduce((s, i) => s + i.line_total, 0);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pr) return;
-    if (
-      !formData.vendor_id ||
-      !formData.reason ||
-      lineItems.every((item) => !item.description)
-    ) {
-      toast.error("Please fill required fields");
+    if (!record) return;
+    const lines: PurchaseReturnLineInput[] = items
+      .map((l) => ({
+        goods_receipt_item_id: l.goods_receipt_item_id ?? null,
+        product_id: l.product_id ?? null,
+        description: l.description ?? null,
+        quantity: qty[l.id as string] ?? 0,
+        unit_price: l.goods_receipt_item_id ? null : Number(l.unit_price) || 0,
+        return_reason: l.return_reason ?? null,
+        condition: l.condition ?? null,
+        lot_number: l.lot_number ?? null,
+        serial_number: l.serial_number ?? null,
+        location_id: l.location_id ?? null,
+      }))
+      .filter((l) => l.quantity > 0);
+
+    if (lines.length === 0) {
+      toast.error("A return needs at least one line with a quantity");
       return;
     }
+
     setIsSubmitting(true);
     try {
-      await editPurchaseReturn(
-        pr.id,
-        {
-          vendor_id: formData.vendor_id,
-          return_date: formData.return_date,
-          reason: formData.reason,
-          notes: formData.notes || null,
-          total: grandTotal,
-        } as any,
-        lineItems.filter((item) => item.description),
-      );
-      navigate("/purchases/returns");
-    } catch (err: any) {
+      await updatePurchaseReturnDraft({
+        id: record.id,
+        rowVersion: record.row_version,
+        lines,
+        returnDate: returnDate || null,
+        reasonCode: reasonCode || null,
+        reason: reason || null,
+        notes: notes || null,
+      });
+      toast.success("Draft return updated");
+      navigate(`/purchases/returns/${record.id}`);
+    } catch (err) {
       toast.error(normalizeError(err).message || "Failed to update return");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading && !pr) {
+  if (loading) {
     return (
-      <RecordFormShell
-        mode="edit"
-        entityLabel="Purchase Return"
-        cancelHref="/purchases/returns"
-      >
-        <LoadingState />
-      </RecordFormShell>
+      <div className="flex items-center gap-2 p-8 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading return…
+      </div>
     );
   }
 
-  if (!pr) {
-    return (
-      <RecordFormShell
-        mode="edit"
-        entityLabel="Purchase Return"
-        cancelHref="/purchases/returns"
-      >
-        <ErrorState
-          title="Purchase return not found"
-          description="It may have been deleted or you don't have access."
-          onRetry={() => navigate("/purchases/returns")}
-        />
-      </RecordFormShell>
-    );
+  if (error || !record) {
+    return <div className="p-8 text-sm text-destructive">{error ?? "Return not found."}</div>;
   }
 
-  if (pr.status !== "pending") {
+  if (!isDraft) {
     return (
-      <RecordFormShell
-        mode="edit"
-        entityLabel="Purchase Return"
-        cancelHref="/purchases/returns"
-      >
-        <ErrorState
-          title="Purchase return is not editable"
-          description={`This return is ${pr.status}. Only pending returns can be edited.`}
-          onRetry={() => navigate("/purchases/returns")}
-        />
-      </RecordFormShell>
+      <div className="space-y-2 p-8">
+        <h1 className="text-lg font-semibold">{record.return_number} can no longer be edited</h1>
+        <p className="text-sm text-muted-foreground">
+          This return is <Badge variant="outline">{record.status}</Badge> — once submitted it is
+          governed by the approval trail. Reject or cancel it to make changes.
+        </p>
+      </div>
     );
   }
 
@@ -252,104 +155,102 @@ export default function PurchaseReturnEditPage() {
     <RecordFormShell
       mode="edit"
       entityLabel="Purchase Return"
-      meta={`Edit pending ${pr.return_number}`}
-      cancelHref="/purchases/returns"
+      recordRef={record.return_number}
+      meta={`Draft · ${record.vendor?.name ?? "Supplier"}`}
+      cancelHref={`/purchases/returns/${record.id}`}
       onSubmit={onSubmit}
       isSubmitting={isSubmitting}
-      submitDisabled={!formData.vendor_id || !formData.reason}
-      submitLabel="Save Changes"
+      submitLabel="Save draft"
     >
-      <FieldGroup label="Return Details">
+      <FieldGroup label="Return details">
         <FieldGrid columns={2}>
           <div className="space-y-2">
-            <Label>Supplier *</Label>
-            <Select
-              value={formData.vendor_id}
-              onValueChange={(v) => setFormData({ ...formData, vendor_id: v })}
-            >
+            <Label>Return date</Label>
+            <Input
+              type="date"
+              value={returnDate}
+              onChange={(e) => setReturnDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Reason code</Label>
+            <Select value={reasonCode} onValueChange={setReasonCode}>
               <SelectTrigger>
-                <SelectValue placeholder="Select supplier" />
+                <SelectValue placeholder="Select a reason" />
               </SelectTrigger>
               <SelectContent>
-                {vendors.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.name}
+                {PURCHASE_RETURN_REASON_CODES.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Return Date</Label>
-            <Input
-              type="date"
-              value={formData.return_date}
-              onChange={(e) => setFormData({ ...formData, return_date: e.target.value })}
-            />
-          </div>
           <FieldCell span={2}>
             <div className="space-y-2">
-              <Label>Reason *</Label>
-              <Input
-                value={formData.reason}
-                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                placeholder="Reason for return"
-              />
+              <Label>Reason detail</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} />
             </div>
           </FieldCell>
         </FieldGrid>
       </FieldGroup>
 
-      <FieldGroup label="Line Items">
-        <EditableLineItemsGrid
-          columns={PRICED_LINE_COLUMNS_NO_TAX}
-          rows={lineItems}
-          toolbar={
-            <DocumentLineScanner
-              documentLabel="Purchase return"
-              businessId={currentBusiness?.id}
-              branchId={currentBranch?.id ?? null}
-              onResolved={handleScanResolved}
-              onSessionCommit={handleScanSessionCommit}
-            />
-          }
-          onAddRow={addLineItem}
-          onRemoveRow={removeLineItem}
-          addLabel="Add Item"
-          disabled={isSubmitting}
-          renderRow={(item, index, layout) => (
-            <PricedLineRow
-              key={index}
-              index={index}
-              item={item}
-              flashed={flashIndex === index}
-              products={products.filter((p) => p.is_active)}
-              layout={layout}
-              disabled={isSubmitting}
-              formatCurrency={formatLineCurrency}
-              onPatch={patchLineItem}
-              onProductSelect={selectProduct}
-            />
+      <FieldGroup
+        label="Lines"
+        description="Quantities only. Product, cost and lot/serial come from the goods receipt and cannot be retyped."
+      >
+        <div className="space-y-2">
+          {items.map((l) => (
+            <Card key={l.id}>
+              <CardContent className="flex flex-wrap items-center gap-3 p-3">
+                <div className="min-w-[200px] flex-1">
+                  <div className="text-sm font-medium">{l.description || "—"}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>@ {formatCurrency(Number(l.unit_price) || 0, baseCurrency)}</span>
+                    {l.goods_receipt_item_id ? (
+                      <Badge variant="outline">From receipt</Badge>
+                    ) : (
+                      <Badge variant="secondary">No receipt basis</Badge>
+                    )}
+                    {l.lot_number && <Badge variant="outline">Lot {l.lot_number}</Badge>}
+                    {l.serial_number && <Badge variant="outline">S/N {l.serial_number}</Badge>}
+                    {l.condition && <span>Condition: {l.condition}</span>}
+                  </div>
+                </div>
+                <div className="w-28 space-y-1">
+                  <Label className="text-xs">Qty</Label>
+                  <NumericInput
+                    value={qty[l.id as string] ?? 0}
+                    min={0}
+                    onValueChange={(v) =>
+                      setQty((prev) => ({ ...prev, [l.id as string]: Number(v) || 0 }))
+                    }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {items.length === 0 && (
+            <p className="text-sm text-muted-foreground">This draft has no lines.</p>
           )}
-          footer={
-            <div className="flex justify-end">
-              <div className="text-lg font-semibold">
-                Total: {formatCurrency(grandTotal, baseCurrency)}
-              </div>
-            </div>
-          }
-        />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Setting a quantity to zero removes the line. The server re-validates every quantity
+          against what is still returnable on the receipt.
+        </p>
       </FieldGroup>
 
       <FieldGroup label="Notes">
-        <div className="space-y-2">
-          <Textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Additional notes"
-          />
-        </div>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </FieldGroup>
+
+      <div className="flex items-center justify-end gap-2 text-sm">
+        <span className="text-muted-foreground">Estimated value</span>
+        <span className="text-lg font-semibold tabular-nums">
+          {formatCurrency(estimated, baseCurrency)}
+        </span>
+      </div>
     </RecordFormShell>
   );
 }
