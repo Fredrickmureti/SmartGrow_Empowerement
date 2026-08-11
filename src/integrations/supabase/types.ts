@@ -19913,6 +19913,59 @@ export type Database = {
           },
         ]
       }
+      expense_attachments: {
+        Row: {
+          business_id: string | null
+          content_type: string | null
+          created_at: string
+          expense_id: string
+          file_name: string | null
+          id: string
+          kind: string
+          organization_id: string
+          size_bytes: number | null
+          storage_path: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          content_type?: string | null
+          created_at?: string
+          expense_id: string
+          file_name?: string | null
+          id?: string
+          kind?: string
+          organization_id: string
+          size_bytes?: number | null
+          storage_path: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          content_type?: string | null
+          created_at?: string
+          expense_id?: string
+          file_name?: string | null
+          id?: string
+          kind?: string
+          organization_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_attachments_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           account_id: string | null
