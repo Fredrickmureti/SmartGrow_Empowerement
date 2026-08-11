@@ -83665,6 +83665,81 @@ export type Database = {
       _pr_lifecycle_active: { Args: never; Returns: boolean }
       _pr_lifecycle_begin: { Args: never; Returns: undefined }
       _pr_recalc: { Args: { _requisition_id: string }; Returns: undefined }
+      _pret_apply_approval: {
+        Args: { _actor: string; _id: string }
+        Returns: undefined
+      }
+      _pret_lifecycle_begin: { Args: never; Returns: undefined }
+      _pret_load: {
+        Args: { _id: string; _row_version: number }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          bill_id: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string | null
+          credited_at: string | null
+          currency: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
+          exchange_rate: number
+          goods_receipt_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          purchase_order_id: string | null
+          reason: string | null
+          reason_code: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
+          return_date: string
+          return_kind: string
+          return_number: string
+          rma_reference: string | null
+          row_version: number
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_credit_note_id: string | null
+          vendor_id: string
+          warehouse_id: string | null
+          wms_return_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_returns"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _pret_log: {
+        Args: {
+          _detail?: Json
+          _event: string
+          _from: string
+          _pr: Database["public"]["Tables"]["purchase_returns"]["Row"]
+          _to: string
+        }
+        Returns: undefined
+      }
+      _pret_write_lines: {
+        Args: { _lines: Json; _pr_id: string }
+        Returns: Json
+      }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
       _recalc_so_item_invoiced: {
@@ -94939,6 +95014,94 @@ export type Database = {
       publish_salary_rule_set: {
         Args: { p_effective_from?: string; p_structure_id: string }
         Returns: string
+      }
+      purchase_return_acknowledge: {
+        Args: {
+          _id: string
+          _notes?: string
+          _rma_reference?: string
+          _row_version: number
+        }
+        Returns: Json
+      }
+      purchase_return_approve: {
+        Args: { _comment?: string; _id: string; _row_version: number }
+        Returns: Json
+      }
+      purchase_return_cancel: {
+        Args: { _id: string; _reason?: string; _row_version: number }
+        Returns: Json
+      }
+      purchase_return_close: {
+        Args: { _id: string; _row_version: number }
+        Returns: Json
+      }
+      purchase_return_create: {
+        Args: {
+          _bill_id?: string
+          _business_id: string
+          _goods_receipt_id?: string
+          _lines: Json
+          _notes?: string
+          _reason?: string
+          _reason_code?: string
+          _return_date?: string
+          _return_kind?: string
+          _vendor_id: string
+          _warehouse_id?: string
+        }
+        Returns: Json
+      }
+      purchase_return_dispatch: {
+        Args: {
+          _dispatch_date?: string
+          _id: string
+          _row_version: number
+          _tracking_reference?: string
+        }
+        Returns: Json
+      }
+      purchase_return_raise_credit: {
+        Args: { _id: string; _row_version: number }
+        Returns: Json
+      }
+      purchase_return_reject: {
+        Args: { _id: string; _reason: string; _row_version: number }
+        Returns: Json
+      }
+      purchase_return_returnable_lines: {
+        Args: { _goods_receipt_id: string }
+        Returns: {
+          description: string
+          display_uom_id: string
+          goods_receipt_item_id: string
+          lot_number: string
+          packaging_id: string
+          product_id: string
+          quantity_received: number
+          quantity_returnable: number
+          quantity_returned: number
+          serial_number: string
+          unit_cost: number
+          uom_snapshot: string
+        }[]
+      }
+      purchase_return_submit: {
+        Args: { _id: string; _row_version: number }
+        Returns: Json
+      }
+      purchase_return_update_draft: {
+        Args: {
+          _id: string
+          _lines: Json
+          _notes?: string
+          _reason?: string
+          _reason_code?: string
+          _return_date?: string
+          _row_version: number
+          _vendor_id?: string
+        }
+        Returns: Json
       }
       purge_label_run_lines: {
         Args: { p_max_rows?: number; p_retention_days?: number }
