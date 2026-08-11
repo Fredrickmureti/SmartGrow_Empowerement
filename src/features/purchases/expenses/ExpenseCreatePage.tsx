@@ -96,7 +96,8 @@ export default function ExpenseCreatePage() {
       createExpense({
         expense_date: form.expense_date,
         amount: form.amount,
-        tax_amount: form.tax_amount,
+        tax_rate_id: form.tax_rate_id,
+        tax_treatment: form.tax_treatment,
         description: form.description,
         reference: form.reference || null,
         category_id: form.category_id || null,
@@ -108,6 +109,8 @@ export default function ExpenseCreatePage() {
         payment_method: form.payment_method || "cash",
         payment_account_id: form.payment_account_id || null,
         project_id: form.project_id,
+        department_id: form.department_id,
+        analytic_account_id: form.analytic_account_id,
       } as Parameters<typeof createExpense>[0]),
     );
   };
