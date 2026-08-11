@@ -109,28 +109,41 @@ export function PINSetupDialog({ open, onOpenChange, onSuccess }: PINSetupDialog
   };
 
   const renderPinInput = (value: string, onChange: (val: string) => void) => (
-    <InputOTP
-      maxLength={pinLength}
-      value={value}
-      onChange={onChange}
-      containerClassName="justify-center"
-    >
-      <InputOTPGroup>
-        {Array.from({ length: Math.ceil(pinLength / 2) }).map((_, i) => (
-          <InputOTPSlot key={i} index={i} className="w-12 h-12 text-xl" />
-        ))}
-      </InputOTPGroup>
-      <InputOTPSeparator />
-      <InputOTPGroup>
-        {Array.from({ length: Math.floor(pinLength / 2) }).map((_, i) => (
-          <InputOTPSlot 
-            key={i + Math.ceil(pinLength / 2)} 
-            index={i + Math.ceil(pinLength / 2)} 
-            className="w-12 h-12 text-xl" 
-          />
-        ))}
-      </InputOTPGroup>
-    </InputOTP>
+    <div className="flex items-center justify-center gap-2">
+      {/* Spacer keeps the OTP centered against the toggle button */}
+      <div className="w-9 shrink-0" aria-hidden="true" />
+      <InputOTP
+        maxLength={pinLength}
+        value={value}
+        onChange={onChange}
+        containerClassName="justify-center"
+      >
+        <InputOTPGroup>
+          {Array.from({ length: Math.ceil(pinLength / 2) }).map((_, i) => (
+            <InputOTPSlot key={i} index={i} masked={!showPin} className="w-12 h-12 text-xl" />
+          ))}
+        </InputOTPGroup>
+        <InputOTPSeparator />
+        <InputOTPGroup>
+          {Array.from({ length: Math.floor(pinLength / 2) }).map((_, i) => (
+            <InputOTPSlot
+              key={i + Math.ceil(pinLength / 2)}
+              index={i + Math.ceil(pinLength / 2)}
+              masked={!showPin}
+              className="w-12 h-12 text-xl"
+            />
+          ))}
+        </InputOTPGroup>
+      </InputOTP>
+      <button
+        type="button"
+        onClick={() => setShowPin((v) => !v)}
+        aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+        className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
+      >
+        {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
   );
 
   return (
