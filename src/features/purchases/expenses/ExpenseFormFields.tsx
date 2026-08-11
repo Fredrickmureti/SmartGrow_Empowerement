@@ -344,49 +344,52 @@ export function ExpenseFormFields({
             </Select>
           </div>
 
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="payment_account">Paid from account *</Label>
-            <Select
-              value={value.payment_account_id}
-              onValueChange={(v) => onChange({ payment_account_id: v })}
-              disabled={disabled}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select payment account" />
-              </SelectTrigger>
-              <SelectContent>
-                {paymentAccounts.map((acc) => (
-                  <SelectItem key={acc.id} value={acc.id}>
-                    {acc.code} — {acc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Ledger account to credit (Cash, Bank, Accounts Payable…).
-            </p>
-            {isAPSelected && (
-              <div className="mt-2 space-y-2">
-                <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    A vendor bill will be created automatically and appear in{" "}
-                    <strong>Purchases → Bills</strong> and{" "}
-                    <strong>Finance → Accounts Payable</strong>.
-                  </p>
-                </div>
-                {!value.vendor_id && (
-                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-800 dark:bg-amber-950">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      <strong>Supplier required.</strong> Select a supplier
-                      above to create a payable expense.
+          {value.paid_by === "company" ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="payment_account">Paid from account *</Label>
+              <Select
+                value={value.payment_account_id}
+                onValueChange={(v) => onChange({ payment_account_id: v })}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentAccounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.code} — {acc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Ledger account to credit (Cash, Bank, Accounts Payable…).
+              </p>
+              {isAPSelected && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      A vendor bill will be created automatically and appear in{" "}
+                      <strong>Purchases → Bills</strong> and{" "}
+                      <strong>Finance → Accounts Payable</strong>.
                     </p>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                  {!value.vendor_id && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-800 dark:bg-amber-950">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <strong>Supplier required.</strong> Select a supplier
+                        above to create a payable expense.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : null}
+
 
           <div className="space-y-2">
             <Label htmlFor="reference">Reference</Label>
