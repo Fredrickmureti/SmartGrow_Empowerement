@@ -48,10 +48,23 @@ I checked the live database and the code rather than the log. Result: **Phases 1
 - DONE. Architecture ratchet `src/test/architecture/expense-domain-ownership.test.ts` (5 assertions, green): no client authoring of server-owned columns, no retired lifecycle RPCs, no direct journal-line writes from expense code, no local approval/SoD tables, receipts mutated only through `useExpenseAttachments`.
 
 
-## Phase 7 — UI aligned to the domain
+## Phase 7 — UI aligned to the domain — ACTIVE (next milestone)
 - Capture flow asks *who paid* first (company cash/bank, company card, employee), then classification, business purpose, employee, dimensions, tax code, currency (resolved, never typed), receipts.
 - Record page renders the lifecycle (draft → submitted → approved → posted → settled) via the canonical record projections instead of a CRUD form.
 - Approve/reject/void become governance-aware actions; no free-text currency, account, tax or status controls.
+- Also fold in: the list/detail surfaces must respect the new visibility split (non-Finance users now legitimately see fewer rows — the empty states and counts must not read as a bug).
+
+## Status board
+- Phases 1-4: complete and verified (server-authoritative lifecycle, Finance posting monopoly, no duplicate liability, no local payment engine).
+- Phase 5 (A-D: FX, tax, analytics, attachments): complete and verified.
+- Phase 6 (access, notifications, guards): complete and verified — this turn.
+- Phase 7 (UI aligned to the domain): ACTIVE, not started.
+
+## Instructions for the next agent
+1. Verify Phase 6 before writing anything: query `pg_policies` for `expenses` and confirm exactly four policies (one per command) and no legacy leftovers; confirm `expenses.status` defaults to `draft` and the insert policy pins `status='draft'`; read `notify_expense_created` and confirm it targets Finance roles plus the direct manager only; run `bunx vitest run src/test/architecture/expense-domain-ownership.test.ts` and `tsgo --noEmit`.
+2. Then resume at Phase 7 — do not open unrelated work. Phase 7 is presentation only: no new engine, no new lifecycle states, no direct table writes. Server RPCs and RLS from Phases 1-6 are the contract.
+3. Finish Phase 7 coherently (capture flow, record page, governance-aware actions together) before declaring the roadmap done.
+
 
 Out of scope by earlier decision, unchanged: expense reports and corporate-card transaction import.
 
