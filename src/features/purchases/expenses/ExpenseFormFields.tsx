@@ -38,6 +38,8 @@ import type { ExpenseCategory } from "@/hooks/useExpenses";
 import { useTaxRates } from "@/hooks/useTaxRates";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
+import { useEmployees } from "@/hooks/useEmployees";
+
 
 export type ExpenseTaxTreatment = "recoverable" | "non_recoverable";
 
