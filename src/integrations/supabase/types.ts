@@ -20056,6 +20056,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -20101,6 +20103,8 @@ export type Database = {
           tax_amount?: number | null
           updated_at?: string
           vendor_id?: string | null
+          void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -20146,6 +20150,8 @@ export type Database = {
           tax_amount?: number | null
           updated_at?: string
           vendor_id?: string | null
+          void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -83016,6 +83022,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -83074,6 +83082,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -84736,6 +84746,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
