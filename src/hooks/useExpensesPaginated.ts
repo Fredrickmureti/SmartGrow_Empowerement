@@ -230,6 +230,8 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
       voided_by,
       rejected_reason,
       base_amount,
+      exchange_rate,
+      tax_amount,
       reimbursed_at,
       reimbursed_payslip_id,
       reimbursed_run_id,
