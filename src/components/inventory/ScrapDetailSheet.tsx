@@ -56,7 +56,7 @@ export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
     enabled: open && !!scrapId,
     queryFn: async () => {
       if (!scrapId) return null;
-      const { data: header, error } = await supabase
+      const { data: header, error } = (await (supabase as any)
         .from("stock_adjustments")
         .select(
           `id, adjustment_number, adjustment_date, reason, notes, status,
@@ -71,7 +71,7 @@ export function ScrapDetailSheet({ open, onOpenChange, scrapId }: Props) {
            )`,
         )
         .eq("id", scrapId)
-        .maybeSingle();
+        .maybeSingle()) as { data: any; error: any };
       if (error) throw error;
 
       const { data: movements } = await supabase
