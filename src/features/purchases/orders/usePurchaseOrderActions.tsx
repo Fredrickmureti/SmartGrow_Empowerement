@@ -249,9 +249,9 @@ export function usePurchaseOrderActions(
         label: "Cancel order",
         icon: Ban,
         destructive: true,
-        hidden: status !== "sent",
-        onSelect: run("Purchase order cancelled", () =>
-          updatePurchaseOrder(po.id, { status: "cancelled" }),
+        hidden: !canCancel,
+        onSelect: withReason("Reason for cancelling:", "Purchase order cancelled", (reason) =>
+          cancelPurchaseOrder(po.id, reason),
         ),
       },
       {
