@@ -259,3 +259,48 @@ describe("document workspace — the layer covers Purchases, Finance and Invento
     ).toEqual([]);
   });
 });
+
+/**
+ * 5. Purchases list pages that hand-rolled their own row menus. Bills and
+ *    Purchase Orders each grew a local DropdownMenu whose items diverged
+ *    from the record page: "Post to Ledger" and the approval lifecycle
+ *    existed only in the list, "Preview" only on the page, and "Download
+ *    PDF" nowhere. A purchases list must render the document's actions hook
+ *    through `DocumentActionsMenu`, never its own DropdownMenuItems.
+ */
+describe("purchases documents — one action vocabulary", () => {
+  const LIST_PAGES = [
+    "src/pages/Bills.tsx",
+    "src/pages/PurchaseOrders.tsx",
+  ];
+
+  it("purchases list pages do not hand-roll row action menus", () => {
+    const offenders = LIST_PAGES.filter((f) => /DropdownMenuItem/.test(read(f)));
+    expect(
+      offenders,
+      "Row actions must come from use<Doc>Actions via DocumentActionsMenu",
+    ).toEqual([]);
+  });
+
+  const ACTION_HOOKS = walk("src/features/purchases").filter((f) =>
+    /use[A-Za-z]+Actions\.tsx$/.test(f),
+  );
+
+  it("every purchases actions hook offers the full output vocabulary", () => {
+    // Vendor credit notes have no document snapshot builder yet, so they
+    // cannot preview/print/download — excluded until one exists.
+    const hooks = ACTION_HOOKS.filter((f) => !/VendorCreditNote/i.test(f));
+    const missing = hooks.filter((f) => {
+      const src = read(f);
+      return !(
+        /id: "preview"/.test(src) &&
+        /id: "print"/.test(src) &&
+        /id: "download"/.test(src)
+      );
+    });
+    expect(
+      missing,
+      "Preview, Print and Download are three distinct verbs; each purchases document must offer all three",
+    ).toEqual([]);
+  });
+});
