@@ -199,9 +199,11 @@ export function useExpenseView(
                   : "Recoverable",
             },
             { label: "Reference", value: record.reference || "—" },
+            { label: "Settlement", value: settlement.label },
             { label: "Billable", value: record.is_billable ? "Yes" : "No" },
           ]
         : undefined,
+
 
       extraSections: record?.receipt_url ? (
         <Section title="Receipt">
