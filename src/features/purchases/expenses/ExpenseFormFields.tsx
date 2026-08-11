@@ -32,6 +32,7 @@ import { CurrencySelect } from "@/components/common/CurrencySelect";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { ReceiptUpload } from "@/components/expenses/ReceiptUpload";
+import { ExpenseReceipts } from "@/components/expenses/ExpenseReceipts";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import type { ExpenseCategory } from "@/hooks/useExpenses";
 import { useTaxRates } from "@/hooks/useTaxRates";
