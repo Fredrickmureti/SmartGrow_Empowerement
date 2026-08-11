@@ -580,6 +580,9 @@ const handler = async (req: Request): Promise<Response> => {
       selectQuery = `*, contact:contacts!bills_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
     } else if (documentType === "customer_statement") {
       selectQuery = `*, contact:contacts!customer_statements_contact_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
+  } else if (documentType === "purchase_return") {
+    // The counterparty on a return is the supplier that shipped the goods.
+    selectQuery = `*, contact:contacts!purchase_returns_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "payslip") {
     // Payslip recipient is the employee — there is no `contacts` row. We
     // alias the employee join as `contact` so the rest of the pipeline
