@@ -16,6 +16,8 @@ export interface PurchasesReturnItemRow {
   line_total: number;
   return_reason?: string | null;
   condition?: string | null;
+  lot_number?: string | null;
+  serial_number?: string | null;
   sku?: string | null;
   packaging?: { name: string | null; qty_in_base_uom: number | null } | null;
   product?: { name?: string | null; sku?: string | null; base_uom?: { code: string | null; name: string | null } | null } | null;
@@ -52,6 +54,12 @@ export interface PurchasesReturnHeaderRow {
   currency: string | null;
   notes: string | null;
   reason: string | null;
+  reason_code?: string | null;
+  return_kind?: string | null;
+  rma_reference?: string | null;
+  dispatched_at?: string | null;
+  purchase_order?: { po_number: string | null } | null;
+  goods_receipt?: { receipt_number: string | null } | null;
   organization_id: string;
   business_id: string | null;
   branch_id: string | null;
@@ -59,6 +67,61 @@ export interface PurchasesReturnHeaderRow {
   contact: PurchasesReturnVendorRow | null;
   business: PurchasesReturnBusinessRow | null;
   items: PurchasesReturnItemRow[] | null;
+}
+
+/** Mirrors PURCHASE_RETURN_REASON_CODES and the edge fetcher's copy. */
+const REASON_LABELS: Record<string, string> = {
+  damaged: "Damaged in transit",
+  defective: "Defective / quality reject",
+  wrong_item: "Wrong item supplied",
+  over_delivery: "Over-delivery",
+  expired: "Expired / short shelf life",
+  not_ordered: "Not ordered",
+  price_dispute: "Price or billing dispute",
+  other: "Other",
+};
+
+function reasonLabel(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return REASON_LABELS[code] ?? code.replace(/_/g, " ");
+}
+
+/**
+ * Traceability header for the supplier copy — the RMA the supplier issued and
+ * the PO / GRN the goods arrived on. Empty entries are dropped so a financial
+ * adjustment does not print blank logistics rows.
+ */
+function buildHeaderFields(pr: PurchasesReturnHeaderRow) {
+  const rows: Array<[string, string | null]> = [
+    ["RMA Reference", pr.rma_reference ?? null],
+    [
+      "Return Type",
+      pr.return_kind === "financial" ? "Financial adjustment (no goods)" : "Goods return",
+    ],
+    ["Reason", reasonLabel(pr.reason_code)],
+    ["Purchase Order", pr.purchase_order?.po_number ?? null],
+    ["Goods Receipt", pr.goods_receipt?.receipt_number ?? null],
+    ["Dispatched", pr.dispatched_at ? pr.dispatched_at.slice(0, 10) : null],
+  ];
+  return rows
+    .filter(([, value]) => value != null && value !== "")
+    .map(([field_label, field_value]) => ({
+      field_label,
+      field_value: field_value as string,
+      field_type: "text",
+      document_section: "header",
+    }));
+}
+
+function decorateLine(description: string | null, item: PurchasesReturnItemRow): string | null {
+  if (!description) return description;
+  const parts: string[] = [];
+  if (item.lot_number) parts.push(`Lot ${item.lot_number}`);
+  if (item.serial_number) parts.push(`S/N ${item.serial_number}`);
+  if (item.condition) parts.push(item.condition.replace(/_/g, " "));
+  const reason = reasonLabel(item.return_reason);
+  if (reason) parts.push(reason);
+  return parts.length ? `${description} (${parts.join(" · ")})` : description;
 }
 
 export interface BuildPurchasesReturnSnapshotResult {
@@ -81,10 +144,7 @@ export function buildPurchasesReturnSnapshot(
   if (!pr.return_date) throw new Error("buildPurchasesReturnSnapshot: return_date required");
 
   const items = (pr.items ?? []).map((item) => ({
-    description:
-      item.description ??
-      item.product?.name ??
-      null,
+    description: decorateLine(item.description ?? item.product?.name ?? null, item),
     quantity: Number(item.quantity ?? 0),
     unit_price: Number(item.unit_price ?? 0),
     tax_rate: item.tax_rate == null ? 0 : Number(item.tax_rate),
@@ -117,6 +177,7 @@ export function buildPurchasesReturnSnapshot(
     currency,
     notes: pr.notes ?? pr.reason ?? null,
     terms: null,
+    custom_fields: buildHeaderFields(pr),
     contact: pr.contact,
     business_id: pr.business_id,
     organization_id: pr.organization_id,
@@ -147,12 +208,16 @@ export async function fetchAndBuildPurchasesReturnSnapshot(
       `
       id, return_number, status, return_date,
       subtotal, tax_amount, total, currency, notes, reason,
+      reason_code, return_kind, rma_reference, dispatched_at,
       organization_id, business_id, branch_id, vendor_id,
+      purchase_order:purchase_orders(po_number),
+      goods_receipt:goods_receipts(receipt_number),
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, tax_id),
       business:businesses(id, name, base_currency),
       items:purchase_return_items(
         description, quantity, unit_price, tax_rate, tax_amount, line_total,
-        return_reason, condition,         display_quantity, uom_snapshot,
+        return_reason, condition, lot_number, serial_number,
+        display_quantity, uom_snapshot,
         packaging:product_packaging!packaging_id(name, qty_in_base_uom),
         display_uom:units_of_measure!display_uom_id(code, name),
         product:products(name, sku, base_uom:units_of_measure!base_uom_id(code, name))

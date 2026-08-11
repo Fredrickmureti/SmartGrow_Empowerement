@@ -2090,6 +2090,8 @@ async function fetchPurchaseReturn(
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, tax_id),
       organization:organizations(${ORG_FALLBACK_COLS}),
       business:businesses(${BUSINESS_BRANDING_COLS}),
+      purchase_order:purchase_orders(po_number),
+      goods_receipt:goods_receipts(receipt_number),
       items:purchase_return_items(
         *,
         packaging:product_packaging(name, qty_in_base_uom),
@@ -2125,11 +2127,19 @@ async function fetchPurchaseReturn(
     ),
     business_id: pr.business_id,
     organization_id: pr.organization_id,
+    // The supplier's copy is worthless without the chain it came from: the
+    // RMA the supplier issued, the PO they shipped against and the GRN we
+    // booked. Rendered through the header custom-field block so no new
+    // template surface is needed.
+    custom_fields: buildVendorReturnHeaderFields(pr),
     items: (pr.items || []).map((item: any) => ({
       description:
-        item.description ||
-        item.product?.name ||
-        `Item ${item.product_id?.slice?.(0, 8) ?? ""}`,
+        decorateVendorReturnLine(
+          item.description ||
+            item.product?.name ||
+            `Item ${item.product_id?.slice?.(0, 8) ?? ""}`,
+          item,
+        ),
       quantity: item.quantity,
       unit_price: item.unit_price,
       tax_rate: item.tax_rate || 0,
@@ -2140,6 +2150,68 @@ async function fetchPurchaseReturn(
       ...packFields(item),
     })),
   } as DocumentData;
+}
+
+/** Reason codes as the operator chose them; mirrors PURCHASE_RETURN_REASON_CODES. */
+const VENDOR_RETURN_REASON_LABELS: Record<string, string> = {
+  damaged: "Damaged in transit",
+  defective: "Defective / quality reject",
+  wrong_item: "Wrong item supplied",
+  over_delivery: "Over-delivery",
+  expired: "Expired / short shelf life",
+  not_ordered: "Not ordered",
+  price_dispute: "Price or billing dispute",
+  other: "Other",
+};
+
+/**
+ * Header meta for the supplier-facing RMA. Every entry is dropped when empty —
+ * the renderer only draws custom fields with a value — so a financial-only
+ * adjustment prints without empty logistics rows.
+ */
+// deno-lint-ignore no-explicit-any
+function buildVendorReturnHeaderFields(pr: any) {
+  const rows: Array<[string, string | null]> = [
+    ["RMA Reference", pr.rma_reference ?? null],
+    [
+      "Return Type",
+      pr.return_kind === "financial" ? "Financial adjustment (no goods)" : "Goods return",
+    ],
+    [
+      "Reason",
+      pr.reason_code ? (VENDOR_RETURN_REASON_LABELS[pr.reason_code] ?? pr.reason_code) : null,
+    ],
+    ["Purchase Order", pr.purchase_order?.po_number ?? null],
+    ["Goods Receipt", pr.goods_receipt?.receipt_number ?? null],
+    ["Dispatched", pr.dispatched_at ? String(pr.dispatched_at).slice(0, 10) : null],
+  ];
+  return rows
+    .filter(([, value]) => value != null && value !== "")
+    .map(([field_label, field_value]) => ({
+      field_label,
+      field_value: field_value as string,
+      field_type: "text",
+      document_section: "header",
+    }));
+}
+
+/**
+ * Lot / serial / condition travel with the physical goods, so they belong on
+ * the printed line rather than in a column the shared renderer does not have.
+ */
+// deno-lint-ignore no-explicit-any
+function decorateVendorReturnLine(description: string, item: any): string {
+  const parts: string[] = [];
+  if (item.lot_number) parts.push(`Lot ${item.lot_number}`);
+  if (item.serial_number) parts.push(`S/N ${item.serial_number}`);
+  if (item.condition) parts.push(String(item.condition).replace(/_/g, " "));
+  if (item.return_reason) {
+    parts.push(
+      VENDOR_RETURN_REASON_LABELS[item.return_reason] ??
+        String(item.return_reason).replace(/_/g, " "),
+    );
+  }
+  return parts.length ? `${description} (${parts.join(" · ")})` : description;
 }
 
 // ── Cycle-count documents (ADR 0106) ───────────────────────────────────────
