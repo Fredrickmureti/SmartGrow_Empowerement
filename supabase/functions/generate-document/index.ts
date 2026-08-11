@@ -3424,6 +3424,28 @@ const LABOUR_TEMPLATE_OVERRIDES: Record<string, Record<string, unknown>> = {
     signature_label: "Supervisor signature",
     show_status_badge: true,
   },
+  // Purchase returns (RMA). The supplier copy is a goods-and-reason
+  // document: it keeps the valuation ladder (the debit note is claimed
+  // against it) but must never carry OUR payment instructions or bank
+  // details — money flows the other way on a return.
+  vendor_return: {
+    show_payment_instructions: false,
+    show_bank_details: false,
+    show_payment_methods: false,
+    show_total_in_words: false,
+    show_signature_line: true,
+    signature_label: "Received by (supplier)",
+    show_status_badge: true,
+  },
+  purchase_return: {
+    show_payment_instructions: false,
+    show_bank_details: false,
+    show_payment_methods: false,
+    show_total_in_words: false,
+    show_signature_line: true,
+    signature_label: "Received by (supplier)",
+    show_status_badge: true,
+  },
 };
 
 
