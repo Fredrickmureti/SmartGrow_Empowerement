@@ -38,7 +38,7 @@ const InputOTPSlot = React.forwardRef<
       )}
       {...props}
     >
-      {char}
+      {char && (masked ? <span aria-hidden="true">•</span> : char)}
       {hasFakeCaret && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="animate-caret-blink h-4 w-px bg-foreground duration-1000" />
