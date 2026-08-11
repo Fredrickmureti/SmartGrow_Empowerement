@@ -93,6 +93,18 @@ describe("Purchase Returns — architecture guards", () => {
     expect(offenders, "numbering belongs to get_next_purchase_return_number").toEqual([]);
   });
 
+  it("the returned-quantity ledger is never recomputed in the browser", () => {
+    // Received-vs-returned must come from `purchase_return_returnable_lines`
+    // (the same ledger the server clamps against). A client-side SUM over
+    // purchase_return_items would drift from the invariant it is meant to show.
+    const offenders = FILES.filter((f) => {
+      const src = read(f);
+      if (!/purchase_return_items/.test(src)) return false;
+      return /\.from\(\s*["'`]purchase_return_items["'`]\s*\)[\s\S]{0,400}?(sum\(|reduce\()/i.test(src);
+    }).map(rel);
+    expect(offenders, "read purchase_return_returnable_lines instead").toEqual([]);
+  });
+
   it("the client status union carries no legacy lifecycle values", () => {
     const src = read(path.join(SRC, RPC_MODULE));
     const union = src.slice(
