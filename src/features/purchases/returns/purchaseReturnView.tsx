@@ -67,8 +67,24 @@ export function usePurchaseReturnView(
 ): Result {
   const { record: purchaseReturn, loading, error, refetch } = usePurchaseReturnRecord(id);
   const { events } = usePurchaseReturnEvents(purchaseReturn?.id ?? null);
+  const { settlement } = usePurchaseReturnSettlement(
+    purchaseReturn?.vendor_credit_note_id ?? null,
+    purchaseReturn?.bill_id ?? null,
+  );
+  const { nameOf } = useActorNames([
+    purchaseReturn?.created_by,
+    purchaseReturn?.submitted_by,
+    purchaseReturn?.approved_by,
+    purchaseReturn?.rejected_by,
+    purchaseReturn?.dispatched_by,
+    purchaseReturn?.acknowledged_by,
+    purchaseReturn?.closed_by,
+    purchaseReturn?.cancelled_by,
+    ...events.map((ev) => ev.actor_user_id),
+  ]);
 
   const view = useMemo<DocumentRecordView>(() => {
+
     const items = (purchaseReturn?.items ?? []) as NonNullable<PurchaseReturn["items"]>;
     const rows: LineItemRow[] = items
       .slice()
