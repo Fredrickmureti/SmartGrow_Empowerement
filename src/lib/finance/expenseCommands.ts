@@ -69,10 +69,25 @@ export interface ExpenseBillResult {
 async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.rpc(fn as never, args as never);
   if (error) {
+    // Diagnostics are never thrown away: the full Postgres envelope
+    // (SQLSTATE, detail, hint) goes to the console so a 400 can always be
+    // traced back to the failing server rule.
+    console.error(`[expense] ${fn} failed`, {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     // Governance refusals (SoD, missing approver rights) carry structured hints.
     const gov = parseGovernanceError(error);
     if (gov) throw new Error(describeGovernanceError(gov).body);
-    throw new Error(error.message || "Expense command failed");
+    // Everything else keeps its Postgres shape so `normalizeError` can classify
+    // it (business-rule P0001 messages are surfaced verbatim to the user).
+    throw Object.assign(new Error(error.message || "Expense command failed"), {
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
   }
   return data as T;
 }
