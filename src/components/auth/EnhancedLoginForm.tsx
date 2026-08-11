@@ -54,6 +54,7 @@ export function EnhancedLoginForm() {
   const [pinAvailable, setPinAvailable] = useState(false);
   const [pinLength, setPinLength] = useState(4);
   const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [isCheckingPin, setIsCheckingPin] = useState(false);
   const [pinLocked, setPinLocked] = useState(false);
@@ -287,6 +288,7 @@ export function EnhancedLoginForm() {
           onChange={(e) => {
             setEmail(e.target.value);
             setPin("");
+            setShowPin(false);
             setPinError(null);
             setPinLocked(false);
           }}
