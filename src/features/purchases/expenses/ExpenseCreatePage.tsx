@@ -78,6 +78,16 @@ export default function ExpenseCreatePage() {
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (form.paid_by === "employee" && !form.employee_id) {
+      toast({
+        title: "Employee required",
+        description:
+          "An out-of-pocket expense must name the employee who will be reimbursed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (isAPSelected && !form.vendor_id) {
       toast({
         title: "Vendor required",
@@ -94,6 +104,8 @@ export default function ExpenseCreatePage() {
 
     await submit.run(() =>
       createExpense({
+        paid_by: form.paid_by,
+        employee_id: form.paid_by === "employee" ? form.employee_id : null,
         expense_date: form.expense_date,
         amount: form.amount,
         tax_rate_id: form.tax_rate_id,
@@ -124,7 +136,10 @@ export default function ExpenseCreatePage() {
       onSubmit={onSubmit}
       isSubmitting={submit.isSubmitting}
       submitDisabled={
-        !form.description || !form.amount || !form.payment_account_id
+        !form.description ||
+        !form.amount ||
+        (form.paid_by === "company" && !form.payment_account_id) ||
+        (form.paid_by === "employee" && !form.employee_id)
       }
     >
       <ExpenseFormFields

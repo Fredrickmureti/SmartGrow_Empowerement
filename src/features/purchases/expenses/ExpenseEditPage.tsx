@@ -63,6 +63,13 @@ export default function ExpenseEditPage() {
   useEffect(() => {
     if (!record || hydrated) return;
     setForm({
+      paid_by:
+        (((record as { paid_by?: string | null }).paid_by ?? "company") as
+          | "company"
+          | "company_card"
+          | "employee"),
+      employee_id:
+        (record as { employee_id?: string | null }).employee_id ?? null,
       expense_date: record.expense_date,
       amount: Number(record.amount) || 0,
       tax_amount: Number(record.tax_amount) || 0,
@@ -111,6 +118,16 @@ export default function ExpenseEditPage() {
     e.preventDefault();
     if (!id) return;
 
+    if (form.paid_by === "employee" && !form.employee_id) {
+      toast({
+        title: "Employee required",
+        description:
+          "An out-of-pocket expense must name the employee who will be reimbursed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (isAPSelected && !form.vendor_id) {
       toast({
         title: "Vendor required",
@@ -127,6 +144,8 @@ export default function ExpenseEditPage() {
 
     await submit.run(async () => {
       await updateExpense(id, {
+        paid_by: form.paid_by,
+        employee_id: form.paid_by === "employee" ? form.employee_id : null,
         expense_date: form.expense_date,
         amount: form.amount,
         tax_rate_id: form.tax_rate_id,
@@ -180,7 +199,10 @@ export default function ExpenseEditPage() {
       onSubmit={onSubmit}
       isSubmitting={submit.isSubmitting}
       submitDisabled={
-        !form.description || !form.amount || !form.payment_account_id
+        !form.description ||
+        !form.amount ||
+        (form.paid_by === "company" && !form.payment_account_id) ||
+        (form.paid_by === "employee" && !form.employee_id)
       }
     >
       <ExpenseFormFields
