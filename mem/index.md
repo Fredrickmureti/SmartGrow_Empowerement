@@ -44,3 +44,4 @@ public.profiles.id is a surrogate PK — resolve auth user ids (requester_id, ac
 - [Procurement document rendering](mem://features/procurement-document-rendering) — RFQ/requisition use the procurement PDF layouts (never invoice shape), NaN-proof money formatter, document_number column, mandatory redeploy set after `_shared` changes
 - [Document action parity](mem://features/document-action-parity) — purchases row menus, peeks and record pages all render the same `use<Doc>Actions` array; Preview/Print/Download are separate verbs
 - [Profiles lookup key](mem://constraints/profiles-lookup-key) — join profiles on user_id, never id, when mapping auth users to display names
+- [Expense lifecycle & reimbursement](mem://features/expense-reimbursement) — server-only expense transitions, employee payable settlement (payroll queue vs direct), bill-owns-liability rule, reversal register entry
