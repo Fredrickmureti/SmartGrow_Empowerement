@@ -60,10 +60,13 @@ export function TaskHistorySheet({
     queryKey: ["wms-task-events", taskId],
     enabled: !!taskId,
     queryFn: async () => {
+      const sel = (s: string): string => s;
       const { data, error } = await supabase
         .from("wms_task_events")
         .select(
-          "id, event_type, from_state, to_state, actor_id, device_id, scanned_barcode, lot_number, serial_number, quantity, quantity_delta, reason, occurred_at, source_loc:source_location_id(code), dest_loc:destination_location_id(code)",
+          sel(
+            "id, event_type, from_state, to_state, actor_id, device_id, scanned_barcode, lot_number, serial_number, quantity, quantity_delta, reason, occurred_at, source_loc:source_location_id(code), dest_loc:destination_location_id(code)",
+          ),
         )
         .eq("task_id", taskId!)
         .order("occurred_at", { ascending: true });

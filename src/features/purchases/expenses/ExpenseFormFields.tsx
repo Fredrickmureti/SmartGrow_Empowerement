@@ -32,6 +32,7 @@ import { CurrencySelect } from "@/components/common/CurrencySelect";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { ReceiptUpload } from "@/components/expenses/ReceiptUpload";
+import { ExpenseReceipts } from "@/components/expenses/ExpenseReceipts";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import type { ExpenseCategory } from "@/hooks/useExpenses";
 import { useTaxRates } from "@/hooks/useTaxRates";
@@ -426,12 +427,23 @@ export function ExpenseFormFields({
       </CapabilityGate>
 
 
-      <Section title="Receipt">
-        <ReceiptUpload
-          currentReceiptUrl={value.receipt_url}
-          onUploadComplete={(url) => onChange({ receipt_url: url })}
-          onRemove={() => onChange({ receipt_url: null })}
-        />
+      <Section
+        title="Receipt"
+        description={
+          entityId
+            ? "Receipts are stored on the expense's audit trail and locked once it is approved."
+            : undefined
+        }
+      >
+        {entityId ? (
+          <ExpenseReceipts expenseId={entityId} disabled={disabled} />
+        ) : (
+          <ReceiptUpload
+            currentReceiptUrl={value.receipt_url}
+            onUploadComplete={(url) => onChange({ receipt_url: url })}
+            onRemove={() => onChange({ receipt_url: null })}
+          />
+        )}
       </Section>
 
       <Section title="Additional fields">
