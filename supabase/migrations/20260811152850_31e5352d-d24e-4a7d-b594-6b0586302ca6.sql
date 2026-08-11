@@ -1,0 +1,1 @@
+ALTER TABLE public.purchase_returns DROP CONSTRAINT IF EXISTS purchase_returns_status_check;

@@ -1,20 +1,42 @@
-import { useState } from "react";
+/**
+ * PurchaseReturns — the landing page.
+ *
+ * Read-only projection plus the canonical action vocabulary: every row menu
+ * item comes from `usePurchaseReturnActions`, the same declaration the record
+ * page and the peek sheet use, so "Submit / Approve / Dispatch / Raise debit
+ * note / Close" can never drift between surfaces. There is no inline create
+ * dialog and no status flip here — creation lives on `/purchases/returns/new`
+ * (receipt-line picker) and the lifecycle is server-owned.
+ */
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import {
+  Ban,
+  CheckCircle,
+  Clock,
+  Eye,
+  FileText,
+  MoreHorizontal,
+  Package,
+  Plus,
+  RotateCcw,
+  Search,
+  TrendingDown,
+  Truck,
+} from "lucide-react";
+
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
-import { usePurchaseReturns, PurchaseReturnItem, PurchaseReturn } from "@/hooks/usePurchaseReturns";
-import { useContacts } from "@/hooks/useContacts";
-import { useProducts } from "@/hooks/useProducts";
+import { usePurchaseReturns, type PurchaseReturn } from "@/hooks/usePurchaseReturns";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useToast } from "@/hooks/use-toast";
 import { usePeekParam } from "@/design-system";
 import { PurchaseReturnPeekSheet } from "@/features/purchases/returns/PurchaseReturnPeekSheet";
+import { usePurchaseReturnActions } from "@/features/purchases/returns/usePurchaseReturnActions";
+import { reasonCodeLabel } from "@/lib/purchases/purchaseReturnRpcs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -31,85 +53,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Plus,
-  Search,
-  MoreHorizontal,
-  Trash2,
-  CheckCircle,
-  XCircle,
-  RotateCcw,
-  Eye,
-  FileText,
-  TrendingDown,
-  Clock,
-  Package,
-  Ban,
-} from "lucide-react";
-import { format } from "date-fns";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
-import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
-import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
-import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useBusinesses } from "@/hooks/useBusinesses";
-import { useBranches } from "@/hooks/useBranches";
-import { supabase } from "@/integrations/supabase/client";
-import { Printer, Mail, Loader2 } from "lucide-react";
-import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
-// Compact workflow pipeline for table rows
+/** The lifecycle, drawn as it actually is: raise → govern → ship → settle. */
+const PIPELINE = [
+  { key: "draft", label: "Draft" },
+  { key: "submitted", label: "Submitted" },
+  { key: "approved", label: "Approved" },
+  { key: "dispatched", label: "Dispatched" },
+  { key: "acknowledged", label: "Acknowledged" },
+  { key: "credited", label: "Credited" },
+  { key: "closed", label: "Closed" },
+];
+
 function WorkflowPipeline({ status }: { status: string }) {
-  const steps = [
-    { key: "pending", label: "Pending" },
-    { key: "approved", label: "Approved" },
-    { key: "processed", label: "Processed" },
-  ];
-
-  const getActiveStep = () => {
-    if (status === "cancelled") return -1;
-    if (status === "pending") return 0;
-    if (status === "approved") return 1;
-    if (status === "processed") return 2;
-    return 0;
-  };
-
-  const activeStep = getActiveStep();
-
-  if (status === "cancelled") {
+  if (status === "cancelled" || status === "rejected") {
     return (
       <div className="flex items-center gap-1">
         <Ban className="h-3.5 w-3.5 text-destructive" />
-        <span className="text-xs text-destructive font-medium">Cancelled</span>
+        <span className="text-xs font-medium text-destructive capitalize">{status}</span>
       </div>
     );
   }
+  // Legacy rows: "pending" behaved as a draft, "processed" as settled.
+  const normalized =
+    status === "pending" ? "draft" : status === "processed" ? "closed" : status;
+  const activeStep = PIPELINE.findIndex((s) => s.key === normalized);
 
   return (
     <div className="flex items-center gap-0.5">
-      {steps.map((step, i) => (
+      {PIPELINE.map((step, i) => (
         <div key={step.key} className="flex items-center gap-0.5">
           <div
             className={`h-2 w-2 rounded-full transition-colors ${
@@ -121,8 +105,10 @@ function WorkflowPipeline({ status }: { status: string }) {
             }`}
             title={step.label}
           />
-          {i < steps.length - 1 && (
-            <div className={`h-[1.5px] w-3 ${i < activeStep ? "bg-primary" : "bg-muted-foreground/20"}`} />
+          {i < PIPELINE.length - 1 && (
+            <div
+              className={`h-[1.5px] w-3 ${i < activeStep ? "bg-primary" : "bg-muted-foreground/20"}`}
+            />
           )}
         </div>
       ))}
@@ -130,194 +116,103 @@ function WorkflowPipeline({ status }: { status: string }) {
   );
 }
 
-export default function PurchaseReturns() {
-  const { purchaseReturns, isLoading, createPurchaseReturn, updatePurchaseReturn, deletePurchaseReturn, refreshPurchaseReturns } = usePurchaseReturns();
-  const navigate = useNavigate();
-  const { contacts } = useContacts();
-  const { products } = useProducts();
-  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
-  const { toast } = useToast();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusinesses();
-  const { currentBranch } = useBranches();
-
-  const [showDialog, setShowDialog] = useState(false);
-  const [peekId, setPeekId] = usePeekParam();
-  const [selectedReturn, setSelectedReturn] = useState<PurchaseReturn | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isPrinting, setIsPrinting] = useState<string | null>(null);
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
-  const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
-  const [previewContactId, setPreviewContactId] = useState<string | null>(null);
-
-  const handlePrintReturn = async (pr: PurchaseReturn) => {
-    if (!currentOrg?.id || !currentBusiness?.id) {
-      toast({ title: "No organization/company", description: "Pick a company before printing.", variant: "destructive" });
-      return;
-    }
-    setIsPrinting(pr.id);
-    try {
-      const built = await fetchAndBuildPurchasesReturnSnapshot(supabase, pr.id);
-      const documentRecordId = await ensureDocumentRecord({
-        kindCode: "purchases.return",
-        organizationId: currentOrg.id,
-        sourceModule: "purchases",
-        sourceDocType: "purchase_return",
-        sourceDocId: pr.id,
-        businessId: built.businessId ?? currentBusiness.id,
-        branchId: built.branchId ?? currentBranch?.id ?? null,
-        partyKind: "supplier",
-        partyId: built.vendorId,
-        currency: built.currency,
-        documentNumber: built.documentNumber,
-        documentDate: built.documentDate,
-        snapshot: built.snapshot,
-      });
-      await acknowledgeRecordPrint(
-        { documentRecordId, triggeredSource: "manual" },
-        toast,
-        { label: `Return ${pr.return_number}` },
-      );
-    } catch (err) {
-      toast({ title: "Print failed", description: normalizeError(err).message, variant: "destructive" });
-    } finally {
-      setIsPrinting(null);
-    }
-  };
-
-  const [formData, setFormData] = useState({
-    vendor_id: "",
-    return_date: new Date().toISOString().split("T")[0],
-    reason: "",
-    notes: "",
-  });
-
-  const [lineItems, setLineItems] = useState<Omit<PurchaseReturnItem, "id" | "purchase_return_id">[]>([
-    { product_id: null, description: "", quantity: 1, unit_price: 0, line_total: 0, sort_order: 0 },
-  ]);
-
-  const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
-
-  const resetForm = () => {
-    setFormData({ vendor_id: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
-    setLineItems([{ product_id: null, description: "", quantity: 1, unit_price: 0, line_total: 0, sort_order: 0 }]);
-  };
-
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.cost_price || product.unit_price;
-      }
-    }
-
-    updated[index].line_total = updated[index].quantity * updated[index].unit_price;
-    setLineItems(updated);
-  };
-
-  const addLineItem = () => {
-    setLineItems([...lineItems, { product_id: null, description: "", quantity: 1, unit_price: 0, line_total: 0, sort_order: lineItems.length }]);
-  };
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.vendor_id || !formData.reason || lineItems.every((item) => !item.description)) {
-      toast({ title: "Please fill required fields", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await createPurchaseReturn(
-        {
-          vendor_id: formData.vendor_id,
-          return_date: formData.return_date,
-          reason: formData.reason,
-          status: "pending",
-          total: 0,
-          notes: formData.notes || null,
-          purchase_order_id: null,
-        },
-        lineItems.filter((item) => item.description)
-      );
-      toast({ title: "Purchase return created" });
-      setShowDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast({ title: "Error creating return", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleStatusChange = async (id: string, status: string) => {
-    setIsUpdating(true);
-    try {
-      await updatePurchaseReturn(id, { status: status as any });
-      toast({ title: `Status updated to ${status}` });
-      // Refresh detail dialog data
-      const updated = purchaseReturns.find(p => p.id === id);
-      if (updated && selectedReturn?.id === id) {
-        setSelectedReturn({ ...updated, status: status as any });
-      }
-    } catch (error: any) {
-      toast({ title: "Error updating status", description: normalizeError(error).message, variant: "destructive" });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deletePurchaseReturn(id);
-      toast({ title: "Purchase return deleted" });
-    } catch (error: any) {
-      toast({ title: "Error deleting return", description: normalizeError(error).message, variant: "destructive" });
-    }
-  };
-
-  const filteredReturns = purchaseReturns.filter((pr) => {
-    const matchesSearch =
-      pr.return_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pr.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || pr.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Financial stats
-  const stats = {
-    total: purchaseReturns.length,
-    totalValue: purchaseReturns.reduce((sum, pr) => sum + pr.total, 0),
-    pending: purchaseReturns.filter((pr) => pr.status === "pending"),
-    approved: purchaseReturns.filter((pr) => pr.status === "approved"),
-    processed: purchaseReturns.filter((pr) => pr.status === "processed"),
-  };
-
-  const grandTotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
+/** One row's menu, driven entirely by the shared action declaration. */
+function RowActions({
+  pr,
+  onPeek,
+  onChanged,
+}: {
+  pr: PurchaseReturn;
+  onPeek: () => void;
+  onChanged: () => void;
+}) {
+  const { actions, dialogs } = usePurchaseReturnActions(pr, { onChanged });
+  const visible = actions.filter((a) => !a.hidden);
+  const core = visible.filter((a) => a.group !== "output");
+  const output = visible.filter((a) => a.group === "output");
 
   return (
     <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onPeek}>
+            <Eye className="mr-2 h-4 w-4" /> View details
+          </DropdownMenuItem>
+          {core.length > 0 && <DropdownMenuSeparator />}
+          {core.map((a) => (
+            <DropdownMenuItem
+              key={a.id}
+              disabled={a.disabled}
+              className={a.destructive ? "text-destructive" : undefined}
+              onClick={() => a.onSelect?.()}
+            >
+              {a.icon && <a.icon className="mr-2 h-4 w-4" />} {a.label}
+            </DropdownMenuItem>
+          ))}
+          {output.length > 0 && <DropdownMenuSeparator />}
+          {output.map((a) => (
+            <DropdownMenuItem key={a.id} disabled={a.disabled} onClick={() => a.onSelect?.()}>
+              {a.icon && <a.icon className="mr-2 h-4 w-4" />} {a.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {dialogs}
+    </>
+  );
+}
+
+export default function PurchaseReturns() {
+  const { purchaseReturns, isLoading, refreshPurchaseReturns } = usePurchaseReturns();
+  const navigate = useNavigate();
+  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
+
+  const [peekId, setPeekId] = usePeekParam();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [previewContactId, setPreviewContactId] = useState<string | null>(null);
+
+  const filteredReturns = useMemo(
+    () =>
+      purchaseReturns.filter((pr) => {
+        const q = searchQuery.toLowerCase();
+        const matchesSearch =
+          pr.return_number.toLowerCase().includes(q) ||
+          (pr.vendor?.name?.toLowerCase().includes(q) ?? false);
+        const matchesStatus = statusFilter === "all" || pr.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      }),
+    [purchaseReturns, searchQuery, statusFilter],
+  );
+
+  const stats = useMemo(() => {
+    const sum = (rows: PurchaseReturn[]) => rows.reduce((s, r) => s + (r.total ?? 0), 0);
+    const inStatus = (...s: string[]) =>
+      purchaseReturns.filter((pr) => s.includes(pr.status as string));
+    return {
+      total: purchaseReturns.length,
+      totalValue: sum(purchaseReturns),
+      awaitingApproval: inStatus("submitted"),
+      awaitingDispatch: inStatus("approved"),
+      awaitingCredit: inStatus("dispatched", "acknowledged"),
+    };
+  }, [purchaseReturns]);
+
+  return (
     <>
       <div className="space-y-4 sm:space-y-6">
         <div className="page-header">
           <div className="flex items-center gap-2">
             <div>
               <h1 className="page-title">Purchase Returns</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">Manage returns to vendors and track debit notes</p>
+              <p className="text-sm text-muted-foreground sm:text-base">
+                Send goods back to suppliers and recover the money with a debit note
+              </p>
             </div>
             <RefreshButton onRefresh={refreshPurchaseReturns} tooltip="Refresh purchase returns" />
           </div>
@@ -328,10 +223,10 @@ export default function PurchaseReturns() {
               getExportConfig={() => {
                 const cols: ExportColumn[] = [
                   { key: "return_number", header: "Return #", width: 14 },
-                  { key: "vendor", header: "Vendor", width: 20 },
+                  { key: "vendor", header: "Supplier", width: 20 },
                   { key: "return_date", header: "Return Date", width: 12 },
                   { key: "reason", header: "Reason", width: 20 },
-                  { key: "status", header: "Status", width: 10 },
+                  { key: "status", header: "Status", width: 12 },
                   { key: "total", header: "Total", width: 14 },
                 ];
                 return {
@@ -341,7 +236,7 @@ export default function PurchaseReturns() {
                     return_number: pr.return_number,
                     vendor: pr.vendor?.name || "—",
                     return_date: format(new Date(pr.return_date), "MMM d, yyyy"),
-                    reason: pr.reason,
+                    reason: pr.reason_code ? reasonCodeLabel(pr.reason_code) : pr.reason,
                     status: pr.status,
                     total: pr.total,
                   })),
@@ -352,24 +247,26 @@ export default function PurchaseReturns() {
             />
             <PermissionGate permission="managePurchases">
               <ScanToDocumentButton createPath="/purchases/returns/new" label="Scan to return" />
-              <Button onClick={() => navigate("/purchases/returns/new")} className="w-full sm:w-auto">
+              <Button
+                onClick={() => navigate("/purchases/returns/new")}
+                className="w-full sm:w-auto"
+              >
                 <Plus className="mr-2 h-4 w-4" /> Create Return
               </Button>
             </PermissionGate>
           </div>
         </div>
 
-        {/* Financial Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
                 <TrendingDown className="h-3.5 w-3.5" />
-                Total Return Value
+                Total return value
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-destructive">
+              <div className="text-xl font-bold text-destructive sm:text-2xl">
                 {formatCurrency(stats.totalValue, baseCurrency)}
               </div>
               <p className="text-xs text-muted-foreground">{stats.total} returns</p>
@@ -379,82 +276,98 @@ export default function PurchaseReturns() {
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                Pending Approval
+                Awaiting approval
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-amber-600">
-                {stats.pending.length}
+              <div className="text-xl font-bold text-amber-600 sm:text-2xl">
+                {stats.awaitingApproval.length}
               </div>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(stats.pending.reduce((s, r) => s + r.total, 0), baseCurrency)}
+                {formatCurrency(
+                  stats.awaitingApproval.reduce((s, r) => s + (r.total ?? 0), 0),
+                  baseCurrency,
+                )}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5" />
-                Approved
+                <Truck className="h-3.5 w-3.5" />
+                Awaiting dispatch
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-blue-600">
-                {stats.approved.length}
+              <div className="text-xl font-bold text-blue-600 sm:text-2xl">
+                {stats.awaitingDispatch.length}
               </div>
-              <p className="text-xs text-muted-foreground">Stock adjusted</p>
+              <p className="text-xs text-muted-foreground">Approved, stock still on hand</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5" />
-                Processed
+                Awaiting debit note
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-emerald-600">
-                {stats.processed.length}
+              <div className="text-xl font-bold text-emerald-600 sm:text-2xl">
+                {stats.awaitingCredit.length}
               </div>
-              <p className="text-xs text-muted-foreground">Debit notes issued</p>
+              <p className="text-xs text-muted-foreground">Shipped, money not yet recovered</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters */}
         <div className="filter-bar">
-          <div className="relative flex-1 min-w-0">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search returns..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 w-full" />
+            <Input
+              placeholder="Search returns..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9"
+            />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="processed">Processed</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
+              {PIPELINE.map((s) => (
+                <SelectItem key={s.key} value={s.key}>
+                  {s.label}
+                </SelectItem>
+              ))}
+              <SelectItem value="rejected">Rejected</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* Table */}
         <Card>
           <CardContent className="p-0">
-            {(isLoading || !currencyReady) ? (
+            {isLoading || !currencyReady ? (
               <div className="flex items-center justify-center py-12">
                 <RotateCcw className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : filteredReturns.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <RotateCcw className="h-12 w-12 text-muted-foreground mb-4" />
+                <RotateCcw className="mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="text-lg font-medium">No purchase returns yet</h3>
-                <p className="text-muted-foreground mb-4">Record returns when you send items back to vendors</p>
+                <p className="mb-4 max-w-md text-center text-muted-foreground">
+                  A return starts from the goods receipt the stock arrived on, so the cost,
+                  lot and warehouse come with it.
+                </p>
                 <PermissionGate permission="managePurchases">
-                  <Button variant="outline" size="sm" onClick={() => navigate("/purchases/returns/new")}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate("/purchases/returns/new")}
+                  >
                     <Plus className="mr-2 h-4 w-4" /> Create Return
                   </Button>
                 </PermissionGate>
@@ -469,8 +382,9 @@ export default function PurchaseReturns() {
                     <TableHead>Reason</TableHead>
                     <TableHead>Pipeline</TableHead>
                     <TableHead>Items</TableHead>
+                    <TableHead>Debit note</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -480,102 +394,58 @@ export default function PurchaseReturns() {
                       className="cursor-pointer"
                       onClick={() => setPeekId(pr.id)}
                     >
-                      <TableCell className="font-medium font-mono">{pr.return_number}</TableCell>
+                      <TableCell className="font-mono font-medium">
+                        <div className="flex items-center gap-2">
+                          {pr.return_number}
+                          {pr.return_kind === "financial" && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Financial
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {pr.vendor ? (
                           <ClickableEntity onClick={() => setPreviewContactId(pr.vendor_id)}>
                             {pr.vendor.name}
                           </ClickableEntity>
-                        ) : "—"}
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
-                      <TableCell className="text-sm">{format(new Date(pr.return_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell className="max-w-[150px] truncate text-sm">{pr.reason}</TableCell>
+                      <TableCell className="text-sm">
+                        {format(new Date(pr.return_date), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate text-sm">
+                        {pr.reason_code ? reasonCodeLabel(pr.reason_code) : pr.reason || "—"}
+                      </TableCell>
                       <TableCell>
-                        <WorkflowPipeline status={pr.status} />
+                        <WorkflowPipeline status={pr.status as string} />
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          <Package className="h-3 w-3 mr-1" />
+                          <Package className="mr-1 h-3 w-3" />
                           {pr.items?.length || 0}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {pr.vendor_credit_note_id ? (
+                          <Badge variant="outline" className="text-xs">
+                            <CheckCircle className="mr-1 h-3 w-3" /> Raised
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-medium text-destructive">
-                        -{formatCurrency(pr.total, baseCurrency)}
+                        -{formatCurrency(pr.total ?? 0, baseCurrency)}
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setPeekId(pr.id)}>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePrintReturn(pr)} disabled={isPrinting === pr.id}>
-                              {isPrinting === pr.id ? (
-                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
-                              ) : (
-                                <><Printer className="mr-2 h-4 w-4" /> Print</>
-                              )}
-                            </DropdownMenuItem>
-                            {pr.vendor_id && (
-                              <DropdownMenuItem onClick={() => {
-                                const vendor = contacts.find(c => c.id === pr.vendor_id);
-                                setEmailDocument({
-                                documentType: "credit_note" as any,
-                                  documentId: pr.id,
-                                  documentNumber: pr.return_number,
-                                  recipientEmail: vendor?.email || "",
-                                  recipientName: vendor?.name || "",
-                                  total: pr.total,
-                                  currency: baseCurrency,
-                                });
-                                setShowEmailDialog(true);
-                              }}>
-                                <Mail className="mr-2 h-4 w-4" /> Email to Supplier
-                              </DropdownMenuItem>
-                            )}
-                            {pr.status === "pending" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {
-                                  if (isReadOnly) { openUpgradeModal("purchase_returns"); return; }
-                                  handleStatusChange(pr.id, "approved");
-                                }}>
-                                  <CheckCircle className="mr-2 h-4 w-4" /> Approve
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => {
-                                  if (isReadOnly) { openUpgradeModal("purchase_returns"); return; }
-                                  handleStatusChange(pr.id, "cancelled");
-                                }}>
-                                  <XCircle className="mr-2 h-4 w-4" /> Cancel
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {pr.status === "approved" && (
-                              <DropdownMenuItem onClick={() => {
-                                if (isReadOnly) { openUpgradeModal("purchase_returns"); return; }
-                                handleStatusChange(pr.id, "processed");
-                              }}>
-                                <FileText className="mr-2 h-4 w-4" /> Process (Debit Note + GL)
-                              </DropdownMenuItem>
-                            )}
-                            {pr.status === "pending" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => {
-                                    if (isReadOnly) { openUpgradeModal("purchase_returns"); return; }
-                                    handleDelete(pr.id);
-                                  }}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <RowActions
+                          pr={pr}
+                          onPeek={() => setPeekId(pr.id)}
+                          onChanged={refreshPurchaseReturns}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -586,27 +456,20 @@ export default function PurchaseReturns() {
         </Card>
       </div>
 
-
-      {/* Email Dialog */}
-      <SendDocumentDialog
-        open={showEmailDialog}
-        onOpenChange={setShowEmailDialog}
-        document={emailDocument}
-      />
-
-      {/* Peek Sheet */}
       <PurchaseReturnPeekSheet
         returnId={peekId}
-        onOpenChange={(open) => { if (!open) setPeekId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setPeekId(null);
+        }}
       />
 
-    </>
-
-    <ContactPreviewDrawer
-      open={!!previewContactId}
-      onOpenChange={(open) => { if (!open) setPreviewContactId(null); }}
-      contactId={previewContactId}
-    />
+      <ContactPreviewDrawer
+        open={!!previewContactId}
+        onOpenChange={(open) => {
+          if (!open) setPreviewContactId(null);
+        }}
+        contactId={previewContactId}
+      />
     </>
   );
 }
