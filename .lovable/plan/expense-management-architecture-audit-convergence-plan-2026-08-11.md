@@ -116,3 +116,102 @@ state) and Phase 4 closes the duplicate-liability hole. Phases 5-7 are
 correctness and domain-fidelity work. Expense reports and corporate-card import
 remain deliberately out of scope. `expenses` currently holds **0 rows**, so the
 lifecycle and currency migrations carry no data-backfill risk.
+
+---
+
+# E. AUTHORITATIVE PROJECT STATUS (updated 2026-08-11)
+
+## Currently active phase → **Phase 5** (currency, tax, dimensions, documents)
+Phases 1-4 are complete. Nothing is partially implemented.
+
+## ✅ Phase 1 — Lifecycle & server authority — DONE, verified
+- `expense_status` extended with `draft`, `submitted`, `voided`; `pending` kept as legacy alias.
+- Server commands own every transition: `expense_submit`, `expense_approve`,
+  `expense_reject`, `expense_void` (+ `post_expense_gl` called inside approval).
+- Column-level grants revoked from `authenticated` for `status`, `approved_by/at`,
+  `journal_entry_id`, `submitted_by/at`, `voided_at/by`, `reimburse*`,
+  `void_reason`, `void_reason_code`. Verified with `has_column_privilege`.
+- `guard_expense_self_approval` derives the approver from `auth.uid()`.
+- Client command layer: `src/lib/finance/expenseCommands.ts` (only entry point).
+- ADR-0020: `expense_number` (`EXP-00001`) auto-assigned, backfilled, and used in
+  JE reference + narration instead of a UUID.
+
+## ✅ Phase 2 — Canonical governance — DONE, verified
+- `expenses.approval_request_id`; `expense_submit` routes `expense.approve`
+  through `approval_route`. `NULL` → approve + post immediately.
+- `_mirror_approval_to_expense` AFTER UPDATE trigger on `approval_requests`.
+- `expense_approve` refuses while a live request exists
+  (`42501` / `HINT='GOV_USE_APPROVAL_ENGINE'`).
+- Guard tests pass: `governance-single-engine`, `sod-coverage`.
+
+## ✅ Phase 3 — Employee payable & reimbursement — DONE this session
+- `post_expense_gl` credits the dedicated `employee_reimbursements_payable`
+  role (falling back to `net_salary_payable` → `accounts_payable`) whenever
+  `paid_by='employee'`; `company_card` credits `credit_card_clearing`.
+- Two settlement routes, mutually exclusive, both server-owned:
+  - `expense_queue_payroll_reimbursement(p_expense_id, p_employee_id)` /
+    `expense_unqueue_payroll_reimbursement(p_expense_id)` — sets the flag the
+    existing `compute-payroll` **Turn C** consumes (non-taxable reimbursement
+    earning; it stamps `reimbursed_payslip_id/run_id/at`). No new payroll engine.
+  - `expense_reimburse_direct(p_expense_id, p_bank_account_id, p_payment_date,
+    p_reference)` — debits the **same** payable account the original JE credited
+    (`_expense_payable_account`), credits bank/cash, posts through
+    `post_journal_entry_atomic` with `source_subtype='reimbursement'`, so the
+    canonical unique JE source index makes retries idempotent; stamps
+    `reimbursed_at` + `status='paid'`.
+- `_expense_reimbursement_guard` centralises eligibility (approved/paid,
+  employee-paid, not already reimbursed, no owning bill, org membership).
+- `ux_expenses_single_reimbursement` — one reimbursement per expense.
+- UI: `src/features/purchases/expenses/ExpenseReimburseDialog.tsx` +
+  "Reimburse employee" / "Remove from payroll queue" row actions on
+  `src/pages/Expenses.tsx`, wired through `useExpensesPaginated`.
+
+## ✅ Phase 4 — Expense → Bill bridge + reversal visibility — DONE
+- Single server RPC `expense_convert_to_bill`; both client-side bill minters and
+  the retry loop deleted.
+- `UNIQUE` index on `bills(source_expense_id)`; `post_expense_gl` returns
+  `skipped: bill_owns_liability` when a bill exists (no double liability).
+- Reversal register (this session): `expenses.void_reason` /
+  `void_reason_code` added, `expense_void` persists the reason,
+  `reversal_register` gained a `purchases` / `expense` branch,
+  `reversal.expense` added to `governance_action_registry`, and `expense`
+  registered in `REVERSIBLE_DOCUMENTS`.
+  `reversal-register-coverage.test.ts` passes (16 tests).
+
+## ⏳ Pending
+- **Phase 5 — currency, tax, dimensions, documents** ← DO THIS NEXT
+  - `currency` → canonical currency entity; `exchange_rate`/`base_amount` are
+    already columns with a derive trigger, but the rate is not yet resolved
+    server-side from `exchange_rates` at capture time.
+  - Tax-code selection with recoverable / non-recoverable treatment
+    (today `tax_amount` is a free number posted to `input_tax`).
+  - `department_id` exists but is not captured in the UI, and dimensions must
+    write through `analytic_distributions` (project cost mirror becomes a
+    projection, not the source of truth).
+  - Receipts → canonical document/attachment layer; `receipt_url` read-only legacy.
+- **Phase 6 — access, notifications, guards**: employee-self / manager / Finance
+  RLS split, drop legacy overlapping policies, narrow `notify_expense_created`,
+  add architecture tests (no client status writes to `expenses`; expense
+  approval routed through governance).
+- **Phase 7 — UI aligned to the domain**: "who paid" first capture flow,
+  lifecycle rendering on the record page, no free-text currency/account/status.
+- Out of scope by decision: expense reports, corporate-card import.
+
+## F. Instructions for the next agent
+1. **Verify before building.** Confirm, don't assume:
+   - `has_column_privilege('authenticated','public.expenses',<col>,'UPDATE')` is
+     `false` for every state/accounting/reimbursement column.
+   - `expense_submit/approve/reject/void/convert_to_bill/reimburse_direct/
+     queue_payroll_reimbursement` all exist, are `SECURITY DEFINER`, and call
+     `_assert_org_member`.
+   - `rg` finds no raw `.from("expenses").update` carrying `status`,
+     `approved_by`, `journal_entry_id` or `reimburse*` in `src/`.
+   - `npx vitest run src/test/architecture/` — reversal-register, governance,
+     SoD and journal-monopoly guards must stay green. `je-description-no-uuid`
+     has a **pre-existing** 143-violation baseline unrelated to expenses.
+   - `npx tsgo --noEmit -p tsconfig.app.json` clean.
+2. **Then resume at Phase 5**, in the order listed above (currency → tax →
+   dimensions → receipts). Do not start Phase 6/7 or unrelated modules first.
+3. Keep every new rule server-side: no client-side FX, tax or dimension math,
+   no second posting path, no new approval engine.
+4. Update this section at the end of your session.
