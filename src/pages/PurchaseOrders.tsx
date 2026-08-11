@@ -326,12 +326,20 @@ export default function PurchaseOrders() {
   };
 
 
-  const handleStatusChange = async (id: string, status: string) => {
+  /**
+   * Emailing an approved PO to the supplier *is* the release. Anything else
+   * (draft, already sent, cancelled) keeps its status — the state machine
+   * decides, the list page never writes a status directly.
+   */
+  const handleReleaseAfterEmail = async (id: string) => {
+    if (!id) return;
+    const po = purchaseOrders.find((p) => p.id === id);
+    if (po?.status !== "approved") return;
     try {
-      await updatePurchaseOrder(id, { status: status as any });
-      toast({ title: "Status updated" });
+      await releasePurchaseOrder(id);
+      toast({ title: "Purchase order released to supplier" });
     } catch (error: any) {
-      toast({ title: "Error updating status", description: normalizeError(error).message, variant: "destructive" });
+      toast({ title: "Error releasing purchase order", description: normalizeError(error).message, variant: "destructive" });
     }
   };
 
