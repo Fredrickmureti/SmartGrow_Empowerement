@@ -248,7 +248,7 @@ export function usePurchaseReturnActions(
         hidden: !pr.vendor_id,
         onSelect: () =>
           send({
-            documentType: "credit_note" as never,
+            documentType: "purchase_return",
             documentId: pr.id,
             documentNumber: pr.return_number,
             recipientEmail: pr.vendor?.email ?? "",

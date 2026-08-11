@@ -61,7 +61,10 @@ describe("buildPurchasesReturnSnapshot", () => {
     const { snapshot } = buildPurchasesReturnSnapshot(ROW);
     expect(snapshot.notes).toBe("damaged");
     const items = snapshot.items as Array<Record<string, unknown>>;
-    expect(items[0].description).toBe("Widget A");
+    // Phase 10: the line description carries its traceability decoration
+    // (lot / serial / condition / reason) so the supplier copy is
+    // self-explanatory. The product-name fallback is still the base.
+    expect(items[0].description).toBe("Widget A (damaged · cracked)");
     expect(items[0].sku).toBe("W-A");
     expect(items[0].unit_of_measure).toBe("BOX");
   });
