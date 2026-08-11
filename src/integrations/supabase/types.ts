@@ -83669,6 +83669,14 @@ export type Database = {
         Args: { _actor: string; _id: string }
         Returns: undefined
       }
+      _pret_emit_outbox: {
+        Args: {
+          _payload: Json
+          _pr: Database["public"]["Tables"]["purchase_returns"]["Row"]
+          _state: string
+        }
+        Returns: undefined
+      }
       _pret_lifecycle_begin: { Args: never; Returns: undefined }
       _pret_load: {
         Args: { _id: string; _row_version: number }
