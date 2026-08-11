@@ -205,18 +205,46 @@ export function useExpenseView(
         : undefined,
 
 
-      extraSections: record?.receipt_url ? (
-        <Section title="Receipt">
-          <a
-            href={record.receipt_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            View receipt
-          </a>
-        </Section>
+      extraSections: record ? (
+        <>
+          <Section title="Settlement">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{settlement.label}</p>
+              <p className="text-sm text-muted-foreground">
+                {settlement.detail}
+              </p>
+              {settlement.route === "direct_paid" && reimbursedAt && (
+                <p className="text-sm text-muted-foreground">
+                  Paid {fmt(reimbursedAt)}
+                  {record.journal_entry_id
+                    ? " · posted to the general ledger"
+                    : ""}
+                </p>
+              )}
+              {settlement.route === "payroll_paid" &&
+                (str("reimbursed_payslip_id") || str("reimbursed_run_id")) && (
+                  <p className="text-sm text-muted-foreground">
+                    Payroll reference{" "}
+                    {str("reimbursed_payslip_id") ?? str("reimbursed_run_id")}
+                  </p>
+                )}
+            </div>
+          </Section>
+          {record.receipt_url ? (
+            <Section title="Receipt">
+              <a
+                href={record.receipt_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                View receipt
+              </a>
+            </Section>
+          ) : null}
+        </>
       ) : undefined,
+
     };
   }, [record, loading, error, formatCurrency]);
 
