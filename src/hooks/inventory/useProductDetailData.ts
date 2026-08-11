@@ -150,14 +150,15 @@ export function useProductDetailData({
         .limit(20);
       if (branchId) mvQ = mvQ.eq("branch_id", branchId);
 
+      // Canonical expected supply: committed POs only (approved /
+      // acknowledged / sent / partially received), unreceived quantity.
+      // Single source of truth shared with the replenishment engine —
+      // drafts are not supply. See ADR-0102.
       const poQ = supabase
-        .from("purchase_order_items")
-        .select(
-          "quantity, quantity_received, purchase_orders!inner(id, status, business_id)",
-        )
+        .from("inventory_expected_supply")
+        .select("expected_quantity, open_po_count")
         .eq("product_id", productId)
-        .eq("purchase_orders.business_id", businessId)
-        .in("purchase_orders.status", ["draft", "sent", "partial_received"]);
+        .eq("business_id", businessId);
 
       const since = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
       let velQ = supabase
@@ -176,17 +177,13 @@ export function useProductDetailData({
       const [lotsRes, identifiersRes, rrRes, mvRes, poRes, velRes] =
         await Promise.all([lotsQ, identifiersQ, rrQ, mvQ, poQ, velQ]);
 
+      // View rows are pre-aggregated per product / warehouse / branch —
+      // just sum the buckets.
       let totalQty = 0;
-      const openOrderIds = new Set<string>();
+      let openOrders = 0;
       for (const r of ((poRes as any).data ?? []) as any[]) {
-        const outstanding = Math.max(
-          0,
-          Number(r.quantity || 0) - Number(r.quantity_received || 0),
-        );
-        if (outstanding > 0) {
-          totalQty += outstanding;
-          if (r.purchase_orders?.id) openOrderIds.add(r.purchase_orders.id);
-        }
+        totalQty += Number(r.expected_quantity || 0);
+        openOrders += Number(r.open_po_count || 0);
       }
 
       const outbound = ((velRes as any).data ?? [])

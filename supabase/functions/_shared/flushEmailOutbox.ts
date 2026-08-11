@@ -131,7 +131,51 @@ function renderInventoryEmail(eventType: string, vars: Record<string, unknown>):
   return { subject, html };
 }
 
+/** PO release → supplier: branded order notification (replaces the generic var dump). */
+function renderPurchaseOrderEmail(vars: Record<string, unknown>): { subject: string; html: string } {
+  const poNumber = String(vars.po_number ?? "");
+  const fmtDate = (v: unknown): string => {
+    if (!v) return "—";
+    const d = new Date(String(v));
+    return isNaN(d.getTime())
+      ? String(v)
+      : d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  };
+  const orderDate = fmtDate(vars.order_date);
+  const expectedDate = fmtDate(vars.expected_date);
+  const currency = String(vars.currency ?? "");
+  const totalNum = Number(vars.total ?? NaN);
+  const total = isNaN(totalNum)
+    ? "—"
+    : `${currency} ${totalNum.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+
+  const subject = `Purchase Order ${poNumber}`;
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <div style="background:#f9fafb;border-radius:12px;padding:24px;border:1px solid #e5e7eb;">
+        <h2 style="margin:0 0 12px;color:#1d4ed8;font-size:20px;">Purchase Order ${poNumber}</h2>
+        <p style="margin:0 0 16px;color:#111827;font-size:15px;">You have received a new purchase order.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;color:#374151;">
+          <tr><td style="padding:6px 0;color:#6b7280;">Order date</td><td style="text-align:right;font-weight:600;">${orderDate}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">Expected delivery</td><td style="text-align:right;font-weight:600;">${expectedDate}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">Order total</td><td style="text-align:right;font-weight:700;">${total}</td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:13px;margin:16px 0 0;">
+          Please review this order and acknowledge receipt through the supplier portal. Contact the buyer if any line, price, or date needs to be discussed.
+        </p>
+      </div>
+      <p style="color:#9ca3af;font-size:11px;margin:16px 0 0;text-align:center;">
+        Reference: ${poNumber}
+      </p>
+    </div>
+  `;
+  return { subject, html };
+}
+
 function renderEmail(eventType: string, vars: Record<string, unknown>): { subject: string; html: string } {
+  if (eventType === "purchase_order_released") {
+    return renderPurchaseOrderEmail(vars);
+  }
   if (eventType === "out_of_stock" || eventType === "low_stock_alert") {
     return renderInventoryEmail(eventType, vars);
   }
