@@ -1101,7 +1101,7 @@ export default function Expenses() {
                                 expense.status === "rejected") && (
                                 <DropdownMenuItem onClick={() => handleSubmitExpense(expense)}>
                                   <Send className="mr-2 h-4 w-4" />
-                                  Submit for approval
+                                  {submitActionLabel}
                                 </DropdownMenuItem>
                               )}
                               {(expense.status === "submitted" || expense.status === "pending") && (
