@@ -9,6 +9,7 @@ import { format } from "date-fns";
 
 import type { DocumentRecordView } from "@/design-system/records";
 import { Section } from "@/design-system";
+import { describeExpenseSettlement } from "@/lib/finance/expenseCommands";
 import type { ExpenseRecord } from "./useExpenseRecord";
 import { useExpenseRecord } from "./useExpenseRecord";
 
@@ -38,9 +39,9 @@ const PAYER_LABEL: Record<string, string> = {
 const LIFECYCLE_STEPS: { column: string; title: string }[] = [
   { column: "submitted_at", title: "Submitted for approval" },
   { column: "approved_at", title: "Approved" },
-  { column: "reimbursed_at", title: "Reimbursed to employee" },
   { column: "voided_at", title: "Voided" },
 ];
+
 
 export function useExpenseView(
   id: string | null | undefined,
