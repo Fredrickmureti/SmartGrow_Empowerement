@@ -1,0 +1,8 @@
+---
+name: Expense lifecycle & employee reimbursement
+description: Server-owned expense lifecycle commands, employee payable settlement routes (payroll vs direct), reversal register registration
+type: feature
+---
+Expenses are server-authoritative: the browser never writes `status`, `approved_by/at`, `journal_entry_id`, `submitted_*`, `voided_*`, `void_reason*` or any `reimburse*` column (grants revoked from `authenticated`). All transitions go through `src/lib/finance/expenseCommands.ts` → `expense_submit / expense_approve / expense_reject / expense_void / expense_convert_to_bill`, with governance routed via `approval_route('expense.approve', …)` and mirrored back by `_mirror_approval_to_expense`. GL posting is only `post_expense_gl` → `post_journal_entry_atomic`; documents carry `expense_number` (`EXP-00001`, ADR-0020).
+
+Employee-paid expenses (`paid_by='employee'`) credit `employee_reimbursements_payable` (fallback `net_salary_payable` → `accounts_payable`) and settle exactly once through one of two routes: `expense_queue_payroll_reimbursement` (consumed by `compute-payroll` Turn C as a non-taxable earning, which stamps `reimbursed_payslip_id/run_id/at`) or `expense_reimburse_direct` (debits the payable account the original JE credited, posts with `source_subtype='reimbursement'` for idempotency, marks the expense paid). `ux_expenses_single_reimbursement` enforces once-only. A bill created from an expense owns the liability — `post_expense_gl` skips with `bill_owns_liability`. Voided expenses appear in `reversal_register` under module `purchases`, document type `expense`, action key `reversal.expense`.
