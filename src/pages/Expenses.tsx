@@ -87,6 +87,7 @@ import {
   Info,
   Eye,
   Ban,
+  Wallet,
   Send,
   Check,
 } from "lucide-react";
@@ -202,6 +203,7 @@ export default function Expenses() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [peekId, setPeekId] = usePeekParam();
+  const [reimburseExpense, setReimburseExpense] = useState<Expense | null>(null);
 
   // Handle deep-link URL params
   useEffect(() => {
@@ -1204,6 +1206,16 @@ export default function Expenses() {
           `ExpenseEditPage.tsx`.
         */}
 
+
+        <ExpenseReimburseDialog
+          expense={reimburseExpense}
+          open={!!reimburseExpense}
+          onOpenChange={(open) => {
+            if (!open) setReimburseExpense(null);
+          }}
+          onQueuePayroll={queuePayrollReimbursement}
+          onReimburseDirect={reimburseDirect}
+        />
 
         {/* Add/Edit Category Dialog */}
         <Dialog open={showCategoryDialog} onOpenChange={(open) => {
