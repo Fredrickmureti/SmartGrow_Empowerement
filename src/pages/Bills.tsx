@@ -92,6 +92,7 @@ import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
 import { format, isWithinInterval, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { BillRowActions } from "@/features/purchases/bills/BillRowActions";
 
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -920,7 +921,7 @@ export default function Bills() {
                       <BillRowActions
                         bill={bill}
                         onPeek={setPeekId}
-                        onChanged={() => refetch()}
+                        onChanged={() => { void refreshBills(); void refetchBillsPage(); void refreshApSummary(); }}
                       />
                     </TableCell>
                   </TableRow>
