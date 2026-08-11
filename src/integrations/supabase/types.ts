@@ -83228,6 +83228,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _assert_expense_account_postable: {
+        Args: { p_account_id: string; p_label: string }
+        Returns: undefined
+      }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
       _assert_reset_permission: { Args: { org_id: string }; Returns: undefined }
       _confirm_invoice_core: {

@@ -122,6 +122,7 @@ import {
   isExpenseEditable,
 } from "@/lib/finance/expenseCommands";
 import { ExpenseReimburseDialog } from "@/features/purchases/expenses/ExpenseReimburseDialog";
+import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 interface PaymentAccount {
   id: string;
   name: string;
@@ -165,6 +166,9 @@ export default function Expenses() {
     debouncedSearch(e.target.value);
   };
 
+  const { mode: governanceMode } = useGovernanceMode();
+  const submitActionLabel =
+    governanceMode === "solo" ? "Submit & approve" : "Submit for approval";
   const {
     expenses,
     categories,
@@ -1097,7 +1101,7 @@ export default function Expenses() {
                                 expense.status === "rejected") && (
                                 <DropdownMenuItem onClick={() => handleSubmitExpense(expense)}>
                                   <Send className="mr-2 h-4 w-4" />
-                                  Submit for approval
+                                  {submitActionLabel}
                                 </DropdownMenuItem>
                               )}
                               {(expense.status === "submitted" || expense.status === "pending") && (
