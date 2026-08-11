@@ -78,8 +78,10 @@ export default function PurchasesDashboard() {
   ];
   const pendingRFQs = rfqs.filter((r: any) => RFQ_IN_FLIGHT.includes(r.status));
 
-  // Returns
-  const pendingReturns = purchaseReturns.filter(r => r.status === "pending");
+  // Returns awaiting operator attention: still in the pre-dispatch part of
+  // the lifecycle (draft or awaiting approval).
+  const RETURNS_IN_FLIGHT = ["draft", "pending_approval"];
+  const pendingReturns = purchaseReturns.filter(r => RETURNS_IN_FLIGHT.includes(r.status));
 
   // This month's expenses
   const now = new Date();
