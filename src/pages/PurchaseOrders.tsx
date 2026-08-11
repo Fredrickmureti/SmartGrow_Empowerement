@@ -398,9 +398,15 @@ export default function PurchaseOrders() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       draft: "secondary",
+      submitted: "outline",
+      approved: "default",
+      rejected: "destructive",
       sent: "default",
+      acknowledged: "default",
       partial_received: "outline",
       received: "default",
+      closed: "secondary",
+      revised: "secondary",
       cancelled: "destructive",
     };
     const colors: Record<string, string> = { received: "bg-green-500" };
