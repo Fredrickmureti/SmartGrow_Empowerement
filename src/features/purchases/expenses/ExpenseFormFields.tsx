@@ -34,11 +34,19 @@ import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { ReceiptUpload } from "@/components/expenses/ReceiptUpload";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import type { ExpenseCategory } from "@/hooks/useExpenses";
+import { useTaxRates } from "@/hooks/useTaxRates";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
+
+export type ExpenseTaxTreatment = "recoverable" | "non_recoverable";
 
 export interface ExpenseFormValues {
   expense_date: string;
   amount: number;
+  /** Server-computed from `tax_rate_id`; read-only in the UI. */
   tax_amount: number;
+  tax_rate_id: string | null;
+  tax_treatment: ExpenseTaxTreatment;
   description: string;
   reference: string;
   category_id: string;
@@ -49,6 +57,8 @@ export interface ExpenseFormValues {
   payment_method: string;
   payment_account_id: string;
   project_id: string | null;
+  department_id: string | null;
+  analytic_account_id: string | null;
 }
 
 export interface PaymentAccountOption {
