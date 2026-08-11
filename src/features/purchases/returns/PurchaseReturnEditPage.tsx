@@ -57,9 +57,7 @@ export default function PurchaseReturnEditPage() {
 
   const items = useMemo(
     () =>
-      ((record?.items ?? []) as NonNullable<typeof record>["items"] extends undefined
-        ? never[]
-        : NonNullable<NonNullable<typeof record>["items"]>)
+      (record?.items ?? [])
         .slice()
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
     [record],
