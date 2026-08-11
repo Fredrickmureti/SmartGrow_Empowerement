@@ -7,8 +7,10 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Ban,
+  BookCheck,
   CheckCircle,
   CreditCard,
+  Download,
   Edit,
   FileSearch,
   History,
@@ -16,12 +18,16 @@ import {
   Mail,
   Printer,
   RotateCcw,
+  Send,
+  ThumbsUp,
   Trash2,
+  Undo2,
 } from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
+import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 import { useDocumentEmail } from "@/features/purchases/record/useDocumentEmail";
 import { supabase } from "@/integrations/supabase/client";
 import { useBills, type Bill } from "@/hooks/useBills";
@@ -45,7 +51,15 @@ export function useBillActions(
   const { toast } = useToast();
   const { preview } = useDocumentPreview();
   const { print, printing } = useRecordPrint("bill");
-  const { confirmBill, deleteBill } = useBills();
+  const { download, downloading } = useRecordDownload("bill");
+  const {
+    confirmBill,
+    deleteBill,
+    requireBillApproval,
+    submitBillForApproval,
+    approveBill,
+    rejectBill,
+  } = useBills();
   const { canManagePurchases } = usePermissions();
   const { send, dialog: emailDialog } = useDocumentEmail(onChanged);
 
