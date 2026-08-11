@@ -34,11 +34,15 @@ export function usePaymentAccounts(): PaymentAccountOption[] {
     let cancelled = false;
     (async () => {
       if (!currentOrg) return;
+      // Header (group) accounts are non-postable — `prevent_journal_post_to_header`
+      // rejects any journal line against them, so they must never be offered as a
+      // payment account.
       let query = supabase
         .from("accounts")
         .select("id, name, code, account_type")
         .eq("organization_id", currentOrg.id)
         .eq("is_active", true)
+        .eq("is_header", false)
         .in("account_type", ["asset", "liability"])
         .order("code");
       if (currentBusiness?.id) {
