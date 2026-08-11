@@ -83726,6 +83726,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _pret_lock_receipt_line: {
+        Args: { _goods_receipt_item_id: string }
+        Returns: undefined
+      }
       _pret_log: {
         Args: {
           _detail?: Json

@@ -33,10 +33,7 @@ export type PurchaseReturnStatus =
   | "acknowledged"
   | "credited"
   | "closed"
-  | "cancelled"
-  // Legacy values still present on historical rows.
-  | "pending"
-  | "processed";
+  | "cancelled";
 
 export type PurchaseReturnKind = "goods" | "financial";
 

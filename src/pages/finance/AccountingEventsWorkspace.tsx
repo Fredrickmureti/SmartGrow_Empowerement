@@ -214,7 +214,7 @@ function usePosStatementSummaries(events: AccountingEventRow[]) {
     queryKey: ["accounting-events-pos-summaries", posDocIds.sort().join(",")],
     enabled: posDocIds.length > 0,
     queryFn: async (): Promise<Map<string, PosStatementSummary>> => {
-      const { data, error } = await supabase
+      const { data, error } = (await (supabase as any)
         .from("pos_statements")
         .select(`
           id, statement_number, close_kind, opened_at, closed_at,
@@ -223,7 +223,7 @@ function usePosStatementSummaries(events: AccountingEventRow[]) {
           register:pos_registers!pos_statements_register_id_fkey ( register_name ),
           shift:pos_shifts!pos_statements_shift_id_fkey ( shift_number )
         `)
-        .in("id", posDocIds);
+        .in("id", posDocIds)) as { data: any[] | null; error: any };
       if (error) throw error;
       const closedByIds = Array.from(new Set(
         (data ?? []).map((r) => (r as Record<string, unknown>).closed_by as string | null).filter(Boolean) as string[],
