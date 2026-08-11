@@ -72,3 +72,22 @@ Out of scope by earlier decision, unchanged: expense reports and corporate-card 
 - All changes are database migrations plus hook/UI wiring; no new engine of any kind. Posting stays `post_journal_entry_atomic`, approval stays `approval_route`, settlement stays the existing payroll/payment routes.
 - `expenses` still holds no production rows, so the currency/tax column changes need no backfill; a defensive backfill of `exchange_rate=1` for base-currency rows is included anyway.
 - Each phase ends with `tsgo --noEmit` plus `src/test/architecture/` green (the `je-description-no-uuid` 143-violation baseline is pre-existing and unrelated).
+
+---
+
+## Phase 7 — UI aligned to the domain (COMPLETE, verified 2026-08-11)
+
+**Implemented and verified**
+- **Payer-first capture.** `ExpenseFormFields.tsx` now opens with a "Who paid?" section: `paid_by` (`company` / `company_card` / `employee`), an employee picker for out-of-pocket spend, and a payment-method select for company-funded spend. The "Paid from account" picker (and the AP/linked-bill notice) only renders for `paid_by = 'company'`; for card and employee spend `post_expense_gl` resolves the credit account (card clearing, employee reimbursements payable) server-side.
+- **Create/edit wiring.** `ExpenseCreatePage.tsx` and `ExpenseEditPage.tsx` map `paid_by` / `employee_id` into the payload, hydrate them on edit, block submission of an employee-paid expense with no employee, and require a payment account only for company-funded spend.
+- **Record projection.** `expenseView.tsx` renders the server-owned lifecycle timeline (`created_at`, `submitted_at`, `approved_at`, `reimbursed_at`, `voided_at`, plus a GL-posted entry when `journal_entry_id` is set) and the derived dimensions: payer, tax treatment (recoverable vs folded-into-cost), FX rate and base-currency equivalent.
+- **Insert-side grant gap closed (found during Phase 7 verification).** Column grants only revoked `UPDATE` on server-owned columns; `authenticated` could still *author* `status`, `base_amount`, `exchange_rate`, `tax_amount`, `expense_number`, `journal_entry_id` and every lifecycle timestamp at INSERT. A migration revoked table-level INSERT and re-granted INSERT on the business columns only. Verified with `has_column_privilege`.
+- Green: `tsgo --noEmit`, `vitest run src/test/architecture/expense-domain-ownership.test.ts` (5 assertions).
+
+**Pending / next**
+- **Phase 8 — Settlement UX for employee reimbursements.** Surface the two discharge routes (`expense_queue_payroll_reimbursement` vs `expense_reimburse_direct`) in the list/peek so an approved employee-paid expense has a visible "settle" affordance, and show which route discharged it.
+- Extend the architecture ratchet with an assertion that no client file inserts the newly-revoked INSERT columns (currently only update paths are asserted).
+
+**Instructions for the next agent**
+1. Verify Phase 7 first: read `ExpenseFormFields.tsx`, `ExpenseCreatePage.tsx`, `ExpenseEditPage.tsx`, `expenseView.tsx`; confirm the payer branch matches `post_expense_gl`'s account resolution, and re-check `has_column_privilege('authenticated','public.expenses',<col>,'INSERT')` for the server-owned columns listed above.
+2. Only then start Phase 8 — do not open unrelated areas.

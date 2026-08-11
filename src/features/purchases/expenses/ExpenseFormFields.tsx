@@ -38,10 +38,24 @@ import type { ExpenseCategory } from "@/hooks/useExpenses";
 import { useTaxRates } from "@/hooks/useTaxRates";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
+import { useEmployees } from "@/hooks/useEmployees";
+
 
 export type ExpenseTaxTreatment = "recoverable" | "non_recoverable";
 
+/**
+ * Who funded the outflow. This is the first question the capture flow
+ * asks because it decides the credit side of the posting:
+ *   company      → cash / bank / mobile money (or an explicitly chosen account)
+ *   company_card → the card clearing account
+ *   employee     → the employee reimbursements payable, settled later
+ * `post_expense_gl` resolves the account server-side when none is picked.
+ */
+export type ExpensePaidBy = "company" | "company_card" | "employee";
+
 export interface ExpenseFormValues {
+  paid_by: ExpensePaidBy;
+  employee_id: string | null;
   expense_date: string;
   amount: number;
   /** Server-computed from `tax_rate_id`; read-only in the UI. */
@@ -87,8 +101,36 @@ interface Props {
   disabled?: boolean;
 }
 
+const PAYER_OPTIONS: { value: ExpensePaidBy; label: string; hint: string }[] = [
+  {
+    value: "company",
+    label: "Company cash or bank",
+    hint: "Money left a company account directly.",
+  },
+  {
+    value: "company_card",
+    label: "Company card",
+    hint: "Settled later against the card clearing account.",
+  },
+  {
+    value: "employee",
+    label: "Employee out of pocket",
+    hint: "Creates a reimbursement owed to the employee.",
+  },
+];
+
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: "cash", label: "Cash" },
+  { value: "petty_cash", label: "Petty cash" },
+  { value: "bank", label: "Bank transfer" },
+  { value: "mobile_money", label: "Mobile money" },
+  { value: "cheque", label: "Cheque" },
+];
+
 export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
   return {
+    paid_by: "company",
+    employee_id: null,
     expense_date: format(new Date(), "yyyy-MM-dd"),
     amount: 0,
     tax_amount: 0,
@@ -109,6 +151,7 @@ export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
   };
 }
 
+
 export function ExpenseFormFields({
   value,
   onChange,
@@ -123,6 +166,13 @@ export function ExpenseFormFields({
   const { activeTaxRates } = useTaxRates();
   const { departments } = useDepartments();
   const { activeAccounts: analyticAccounts } = useAnalyticAccounts();
+  const { employees, isLoading: employeesLoading } = useEmployees({
+    enabled: value.paid_by === "employee",
+  });
+
+  const payerHint =
+    PAYER_OPTIONS.find((o) => o.value === value.paid_by)?.hint ?? "";
+
 
   const selectedCategory = value.category_id
     ? categories.find((c) => c.id === value.category_id) ?? null
@@ -146,9 +196,104 @@ export function ExpenseFormFields({
   return (
     <>
       <Section
+        title="Who paid?"
+        description="The funding source decides which account is credited when this expense posts. Answer this first."
+      >
+        <FieldGrid columns={2}>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="paid_by">Funded by *</Label>
+            <Select
+              value={value.paid_by}
+              onValueChange={(v) =>
+                onChange({
+                  paid_by: v as ExpensePaidBy,
+                  // Non-company payers never credit a hand-picked account:
+                  // `post_expense_gl` resolves the card clearing / employee
+                  // payable account itself.
+                  payment_account_id: v === "company" ? value.payment_account_id : "",
+                  employee_id: v === "employee" ? value.employee_id : null,
+                })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="paid_by">
+                <SelectValue placeholder="Select payer" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{payerHint}</p>
+          </div>
+
+          {value.paid_by === "employee" && (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="employee">Employee to reimburse *</Label>
+              <Select
+                value={value.employee_id ?? ""}
+                onValueChange={(v) => onChange({ employee_id: v })}
+                disabled={disabled || employeesLoading}
+              >
+                <SelectTrigger id="employee">
+                  <SelectValue
+                    placeholder={
+                      employeesLoading ? "Loading employees…" : "Select employee"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                      {emp.employee_number ? ` — ${emp.employee_number}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Approval credits the employee reimbursements payable. The
+                  obligation is discharged once — either through payroll or a
+                  direct reimbursement — never both.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {value.paid_by === "company" && (
+            <div className="space-y-2">
+              <Label htmlFor="payment_method">Payment method</Label>
+              <Select
+                value={value.payment_method || "cash"}
+                onValueChange={(v) => onChange({ payment_method: v })}
+                disabled={disabled}
+              >
+                <SelectTrigger id="payment_method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </FieldGrid>
+      </Section>
+
+      <Section
         title="Expense details"
         description="Date, amount, category, and supplier for this expense."
       >
+
         <FieldGrid columns={2}>
           <div className="space-y-2">
             <Label htmlFor="expense_date">Date *</Label>
@@ -303,49 +448,52 @@ export function ExpenseFormFields({
             </Select>
           </div>
 
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="payment_account">Paid from account *</Label>
-            <Select
-              value={value.payment_account_id}
-              onValueChange={(v) => onChange({ payment_account_id: v })}
-              disabled={disabled}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select payment account" />
-              </SelectTrigger>
-              <SelectContent>
-                {paymentAccounts.map((acc) => (
-                  <SelectItem key={acc.id} value={acc.id}>
-                    {acc.code} — {acc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Ledger account to credit (Cash, Bank, Accounts Payable…).
-            </p>
-            {isAPSelected && (
-              <div className="mt-2 space-y-2">
-                <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    A vendor bill will be created automatically and appear in{" "}
-                    <strong>Purchases → Bills</strong> and{" "}
-                    <strong>Finance → Accounts Payable</strong>.
-                  </p>
-                </div>
-                {!value.vendor_id && (
-                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-800 dark:bg-amber-950">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      <strong>Supplier required.</strong> Select a supplier
-                      above to create a payable expense.
+          {value.paid_by === "company" ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="payment_account">Paid from account *</Label>
+              <Select
+                value={value.payment_account_id}
+                onValueChange={(v) => onChange({ payment_account_id: v })}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentAccounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.code} — {acc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Ledger account to credit (Cash, Bank, Accounts Payable…).
+              </p>
+              {isAPSelected && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      A vendor bill will be created automatically and appear in{" "}
+                      <strong>Purchases → Bills</strong> and{" "}
+                      <strong>Finance → Accounts Payable</strong>.
                     </p>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                  {!value.vendor_id && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-800 dark:bg-amber-950">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <strong>Supplier required.</strong> Select a supplier
+                        above to create a payable expense.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : null}
+
 
           <div className="space-y-2">
             <Label htmlFor="reference">Reference</Label>
