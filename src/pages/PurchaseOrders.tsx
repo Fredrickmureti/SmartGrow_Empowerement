@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { PurchaseOrderRowActions } from "@/features/purchases/orders/PurchaseOrderRowActions";
 import { PURCHASE_ORDER_IMPORT_FIELDS } from "@/lib/importConfigs/purchaseOrderImportConfig";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
@@ -586,76 +587,11 @@ export default function PurchaseOrders() {
                     </TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(po.total, po.currency)}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {/* Send to Vendor via Email */}
-                          {["draft", "sent"].includes(po.status) && (
-                            <DropdownMenuItem onClick={() => {
-                              const vendor = contacts.find(c => c.id === po.vendor_id);
-                              setEmailDocument({
-                                documentType: "purchase_order",
-                                documentId: po.id,
-                                documentNumber: po.po_number,
-                                recipientEmail: vendor?.email || "",
-                                recipientName: vendor?.name || "",
-                                total: po.total,
-                                currency: po.currency,
-                              });
-                              setShowEmailDialog(true);
-                            }}>
-                              <Mail className="mr-2 h-4 w-4" /> Send to Supplier
-                            </DropdownMenuItem>
-                          )}
-                          {po.status === "draft" && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(po.id, "sent")}>
-                              <Send className="mr-2 h-4 w-4" /> Mark as Sent
-                            </DropdownMenuItem>
-                          )}
-                          {["sent", "partial_received"].includes(po.status) && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                navigate(
-                                  `/warehouse-app/receiving?source_doc_type=purchase_order&source_doc_id=${po.id}`,
-                                )
-                              }
-                            >
-                              <Package className="mr-2 h-4 w-4" /> Receive Goods
-                            </DropdownMenuItem>
-                          )}
-                          {po.status === "received" && !po.converted_bill_id && (
-                            <DropdownMenuItem onClick={() => handleConvertToBill(po.id)}>
-                              <ArrowRightLeft className="mr-2 h-4 w-4" /> Convert to Bill
-                            </DropdownMenuItem>
-                          )}
-                          {/* Print / Download PO */}
-                          <DropdownMenuItem onClick={() => handlePrintPO(po)} disabled={isPrinting === po.id}>
-                            {isPrinting === po.id ? (
-                              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
-                            ) : (
-                              <><Printer className="mr-2 h-4 w-4" /> Print PO</>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {["draft", "sent"].includes(po.status) && (
-                            <DropdownMenuItem onClick={() => navigate(`/purchases/orders/${po.id}/edit`)}>
-                              <Pencil className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                          )}
-                          {po.status === "draft" && (
-                            <DropdownMenuItem onClick={() => handleDelete(po.id)} className="text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          )}
-                          {po.status === "sent" && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(po.id, "cancelled")} className="text-destructive">
-                              <Ban className="mr-2 h-4 w-4" /> Cancel Order
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <PurchaseOrderRowActions
+                        po={po}
+                        onPeek={setPeekId}
+                        onChanged={() => { refreshPurchaseOrders(); void refetchPurchaseOrders(); }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))
