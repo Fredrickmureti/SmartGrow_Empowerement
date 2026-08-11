@@ -54052,6 +54052,65 @@ export type Database = {
           },
         ]
       }
+      purchase_return_events: {
+        Row: {
+          actor_user_id: string | null
+          approval_request_id: string | null
+          business_id: string
+          created_at: string
+          detail: Json
+          event_type: string
+          from_status: string | null
+          governance_mode: string | null
+          id: string
+          journal_entry_id: string | null
+          organization_id: string
+          purchase_return_id: string
+          to_status: string | null
+          vendor_credit_note_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          approval_request_id?: string | null
+          business_id: string
+          created_at?: string
+          detail?: Json
+          event_type: string
+          from_status?: string | null
+          governance_mode?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          organization_id: string
+          purchase_return_id: string
+          to_status?: string | null
+          vendor_credit_note_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          approval_request_id?: string | null
+          business_id?: string
+          created_at?: string
+          detail?: Json
+          event_type?: string
+          from_status?: string | null
+          governance_mode?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          organization_id?: string
+          purchase_return_id?: string
+          to_status?: string | null
+          vendor_credit_note_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_return_events_purchase_return_id_fkey"
+            columns: ["purchase_return_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_return_items: {
         Row: {
           bill_item_id: string | null
@@ -54060,16 +54119,21 @@ export type Database = {
           description: string
           display_quantity: number | null
           display_uom_id: string | null
+          goods_receipt_item_id: string | null
           id: string
           line_total: number
+          location_id: string | null
+          lot_number: string | null
           packaging_id: string | null
           product_id: string | null
           purchase_return_id: string
           quantity: number
           return_reason: string | null
+          serial_number: string | null
           sort_order: number | null
           tax_amount: number | null
           tax_rate: number | null
+          unit_cost_basis: number | null
           unit_price: number
           uom_snapshot: string | null
         }
@@ -54080,16 +54144,21 @@ export type Database = {
           description: string
           display_quantity?: number | null
           display_uom_id?: string | null
+          goods_receipt_item_id?: string | null
           id?: string
           line_total: number
+          location_id?: string | null
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           purchase_return_id: string
           quantity?: number
           return_reason?: string | null
+          serial_number?: string | null
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          unit_cost_basis?: number | null
           unit_price: number
           uom_snapshot?: string | null
         }
@@ -54100,16 +54169,21 @@ export type Database = {
           description?: string
           display_quantity?: number | null
           display_uom_id?: string | null
+          goods_receipt_item_id?: string | null
           id?: string
           line_total?: number
+          location_id?: string | null
+          lot_number?: string | null
           packaging_id?: string | null
           product_id?: string | null
           purchase_return_id?: string
           quantity?: number
           return_reason?: string | null
+          serial_number?: string | null
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          unit_cost_basis?: number | null
           unit_price?: number
           uom_snapshot?: string | null
         }
@@ -54127,6 +54201,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "units_of_measure"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_return_items_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_return_items_goods_receipt_item_id_fkey"
+            columns: ["goods_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_lines_with_suspect_cost"
+            referencedColumns: ["goods_receipt_item_id"]
           },
           {
             foreignKeyName: "purchase_return_items_packaging_id_fkey"
@@ -54160,66 +54248,161 @@ export type Database = {
       }
       purchase_returns: {
         Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
           bill_id: string | null
           branch_id: string | null
           business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           created_by: string | null
+          credited_at: string | null
           currency: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
+          exchange_rate: number
+          goods_receipt_id: string | null
           id: string
           notes: string | null
           organization_id: string
-          reason: string
+          purchase_order_id: string | null
+          reason: string | null
+          reason_code: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
           return_date: string
+          return_kind: string
           return_number: string
+          rma_reference: string | null
+          row_version: number
           status: string
+          submitted_at: string | null
+          submitted_by: string | null
           subtotal: number
           tax_amount: number
           total: number
           updated_at: string
+          vendor_credit_note_id: string | null
           vendor_id: string
+          warehouse_id: string | null
+          wms_return_order_id: string | null
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          approval_request_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           bill_id?: string | null
           branch_id?: string | null
           business_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           created_by?: string | null
+          credited_at?: string | null
           currency?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          exchange_rate?: number
+          goods_receipt_id?: string | null
           id?: string
           notes?: string | null
           organization_id: string
-          reason: string
+          purchase_order_id?: string | null
+          reason?: string | null
+          reason_code?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
           return_date?: string
+          return_kind?: string
           return_number: string
+          rma_reference?: string | null
+          row_version?: number
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           subtotal?: number
           tax_amount?: number
           total?: number
           updated_at?: string
+          vendor_credit_note_id?: string | null
           vendor_id: string
+          warehouse_id?: string | null
+          wms_return_order_id?: string | null
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          approval_request_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           bill_id?: string | null
           branch_id?: string | null
           business_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           created_by?: string | null
+          credited_at?: string | null
           currency?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          exchange_rate?: number
+          goods_receipt_id?: string | null
           id?: string
           notes?: string | null
           organization_id?: string
-          reason?: string
+          purchase_order_id?: string | null
+          reason?: string | null
+          reason_code?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
           return_date?: string
+          return_kind?: string
           return_number?: string
+          rma_reference?: string | null
+          row_version?: number
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           subtotal?: number
           tax_amount?: number
           total?: number
           updated_at?: string
+          vendor_credit_note_id?: string | null
           vendor_id?: string
+          warehouse_id?: string | null
+          wms_return_order_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_returns_approval_request_id_fkey"
+            columns: ["approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_approval_request_id_fkey"
+            columns: ["approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
+          },
           {
             foreignKeyName: "purchase_returns_bill_id_fkey"
             columns: ["bill_id"]
@@ -54263,6 +54446,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "purchase_returns_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_returns_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -54284,10 +54474,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_returns_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_vendor_credit_note_id_fkey"
+            columns: ["vendor_credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_credit_notes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_returns_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_wms_return_order_id_fkey"
+            columns: ["wms_return_order_id"]
+            isOneToOne: false
+            referencedRelation: "wms_return_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -90344,7 +90562,7 @@ export type Database = {
       }
       get_next_project_number: { Args: { p_org_id: string }; Returns: string }
       get_next_purchase_return_number: {
-        Args: { _org_id: string }
+        Args: { _business_id?: string; _org_id: string }
         Returns: string
       }
       get_next_receipt_number: {
