@@ -50,7 +50,8 @@ export function PurchaseOrderReceiptsSection({
   if (!loading && receipts.length === 0) return null;
 
   return (
-    <Section title="Goods receipts" id="receipts">
+    <div id="receipts">
+    <Section title="Goods receipts">
       <div className="divide-y rounded-lg border">
         {receipts.map((receipt) => (
           <div key={receipt.id} className="text-sm">
@@ -103,5 +104,6 @@ export function PurchaseOrderReceiptsSection({
         }}
       />
     </Section>
+    </div>
   );
 }
