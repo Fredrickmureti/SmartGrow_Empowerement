@@ -33,7 +33,7 @@ export function PurchaseReturnPeekSheet({ returnId, onOpenChange }: Props) {
         {...view}
         open={!!returnId}
         onOpenChange={onOpenChange}
-        actions={actions}
+        extraActions={actions}
         fullPageHref={purchaseReturn ? `/purchases/returns/${purchaseReturn.id}` : undefined}
         extraHeaderActions={
           purchaseReturn && isDraft ? (
