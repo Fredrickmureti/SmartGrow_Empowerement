@@ -65,6 +65,11 @@ export function useExpenseView(
     const exchangeRate = num("exchange_rate");
     const baseAmount = num("base_amount");
     const isForeign = !!exchangeRate && exchangeRate !== 1;
+    const settlement = describeExpenseSettlement(
+      (record ?? {}) as Parameters<typeof describeExpenseSettlement>[0],
+    );
+    const reimbursedAt = str("reimbursed_at");
+
 
     return {
       kind: "expense",
