@@ -20017,6 +20017,7 @@ export type Database = {
         Row: {
           account_id: string | null
           amount: number
+          analytic_account_id: string | null
           approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
@@ -20054,6 +20055,8 @@ export type Database = {
           submitted_by: string | null
           task_id: string | null
           tax_amount: number | null
+          tax_rate_id: string | null
+          tax_treatment: string
           updated_at: string
           vendor_id: string | null
           void_reason: string | null
@@ -20064,6 +20067,7 @@ export type Database = {
         Insert: {
           account_id?: string | null
           amount: number
+          analytic_account_id?: string | null
           approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
@@ -20101,6 +20105,8 @@ export type Database = {
           submitted_by?: string | null
           task_id?: string | null
           tax_amount?: number | null
+          tax_rate_id?: string | null
+          tax_treatment?: string
           updated_at?: string
           vendor_id?: string | null
           void_reason?: string | null
@@ -20111,6 +20117,7 @@ export type Database = {
         Update: {
           account_id?: string | null
           amount?: number
+          analytic_account_id?: string | null
           approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
@@ -20148,6 +20155,8 @@ export type Database = {
           submitted_by?: string | null
           task_id?: string | null
           tax_amount?: number | null
+          tax_rate_id?: string | null
+          tax_treatment?: string
           updated_at?: string
           vendor_id?: string | null
           void_reason?: string | null
@@ -20175,6 +20184,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -20434,6 +20450,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
           {
@@ -82983,6 +83006,7 @@ export type Database = {
         Returns: {
           account_id: string | null
           amount: number
+          analytic_account_id: string | null
           approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
@@ -83020,6 +83044,8 @@ export type Database = {
           submitted_by: string | null
           task_id: string | null
           tax_amount: number | null
+          tax_rate_id: string | null
+          tax_treatment: string
           updated_at: string
           vendor_id: string | null
           void_reason: string | null
@@ -83043,6 +83069,7 @@ export type Database = {
         Returns: {
           account_id: string | null
           amount: number
+          analytic_account_id: string | null
           approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
@@ -83080,6 +83107,8 @@ export type Database = {
           submitted_by: string | null
           task_id: string | null
           tax_amount: number | null
+          tax_rate_id: string | null
+          tax_treatment: string
           updated_at: string
           vendor_id: string | null
           void_reason: string | null
@@ -84707,6 +84736,7 @@ export type Database = {
         Returns: {
           account_id: string | null
           amount: number
+          analytic_account_id: string | null
           approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
@@ -84744,6 +84774,8 @@ export type Database = {
           submitted_by: string | null
           task_id: string | null
           tax_amount: number | null
+          tax_rate_id: string | null
+          tax_treatment: string
           updated_at: string
           vendor_id: string | null
           void_reason: string | null
