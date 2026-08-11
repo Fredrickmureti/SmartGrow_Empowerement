@@ -26,6 +26,8 @@ import type { PurchaseReturn } from "@/hooks/usePurchaseReturns";
 import { reasonCodeLabel } from "@/lib/purchases/purchaseReturnRpcs";
 import { usePurchaseReturnRecord } from "./usePurchaseReturnRecord";
 import { usePurchaseReturnEvents } from "./usePurchaseReturnEvents";
+import { usePurchaseReturnSettlement } from "./usePurchaseReturnSettlement";
+import { useActorNames } from "@/hooks/useActorNames";
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -437,7 +439,7 @@ export function usePurchaseReturnView(
         </>
       ) : undefined,
     };
-  }, [purchaseReturn, loading, error, formatCurrency, events]);
+  }, [purchaseReturn, loading, error, formatCurrency, events, settlement, nameOf]);
 
   return { purchaseReturn, loading, error, view, refresh: refetch };
 }
