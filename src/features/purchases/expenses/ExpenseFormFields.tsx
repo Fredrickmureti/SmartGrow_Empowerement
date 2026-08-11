@@ -164,6 +164,13 @@ export function ExpenseFormFields({
   const { activeTaxRates } = useTaxRates();
   const { departments } = useDepartments();
   const { activeAccounts: analyticAccounts } = useAnalyticAccounts();
+  const { employees, isLoading: employeesLoading } = useEmployees({
+    enabled: value.paid_by === "employee",
+  });
+
+  const payerHint =
+    PAYER_OPTIONS.find((o) => o.value === value.paid_by)?.hint ?? "";
+
 
   const selectedCategory = value.category_id
     ? categories.find((c) => c.id === value.category_id) ?? null
