@@ -314,6 +314,7 @@ export function EnhancedLoginForm() {
               setAuthMethod("password");
               setPinError(null);
               setPin("");
+              setShowPin(false);
             }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
@@ -330,6 +331,7 @@ export function EnhancedLoginForm() {
             onClick={() => {
               setAuthMethod("pin");
               setPinError(null);
+              setShowPin(false);
             }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
