@@ -119,9 +119,28 @@ export function ExpenseFormFields({
   entityId,
   disabled,
 }: Props) {
+  const { activeTaxRates } = useTaxRates();
+  const { departments } = useDepartments();
+  const { activeAccounts: analyticAccounts } = useAnalyticAccounts();
+
   const selectedCategory = value.category_id
     ? categories.find((c) => c.id === value.category_id) ?? null
     : null;
+
+  const selectedTaxRate = value.tax_rate_id
+    ? activeTaxRates.find((t) => t.id === value.tax_rate_id) ?? null
+    : null;
+
+  // Preview only — `_expenses_derive_base_amount` is authoritative.
+  const previewTax = selectedTaxRate
+    ? selectedTaxRate.tax_type === "fixed"
+      ? Number(selectedTaxRate.fixed_amount) || 0
+      : selectedTaxRate.is_inclusive
+        ? (Number(value.amount) || 0) -
+          (Number(value.amount) || 0) / (1 + Number(selectedTaxRate.rate) / 100)
+        : ((Number(value.amount) || 0) * Number(selectedTaxRate.rate)) / 100
+    : Number(value.tax_amount) || 0;
+
 
   return (
     <>
