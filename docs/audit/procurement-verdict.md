@@ -31,6 +31,22 @@ The lifecycle contract is now single-sourced: **`po_status` + the
 `*_purchase_order` RPCs own the state machine, and the client only names the
 intent.** Any new status write from the client is a regression.
 
+## Addendum 2026-08-11 (2) — PO takeover hardening
+
+A same-day ownership pass over the converged lifecycle found and fixed the
+remaining leaks. Full rationale: ADR-0102
+(`docs/architecture/decisions/0102-purchase-order-lifecycle-and-commitment-architecture.md`).
+
+| Finding | Resolution |
+| --- | --- |
+| `update_po_items_atomic` had no auth, business-access, or status guard — any caller could swap lines on a **released** PO. It also inserted into a nonexistent `received_quantity` column (every edit-page save would fail at runtime) and silently dropped `packaging_id` / `display_uom_id` / `display_quantity`. | RPC hardened in DB: authenticated caller, business access, edits only in `draft / revised / rejected`; column defect fixed; packaging/UoM fields carried through. |
+| Released PO headers (vendor, totals, currency, dates) could be silently rewritten by direct updates, bypassing every RPC. | `trg_po_commercial_fields_immutable` BEFORE UPDATE trigger locks commercial fields outside `draft / revised / rejected`; revise reopens editing legitimately. |
+| The PO edit page rendered an editable form for any status. | Client-side twin of the RPC guard: non-editable statuses get an explanation and a path back to the record page. |
+| "Incoming" supply had three divergent definitions: `useProductDetailData` counted **drafts**, the replenishment engine had its own draft-inclusive query, and only the (unused) `inventory_expected_supply` view was correct. | Both consumers now read the canonical view — committed POs only (approved / acknowledged / sent / partial), unreceived quantity, per product / warehouse / branch. |
+| The supplier release email fell back to a JSON dump of template variables. | Branded `renderPurchaseOrderEmail` in the email-outbox flusher (order number, dates, total, acknowledgement instructions). |
+| `_emit_po_outbox` idempotency keys for `revised` collapsed repeat revisions onto one key. | Keys are occurrence-aware via `updated_at`. |
+| No automated coverage pinned any of this. | `po-status-single-writer.test.ts` (arch ratchet) + `supabase/tests/po_lifecycle_convergence_test.sql` (full lifecycle: submit → approve → release → revise, fan-out counts, SoD, immutability, idempotency). |
+
 ## What shipped
 
 
