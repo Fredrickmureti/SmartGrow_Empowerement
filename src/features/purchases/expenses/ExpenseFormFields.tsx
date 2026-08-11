@@ -426,12 +426,23 @@ export function ExpenseFormFields({
       </CapabilityGate>
 
 
-      <Section title="Receipt">
-        <ReceiptUpload
-          currentReceiptUrl={value.receipt_url}
-          onUploadComplete={(url) => onChange({ receipt_url: url })}
-          onRemove={() => onChange({ receipt_url: null })}
-        />
+      <Section
+        title="Receipt"
+        description={
+          entityId
+            ? "Receipts are stored on the expense's audit trail and locked once it is approved."
+            : undefined
+        }
+      >
+        {entityId ? (
+          <ExpenseReceipts expenseId={entityId} disabled={disabled} />
+        ) : (
+          <ReceiptUpload
+            currentReceiptUrl={value.receipt_url}
+            onUploadComplete={(url) => onChange({ receipt_url: url })}
+            onRemove={() => onChange({ receipt_url: null })}
+          />
+        )}
       </Section>
 
       <Section title="Additional fields">
