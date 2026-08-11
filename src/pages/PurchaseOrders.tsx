@@ -135,7 +135,7 @@ function POWorkflowPipeline({ status }: { status: string }) {
 export default function PurchaseOrders() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { getNextPONumber, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, convertToBill, refreshPurchaseOrders } = usePurchaseOrders();
+  const { getNextPONumber, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, convertToBill, releasePurchaseOrder, refreshPurchaseOrders } = usePurchaseOrders();
   const { confirmBill, refreshBills } = useBills();
   const { contacts } = useContacts();
   const { products } = useProducts();
