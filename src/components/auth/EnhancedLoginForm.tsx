@@ -54,6 +54,7 @@ export function EnhancedLoginForm() {
   const [pinAvailable, setPinAvailable] = useState(false);
   const [pinLength, setPinLength] = useState(4);
   const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [isCheckingPin, setIsCheckingPin] = useState(false);
   const [pinLocked, setPinLocked] = useState(false);
@@ -287,6 +288,7 @@ export function EnhancedLoginForm() {
           onChange={(e) => {
             setEmail(e.target.value);
             setPin("");
+            setShowPin(false);
             setPinError(null);
             setPinLocked(false);
           }}
@@ -312,6 +314,7 @@ export function EnhancedLoginForm() {
               setAuthMethod("password");
               setPinError(null);
               setPin("");
+              setShowPin(false);
             }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
@@ -328,6 +331,7 @@ export function EnhancedLoginForm() {
             onClick={() => {
               setAuthMethod("pin");
               setPinError(null);
+              setShowPin(false);
             }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
@@ -407,7 +411,9 @@ export function EnhancedLoginForm() {
                 </p>
               </div>
             ) : (
-              <div className="flex justify-center">
+              <div className="flex items-center justify-center gap-2">
+                {/* Spacer keeps the OTP centered against the toggle button */}
+                <div className="w-9 shrink-0" aria-hidden="true" />
                 <InputOTP
                   maxLength={pinLength}
                   value={pin}
@@ -424,6 +430,7 @@ export function EnhancedLoginForm() {
                       <InputOTPSlot
                         key={i}
                         index={i}
+                        masked={!showPin}
                         className={cn(
                           "w-12 h-14 text-xl",
                           pinError && "border-destructive"
@@ -437,6 +444,7 @@ export function EnhancedLoginForm() {
                       <InputOTPSlot
                         key={i + firstGroupSize}
                         index={i + firstGroupSize}
+                        masked={!showPin}
                         className={cn(
                           "w-12 h-14 text-xl",
                           pinError && "border-destructive"
@@ -445,6 +453,18 @@ export function EnhancedLoginForm() {
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
+                <button
+                  type="button"
+                  onClick={() => setShowPin((v) => !v)}
+                  aria-label={showPin ? "Hide PIN" : "Show PIN"}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
+                >
+                  {showPin ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             )}
           </div>
