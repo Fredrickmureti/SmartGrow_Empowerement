@@ -615,7 +615,7 @@ export default function PurchaseOrders() {
         onOpenChange={setShowEmailDialog}
         document={emailDocument}
         onSuccess={() => {
-          handleStatusChange(emailDocument?.documentId || "", "sent");
+          void handleReleaseAfterEmail(emailDocument?.documentId || "");
         }}
       />
 
