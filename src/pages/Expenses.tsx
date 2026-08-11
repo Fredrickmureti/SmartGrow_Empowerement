@@ -1388,7 +1388,16 @@ export default function Expenses() {
             const exp = expenses.find(e => e.id === id);
             if (exp) handleVoidExpense(exp);
           }}
+          onReimburse={(id) => {
+            const exp = expenses.find(e => e.id === id);
+            if (exp) setReimburseExpense(exp);
+          }}
+          onUnqueuePayroll={(id) => {
+            const exp = expenses.find(e => e.id === id);
+            if (exp) handleUnqueueReimbursement(exp);
+          }}
         />
+
       </div>
 
       <ContactPreviewDrawer
