@@ -20032,6 +20032,7 @@ export type Database = {
           employee_id: string | null
           exchange_rate: number
           expense_date: string
+          expense_number: string | null
           id: string
           is_billable: boolean | null
           is_sample_data: boolean
@@ -20076,6 +20077,7 @@ export type Database = {
           employee_id?: string | null
           exchange_rate?: number
           expense_date?: string
+          expense_number?: string | null
           id?: string
           is_billable?: boolean | null
           is_sample_data?: boolean
@@ -20120,6 +20122,7 @@ export type Database = {
           employee_id?: string | null
           exchange_rate?: number
           expense_date?: string
+          expense_number?: string | null
           id?: string
           is_billable?: boolean | null
           is_sample_data?: boolean
@@ -82989,6 +82992,7 @@ export type Database = {
           employee_id: string | null
           exchange_rate: number
           expense_date: string
+          expense_number: string | null
           id: string
           is_billable: boolean | null
           is_sample_data: boolean
@@ -84650,6 +84654,7 @@ export type Database = {
           employee_id: string | null
           exchange_rate: number
           expense_date: string
+          expense_number: string | null
           id: string
           is_billable: boolean | null
           is_sample_data: boolean
@@ -90129,6 +90134,10 @@ export type Database = {
         Returns: string
       }
       get_next_estimate_number: {
+        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
+        Returns: string
+      }
+      get_next_expense_number: {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
