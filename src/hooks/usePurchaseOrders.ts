@@ -242,8 +242,15 @@ export function usePurchaseOrders() {
       if (atomicError) throw atomicError;
     }
 
-    // Strip joined fields
-    const { items: _i, vendor, ...dbUpdates } = updates as any;
+    // Strip joined fields. `status` is deliberately stripped too: the lifecycle
+    // belongs to the DB state machine, not to a raw column write. Use the
+    // transition helpers below instead.
+    const { items: _i, vendor, status: _status, ...dbUpdates } = updates as any;
+    if (_status !== undefined) {
+      console.warn(
+        "[usePurchaseOrders] Ignoring status in updatePurchaseOrder — use a lifecycle transition (submit/approve/release/…) instead.",
+      );
+    }
 
     const { error } = await supabase
       .from("purchase_orders")
