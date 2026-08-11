@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Shield, CheckCircle, AlertCircle } from 'lucide-react';
+import { Shield, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { usePINLogin } from '@/hooks/security/usePINLogin';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +39,7 @@ export function PINSetupDialog({ open, onOpenChange, onSuccess }: PINSetupDialog
   const [pinLength, setPinLength] = useState<PINLength>(4);
   const [pinValue, setPinValue] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export function PINSetupDialog({ open, onOpenChange, onSuccess }: PINSetupDialog
       setPinLength(4);
       setPinValue('');
       setConfirmPin('');
+      setShowPin(false);
       setError(null);
     }
   }, [open, hasPin]);
