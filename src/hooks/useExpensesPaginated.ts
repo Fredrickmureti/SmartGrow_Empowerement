@@ -280,7 +280,8 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
       .from("expenses")
       .insert({
         ...stripServerOwned(fields),
-        status: "draft",
+        // status is server-owned: the column defaults to 'draft' and the
+        // insert policy rejects any other entry state.
         organization_id: currentOrg.id,
         business_id: currentBusiness?.id || null,
         branch_id: fields.branch_id ?? currentBranch?.id ?? null,
