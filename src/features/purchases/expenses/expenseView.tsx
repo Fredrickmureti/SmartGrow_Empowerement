@@ -38,7 +38,6 @@ const PAYER_LABEL: Record<string, string> = {
 const LIFECYCLE_STEPS: { column: string; title: string }[] = [
   { column: "submitted_at", title: "Submitted for approval" },
   { column: "approved_at", title: "Approved" },
-  { column: "rejected_at", title: "Rejected" },
   { column: "reimbursed_at", title: "Reimbursed to employee" },
   { column: "voided_at", title: "Voided" },
 ];
