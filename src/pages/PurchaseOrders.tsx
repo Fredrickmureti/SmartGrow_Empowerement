@@ -84,27 +84,43 @@ import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumen
 function POWorkflowPipeline({ status }: { status: string }) {
   const steps = [
     { key: "draft", label: "Draft" },
+    { key: "submitted", label: "Submitted" },
+    { key: "approved", label: "Approved" },
     { key: "sent", label: "Sent" },
-    { key: "partial_received", label: "Partial" },
     { key: "received", label: "Received" },
   ];
 
   const getActiveStep = () => {
-    if (status === "cancelled") return -1;
-    if (status === "draft") return 0;
-    if (status === "sent") return 1;
-    if (status === "partial_received") return 2;
-    if (status === "received") return 3;
-    return 0;
+    switch (status) {
+      case "draft":
+      case "revised":
+        return 0;
+      case "submitted":
+        return 1;
+      case "approved":
+        return 2;
+      case "sent":
+      case "acknowledged":
+        return 3;
+      case "partial_received":
+        return 3;
+      case "received":
+      case "closed":
+        return 4;
+      default:
+        return 0;
+    }
   };
 
   const activeStep = getActiveStep();
 
-  if (status === "cancelled") {
+  if (status === "cancelled" || status === "rejected") {
     return (
       <div className="flex items-center gap-1">
         <Ban className="h-3.5 w-3.5 text-destructive" />
-        <span className="text-xs text-destructive font-medium">Cancelled</span>
+        <span className="text-xs text-destructive font-medium">
+          {status === "rejected" ? "Rejected" : "Cancelled"}
+        </span>
       </div>
     );
   }
