@@ -187,9 +187,104 @@ export function ExpenseFormFields({
   return (
     <>
       <Section
+        title="Who paid?"
+        description="The funding source decides which account is credited when this expense posts. Answer this first."
+      >
+        <FieldGrid columns={2}>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="paid_by">Funded by *</Label>
+            <Select
+              value={value.paid_by}
+              onValueChange={(v) =>
+                onChange({
+                  paid_by: v as ExpensePaidBy,
+                  // Non-company payers never credit a hand-picked account:
+                  // `post_expense_gl` resolves the card clearing / employee
+                  // payable account itself.
+                  payment_account_id: v === "company" ? value.payment_account_id : "",
+                  employee_id: v === "employee" ? value.employee_id : null,
+                })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="paid_by">
+                <SelectValue placeholder="Select payer" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{payerHint}</p>
+          </div>
+
+          {value.paid_by === "employee" && (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="employee">Employee to reimburse *</Label>
+              <Select
+                value={value.employee_id ?? ""}
+                onValueChange={(v) => onChange({ employee_id: v })}
+                disabled={disabled || employeesLoading}
+              >
+                <SelectTrigger id="employee">
+                  <SelectValue
+                    placeholder={
+                      employeesLoading ? "Loading employees…" : "Select employee"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                      {emp.employee_number ? ` — ${emp.employee_number}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Approval credits the employee reimbursements payable. The
+                  obligation is discharged once — either through payroll or a
+                  direct reimbursement — never both.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {value.paid_by === "company" && (
+            <div className="space-y-2">
+              <Label htmlFor="payment_method">Payment method</Label>
+              <Select
+                value={value.payment_method || "cash"}
+                onValueChange={(v) => onChange({ payment_method: v })}
+                disabled={disabled}
+              >
+                <SelectTrigger id="payment_method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </FieldGrid>
+      </Section>
+
+      <Section
         title="Expense details"
         description="Date, amount, category, and supplier for this expense."
       >
+
         <FieldGrid columns={2}>
           <div className="space-y-2">
             <Label htmlFor="expense_date">Date *</Label>
