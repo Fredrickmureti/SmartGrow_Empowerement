@@ -28,6 +28,21 @@ interface Result {
   view: DocumentRecordView;
 }
 
+const PAYER_LABEL: Record<string, string> = {
+  company: "Company cash or bank",
+  company_card: "Company card",
+  employee: "Employee out of pocket",
+};
+
+/** Lifecycle stamps the server owns — the browser never writes these. */
+const LIFECYCLE_STEPS: { column: string; title: string }[] = [
+  { column: "submitted_at", title: "Submitted for approval" },
+  { column: "approved_at", title: "Approved" },
+  { column: "rejected_at", title: "Rejected" },
+  { column: "reimbursed_at", title: "Reimbursed to employee" },
+  { column: "voided_at", title: "Voided" },
+];
+
 export function useExpenseView(
   id: string | null | undefined,
   formatCurrency: (v: number, currency?: string) => string,
@@ -37,6 +52,19 @@ export function useExpenseView(
   const view = useMemo<DocumentRecordView>(() => {
     const cur = record?.currency || undefined;
     const total = (record?.amount ?? 0) + (record?.tax_amount ?? 0);
+    const raw = (record ?? {}) as Record<string, unknown>;
+    const str = (k: string) => {
+      const v = raw[k];
+      return typeof v === "string" && v ? v : null;
+    };
+    const num = (k: string) => {
+      const v = raw[k];
+      return v === null || v === undefined ? null : Number(v);
+    };
+    const paidBy = str("paid_by") ?? "company";
+    const exchangeRate = num("exchange_rate");
+    const baseAmount = num("base_amount");
+    const isForeign = !!exchangeRate && exchangeRate !== 1;
 
     return {
       kind: "expense",
@@ -67,9 +95,22 @@ export function useExpenseView(
               value: formatCurrency(total, cur),
               emphasized: true,
             },
+            ...(isForeign && baseAmount !== null
+              ? [
+                  {
+                    label: "Base equivalent",
+                    value: formatCurrency(baseAmount),
+                    muted: true,
+                  },
+                ]
+              : []),
           ]
         : undefined,
-      totalsFooter: cur ? `Currency ${cur}` : undefined,
+      totalsFooter: cur
+        ? isForeign
+          ? `Currency ${cur} · rate ${exchangeRate}`
+          : `Currency ${cur}`
+        : undefined,
       activityExtra: record
         ? [
             {
@@ -78,6 +119,22 @@ export function useExpenseView(
               actor: "System",
               title: `Expense recorded — ${formatCurrency(record.amount ?? 0, cur)}`,
             },
+            ...LIFECYCLE_STEPS.filter((s) => str(s.column)).map((s) => ({
+              id: s.column,
+              at: fmt(str(s.column)),
+              actor: "System",
+              title: s.title,
+            })),
+            ...(record.journal_entry_id
+              ? [
+                  {
+                    id: "posted",
+                    at: fmt(str("approved_at") ?? record.created_at),
+                    actor: "System",
+                    title: "Posted to the general ledger",
+                  },
+                ]
+              : []),
           ]
         : undefined,
       detailFields: record
@@ -98,12 +155,15 @@ export function useExpenseView(
               ),
             },
             { label: "Vendor", value: record.vendor?.name ?? "—" },
+            { label: "Paid by", value: PAYER_LABEL[paidBy] ?? paidBy },
             { label: "Payment method", value: record.payment_method || "—" },
             {
               label: "Paid from",
               value: record.payment_account
                 ? `${record.payment_account.code} — ${record.payment_account.name}`
-                : "—",
+                : paidBy === "employee"
+                  ? "Employee reimbursements payable"
+                  : "Resolved at posting",
             },
             {
               label: "Expense account",
@@ -111,10 +171,18 @@ export function useExpenseView(
                 ? `${record.account.code} — ${record.account.name}`
                 : "Default",
             },
+            {
+              label: "Tax treatment",
+              value:
+                str("tax_treatment") === "non_recoverable"
+                  ? "Non-recoverable (folded into cost)"
+                  : "Recoverable",
+            },
             { label: "Reference", value: record.reference || "—" },
             { label: "Billable", value: record.is_billable ? "Yes" : "No" },
           ]
         : undefined,
+
       extraSections: record?.receipt_url ? (
         <Section title="Receipt">
           <a
