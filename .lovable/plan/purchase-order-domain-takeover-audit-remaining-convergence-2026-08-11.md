@@ -15,8 +15,8 @@ had 5 stages. Verified status of every item:
   filters, totals (`src/pages/PurchaseOrders.tsx`).
 - DONE: `updatePurchaseOrder` strips `status` with a console warning; no raw status
   writes remain anywhere in `src/` (swept).
-- PENDING: architecture test banning raw writes to `purchase_orders.status` from `src/`
-  (explicit plan deliverable, mirroring `journal-posting-monopoly`) — never written.
+- DONE (takeover): `src/test/architecture/po-status-single-writer.test.ts` bans raw
+  `purchase_orders.status` writes and direct `purchase_order_items` deletes.
 
 ### Stage 2 — `procurement.po.*` event consumers — DONE, one shallow piece
 - DONE (verified live): `business_event_subscriptions` now routes
@@ -28,44 +28,48 @@ had 5 stages. Verified status of every item:
   consumers (mirrors the shipped `complete_goods_receipt_atomic` pattern).
 - DONE: all three handlers are idempotent (one open ASN per PO; one email outbox row
   per PO; withdrawal only touches open ASNs).
-- SHALLOW: `flushEmailOutbox.renderEmail` has no `purchase_order_released` renderer —
-  the supplier currently receives subject "Notification: purchase order released" with a
-  raw JSON dump of the template variables as the body.
+- DONE (takeover): branded `renderPurchaseOrderEmail` wired into
+  `flushEmailOutbox.renderEmail` (PO number, order/expected dates, currency, total,
+  acknowledgement instructions).
 
 ### Stage 3 — Inventory expected supply — PARTIAL
 - DONE: `inventory_expected_supply` view is live and correct (statuses
   approved/sent/acknowledged/partial_received, ordered − received, grouped by
   org/business/branch/warehouse/product, earliest expected date).
-- PENDING: nothing in the app reads it — only the generated types reference it.
-  The plan's "exposed alongside on-hand/reserved so planning and replenishment can
-  consume it" was not delivered.
+- DONE (takeover): `useProductDetailData`'s incoming figure now reads the view
+  (replacing divergent draft-inclusive math), and `run_replenishment_planning` was
+  aligned to the same view — one committed-supply definition everywhere.
 
 ### Stage 4 — Correctness hardening — PARTIAL
 - DONE: `approve_purchase_order(p_po_id, p_client_request_id)` idempotency, client
   passes a stable key; `release_purchase_order` replays idempotently.
 - DONE: `trg_products_service_never_tracks_stock` — service products can never track
   stock (verified trigger body; live data already consistent).
-- OPEN HOLE: `update_po_items_atomic` has **no status guard** — it deletes and
-  re-inserts line items for a PO in any status, so a released/approved PO's commercial
-  lines can be silently rewritten. Violates §17 of the original brief (a released PO
-  must not silently mutate historical commercial intent).
-- OPEN HOLE: `purchase_orders` header updates still go through a raw client
-  `.update()` (`updatePurchaseOrder`) with **no server-side immutability guard** —
-  vendor, totals, currency, expected date remain mutable in any status.
-- OPEN HOLE: `PurchaseOrderEditPage` has no status guard — the actions menu disables
-  Edit, but direct URL access still opens the editor for a sent/approved PO.
-- MINOR: `_emit_po_outbox` idempotency key duplicates the state segment
-  (`...:<state>:<state>`) — harmless, noted in the previous plan, untidied.
+- DONE (takeover): `update_po_items_atomic` hardened — auth, business access, and a
+  draft/revised/rejected status guard. Also fixed a live defect found during the work:
+  it inserted into a nonexistent `received_quantity` column (real column is
+  `quantity_received`) and dropped `packaging_id` / `display_uom_id` /
+  `display_quantity`, so edit-page saves would have failed or silently lost data.
+- DONE (takeover): `trg_po_commercial_fields_immutable` blocks commercial-header
+  mutation (vendor, totals, currency, dates, number) outside draft/revised/rejected;
+  notes/references stay writable; lifecycle RPCs unaffected.
+- DONE (takeover): `PurchaseOrderEditPage` guards on load — non-editable statuses get
+  an explanation and a path back to the record page (blocking view instead of a toast
+  redirect; same guard semantics).
+- DONE (takeover): `_emit_po_outbox` idempotency keys are occurrence-aware via
+  `updated_at`.
 
 ### Stage 5 — Documentation — PARTIAL
 - DONE: `docs/audit/procurement-verdict.md` rewritten to reflect the findings.
-- PENDING: the PO ADR (`docs/architecture/decisions/`) was never written.
+- DONE (takeover): ADR-0102 written (state machine ownership, event fan-out,
+  expected-supply boundary, immutability rule, idempotency).
 
-### Tests — MISSING
-- No `supabase/tests` SQL coverage for: lifecycle transitions, idempotent replay,
-  consumer side effects (ASN created exactly once, email outbox single row,
-  withdrawal on cancel/revise), or the edit guards.
-- No vitest coverage for the expected-supply surface.
+### Tests — DONE (takeover)
+- `supabase/tests/po_lifecycle_convergence_test.sql`: submit→approve→release→revise,
+  approve/release replay, ASN created exactly once, single email outbox row,
+  withdrawal on revise, SoD on acknowledge, items guard, commercial immutability,
+  occurrence-aware keys, plus introspection checks (view wiring, trigger, RPC guard).
+- `src/test/architecture/po-status-single-writer.test.ts` (vitest) — see Stage 1.
 - Baseline confirmed: `purchases-po-snapshot` + `po-billed-quantity-single-writer`
   pass. The 2 failing architecture files (`purchases-branch-scope`,
   `purchases-branch-id-stamping`) are the pre-existing branch-scoping violations in
@@ -130,3 +134,26 @@ document engine — all three exist and are correct.
   is replay-safe today.
 - The `po_status` enum has 11 values; `confirmed` is not one of them (vendor portal
   now uses `acknowledged`).
+
+## Completion — 2026-08-11 (takeover agent)
+
+All five waves landed:
+
+- **Wave A** — two migrations: (1) `update_po_items_atomic` hardened (auth +
+  business access + status guard), (2) `trg_po_commercial_fields_immutable` +
+  occurrence-aware outbox keys + replenishment aligned to
+  `inventory_expected_supply`; follow-up migration fixed the `received_quantity`
+  runtime defect and packaging/UoM field loss. Edit page guards non-editable
+  statuses.
+- **Wave B** — `useProductDetailData` incoming figure reads the canonical view;
+  replenishment reads the same view. One definition of "on order" remains.
+- **Wave C** — branded supplier release email in `flushEmailOutbox`.
+- **Wave D** — `po-status-single-writer.test.ts` (vitest) +
+  `po_lifecycle_convergence_test.sql` (functional, rollback-wrapped).
+- **Wave E** — ADR-0102 + procurement-verdict addendum (2).
+
+Deviations from the wave text, all noted above: the edit-page guard is a
+blocking explanation view rather than a toast redirect; Wave B reused the
+existing product-detail hook rather than adding a new one (same view, less
+surface); the `received_quantity` defect fix was unplanned but load-bearing —
+the items writer was broken at runtime.
