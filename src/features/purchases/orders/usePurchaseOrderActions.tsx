@@ -9,14 +9,19 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRightLeft,
   Ban,
+  CheckCircle2,
+  ClipboardCheck,
   Download,
   FileSearch,
+  Lock,
   Mail,
   Package,
   Pencil,
   Printer,
+  RotateCcw,
   Send,
   Trash2,
+  XCircle,
 } from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
