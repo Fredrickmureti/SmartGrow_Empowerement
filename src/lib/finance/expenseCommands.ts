@@ -97,3 +97,76 @@ export const voidExpenseRpc = (expenseId: string, reason?: string | null) =>
 
 export const convertExpenseToBill = (expenseId: string) =>
   call<ExpenseBillResult>("expense_convert_to_bill", { p_expense_id: expenseId });
+
+/* ─────────────── Employee reimbursement settlement ───────────────
+ * An employee-paid expense credits a dedicated employee payable at
+ * approval. That obligation is discharged exactly once, through one
+ * of two routes — never both:
+ *
+ *   payroll  → `expense_queue_payroll_reimbursement` flags the row;
+ *              `compute-payroll` adds a non-taxable reimbursement
+ *              earning and stamps `reimbursed_payslip_id/run_id/at`.
+ *   direct   → `expense_reimburse_direct` posts payable → bank
+ *              through the single journal engine (idempotent via
+ *              `source_subtype='reimbursement'`) and marks it paid.
+ *
+ * The browser never writes any `reimburse*` column: those grants are
+ * revoked from `authenticated`.
+ */
+
+export interface ExpenseReimbursementQueueResult {
+  success: boolean;
+  queued: boolean;
+  employee_id?: string | null;
+  idempotent_replay?: boolean;
+}
+
+export interface ExpenseReimbursementPaymentResult {
+  success?: boolean;
+  status?: ExpenseStatus;
+  journal_entry_id?: string | null;
+  payment_date?: string;
+  idempotent_replay?: boolean;
+}
+
+/** True when this expense created an employee reimbursement obligation. */
+export const isEmployeeReimbursable = (e: {
+  status?: string | null;
+  paid_by?: string | null;
+  payment_method?: string | null;
+  reimbursed_at?: string | null;
+  reimbursed_payslip_id?: string | null;
+}) =>
+  ["approved", "paid"].includes((e.status ?? "") as string) &&
+  (e.paid_by === "employee" || e.payment_method === "employee_reimbursement") &&
+  !e.reimbursed_at &&
+  !e.reimbursed_payslip_id;
+
+export const queueExpensePayrollReimbursement = (
+  expenseId: string,
+  employeeId?: string | null,
+) =>
+  call<ExpenseReimbursementQueueResult>("expense_queue_payroll_reimbursement", {
+    p_expense_id: expenseId,
+    p_employee_id: employeeId ?? null,
+  });
+
+export const unqueueExpensePayrollReimbursement = (expenseId: string) =>
+  call<ExpenseReimbursementQueueResult>(
+    "expense_unqueue_payroll_reimbursement",
+    { p_expense_id: expenseId },
+  );
+
+export const reimburseExpenseDirect = (
+  expenseId: string,
+  bankAccountId: string,
+  paymentDate?: string | null,
+  reference?: string | null,
+) =>
+  call<ExpenseReimbursementPaymentResult>("expense_reimburse_direct", {
+    p_expense_id: expenseId,
+    p_bank_account_id: bankAccountId,
+    p_payment_date: paymentDate ?? null,
+    p_reference: reference ?? null,
+  });
+

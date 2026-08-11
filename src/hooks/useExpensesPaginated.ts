@@ -12,6 +12,9 @@ import { useDefaultAccounts } from "./useDefaultAccounts";
 import {
   approveExpense as approveExpenseRpc,
   convertExpenseToBill,
+  queueExpensePayrollReimbursement as queuePayrollReimbursementRpc,
+  reimburseExpenseDirect,
+  unqueueExpensePayrollReimbursement as unqueuePayrollReimbursementRpc,
   isExpenseDeletable,
   rejectExpense as rejectExpenseRpc,
   submitExpense as submitExpenseRpc,
@@ -56,6 +59,10 @@ export interface Expense {
   approved_by: string | null;
   approval_request_id?: string | null;
   employee_id?: string | null;
+  reimburse_via_payroll?: boolean | null;
+  reimbursed_payslip_id?: string | null;
+  reimbursed_run_id?: string | null;
+  reimbursed_at?: string | null;
   base_amount?: number | null;
   exchange_rate?: number | null;
   journal_entry_id: string | null;
@@ -366,6 +373,53 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
   };
 
   /**
+   * Queue an employee-paid expense for reimbursement in the next payroll run.
+   * `compute-payroll` (Turn C) consumes the flag and stamps the payslip link.
+   */
+  const queuePayrollReimbursement = async (id: string, employeeId?: string | null) => {
+    const res = await queuePayrollReimbursementRpc(id, employeeId);
+    logAction({
+      action: "updated",
+      entityType: "expense",
+      entityId: id,
+      changesSummary: "Queued for payroll reimbursement",
+    });
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    return res;
+  };
+
+  const unqueuePayrollReimbursement = async (id: string) => {
+    const res = await unqueuePayrollReimbursementRpc(id);
+    logAction({
+      action: "updated",
+      entityType: "expense",
+      entityId: id,
+      changesSummary: "Removed from payroll reimbursement queue",
+    });
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    return res;
+  };
+
+  /** Settle the employee payable straight from a bank/cash account. */
+  const reimburseDirect = async (
+    id: string,
+    bankAccountId: string,
+    paymentDate?: string | null,
+    reference?: string | null,
+  ) => {
+    const res = await reimburseExpenseDirect(id, bankAccountId, paymentDate, reference);
+    logAction({
+      action: "updated",
+      entityType: "expense",
+      entityId: id,
+      changesSummary: "Reimbursed employee directly",
+    });
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
+    return res;
+  };
+
+  /**
    * Delete an expense — ONLY allowed while nothing has reached the ledger.
    * Approved/paid expenses must be voided instead.
    */
@@ -479,6 +533,9 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     rejectExpense,
     deleteExpense,
     voidExpense,
+    queuePayrollReimbursement,
+    unqueuePayrollReimbursement,
+    reimburseDirect,
     createCategory,
     updateCategory,
     deleteCategory,

@@ -87,6 +87,7 @@ import {
   Info,
   Eye,
   Ban,
+  Wallet,
   Send,
   Check,
 } from "lucide-react";
@@ -115,7 +116,12 @@ import { usePeekParam } from "@/design-system";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { normalizeError } from "@/services/resilience";
-import { isExpenseDeletable, isExpenseEditable } from "@/lib/finance/expenseCommands";
+import {
+  isEmployeeReimbursable,
+  isExpenseDeletable,
+  isExpenseEditable,
+} from "@/lib/finance/expenseCommands";
+import { ExpenseReimburseDialog } from "@/features/purchases/expenses/ExpenseReimburseDialog";
 interface PaymentAccount {
   id: string;
   name: string;
@@ -179,6 +185,9 @@ export default function Expenses() {
     deleteCategory,
     createLinkedBill,
     isAPAccount,
+    queuePayrollReimbursement,
+    unqueuePayrollReimbursement,
+    reimburseDirect,
   } = useExpensesPaginated({
     statusFilter: statusFilter !== "all" ? statusFilter : undefined,
     search: search || undefined,
@@ -194,6 +203,7 @@ export default function Expenses() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [peekId, setPeekId] = usePeekParam();
+  const [reimburseExpense, setReimburseExpense] = useState<Expense | null>(null);
 
   // Handle deep-link URL params
   useEffect(() => {
@@ -638,6 +648,22 @@ export default function Expenses() {
       toast({ title: "Expense rejected" });
     } catch (error: any) {
       toast({ title: "Could not reject expense", description: normalizeError(error).message, variant: "destructive" });
+    }
+  };
+
+  const handleUnqueueReimbursement = async (expense: Expense) => {
+    try {
+      await unqueuePayrollReimbursement(expense.id);
+      toast({
+        title: "Removed from payroll queue",
+        description: "This reimbursement will no longer be paid through payroll.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not update reimbursement",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -1106,6 +1132,24 @@ export default function Expenses() {
                                   Create Vendor Bill
                                 </DropdownMenuItem>
                               )}
+                              {/* Reimbursement — only for employee-paid expenses */}
+                              {isEmployeeReimbursable(expense) && (
+                                expense.reimburse_via_payroll ? (
+                                  <DropdownMenuItem
+                                    onClick={() => handleUnqueueReimbursement(expense)}
+                                  >
+                                    <X className="mr-2 h-4 w-4" />
+                                    Remove from payroll queue
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() => setReimburseExpense(expense)}
+                                  >
+                                    <Wallet className="mr-2 h-4 w-4" />
+                                    Reimburse employee
+                                  </DropdownMenuItem>
+                                )
+                              )}
                               {/* Void — for approved/paid expenses */}
                               {(expense.status === "approved" || expense.status === "paid") && (
                                 <DropdownMenuItem
@@ -1162,6 +1206,16 @@ export default function Expenses() {
           `ExpenseEditPage.tsx`.
         */}
 
+
+        <ExpenseReimburseDialog
+          expense={reimburseExpense}
+          open={!!reimburseExpense}
+          onOpenChange={(open) => {
+            if (!open) setReimburseExpense(null);
+          }}
+          onQueuePayroll={queuePayrollReimbursement}
+          onReimburseDirect={reimburseDirect}
+        />
 
         {/* Add/Edit Category Dialog */}
         <Dialog open={showCategoryDialog} onOpenChange={(open) => {

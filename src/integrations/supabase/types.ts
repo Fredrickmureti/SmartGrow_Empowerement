@@ -20056,6 +20056,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -20101,6 +20103,8 @@ export type Database = {
           tax_amount?: number | null
           updated_at?: string
           vendor_id?: string | null
+          void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -20146,6 +20150,8 @@ export type Database = {
           tax_amount?: number | null
           updated_at?: string
           vendor_id?: string | null
+          void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -83016,6 +83022,68 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expenses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _expense_payable_account: {
+        Args: { p_expense_id: string }
+        Returns: string
+      }
+      _expense_reimbursement_guard: {
+        Args: { p_expense_id: string }
+        Returns: {
+          account_id: string | null
+          amount: number
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          base_amount: number | null
+          branch_id: string | null
+          business_id: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          department_id: string | null
+          description: string
+          employee_id: string | null
+          exchange_rate: number
+          expense_date: string
+          expense_number: string | null
+          id: string
+          is_billable: boolean | null
+          is_sample_data: boolean
+          journal_entry_id: string | null
+          organization_id: string
+          paid_by: string
+          payment_account_id: string | null
+          payment_method: string
+          project_id: string | null
+          receipt_url: string | null
+          reference: string | null
+          reimburse_via_payroll: boolean
+          reimbursed_at: string | null
+          reimbursed_payslip_id: string | null
+          reimbursed_run_id: string | null
+          rejected_reason: string | null
+          status: Database["public"]["Enums"]["expense_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          task_id: string | null
+          tax_amount: number | null
+          updated_at: string
+          vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -84678,6 +84746,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -89011,11 +89081,28 @@ export type Database = {
       }
       expense_approve: { Args: { p_expense_id: string }; Returns: Json }
       expense_convert_to_bill: { Args: { p_expense_id: string }; Returns: Json }
+      expense_queue_payroll_reimbursement: {
+        Args: { p_employee_id?: string; p_expense_id: string }
+        Returns: Json
+      }
+      expense_reimburse_direct: {
+        Args: {
+          p_bank_account_id: string
+          p_expense_id: string
+          p_payment_date?: string
+          p_reference?: string
+        }
+        Returns: Json
+      }
       expense_reject: {
         Args: { p_expense_id: string; p_reason?: string }
         Returns: Json
       }
       expense_submit: { Args: { p_expense_id: string }; Returns: Json }
+      expense_unqueue_payroll_reimbursement: {
+        Args: { p_expense_id: string }
+        Returns: Json
+      }
       expense_void: {
         Args: { p_expense_id: string; p_reason?: string }
         Returns: Json
