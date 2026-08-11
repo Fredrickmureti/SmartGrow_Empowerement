@@ -7,8 +7,10 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Ban,
+  BookCheck,
   CheckCircle,
   CreditCard,
+  Download,
   Edit,
   FileSearch,
   History,
@@ -16,12 +18,16 @@ import {
   Mail,
   Printer,
   RotateCcw,
+  Send,
+  ThumbsUp,
   Trash2,
+  Undo2,
 } from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
+import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 import { useDocumentEmail } from "@/features/purchases/record/useDocumentEmail";
 import { supabase } from "@/integrations/supabase/client";
 import { useBills, type Bill } from "@/hooks/useBills";
@@ -45,7 +51,15 @@ export function useBillActions(
   const { toast } = useToast();
   const { preview } = useDocumentPreview();
   const { print, printing } = useRecordPrint("bill");
-  const { confirmBill, deleteBill } = useBills();
+  const { download, downloading } = useRecordDownload("bill");
+  const {
+    confirmBill,
+    deleteBill,
+    requireBillApproval,
+    submitBillForApproval,
+    approveBill,
+    rejectBill,
+  } = useBills();
   const { canManagePurchases } = usePermissions();
   const { send, dialog: emailDialog } = useDocumentEmail(onChanged);
 
@@ -92,11 +106,16 @@ export function useBillActions(
     if (!bill) return [];
     const status = bill.status as string;
     const isDraft = status === "draft";
-    const editable = status !== "paid" && status !== "void";
-    const payable = status !== "paid" && status !== "void";
+    const isSubmitted = status === "submitted";
+    const isApproved = status === "approved";
+    const editable = isDraft || isSubmitted;
+    const payable = status === "received" || status === "partial" || status === "overdue";
     const hasPayments = (bill.amount_paid ?? 0) > 0;
     const voidable = status === "received" || status === "partial";
     const returnable = status === "received" || status === "partial";
+    // Posting to the ledger is the draft's own next step only when the
+    // organization does not require an approval pass first.
+    const postable = isApproved || (!requireBillApproval && isDraft);
 
     const run = (label: string | null, fn: () => Promise<unknown>) => () => {
       void (async () => {
@@ -121,19 +140,55 @@ export function useBillActions(
         icon: Edit,
         group: "core",
         primary: isDraft,
-        hidden: !editable,
+        disabled: !editable,
+        disabledReason: editable
+          ? undefined
+          : "Only draft or submitted bills can be edited.",
         onSelect: () => navigate(`/purchases/bills/${bill.id}/edit`),
       },
       {
-        id: "confirm",
-        label: "Confirm bill",
-        icon: CheckCircle,
+        id: "submit-for-approval",
+        label: "Submit for approval",
+        icon: Send,
         group: "core",
-        primary: isDraft,
-        hidden: !isDraft,
+        primary: requireBillApproval && isDraft,
+        hidden: !requireBillApproval || !isDraft,
+        // The hook toasts on success/failure internally.
+        onSelect: run(null, () => submitBillForApproval(bill.id)),
+      },
+      {
+        id: "approve",
+        label: "Approve",
+        icon: ThumbsUp,
+        group: "core",
+        primary: isSubmitted,
+        hidden: !isSubmitted,
+        onSelect: run(null, () => approveBill(bill.id)),
+      },
+      {
+        id: "reject",
+        label: "Reject (return to draft)",
+        icon: Undo2,
+        group: "core",
+        destructive: true,
+        hidden: !isSubmitted && !isApproved,
+        onSelect: () => {
+          const reason = window.prompt("Reason for rejecting this bill?");
+          if (!reason?.trim()) return;
+          run(null, () => rejectBill(bill.id, reason))();
+        },
+      },
+      {
+        id: "confirm",
+        label: "Post to ledger",
+        icon: BookCheck,
+        group: "core",
+        primary: postable,
+        hidden: !postable,
         // confirmBill toasts on success internally.
         onSelect: run(null, () => confirmBill(bill.id)),
       },
+
       {
         id: "match-receipts",
         label: matching ? "Matching…" : "Match receipts",
@@ -175,11 +230,19 @@ export function useBillActions(
       },
       {
         id: "print",
-        label: "Print",
+        label: printing ? "Generating…" : "Print",
         icon: Printer,
         group: "output",
         disabled: printing,
         onSelect: () => void print(bill.id, `Bill ${bill.bill_number}`),
+      },
+      {
+        id: "download",
+        label: downloading ? "Preparing…" : "Download PDF",
+        icon: Download,
+        group: "output",
+        disabled: downloading,
+        onSelect: () => void download(bill.id, `bill-${bill.bill_number}`),
       },
       {
         id: "email",
@@ -239,7 +302,7 @@ export function useBillActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bill, matching, printing, canManagePurchases, navigate, preview, print, send]);
+  }, [bill, matching, printing, downloading, requireBillApproval, canManagePurchases, navigate, preview, print, download, send]);
 
   const dialogs = (
     <>

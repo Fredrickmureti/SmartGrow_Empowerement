@@ -57,13 +57,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -92,6 +85,7 @@ import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
 import { format, isWithinInterval, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { BillRowActions } from "@/features/purchases/bills/BillRowActions";
 
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -917,116 +911,11 @@ export default function Bills() {
                     <TableCell className="text-right">{formatCurrency(bill.total, bill.currency)}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(bill.total - (bill.amount_paid || 0), bill.currency)}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setPeekId(bill.id)}>
-                            <Eye className="mr-2 h-4 w-4" /> View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handlePrintBill(bill)}
-                            disabled={isPrinting === bill.id}
-                          >
-                            {isPrinting === bill.id ? (
-                              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
-                            ) : (
-                              <><Printer className="mr-2 h-4 w-4" /> Print / Preview</>
-                            )}
-                          </DropdownMenuItem>
-                          {bill.vendor_id && (
-                            <DropdownMenuItem onClick={() => {
-                              const vendor = contacts.find(c => c.id === bill.vendor_id);
-                              setEmailDocument({
-                                documentType: "bill",
-                                documentId: bill.id,
-                                documentNumber: bill.bill_number,
-                                recipientEmail: vendor?.email || "",
-                                recipientName: vendor?.name || "",
-                                total: bill.total,
-                                currency: bill.currency,
-                              });
-                              setShowEmailDialog(true);
-                            }}>
-                              <Mail className="mr-2 h-4 w-4" /> Email
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          {/* Approval lifecycle — pre-GL states only */}
-                          {requireBillApproval && bill.status === "draft" && (
-                            <DropdownMenuItem onClick={() => handleSubmitForApproval(bill.id)}>
-                              <Send className="mr-2 h-4 w-4" /> Submit for Approval
-                            </DropdownMenuItem>
-                          )}
-                          {bill.status === "submitted" && (
-                            <>
-                              <DropdownMenuItem onClick={() => handleApproveBill(bill.id)}>
-                                <ThumbsUp className="mr-2 h-4 w-4" /> Approve
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleRejectBill(bill.id)} className="text-destructive">
-                                <Undo2 className="mr-2 h-4 w-4" /> Reject (return to draft)
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {bill.status === "approved" && (
-                            <>
-                              <DropdownMenuItem onClick={() => handlePostBill(bill.id)}>
-                                <BookCheck className="mr-2 h-4 w-4" /> Post to Ledger
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleRejectBill(bill.id)} className="text-destructive">
-                                <Undo2 className="mr-2 h-4 w-4" /> Reject (return to draft)
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {!requireBillApproval && bill.status === "draft" && (
-                            <DropdownMenuItem onClick={() => handlePostBill(bill.id)}>
-                              <BookCheck className="mr-2 h-4 w-4" /> Post to Ledger
-                            </DropdownMenuItem>
-                          )}
-                          {(bill.status === "draft" || bill.status === "submitted") && (
-                            <DropdownMenuItem onClick={() => {
-                              navigate(`/purchases/bills/${bill.id}/edit`);
-                            }}>
-                              <Pencil className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                          )}
-                          {/* Payment is only legal once the bill is posted to the ledger. */}
-                          {(bill.status === "received" || bill.status === "partial" || bill.status === "overdue") && (
-                            <DropdownMenuItem onClick={() => openPaymentDialog(bill.id)}>
-                              <CreditCard className="mr-2 h-4 w-4" /> Record Payment
-                            </DropdownMenuItem>
-                          )}
-                          {(bill.amount_paid || 0) > 0 && (
-                            <DropdownMenuItem onClick={() => {
-                              setSelectedBillForHistory(bill);
-                              setShowBillPaymentHistory(true);
-                            }}>
-                              <History className="mr-2 h-4 w-4" /> Payment History
-                            </DropdownMenuItem>
-                          )}
-                          {(bill.status === "received" || bill.status === "partial") && (
-                            <>
-                            <DropdownMenuItem onClick={() => handleVoidBill(bill)} className="text-destructive">
-                              <Ban className="mr-2 h-4 w-4" /> Void Bill
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              window.location.href = `/purchases/returns?action=create&contact_id=${bill.vendor_id || ""}`;
-                            }}>
-                              <RotateCcw className="mr-2 h-4 w-4" /> Create Purchase Return
-                            </DropdownMenuItem>
-                            </>
-                          )}
-                          {isAdmin && bill.status === "draft" && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleDelete(bill.id)} className="text-destructive">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <BillRowActions
+                        bill={bill}
+                        onPeek={setPeekId}
+                        onChanged={() => { void refreshBills(); void refetchBillsPage(); void refreshApSummary(); }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

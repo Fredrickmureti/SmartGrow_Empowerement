@@ -42,4 +42,5 @@ public.profiles.id is a surrogate PK — resolve auth user ids (requester_id, ac
 - [RFQ governance](mem://features/rfq-governance) — RPC-only lifecycle, dual approval gates (document + award), award SoD, server-validated alternate-product offers, outbox delivery and cron expiry
 - [Purchase requisition demand engine](mem://features/purchase-requisition-demand-engine) — quantity-driven `_pr_recalc` rollups, short-close RPCs, RPC-only client writes, bucketed workbench, governance registration
 - [Procurement document rendering](mem://features/procurement-document-rendering) — RFQ/requisition use the procurement PDF layouts (never invoice shape), NaN-proof money formatter, document_number column, mandatory redeploy set after `_shared` changes
+- [Document action parity](mem://features/document-action-parity) — purchases row menus, peeks and record pages all render the same `use<Doc>Actions` array; Preview/Print/Download are separate verbs
 - [Profiles lookup key](mem://constraints/profiles-lookup-key) — join profiles on user_id, never id, when mapping auth users to display names

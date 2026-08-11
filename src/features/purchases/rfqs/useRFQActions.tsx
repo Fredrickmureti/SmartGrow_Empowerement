@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Ban,
   CheckCircle2,
+  Download,
   FileSearch,
   FileText,
   GitBranch,
@@ -26,6 +27,7 @@ import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 import { useRFQs, type RFQ } from "@/hooks/useRFQs";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
+import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 
 interface Options {
   onDeleted?: () => void;
@@ -43,6 +45,7 @@ export function useRFQActions(
   // Solicitation layout, not the invoice one: the RFQ kind routes to
   // `generateSolicitationPdf`, which carries no price column.
   const { print, printing } = useRecordPrint("rfq");
+  const { download, downloading } = useRecordDownload("rfq");
   const {
     submitForApprovalAsync,
     approveRFQ,
@@ -189,11 +192,19 @@ export function useRFQActions(
       },
       {
         id: "print",
-        label: "Print",
+        label: printing ? "Generating…" : "Print",
         icon: Printer,
         group: "output",
         disabled: printing,
         onSelect: () => void print(rfq.id, `RFQ ${rfq.rfq_number}`),
+      },
+      {
+        id: "download",
+        label: downloading ? "Preparing…" : "Download PDF",
+        icon: Download,
+        group: "output",
+        disabled: downloading,
+        onSelect: () => void download(rfq.id, `rfq-${rfq.rfq_number}`),
       },
       {
         id: "cancel",
@@ -221,5 +232,5 @@ export function useRFQActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rfq, navigate, onAward, governanceMode, preview, print, printing]);
+  }, [rfq, navigate, onAward, governanceMode, preview, print, printing, download, downloading]);
 }

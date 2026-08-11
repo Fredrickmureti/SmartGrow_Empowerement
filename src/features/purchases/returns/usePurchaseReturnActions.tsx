@@ -5,10 +5,21 @@
  */
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle, Mail, Pencil, Printer, Trash2, XCircle } from "lucide-react";
+import {
+  CheckCircle,
+  Download,
+  FileSearch,
+  Mail,
+  Pencil,
+  Printer,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
+import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 import { useDocumentEmail } from "@/features/purchases/record/useDocumentEmail";
 import {
   usePurchaseReturns,
@@ -32,7 +43,9 @@ export function usePurchaseReturnActions(
 ) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { preview } = useDocumentPreview();
   const { print, printing } = useRecordPrint("purchase_return");
+  const { download, downloading } = useRecordDownload("purchase_return");
   const { updatePurchaseReturn, deletePurchaseReturn } = usePurchaseReturns();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { send, dialog: emailDialog } = useDocumentEmail(onChanged);
@@ -106,6 +119,19 @@ export function usePurchaseReturnActions(
         ),
       },
       {
+        id: "preview",
+        label: "Preview",
+        icon: FileSearch,
+        group: "output",
+        onSelect: () =>
+          preview({
+            documentType: "purchase_return",
+            documentId: pr.id,
+            title: `Purchase Return ${pr.return_number}`,
+            filename: `purchase-return-${pr.return_number}`,
+          }),
+      },
+      {
         id: "email",
         label: "Email to supplier",
         icon: Mail,
@@ -129,6 +155,14 @@ export function usePurchaseReturnActions(
         group: "output",
         disabled: printing,
         onSelect: () => void print(pr.id, `Return ${pr.return_number}`),
+      },
+      {
+        id: "download",
+        label: downloading ? "Preparing…" : "Download PDF",
+        icon: Download,
+        group: "output",
+        disabled: downloading,
+        onSelect: () => void download(pr.id, `purchase-return-${pr.return_number}`),
       },
       {
         id: "cancel",
@@ -167,7 +201,7 @@ export function usePurchaseReturnActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pr, printing, isReadOnly, navigate, print, send]);
+  }, [pr, printing, downloading, isReadOnly, navigate, preview, print, download, send]);
 
   return { actions, dialogs: <>{emailDialog}</> };
 }

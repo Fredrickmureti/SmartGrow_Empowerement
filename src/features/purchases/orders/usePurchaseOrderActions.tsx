@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRightLeft,
   Ban,
+  Download,
+  FileSearch,
   Mail,
   Package,
   Pencil,
@@ -18,7 +20,9 @@ import {
 } from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
+import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 import { useDocumentEmail } from "@/features/purchases/record/useDocumentEmail";
 import { usePurchaseOrders, type PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +39,9 @@ export function usePurchaseOrderActions(
 ) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { preview } = useDocumentPreview();
   const { print, printing } = useRecordPrint("purchase_order");
+  const { download, downloading } = useRecordDownload("purchase_order");
   const { updatePurchaseOrder, deletePurchaseOrder, convertToBill } = usePurchaseOrders();
   const { send, dialog: emailDialog } = useDocumentEmail(onChanged);
 
@@ -124,12 +130,33 @@ export function usePurchaseOrderActions(
           }),
       },
       {
+        id: "preview",
+        label: "Preview",
+        icon: FileSearch,
+        group: "output",
+        onSelect: () =>
+          preview({
+            documentType: "purchase_order",
+            documentId: po.id,
+            title: `Purchase Order ${po.po_number}`,
+            filename: `purchase-order-${po.po_number}`,
+          }),
+      },
+      {
         id: "print",
         label: printing ? "Generating…" : "Print",
         icon: Printer,
         group: "output",
         disabled: printing,
         onSelect: () => void print(po.id, `PO ${po.po_number}`),
+      },
+      {
+        id: "download",
+        label: downloading ? "Preparing…" : "Download PDF",
+        icon: Download,
+        group: "output",
+        disabled: downloading,
+        onSelect: () => void download(po.id, `purchase-order-${po.po_number}`),
       },
       {
         id: "cancel",
@@ -166,7 +193,7 @@ export function usePurchaseOrderActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [po, printing, navigate, print, send]);
+  }, [po, printing, downloading, navigate, preview, print, download, send]);
 
   return { actions, dialogs: <>{emailDialog}</> };
 }
