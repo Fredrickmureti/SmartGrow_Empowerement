@@ -47,14 +47,33 @@ export function usePurchaseOrderActions(
   const { preview } = useDocumentPreview();
   const { print, printing } = useRecordPrint("purchase_order");
   const { download, downloading } = useRecordDownload("purchase_order");
-  const { updatePurchaseOrder, deletePurchaseOrder, convertToBill } = usePurchaseOrders();
+  const {
+    deletePurchaseOrder,
+    convertToBill,
+    submitPurchaseOrder,
+    approvePurchaseOrder,
+    rejectPurchaseOrder,
+    releasePurchaseOrder,
+    cancelPurchaseOrder,
+    revisePurchaseOrder,
+    closePurchaseOrder,
+  } = usePurchaseOrders();
   const { send, dialog: emailDialog } = useDocumentEmail(onChanged);
 
   const actions = useMemo<DocumentAction[]>(() => {
     if (!po) return [];
     const status = po.status as string;
     const isDraft = status === "draft";
-    const editable = ["draft", "sent"].includes(status);
+    // Once a PO is submitted the line data is frozen: changing it means
+    // creating a revision, which the state machine handles explicitly.
+    const editable = ["draft", "revised", "rejected"].includes(status);
+    const canSubmit = ["draft", "revised"].includes(status);
+    const canDecide = status === "submitted";
+    const canRelease = status === "approved";
+    const canRevise = ["submitted", "approved", "acknowledged", "sent"].includes(status);
+    const canReceive = ["sent", "acknowledged", "partial_received"].includes(status);
+    const canClose = ["partial_received", "received"].includes(status);
+    const canCancel = !["cancelled", "closed", "received", "draft"].includes(status);
 
     const run = (label: string | null, fn: () => Promise<unknown>) => () => {
       void (async () => {
