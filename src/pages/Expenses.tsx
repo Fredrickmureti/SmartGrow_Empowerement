@@ -970,13 +970,14 @@ export default function Expenses() {
             ) : expenses.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Receipt className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No expenses found</h3>
-                <p className="text-muted-foreground">
+                <h3 className="text-lg font-medium">No expenses to show</h3>
+                <p className="text-muted-foreground max-w-md">
                   {!search && statusFilter === "all"
-                    ? "Start recording expenses to track your spending."
+                    ? "You see your own expenses and those of the people who report to you; Finance sees all of them. Record an expense to get started."
                     : "Try adjusting your search or filter."}
                 </p>
               </div>
+
             ) : (
               <div className="table-container">
               <Table>
