@@ -26,6 +26,8 @@ import type { PurchaseReturn } from "@/hooks/usePurchaseReturns";
 import { reasonCodeLabel } from "@/lib/purchases/purchaseReturnRpcs";
 import { usePurchaseReturnRecord } from "./usePurchaseReturnRecord";
 import { usePurchaseReturnEvents } from "./usePurchaseReturnEvents";
+import { usePurchaseReturnSettlement } from "./usePurchaseReturnSettlement";
+import { useActorNames } from "@/hooks/useActorNames";
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -67,8 +69,24 @@ export function usePurchaseReturnView(
 ): Result {
   const { record: purchaseReturn, loading, error, refetch } = usePurchaseReturnRecord(id);
   const { events } = usePurchaseReturnEvents(purchaseReturn?.id ?? null);
+  const { settlement } = usePurchaseReturnSettlement(
+    purchaseReturn?.vendor_credit_note_id ?? null,
+    purchaseReturn?.bill_id ?? null,
+  );
+  const { nameOf } = useActorNames([
+    purchaseReturn?.created_by,
+    purchaseReturn?.submitted_by,
+    purchaseReturn?.approved_by,
+    purchaseReturn?.rejected_by,
+    purchaseReturn?.dispatched_by,
+    purchaseReturn?.acknowledged_by,
+    purchaseReturn?.closed_by,
+    purchaseReturn?.cancelled_by,
+    ...events.map((ev) => ev.actor_user_id),
+  ]);
 
   const view = useMemo<DocumentRecordView>(() => {
+
     const items = (purchaseReturn?.items ?? []) as NonNullable<PurchaseReturn["items"]>;
     const rows: LineItemRow[] = items
       .slice()
@@ -191,12 +209,19 @@ export function usePurchaseReturnView(
                 <dt className="text-muted-foreground">Goods receipt</dt>
                 <dd>
                   {purchaseReturn.goods_receipt_id ? (
-                    <Link
-                      className="text-primary underline-offset-2 hover:underline"
-                      to={`/purchases/goods-receipts/${purchaseReturn.goods_receipt_id}`}
-                    >
-                      View receipt
-                    </Link>
+                    purchaseReturn.purchase_order_id ? (
+                      // Receipts have no standalone record page — they are
+                      // shown inside their purchase order. Link where the
+                      // receipt actually lives instead of a dead route.
+                      <Link
+                        className="text-primary underline-offset-2 hover:underline"
+                        to={`/purchases/orders/${purchaseReturn.purchase_order_id}#receipts`}
+                      >
+                        View on purchase order
+                      </Link>
+                    ) : (
+                      "Receipt recorded (no order to open)"
+                    )
                   ) : (
                     "— (no receipt provenance)"
                   )}
@@ -218,14 +243,29 @@ export function usePurchaseReturnView(
                 </dd>
               </div>
               <div>
+                <dt className="text-muted-foreground">Supplier bill</dt>
+                <dd>
+                  {purchaseReturn.bill_id ? (
+                    <Link
+                      className="text-primary underline-offset-2 hover:underline"
+                      to={`/purchases/bills/${purchaseReturn.bill_id}`}
+                    >
+                      {settlement.bill?.bill_number ?? "View bill"}
+                    </Link>
+                  ) : (
+                    "— not linked to a bill"
+                  )}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-muted-foreground">Vendor debit note</dt>
                 <dd>
                   {purchaseReturn.vendor_credit_note_id ? (
                     <Link
                       className="text-primary underline-offset-2 hover:underline"
-                      to={`/purchases/vendor-credit-notes/${purchaseReturn.vendor_credit_note_id}`}
+                      to={`/purchases/credit-notes/${purchaseReturn.vendor_credit_note_id}`}
                     >
-                      View debit note
+                      {settlement.creditNote?.credit_note_number ?? "View debit note"}
                     </Link>
                   ) : (
                     "— not yet raised"
@@ -247,6 +287,49 @@ export function usePurchaseReturnView(
             </dl>
           </Section>
 
+          {settlement.creditNote && (
+            <Section title="Settlement">
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Debit note status</dt>
+                  <dd className="capitalize">
+                    {(settlement.creditNote.status ?? "—").replace(/_/g, " ")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Debit note value</dt>
+                  <dd>{formatCurrency(settlement.creditNote.total)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Applied to supplier bills</dt>
+                  <dd>{formatCurrency(settlement.creditNote.amount_applied)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Unapplied credit</dt>
+                  <dd>
+                    {formatCurrency(
+                      Math.max(
+                        settlement.creditNote.total - settlement.creditNote.amount_applied,
+                        0,
+                      ),
+                    )}
+                  </dd>
+                </div>
+                {settlement.bill && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-muted-foreground">
+                      Applied to {settlement.bill.bill_number ?? "the linked bill"}
+                    </dt>
+                    <dd>
+                      {formatCurrency(settlement.appliedToBill)} of{" "}
+                      {formatCurrency(settlement.bill.total)}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </Section>
+          )}
+
           <Section title="Lifecycle">
             {events.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -263,6 +346,9 @@ export function usePurchaseReturnView(
                       {ev.from_status ? `${ev.from_status} → ` : ""}
                       {ev.to_status ?? "—"}
                     </span>
+                    <span className="text-xs text-muted-foreground">
+                      by {nameOf(ev.actor_user_id)}
+                    </span>
                     {ev.governance_mode && (
                       <span className="text-xs text-muted-foreground">
                         via {ev.governance_mode}
@@ -276,6 +362,68 @@ export function usePurchaseReturnView(
               </ol>
             )}
           </Section>
+
+          <Section title="Accountability">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Raised</dt>
+                <dd>
+                  {nameOf(purchaseReturn.created_by)} · {fmtStamp(purchaseReturn.created_at)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Submitted</dt>
+                <dd>
+                  {purchaseReturn.submitted_at
+                    ? `${nameOf(purchaseReturn.submitted_by)} · ${fmtStamp(purchaseReturn.submitted_at)}`
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Approved</dt>
+                <dd>
+                  {purchaseReturn.approved_at
+                    ? `${nameOf(purchaseReturn.approved_by)} · ${fmtStamp(purchaseReturn.approved_at)}`
+                    : purchaseReturn.rejected_at
+                      ? `Rejected by ${nameOf(purchaseReturn.rejected_by)} · ${fmtStamp(purchaseReturn.rejected_at)}`
+                      : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Dispatched</dt>
+                <dd>
+                  {purchaseReturn.dispatched_at
+                    ? `${nameOf(purchaseReturn.dispatched_by)} · ${fmtStamp(purchaseReturn.dispatched_at)}`
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Supplier acknowledged</dt>
+                <dd>
+                  {purchaseReturn.acknowledged_at
+                    ? `${nameOf(purchaseReturn.acknowledged_by)} · ${fmtStamp(purchaseReturn.acknowledged_at)}`
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Closed</dt>
+                <dd>
+                  {purchaseReturn.closed_at
+                    ? `${nameOf(purchaseReturn.closed_by)} · ${fmtStamp(purchaseReturn.closed_at)}`
+                    : purchaseReturn.cancelled_at
+                      ? `Cancelled by ${nameOf(purchaseReturn.cancelled_by)} · ${fmtStamp(purchaseReturn.cancelled_at)}`
+                      : "—"}
+                </dd>
+              </div>
+              {purchaseReturn.rejected_reason && (
+                <div className="sm:col-span-2">
+                  <dt className="text-muted-foreground">Rejection reason</dt>
+                  <dd>{purchaseReturn.rejected_reason}</dd>
+                </div>
+              )}
+            </dl>
+          </Section>
+
 
           {purchaseReturn.notes && (
             <Section title="Notes">
@@ -291,7 +439,7 @@ export function usePurchaseReturnView(
         </>
       ) : undefined,
     };
-  }, [purchaseReturn, loading, error, formatCurrency, events]);
+  }, [purchaseReturn, loading, error, formatCurrency, events, settlement, nameOf]);
 
   return { purchaseReturn, loading, error, view, refresh: refetch };
 }
