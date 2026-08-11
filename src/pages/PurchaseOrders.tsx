@@ -415,7 +415,7 @@ export default function PurchaseOrders() {
 
   const totals = {
     total: filteredPOs.reduce((sum, po) => sum + po.total, 0),
-    pending: filteredPOs.filter((po) => ["draft", "sent"].includes(po.status)).reduce((sum, po) => sum + po.total, 0),
+    pending: filteredPOs.filter((po) => ["draft", "submitted", "approved", "sent", "acknowledged"].includes(po.status)).reduce((sum, po) => sum + po.total, 0),
     partialReceived: filteredPOs.filter((po) => po.status === "partial_received").length,
     received: filteredPOs.filter((po) => po.status === "received").length,
     convertedToBill: filteredPOs.filter((po) => po.converted_bill_id).length,
