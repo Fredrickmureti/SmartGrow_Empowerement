@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -62,6 +62,11 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   customer_statement: { table: "customer_statements", numberField: "id", statusField: undefined, itemsTable: undefined, contactField: "contact_id" },
   receipt: { table: "customer_payments", numberField: "receipt_number", statusField: undefined, itemsTable: undefined },
   sales_return: { table: "sales_returns", numberField: "return_number", statusField: "status", itemsTable: "sales_return_items" },
+  // Purchase (vendor) return / RMA. `statusField` is deliberately omitted:
+  // the return's status is a lifecycle value owned by the server-side
+  // lifecycle commands (draft → … → closed) and client roles have no write
+  // privilege on `purchase_returns` at all — emailing must never stamp it.
+  purchase_return: { table: "purchase_returns", numberField: "return_number", statusField: undefined, itemsTable: "purchase_return_items", contactField: "vendor_id" },
   sales_order: { table: "sales_orders", numberField: "order_number", statusField: "status", itemsTable: "sales_order_items" },
   // Payroll — number is synthesized from payroll_runs.payroll_number; recipient is the employee's work_email/email.
   payslip: { table: "payslips", numberField: "payslip_number", statusField: "status", itemsTable: undefined, contactField: "employee_id" },
@@ -88,6 +93,7 @@ const documentLabels: Record<EmailDocumentType, string> = {
   customer_statement: "Customer Statement",
   receipt: "Payment Receipt",
   sales_return: "Sales Return",
+  purchase_return: "Purchase Return",
   sales_order: "Sales Order",
   report: "Report",
   payslip: "Payslip",
