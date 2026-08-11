@@ -58,6 +58,13 @@ import { useBranches } from "@/hooks/useBranches";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
+/**
+ * Statuses whose commercial terms may still be edited. Mirrors the
+ * update_po_items_atomic guard and trg_po_commercial_fields_immutable:
+ * once a PO leaves this set, editing goes through Revise on the record page.
+ */
+const PO_EDITABLE_STATUSES = new Set(["draft", "revised", "rejected"]);
+
 export default function PurchaseOrderEditPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -301,6 +308,27 @@ export default function PurchaseOrderEditPage() {
             title="Purchase order not found"
             description="It may have been deleted or you don't have access."
             onRetry={() => navigate("/purchases/orders")}
+          />
+        </Section>
+      </RecordShell>
+    );
+  }
+
+  // Client-side twin of the update_po_items_atomic guard: commercial terms
+  // lock once a PO leaves draft/revised/rejected. Show an explanation and a
+  // path back instead of an editable form that would fail on save.
+  if (po && !PO_EDITABLE_STATUSES.has(po.status)) {
+    return (
+      <RecordShell
+        header={
+          <RecordHeader eyebrow="Edit Purchase Order" title={po.po_number} />
+        }
+      >
+        <Section>
+          <ErrorState
+            title={`${po.po_number} can't be edited`}
+            description={`This purchase order is "${po.status}". Commercial terms are locked once a PO leaves draft — use Revise on the record page to reopen it for editing.`}
+            onRetry={() => navigate(`/purchases/orders/${po.id}`)}
           />
         </Section>
       </RecordShell>
