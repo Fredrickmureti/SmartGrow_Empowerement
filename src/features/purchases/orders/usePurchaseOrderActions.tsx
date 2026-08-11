@@ -203,7 +203,7 @@ export function usePurchaseOrderActions(
         label: "Send to supplier",
         icon: Mail,
         group: "output",
-        hidden: !["draft", "sent"].includes(status),
+        hidden: !["draft", "approved", "sent", "acknowledged"].includes(status),
         onSelect: () =>
           send({
             documentType: "purchase_order",
