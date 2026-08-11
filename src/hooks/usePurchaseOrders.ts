@@ -30,6 +30,24 @@ export interface PurchaseOrderItem {
   display_uom_id?: string | null;
 }
 
+/**
+ * The PO lifecycle is owned by the database (`po_status` enum + the
+ * *_purchase_order RPCs). The UI never invents a status string — it asks the
+ * state machine to make a transition and re-reads the result.
+ */
+export type PurchaseOrderStatus =
+  | "draft"
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | "sent"
+  | "acknowledged"
+  | "partial_received"
+  | "received"
+  | "closed"
+  | "revised"
+  | "cancelled";
+
 export interface PurchaseOrder {
   id: string;
   organization_id: string;
@@ -37,7 +55,7 @@ export interface PurchaseOrder {
   branch_id?: string | null;
   vendor_id: string | null;
   po_number: string;
-  status: "draft" | "sent" | "partial_received" | "received" | "cancelled";
+  status: PurchaseOrderStatus;
   billing_status?: "no" | "to_bill" | "fully_billed";
   order_date: string;
   expected_date: string | null;
