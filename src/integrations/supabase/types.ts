@@ -20017,22 +20017,27 @@ export type Database = {
         Row: {
           account_id: string | null
           amount: number
+          approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
+          base_amount: number | null
           branch_id: string | null
           business_id: string
           category_id: string | null
           created_at: string
           created_by: string | null
           currency: string | null
+          department_id: string | null
           description: string
           employee_id: string | null
+          exchange_rate: number
           expense_date: string
           id: string
           is_billable: boolean | null
           is_sample_data: boolean
           journal_entry_id: string | null
           organization_id: string
+          paid_by: string
           payment_account_id: string | null
           payment_method: string
           project_id: string | null
@@ -20042,6 +20047,7 @@ export type Database = {
           reimbursed_at: string | null
           reimbursed_payslip_id: string | null
           reimbursed_run_id: string | null
+          rejected_reason: string | null
           status: Database["public"]["Enums"]["expense_status"]
           submitted_at: string | null
           submitted_by: string | null
@@ -20049,26 +20055,33 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           account_id?: string | null
           amount: number
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          base_amount?: number | null
           branch_id?: string | null
           business_id: string
           category_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          department_id?: string | null
           description: string
           employee_id?: string | null
+          exchange_rate?: number
           expense_date?: string
           id?: string
           is_billable?: boolean | null
           is_sample_data?: boolean
           journal_entry_id?: string | null
           organization_id: string
+          paid_by?: string
           payment_account_id?: string | null
           payment_method?: string
           project_id?: string | null
@@ -20078,6 +20091,7 @@ export type Database = {
           reimbursed_at?: string | null
           reimbursed_payslip_id?: string | null
           reimbursed_run_id?: string | null
+          rejected_reason?: string | null
           status?: Database["public"]["Enums"]["expense_status"]
           submitted_at?: string | null
           submitted_by?: string | null
@@ -20085,26 +20099,33 @@ export type Database = {
           tax_amount?: number | null
           updated_at?: string
           vendor_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           account_id?: string | null
           amount?: number
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          base_amount?: number | null
           branch_id?: string | null
           business_id?: string
           category_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          department_id?: string | null
           description?: string
           employee_id?: string | null
+          exchange_rate?: number
           expense_date?: string
           id?: string
           is_billable?: boolean | null
           is_sample_data?: boolean
           journal_entry_id?: string | null
           organization_id?: string
+          paid_by?: string
           payment_account_id?: string | null
           payment_method?: string
           project_id?: string | null
@@ -20114,6 +20135,7 @@ export type Database = {
           reimbursed_at?: string | null
           reimbursed_payslip_id?: string | null
           reimbursed_run_id?: string | null
+          rejected_reason?: string | null
           status?: Database["public"]["Enums"]["expense_status"]
           submitted_at?: string | null
           submitted_by?: string | null
@@ -20121,6 +20143,8 @@ export type Database = {
           tax_amount?: number | null
           updated_at?: string
           vendor_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -20143,6 +20167,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_approval_request_id_fkey"
+            columns: ["approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_approval_request_id_fkey"
+            columns: ["approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
           },
           {
             foreignKeyName: "expenses_branch_id_fkey"
@@ -20184,6 +20222,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
             referencedColumns: ["id"]
           },
           {
@@ -82920,6 +82965,63 @@ export type Database = {
       _execute_organization_delete:
         | { Args: { _job_id: string; _org_id: string }; Returns: undefined }
         | { Args: { p_org_id: string }; Returns: Json }
+      _expense_apply_approval: {
+        Args: { p_actor: string; p_expense_id: string }
+        Returns: Json
+      }
+      _expense_guard: {
+        Args: { p_allowed: string[]; p_expense_id: string }
+        Returns: {
+          account_id: string | null
+          amount: number
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          base_amount: number | null
+          branch_id: string | null
+          business_id: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          department_id: string | null
+          description: string
+          employee_id: string | null
+          exchange_rate: number
+          expense_date: string
+          id: string
+          is_billable: boolean | null
+          is_sample_data: boolean
+          journal_entry_id: string | null
+          organization_id: string
+          paid_by: string
+          payment_account_id: string | null
+          payment_method: string
+          project_id: string | null
+          receipt_url: string | null
+          reference: string | null
+          reimburse_via_payroll: boolean
+          reimbursed_at: string | null
+          reimbursed_payslip_id: string | null
+          reimbursed_run_id: string | null
+          rejected_reason: string | null
+          status: Database["public"]["Enums"]["expense_status"]
+          submitted_at: string | null
+          submitted_by: string | null
+          task_id: string | null
+          tax_amount: number | null
+          updated_at: string
+          vendor_id: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expenses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
       _loan_assert_transition: {
@@ -84533,22 +84635,27 @@ export type Database = {
         Returns: {
           account_id: string | null
           amount: number
+          approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
+          base_amount: number | null
           branch_id: string | null
           business_id: string
           category_id: string | null
           created_at: string
           created_by: string | null
           currency: string | null
+          department_id: string | null
           description: string
           employee_id: string | null
+          exchange_rate: number
           expense_date: string
           id: string
           is_billable: boolean | null
           is_sample_data: boolean
           journal_entry_id: string | null
           organization_id: string
+          paid_by: string
           payment_account_id: string | null
           payment_method: string
           project_id: string | null
@@ -84558,6 +84665,7 @@ export type Database = {
           reimbursed_at: string | null
           reimbursed_payslip_id: string | null
           reimbursed_run_id: string | null
+          rejected_reason: string | null
           status: Database["public"]["Enums"]["expense_status"]
           submitted_at: string | null
           submitted_by: string | null
@@ -84565,6 +84673,8 @@ export type Database = {
           tax_amount: number | null
           updated_at: string
           vendor_id: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         SetofOptions: {
           from: "*"
@@ -88892,6 +89002,17 @@ export type Database = {
       }
       expand_label_run: {
         Args: { p_batch_size?: number; p_run_id: string }
+        Returns: Json
+      }
+      expense_approve: { Args: { p_expense_id: string }; Returns: Json }
+      expense_convert_to_bill: { Args: { p_expense_id: string }; Returns: Json }
+      expense_reject: {
+        Args: { p_expense_id: string; p_reason?: string }
+        Returns: Json
+      }
+      expense_submit: { Args: { p_expense_id: string }; Returns: Json }
+      expense_void: {
+        Args: { p_expense_id: string; p_reason?: string }
         Returns: Json
       }
       expire_app_trials: { Args: never; Returns: number }
@@ -100648,7 +100769,14 @@ export type Database = {
         | "rejected"
         | "expired"
         | "converted"
-      expense_status: "pending" | "approved" | "rejected" | "paid"
+      expense_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "paid"
+        | "draft"
+        | "submitted"
+        | "voided"
       garnishment_cap_rule:
         | "fixed_amount"
         | "percent_disposable"
@@ -101814,7 +101942,15 @@ export const Constants = {
         "expired",
         "converted",
       ],
-      expense_status: ["pending", "approved", "rejected", "paid"],
+      expense_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "paid",
+        "draft",
+        "submitted",
+        "voided",
+      ],
       garnishment_cap_rule: [
         "fixed_amount",
         "percent_disposable",

@@ -7,7 +7,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { useAuditLog } from "./useAuditLog";
 import { usePermissions } from "./usePermissions";
-import { postExpenseGL } from "@/lib/finance/expenseSettlement";
+import {
+  isExpenseDeletable,
+  submitExpense as submitExpenseRpc,
+  voidExpenseRpc,
+  type ExpenseStatus,
+} from "@/lib/finance/expenseCommands";
 import { triggerAutomation } from "@/lib/automations/triggerAutomation";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
@@ -39,7 +44,7 @@ export interface Expense {
   description: string;
   reference: string | null;
   receipt_url: string | null;
-  status: "pending" | "approved" | "rejected" | "paid";
+  status: ExpenseStatus;
   payment_method: string;
   is_billable: boolean;
   created_by: string | null;
@@ -129,31 +134,59 @@ export function useExpenses() {
     fetchCategories();
   }, [currentOrg?.id, currentBusiness?.id]);
 
-  // GL posting for expenses is server-side only — see
-  // `@/lib/finance/expenseSettlement` and `public.post_expense_gl` (ADR 0123).
+  // The expense lifecycle is server-owned: `expense_submit` / `expense_approve`
+  // / `expense_void` route governance, enforce segregation of duties and post
+  // to the GL in one transaction (ADR 0123, ADR-0101). This hook only authors
+  // commercial fields.
 
-  const createExpense = async (expense: Omit<Expense, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "category" | "vendor">) => {
+  const stripServerOwned = (input: Record<string, any>) => {
+    const {
+      status,
+      approved_by,
+      approved_at,
+      approval_request_id,
+      journal_entry_id,
+      submitted_by,
+      submitted_at,
+      voided_at,
+      voided_by,
+      rejected_reason,
+      base_amount,
+      category,
+      vendor,
+      ...rest
+    } = input;
+    return rest;
+  };
+
+  const createExpense = async (
+    expense: Omit<Expense, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "category" | "vendor"> & {
+      submit?: boolean;
+    }
+  ) => {
     if (!can("manageFinancials")) throw new Error("Permission denied: cannot create expenses");
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
+    const { submit = true, ...fields } = expense as any;
+
     const insertData = {
-      ...expense,
+      ...stripServerOwned(fields),
+      status: "draft",
       organization_id: currentOrg.id,
       business_id: currentBusiness.id,
       // Stamp branch from active context — prevents NULL-branch leak.
-      branch_id: (expense as any).branch_id ?? currentBranch?.id ?? null,
+      branch_id: fields.branch_id ?? currentBranch?.id ?? null,
       created_by: user.id,
     };
 
     const { data, error } = await supabase
       .from("expenses")
-      .insert(insertData)
+      .insert(insertData as any)
       .select()
       .single();
 
     if (error) throw error;
 
-    // Log creation
     logAction({
       action: "created",
       entityType: "expense",
@@ -162,15 +195,11 @@ export function useExpenses() {
       changesSummary: `Created expense: ${expense.description} for ${expense.amount}`,
     });
 
-    // Post to GL if expense is approved or paid on creation
-    if (expense.status === "approved" || expense.status === "paid") {
-      await postExpenseGL(data.id);
-    }
+    // Governance decides whether this waits for an approver or posts now.
+    if (submit) await submitExpenseRpc(data.id);
 
-    // Optimistic update
-    setExpenses((prev) => [data as Expense, ...prev]);
+    await fetchExpenses();
 
-    // Trigger automations (fire-and-forget)
     triggerAutomation({
       event_type: "on_create",
       target_model: "expense",
@@ -182,32 +211,20 @@ export function useExpenses() {
     return data;
   };
 
+  /** Edits commercial fields only — state transitions go through the RPCs. */
   const updateExpense = async (id: string, updates: Partial<Expense>) => {
     const expense = expenses.find((e) => e.id === id);
-    
+    const dbUpdates = stripServerOwned(updates as any);
+
     // Optimistic update
-    setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates } : e)));
+    setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...dbUpdates } : e)));
 
     try {
-      // Strip joined fields
-      const { category, vendor, ...dbUpdates } = updates as any;
-
-      const { error } = await supabase
-        .from("expenses")
-        .update(dbUpdates)
-        .eq("id", id);
-
-      if (error) throw error;
-
-      // Post to GL on status transition to approved/paid
-      const statusChanged = updates.status && expense && updates.status !== expense.status;
-      const shouldPostGL = statusChanged && (updates.status === "approved" || updates.status === "paid");
-      
-      if (shouldPostGL && expense) {
-        await postExpenseGL(expense.id);
+      if (Object.keys(dbUpdates).length > 0) {
+        const { error } = await supabase.from("expenses").update(dbUpdates as any).eq("id", id);
+        if (error) throw error;
       }
 
-      // Log update
       if (expense) {
         logAction({
           action: "updated",
@@ -215,23 +232,6 @@ export function useExpenses() {
           entityId: id,
           entityName: expense.description,
           changesSummary: `Updated expense: ${expense.description}`,
-        });
-      }
-
-      // Approval/rejection notification (non-blocking).
-      if (
-        statusChanged &&
-        currentOrg?.id &&
-        (updates.status === "approved" || updates.status === "rejected" || updates.status === "paid")
-      ) {
-        const event =
-          updates.status === "rejected" ? "rejected" : "approved";
-        void dispatchApprovalNotification({
-          organizationId: currentOrg.id,
-          entityType: "expense",
-          entityId: id,
-          event,
-          actorUserId: user?.id ?? null,
         });
       }
     } catch (error) {
@@ -243,24 +243,31 @@ export function useExpenses() {
     }
   };
 
+  /** Void a posted expense — reversal + audit happen server-side. */
+  const voidExpense = async (id: string, reason?: string) => {
+    const expense = expenses.find((e) => e.id === id);
+    const res = await voidExpenseRpc(id, reason ?? (expense ? `Void of expense: ${expense.description}` : null));
+
+    if (currentOrg?.id) {
+      void dispatchApprovalNotification({
+        organizationId: currentOrg.id,
+        entityType: "expense",
+        entityId: id,
+        event: "rejected",
+        actorUserId: user?.id ?? null,
+      });
+    }
+
+    await fetchExpenses();
+    return res;
+  };
+
   const deleteExpense = async (id: string) => {
     const expense = expenses.find((e) => e.id === id);
-    
-    // Reverse linked journal entry atomically before deleting.
-    // Uses the canonical void RPC: posts a reversal sub-entry, marks original
-    // as 'reversed', and is idempotent. NEVER mutates the original JE in place.
-    if (expense && (expense as any).journal_entry_id) {
-      const { error: voidErr } = await supabase.rpc("void_journal_entry_atomic", {
-        _entry_id: (expense as any).journal_entry_id,
-        _reason: `Expense deleted: ${expense.description}`,
-        _user_id: undefined,
-        _entry_number: null,
-        _reversal_date: null,
-      } as any);
-      if (voidErr) {
-        console.error("Failed to reverse JE on expense delete:", voidErr);
-        throw voidErr;
-      }
+
+    // Posted expenses are voided, never deleted — the ledger keeps its history.
+    if (expense && !isExpenseDeletable(expense.status)) {
+      throw new Error("Only unposted expenses can be deleted. Use void for approved or paid expenses.");
     }
 
     // Optimistic update
@@ -270,14 +277,13 @@ export function useExpenses() {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
 
-      // Log deletion
       if (expense) {
         logAction({
           action: "deleted",
           entityType: "expense",
           entityId: id,
           entityName: expense.description,
-          changesSummary: `Deleted expense: ${expense.description}${(expense as any).journal_entry_id ? " (GL entry voided)" : ""}`,
+          changesSummary: `Deleted unposted expense: ${expense.description}`,
         });
       }
     } catch (error) {
@@ -288,6 +294,7 @@ export function useExpenses() {
       throw error;
     }
   };
+
 
   const createCategory = async (category: Omit<ExpenseCategory, "id" | "organization_id" | "created_at">) => {
     if (!currentOrg) throw new Error("No organization selected");
@@ -336,6 +343,7 @@ export function useExpenses() {
 
   return {
     expenses,
+    voidExpense,
     categories,
     isLoading,
     createExpense,
