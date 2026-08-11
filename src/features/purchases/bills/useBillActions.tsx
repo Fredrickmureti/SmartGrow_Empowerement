@@ -302,7 +302,7 @@ export function useBillActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bill, matching, printing, canManagePurchases, navigate, preview, print, send]);
+  }, [bill, matching, printing, downloading, requireBillApproval, canManagePurchases, navigate, preview, print, download, send]);
 
   const dialogs = (
     <>
