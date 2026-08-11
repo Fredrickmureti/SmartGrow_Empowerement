@@ -535,9 +535,15 @@ export default function PurchaseOrders() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="submitted">Submitted</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
+              <SelectItem value="acknowledged">Acknowledged</SelectItem>
               <SelectItem value="partial_received">Partial</SelectItem>
               <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+              <SelectItem value="revised">Revised</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
