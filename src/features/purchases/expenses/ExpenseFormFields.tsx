@@ -359,6 +359,59 @@ export function ExpenseFormFields({
         </FieldGrid>
       </Section>
 
+      <Section
+        title="Cost allocation"
+        description="Where this cost belongs. Drives the analytic distribution written when the expense posts."
+      >
+        <FieldGrid columns={2}>
+          <div className="space-y-2">
+            <Label htmlFor="department">Department</Label>
+            <Select
+              value={value.department_id ?? "none"}
+              onValueChange={(v) =>
+                onChange({ department_id: v === "none" ? null : v })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="department">
+                <SelectValue placeholder="No department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No department</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="analytic_account">Cost center</Label>
+            <Select
+              value={value.analytic_account_id ?? "none"}
+              onValueChange={(v) =>
+                onChange({ analytic_account_id: v === "none" ? null : v })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="analytic_account">
+                <SelectValue placeholder="No cost center" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No cost center</SelectItem>
+                {analyticAccounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.code ? `${a.code} — ${a.name}` : a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </FieldGrid>
+      </Section>
+
       <CapabilityGate cap="projects.analytic-tagging">
         <Section
           title="Analytics"
@@ -371,6 +424,7 @@ export function ExpenseFormFields({
           />
         </Section>
       </CapabilityGate>
+
 
       <Section title="Receipt">
         <ReceiptUpload
