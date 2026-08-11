@@ -33,18 +33,36 @@ export function PurchaseReturnPeekSheet({ returnId, onOpenChange }: Props) {
         {...view}
         open={!!returnId}
         onOpenChange={onOpenChange}
-        extraActions={actions}
         fullPageHref={purchaseReturn ? `/purchases/returns/${purchaseReturn.id}` : undefined}
         extraHeaderActions={
-          purchaseReturn && isDraft ? (
-            <Button asChild size="sm" variant="outline">
-              <Link
-                to={`/purchases/returns/${purchaseReturn.id}/edit`}
-                onClick={() => onOpenChange(false)}
-              >
-                <Pencil className="mr-1.5 h-4 w-4" /> Edit
-              </Link>
-            </Button>
+          purchaseReturn ? (
+            <>
+              {/* The primary lifecycle step, taken straight from the shared
+                  action vocabulary so the drawer can never offer a transition
+                  the record page wouldn't. */}
+              {actions
+                .filter((a) => a.primary && !a.hidden && a.id !== "edit")
+                .map((a) => (
+                  <Button
+                    key={a.id}
+                    size="sm"
+                    disabled={a.disabled}
+                    onClick={() => a.onSelect?.()}
+                  >
+                    {a.icon && <a.icon className="mr-1.5 h-4 w-4" />} {a.label}
+                  </Button>
+                ))}
+              {isDraft && (
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    to={`/purchases/returns/${purchaseReturn.id}/edit`}
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <Pencil className="mr-1.5 h-4 w-4" /> Edit
+                  </Link>
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />
