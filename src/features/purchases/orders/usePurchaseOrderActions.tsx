@@ -10,7 +10,6 @@ import {
   ArrowRightLeft,
   Ban,
   CheckCircle2,
-  ClipboardCheck,
   Download,
   FileSearch,
   Lock,
