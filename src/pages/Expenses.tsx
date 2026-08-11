@@ -166,6 +166,9 @@ export default function Expenses() {
     debouncedSearch(e.target.value);
   };
 
+  const { mode: governanceMode } = useGovernanceMode();
+  const submitActionLabel =
+    governanceMode === "solo" ? "Submit & approve" : "Submit for approval";
   const {
     expenses,
     categories,
