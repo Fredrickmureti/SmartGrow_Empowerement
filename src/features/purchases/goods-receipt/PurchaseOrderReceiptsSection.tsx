@@ -13,7 +13,8 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Section, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Undo2 } from "lucide-react";
+import { GoodsReceiptReturnLedger } from "./GoodsReceiptReturnLedger";
 import { ReverseGoodsReceiptDialog } from "@/components/purchases/ReverseGoodsReceiptDialog";
 import { useGoodsReceiptsForOrder, type OrderGoodsReceipt } from "./useGoodsReceiptsForOrder";
 
@@ -43,17 +44,18 @@ export function PurchaseOrderReceiptsSection({
 }) {
   const { receipts, loading, refetch } = useGoodsReceiptsForOrder(purchaseOrderId);
   const [reversing, setReversing] = useState<OrderGoodsReceipt | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   if (loading && receipts.length === 0) return null;
   if (!loading && receipts.length === 0) return null;
 
   return (
-    <Section title="Goods receipts">
+    <Section title="Goods receipts" id="receipts">
       <div className="divide-y rounded-lg border">
         {receipts.map((receipt) => (
+          <div key={receipt.id} className="text-sm">
           <div
-            key={receipt.id}
-            className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 p-3"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -67,12 +69,24 @@ export function PurchaseOrderReceiptsSection({
                 Received {fmtDate(receipt.receipt_date)}
               </p>
             </div>
+            <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded(expanded === receipt.id ? null : receipt.id)}
+            >
+              <Undo2 className="mr-2 h-4 w-4" />
+              {expanded === receipt.id ? "Hide returns" : "Returned"}
+            </Button>
             {receipt.status !== "reversed" && (
               <Button variant="outline" size="sm" onClick={() => setReversing(receipt)}>
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Reverse
               </Button>
             )}
+            </div>
+          </div>
+          {expanded === receipt.id && <GoodsReceiptReturnLedger receiptId={receipt.id} />}
           </div>
         ))}
       </div>
