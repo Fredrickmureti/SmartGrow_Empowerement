@@ -180,7 +180,8 @@ export function useExpenses() {
 
     const insertData = {
       ...stripServerOwned(fields),
-      status: "draft",
+      // status is server-owned: the column defaults to 'draft' and the
+      // insert policy rejects any other entry state.
       organization_id: currentOrg.id,
       business_id: currentBusiness.id,
       // Stamp branch from active context — prevents NULL-branch leak.

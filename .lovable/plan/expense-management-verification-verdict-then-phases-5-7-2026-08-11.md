@@ -39,15 +39,32 @@ I checked the live database and the code rather than the log. Result: **Phases 1
 **5D. Receipts**
 - Move attachments onto the canonical document/attachment layer used elsewhere (`ensureDocumentRecord` / document artifacts), supporting multiple receipts with audit history; `receipt_url` remains read-only for legacy rows.
 
-## Phase 6 — Access, notifications, guards
-- Split RLS: employee sees own (`employee_id`/`created_by`), manager sees their reports, Finance/`purchases:write` sees all; drop the legacy overlapping policies so exactly one policy per command remains.
-- Narrow `notify_expense_created` from "every org member" to approvers/Finance.
-- Architecture tests: no client status writes to `expenses`, approval routed through the governance engine, expense present in the reversal register, single posting path.
+## Phase 6 — Access, notifications, guards — COMPLETE (verified)
+- DONE. RLS consolidated to exactly one policy per command on `expenses`: `expenses_select`, `expenses_insert`, `expenses_update`, `expenses_delete`. Dropped the legacy overlapping policies (`Admins can delete all expenses`, `Users can delete pending expenses`, `Platform admins can view all expenses`, and the two duplicate subscription INSERT policies — those OR-ed with `expenses_insert_perm` and effectively bypassed the permission check).
+- DONE. Visibility: platform admin or (business access + `purchases:read` + (Finance via `is_finance_manager` OR own/report via new SECURITY DEFINER helper `expense_is_own_or_report(user, created_by, employee_id)`, which uses the canonical recursive `is_manager_of`)).
+- DONE. Update is limited to open states (`draft|pending|submitted|rejected`); approved/posted/paid/voided rows are immutable from the app. Delete requires `purchases:delete` and an open state.
+- DONE. Entry state is server-owned: `expenses.status` now defaults to `draft` and the insert policy requires `status = 'draft'`. Both client hooks (`useExpenses`, `useExpensesPaginated`) no longer author `status`.
+- DONE. `notify_expense_created` narrowed from every active org member to Finance roles (`owner|admin|super_admin|accountant`) plus the employee's direct manager, skipping the creator.
+- DONE. Architecture ratchet `src/test/architecture/expense-domain-ownership.test.ts` (5 assertions, green): no client authoring of server-owned columns, no retired lifecycle RPCs, no direct journal-line writes from expense code, no local approval/SoD tables, receipts mutated only through `useExpenseAttachments`.
 
-## Phase 7 — UI aligned to the domain
+
+## Phase 7 — UI aligned to the domain — ACTIVE (next milestone)
 - Capture flow asks *who paid* first (company cash/bank, company card, employee), then classification, business purpose, employee, dimensions, tax code, currency (resolved, never typed), receipts.
 - Record page renders the lifecycle (draft → submitted → approved → posted → settled) via the canonical record projections instead of a CRUD form.
 - Approve/reject/void become governance-aware actions; no free-text currency, account, tax or status controls.
+- Also fold in: the list/detail surfaces must respect the new visibility split (non-Finance users now legitimately see fewer rows — the empty states and counts must not read as a bug).
+
+## Status board
+- Phases 1-4: complete and verified (server-authoritative lifecycle, Finance posting monopoly, no duplicate liability, no local payment engine).
+- Phase 5 (A-D: FX, tax, analytics, attachments): complete and verified.
+- Phase 6 (access, notifications, guards): complete and verified — this turn.
+- Phase 7 (UI aligned to the domain): ACTIVE, not started.
+
+## Instructions for the next agent
+1. Verify Phase 6 before writing anything: query `pg_policies` for `expenses` and confirm exactly four policies (one per command) and no legacy leftovers; confirm `expenses.status` defaults to `draft` and the insert policy pins `status='draft'`; read `notify_expense_created` and confirm it targets Finance roles plus the direct manager only; run `bunx vitest run src/test/architecture/expense-domain-ownership.test.ts` and `tsgo --noEmit`.
+2. Then resume at Phase 7 — do not open unrelated work. Phase 7 is presentation only: no new engine, no new lifecycle states, no direct table writes. Server RPCs and RLS from Phases 1-6 are the contract.
+3. Finish Phase 7 coherently (capture flow, record page, governance-aware actions together) before declaring the roadmap done.
+
 
 Out of scope by earlier decision, unchanged: expense reports and corporate-card transaction import.
 

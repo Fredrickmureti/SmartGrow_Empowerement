@@ -89166,6 +89166,10 @@ export type Database = {
       }
       expense_approve: { Args: { p_expense_id: string }; Returns: Json }
       expense_convert_to_bill: { Args: { p_expense_id: string }; Returns: Json }
+      expense_is_own_or_report: {
+        Args: { _created_by: string; _employee_id: string; _user_id: string }
+        Returns: boolean
+      }
       expense_queue_payroll_reimbursement: {
         Args: { p_employee_id?: string; p_expense_id: string }
         Returns: Json
