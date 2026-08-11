@@ -2,6 +2,7 @@
 
 **Arc:** Phase 1 → Batch N-Constraints (Batches A–N)
 **Date closed:** 2026-07-18
+**Reopened and re-closed:** 2026-08-11 (PO lifecycle convergence — see below)
 **Owner:** Procurement architecture audit
 
 ## Status: CLOSED
@@ -10,7 +11,28 @@ All planned milestones from `.lovable/plan.md` (Phase 1 verification through
 Batch N-Constraints) are live in production. Legacy code paths retired in
 the same turns that shipped their replacements — no drift left behind.
 
+## Addendum 2026-08-11 — PO lifecycle convergence
+
+The 2026-07-18 verdict was accurate about the database and wrong about the
+client. An end-to-end audit found the UI bypassing the state machine it had
+been given:
+
+| Finding | Resolution |
+| --- | --- |
+| `usePurchaseOrders.updatePurchaseOrder` wrote `status` as a raw column update, so `draft → sent` and `→ cancelled` skipped every DB guard, SoD check and event emission. | `status` is now stripped from `updatePurchaseOrder`. Every transition goes through a thin wrapper over the matching RPC (`submit`/`approve`/`reject`/`release`/`acknowledge`/`cancel`/`revise`/`close`). |
+| The vendor portal wrote `status: "confirmed"` — **not a member of the `po_status` enum**. Supplier confirmation was a live 22P02 failure. | Portal calls `acknowledge_purchase_order`, which stamps `vendor_confirmed_at`, stores the notes and emits `procurement.po.acknowledged`. The RPC now also accepts the supplier's own portal user (previously internal-only), matching the existing RLS policy. |
+| `approved → sent` had no RPC at all — the one transition the UI performed most. | Added `release_purchase_order`: idempotent, emits `procurement.po.released`. |
+| `procurement.po.*` had **zero** rows in `business_event_subscriptions`; approval events drained as a no-op. | Registered warehouse and notification consumers for `released` / `cancelled` / `revised`, invoked in-transaction by the emitting RPC (the shipped `complete_goods_receipt_atomic` pattern). Release now creates the expected inbound shipment and queues the supplier email; cancel/revise withdraw it. |
+| Inventory had no concept of "on order" — planning could not see inbound supply. | `public.inventory_expected_supply` (security-invoker view): open PO quantities per product/warehouse, never stored as stock. |
+| Approval was replayable: a double-click emitted `procurement.po.approved` twice. | `approve_purchase_order(p_po_id, p_client_request_id)` — replay with the same key returns the approved order untouched. Same idempotent guard on `release` and `acknowledge`. |
+| A `service` product could be flagged `track_inventory`, letting a service line generate stock movements on receipt. | Trigger forces `track_inventory = false` for `type = 'service'`; existing rows backfilled. |
+
+The lifecycle contract is now single-sourced: **`po_status` + the
+`*_purchase_order` RPCs own the state machine, and the client only names the
+intent.** Any new status write from the client is a regression.
+
 ## What shipped
+
 
 ### Canonical RPC surface (13)
 

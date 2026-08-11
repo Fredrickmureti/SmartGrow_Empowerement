@@ -92,14 +92,13 @@ export default function VendorPODetail() {
     if (!id) return;
     setIsConfirming(true);
 
-    const { error } = await supabase
-      .from("purchase_orders")
-      .update({
-        vendor_confirmed_at: new Date().toISOString(),
-        vendor_notes: vendorNotes || null,
-        status: "confirmed" as any,
-      })
-      .eq("id", id);
+    // Acknowledgement is a state-machine transition, not a column write.
+    // The RPC stamps vendor_confirmed_at, stores the notes and emits
+    // procurement.po.acknowledged. ("confirmed" was never a real status.)
+    const { error } = await supabase.rpc("acknowledge_purchase_order" as any, {
+      p_po_id: id,
+      p_vendor_notes: vendorNotes || null,
+    });
 
     if (error) {
       toast.error("Failed to confirm PO: " + normalizeError(error).message);
@@ -119,9 +118,15 @@ export default function VendorPODetail() {
 
   const statusColor: Record<string, "default" | "secondary" | "destructive"> = {
     draft: "secondary",
+    submitted: "secondary",
+    approved: "default",
     sent: "default",
-    confirmed: "default",
+    acknowledged: "default",
+    partial_received: "default",
     received: "default",
+    closed: "secondary",
+    revised: "secondary",
+    rejected: "destructive",
     cancelled: "destructive",
   };
 

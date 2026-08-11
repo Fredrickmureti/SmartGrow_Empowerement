@@ -30,6 +30,24 @@ export interface PurchaseOrderItem {
   display_uom_id?: string | null;
 }
 
+/**
+ * The PO lifecycle is owned by the database (`po_status` enum + the
+ * *_purchase_order RPCs). The UI never invents a status string — it asks the
+ * state machine to make a transition and re-reads the result.
+ */
+export type PurchaseOrderStatus =
+  | "draft"
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | "sent"
+  | "acknowledged"
+  | "partial_received"
+  | "received"
+  | "closed"
+  | "revised"
+  | "cancelled";
+
 export interface PurchaseOrder {
   id: string;
   organization_id: string;
@@ -37,7 +55,7 @@ export interface PurchaseOrder {
   branch_id?: string | null;
   vendor_id: string | null;
   po_number: string;
-  status: "draft" | "sent" | "partial_received" | "received" | "cancelled";
+  status: PurchaseOrderStatus;
   billing_status?: "no" | "to_bill" | "fully_billed";
   order_date: string;
   expected_date: string | null;
@@ -224,8 +242,15 @@ export function usePurchaseOrders() {
       if (atomicError) throw atomicError;
     }
 
-    // Strip joined fields
-    const { items: _i, vendor, ...dbUpdates } = updates as any;
+    // Strip joined fields. `status` is deliberately stripped too: the lifecycle
+    // belongs to the DB state machine, not to a raw column write. Use the
+    // transition helpers below instead.
+    const { items: _i, vendor, status: _status, ...dbUpdates } = updates as any;
+    if (_status !== undefined) {
+      console.warn(
+        "[usePurchaseOrders] Ignoring status in updatePurchaseOrder — use a lifecycle transition (submit/approve/release/…) instead.",
+      );
+    }
 
     const { error } = await supabase
       .from("purchase_orders")
@@ -334,6 +359,84 @@ export function usePurchaseOrders() {
     return { id: result.bill_id, bill_number: result.bill_number } as { id: string; bill_number?: string };
   };
 
+  // -------------------------------------------------------------------
+  // Lifecycle transitions — one thin wrapper per state-machine RPC.
+  // Every guard (allowed source status, SoD, billing locks, event emission)
+  // lives in the database; the client only names the intent.
+  // -------------------------------------------------------------------
+  const runTransition = useCallback(
+    async (
+      rpc:
+        | "submit_purchase_order"
+        | "approve_purchase_order"
+        | "reject_purchase_order"
+        | "release_purchase_order"
+        | "acknowledge_purchase_order"
+        | "cancel_purchase_order"
+        | "revise_purchase_order"
+        | "close_purchase_order",
+      args: Record<string, unknown>,
+      summary: string,
+      poId: string,
+    ) => {
+      const { data, error } = await supabase.rpc(rpc as any, args as any);
+      if (error) throw error;
+
+      const po = purchaseOrders.find((p) => p.id === poId);
+      logAction({
+        action: "updated",
+        entityType: "purchase_order",
+        entityId: poId,
+        entityName: po?.po_number ?? poId,
+        changesSummary: summary.replace("{po}", po?.po_number ?? poId),
+      });
+
+      await fetchPurchaseOrders();
+      return data as unknown as PurchaseOrder;
+    },
+    [purchaseOrders, logAction, fetchPurchaseOrders],
+  );
+
+  const submitPurchaseOrder = (id: string) =>
+    runTransition("submit_purchase_order", { p_po_id: id }, "Submitted PO {po} for approval", id);
+
+  /**
+   * `clientRequestId` makes approval idempotent: a retried or double-clicked
+   * approval with the same key returns the already-approved order instead of
+   * re-emitting the approval event.
+   */
+  const approvePurchaseOrder = (id: string, clientRequestId?: string) =>
+    runTransition(
+      "approve_purchase_order",
+      { p_po_id: id, p_client_request_id: clientRequestId ?? `po-approve-${id}` },
+      "Approved PO {po}",
+      id,
+    );
+
+  const rejectPurchaseOrder = (id: string, reason: string) =>
+    runTransition("reject_purchase_order", { p_po_id: id, p_reason: reason }, "Rejected PO {po}", id);
+
+  /** approved -> sent. Notifies the supplier and tells the warehouse to expect goods. */
+  const releasePurchaseOrder = (id: string) =>
+    runTransition("release_purchase_order", { p_po_id: id }, "Released PO {po} to supplier", id);
+
+  const acknowledgePurchaseOrder = (id: string, vendorNotes?: string) =>
+    runTransition(
+      "acknowledge_purchase_order",
+      { p_po_id: id, p_vendor_notes: vendorNotes ?? null },
+      "Supplier acknowledged PO {po}",
+      id,
+    );
+
+  const cancelPurchaseOrder = (id: string, reason: string) =>
+    runTransition("cancel_purchase_order", { p_po_id: id, p_reason: reason }, "Cancelled PO {po}", id);
+
+  const revisePurchaseOrder = (id: string, reason: string) =>
+    runTransition("revise_purchase_order", { p_po_id: id, p_reason: reason }, "Revised PO {po}", id);
+
+  const closePurchaseOrder = (id: string, reason?: string) =>
+    runTransition("close_purchase_order", { p_po_id: id, p_reason: reason ?? null }, "Closed PO {po}", id);
+
   return {
     purchaseOrders,
     isLoading,
@@ -342,6 +445,14 @@ export function usePurchaseOrders() {
     updatePurchaseOrder,
     deletePurchaseOrder,
     convertToBill,
+    submitPurchaseOrder,
+    approvePurchaseOrder,
+    rejectPurchaseOrder,
+    releasePurchaseOrder,
+    acknowledgePurchaseOrder,
+    cancelPurchaseOrder,
+    revisePurchaseOrder,
+    closePurchaseOrder,
     refreshPurchaseOrders: fetchPurchaseOrders,
   };
 }

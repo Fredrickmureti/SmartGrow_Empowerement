@@ -84,27 +84,43 @@ import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumen
 function POWorkflowPipeline({ status }: { status: string }) {
   const steps = [
     { key: "draft", label: "Draft" },
+    { key: "submitted", label: "Submitted" },
+    { key: "approved", label: "Approved" },
     { key: "sent", label: "Sent" },
-    { key: "partial_received", label: "Partial" },
     { key: "received", label: "Received" },
   ];
 
   const getActiveStep = () => {
-    if (status === "cancelled") return -1;
-    if (status === "draft") return 0;
-    if (status === "sent") return 1;
-    if (status === "partial_received") return 2;
-    if (status === "received") return 3;
-    return 0;
+    switch (status) {
+      case "draft":
+      case "revised":
+        return 0;
+      case "submitted":
+        return 1;
+      case "approved":
+        return 2;
+      case "sent":
+      case "acknowledged":
+        return 3;
+      case "partial_received":
+        return 3;
+      case "received":
+      case "closed":
+        return 4;
+      default:
+        return 0;
+    }
   };
 
   const activeStep = getActiveStep();
 
-  if (status === "cancelled") {
+  if (status === "cancelled" || status === "rejected") {
     return (
       <div className="flex items-center gap-1">
         <Ban className="h-3.5 w-3.5 text-destructive" />
-        <span className="text-xs text-destructive font-medium">Cancelled</span>
+        <span className="text-xs text-destructive font-medium">
+          {status === "rejected" ? "Rejected" : "Cancelled"}
+        </span>
       </div>
     );
   }
@@ -135,7 +151,7 @@ function POWorkflowPipeline({ status }: { status: string }) {
 export default function PurchaseOrders() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { getNextPONumber, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, convertToBill, refreshPurchaseOrders } = usePurchaseOrders();
+  const { getNextPONumber, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, convertToBill, releasePurchaseOrder, refreshPurchaseOrders } = usePurchaseOrders();
   const { confirmBill, refreshBills } = useBills();
   const { contacts } = useContacts();
   const { products } = useProducts();
@@ -326,12 +342,20 @@ export default function PurchaseOrders() {
   };
 
 
-  const handleStatusChange = async (id: string, status: string) => {
+  /**
+   * Emailing an approved PO to the supplier *is* the release. Anything else
+   * (draft, already sent, cancelled) keeps its status — the state machine
+   * decides, the list page never writes a status directly.
+   */
+  const handleReleaseAfterEmail = async (id: string) => {
+    if (!id) return;
+    const po = purchaseOrders.find((p) => p.id === id);
+    if (po?.status !== "approved") return;
     try {
-      await updatePurchaseOrder(id, { status: status as any });
-      toast({ title: "Status updated" });
+      await releasePurchaseOrder(id);
+      toast({ title: "Purchase order released to supplier" });
     } catch (error: any) {
-      toast({ title: "Error updating status", description: normalizeError(error).message, variant: "destructive" });
+      toast({ title: "Error releasing purchase order", description: normalizeError(error).message, variant: "destructive" });
     }
   };
 
@@ -374,9 +398,15 @@ export default function PurchaseOrders() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       draft: "secondary",
+      submitted: "outline",
+      approved: "default",
+      rejected: "destructive",
       sent: "default",
+      acknowledged: "default",
       partial_received: "outline",
       received: "default",
+      closed: "secondary",
+      revised: "secondary",
       cancelled: "destructive",
     };
     const colors: Record<string, string> = { received: "bg-green-500" };
@@ -385,7 +415,7 @@ export default function PurchaseOrders() {
 
   const totals = {
     total: filteredPOs.reduce((sum, po) => sum + po.total, 0),
-    pending: filteredPOs.filter((po) => ["draft", "sent"].includes(po.status)).reduce((sum, po) => sum + po.total, 0),
+    pending: filteredPOs.filter((po) => ["draft", "submitted", "approved", "sent", "acknowledged"].includes(po.status)).reduce((sum, po) => sum + po.total, 0),
     partialReceived: filteredPOs.filter((po) => po.status === "partial_received").length,
     received: filteredPOs.filter((po) => po.status === "received").length,
     convertedToBill: filteredPOs.filter((po) => po.converted_bill_id).length,
@@ -505,9 +535,15 @@ export default function PurchaseOrders() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="submitted">Submitted</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
+              <SelectItem value="acknowledged">Acknowledged</SelectItem>
               <SelectItem value="partial_received">Partial</SelectItem>
               <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+              <SelectItem value="revised">Revised</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -607,7 +643,7 @@ export default function PurchaseOrders() {
         onOpenChange={setShowEmailDialog}
         document={emailDocument}
         onSuccess={() => {
-          handleStatusChange(emailDocument?.documentId || "", "sent");
+          void handleReleaseAfterEmail(emailDocument?.documentId || "");
         }}
       />
 
