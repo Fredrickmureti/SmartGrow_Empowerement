@@ -122,6 +122,7 @@ import {
   isExpenseEditable,
 } from "@/lib/finance/expenseCommands";
 import { ExpenseReimburseDialog } from "@/features/purchases/expenses/ExpenseReimburseDialog";
+import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 interface PaymentAccount {
   id: string;
   name: string;
