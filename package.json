@@ -54,7 +54,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@sentry/react": "^10.56.0",
     "@supabase/auth-js": "^2.105.1",
-    "@supabase/supabase-js": "^2.112.2",
+    "@supabase/supabase-js": "^2.112.3",
     "@tanstack/query-core": "^5.83.0",
     "@tanstack/react-query": "^5.56.2",
     "@tanstack/react-router": "^1.169.1",
