@@ -25,7 +25,7 @@ export function PurchaseReturnPeekSheet({ returnId, onOpenChange }: Props) {
     onChanged: refresh,
   });
   const isDraft =
-    purchaseReturn?.status === "draft" || purchaseReturn?.status === "pending";
+    purchaseReturn?.status === "draft";
 
   return (
     <>

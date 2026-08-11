@@ -95,8 +95,7 @@ export function usePurchaseReturnActions(
     if (!pr) return [];
     const status = pr.status as string;
     const version = pr.row_version ?? 0;
-    // Legacy rows created before the lifecycle rebuild still carry "pending".
-    const isDraft = status === "draft" || status === "pending";
+    const isDraft = status === "draft";
 
     const guarded = (fn: () => void) => () => {
       if (isReadOnly) {
@@ -279,7 +278,7 @@ export function usePurchaseReturnActions(
         label: "Cancel return",
         icon: XCircle,
         destructive: true,
-        hidden: !["draft", "pending", "submitted", "approved", "rejected"].includes(status),
+        hidden: !["draft", "submitted", "approved", "rejected"].includes(status),
         onSelect: guarded(openPrompt("cancel")),
       },
     ];
