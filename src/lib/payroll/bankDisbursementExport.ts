@@ -246,10 +246,16 @@ export async function fetchBankExportRows(batchId: string): Promise<{
   rows: BankExportRow[];
   missingBank: BankExportRow[];
 }> {
+  // `sel` keeps the select strings out of supabase-js' type-level parser
+  // (deep-instantiation blowups); shapes are pinned by the casts below.
+  const sel = (s: string): string => s;
+
   const { data: batch, error: bErr } = await supabase
     .from("payroll_payment_batches")
     .select(
-      "id, batch_number, payment_date, total_amount, bank_account:bank_accounts(name, bank_name, account_number, currency)"
+      sel(
+        "id, batch_number, payment_date, total_amount, bank_account:bank_accounts(name, bank_name, account_number, currency)"
+      )
     )
     .eq("id", batchId)
     .single();
@@ -258,7 +264,9 @@ export async function fetchBankExportRows(batchId: string): Promise<{
   const { data: items, error: iErr } = await supabase
     .from("payroll_payment_batch_items")
     .select(
-      "employee_id, amount, payment_reference, employee:employees(employee_number, first_name, last_name, bank_name, bank_branch, bank_code, bank_account_number)"
+      sel(
+        "employee_id, amount, payment_reference, employee:employees(employee_number, first_name, last_name, bank_name, bank_branch, bank_code, bank_account_number)"
+      )
     )
     .eq("batch_id", batchId);
   if (iErr) throw iErr;
