@@ -34,11 +34,19 @@ import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { ReceiptUpload } from "@/components/expenses/ReceiptUpload";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import type { ExpenseCategory } from "@/hooks/useExpenses";
+import { useTaxRates } from "@/hooks/useTaxRates";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
+
+export type ExpenseTaxTreatment = "recoverable" | "non_recoverable";
 
 export interface ExpenseFormValues {
   expense_date: string;
   amount: number;
+  /** Server-computed from `tax_rate_id`; read-only in the UI. */
   tax_amount: number;
+  tax_rate_id: string | null;
+  tax_treatment: ExpenseTaxTreatment;
   description: string;
   reference: string;
   category_id: string;
@@ -49,6 +57,8 @@ export interface ExpenseFormValues {
   payment_method: string;
   payment_account_id: string;
   project_id: string | null;
+  department_id: string | null;
+  analytic_account_id: string | null;
 }
 
 export interface PaymentAccountOption {
@@ -81,6 +91,8 @@ export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
     expense_date: format(new Date(), "yyyy-MM-dd"),
     amount: 0,
     tax_amount: 0,
+    tax_rate_id: null,
+    tax_treatment: "recoverable",
     description: "",
     reference: "",
     category_id: "",
@@ -91,6 +103,8 @@ export function makeEmptyExpenseForm(baseCurrency: string): ExpenseFormValues {
     payment_method: "cash",
     payment_account_id: "",
     project_id: null,
+    department_id: null,
+    analytic_account_id: null,
   };
 }
 
@@ -105,9 +119,28 @@ export function ExpenseFormFields({
   entityId,
   disabled,
 }: Props) {
+  const { activeTaxRates } = useTaxRates();
+  const { departments } = useDepartments();
+  const { activeAccounts: analyticAccounts } = useAnalyticAccounts();
+
   const selectedCategory = value.category_id
     ? categories.find((c) => c.id === value.category_id) ?? null
     : null;
+
+  const selectedTaxRate = value.tax_rate_id
+    ? activeTaxRates.find((t) => t.id === value.tax_rate_id) ?? null
+    : null;
+
+  // Preview only — `_expenses_derive_base_amount` is authoritative.
+  const previewTax = selectedTaxRate
+    ? selectedTaxRate.tax_type === "fixed"
+      ? Number(selectedTaxRate.fixed_amount) || 0
+      : selectedTaxRate.is_inclusive
+        ? (Number(value.amount) || 0) -
+          (Number(value.amount) || 0) / (1 + Number(selectedTaxRate.rate) / 100)
+        : ((Number(value.amount) || 0) * Number(selectedTaxRate.rate)) / 100
+    : Number(value.tax_amount) || 0;
+
 
   return (
     <>
@@ -145,19 +178,59 @@ export function ExpenseFormFields({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tax_amount">Tax amount</Label>
-            <Input
-              id="tax_amount"
-              type="number"
-              step="0.01"
-              min="0"
-              value={value.tax_amount}
-              onChange={(e) =>
-                onChange({ tax_amount: parseFloat(e.target.value) || 0 })
+            <Label htmlFor="tax_rate">Tax rate</Label>
+            <Select
+              value={value.tax_rate_id ?? "none"}
+              onValueChange={(v) =>
+                onChange({ tax_rate_id: v === "none" ? null : v })
               }
               disabled={disabled}
-            />
+            >
+              <SelectTrigger id="tax_rate">
+                <SelectValue placeholder="No tax" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No tax</SelectItem>
+                {activeTaxRates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                    {t.tax_type === "fixed"
+                      ? ` (${t.fixed_amount})`
+                      : ` (${t.rate}%)`}
+                    {t.is_inclusive ? " · inclusive" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Tax of {previewTax.toFixed(2)} — computed on the server from the
+              selected rate.
+            </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tax_treatment">Tax treatment</Label>
+            <Select
+              value={value.tax_treatment}
+              onValueChange={(v) =>
+                onChange({ tax_treatment: v as ExpenseTaxTreatment })
+              }
+              disabled={disabled || !value.tax_rate_id}
+            >
+              <SelectTrigger id="tax_treatment">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recoverable">
+                  Recoverable — claim as input tax
+                </SelectItem>
+                <SelectItem value="non_recoverable">
+                  Non-recoverable — add to expense cost
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="currency">Currency</Label>
@@ -286,6 +359,59 @@ export function ExpenseFormFields({
         </FieldGrid>
       </Section>
 
+      <Section
+        title="Cost allocation"
+        description="Where this cost belongs. Drives the analytic distribution written when the expense posts."
+      >
+        <FieldGrid columns={2}>
+          <div className="space-y-2">
+            <Label htmlFor="department">Department</Label>
+            <Select
+              value={value.department_id ?? "none"}
+              onValueChange={(v) =>
+                onChange({ department_id: v === "none" ? null : v })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="department">
+                <SelectValue placeholder="No department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No department</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="analytic_account">Cost center</Label>
+            <Select
+              value={value.analytic_account_id ?? "none"}
+              onValueChange={(v) =>
+                onChange({ analytic_account_id: v === "none" ? null : v })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="analytic_account">
+                <SelectValue placeholder="No cost center" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No cost center</SelectItem>
+                {analyticAccounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.code ? `${a.code} — ${a.name}` : a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </FieldGrid>
+      </Section>
+
       <CapabilityGate cap="projects.analytic-tagging">
         <Section
           title="Analytics"
@@ -298,6 +424,7 @@ export function ExpenseFormFields({
           />
         </Section>
       </CapabilityGate>
+
 
       <Section title="Receipt">
         <ReceiptUpload

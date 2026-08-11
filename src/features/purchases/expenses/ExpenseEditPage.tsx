@@ -66,6 +66,13 @@ export default function ExpenseEditPage() {
       expense_date: record.expense_date,
       amount: Number(record.amount) || 0,
       tax_amount: Number(record.tax_amount) || 0,
+      tax_rate_id:
+        (record as { tax_rate_id?: string | null }).tax_rate_id ?? null,
+      tax_treatment:
+        ((record as { tax_treatment?: string | null }).tax_treatment as
+          | "recoverable"
+          | "non_recoverable"
+          | undefined) ?? "recoverable",
       description: record.description ?? "",
       reference: record.reference ?? "",
       category_id: record.category_id ?? "",
@@ -76,6 +83,11 @@ export default function ExpenseEditPage() {
       payment_method: record.payment_method || "cash",
       payment_account_id: record.payment_account_id ?? "",
       project_id: (record as { project_id?: string | null }).project_id ?? null,
+      department_id:
+        (record as { department_id?: string | null }).department_id ?? null,
+      analytic_account_id:
+        (record as { analytic_account_id?: string | null })
+          .analytic_account_id ?? null,
     });
     setHydrated(true);
   }, [record, hydrated, baseCurrency]);
@@ -117,7 +129,8 @@ export default function ExpenseEditPage() {
       await updateExpense(id, {
         expense_date: form.expense_date,
         amount: form.amount,
-        tax_amount: form.tax_amount,
+        tax_rate_id: form.tax_rate_id,
+        tax_treatment: form.tax_treatment,
         description: form.description,
         reference: form.reference || null,
         category_id: form.category_id || null,
@@ -129,6 +142,8 @@ export default function ExpenseEditPage() {
         payment_method: form.payment_method || "cash",
         payment_account_id: form.payment_account_id || null,
         project_id: form.project_id,
+        department_id: form.department_id,
+        analytic_account_id: form.analytic_account_id,
       } as Parameters<typeof updateExpense>[1]);
     });
   };

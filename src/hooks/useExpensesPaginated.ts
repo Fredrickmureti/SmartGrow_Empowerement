@@ -45,7 +45,13 @@ export interface Expense {
   payment_account_id: string | null;
   expense_date: string;
   amount: number;
-  tax_amount: number;
+  /** Server-computed from `tax_rate_id` — never written by the client. */
+  tax_amount?: number;
+  tax_rate_id?: string | null;
+  tax_treatment?: "recoverable" | "non_recoverable";
+  department_id?: string | null;
+  analytic_account_id?: string | null;
+  project_id?: string | null;
   currency: string;
   description: string;
   reference: string | null;
@@ -230,6 +236,8 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
       voided_by,
       rejected_reason,
       base_amount,
+      exchange_rate,
+      tax_amount,
       reimbursed_at,
       reimbursed_payslip_id,
       reimbursed_run_id,
