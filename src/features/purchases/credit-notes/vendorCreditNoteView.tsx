@@ -28,6 +28,14 @@ function fmtDate(v: string | null | undefined) {
   }
 }
 
+/** snake_case server state → human label, e.g. "partially_applied" → "Partially applied". */
+function prettyState(v: string | null | undefined) {
+  if (!v) return "—";
+  const s = v.replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+
 const COLUMNS: LineItemColumn[] = [
   { id: "description", header: "Description", priority: 1, minWidth: 200 },
   { id: "qty", header: "Qty", numeric: true, priority: 2, minWidth: 70, compactLabel: "Qty" },
