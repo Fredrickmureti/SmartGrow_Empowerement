@@ -280,7 +280,59 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
                 <SelectContent>{expenseAccounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.code} — {account.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Button onClick={runFx} disabled={fx.isRunning || !fxDraft.unrealized_gain_account_id || !fxDraft.unrealized_loss_account_id || fxReadOnly}>
+            {readiness && (
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">
+                    Period {readiness.fiscal_period_name ?? "—"}
+                  </p>
+                  <Badge variant={readiness.fiscal_period_status === "open" ? "outline" : "secondary"}>
+                    {readiness.fiscal_period_status ?? "no period"}
+                  </Badge>
+                </div>
+                {readiness.foreign_balances.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No foreign-currency monetary balances as of this date.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {readiness.foreign_balances.map((balance) => (
+                      <div key={balance.currency} className="flex items-center justify-between text-xs">
+                        <span>{balance.currency} · {balance.account_count} account(s)</span>
+                        <span className={balance.rate == null ? "text-destructive" : "text-muted-foreground"}>
+                          {balance.foreign_balance} @ {balance.rate ?? "no rate on file"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {readiness.missing_rates.length > 0 && (
+                  <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      No rate on file for {readiness.missing_rates.join(", ")} as of {fxDraft.run_date}. Add an override in Currency settings before revaluing.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {periodBlocked && (
+                  <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      This fiscal period is {readiness.fiscal_period_status}. Revaluation can only post into an open period.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+            <Button
+              onClick={runFx}
+              disabled={
+                fx.isRunning ||
+                !fxDraft.unrealized_gain_account_id ||
+                !fxDraft.unrealized_loss_account_id ||
+                fxReadOnly ||
+                periodBlocked ||
+                (readiness?.missing_rates.length ?? 0) > 0
+              }
+            >
               {fx.isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
               Run Revaluation
             </Button>
@@ -291,8 +343,17 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
                     <div>
                       <p className="font-medium">{run.run_date} · {run.base_currency}</p>
                       <p className="text-xs text-muted-foreground">Gain {run.total_unrealized_gain} · Loss {run.total_unrealized_loss}</p>
+                      {run.reversed_at && (
+                        <p className="text-xs text-muted-foreground">
+                          Reversed {run.reversed_at.slice(0, 10)}
+                          {run.reversal_journal_entry_id ? " · reversal posted" : ""}
+                        </p>
+                      )}
+                      {run.status === "failed" && run.notes && (
+                        <p className="text-xs text-destructive">{run.notes}</p>
+                      )}
                     </div>
-                    <Badge variant={run.status === "posted" ? "outline" : "secondary"}>{run.status}</Badge>
+                    <Badge variant={run.status === "posted" ? "outline" : run.status === "failed" ? "destructive" : "secondary"}>{run.status}</Badge>
                   </div>
                 </div>
               ))}
