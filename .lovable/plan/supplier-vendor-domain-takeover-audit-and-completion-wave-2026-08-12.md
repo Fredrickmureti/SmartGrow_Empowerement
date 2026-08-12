@@ -85,6 +85,21 @@ Confirmed present in the database:
 12. Architecture tests: no client-side writes to `suppliers` or supplier
     satellite tables; no contact-keyed vendor picker in purchases surfaces.
 
+## 3b. Execution outcome (2026-08-12, this wave)
+
+| Item | Outcome |
+|---|---|
+| 1 — duplicate `create_supplier` | DONE. Superseded overload dropped; single-overload guard in `supplier-lifecycle-machine.test.ts`. |
+| 2 — RFQ column rename | **DECIDED AGAINST** the physical rename: ~20 RPCs read `rfq_*.supplier_id` and the RFQ lifecycle has no live test tenant to re-verify against, so the rename is pure risk with no behavioural gain. Instead the columns carry SQL comments stating they key `contacts(id)` per ADR-0079, and `v_party_supplier` ships as the party→role read view. |
+| 3 — gating surface | DONE. `usePurchasableVendors` on Expense create/edit and Purchase Return create; gate triggers added for `purchase_returns`, `vendor_credit_notes`, `expenses`. |
+| 4 — ASL enforcement | DONE (already inside `_assert_supplier_purchasable`, now pinned by contract test). |
+| 5 — item terms | DONE. `upsert_supplier_item_terms` / `deactivate_supplier_item_terms` added; `useVendorPriceLists` and `productSupplierImportConfig` repointed; `vendor_pricelists` view + INSTEAD OF trigger retired; zero callers left (guarded). |
+| 6 — Supplier 360 | DONE. Terms (with `supplier_terms_changes` history), Item terms, ASL, Payments, Returns and History tabs wired into `SupplierRecordPage`. |
+| 7–10, 12 — verification | DONE as static/deployed-function contracts: `supplier-master-write-seam`, `supplier-purchasability-gate`, `supplier-lifecycle-machine`, `supplier-schema-contract` (17 tests). These pin the transition matrix, the single `_supplier_transition` writer, row locking, deterministic outbox idempotency keys, gate-trigger coverage per document table, RPC-only writes and picker gating. |
+| 11 — end-to-end business-event run | DEFERRED. Needs a seeded tenant plus service-role SQL the test harness does not have; the invariants it would observe are pinned by introspection instead. Re-open when an e2e tenant exists. |
+
+Domain rules recorded in `mem/features/supplier-vendor-master.md`.
+
 ## 4. Deferred, with reasons (unchanged)
 
 - **Vendor portal identity** stays on contacts/portal users — external

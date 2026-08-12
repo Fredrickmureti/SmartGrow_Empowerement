@@ -72,3 +72,22 @@ Lock in the party-vs-role split explicitly:
   vendor-role contact. It stays until the Supplier record page absorbs
   a "Finance defaults" section that writes back to the contact row
   (queued as **Batch K-Retire**).
+
+## Addendum — 2026-08-12 (takeover wave)
+
+- `public.v_party_supplier` is the sanctioned read view resolving party →
+  supplier role. Reads needing identity plus lifecycle use it rather than
+  hand-rolled joins.
+- RFQ v2 columns (`rfq_invitations.supplier_id`, `rfq_quotations.supplier_id`,
+  `rfq_awards.supplier_id`, `rfq_quotation_attachments.supplier_id`) reference
+  `contacts(id)`, not `suppliers(id)`. A physical rename to `vendor_id` was
+  considered and **rejected**: ~20 RPCs read those columns and the rename
+  carries lifecycle-breaking risk with no behavioural gain. The columns instead
+  carry database comments stating the party key, and this ADR is the authority.
+- `_assert_supplier_purchasable` is the single purchasability authority
+  (lifecycle state + Approved Supplier List). Its trigger now covers
+  `purchase_orders`, `bills`, `rfq_invitations`, `purchase_returns`,
+  `vendor_credit_notes` and `expenses`. `usePurchasableVendors` is a UI
+  convenience, never the control.
+- `supplier_item_terms` is the only vendor item-terms store; the
+  `vendor_pricelists` compatibility view and its INSTEAD OF trigger are retired.
