@@ -64,6 +64,11 @@ export interface Expense {
   vendor?: { name: string } | null;
 }
 
+/** Identity on the select string — keeps it out of the type-level parser. */
+const sel = (s: string): string => s;
+
+
+
 export function useExpenses() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -85,16 +90,15 @@ export function useExpenses() {
 
     setIsLoading(true);
     try {
+      // `sel()` keeps the embedded-select string out of the type-level parser
+      // (see query-builder-type-performance); `.returns<>()` pins the shape.
       let q = supabase
         .from("expenses")
-        .select(`
-          *,
-          category:expense_categories(*),
-          vendor:contacts(name)
-        `)
+        .select(sel("*, category:expense_categories(*), vendor:contacts(name)"))
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .order("expense_date", { ascending: false });
+        .order("expense_date", { ascending: false })
+        .returns<Expense[]>();
       // Branch isolation — matches active branch OR legacy NULL.
       q = applyBranchFilter(q, currentBranch?.id ?? null);
       const { data, error } = await q;
