@@ -367,9 +367,13 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
    * reimbursed or spawned a vendor bill, and records the reason in the audit
    * trail — all in one transaction.
    */
-  const voidExpense = async (id: string, reason?: string) => {
+  const voidExpense = async (id: string, reason?: string, reasonCode?: string) => {
     const currentExpense = result.data.find((e) => e.id === id);
-    const res = await voidExpenseRpc(id, reason ?? (currentExpense ? `Void of expense: ${currentExpense.description}` : null));
+    const res = await voidExpenseRpc(
+      id,
+      reason ?? (currentExpense ? `Void of expense: ${currentExpense.description}` : null),
+      reasonCode ?? null,
+    );
 
     logAction({
       action: "voided",

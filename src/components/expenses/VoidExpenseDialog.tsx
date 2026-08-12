@@ -232,7 +232,7 @@ export function VoidExpenseDialog({
                 <ReversalApprovalNotice
                   approval={approval}
                   isLoading={isLoadingApproval}
-                  onRequestApproval={requestApproval}
+                  onRequestApproval={() => requestApproval(reasonCode, reason.trim())}
                   isRequesting={isRequestingApproval}
                 />
 
