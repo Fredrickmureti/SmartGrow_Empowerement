@@ -4,7 +4,7 @@
  * Enterprise UX Standardization: replaces the inline dialog on
  * `src/pages/VendorCreditNotes.tsx` with a full RecordFormShell page.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -55,6 +55,14 @@ export default function VendorCreditNoteCreatePage() {
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // One deterministic intent key per create attempt. A retry or a double
+  // submit replays the same server-side creation instead of duplicating it.
+  const requestIdRef = useRef<string>(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `vcn-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+
   const [formData, setFormData] = useState({
     credit_note_number: "",
     vendor_id: "",
@@ -140,7 +148,9 @@ export default function VendorCreditNoteCreatePage() {
           journal_entry_id: null,
         } as any,
         lineItems,
+        requestIdRef.current,
       );
+
       toast.success("Credit note created");
       navigate("/purchases/credit-notes");
     } catch (err: any) {

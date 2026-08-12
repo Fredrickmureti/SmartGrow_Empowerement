@@ -10,6 +10,19 @@ import { usePermissions } from "./usePermissions";
 import { assertCompanyScoped, assertBranchScoped } from "@/lib/purchases/scopingAssertions";
 import { applyBranchFilter } from "@/lib/branchScope";
 
+/** ADR 0132 Phase 2 — where a vendor credit economically comes from. */
+export type VendorCreditOrigin =
+  | "purchase_return"
+  | "overbilling"
+  | "price_correction"
+  | "quantity_discrepancy"
+  | "damaged_goods"
+  | "rejected_goods"
+  | "tax_correction"
+  | "rebate"
+  | "supplier_credit"
+  | "adjustment";
+
 export interface VendorCreditNoteItem {
   id?: string;
   credit_note_id?: string;
@@ -22,6 +35,13 @@ export interface VendorCreditNoteItem {
   tax_amount: number;
   line_total: number;
   sort_order: number;
+  /**
+   * Line provenance. When set, the server recomputes price/tax from the bill
+   * line and enforces the credit ceiling; client money on that line is ignored.
+   */
+  bill_item_id?: string | null;
+  source_unit_price?: number | null;
+  source_tax_rate?: number | null;
   // Multi-Unit provenance (added by migration). Forwarded through `...item`
   // spread in createVendorCreditNote so the BEFORE-trigger `_uom_normalize_line`
   // can stamp qty_in_base_uom / uom_snapshot server-side.
@@ -29,6 +49,19 @@ export interface VendorCreditNoteItem {
   display_uom_id?: string | null;
   display_quantity?: number | null;
   uom_snapshot?: string | null;
+}
+
+/** Header lineage accepted by the create/update writers. */
+export interface VendorCreditNoteLineage {
+  origin?: VendorCreditOrigin;
+  reason_code?: string | null;
+  source_return_id?: string | null;
+  goods_receipt_id?: string | null;
+  purchase_order_id?: string | null;
+  vendor_document_number?: string | null;
+  vendor_document_date?: string | null;
+  exchange_rate?: number | null;
+  exchange_rate_date?: string | null;
 }
 
 export interface VendorCreditNote {
@@ -51,10 +84,19 @@ export interface VendorCreditNote {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  origin?: VendorCreditOrigin;
+  reason_code?: string | null;
+  source_return_id?: string | null;
+  goods_receipt_id?: string | null;
+  purchase_order_id?: string | null;
+  vendor_document_number?: string | null;
+  vendor_document_date?: string | null;
+  row_version?: number;
   vendor?: { name: string } | null;
   bill?: { bill_number: string } | null;
   items?: VendorCreditNoteItem[];
 }
+
 
 export function useVendorCreditNotes() {
   const { currentOrg } = useOrganization();
@@ -116,13 +158,18 @@ export function useVendorCreditNotes() {
 
   const createVendorCreditNote = async (
     creditNote: Omit<VendorCreditNote, "id" | "organization_id" | "business_id" | "branch_id" | "created_by" | "created_at" | "updated_at" | "vendor" | "bill" | "items">,
-    items: Omit<VendorCreditNoteItem, "id" | "credit_note_id">[]
+    items: Omit<VendorCreditNoteItem, "id" | "credit_note_id">[],
+    clientRequestId?: string,
+    lineage?: VendorCreditNoteLineage,
   ) => {
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
 
     // ADR 0132: one writer creates the header, its lines and its number in a
     // single transaction. The browser never inserts into vendor_credit_notes
-    // and never allocates the number itself.
+    // and never allocates the number itself. `clientRequestId` makes the
+    // creation idempotent — a retry or double submit replays instead of
+    // minting a second credit note. Lineage (return / GRN / PO / supplier doc)
+    // is stamped by the same writer so provenance can never be added later.
     const { data, error } = await supabase.rpc("create_vendor_credit_note_atomic" as any, {
       _org_id: currentOrg.id,
       _business_id: currentBusiness.id,
@@ -133,18 +180,33 @@ export function useVendorCreditNotes() {
       _notes: creditNote.notes ?? null,
       _items: items,
       _issue: false,
+      _client_request_id: clientRequestId ?? null,
+      _origin: lineage?.origin ?? creditNote.origin ?? "adjustment",
+      _reason_code: lineage?.reason_code ?? creditNote.reason_code ?? null,
+      _source_return_id: lineage?.source_return_id ?? null,
+      _goods_receipt_id: lineage?.goods_receipt_id ?? null,
+      _purchase_order_id: lineage?.purchase_order_id ?? null,
+      _vendor_document_number:
+        lineage?.vendor_document_number ?? creditNote.vendor_document_number ?? null,
+      _vendor_document_date:
+        lineage?.vendor_document_date ?? creditNote.vendor_document_date ?? null,
+      _exchange_rate: lineage?.exchange_rate ?? null,
+      _exchange_rate_date: lineage?.exchange_rate_date ?? null,
     });
+
 
     if (error) throw error;
-    const result = (data ?? {}) as { id: string; credit_note_number: string };
+    const result = (data ?? {}) as { id: string; credit_note_number: string; replayed?: boolean };
 
-    logAction({
-      action: "created",
-      entityType: "credit_note",
-      entityId: result.id,
-      entityName: result.credit_note_number,
-      changesSummary: `Created vendor credit note ${result.credit_note_number}`,
-    });
+    if (!result.replayed) {
+      logAction({
+        action: "created",
+        entityType: "credit_note",
+        entityId: result.id,
+        entityName: result.credit_note_number,
+        changesSummary: `Created vendor credit note ${result.credit_note_number}`,
+      });
+    }
 
     toast({ title: "Vendor credit note created", description: result.credit_note_number });
     await fetchCreditNotes();
@@ -153,11 +215,13 @@ export function useVendorCreditNotes() {
 
 
   /**
-   * Edit a draft vendor credit note (header + items). Only draft VCNs
-   * are editable — confirmed/applied notes must be voided instead.
-   * Items are replaced wholesale (delete + re-insert) to keep the
-   * client-side model simple; the DB trigger `_uom_normalize_line`
-   * still stamps qty_in_base_uom on the inserts.
+   * Edit a draft vendor credit note (header + items).
+   *
+   * Server-authoritative: `update_vendor_credit_note_atomic` locks the row,
+   * refuses anything that is not a draft, replaces the lines and recomputes
+   * subtotal / tax / total from those lines. The browser never writes
+   * `vendor_credit_notes` or `vendor_credit_note_items` and never decides
+   * document money.
    */
   const updateVendorCreditNote = async (
     id: string,
@@ -166,36 +230,22 @@ export function useVendorCreditNotes() {
   ) => {
     const existing = creditNotes.find((c) => c.id === id);
     if (!existing) throw new Error("Credit note not found");
-    if (existing.status !== "draft") {
-      throw new Error("Only draft credit notes can be edited");
-    }
 
-    const { vendor: _v, bill: _b, items: _i, ...dbUpdates } = updates as any;
+    const { error } = await supabase.rpc("update_vendor_credit_note_atomic" as any, {
+      _vcn_id: id,
+      _vendor_id: updates.vendor_id ?? null,
+      _bill_id: (updates as any).bill_id ?? null,
+      _credit_date: updates.credit_date ?? null,
+      _notes: updates.notes ?? null,
+      _items: items.map((item, i) => ({ ...item, sort_order: i })),
+      _origin: updates.origin ?? null,
+      _reason_code: updates.reason_code ?? null,
+      _vendor_document_number: updates.vendor_document_number ?? null,
+      _vendor_document_date: updates.vendor_document_date ?? null,
+    });
 
-    const { error } = await supabase
-      .from("vendor_credit_notes")
-      .update(dbUpdates)
-      .eq("id", id);
     if (error) throw error;
 
-    // Replace items wholesale
-    const { error: delError } = await supabase
-      .from("vendor_credit_note_items")
-      .delete()
-      .eq("credit_note_id", id);
-    if (delError) throw delError;
-
-    if (items.length > 0) {
-      const itemsToInsert = items.map((item, i) => ({
-        ...item,
-        credit_note_id: id,
-        sort_order: i,
-      }));
-      const { error: insError } = await supabase
-        .from("vendor_credit_note_items")
-        .insert(itemsToInsert);
-      if (insError) throw insError;
-    }
 
     logAction({
       action: "updated",
@@ -249,17 +299,21 @@ export function useVendorCreditNotes() {
     await fetchCreditNotes();
   };
 
+  /**
+   * Delete a draft vendor credit note. Server-authoritative:
+   * `delete_vendor_credit_note_atomic` refuses anything that is not a draft
+   * and anything that already carries a journal entry.
+   */
   const deleteVendorCreditNote = async (id: string) => {
-    const cn = creditNotes.find((c) => c.id === id);
-    if (!cn) throw new Error("Credit note not found");
-    if (cn.status !== "draft") throw new Error("Only draft credit notes can be deleted");
-
-    const { error } = await supabase.from("vendor_credit_notes").delete().eq("id", id);
+    const { error } = await supabase.rpc("delete_vendor_credit_note_atomic" as any, {
+      _vcn_id: id,
+    });
     if (error) throw error;
 
     toast({ title: "Credit note deleted" });
     await fetchCreditNotes();
   };
+
 
   /**
    * Apply an issued vendor credit FIFO across one or many bills (ADR 0132).
