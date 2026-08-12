@@ -57,8 +57,6 @@ export interface VendorCreditNoteHeaderRow {
   branch_id: string | null;
   vendor_id: string | null;
   bill?: { bill_number: string | null } | null;
-  purchase_order?: { po_number: string | null } | null;
-  goods_receipt?: { receipt_number: string | null } | null;
   source_return?: { return_number: string | null } | null;
   contact: Record<string, unknown> | null;
   business: { id: string; name: string | null; base_currency?: string | null } | null;
@@ -96,8 +94,6 @@ function buildHeaderFields(cn: VendorCreditNoteHeaderRow) {
     ["Origin", humanize(cn.origin)],
     ["Reason", humanize(cn.reason_code)],
     ["Bill", cn.bill?.bill_number ?? null],
-    ["Purchase Order", cn.purchase_order?.po_number ?? null],
-    ["Goods Receipt", cn.goods_receipt?.receipt_number ?? null],
     ["Purchase Return", cn.source_return?.return_number ?? null],
   ];
   return rows
@@ -194,8 +190,6 @@ export async function fetchAndBuildVendorCreditNoteSnapshot(
       origin, reason_code, vendor_document_number, vendor_document_date, exchange_rate,
       organization_id, business_id, branch_id, vendor_id,
       bill:bills(bill_number),
-      purchase_order:purchase_orders(po_number),
-      goods_receipt:goods_receipts(receipt_number),
       source_return:purchase_returns!vendor_credit_notes_source_return_id_fkey(return_number),
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, tax_id),
       business:businesses(id, name, base_currency),
