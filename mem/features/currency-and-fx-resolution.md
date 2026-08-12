@@ -1,27 +1,29 @@
 ---
 name: Currency representation and FX resolution
-description: ADR 0135 — ISO code text wire format, supplier currency is a proposal default, resolve_exchange_rate/require_exchange_rate are the only rate authorities, purchasing headers derive currency from triggers
+description: ADR 0135 + ADR 0136 — ISO code text wire format, one rate book with override>manual>provider precedence, server-only booking/settlement rates, single client lookup rateBook.ts, missing rate renders as an absence
 type: feature
 ---
 
 # Currency & FX
 
 - Canonical catalogue is `public.currencies` (ISO code). Transactional tables store the
-  **ISO code as `text`** — never a `currency_id` FK. Integrity is enforced by validation
-  (`public.normalize_currency_code`) and triggers, not FKs.
+  **ISO code as `text`** — never a `currency_id` FK. Integrity via
+  `public.normalize_currency_code` + triggers.
 - `suppliers.default_currency` / `contacts.default_currency` are **proposal-time defaults
-  only**. They seed a new PO / bill / vendor credit note and are snapshotted onto the
-  document; documents never re-read them, so editing a supplier cannot re-denominate
-  history. Order: supplier → contact → `businesses.base_currency`.
-- Client entry point: `useSupplierDocumentCurrency` (calls `resolve_supplier_defaults`).
-  Purchasing create pages must not hardcode a currency literal.
-- **One rate authority**: `public.resolve_exchange_rate(org, business, currency, date)`
-  (returns NULL when no rate on file — never invents 1) and the strict wrapper
-  `public.require_exchange_rate` used by document triggers.
-  `resolve_sales_exchange_rate` is a shim over it. No client-side FX arithmetic.
-- Purchasing headers have **no literal column defaults**; `_tg_stamp_*_currency` triggers
-  fill/validate the currency and stamp the rate. Posted bills and vendor credit notes have
-  immutable currency and rate.
-- `public.exchange_rates` is empty — multi-currency purchasing requires seeding it, and
-  will fail loudly (by design) until then.
-- Guard: `src/test/architecture/currency-integrity.test.ts`. Authority: ADR 0135.
+  only**: supplier → contact → `businesses.base_currency`, snapshotted onto the document.
+  Client entry point `useSupplierDocumentCurrency`; never hardcode a currency literal.
+- **One rate book**: `public.exchange_rates`, with provenance (`source`, `provider_key`,
+  `published_at`, `created_by`). Provider market data lives in `platform_exchange_rates`
+  and is bridged by the server-side scheduled `publish_platform_rates()`.
+- **One precedence**: `override > manual > provider`, latest effective date first —
+  `public.resolve_exchange_rate`, strict wrapper `public.require_exchange_rate`.
+- **One client lookup**: `@/services/fx/rateBook` (`resolveRateFromBook`/`convertWithBook`).
+  `CurrencyContext` and `useTenantFx` are thin readers over it. Display only — the browser
+  never computes a posted amount. A missing rate is `null` and renders as `—`; nothing
+  returns 1 for an unknown pair and no rate literals are allowed anywhere.
+- Tenant-entered rates insert `source = 'override'`; they never mutate provider rows.
+- Documents snapshot currency + rate via `fx_stamp_document` triggers; posted documents are
+  immutable. Realized FX gain/loss is posted at settlement by
+  `record_multi_invoice_payment` / `record_multi_bill_payment` (ADR 0123 posting monopoly).
+- Guards: `src/test/architecture/currency-integrity.test.ts`,
+  `src/test/architecture/fx-single-engine.test.ts`. Authority: ADR 0135, ADR 0136.
