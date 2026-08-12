@@ -43,6 +43,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { describeLedgerDoc } from "@/services/finance/customerStatementDataset";
+import { ReverseCustomerRefundSheet } from "@/components/payments/ReverseCustomerRefundSheet";
+import type { LedgerEntry } from "@/hooks/useCustomerLedger";
 
 const DOC_ICON: Record<string, any> = {
   invoice: FileText,
@@ -130,6 +132,10 @@ export default function CustomerLedgerPage() {
 
   const rangeLabel = describeDateRange({ from: dateFrom, to: dateTo });
 
+  // Refund rows are the only ledger rows with a reversal surface: a refund is
+  // cash already out of the bank, and the server (ADR 0134) is the only thing
+  // allowed to say what may be done about it. The page never decides.
+  const [refundUnderReview, setRefundUnderReview] = useState<LedgerEntry | null>(null);
 
   const { data: contact } = useContact(id);
   const { entries, outstandingBalance, isLoading } = useCustomerLedger({
