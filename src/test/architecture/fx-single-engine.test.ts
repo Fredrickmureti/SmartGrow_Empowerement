@@ -66,6 +66,34 @@ describe("no parallel client FX engines", () => {
   it("useAdminCurrency carries no hardcoded rate literal and no silent 1 fallback", () => {
     const src = read("src/hooks/useAdminCurrency.ts");
     expect(src).not.toMatch(/129\.5/);
-    expect(src).toMatch(/usdToTargetRate[\s\S]{0,900}return null;/);
+    expect(src).toMatch(/usdToTargetRate[\s\S]{0,900}return null;|usdToTargetRate[\s\S]{0,900}resolveRateFromBook/);
+  });
+
+  it("useAdminCurrency resolves through the shared rate book, not its own lookup", () => {
+    const src = read("src/hooks/useAdminCurrency.ts");
+    expect(src).toMatch(/resolveRateFromBook/);
+    // No hand-rolled direct/reverse pair lookup may survive in the resolver.
+    expect(src).not.toMatch(/from_currency === "USD" && r\.to_currency/);
   });
 });
+
+describe("FX admin surface (ADR 0136 provenance)", () => {
+  const settings = read("src/components/settings/CurrencySettings.tsx");
+
+  it("tenant overrides are written through the guarded server RPC only", () => {
+    expect(settings).toMatch(/set_exchange_rate_override/);
+    expect(settings).not.toMatch(/from\("exchange_rates"\)[\s\S]{0,120}\.insert\(/);
+  });
+
+  it("the rate book is displayed with its provenance", () => {
+    expect(settings).toMatch(/source/);
+    expect(settings).toMatch(/provider_key/);
+    expect(settings).toMatch(/published_at/);
+  });
+
+  it("operating currencies are toggled through the guarded server RPC only", () => {
+    expect(settings).toMatch(/set_business_active_currency/);
+    expect(settings).not.toMatch(/from\("business_active_currencies"\)[\s\S]{0,160}\.(insert|update|upsert|delete)\(/);
+  });
+});
+
