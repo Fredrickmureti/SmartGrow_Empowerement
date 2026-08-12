@@ -60,6 +60,7 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
+import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
 type LineItem = Omit<BillItem, "id" | "bill_id">;
 
@@ -79,9 +80,7 @@ export default function BillEditPage() {
     [bills, id],
   );
 
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
+  const vendors = usePurchasableVendors(contacts);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({

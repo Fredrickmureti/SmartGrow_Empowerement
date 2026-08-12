@@ -47,6 +47,7 @@ import {
   dueDateFromTerm,
 } from "@/services/finance/paymentTerms";
 import { normalizeError } from "@/services/resilience";
+import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
 type LineItem = Omit<BillItem, "id" | "bill_id"> & {
   project_id?: string | null;
@@ -113,9 +114,7 @@ export default function BillCreatePage() {
   /** Vendor tier of the purchase account ladder (ADR 0122). */
   const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
 
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
+  const vendors = usePurchasableVendors(contacts);
 
   useEffect(() => {
     if (prefillContactId) {

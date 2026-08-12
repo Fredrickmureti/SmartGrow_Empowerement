@@ -24,6 +24,10 @@ import {
   Send,
   ShieldCheck,
   XCircle,
+  Ban,
+  Archive,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -62,11 +66,20 @@ import { useToast } from "@/hooks/use-toast";
 import { useSupplierRecord } from "./useSupplierRecord";
 import { ContactCustomFieldsPanel } from "./ContactCustomFieldsPanel";
 import {
+  addSupplierBankAccount,
+  approveSupplier,
   approveSupplierQualification,
+  archiveSupplier,
+  blockSupplier,
+  deactivateSupplierBankAccount,
+  recordSupplierComplianceCheck,
   rejectSupplierQualification,
   reinstateSupplier,
   submitSupplierQualification,
   suspendSupplier,
+  unarchiveSupplier,
+  unblockSupplier,
+  verifySupplierBankAccount,
 } from "./supplierRpcs";
 
 
@@ -141,6 +154,25 @@ export default function SupplierRecordPage() {
   const [reviewNotes, setReviewNotes] = useState<string>("");
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockReason, setBlockReason] = useState("");
+  const [bankOpen, setBankOpen] = useState(false);
+  const [bank, setBank] = useState({
+    bankName: "",
+    accountName: "",
+    accountNumber: "",
+    currency: "",
+    iban: "",
+    swiftBic: "",
+    isPrimary: false,
+  });
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [check, setCheck] = useState({
+    checkKind: "sanctions",
+    outcome: "passed",
+    reference: "",
+    expiresAt: "",
+  });
   const [busy, setBusy] = useState(false);
 
   if (loading) return <LoadingState />;
@@ -243,15 +275,25 @@ export default function SupplierRecordPage() {
     }
   }
 
-  async function handleReinstate() {
+  /**
+   * Every governance action is a server RPC. The UI never writes lifecycle,
+   * banking or compliance columns directly — the RPC owns the transition,
+   * the audit row and the outbox event.
+   */
+  async function run(
+    label: string,
+    fn: () => Promise<unknown>,
+    after?: () => void,
+  ) {
     setBusy(true);
     try {
-      await reinstateSupplier(record.id);
-      toast({ title: "Supplier reinstated" });
+      await fn();
+      toast({ title: label });
+      after?.();
       await refresh();
     } catch (e: any) {
       toast({
-        title: "Reinstate failed",
+        title: `${label} failed`,
         description: e?.message ?? String(e),
         variant: "destructive",
       });
@@ -259,6 +301,9 @@ export default function SupplierRecordPage() {
       setBusy(false);
     }
   }
+
+  const handleReinstate = () =>
+    run("Supplier reinstated", () => reinstateSupplier(record.id));
 
   return (
     <>
@@ -295,19 +340,73 @@ export default function SupplierRecordPage() {
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            {record.lifecycle_state === "suspended" ? (
-              <Button size="sm" onClick={handleReinstate} disabled={busy}>
-                <PlayCircle className="mr-2 h-4 w-4" /> Reinstate
-              </Button>
-            ) : (
+            {record.lifecycle_state === "archived" ? (
               <Button
-                variant="outline"
                 size="sm"
-                onClick={() => setSuspendOpen(true)}
+                onClick={() =>
+                  run("Supplier restored", () => unarchiveSupplier(record.id))
+                }
                 disabled={busy}
               >
-                <PauseCircle className="mr-2 h-4 w-4" /> Suspend
+                <PlayCircle className="mr-2 h-4 w-4" /> Restore
               </Button>
+            ) : record.lifecycle_state === "blocked" ? (
+              <Button
+                size="sm"
+                onClick={() =>
+                  run("Supplier unblocked", () => unblockSupplier(record.id))
+                }
+                disabled={busy}
+              >
+                <PlayCircle className="mr-2 h-4 w-4" /> Unblock
+              </Button>
+            ) : (
+              <>
+                {record.lifecycle_state === "suspended" ? (
+                  <Button size="sm" onClick={handleReinstate} disabled={busy}>
+                    <PlayCircle className="mr-2 h-4 w-4" /> Reinstate
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSuspendOpen(true)}
+                    disabled={busy}
+                  >
+                    <PauseCircle className="mr-2 h-4 w-4" /> Suspend
+                  </Button>
+                )}
+                {record.lifecycle_state !== "approved" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      run("Supplier approved", () => approveSupplier(record.id))
+                    }
+                    disabled={busy}
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBlockOpen(true)}
+                  disabled={busy}
+                >
+                  <Ban className="mr-2 h-4 w-4" /> Block
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    run("Supplier archived", () => archiveSupplier(record.id))
+                  }
+                  disabled={busy}
+                >
+                  <Archive className="mr-2 h-4 w-4" /> Archive
+                </Button>
+              </>
             )}
             {canSubmit && !activeQual && (
               <Button size="sm" onClick={handleSubmit} disabled={busy}>
@@ -544,7 +643,12 @@ export default function SupplierRecordPage() {
           </TabsContent>
 
           {/* Compliance */}
-          <TabsContent value="compliance" className="mt-4">
+          <TabsContent value="compliance" className="mt-4 space-y-3">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => setCheckOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Record check
+              </Button>
+            </div>
             {record.compliance.length === 0 ? (
               <EmptyState
                 title="No compliance checks yet"
@@ -569,9 +673,9 @@ export default function SupplierRecordPage() {
                         <TableCell>
                           <StatusBadge
                             tone={
-                              c.outcome === "pass"
+                              c.outcome === "passed" || c.outcome === "pass"
                                 ? "success"
-                                : c.outcome === "fail"
+                                : c.outcome === "failed" || c.outcome === "fail"
                                   ? "danger"
                                   : "info"
                             }
@@ -593,7 +697,16 @@ export default function SupplierRecordPage() {
           </TabsContent>
 
           {/* Banking */}
-          <TabsContent value="banking" className="mt-4">
+          <TabsContent value="banking" className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Remittance details must be verified by someone other than the
+                person who captured them before a payment can use them.
+              </p>
+              <Button size="sm" variant="outline" onClick={() => setBankOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Add account
+              </Button>
+            </div>
             {record.bank_accounts.length === 0 ? (
               <EmptyState
                 title="No bank accounts on file"
@@ -610,6 +723,7 @@ export default function SupplierRecordPage() {
                       <TableHead>IBAN / SWIFT</TableHead>
                       <TableHead>Currency</TableHead>
                       <TableHead>Verified</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -640,6 +754,36 @@ export default function SupplierRecordPage() {
                           ) : (
                             <StatusBadge tone="warning">Pending</StatusBadge>
                           )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {!b.is_verified && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() =>
+                                  run("Bank account verified", () =>
+                                    verifySupplierBankAccount(b.id),
+                                  )
+                                }
+                              >
+                                <ShieldCheck className="mr-1 h-4 w-4" /> Verify
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy}
+                              onClick={() =>
+                                run("Bank account deactivated", () =>
+                                  deactivateSupplierBankAccount(b.id),
+                                )
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -947,6 +1091,249 @@ export default function SupplierRecordPage() {
               disabled={busy}
             >
               {busy ? "Working…" : "Suspend"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block dialog */}
+      <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Block supplier</DialogTitle>
+            <DialogDescription>
+              Blocking stops all new procurement documents for this party and
+              requires an explicit unblock to reverse.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label htmlFor="block-reason">Reason *</Label>
+            <Textarea
+              id="block-reason"
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy || !blockReason.trim()}
+              onClick={() =>
+                run("Supplier blocked", () => blockSupplier(record.id, blockReason), () => {
+                  setBlockOpen(false);
+                  setBlockReason("");
+                })
+              }
+            >
+              {busy ? "Working…" : "Block"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add bank account dialog */}
+      <Dialog open={bankOpen} onOpenChange={setBankOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add bank account</DialogTitle>
+            <DialogDescription>
+              The account is stored unverified. A second person must verify it
+              before payments can be remitted to it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Label htmlFor="bank-name">Bank *</Label>
+              <Input
+                id="bank-name"
+                value={bank.bankName}
+                onChange={(e) => setBank({ ...bank, bankName: e.target.value })}
+              />
+            </div>
+            <div className="col-span-2">
+              <Label htmlFor="bank-acct-name">Account name *</Label>
+              <Input
+                id="bank-acct-name"
+                value={bank.accountName}
+                onChange={(e) => setBank({ ...bank, accountName: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="bank-number">Account number *</Label>
+              <Input
+                id="bank-number"
+                value={bank.accountNumber}
+                onChange={(e) => setBank({ ...bank, accountNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="bank-currency">Currency</Label>
+              <Input
+                id="bank-currency"
+                value={bank.currency}
+                onChange={(e) => setBank({ ...bank, currency: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="bank-iban">IBAN</Label>
+              <Input
+                id="bank-iban"
+                value={bank.iban}
+                onChange={(e) => setBank({ ...bank, iban: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="bank-swift">SWIFT / BIC</Label>
+              <Input
+                id="bank-swift"
+                value={bank.swiftBic}
+                onChange={(e) => setBank({ ...bank, swiftBic: e.target.value })}
+              />
+            </div>
+            <label className="col-span-2 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={bank.isPrimary}
+                onChange={(e) => setBank({ ...bank, isPrimary: e.target.checked })}
+              />
+              Primary remittance account for this currency
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBankOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                busy ||
+                !bank.bankName.trim() ||
+                !bank.accountName.trim() ||
+                !bank.accountNumber.trim()
+              }
+              onClick={() =>
+                run(
+                  "Bank account added",
+                  () =>
+                    addSupplierBankAccount(record.id, {
+                      bankName: bank.bankName,
+                      accountName: bank.accountName,
+                      accountNumber: bank.accountNumber,
+                      currency: bank.currency || undefined,
+                      iban: bank.iban || undefined,
+                      swiftBic: bank.swiftBic || undefined,
+                      isPrimary: bank.isPrimary,
+                    }),
+                  () => {
+                    setBankOpen(false);
+                    setBank({
+                      bankName: "",
+                      accountName: "",
+                      accountNumber: "",
+                      currency: "",
+                      iban: "",
+                      swiftBic: "",
+                      isPrimary: false,
+                    });
+                  },
+                )
+              }
+            >
+              {busy ? "Working…" : "Add account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record compliance check dialog */}
+      <Dialog open={checkOpen} onOpenChange={setCheckOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record compliance check</DialogTitle>
+            <DialogDescription>
+              A failed check immediately suspends the supplier and is written to
+              the audit trail.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="check-kind">Kind</Label>
+              <select
+                id="check-kind"
+                value={check.checkKind}
+                onChange={(e) => setCheck({ ...check, checkKind: e.target.value })}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="sanctions">Sanctions screening</option>
+                <option value="tax">Tax status</option>
+                <option value="banking">Banking verification</option>
+                <option value="insurance">Insurance</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="check-outcome">Outcome</Label>
+              <select
+                id="check-outcome"
+                value={check.outcome}
+                onChange={(e) => setCheck({ ...check, outcome: e.target.value })}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="pending">Pending</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="check-ref">Reference</Label>
+              <Input
+                id="check-ref"
+                value={check.reference}
+                onChange={(e) => setCheck({ ...check, reference: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="check-expires">Expires on</Label>
+              <Input
+                id="check-expires"
+                type="date"
+                value={check.expiresAt}
+                onChange={(e) => setCheck({ ...check, expiresAt: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCheckOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                run(
+                  "Compliance check recorded",
+                  () =>
+                    recordSupplierComplianceCheck(record.id, {
+                      checkKind: check.checkKind,
+                      outcome: check.outcome,
+                      reference: check.reference || undefined,
+                      expiresAt: check.expiresAt || undefined,
+                    }),
+                  () => {
+                    setCheckOpen(false);
+                    setCheck({
+                      checkKind: "sanctions",
+                      outcome: "passed",
+                      reference: "",
+                      expiresAt: "",
+                    });
+                  },
+                )
+              }
+            >
+              {busy ? "Working…" : "Record check"}
             </Button>
           </DialogFooter>
         </DialogContent>

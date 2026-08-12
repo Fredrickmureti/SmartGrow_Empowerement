@@ -7,6 +7,14 @@ import { applyBranchFilter } from "@/lib/branchScope";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 
+/**
+ * Supplier item terms — the single canonical item-pricing engine.
+ *
+ * Reads come from `supplier_item_terms` (keyed on the supplier *role*), while
+ * writes go through the `vendor_pricelists` compatibility view, whose
+ * INSTEAD OF triggers resolve the party (contact) to its supplier record.
+ * The exposed shape stays party-keyed (`vendor_id`) for existing callers.
+ */
 export interface VendorPriceList {
   id: string;
   organization_id: string;
@@ -48,26 +56,46 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
       if (!organizationId || !businessId) return [];
 
       let query: any = (supabase as any)
-        .from("vendor_pricelists")
+        .from("supplier_item_terms")
         .select(`
           *,
-          vendor:contacts!vendor_id(id, name),
+          supplier:suppliers!inner(id, contact_id, contact:contacts!contact_id(id, name)),
           product:products!product_id(id, name, sku)
         `)
-        .eq("organization_id", organizationId)
         .eq("business_id", businessId)
         .eq("is_active", true);
 
       // Branch-scoped: match this branch OR company-wide (NULL).
       query = applyBranchFilter(query, branchId);
 
-      if (vendorId) query = query.eq("vendor_id", vendorId);
+      if (vendorId) query = query.eq("supplier.contact_id", vendorId);
       if (productId) query = query.eq("product_id", productId);
 
       const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as VendorPriceListWithRelations[];
+
+      return ((data ?? []) as any[]).map((row): VendorPriceListWithRelations => ({
+        id: row.id,
+        organization_id: row.organization_id,
+        business_id: row.business_id,
+        branch_id: row.branch_id,
+        vendor_id: row.supplier?.contact_id,
+        product_id: row.product_id,
+        unit_price: Number(row.unit_price ?? 0),
+        currency: row.currency_code,
+        min_order_qty: Number(row.min_order_qty ?? 1),
+        lead_time_days: Number(row.lead_time_days ?? 0),
+        is_preferred: Number(row.preferred_rank ?? 10) <= 1,
+        valid_from: row.effective_from,
+        valid_until: row.effective_to,
+        notes: row.notes,
+        is_active: row.is_active,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        vendor: row.supplier?.contact ?? null,
+        product: row.product ?? null,
+      }));
     },
     enabled: !!organizationId && !!businessId,
   });
