@@ -10,6 +10,7 @@ import { normalizeError } from "@/services/resilience";
  * Backed by `public.fx_revaluation_runs` and the `revalue_fx_balances` RPC.
  */
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -143,4 +144,26 @@ export function useFxRevaluation() {
   );
 
   return { runs, isLoading, isRunning, fetchRuns, runRevaluation };
+}
+
+/**
+ * useFxRevaluationReadiness — foreign monetary balances still awaiting
+ * revaluation as of a date, with the rate the resolver would use. Mirrors the
+ * server-side gate on `close_fiscal_period` (ADR 0136).
+ */
+export function useFxRevaluationReadiness(asOf: string | null | undefined) {
+  const { currentBusiness } = useBusinesses();
+  return useQuery({
+    queryKey: ["fx-revaluation-readiness", currentBusiness?.id, asOf],
+    enabled: !!currentBusiness?.id && !!asOf,
+    staleTime: 30_000,
+    queryFn: async (): Promise<FxRevaluationReadiness | null> => {
+      const { data, error } = await (supabase as any).rpc(
+        "fx_revaluation_readiness",
+        { _business_id: currentBusiness!.id, _as_of: asOf },
+      );
+      if (error) throw error;
+      return (data ?? null) as FxRevaluationReadiness | null;
+    },
+  });
 }
