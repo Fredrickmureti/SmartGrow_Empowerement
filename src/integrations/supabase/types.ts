@@ -76155,6 +76155,33 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_ap_vendor_credit: {
+        Row: {
+          base_credit_amount: number | null
+          business_id: string | null
+          contact_id: string | null
+          credit_amount: number | null
+          currency: string | null
+          organization_id: string | null
+        }
+        Insert: {
+          base_credit_amount?: never
+          business_id?: string | null
+          contact_id?: string | null
+          credit_amount?: never
+          currency?: string | null
+          organization_id?: string | null
+        }
+        Update: {
+          base_credit_amount?: never
+          business_id?: string | null
+          contact_id?: string | null
+          credit_amount?: never
+          currency?: string | null
+          organization_id?: string | null
+        }
+        Relationships: []
+      }
       finance_ar_customer_credit: {
         Row: {
           base_credit_amount: number | null
