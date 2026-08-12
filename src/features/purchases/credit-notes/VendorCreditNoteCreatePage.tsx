@@ -4,7 +4,7 @@
  * Enterprise UX Standardization: replaces the inline dialog on
  * `src/pages/VendorCreditNotes.tsx` with a full RecordFormShell page.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
