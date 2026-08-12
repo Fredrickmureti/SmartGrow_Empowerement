@@ -48,6 +48,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { normalizeError } from "@/services/resilience";
+import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
@@ -123,9 +124,7 @@ export default function PurchaseOrderCreatePage() {
 
   const { priceLists } = useVendorPriceLists(formData.vendor_id || undefined);
 
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
+  const vendors = usePurchasableVendors(contacts);
 
   const calculateLineTotal = (item: LineItem) => {
     const subtotal = item.quantity * item.unit_price;

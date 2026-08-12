@@ -55,6 +55,7 @@ import {
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { DeliverToPicker } from "@/components/addresses/DeliverToPicker";
 import { useBranches } from "@/hooks/useBranches";
+import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
@@ -84,9 +85,7 @@ export default function PurchaseOrderEditPage() {
     [purchaseOrders, id],
   );
 
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
+  const vendors = usePurchasableVendors(contacts);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({

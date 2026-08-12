@@ -37,6 +37,7 @@ import { useBills } from "@/hooks/useBills";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
 import { VendorCreditNoteLineageFields } from "./VendorCreditNoteLineageFields";
+import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 import {
   VendorCreditNoteTotalsPreview,
   computeVendorCreditNoteTotals,
@@ -93,9 +94,7 @@ export default function VendorCreditNoteCreatePage() {
     [],
   );
 
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
+  const vendors = usePurchasableVendors(contacts);
   const outstandingBills = bills.filter((b) =>
     ["received", "partial", "overdue"].includes(b.status),
   );

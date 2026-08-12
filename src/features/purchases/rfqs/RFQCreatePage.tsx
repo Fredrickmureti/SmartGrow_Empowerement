@@ -34,6 +34,7 @@ import { useRFQs, type RFQItem } from "@/hooks/useRFQs";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
+import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
 type LineItem = Omit<RFQItem, "id" | "rfq_id">;
 
@@ -63,9 +64,7 @@ export default function RFQCreatePage() {
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
 
-  const vendors = contacts.filter(
-    (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
-  );
+  const vendors = usePurchasableVendors(contacts);
 
   const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
     setLineItems((prev) =>
