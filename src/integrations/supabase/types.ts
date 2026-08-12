@@ -66810,6 +66810,9 @@ export type Database = {
           is_sample_data: boolean
           notes: string | null
           organization_id: string
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
         }
         Insert: {
           amount: number
@@ -66823,6 +66826,9 @@ export type Database = {
           is_sample_data?: boolean
           notes?: string | null
           organization_id: string
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
         }
         Update: {
           amount?: number
@@ -66836,6 +66842,9 @@ export type Database = {
           is_sample_data?: boolean
           notes?: string | null
           organization_id?: string
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
         }
         Relationships: [
           {
@@ -67069,6 +67078,11 @@ export type Database = {
           rejected_at: string | null
           rejected_by: string | null
           rejected_reason: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversal_reason_code: string | null
+          reversed_at: string | null
+          reversed_by: string | null
           row_version: number
           settlement_status: string
           source_return_id: string | null
@@ -67115,6 +67129,11 @@ export type Database = {
           rejected_at?: string | null
           rejected_by?: string | null
           rejected_reason?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversal_reason_code?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
           row_version?: number
           settlement_status?: string
           source_return_id?: string | null
@@ -67161,6 +67180,11 @@ export type Database = {
           rejected_at?: string | null
           rejected_by?: string | null
           rejected_reason?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversal_reason_code?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
           row_version?: number
           settlement_status?: string
           source_return_id?: string | null
@@ -84164,6 +84188,11 @@ export type Database = {
           rejected_at: string | null
           rejected_by: string | null
           rejected_reason: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversal_reason_code: string | null
+          reversed_at: string | null
+          reversed_by: string | null
           row_version: number
           settlement_status: string
           source_return_id: string | null
@@ -97049,6 +97078,10 @@ export type Database = {
         Args: { _document_id: string }
         Returns: Json
       }
+      resolve_reversal_intent_vendor_credit_note: {
+        Args: { _document_id: string }
+        Returns: Json
+      }
       resolve_rule_recipients: {
         Args: {
           p_entity_id?: string
@@ -97270,6 +97303,17 @@ export type Database = {
       reverse_stock_movement: {
         Args: { p_movement_id: string; p_reason?: string }
         Returns: string
+      }
+      reverse_vendor_credit_note_atomic: {
+        Args: {
+          _actor?: string
+          _client_request_id?: string
+          _reason: string
+          _reason_code?: string
+          _reversal_date?: string
+          _vcn_id: string
+        }
+        Returns: Json
       }
       revert_pack_upgrade_atomic: {
         Args: { _proposal_id: string }
