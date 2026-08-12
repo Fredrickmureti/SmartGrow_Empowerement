@@ -385,6 +385,18 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "fx-revaluation",
     keywords: ["fx", "foreign exchange", "revaluation", "unrealized", "gain", "loss", "currency"],
   },
+  {
+    id: "fx-exposure",
+    name: "FX Exposure",
+    description: "Open foreign-currency balances with the rate used and its source",
+    category: "statutory",
+    path: "/finance/reports/fx-exposure",
+    icon: TrendingUp,
+    requiredFeature: "reports_financial",
+    permission: "viewReports",
+    reportType: "fx-exposure",
+    keywords: ["fx", "exposure", "foreign exchange", "currency", "receivable", "payable", "unrealized"],
+  },
 
 
 

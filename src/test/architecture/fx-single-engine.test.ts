@@ -116,3 +116,24 @@ describe("FX admin surface (ADR 0136 provenance)", () => {
   });
 });
 
+describe("FX exposure reporting is a server-side projection", () => {
+  const hook = read("src/hooks/finance/useFxExposure.ts");
+  const page = read("src/pages/reports/FxExposureReport.tsx");
+
+  it("reads exposure only through the guarded server RPCs", () => {
+    expect(hook).toMatch(/fx_exposure_by_currency/);
+    expect(hook).toMatch(/fx_exposure_open_items/);
+    // No client-side rate book read, no direct table access.
+    expect(hook).not.toMatch(/from\("exchange_rates"\)/);
+    expect(hook).not.toMatch(/from\("journal_entry_lines"\)/);
+  });
+
+  it("the exposure surface computes no rate and no conversion of its own", () => {
+    expect(page).not.toMatch(/from\("exchange_rates"\)/);
+    expect(page).not.toMatch(/resolveRateFromBook|convertWithBook/);
+    // A missing rate must render as an absence, never as 1.
+    expect(page).toMatch(/No rate on file/);
+    expect(page).not.toMatch(/rate\s*\?\?\s*1\b/);
+  });
+});
+
