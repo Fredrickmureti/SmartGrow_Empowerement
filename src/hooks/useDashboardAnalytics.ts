@@ -9,6 +9,9 @@ import {
   fetchTopOpenCounterparties,
 } from "@/services/finance/openItems";
 
+/** Identity on the select string — keeps it out of the type-level parser. */
+const sel = (s: string): string => s;
+
 
 export interface SalesSummary {
   totalSales: number;

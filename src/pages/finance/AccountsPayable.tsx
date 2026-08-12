@@ -86,6 +86,23 @@ interface UnlinkedAPExpense {
   currency: string;
 }
 
+/** Row shape of the AP-expense probe below; pinned via `.returns<>()`. */
+interface APExpenseRow {
+  id: string;
+  description: string;
+  amount: number;
+  tax_amount: number | null;
+  expense_date: string;
+  vendor_id: string | null;
+  reference: string | null;
+  currency: string | null;
+  vendor: { name: string | null } | null;
+}
+
+/** Identity on the select string — keeps it out of the type-level parser. */
+const sel = (s: string): string => s;
+
+
 export default function AccountsPayable() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
