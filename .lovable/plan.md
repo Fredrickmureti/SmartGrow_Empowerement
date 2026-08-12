@@ -35,7 +35,18 @@ Client / edge:
 - `VendorCreditNoteRecordPage.tsx` renders the action dialogs.
 - `documentStatus.tsx` has a `disputed` tone.
 
-Verified: full TypeScript typecheck passes with no errors.
+List-surface convergence (this turn):
+- `src/features/purchases/credit-notes/VendorCreditNoteRowActions.tsx` — projects the shared
+  `useVendorCreditNoteActions` set (plus View details) into list rows via `DocumentActionsMenu`,
+  so the row menu can no longer drift from the record page.
+- `src/pages/VendorCreditNotes.tsx` rebuilt onto the enterprise model:
+  - legacy single-`status` badge map deleted; the table now shows commercial **and** accounting
+    states through the shared `DocumentStatusBadge` (`kind="vendor_credit_note"`);
+  - status filter is now the commercial vocabulary including **Disputed**;
+  - the hand-rolled "Apply to Bill" dialog (client-side amount math + direct RPC call) is removed —
+    allocation happens only through the server-authoritative shared action;
+  - exports now carry commercial + accounting states instead of the legacy status.
+- Verified: full TypeScript typecheck passes with no errors.
 
 ## Pending / not yet done
 
@@ -43,7 +54,7 @@ Verified: full TypeScript typecheck passes with no errors.
   (planned in Phase 5, not yet written).
 - Runtime end-to-end proof: create → submit → approve → post → apply → reverse, checking one outbox row per
   transition and one `document_artifacts` row per emailed/printed credit note.
-- Dispute states are not yet surfaced in list filters / analytics tiles.
+- Dispute state is now filterable in the list, but is **not** yet reflected in analytics tiles / KPI cards.
 - Purchase Return → Credit Note lineage is captured in the snapshot but not yet shown as a linked-records
   panel on the record page.
 
@@ -55,7 +66,10 @@ Verified: full TypeScript typecheck passes with no errors.
      transition, with stable idempotency keys (re-run must not duplicate).
    - Print/Download/Email one credit note and confirm a `document_records` + `document_artifacts` pair exists
      and that no `generate-document` legacy fallback was hit (check edge logs).
-   - Confirm no client-side financial math and no direct table writes remain in the credit-note feature.
-2. **Then resume chronologically** with the remaining Phase 5 items above (CI ratchets first), and only after
-   they are closed move to Phase 6 in the rebuild plan.
+   - Confirm no client-side financial math and no direct table writes remain in the credit-note feature
+     (the list page and peek sheet in particular).
+2. **Then resume chronologically** with the remaining Phase 5 items above, in this order:
+   (a) CI architecture ratchets for document-kind + outbox parity, (b) record-page linked-records panel for
+   Purchase Return / Bill lineage, (c) dispute state in analytics tiles. Only after those close, move to
+   Phase 6 in the rebuild plan.
 3. Do not open unrelated domains; keep each phase production-ready before advancing.

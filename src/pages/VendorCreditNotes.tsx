@@ -1,18 +1,27 @@
+/**
+ * Vendor Credit Notes list.
+ *
+ * ADR 0132: the list is a *view* of the tri-status lifecycle (commercial /
+ * accounting / settlement) owned by the server. It renders the shared
+ * `useVendorCreditNoteActions` array through `VendorCreditNoteRowActions`, so
+ * the row menu can never drift from the record page, and it holds no apply
+ * dialog of its own — allocation of credit against bills is a server command
+ * reached through the shared "Apply to bills" action.
+ */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useVendorCreditNotes } from "@/hooks/useVendorCreditNotes";
-import { useBills } from "@/hooks/useBills";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useToast } from "@/hooks/use-toast";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { usePeekParam } from "@/design-system";
+import { DocumentStatusBadge } from "@/design-system/records";
 import { VendorCreditNotePeekSheet } from "@/features/purchases/credit-notes/VendorCreditNotePeekSheet";
+import { VendorCreditNoteRowActions } from "@/features/purchases/credit-notes/VendorCreditNoteRowActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -29,63 +38,56 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import {
   Plus,
   Search,
-  MoreHorizontal,
-  Trash2,
-  CheckCircle,
-  Eye,
   Loader2,
   FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
-import { normalizeError } from "@/services/resilience";
 
-const statusBadge: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft: { label: "Draft", variant: "secondary" },
-  confirmed: { label: "Confirmed", variant: "default" },
-  applied: { label: "Applied", variant: "outline" },
-  void: { label: "Void", variant: "destructive" },
-};
+/**
+ * The commercial state is what an operator filters on: it is the state the
+ * claim is in with the supplier. Accounting and settlement states are shown
+ * on the record, not used as list filters, so the two vocabularies never get
+ * mixed into one misleading dropdown.
+ */
+const COMMERCIAL_FILTERS = [
+  { value: "draft", label: "Draft" },
+  { value: "submitted", label: "Submitted" },
+  { value: "approved", label: "Approved" },
+  { value: "disputed", label: "Disputed" },
+  { value: "rejected", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
+] as const;
+
+type CreditNoteRow = ReturnType<typeof useVendorCreditNotes>["creditNotes"][number];
+
+/** Fallback for rows written before the tri-status columns existed. */
+function commercialStateOf(cn: CreditNoteRow): string {
+  return (
+    cn.commercial_status ??
+    (cn.status === "draft" ? "draft" : cn.status === "void" ? "cancelled" : "approved")
+  );
+}
+
+function accountingStateOf(cn: CreditNoteRow): string {
+  return (
+    cn.accounting_status ??
+    (cn.status === "draft" ? "unposted" : cn.status === "void" ? "reversed" : "posted")
+  );
+}
 
 export default function VendorCreditNotes() {
-  const { creditNotes, isLoading, confirmVendorCreditNote, deleteVendorCreditNote, applyToBill, refreshCreditNotes } = useVendorCreditNotes();
+  const { creditNotes, isLoading, refreshCreditNotes } = useVendorCreditNotes();
   const navigate = useNavigate();
-  // Vendors used to be prefetched here for a create dialog picker; the
-  // create flow is now the RecordFormShell route at /purchases/credit-notes/new,
-  // so this list no longer needs the contacts fetch.
-  const { bills } = useBills();
   const { formatCurrency, baseCurrency } = useCurrency();
-  const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
-  const [applyDialogCN, setApplyDialogCN] = useState<typeof creditNotes[number] | null>(null);
-  const [applyBillId, setApplyBillId] = useState("");
-  const [applyAmount, setApplyAmount] = useState("");
   const [peekId, setPeekId] = usePeekParam();
-
-  const outstandingBills = bills.filter((b) => ["received", "partial", "overdue"].includes(b.status));
 
   const handleOpenCreate = () => {
     navigate("/purchases/credit-notes/new");
@@ -95,7 +97,8 @@ export default function VendorCreditNotes() {
     const matchesSearch =
       cn.credit_note_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cn.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || cn.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" || commercialStateOf(cn) === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -119,7 +122,8 @@ export default function VendorCreditNotes() {
                   { key: "credit_note_number", header: "Credit Note #", width: 16 },
                   { key: "vendor", header: "Vendor", width: 20 },
                   { key: "credit_date", header: "Date", width: 12 },
-                  { key: "status", header: "Status", width: 10 },
+                  { key: "commercial_status", header: "Commercial", width: 12 },
+                  { key: "accounting_status", header: "Accounting", width: 12 },
                   { key: "total", header: "Total", width: 14 },
                   { key: "applied_amount", header: "Applied", width: 14 },
                   { key: "remaining", header: "Remaining", width: 14 },
@@ -127,14 +131,15 @@ export default function VendorCreditNotes() {
                 return {
                   title: "Vendor Credit Notes",
                   columns: cols,
-                  rows: filteredNotes.map((cn: any) => ({
+                  rows: filteredNotes.map((cn) => ({
                     credit_note_number: cn.credit_note_number,
                     vendor: cn.vendor?.name || "—",
                     credit_date: format(new Date(cn.credit_date), "MMM d, yyyy"),
-                    status: cn.status,
+                    commercial_status: commercialStateOf(cn),
+                    accounting_status: accountingStateOf(cn),
                     total: cn.total,
-                    applied_amount: cn.applied_amount || 0,
-                    remaining: cn.total - (cn.applied_amount || 0),
+                    applied_amount: cn.amount_applied || 0,
+                    remaining: cn.total - (cn.amount_applied || 0),
                   })),
                   generatedAt: new Date(),
                   currency: baseCurrency,
@@ -160,11 +165,12 @@ export default function VendorCreditNotes() {
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="applied">Applied</SelectItem>
-              <SelectItem value="void">Void</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
+              {COMMERCIAL_FILTERS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -194,140 +200,62 @@ export default function VendorCreditNotes() {
                   <TableHead>Vendor</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Linked Bill</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Commercial</TableHead>
+                  <TableHead>Accounting</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Applied</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredNotes.map((cn) => {
-                  const badge = statusBadge[cn.status] || statusBadge.draft;
-                  return (
-                    <TableRow key={cn.id} className="cursor-pointer" onClick={() => setPeekId(cn.id)}>
-                      <TableCell className="font-medium font-mono">{cn.credit_note_number}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {cn.vendor ? (
-                          <ClickableEntity onClick={() => setPreviewContactId(cn.vendor_id)}>
-                            {cn.vendor.name}
-                          </ClickableEntity>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell>{format(new Date(cn.credit_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {cn.bill_id && cn.bill?.bill_number ? (
-                          <ClickableEntity onClick={() => navigate(`/purchases/bills?id=${cn.bill_id}`)}>
-                            {cn.bill.bill_number}
-                          </ClickableEntity>
-                        ) : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(cn.total, cn.currency)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(cn.amount_applied, cn.currency)}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setPeekId(cn.id)}>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
-                            </DropdownMenuItem>
-                            {cn.status === "draft" && (
-                              <>
-                                <DropdownMenuItem onClick={() => confirmVendorCreditNote(cn.id)}>
-                                  <CheckCircle className="mr-2 h-4 w-4" /> Confirm & Post GL
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => deleteVendorCreditNote(cn.id)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {cn.status === "confirmed" && (
-                              <DropdownMenuItem onClick={() => {
-                                setApplyDialogCN(cn);
-                                setApplyAmount(String(cn.total - cn.amount_applied));
-                                setApplyBillId(cn.bill_id || "");
-                              }}>
-                                <FileText className="mr-2 h-4 w-4" /> Apply to Bill
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {filteredNotes.map((cn) => (
+                  <TableRow key={cn.id} className="cursor-pointer" onClick={() => setPeekId(cn.id)}>
+                    <TableCell className="font-medium font-mono">{cn.credit_note_number}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {cn.vendor ? (
+                        <ClickableEntity onClick={() => setPreviewContactId(cn.vendor_id)}>
+                          {cn.vendor.name}
+                        </ClickableEntity>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>{format(new Date(cn.credit_date), "MMM d, yyyy")}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {cn.bill_id && cn.bill?.bill_number ? (
+                        <ClickableEntity onClick={() => navigate(`/purchases/bills?id=${cn.bill_id}`)}>
+                          {cn.bill.bill_number}
+                        </ClickableEntity>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <DocumentStatusBadge kind="vendor_credit_note" status={commercialStateOf(cn)} />
+                    </TableCell>
+                    <TableCell>
+                      <DocumentStatusBadge kind="vendor_credit_note" status={accountingStateOf(cn)} />
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(cn.total, cn.currency)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(cn.amount_applied, cn.currency)}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <VendorCreditNoteRowActions
+                        creditNote={cn}
+                        onPeek={setPeekId}
+                        onChanged={refreshCreditNotes}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
 
+      {/*
+        No apply-to-bill dialog lives here any more: allocation is a server
+        command exposed by the shared action set, so the list cannot compute
+        or validate credit amounts client-side.
+      */}
 
-      {/* Apply to Bill Dialog */}
-      <Dialog open={!!applyDialogCN} onOpenChange={(open) => { if (!open) setApplyDialogCN(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Apply Credit to Bill</DialogTitle>
-            <DialogDescription>
-              {applyDialogCN && `Apply ${applyDialogCN.credit_note_number} (remaining: ${formatCurrency(applyDialogCN.total - applyDialogCN.amount_applied, applyDialogCN.currency)})`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Bill</Label>
-              <Select value={applyBillId} onValueChange={setApplyBillId}>
-                <SelectTrigger><SelectValue placeholder="Choose a bill" /></SelectTrigger>
-                <SelectContent>
-                  {outstandingBills
-                    .filter((b) => !applyDialogCN?.vendor_id || b.vendor_id === applyDialogCN.vendor_id)
-                    .map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.bill_number} — Balance: {formatCurrency(b.total - (b.amount_paid || 0), b.currency)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Amount to Apply</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={applyAmount}
-                onChange={(e) => setApplyAmount(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setApplyDialogCN(null)}>Cancel</Button>
-            <Button
-              disabled={isSubmitting || !applyBillId || !applyAmount}
-              onClick={async () => {
-                if (!applyDialogCN) return;
-                setIsSubmitting(true);
-                try {
-                  await applyToBill(applyDialogCN.id, applyBillId, Number(applyAmount));
-                  setApplyDialogCN(null);
-                } catch (err: any) {
-                  toast({ title: "Error applying credit", description: normalizeError(err).message, variant: "destructive" });
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}
-            >
-              {isSubmitting ? "Applying..." : "Apply Credit"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       <ContactPreviewDrawer
         open={!!previewContactId}
