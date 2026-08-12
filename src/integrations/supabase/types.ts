@@ -67775,7 +67775,7 @@ export type Database = {
           created_by?: string | null
           credit_date?: string
           credit_note_number: string
-          currency?: string
+          currency: string
           dispute_reason?: string | null
           dispute_resolution?: string | null
           dispute_resolved_at?: string | null
@@ -93225,6 +93225,7 @@ export type Database = {
         Returns: undefined
       }
       next_supplier_code: { Args: { p_business_id: string }; Returns: string }
+      normalize_currency_code: { Args: { p_code: string }; Returns: string }
       normalize_display_to_base: {
         Args: { p_display: number; p_packaging_id: string }
         Returns: number
@@ -97422,6 +97423,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      require_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: number
+      }
       requisition_amend: {
         Args: { _reason?: string; _requisition_id: string }
         Returns: Json
@@ -97714,6 +97724,15 @@ export type Database = {
           device_assignment_id: string
           scope: string
         }[]
+      }
+      resolve_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: number
       }
       resolve_expense_default_account: {
         Args: { p_business_id: string; p_org_id: string; p_setting_key: string }
