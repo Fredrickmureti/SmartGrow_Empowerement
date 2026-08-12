@@ -133,10 +133,13 @@ export default function LotDetail() {
     const { data: lotRow, error: lotErr } = await supabase
       .from("stock_lots")
       .select(
-        "id, business_id, organization_id, product_id, lot_number, serial_number, expiry_date, manufacture_date, is_active, goods_receipt_id, notes, created_at, product:products(id, name, sku), supplier:contacts(id, name), goods_receipt:goods_receipts(id, receipt_number)",
+        sel(
+          "id, business_id, organization_id, product_id, lot_number, serial_number, expiry_date, manufacture_date, is_active, goods_receipt_id, notes, created_at, product:products(id, name, sku), supplier:contacts(id, name), goods_receipt:goods_receipts(id, receipt_number)",
+        ),
       )
       .eq("id", id)
       .maybeSingle();
+
     if (lotErr || !lotRow) {
       if (lotErr) toast({ title: "Failed to load lot", description: lotErr.message, variant: "destructive" });
       setLot(null);
