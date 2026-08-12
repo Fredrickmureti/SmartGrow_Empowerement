@@ -88245,6 +88245,23 @@ export type Database = {
         }
         Returns: Json
       }
+      create_supplier: {
+        Args: {
+          p_business_id: string
+          p_category_id?: string
+          p_contact_id?: string
+          p_default_currency?: string
+          p_default_incoterms?: string
+          p_default_lead_time_days?: number
+          p_email?: string
+          p_name?: string
+          p_notes?: string
+          p_phone?: string
+          p_supplier_code?: string
+          p_tax_id?: string
+        }
+        Returns: Json
+      }
       create_vendor_credit_note_atomic: {
         Args: {
           _bill_id: string
