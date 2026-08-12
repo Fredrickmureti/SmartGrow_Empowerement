@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useViewCurrencyPreference } from "@/hooks/useViewCurrencyPreference";
 import { normalizeError } from "@/services/resilience";
+import { resolveRateFromBook, type RateBookRow } from "@/services/fx/rateBook";
+
 
 export interface ExchangeRate {
   id: string;
