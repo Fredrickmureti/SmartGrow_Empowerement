@@ -89924,7 +89924,11 @@ export type Database = {
         Returns: Json
       }
       expense_void: {
-        Args: { p_expense_id: string; p_reason?: string }
+        Args: {
+          p_expense_id: string
+          p_reason?: string
+          p_reason_code?: string
+        }
         Returns: Json
       }
       expire_app_trials: { Args: never; Returns: number }
@@ -97226,6 +97230,14 @@ export type Database = {
       }
       resolve_reversal_intent: {
         Args: { _document_id: string; _document_type: string }
+        Returns: Json
+      }
+      resolve_reversal_intent_customer_refund: {
+        Args: { _document_id: string }
+        Returns: Json
+      }
+      resolve_reversal_intent_expense: {
+        Args: { _document_id: string }
         Returns: Json
       }
       resolve_reversal_intent_finance: {
