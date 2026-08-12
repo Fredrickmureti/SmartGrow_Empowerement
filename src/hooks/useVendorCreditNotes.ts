@@ -10,6 +10,19 @@ import { usePermissions } from "./usePermissions";
 import { assertCompanyScoped, assertBranchScoped } from "@/lib/purchases/scopingAssertions";
 import { applyBranchFilter } from "@/lib/branchScope";
 
+/** ADR 0132 Phase 2 — where a vendor credit economically comes from. */
+export type VendorCreditOrigin =
+  | "purchase_return"
+  | "overbilling"
+  | "price_correction"
+  | "quantity_discrepancy"
+  | "damaged_goods"
+  | "rejected_goods"
+  | "tax_correction"
+  | "rebate"
+  | "supplier_credit"
+  | "adjustment";
+
 export interface VendorCreditNoteItem {
   id?: string;
   credit_note_id?: string;
@@ -22,6 +35,13 @@ export interface VendorCreditNoteItem {
   tax_amount: number;
   line_total: number;
   sort_order: number;
+  /**
+   * Line provenance. When set, the server recomputes price/tax from the bill
+   * line and enforces the credit ceiling; client money on that line is ignored.
+   */
+  bill_item_id?: string | null;
+  source_unit_price?: number | null;
+  source_tax_rate?: number | null;
   // Multi-Unit provenance (added by migration). Forwarded through `...item`
   // spread in createVendorCreditNote so the BEFORE-trigger `_uom_normalize_line`
   // can stamp qty_in_base_uom / uom_snapshot server-side.
@@ -29,6 +49,19 @@ export interface VendorCreditNoteItem {
   display_uom_id?: string | null;
   display_quantity?: number | null;
   uom_snapshot?: string | null;
+}
+
+/** Header lineage accepted by the create/update writers. */
+export interface VendorCreditNoteLineage {
+  origin?: VendorCreditOrigin;
+  reason_code?: string | null;
+  source_return_id?: string | null;
+  goods_receipt_id?: string | null;
+  purchase_order_id?: string | null;
+  vendor_document_number?: string | null;
+  vendor_document_date?: string | null;
+  exchange_rate?: number | null;
+  exchange_rate_date?: string | null;
 }
 
 export interface VendorCreditNote {
@@ -51,10 +84,19 @@ export interface VendorCreditNote {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  origin?: VendorCreditOrigin;
+  reason_code?: string | null;
+  source_return_id?: string | null;
+  goods_receipt_id?: string | null;
+  purchase_order_id?: string | null;
+  vendor_document_number?: string | null;
+  vendor_document_date?: string | null;
+  row_version?: number;
   vendor?: { name: string } | null;
   bill?: { bill_number: string } | null;
   items?: VendorCreditNoteItem[];
 }
+
 
 export function useVendorCreditNotes() {
   const { currentOrg } = useOrganization();
