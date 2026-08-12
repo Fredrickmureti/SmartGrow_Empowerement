@@ -42,12 +42,14 @@ export function VendorCreditNoteLinkedRecords({ creditNote }: Props) {
     });
   }
   if (cn.goods_receipt_id) {
+    // There is no standalone GRN record route today — show the receipt number
+    // rather than a link that would dead-end the operator.
     rows.push({
       label: "Goods receipt",
       value: cn.goods_receipt?.receipt_number ?? "Goods receipt",
-      to: `/purchases/goods-receipts/${cn.goods_receipt_id}`,
     });
   }
+
   if (cn.source_return_id) {
     rows.push({
       label: "Purchase return",
