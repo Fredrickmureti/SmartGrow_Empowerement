@@ -41,8 +41,9 @@ describe("ADR 0135 — currency integrity", () => {
     (path) => {
       const src = read(path);
       expect(src).toMatch(/CurrencyCombobox/);
-      // The old free-text pattern (uppercasing a raw input) must not return.
-      expect(src).not.toMatch(/e\.target\.value\.toUpperCase\(\)/);
+      // The old free-text currency pattern must not return.
+      expect(src).not.toMatch(/setCurrency\(e\.target\.value/);
+      expect(src).not.toMatch(/defaultCurrency:\s*e\.target\.value/);
     },
   );
 
