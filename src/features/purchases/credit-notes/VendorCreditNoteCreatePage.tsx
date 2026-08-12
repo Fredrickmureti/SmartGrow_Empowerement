@@ -140,7 +140,9 @@ export default function VendorCreditNoteCreatePage() {
           journal_entry_id: null,
         } as any,
         lineItems,
+        requestIdRef.current,
       );
+
       toast.success("Credit note created");
       navigate("/purchases/credit-notes");
     } catch (err: any) {
