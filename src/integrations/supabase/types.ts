@@ -90937,6 +90937,14 @@ export type Database = {
         Args: { p_cashier_id: string; p_ended_by: string }
         Returns: number
       }
+      fx_exposure_by_currency: {
+        Args: { _as_of?: string; _business_id: string }
+        Returns: Json
+      }
+      fx_exposure_open_items: {
+        Args: { _as_of?: string; _business_id: string; _currency: string }
+        Returns: Json
+      }
       fx_revaluation_readiness: {
         Args: { _as_of: string; _business_id: string }
         Returns: Json

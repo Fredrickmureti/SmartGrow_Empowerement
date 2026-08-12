@@ -96,6 +96,7 @@ const BankReconciliationReport = lazy(() => import("@/pages/reports/BankReconcil
 const StockAdjustmentsReport = lazy(() => import("@/pages/reports/StockAdjustmentsReport"));
 const StockTransfersReport = lazy(() => import("@/pages/reports/StockTransfersReport"));
 const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationReport"));
+const FxExposureReport = lazy(() => import("@/pages/reports/FxExposureReport"));
 
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
 const FinanceIntegrity = lazy(() => import("@/pages/finance/FinanceIntegrity"));
@@ -847,6 +848,18 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="FX Revaluation Report">
                 <FxRevaluationReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* FX Exposure Report (Currency & FX Step G) */}
+        <Route
+          path="reports/fx-exposure"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="FX Exposure Report">
+                <FxExposureReport />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
