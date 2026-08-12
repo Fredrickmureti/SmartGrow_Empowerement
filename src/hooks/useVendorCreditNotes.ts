@@ -160,6 +160,7 @@ export function useVendorCreditNotes() {
     creditNote: Omit<VendorCreditNote, "id" | "organization_id" | "business_id" | "branch_id" | "created_by" | "created_at" | "updated_at" | "vendor" | "bill" | "items">,
     items: Omit<VendorCreditNoteItem, "id" | "credit_note_id">[],
     clientRequestId?: string,
+    lineage?: VendorCreditNoteLineage,
   ) => {
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
 
@@ -167,7 +168,8 @@ export function useVendorCreditNotes() {
     // single transaction. The browser never inserts into vendor_credit_notes
     // and never allocates the number itself. `clientRequestId` makes the
     // creation idempotent — a retry or double submit replays instead of
-    // minting a second credit note.
+    // minting a second credit note. Lineage (return / GRN / PO / supplier doc)
+    // is stamped by the same writer so provenance can never be added later.
     const { data, error } = await supabase.rpc("create_vendor_credit_note_atomic" as any, {
       _org_id: currentOrg.id,
       _business_id: currentBusiness.id,
@@ -179,7 +181,19 @@ export function useVendorCreditNotes() {
       _items: items,
       _issue: false,
       _client_request_id: clientRequestId ?? null,
+      _origin: lineage?.origin ?? creditNote.origin ?? "adjustment",
+      _reason_code: lineage?.reason_code ?? creditNote.reason_code ?? null,
+      _source_return_id: lineage?.source_return_id ?? null,
+      _goods_receipt_id: lineage?.goods_receipt_id ?? null,
+      _purchase_order_id: lineage?.purchase_order_id ?? null,
+      _vendor_document_number:
+        lineage?.vendor_document_number ?? creditNote.vendor_document_number ?? null,
+      _vendor_document_date:
+        lineage?.vendor_document_date ?? creditNote.vendor_document_date ?? null,
+      _exchange_rate: lineage?.exchange_rate ?? null,
+      _exchange_rate_date: lineage?.exchange_rate_date ?? null,
     });
+
 
     if (error) throw error;
     const result = (data ?? {}) as { id: string; credit_note_number: string; replayed?: boolean };
