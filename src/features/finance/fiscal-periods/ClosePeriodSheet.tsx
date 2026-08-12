@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
+import { useFxRevaluationReadiness } from "@/hooks/finance/useFxRevaluation";
 
 export interface PeriodToClose {
   id: string;
@@ -78,6 +79,10 @@ function useCloseReadiness(period: PeriodToClose | null) {
 export function ClosePeriodSheet({ open, onOpenChange, period }: Props) {
   const { closePeriod } = useFiscalPeriods();
   const { data: readiness } = useCloseReadiness(period);
+  // Same server function that gates `close_fiscal_period` (ADR 0136): a period
+  // cannot close while foreign-currency balances are unrevalued.
+  const { data: fxReadiness } = useFxRevaluationReadiness(period?.end_date);
+  const fxBlocked = !!fxReadiness?.needs_revaluation;
   const isClosing = closePeriod.isPending;
 
   const handleConfirm = async () => {
@@ -108,7 +113,7 @@ export function ClosePeriodSheet({ open, onOpenChange, period }: Props) {
               <Button
                 variant="destructive"
                 onClick={handleConfirm}
-                disabled={isClosing || !period}
+                disabled={isClosing || !period || fxBlocked}
               >
                 {isClosing ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -160,6 +165,30 @@ export function ClosePeriodSheet({ open, onOpenChange, period }: Props) {
                 {readiness.draftInvoices}
               </span>
             </div>
+            <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+              <span className="text-sm">Unrevalued foreign-currency balances</span>
+              <span
+                className={`text-sm font-medium flex items-center gap-1 ${
+                  fxBlocked ? "text-destructive" : "text-primary"
+                }`}
+              >
+                {fxBlocked ? (
+                  <XCircle className="h-3.5 w-3.5" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+                {fxReadiness?.foreign_balances.length ?? 0}
+              </span>
+            </div>
+            {fxBlocked && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>FX revaluation required</AlertTitle>
+                <AlertDescription className="text-xs">
+                  {`This period holds ${fxReadiness?.foreign_balances.map((b) => b.currency).join(", ")} balances that have not been revalued as of ${period?.end_date}. Run FX revaluation in Accounting Controls first — the database will refuse the close until then.`}
+                </AlertDescription>
+              </Alert>
+            )}
             {(readiness.unpostedCount > 0 || readiness.draftInvoices > 0) && (
               <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
