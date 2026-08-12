@@ -143,64 +143,18 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
-   * Display-only rate lookup against the ONE accounting rate book
-   * (`public.exchange_rates`), mirroring the precedence of the server-side
-   * `resolve_exchange_rate`: override > manual > provider, most recent
-   * effective date first.
+   * Display-only lookup against the ONE rate book (`public.exchange_rates`),
+   * delegated to the single shared engine in `@/services/fx/rateBook`, which
+   * mirrors the server precedence (override > manual > provider, latest
+   * effective date first).
    *
-   * Returns `null` when nothing is on file. It never invents 1 — the browser
-   * may display a rate, it may not compute an accounting one (ADR 0136).
+   * Returns `null` when nothing is on file — the browser may display a rate,
+   * it may never compute an accounting one (ADR 0136).
    */
-  const rankSource = (s?: string) => (s === "override" ? 0 : s === "manual" ? 1 : 2);
-
-  const pickRate = useCallback(
-    (from: string, to: string, targetDate: string): number | null => {
-      const candidates = exchangeRates
-        .filter(
-          (r) =>
-            (r.from_currency || "").toUpperCase() === from &&
-            (r.to_currency || "").toUpperCase() === to &&
-            r.effective_date <= targetDate,
-        )
-        .sort((a, b) => {
-          if (a.effective_date !== b.effective_date) return a.effective_date < b.effective_date ? 1 : -1;
-          return rankSource((a as any).source) - rankSource((b as any).source);
-        });
-      const hit = candidates[0];
-      return hit && Number(hit.rate) > 0 ? Number(hit.rate) : null;
-    },
-    [exchangeRates],
-  );
-
   const getExchangeRate = useCallback(
-    (fromCurrency: string, toCurrency: string, date?: string): number | null => {
-      const from = (fromCurrency || "").toUpperCase();
-      const to = (toCurrency || "").toUpperCase();
-      if (!from || !to) return null;
-      if (from === to) return 1;
-
-      const targetDate = date || new Date().toISOString().split("T")[0];
-
-      const direct = pickRate(from, to, targetDate);
-      if (direct !== null) return direct;
-
-      const reverse = pickRate(to, from, targetDate);
-      if (reverse !== null) return 1 / reverse;
-
-      // Triangulate through the business base currency — the pivot every
-      // published rate is expressed against.
-      const pivot = (baseCurrency || "").toUpperCase();
-      if (pivot && from !== pivot && to !== pivot) {
-        const fromToPivot = pickRate(from, pivot, targetDate);
-        const toToPivot = pickRate(to, pivot, targetDate);
-        if (fromToPivot !== null && toToPivot !== null && toToPivot !== 0) {
-          return fromToPivot / toToPivot;
-        }
-      }
-
-      return null;
-    },
-    [pickRate, baseCurrency],
+    (fromCurrency: string, toCurrency: string, date?: string): number | null =>
+      resolveRateFromBook(exchangeRates as any, fromCurrency, toCurrency, date, baseCurrency),
+    [exchangeRates, baseCurrency],
   );
 
   const convertCurrency = useCallback(
