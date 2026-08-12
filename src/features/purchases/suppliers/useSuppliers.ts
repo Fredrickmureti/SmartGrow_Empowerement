@@ -11,6 +11,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 
+export type SupplierLifecycleState =
+  | "draft"
+  | "qualifying"
+  | "approved"
+  | "suspended"
+  | "blocked"
+  | "archived";
+
 export interface SupplierRow {
   id: string;
   organization_id: string;
@@ -18,13 +26,7 @@ export interface SupplierRow {
   contact_id: string;
   category_id: string | null;
   supplier_code: string | null;
-  lifecycle_state:
-    | "prospect"
-    | "qualifying"
-    | "qualified"
-    | "active"
-    | "suspended"
-    | "retired";
+  lifecycle_state: SupplierLifecycleState;
   preferred_rank: number | null;
   is_preferred: boolean;
   default_currency: string | null;
@@ -43,7 +45,8 @@ export interface SupplierRow {
     name: string;
     email: string | null;
     phone: string | null;
-    tax_number: string | null;
+    /** Tax identity is owned by the party (ADR-0079) — column is `tax_id`. */
+    tax_id: string | null;
   } | null;
   category?: { id: string; code: string; name: string } | null;
 }
