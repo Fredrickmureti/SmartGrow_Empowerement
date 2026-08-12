@@ -142,7 +142,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
 
       if (error) throw error;
 
-      return { data: (data || []) as Expense[], count: count || 0 };
+      return { data: (data ?? []) as unknown as Expense[], count: count || 0 };
     },
     pageSize,
     enabled: !!currentOrg && !!businessId,
