@@ -250,14 +250,15 @@ export default function ReportCenter() {
                   return quickReports.map((r) => (
                     <Card
                       key={r.name}
-                      className="cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
+                      className="min-w-0 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
                       onClick={() => handleNavigate(r)}
                     >
-                      <CardContent className="flex items-center gap-3 p-4">
+                      <CardContent className="flex min-w-0 items-center gap-3 p-4">
                         <r.icon className="h-5 w-5 text-primary shrink-0" />
-                        <span className="text-sm font-medium">{r.name}</span>
+                        <span className="min-w-0 break-words text-sm font-medium leading-snug">{r.name}</span>
                       </CardContent>
                     </Card>
+
                   ));
                 })()}
               </div>
