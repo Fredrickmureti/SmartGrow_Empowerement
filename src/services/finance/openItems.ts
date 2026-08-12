@@ -133,7 +133,8 @@ export interface OpenItemRow {
  * that buckets by age and nets unapplied customer credit in one place. Bucket
  * boundaries and credit netting are accounting rules, so they live in SQL — an
  * app-side re-derivation is how the dashboard and the aging report drift apart.
- * AP has no credit-position analogue, so it still aggregates the projection.
+ * AP aggregates the projection and nets unapplied vendor credit
+ * (`finance_ap_vendor_credit`), the same view `get_ap_summary` reads.
  */
 export async function fetchTopOpenCounterparties(
   side: "ar" | "ap",
