@@ -27,8 +27,12 @@ const sourceIcon = (t: string) => {
   }
 };
 
-const fmt = (n: number | null | undefined, cur = "USD") =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 2 }).format(Number(n ?? 0));
+// A record with no currency renders as an absence — never as a figure wearing
+// a currency it was not denominated in (ADR 0136).
+const fmt = (n: number | null | undefined, cur?: string | null) =>
+  cur
+    ? new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 2 }).format(Number(n ?? 0))
+    : "—";
 
 export function ProjectFinancials({ project }: Props) {
   const { data, costs, revenues, isLoading, error } = useProjectFinancials(project.id);
@@ -45,7 +49,7 @@ export function ProjectFinancials({ project }: Props) {
   }
   if (!data) return null;
 
-  const cur = data.currency || "USD";
+  const cur = data.currency ?? null;
   const profitable = data.margin >= 0;
 
   return (

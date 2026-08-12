@@ -49,7 +49,7 @@ export function useAdminCurrency() {
   // The displayed currency is whatever the user previously chose. We do NOT
   // narrow it to USD/KES anymore — the Indian/UK/EU admin gets their own
   // ISO code through.
-  const displayCurrency: AdminDisplayCurrency = (viewCurrency || "USD").toUpperCase();
+  const displayCurrency: AdminDisplayCurrency = (viewCurrency || "USD").toUpperCase(); // architecture-allow: display-only fallback — platform billing is denominated in USD
 
   // Fetch exchange rates
   const { data: exchangeRates, isLoading: isLoadingRates } = useQuery({

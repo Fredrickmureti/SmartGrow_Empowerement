@@ -223,7 +223,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
         project_number: projectNumber,
         created_by: user.id,
         pricing_type: project.pricing_type || "non_billable",
-        currency: project.currency || "USD",
+        currency: project.currency || currentBusiness?.base_currency || null,
         analytic_account_code: project.analytic_account_code || null,
         template_id: project.template_id || null,
         is_template: project.is_template ?? false,

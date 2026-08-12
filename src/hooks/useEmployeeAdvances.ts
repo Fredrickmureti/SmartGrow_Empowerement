@@ -86,7 +86,7 @@ export function useEmployeeAdvances(businessId?: string | null) {
         business_id: input.business_id,
         employee_id: input.employee_id,
         amount: input.amount,
-        currency: input.currency ?? "USD",
+        currency: input.currency ?? null,
         advance_date: input.advance_date ?? new Date().toISOString().slice(0, 10),
         reason: input.reason ?? null,
         recovery_method: input.recovery_method ?? "lump_sum",

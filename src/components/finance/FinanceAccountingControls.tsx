@@ -58,7 +58,7 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   const [journalDraft, setJournalDraft] = useState({ code: "", name: "", journal_type: "general" as JournalType, default_account_id: "", description: "" });
   const [ruleDraft, setRuleDraft] = useState({ name: "", bank_account_id: "", description_pattern: "", amount_sign: "any", counterpart_account_id: "", auto_post: false, description_template: "" });
   const [applyBankAccountId, setApplyBankAccountId] = useState("");
-  const [fxDraft, setFxDraft] = useState({ run_date: new Date().toISOString().slice(0, 10), base_currency: currentBusiness?.base_currency ?? "USD", unrealized_gain_account_id: "", unrealized_loss_account_id: "" });
+  const [fxDraft, setFxDraft] = useState({ run_date: new Date().toISOString().slice(0, 10), base_currency: currentBusiness?.base_currency ?? "", unrealized_gain_account_id: "", unrealized_loss_account_id: "" });
 
   const incomeAccounts = useMemo(() => accounts.filter((account) => account.account_type === "income"), [accounts]);
   const expenseAccounts = useMemo(() => accounts.filter((account) => account.account_type === "expense"), [accounts]);
