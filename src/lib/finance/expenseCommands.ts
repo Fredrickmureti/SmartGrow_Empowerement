@@ -104,10 +104,20 @@ export const rejectExpense = (expenseId: string, reason?: string | null) =>
     p_reason: reason ?? null,
   });
 
-export const voidExpenseRpc = (expenseId: string, reason?: string | null) =>
+/**
+ * Void a posted expense. `p_reason_code` is validated server-side by
+ * `assert_reversal_reason` against the shared `reversal_reason_codes`
+ * vocabulary — never send a screen-local code.
+ */
+export const voidExpenseRpc = (
+  expenseId: string,
+  reason?: string | null,
+  reasonCode?: string | null,
+) =>
   call<ExpenseSubmitResult>("expense_void", {
     p_expense_id: expenseId,
     p_reason: reason ?? null,
+    p_reason_code: reasonCode ?? null,
   });
 
 export const convertExpenseToBill = (expenseId: string) =>

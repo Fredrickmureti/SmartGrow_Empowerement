@@ -2711,12 +2711,16 @@ Deno.serve(async (req) => {
     }
     const reimbursementsByEmployee: Record<string, any[]> = {};
     {
+      // Only a live, approved expense may be reimbursed. `expense_void` takes a
+      // voided expense off the payroll queue, but a run computed in the same
+      // window must not pay it either — hence this status filter as well.
       const { data: reimb } = await supabaseAdmin
         .from("expenses")
         .select("id, employee_id, amount, currency, description, expense_date")
         .eq("organization_id", organization_id)
         .eq("reimburse_via_payroll", true)
         .is("reimbursed_payslip_id", null)
+        .in("status", ["approved", "paid"])
         .in("employee_id", employee_ids)
         .lte("expense_date", pay_period_end);
       for (const r of reimb || []) {

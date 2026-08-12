@@ -112,6 +112,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExpensePeekSheet } from "@/features/purchases/expenses/ExpensePeekSheet";
+import { VoidExpenseDialog } from "@/components/expenses/VoidExpenseDialog";
 import { usePeekParam } from "@/design-system";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -208,6 +209,8 @@ export default function Expenses() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [peekId, setPeekId] = usePeekParam();
   const [reimburseExpense, setReimburseExpense] = useState<Expense | null>(null);
+  // Every reversal enters through intent + preview (ADR 0134) — never a menu item.
+  const [voidTarget, setVoidTarget] = useState<Expense | null>(null);
 
   // Handle deep-link URL params
   useEffect(() => {
@@ -671,16 +674,34 @@ export default function Expenses() {
     }
   };
 
-  const handleVoidExpense = async (expense: Expense) => {
+  /** Opens the reversal sheet; the server decides what is legal there. */
+  const handleVoidExpense = (expense: Expense) => setVoidTarget(expense);
+
+  const handleConfirmVoid = async ({
+    id,
+    reason,
+    reasonCode,
+  }: {
+    id: string;
+    reason: string;
+    reasonCode: string;
+  }) => {
     try {
-      await voidExpense(expense.id);
-      toast({ title: "Expense voided", description: "A reversing journal entry has been created." });
+      const res: any = await voidExpense(id, reason, reasonCode);
+      toast({
+        title: "Expense voided",
+        description: res?.payroll_reimbursement_dequeued
+          ? "A reversing journal entry has been created and the expense was removed from the payroll queue."
+          : "A reversing journal entry has been created.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
     } catch (error: any) {
       toast({
         title: "Error voiding expense",
         description: normalizeError(error).message,
         variant: "destructive",
       });
+      throw error;
     }
   };
 
@@ -715,21 +736,14 @@ export default function Expenses() {
         const exp = expenses.find(e => e.id === id);
         return isExpenseDeletable(exp?.status);
       });
+      // Posted expenses are NOT bulk-voided: a reversal needs a reason code,
+      // a consequence preview and (above threshold) an approval, none of which
+      // a bulk action can supply. They are reported back instead.
       const postedIds = allSelected.filter(id => {
         const exp = expenses.find(e => e.id === id);
         return exp && (exp.status === "approved" || exp.status === "paid");
       });
-
-      // Void posted expenses
-      let voidedCount = 0;
-      for (const id of postedIds) {
-        try {
-          await voidExpense(id);
-          voidedCount++;
-        } catch (err) {
-          console.error(`Failed to void expense ${id}:`, err);
-        }
-      }
+      const voidedCount = 0;
 
       // Delete pending expenses
       let deletedCount = 0;
@@ -745,8 +759,14 @@ export default function Expenses() {
       const parts = [];
       if (deletedCount > 0) parts.push(`${deletedCount} deleted`);
       if (voidedCount > 0) parts.push(`${voidedCount} voided`);
-      
-      toast({ title: `Expenses processed: ${parts.join(", ")}` });
+
+      toast({
+        title: parts.length > 0 ? `Expenses processed: ${parts.join(", ")}` : "Nothing deleted",
+        description:
+          postedIds.length > 0
+            ? `${postedIds.length} posted expense(s) were skipped — void each one individually so a reversal reason is recorded.`
+            : undefined,
+      });
       setSelectedExpenses(new Set());
       setShowBulkDeleteDialog(false);
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
@@ -1383,6 +1403,13 @@ export default function Expenses() {
           fieldDefinitions={expenseFieldDefinitions}
           onImport={handleImportExpense}
           onComplete={() => {}}
+        />
+
+        <VoidExpenseDialog
+          expense={voidTarget}
+          open={!!voidTarget}
+          onOpenChange={(open) => { if (!open) setVoidTarget(null); }}
+          onConfirm={handleConfirmVoid}
         />
 
         {/* Expense peek surface — standard enterprise interaction */}

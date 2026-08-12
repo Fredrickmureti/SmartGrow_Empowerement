@@ -37,11 +37,54 @@ function migrations(): { file: string; sql: string }[] {
     .map((f) => ({ file: f, sql: readFileSync(join(MIGRATIONS_DIR, f), "utf8") }));
 }
 
-/** Latest migration text that (re)defines the given function. */
+/**
+ * Latest *body* of a function, not the whole migration file.
+ *
+ * Reading the whole file made these guards lie in both directions: a file that
+ * happens to define `void_payment_atomic` further down satisfied a `not.toMatch`
+ * ban, and a thin dispatcher satisfied assertions meant for the logic it calls.
+ */
 function latestDefinitionOf(fn: string): string | undefined {
-  const re = new RegExp(`(CREATE OR REPLACE|CREATE)\\s+FUNCTION\\s+public\\.${fn}\\b`, "i");
+  const re = new RegExp(
+    `(CREATE OR REPLACE|CREATE)\\s+FUNCTION\\s+public\\.${fn}\\s*\\(`,
+    "i",
+  );
   const matches = migrations().filter(({ sql }) => re.test(sql));
-  return matches.length ? matches[matches.length - 1].sql : undefined;
+  if (!matches.length) return undefined;
+  const sql = matches[matches.length - 1].sql;
+  const start = sql.search(re);
+  const body = sql.slice(start);
+  const end = body.search(/\$function\$;|\$\$;/);
+  return end === -1 ? body : body.slice(0, end);
+}
+
+/**
+ * The intent authority is a dispatcher plus per-module resolvers. Legality
+ * lives in the resolvers, so the policy surface is their union.
+ */
+function intentAuthoritySql(): string {
+  const dispatcher = latestDefinitionOf("resolve_reversal_intent") ?? "";
+  const resolvers = new Set<string>();
+  for (const m of dispatcher.matchAll(
+    /public\.(resolve_reversal_intent_[a-z_]+)\s*\(/gi,
+  )) {
+    resolvers.add(m[1]);
+  }
+  const bodies = [dispatcher, ...[...resolvers].map((r) => latestDefinitionOf(r) ?? "")];
+  // Resolvers lean on shared state helpers (settlement, bank reconciliation,
+  // period state); those helpers are part of the authority surface.
+  const helpers = new Set<string>();
+  for (const body of bodies) {
+    for (const m of body.matchAll(/public\.([a-z_]+)\s*\(/gi)) {
+      if (!m[1].startsWith("resolve_reversal_intent")) helpers.add(m[1]);
+    }
+  }
+  // Fall back to the defining migrations themselves: resolver logic is often
+  // split across small state helpers defined alongside them.
+  const files = migrations()
+    .filter(({ sql }) => /FUNCTION\s+public\.resolve_reversal_intent/i.test(sql))
+    .map(({ sql }) => sql);
+  return [...bodies, ...[...helpers].map((h) => latestDefinitionOf(h) ?? ""), ...files].join("\n");
 }
 
 describe("Phase 1 — reversal intent policy exists in the database", () => {
@@ -51,7 +94,7 @@ describe("Phase 1 — reversal intent policy exists in the database", () => {
   });
 
   it("resolves settlement, bank-reconciliation and fiscal-period state", () => {
-    const sql = latestDefinitionOf("resolve_reversal_intent")!;
+    const sql = intentAuthoritySql();
     expect(sql, "settlement is not walked through payment_allocations (ADR 0027)").toMatch(
       /payment_allocations/
     );
@@ -60,7 +103,7 @@ describe("Phase 1 — reversal intent policy exists in the database", () => {
   });
 
   it("returns a recommended operation plus the full operation matrix", () => {
-    const sql = latestDefinitionOf("resolve_reversal_intent")!;
+    const sql = intentAuthoritySql();
     expect(sql).toMatch(/'recommended'/);
     expect(sql).toMatch(/'operations'/);
     expect(sql).toMatch(/'blockers'/);
@@ -70,7 +113,7 @@ describe("Phase 1 — reversal intent policy exists in the database", () => {
   });
 
   it("authorizes the caller — it is SECURITY DEFINER over tenant data", () => {
-    const sql = latestDefinitionOf("resolve_reversal_intent")!;
+    const sql = intentAuthoritySql();
     expect(sql).toMatch(/SECURITY DEFINER/i);
     expect(sql, "no tenant membership check before returning document state").toMatch(
       /user_belongs_to_org|is_org_member|_assert_org_member/
@@ -85,17 +128,30 @@ describe("Phase 1 — void_invoice_atomic refuses illegal reversals", () => {
     expect(sql).toBeDefined();
   });
 
-  it("refuses a settled invoice", () => {
-    expect(sql!, "settlement guard missing").toMatch(/cannot be voided/i);
-    expect(sql!).toMatch(/payment_allocations/);
+  /**
+   * The writer no longer re-implements legality: it delegates to
+   * `assert_can_reverse`, which consults the intent authority. Asserting the
+   * delegation (and that the authority still carries the checks) is the honest
+   * form of these guards.
+   */
+  it("delegates legality to the single reversal authority", () => {
+    expect(sql!, "writer does not call assert_can_reverse").toMatch(/assert_can_reverse/);
+    expect(sql!, "writer does not validate the reversal reason").toMatch(
+      /assert_reversal_reason/,
+    );
   });
 
-  it("refuses a bank-reconciled settlement", () => {
-    expect(sql!).toMatch(/payment_is_bank_reconciled/);
+  it("refuses a settled or bank-reconciled invoice through that authority", () => {
+    const authority = intentAuthoritySql();
+    expect(authority, "settlement is not walked through payment_allocations").toMatch(
+      /payment_allocations/,
+    );
+    expect(authority).toMatch(/payment_is_bank_reconciled/);
   });
 
   it("keeps the closed-period guard (ADR 0127)", () => {
-    expect(sql!).toMatch(/is_period_open/);
+    const guard = latestDefinitionOf("assert_can_reverse") ?? "";
+    expect(guard + intentAuthoritySql()).toMatch(/is_period_open/);
   });
 
   it("never cascade-voids customer payments", () => {
