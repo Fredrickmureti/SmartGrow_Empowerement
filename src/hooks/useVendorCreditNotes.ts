@@ -473,11 +473,71 @@ export function useVendorCreditNotes() {
     return result;
   };
 
-  // Back-compat alias for the legacy single-bill call site. Delegates to
-  // FIFO with a single-element `billIds` array so callers keep working
-  // while `VendorCreditNotes.tsx` migrates to the new multi-bill dialog.
-  const applyToBill = async (creditNoteId: string, billId: string, _applyAmount: number) => {
-    return applyCreditFifo(creditNoteId, [billId]);
+  /**
+   * Targeted application (ADR 0132 Phase 7). The operator names the bill and
+   * the amount; `apply_vendor_credit_to_bill_atomic` still owns every rule —
+   * posted-only, same vendor, SoD, available balance, bill balance, open
+   * period — and writes the application row, the credit movement and the
+   * journal entry in one transaction.
+   */
+  const applyToBill = async (creditNoteId: string, billId: string, applyAmount: number) => {
+    if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
+    const cn = creditNotes.find((c) => c.id === creditNoteId);
+
+    const { data, error } = await supabase.rpc("apply_vendor_credit_to_bill_atomic" as any, {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+      _vendor_credit_note_id: creditNoteId,
+      _bill_id: billId,
+      _amount: applyAmount,
+      _applied_by: user.id,
+      _branch_id: cn?.branch_id ?? currentBranch?.id ?? null,
+    });
+    if (error) throw error;
+    const result = data as any;
+    if (result && result.success === false) {
+      throw new Error(result.error || "Failed to apply credit");
+    }
+
+    logAction({
+      action: "updated",
+      entityType: "credit_note",
+      entityId: creditNoteId,
+      entityName: cn?.credit_note_number ?? creditNoteId,
+      changesSummary: `Applied ${applyAmount} from ${cn?.credit_note_number ?? "credit note"} to a bill`,
+    });
+    toast({ title: "Credit applied", description: `${applyAmount} applied to the selected bill` });
+    await fetchCreditNotes();
+    return result;
+  };
+
+  /**
+   * Undo one application. `unapply_vendor_credit_from_bill_atomic` restores
+   * the bill balance, reverses the application's journal entry, returns the
+   * credit to the vendor balance and recomputes the settlement state. The
+   * browser never edits `amount_applied` itself.
+   */
+  const unapplyCreditApplication = async (applicationId: string, reason?: string) => {
+    const { data, error } = await supabase.rpc(
+      "unapply_vendor_credit_from_bill_atomic" as any,
+      { _application_id: applicationId, _reason: reason ?? null },
+    );
+    if (error) throw error;
+    const result = data as any;
+    if (result && result.success === false) {
+      throw new Error(result.error || "Failed to unapply credit");
+    }
+
+    logAction({
+      action: "updated",
+      entityType: "credit_note",
+      entityId: String(result?.credit_note_id ?? applicationId),
+      entityName: String(result?.credit_note_id ?? applicationId),
+      changesSummary: `Unapplied ${result?.amount_unapplied ?? ""} from a bill${reason ? `: ${reason}` : ""}`,
+    });
+    toast({ title: "Credit unapplied", description: "The bill balance has been restored." });
+    await fetchCreditNotes();
+    return result;
   };
 
   return {
@@ -496,8 +556,10 @@ export function useVendorCreditNotes() {
     deleteVendorCreditNote,
     applyToBill,
     applyCreditFifo,
+    unapplyCreditApplication,
     refreshCreditNotes: fetchCreditNotes,
   };
+
 
 }
 

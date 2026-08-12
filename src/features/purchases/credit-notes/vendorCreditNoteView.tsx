@@ -18,6 +18,7 @@ import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { VendorCreditNote } from "@/hooks/useVendorCreditNotes";
 import { VendorCreditNoteLinkedRecords } from "./VendorCreditNoteLinkedRecords";
+import { VendorCreditNoteApplications } from "./VendorCreditNoteApplications";
 import { originLabel, reasonCodeLabel } from "./vendorCreditNoteLineage";
 import { useVendorCreditNoteRecord } from "./useVendorCreditNoteRecord";
 
@@ -210,6 +211,11 @@ export function useVendorCreditNoteView(
       extraSections: creditNote ? (
         <>
           <VendorCreditNoteLinkedRecords creditNote={creditNote} />
+          <VendorCreditNoteApplications
+            creditNote={creditNote}
+            formatCurrency={formatCurrency}
+            onChanged={refetch}
+          />
           {creditNote.notes && (
             <Section title="Notes">
               <p className="whitespace-pre-wrap text-sm text-muted-foreground">
@@ -225,7 +231,7 @@ export function useVendorCreditNoteView(
       ) : undefined,
 
     };
-  }, [creditNote, loading, error, formatCurrency]);
+  }, [creditNote, loading, error, formatCurrency, refetch]);
 
   return { creditNote, loading, error, view, refresh: refetch };
 }

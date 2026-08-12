@@ -4,7 +4,7 @@ Domain: Purchases / AP vendor credit notes.
 
 ## Current phase
 
-**Phase 6 — complete (6a–6e).** Next active work is Phase 7 (see "Next milestone").
+**Phase 7 — in progress. 7a complete and verified; 7b is the next task.**
 
 ## Completed and verified
 
@@ -60,30 +60,68 @@ the dispute, and the previously unconstrained lineage columns `goods_receipt_id`
 Verification: `tsgo` clean; `vendor-credit-note-events.test.ts` + `document-workspace-canonical.test.ts`
 green (28 tests).
 
-## Next milestone — Phase 7: applications, ageing and close
+### 7a — application surface (done, verified)
 
-Not started. In order:
+Real defect found and fixed. The Phase 6a `row_version` migration had replaced the credit-ledger
+movement insert inside `apply_vendor_credit_to_bill_atomic` with a call to
+`public.vendor_credit_balance_apply` — a function that does not exist in this database. Applying a
+vendor credit therefore failed at runtime with "function does not exist" and no movement was ever
+written. The writer now inserts the `apply` movement directly again.
 
-1. **7a — application surface.** `apply_vendor_credit_to_bill_atomic` is only reachable via the
-   FIFO "apply oldest first" action. Add targeted application (operator picks bill + amount) and
-   an unapply path, both server-authoritative, plus an applications table on the record page fed by
-   the credit movement rows.
-2. **7b — ageing / AP impact.** Surface open (unapplied) vendor credit in aged payables so the
-   supplier balance nets correctly, and reconcile against `customer_credit_movements`' vendor
-   equivalent.
-3. **7c — period close interaction.** Prove posting and reversal respect closed fiscal periods via
-   the canonical period guard; add a ratchet test if the guard is not already asserted for VCNs.
+Also shipped in the same migration:
+
+- `vendor_credit_note_applications.journal_entry_id` + `reversal_journal_entry_id` (FK to
+  `journal_entries`, `ON DELETE SET NULL`), backfilled from the matching `apply` movements, plus
+  indexes on `credit_note_id` and `bill_id`. Applications now carry their own accounting linkage
+  instead of it being inferable only through the ledger.
+- `unapply_vendor_credit_from_bill_atomic(_application_id, _reason)` — one transaction that voids
+  the application's journal entry through `void_journal_entry_atomic`, restores `bills.amount_paid`
+  and the bill status, writes the `unapply` credit movement, stamps `reversed_at/by/reason` +
+  reversal JE on the application row, and recomputes `amount_applied` / `settlement_status` /
+  `row_version` on the note. Guards: business access, not-already-reversed, open period.
+  `authenticated`-only execute.
+
+Client:
+
+- `useVendorCreditNotes.applyToBill` no longer fakes a targeted apply by calling FIFO with one bill
+  — it calls `apply_vendor_credit_to_bill_atomic` with the operator's amount. New
+  `unapplyCreditApplication(applicationId, reason)`. Both audit-logged and toast-reporting.
+- `useVendorCreditNoteApplications.ts` — read-only projection of the settlement ledger (with bill
+  numbers and reversal state).
+- `useVendorOpenBills.ts` — the supplier's outstanding bills for the picker (advisory; the server
+  re-validates).
+- `VendorCreditNoteApplications.tsx` — "Applications" section on the record page: every application
+  with its bill link, amount, unapplied badge, per-row Unapply, and an "Apply to a bill" dialog
+  (bill + amount, capped by the lower of unapplied credit and bill balance). FIFO "apply oldest
+  first" stays on the action menu, unchanged.
+
+Verification: `tsgo` clean; `vendor-credit-note-events.test.ts` (now 16 tests, including new
+settlement ratchets: writer never writes `bills` / `vendor_credit_note_applications` /
+`vendor_credit_movements` directly, the panel mutates only through the writer hook, the read hook
+stays read-only) + `document-workspace-canonical.test.ts` — 32 tests green.
+
+## Next milestone — Phase 7 remaining
+
+1. **7b — ageing / AP impact (next).** Surface open (unapplied) vendor credit in aged payables so
+   the supplier balance nets correctly, and reconcile the aged-payable figure against
+   `vendor_credit_balances` / `vendor_credit_movements` rather than against document columns.
+2. **7c — period close interaction.** Prove posting, application, unapply and reversal all respect
+   closed fiscal periods via the canonical period guard (`is_period_open` is already called in the
+   apply and unapply writers — assert it for post/reverse too) and add a ratchet test.
 
 ## Instructions for the next agent
 
-1. **Verify before extending.** Confirm the Phase 6 claims above independently: re-read
-   `vendorCreditNoteLineage.ts` + both form pages for origin-required-reference enforcement, open a
-   credit note record page and confirm the linked-records panel resolves, and query
-   `vendor_credit_notes` for the `dispute_resolution` column, the two new FKs, and that
-   `apply_vendor_credit_to_bill_atomic` increments `row_version`.
-2. Then resume at **7a** — do not pick unrelated work.
-3. Reuse canonical engines (document record scaffold, reversal engine, approval engine, outbox);
-   do not introduce a parallel one.
+1. **Verify before extending.** Confirm 7a independently: check
+   `apply_vendor_credit_to_bill_atomic` inserts a `vendor_credit_movements` row (not the
+   nonexistent `vendor_credit_balance_apply`), confirm
+   `unapply_vendor_credit_from_bill_atomic` exists with `authenticated` execute, and exercise a
+   scratch posted credit note end to end: apply part of it to a bill, confirm the bill's
+   `amount_paid`, the application row + its `journal_entry_id`, the `apply` movement and
+   `settlement_status = partially_applied`, then unapply and confirm every one of those is undone
+   (reversal JE present, `unapply` movement written, `settlement_status = open`).
+2. Then resume at **7b** — do not pick unrelated work.
+3. Reuse canonical engines (document record scaffold, reversal engine, approval engine, outbox,
+   period guard); do not introduce a parallel one.
 
 ## Known out of scope
 

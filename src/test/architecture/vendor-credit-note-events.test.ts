@@ -40,6 +40,7 @@ const TRANSITIONS: Array<{ rpc: string; state: string; owner: string }> = [
   { rpc: "vendor_credit_note_resolve_dispute", state: "dispute resolved", owner: WRITER },
   { rpc: "issue_vendor_credit_note_atomic", state: "posted", owner: WRITER },
   { rpc: "apply_vendor_credit_to_bill_atomic", state: "applied", owner: WRITER },
+  { rpc: "unapply_vendor_credit_from_bill_atomic", state: "unapplied", owner: WRITER },
   {
     rpc: "reverse_vendor_credit_note_atomic",
     state: "reversed",
@@ -72,5 +73,43 @@ describe("vendor credit note — every lifecycle transition is server-emitted", 
     for (const id of ["submit", "approve", "reject", "cancel", "dispute"]) {
       expect(actions.includes(`id: "${id}"`), `action "${id}" is missing`).toBe(true);
     }
+  });
+});
+
+/**
+ * Phase 7 — settlement. Applications are money movements: they touch a bill,
+ * the credit ledger and the general ledger in one breath. The browser may
+ * choose the bill and the amount, never write the consequences.
+ */
+describe("vendor credit note — settlement stays server-authoritative", () => {
+  const writer = read(WRITER);
+  const PANEL = "src/features/purchases/credit-notes/VendorCreditNoteApplications.tsx";
+  const READ_HOOK = "src/features/purchases/credit-notes/useVendorCreditNoteApplications.ts";
+
+  it("the writer never touches bills or application rows directly", () => {
+    const direct =
+      /\.from\(\s*["'`](bills|vendor_credit_note_applications|vendor_credit_movements)["'`]\s*\)[\s\S]{0,160}?\.(insert|update|delete|upsert)\(/;
+    expect(
+      direct.test(writer),
+      "Settlement side effects belong to apply/unapply RPCs, not to the client",
+    ).toBe(false);
+  });
+
+  it("the applications panel mutates only through the writer hook", () => {
+    const panel = read(PANEL);
+    expect(panel).toMatch(/applyToBill/);
+    expect(panel).toMatch(/unapplyCreditApplication/);
+    expect(
+      /\.from\(/.test(panel),
+      "The panel must not query or write Supabase directly",
+    ).toBe(false);
+  });
+
+  it("the applications read hook is read-only", () => {
+    const hook = read(READ_HOOK);
+    expect(
+      /\.(insert|update|delete|upsert)\(/.test(hook),
+      "useVendorCreditNoteApplications is a projection, not a writer",
+    ).toBe(false);
   });
 });
