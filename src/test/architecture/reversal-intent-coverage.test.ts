@@ -23,6 +23,8 @@ const INTENT_DOCUMENT_TYPES = new Set([
   "bill",
   "bill_payment",
   "goods_receipt",
+  // resolve_reversal_intent_vendor_credit_note (ADR 0132 Phase 4)
+  "vendor_credit_note",
   // resolve_reversal_intent_pos / _payroll (Phase 5.5)
   "pos_transaction",
   "payroll_run",
@@ -55,6 +57,7 @@ describe("reversal intent coverage", () => {
     );
     expect(src).toContain('"pos_transaction"');
     expect(src).toContain('"payroll_run"');
+    expect(src).toContain('"vendor_credit_note"');
   });
 
   it("no reversal dialog hard-codes a reason list", () => {
@@ -68,6 +71,10 @@ describe("reversal intent coverage", () => {
       // reason list; it is not a screen-local fork. No other file may declare
       // reversal reason codes.
       if (file.endsWith("services/pos/reversal/reasonCodes.ts")) continue;
+      // Documented exemption: `PURCHASE_RETURN_REASON_CODES` is the *return*
+      // taxonomy (why goods went back to a vendor), not a reversal reason
+      // vocabulary. It never feeds `assert_reversal_reason`.
+      if (file.endsWith("lib/purchases/purchaseReturnRpcs.ts")) continue;
       const src = readFileSync(file, "utf8");
       // A local array literal of reason codes is the drift we ban; the codes
       // must come from `reversal_reason_codes` via the shared hook.
