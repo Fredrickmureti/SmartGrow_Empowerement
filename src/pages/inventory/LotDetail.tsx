@@ -105,6 +105,16 @@ function isInbound(mt: string) {
   return INBOUND_TYPES.has(mt);
 }
 
+/**
+ * supabase-js parses every select string literal at the type level. These two
+ * queries each pull several nested relations, which tips `tsc` into TS2589
+ * ("type instantiation is excessively deep"). Widening the argument to plain
+ * `string` skips that parsing; the row shapes are pinned by the explicit
+ * `LotHeader` / `MovementRow` casts below.
+ */
+const sel = (s: string): string => s;
+
+
 export default function LotDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
