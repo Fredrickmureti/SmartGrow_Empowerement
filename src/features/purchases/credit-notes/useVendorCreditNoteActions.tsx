@@ -412,5 +412,5 @@ export function useVendorCreditNoteActions(
     </>
   );
 
-  return Object.assign(actions, { actions, dialog });
+  return { actions, dialog };
 }
