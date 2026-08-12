@@ -238,7 +238,7 @@ export default function ReportCenter() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Quick Access
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-3 @md/page:grid-cols-2 @3xl/page:grid-cols-3 @5xl/page:grid-cols-4 @7xl/page:grid-cols-5">
                 {(() => {
                   // Favorites first; otherwise the curated default set.
                   const quickReports = favoriteReports.length > 0
