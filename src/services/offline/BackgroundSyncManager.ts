@@ -143,12 +143,11 @@ class BackgroundSyncManager {
   /**
    * Check real connectivity by making a lightweight request.
    *
-   * IMPORTANT: Reachability ≠ authorization. The Supabase REST root
-   * (`/rest/v1/`) requires an apikey; without one it returns 401. A 401/403
-   * still proves DNS, TLS, and the server are up — which is exactly what a
-   * connectivity probe should care about. Only network/abort/DNS failure
-   * counts as offline. Sending the public anon key avoids the 401 entirely
-   * and keeps the console clean.
+   * IMPORTANT: Reachability ≠ authorization. We probe `/auth/v1/health`,
+   * which answers 200 with only the anon apikey — the PostgREST root
+   * (`/rest/v1/`) also needs an Authorization bearer and otherwise answers
+   * 401, which flooded the console on every poll. A 401/403 is still treated
+   * as "reachable" below; only network/abort/DNS failure counts as offline.
    */
   private async checkRealConnectivity(): Promise<boolean> {
     try {
@@ -166,13 +165,14 @@ class BackgroundSyncManager {
         | undefined;
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`,
+        `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`,
         {
-          method: "HEAD",
+          method: "GET",
           signal: controller.signal,
           headers: apikey ? { apikey } : undefined,
         },
       );
+
 
       clearTimeout(timeout);
       // 2xx = OK, 401/403 = server reachable but unauthenticated (still "online")
