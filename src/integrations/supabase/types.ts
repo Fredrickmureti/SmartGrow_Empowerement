@@ -96564,52 +96564,29 @@ export type Database = {
         Args: { p_action: string; p_factor_type?: string }
         Returns: undefined
       }
-      record_multi_bill_payment:
-        | {
-            Args: {
-              _allocations: Json
-              _bank_account_id?: string
-              _branch_id?: string
-              _business_id: string
-              _created_by?: string
-              _credit_account_id?: string
-              _notes?: string
-              _org_id: string
-              _payable_account_id?: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-              _request_id?: string
-              _total_amount: number
-              _vendor_id: string
-              _wht_account_id?: string
-              _wht_rate?: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _allocations: Json
-              _bank_account_id?: string
-              _branch_id?: string
-              _business_id: string
-              _created_by?: string
-              _credit_account_id?: string
-              _exchange_rate?: number
-              _notes?: string
-              _org_id: string
-              _payable_account_id?: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-              _request_id?: string
-              _total_amount: number
-              _vendor_id: string
-              _wht_account_id?: string
-              _wht_rate?: number
-            }
-            Returns: Json
-          }
+      record_multi_bill_payment: {
+        Args: {
+          _allocations: Json
+          _bank_account_id?: string
+          _branch_id?: string
+          _business_id: string
+          _created_by?: string
+          _credit_account_id?: string
+          _exchange_rate?: number
+          _notes?: string
+          _org_id: string
+          _payable_account_id?: string
+          _payment_date: string
+          _payment_method?: string
+          _reference?: string
+          _request_id?: string
+          _total_amount: number
+          _vendor_id: string
+          _wht_account_id?: string
+          _wht_rate?: number
+        }
+        Returns: Json
+      }
       record_multi_invoice_payment: {
         Args: {
           _allocations: Json
