@@ -77,6 +77,25 @@ describe("no parallel client FX engines", () => {
   });
 });
 
+describe("platform billing normalisation", () => {
+  it("has exactly one USD normalisation helper, delegating to the rate book", () => {
+    const helper = read("src/services/fx/platformUsd.ts");
+    expect(helper).toMatch(/resolveRateFromBook/);
+    for (const f of ["src/hooks/usePlatformAdmin.ts", "src/pages/admin/AdminAnalytics.tsx"]) {
+      const src = read(f);
+      expect(src).toMatch(/@\/services\/fx\/platformUsd/);
+      // No local toUSD engine may be reintroduced.
+      expect(src).not.toMatch(/function toUSD\(/);
+    }
+  });
+
+  it("an unconvertible amount is excluded, never counted at 1:1", () => {
+    const helper = read("src/services/fx/platformUsd.ts");
+    expect(helper).toMatch(/return rate === null \? null : amount \* rate;/);
+    expect(helper).not.toMatch(/return amount;/);
+  });
+});
+
 describe("FX admin surface (ADR 0136 provenance)", () => {
   const settings = read("src/components/settings/CurrencySettings.tsx");
 
