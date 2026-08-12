@@ -264,7 +264,7 @@ export default function BillingBoard() {
         activity: tariffForm.activity,
         uom: tariffForm.uom.trim() || "unit",
         rate: Number(tariffForm.rate),
-        currency: tariffForm.currency.trim().toUpperCase() || "USD",
+        currency: tariffForm.currency.trim().toUpperCase() || currentBusiness.base_currency,
         effective_from: tariffForm.effective_from,
         notes: tariffForm.notes.trim() || null,
         min_charge: num(tariffForm.min_charge),

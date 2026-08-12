@@ -48,7 +48,7 @@ export function ProjectReportsMenu({ projectId, projectName }: Props) {
 
   const yearStart = useMemo(() => startOfYear(new Date()).toISOString().slice(0, 10), []);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const baseCurrency = currentBusiness?.base_currency || "USD";
+  const baseCurrency = currentBusiness?.base_currency ?? "";
 
   function buildConfig(): ExportConfig {
     if (!active) {

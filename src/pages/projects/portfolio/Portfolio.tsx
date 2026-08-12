@@ -122,7 +122,7 @@ export default function ProjectsPortfolio() {
     return () => { cancelled = true; };
   }, [currentOrg, currentBusiness, projects]);
 
-  const baseCurrency = currentBusiness?.base_currency || "USD";
+  const baseCurrency = currentBusiness?.base_currency ?? "";
   const cards = useMemo(() => ([
     { label: "Active projects", value: kpis?.activeProjects ?? 0, icon: FolderKanban },
     { label: "Hours this week", value: (kpis?.hoursWeek ?? 0).toFixed(1), icon: Clock },

@@ -174,7 +174,7 @@ export function MilestoneForm({
             label={`Billing amount${requiresAmount ? "" : ""}`}
             htmlFor="ms-amount"
             required={requiresAmount}
-            hint={`${project.currency || "USD"} — invoiced on completion if billed by milestone.`}
+            hint={`${project.currency ? `${project.currency} — ` : ""}invoiced on completion if billed by milestone.`}
           >
             <Input
               id="ms-amount"

@@ -46,7 +46,7 @@ export function useCheapestPlanForApp(appId: string | null | undefined) {
         plan_name: row.plan_name,
         price_monthly:
           row.price_monthly == null ? null : Number(row.price_monthly),
-        currency: row.currency || "USD",
+        currency: row.currency || "USD", // architecture-allow: display-only fallback — platform plan prices are USD
       };
     },
   });

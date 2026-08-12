@@ -126,7 +126,7 @@ async function loadCapabilities(
 /** The synthetic sale a test print exercises. Presentation-only. */
 function buildFixtureSnapshot(args: TestPrintArgs): Record<string, unknown> {
   const branding = args.branding ?? {};
-  const currency = branding.base_currency || "USD";
+  const currency = branding.base_currency || "USD"; // architecture-allow: display-only fallback — test-print fixture, never posted
   const settings = args.receiptSettings ?? {};
   const total = 10.02;
   return {

@@ -77,7 +77,7 @@ export default function ProjectReports() {
   const { projects } = useProjects();
   const { can } = usePermissions();
   const canFinancials = can("manageProjectFinancials");
-  const baseCurrency = currentBusiness?.base_currency || "USD";
+  const baseCurrency = currentBusiness?.base_currency ?? "";
 
   const [params, setParams] = useSearchParams();
 

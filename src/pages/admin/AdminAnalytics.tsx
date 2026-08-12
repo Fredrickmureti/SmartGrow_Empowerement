@@ -27,6 +27,7 @@ import {
   Cell,
 } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { toPlatformUsd, sumPlatformUsd } from "@/services/fx/platformUsd";
 
 interface MonthlyData {
   month: string;
@@ -36,20 +37,6 @@ interface MonthlyData {
 interface RevenueData {
   month: string;
   revenue: number; // USD
-}
-
-function toUSD(
-  amount: number,
-  from: string,
-  rates: Array<{ from_currency: string; to_currency: string; rate: number }>,
-): number {
-  const f = (from || "USD").toUpperCase();
-  if (f === "USD") return amount;
-  const direct = rates.find((r) => r.from_currency === f && r.to_currency === "USD");
-  if (direct) return amount * Number(direct.rate);
-  const reverse = rates.find((r) => r.from_currency === "USD" && r.to_currency === f);
-  if (reverse && Number(reverse.rate) !== 0) return amount / Number(reverse.rate);
-  return amount;
 }
 
 export default function AdminAnalytics() {
@@ -124,10 +111,10 @@ export default function AdminAnalytics() {
         });
         return {
           month: label,
-          revenue: monthPayments.reduce(
-            (sum: number, p: any) => sum + toUSD(Number(p.amount || 0), p.currency || "USD", ratesArr),
-            0,
-          ),
+          revenue: sumPlatformUsd(
+            monthPayments.map((p: any) => ({ amount: Number(p.amount || 0), currency: p.currency })),
+            ratesArr,
+          ).total,
         };
       });
       setRevenueByMonth(monthlyData);
@@ -162,7 +149,7 @@ export default function AdminAnalytics() {
             plan.billing_period === "yearly"
               ? Number(plan.price_yearly || 0) / 12
               : Number(plan.price_monthly || 0);
-          mrr += toUSD(monthly, plan.currency || "USD", ratesArr);
+          mrr += toPlatformUsd(monthly, plan.currency, ratesArr) ?? 0;
         }
       });
 
@@ -176,10 +163,11 @@ export default function AdminAnalytics() {
         ].filter((s) => s.value > 0),
       );
 
-      const lifetimeRevenue = succeeded.reduce(
-        (sum: number, p: any) => sum + toUSD(Number(p.amount || 0), p.currency || "USD", ratesArr),
-        0,
-      );
+      // Unconvertible payments are excluded rather than counted at 1:1 (ADR 0136).
+      const lifetimeRevenue = sumPlatformUsd(
+        succeeded.map((p: any) => ({ amount: Number(p.amount || 0), currency: p.currency })),
+        ratesArr,
+      ).total;
 
       setTotals({
         totalRevenue: lifetimeRevenue,

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlatformIdentity } from "@/contexts/PlatformIdentityContext";
+import { toPlatformUsd, sumPlatformUsd } from "@/services/fx/platformUsd";
 
 export interface PlatformStats {
   totalOrganizations: number;
@@ -25,20 +26,6 @@ export interface PlatformStats {
   subscriptionStatusBreakdown: Array<{ name: string; value: number; color: string }>;
 }
 
-/**
- * Convert an amount in `from` currency to USD using a rates map fetched from
- * `platform_exchange_rates` (rows of `from_currency -> to_currency` rate).
- * Returns the original amount if no path exists, never silently inflates.
- */
-function toUSD(amount: number, from: string, rates: Array<{ from_currency: string; to_currency: string; rate: number }>): number {
-  const f = (from || "USD").toUpperCase();
-  if (f === "USD") return amount;
-  const direct = rates.find((r) => r.from_currency === f && r.to_currency === "USD");
-  if (direct) return amount * Number(direct.rate);
-  const reverse = rates.find((r) => r.from_currency === "USD" && r.to_currency === f);
-  if (reverse && Number(reverse.rate) !== 0) return amount / Number(reverse.rate);
-  return amount;
-}
 
 export function usePlatformAdmin() {
   const { isPlatformAdmin, platformRole, isChecking, refresh } = usePlatformIdentity();
@@ -81,10 +68,18 @@ export function usePlatformAdmin() {
       const succeeded = (payments || []).filter(
         (p: any) => p.status === "succeeded" || p.status === "completed",
       );
-      const totalRevenue = succeeded.reduce(
-        (sum: number, p: any) => sum + toUSD(Number(p.amount || 0), p.currency || "USD", ratesArr),
-        0,
+      // Amounts whose currency has no rate on file are excluded, not counted
+      // at 1:1 (ADR 0136).
+      const revenueSum = sumPlatformUsd(
+        succeeded.map((p: any) => ({ amount: Number(p.amount || 0), currency: p.currency })),
+        ratesArr,
       );
+      if (revenueSum.unconvertible > 0) {
+        console.warn(
+          `[usePlatformAdmin] ${revenueSum.unconvertible} payment(s) excluded from revenue: no USD rate on file`,
+        );
+      }
+      const totalRevenue = revenueSum.total;
       const payingOrganizations = new Set(succeeded.map((p: any) => p.organization_id)).size;
 
       // ---- MRR / ARR from active orgs * their plan price ----
@@ -104,12 +99,11 @@ export function usePlatformAdmin() {
         if (status === "active" && !org.is_suspended && org.subscription_plan_id) {
           const plan = planById.get(org.subscription_plan_id);
           if (!plan) return;
-          const planCurrency = plan.currency || "USD";
           const monthly =
             plan.billing_period === "yearly"
               ? Number(plan.price_yearly || 0) / 12
               : Number(plan.price_monthly || 0);
-          mrr += toUSD(monthly, planCurrency, ratesArr);
+          mrr += toPlatformUsd(monthly, plan.currency, ratesArr) ?? 0;
         }
       });
       const arr = mrr * 12;

@@ -18,8 +18,10 @@ interface PoRow { id: string; po_number: string; status: string; order_date: str
 interface BillRow { id: string; bill_number: string; status: string; bill_date: string | null; due_date: string | null; total: number; currency: string | null; }
 interface ExpRow { id: string; reference: string | null; status: string; expense_date: string | null; amount: number; currency: string | null; description: string | null; }
 
+// No currency on the record means no figure — an unconverted number must
+// never be shown wearing a currency it was not denominated in (ADR 0136).
 const fmtMoney = (n: number, c?: string | null) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency: c || "USD" }).format(n || 0);
+  c ? new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(n || 0) : "—";
 
 export default function PurchasesTab() {
   const { project } = useProjectWorkspace();

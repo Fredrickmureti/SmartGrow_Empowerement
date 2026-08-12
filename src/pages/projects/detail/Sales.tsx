@@ -41,8 +41,10 @@ interface SoRow {
   currency: string | null;
 }
 
+// No currency on the record means no figure — an unconverted number must
+// never be shown wearing a currency it was not denominated in (ADR 0136).
 const fmtMoney = (n: number, c?: string | null) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency: c || "USD" }).format(n || 0);
+  c ? new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(n || 0) : "—";
 
 export default function SalesTab() {
   const { project } = useProjectWorkspace();

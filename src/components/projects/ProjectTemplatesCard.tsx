@@ -38,7 +38,7 @@ export function ProjectTemplatesCard() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [billable, setBillable] = useState(true);
-  const [currency, setCurrency] = useState(currentBusiness?.base_currency || "USD");
+  const [currency, setCurrency] = useState(currentBusiness?.base_currency ?? "");
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {

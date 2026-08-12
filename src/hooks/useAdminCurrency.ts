@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useViewCurrencyPreference } from "@/hooks/useViewCurrencyPreference";
 import { normalizeError } from "@/services/resilience";
+import { resolveRateFromBook, type RateBookRow } from "@/services/fx/rateBook";
+
 
 export interface ExchangeRate {
   id: string;
@@ -47,7 +49,7 @@ export function useAdminCurrency() {
   // The displayed currency is whatever the user previously chose. We do NOT
   // narrow it to USD/KES anymore — the Indian/UK/EU admin gets their own
   // ISO code through.
-  const displayCurrency: AdminDisplayCurrency = (viewCurrency || "USD").toUpperCase();
+  const displayCurrency: AdminDisplayCurrency = (viewCurrency || "USD").toUpperCase(); // architecture-allow: display-only fallback — platform billing is denominated in USD
 
   // Fetch exchange rates
   const { data: exchangeRates, isLoading: isLoadingRates } = useQuery({
@@ -78,16 +80,21 @@ export function useAdminCurrency() {
     (target: string): number | null => {
       const t = (target || "").toUpperCase();
       if (!t) return null;
-      if (t === "USD") return 1;
-      const rates = exchangeRates ?? [];
-      const direct = rates.find((r) => r.from_currency === "USD" && r.to_currency === t);
-      if (direct && Number(direct.rate) > 0) return Number(direct.rate);
-      const reverse = rates.find((r) => r.from_currency === t && r.to_currency === "USD");
-      if (reverse && Number(reverse.rate) > 0) return 1 / Number(reverse.rate);
-      return null;
+      // One lookup implementation for the whole client (ADR 0136): the platform
+      // market rows are mapped onto the rate-book shape and resolved by the
+      // shared resolver — no second inversion/precedence implementation lives here.
+      const rows: RateBookRow[] = (exchangeRates ?? []).map((r) => ({
+        from_currency: r.from_currency,
+        to_currency: r.to_currency,
+        rate: r.rate,
+        effective_date: (r.created_at ?? "").split("T")[0] || "1970-01-01",
+        source: "provider",
+      }));
+      return resolveRateFromBook(rows, "USD", t, undefined, "USD");
     },
     [exchangeRates]
   );
+
 
   /** Back-compat helper — `null` when the KES row is absent. No literal fallback. */
   const usdToKesRate = usdToTargetRate("KES");
