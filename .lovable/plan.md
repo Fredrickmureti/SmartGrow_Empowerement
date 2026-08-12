@@ -35,7 +35,18 @@ Client / edge:
 - `VendorCreditNoteRecordPage.tsx` renders the action dialogs.
 - `documentStatus.tsx` has a `disputed` tone.
 
-Verified: full TypeScript typecheck passes with no errors.
+List-surface convergence (this turn):
+- `src/features/purchases/credit-notes/VendorCreditNoteRowActions.tsx` — projects the shared
+  `useVendorCreditNoteActions` set (plus View details) into list rows via `DocumentActionsMenu`,
+  so the row menu can no longer drift from the record page.
+- `src/pages/VendorCreditNotes.tsx` rebuilt onto the enterprise model:
+  - legacy single-`status` badge map deleted; the table now shows commercial **and** accounting
+    states through the shared `DocumentStatusBadge` (`kind="vendor_credit_note"`);
+  - status filter is now the commercial vocabulary including **Disputed**;
+  - the hand-rolled "Apply to Bill" dialog (client-side amount math + direct RPC call) is removed —
+    allocation happens only through the server-authoritative shared action;
+  - exports now carry commercial + accounting states instead of the legacy status.
+- Verified: full TypeScript typecheck passes with no errors.
 
 ## Pending / not yet done
 
@@ -43,7 +54,7 @@ Verified: full TypeScript typecheck passes with no errors.
   (planned in Phase 5, not yet written).
 - Runtime end-to-end proof: create → submit → approve → post → apply → reverse, checking one outbox row per
   transition and one `document_artifacts` row per emailed/printed credit note.
-- Dispute states are not yet surfaced in list filters / analytics tiles.
+- Dispute state is now filterable in the list, but is **not** yet reflected in analytics tiles / KPI cards.
 - Purchase Return → Credit Note lineage is captured in the snapshot but not yet shown as a linked-records
   panel on the record page.
 
