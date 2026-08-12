@@ -238,7 +238,7 @@ export default function ReportCenter() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Quick Access
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-3 @md/page:grid-cols-2 @3xl/page:grid-cols-3 @5xl/page:grid-cols-4 @7xl/page:grid-cols-5">
                 {(() => {
                   // Favorites first; otherwise the curated default set.
                   const quickReports = favoriteReports.length > 0
@@ -250,14 +250,15 @@ export default function ReportCenter() {
                   return quickReports.map((r) => (
                     <Card
                       key={r.name}
-                      className="cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
+                      className="min-w-0 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
                       onClick={() => handleNavigate(r)}
                     >
-                      <CardContent className="flex items-center gap-3 p-4">
+                      <CardContent className="flex min-w-0 items-center gap-3 p-4">
                         <r.icon className="h-5 w-5 text-primary shrink-0" />
-                        <span className="text-sm font-medium">{r.name}</span>
+                        <span className="min-w-0 break-words text-sm font-medium leading-snug">{r.name}</span>
                       </CardContent>
                     </Card>
+
                   ));
                 })()}
               </div>
@@ -285,17 +286,18 @@ export default function ReportCenter() {
                         className="cursor-pointer hover:border-primary/30 hover:bg-accent/30 transition-all group"
                         onClick={() => handleNavigate(report)}
                       >
-                        <CardContent className="flex items-center justify-between p-4">
-                          <div className="flex items-center gap-3">
+                        <CardContent className="flex min-w-0 items-center justify-between gap-2 p-4">
+                          <div className="flex min-w-0 items-center gap-3">
                             <report.icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                            <div>
+                            <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-sm">{report.name}</p>
-                                {isFav && <Star className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                                <p className="font-medium text-sm break-words">{report.name}</p>
+                                {isFav && <Star className="h-3 w-3 shrink-0 text-amber-500 fill-amber-500" />}
                               </div>
-                              <p className="text-xs text-muted-foreground">{report.description}</p>
+                              <p className="text-xs text-muted-foreground break-words">{report.description}</p>
                             </div>
                           </div>
+
                           <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
