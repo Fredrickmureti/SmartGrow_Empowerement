@@ -238,17 +238,21 @@ export function useVendorCreditNotes() {
     await fetchCreditNotes();
   };
 
+  /**
+   * Delete a draft vendor credit note. Server-authoritative:
+   * `delete_vendor_credit_note_atomic` refuses anything that is not a draft
+   * and anything that already carries a journal entry.
+   */
   const deleteVendorCreditNote = async (id: string) => {
-    const cn = creditNotes.find((c) => c.id === id);
-    if (!cn) throw new Error("Credit note not found");
-    if (cn.status !== "draft") throw new Error("Only draft credit notes can be deleted");
-
-    const { error } = await supabase.from("vendor_credit_notes").delete().eq("id", id);
+    const { error } = await supabase.rpc("delete_vendor_credit_note_atomic" as any, {
+      _vcn_id: id,
+    });
     if (error) throw error;
 
     toast({ title: "Credit note deleted" });
     await fetchCreditNotes();
   };
+
 
   /**
    * Apply an issued vendor credit FIFO across one or many bills (ADR 0132).
