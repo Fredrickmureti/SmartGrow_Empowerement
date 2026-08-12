@@ -24,7 +24,7 @@ export default function VendorCreditNoteRecordPage() {
     formatCurrency,
   );
 
-  const actions = useVendorCreditNoteActions(creditNote, {
+  const { actions, dialog: actionDialogs } = useVendorCreditNoteActions(creditNote, {
     onChanged: refresh,
     onDeleted: () => navigate("/purchases/credit-notes"),
     onReverse: () => setReverseOpen(true),
@@ -52,6 +52,7 @@ export default function VendorCreditNoteRecordPage() {
         onOpenChange={setReverseOpen}
         onSuccess={refresh}
       />
+      {actionDialogs}
     </>
   );
 }

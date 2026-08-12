@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -67,6 +67,10 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   // lifecycle commands (draft → … → closed) and client roles have no write
   // privilege on `purchase_returns` at all — emailing must never stamp it.
   purchase_return: { table: "purchase_returns", numberField: "return_number", statusField: undefined, itemsTable: "purchase_return_items", contactField: "vendor_id" },
+  // Vendor (AP) credit note — the supplier-facing claim document. Status is
+  // owned by the ADR 0132 lifecycle commands, so `statusField` is omitted:
+  // emailing must never stamp a commercial state.
+  vendor_credit_note: { table: "vendor_credit_notes", numberField: "credit_note_number", statusField: undefined, itemsTable: "vendor_credit_note_items", contactField: "vendor_id" },
   sales_order: { table: "sales_orders", numberField: "order_number", statusField: "status", itemsTable: "sales_order_items" },
   // Payroll — number is synthesized from payroll_runs.payroll_number; recipient is the employee's work_email/email.
   payslip: { table: "payslips", numberField: "payslip_number", statusField: "status", itemsTable: undefined, contactField: "employee_id" },
@@ -94,6 +98,7 @@ const documentLabels: Record<EmailDocumentType, string> = {
   receipt: "Payment Receipt",
   sales_return: "Sales Return",
   purchase_return: "Purchase Return",
+  vendor_credit_note: "Vendor Credit Note",
   sales_order: "Sales Order",
   report: "Report",
   payslip: "Payslip",
@@ -583,6 +588,10 @@ const handler = async (req: Request): Promise<Response> => {
   } else if (documentType === "purchase_return") {
     // The counterparty on a return is the supplier that shipped the goods.
     selectQuery = `*, contact:contacts!purchase_returns_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
+  } else if (documentType === "vendor_credit_note") {
+    // The counterparty on a vendor credit note is the supplier we are
+    // claiming against.
+    selectQuery = `*, contact:contacts!vendor_credit_notes_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "payslip") {
     // Payslip recipient is the employee — there is no `contacts` row. We
     // alias the employee join as `contact` so the rest of the pipeline

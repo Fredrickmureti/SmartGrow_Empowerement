@@ -19,15 +19,15 @@ import { downloadExport } from "@/services/exports/documentExport";
 /**
  * Only document types registered in `resolveSourceDocumentRecord` can be
  * downloaded — a download renders a frozen snapshot, so a type without a
- * snapshot builder has nothing to render. Vendor credit notes are absent
- * deliberately: they have no snapshot builder yet.
+ * snapshot builder has nothing to render.
  */
 export type RecordDownloadKind =
   | "bill"
   | "purchase_order"
   | "purchase_return"
   | "rfq"
-  | "purchase_requisition";
+  | "purchase_requisition"
+  | "vendor_credit_note";
 
 export function useRecordDownload(kind: RecordDownloadKind) {
   const { toast } = useToast();

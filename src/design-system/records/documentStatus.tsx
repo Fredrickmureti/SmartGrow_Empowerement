@@ -154,6 +154,7 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
   },
   vendor_credit_note: {
     issued: { label: "Issued", tone: "info" },
+    disputed: { label: "Disputed by supplier", tone: "warning" },
     applied: { label: "Applied", tone: "success" },
     void: { label: "Voided", tone: "danger" },
   },

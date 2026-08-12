@@ -67064,6 +67064,11 @@ export type Database = {
           credit_date: string
           credit_note_number: string
           currency: string
+          dispute_reason: string | null
+          dispute_resolved_at: string | null
+          dispute_resolved_by: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           exchange_rate: number | null
           exchange_rate_date: string | null
           goods_receipt_id: string | null
@@ -67115,6 +67120,11 @@ export type Database = {
           credit_date?: string
           credit_note_number: string
           currency?: string
+          dispute_reason?: string | null
+          dispute_resolved_at?: string | null
+          dispute_resolved_by?: string | null
+          disputed_at?: string | null
+          disputed_by?: string | null
           exchange_rate?: number | null
           exchange_rate_date?: string | null
           goods_receipt_id?: string | null
@@ -67166,6 +67176,11 @@ export type Database = {
           credit_date?: string
           credit_note_number?: string
           currency?: string
+          dispute_reason?: string | null
+          dispute_resolved_at?: string | null
+          dispute_resolved_by?: string | null
+          disputed_at?: string | null
+          disputed_by?: string | null
           exchange_rate?: number | null
           exchange_rate_date?: string | null
           goods_receipt_id?: string | null
@@ -83478,6 +83493,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      _emit_vcn_outbox: {
+        Args: {
+          _state: string
+          _vcn: Database["public"]["Tables"]["vendor_credit_notes"]["Row"]
+        }
+        Returns: undefined
+      }
       _execute_organization_delete:
         | { Args: { _job_id: string; _org_id: string }; Returns: undefined }
         | { Args: { p_org_id: string }; Returns: Json }
@@ -84174,6 +84196,11 @@ export type Database = {
           credit_date: string
           credit_note_number: string
           currency: string
+          dispute_reason: string | null
+          dispute_resolved_at: string | null
+          dispute_resolved_by: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           exchange_rate: number | null
           exchange_rate_date: string | null
           goods_receipt_id: string | null
@@ -99104,8 +99131,16 @@ export type Database = {
         Args: { _id: string; _reason?: string }
         Returns: Json
       }
+      vendor_credit_note_dispute: {
+        Args: { _id: string; _reason?: string }
+        Returns: Json
+      }
       vendor_credit_note_reject: {
         Args: { _id: string; _reason?: string }
+        Returns: Json
+      }
+      vendor_credit_note_resolve_dispute: {
+        Args: { _id: string; _outcome: string }
         Returns: Json
       }
       vendor_credit_note_submit: { Args: { _id: string }; Returns: Json }

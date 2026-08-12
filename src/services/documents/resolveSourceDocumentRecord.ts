@@ -40,6 +40,7 @@ import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots
 import { fetchAndBuildPurchasesRfqSnapshot } from "@/services/documents/snapshots/purchasesRfq";
 import { fetchAndBuildPurchasesRequisitionSnapshot } from "@/services/documents/snapshots/purchasesRequisition";
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
+import { fetchAndBuildVendorCreditNoteSnapshot } from "@/services/documents/snapshots/purchasesVendorCreditNote";
 import { fetchAndBuildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import {
@@ -266,6 +267,14 @@ const REGISTRY: Record<string, RegistryEntry> = {
     partyKind: "supplier",
     build: wrap(fetchAndBuildPurchasesReturnSnapshot),
   },
+  vendor_credit_note: {
+    kindCode: "purchases.credit_note",
+    sourceModule: "purchases",
+    sourceDocType: "vendor_credit_note",
+    partyKind: "supplier",
+    build: wrap(fetchAndBuildVendorCreditNoteSnapshot),
+  },
+
   goods_receipt: {
     kindCode: "purchases.grn",
     sourceModule: "purchases",

@@ -21,13 +21,15 @@ import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { fetchAndBuildPurchasesRfqSnapshot } from "@/services/documents/snapshots/purchasesRfq";
 import { fetchAndBuildPurchasesRequisitionSnapshot } from "@/services/documents/snapshots/purchasesRequisition";
+import { fetchAndBuildVendorCreditNoteSnapshot } from "@/services/documents/snapshots/purchasesVendorCreditNote";
 
 export type RecordPrintKind =
   | "bill"
   | "purchase_order"
   | "purchase_return"
   | "rfq"
-  | "purchase_requisition";
+  | "purchase_requisition"
+  | "vendor_credit_note";
 
 const KIND_CONFIG: Record<
   RecordPrintKind,
@@ -71,6 +73,11 @@ const KIND_CONFIG: Record<
     sourceDocType: "purchase_requisition",
     partyKind: null,
     build: fetchAndBuildPurchasesRequisitionSnapshot,
+  },
+  vendor_credit_note: {
+    kindCode: "purchases.credit_note",
+    sourceDocType: "vendor_credit_note",
+    build: fetchAndBuildVendorCreditNoteSnapshot,
   },
 };
 

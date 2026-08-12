@@ -19,7 +19,7 @@ import { Loader2, Mail, Paperclip, X, FileText, Plus } from "lucide-react";
 import { AIEmailAssistant } from "@/components/email/AIEmailAssistant";
 import { normalizeError } from "@/services/resilience";
 
-export type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "vendor_statement" | "receipt" | "sales_return" | "sales_order" | "payslip" | "pos_receipt" | "contract_letter" | "purchase_return";
+export type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "vendor_statement" | "receipt" | "sales_return" | "sales_order" | "payslip" | "pos_receipt" | "contract_letter" | "purchase_return" | "vendor_credit_note";
 
 export interface DocumentEmailData {
   documentType: DocumentType;
@@ -66,6 +66,7 @@ const getDocumentLabel = (type: DocumentType): string => {
     receipt: "Payment Receipt",
     sales_return: "Sales Return",
     purchase_return: "Purchase Return",
+    vendor_credit_note: "Vendor Credit Note",
     sales_order: "Sales Order",
     payslip: "Payslip",
     pos_receipt: "Sales Receipt",
