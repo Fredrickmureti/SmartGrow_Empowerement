@@ -8,6 +8,6 @@ Every purchasing document keys `vendor_id → contacts.id` (party), never `suppl
 Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 
 ## Memories
-- [Currency & FX](mem://features/currency-and-fx-resolution) — ISO-code wire format, supplier currency as proposal default, rate resolvers, purchasing currency triggers
+- [Currency & FX](mem://features/currency-and-fx-resolution) — one rate book + precedence, provider publisher, document rate snapshots, realized FX at settlement, single client lookup
 - [Supplier / vendor master](mem://features/supplier-vendor-master) — party vs role, purchasability gate, RPC-only supplier writes, Supplier 360
 - [Salesperson performance](mem://features/salesperson-performance) — canonical projection and attribution rules
