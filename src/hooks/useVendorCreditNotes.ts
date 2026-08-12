@@ -238,7 +238,12 @@ export function useVendorCreditNotes() {
       _credit_date: updates.credit_date ?? null,
       _notes: updates.notes ?? null,
       _items: items.map((item, i) => ({ ...item, sort_order: i })),
+      _origin: updates.origin ?? null,
+      _reason_code: updates.reason_code ?? null,
+      _vendor_document_number: updates.vendor_document_number ?? null,
+      _vendor_document_date: updates.vendor_document_date ?? null,
     });
+
     if (error) throw error;
 
 
