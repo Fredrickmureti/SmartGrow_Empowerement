@@ -79,10 +79,9 @@ export default function PurchaseReturnCreatePage() {
   const [adjustDescription, setAdjustDescription] = useState("");
   const [adjustAmount, setAdjustAmount] = useState(0);
 
-  const vendors = useMemo(
-    () => contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active),
-    [contacts],
-  );
+  // Canonical gate: suspended / blocked / archived supplier roles are not
+  // offered; trg_purchase_returns_supplier_purchasable enforces it server-side.
+  const vendors = usePurchasableVendors(contacts as any) as typeof contacts;
 
   const { receipts, loading: receiptsLoading } = useReturnableReceipts(vendorId || null);
   const { lines, loading: linesLoading, error: linesError } = useReturnableReceiptLines(
