@@ -69,3 +69,58 @@ export async function reinstateSupplier(
   if (error) throw error;
   return data;
 }
+
+/**
+ * Server-authoritative supplier creation.
+ *
+ * Party (contacts) + procurement role (suppliers) are written in one
+ * transaction by `public.create_supplier`. Passing `contactId` promotes an
+ * existing party to the supplier role (ADR-0038 dual-role) instead of
+ * duplicating it. Retries are idempotent: an existing supplier for the same
+ * (business, contact) pair is returned rather than re-created.
+ */
+export interface CreateSupplierInput {
+  businessId: string;
+  contactId?: string | null;
+  name?: string;
+  email?: string;
+  phone?: string;
+  taxId?: string;
+  notes?: string;
+  supplierCode?: string;
+  categoryId?: string | null;
+  defaultCurrency?: string;
+  defaultIncoterms?: string;
+  defaultLeadTimeDays?: number | null;
+}
+
+export interface CreateSupplierResult {
+  success: boolean;
+  error?: string;
+  supplier_id?: string;
+  contact_id?: string;
+  created?: boolean;
+}
+
+export async function createSupplier(
+  input: CreateSupplierInput,
+): Promise<CreateSupplierResult> {
+  const { data, error } = await (supabase as any).rpc("create_supplier", {
+    p_business_id: input.businessId,
+    p_contact_id: input.contactId ?? null,
+    p_name: input.name ?? null,
+    p_email: input.email ?? null,
+    p_phone: input.phone ?? null,
+    p_tax_id: input.taxId ?? null,
+    p_notes: input.notes ?? null,
+    p_supplier_code: input.supplierCode ?? null,
+    p_category_id: input.categoryId ?? null,
+    p_default_currency: input.defaultCurrency ?? null,
+    p_default_incoterms: input.defaultIncoterms ?? null,
+    p_default_lead_time_days: input.defaultLeadTimeDays ?? null,
+  });
+  if (error) throw error;
+  const res = (data ?? {}) as CreateSupplierResult;
+  if (!res.success) throw new Error(res.error ?? "Failed to create supplier");
+  return res;
+}
