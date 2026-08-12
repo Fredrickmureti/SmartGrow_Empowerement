@@ -67007,6 +67007,7 @@ export type Database = {
           bill_id: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           created_at: string
           created_by: string | null
           credit_date: string
@@ -67033,6 +67034,7 @@ export type Database = {
           bill_id?: string | null
           branch_id?: string | null
           business_id: string
+          client_request_id?: string | null
           created_at?: string
           created_by?: string | null
           credit_date?: string
@@ -67059,6 +67061,7 @@ export type Database = {
           bill_id?: string | null
           branch_id?: string | null
           business_id?: string
+          client_request_id?: string | null
           created_at?: string
           created_by?: string | null
           credit_date?: string
@@ -85528,6 +85531,7 @@ export type Database = {
           bill_id: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           created_at: string
           created_by: string | null
           credit_date: string
@@ -87842,6 +87846,7 @@ export type Database = {
           _bill_id: string
           _branch_id: string
           _business_id: string
+          _client_request_id?: string
           _credit_date: string
           _issue?: boolean
           _items: Json
@@ -87910,6 +87915,10 @@ export type Database = {
       delete_terminal_provider_config: {
         Args: { p_config_id: string }
         Returns: undefined
+      }
+      delete_vendor_credit_note_atomic: {
+        Args: { _vcn_id: string }
+        Returns: Json
       }
       delete_warehouse_safely: {
         Args: { p_warehouse_id: string }
@@ -98470,6 +98479,17 @@ export type Database = {
           p_items: Json
           p_so_id: string
           p_user_id?: string
+        }
+        Returns: Json
+      }
+      update_vendor_credit_note_atomic: {
+        Args: {
+          _bill_id?: string
+          _credit_date?: string
+          _items?: Json
+          _notes?: string
+          _vcn_id: string
+          _vendor_id?: string
         }
         Returns: Json
       }
