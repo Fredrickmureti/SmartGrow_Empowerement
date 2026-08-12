@@ -430,11 +430,16 @@ export function useVendorCreditNotes() {
     getNextCreditNoteNumber,
     createVendorCreditNote,
     updateVendorCreditNote,
+    submitVendorCreditNote,
+    approveVendorCreditNote,
+    rejectVendorCreditNote,
+    cancelVendorCreditNote,
     confirmVendorCreditNote,
     deleteVendorCreditNote,
     applyToBill,
     applyCreditFifo,
     refreshCreditNotes: fetchCreditNotes,
   };
+
 }
 
