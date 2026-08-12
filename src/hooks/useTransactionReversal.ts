@@ -95,7 +95,9 @@ export type ReversalDocumentType =
   /** ADR 0132 Phase 4 — reversal of a posted vendor credit note. */
   | "vendor_credit_note"
   /** ADR 0134 — expense void goes through intent + preview like every other reversal. */
-  | "expense";
+  | "expense"
+  /** ADR 0134 — a paid customer refund resolves intent too, and refuses honestly. */
+  | "customer_refund";
 
 export type ReversalOperation =
   | "void"
