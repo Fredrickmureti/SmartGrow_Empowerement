@@ -42,6 +42,7 @@ import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvid
 import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
 import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 import { useDocumentEmail } from "@/features/purchases/record/useDocumentEmail";
+import { resolveSourceDocumentRecordId } from "@/services/documents/resolveSourceDocumentRecord";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 import {
@@ -293,8 +294,21 @@ export function useVendorCreditNoteActions(
         icon: Mail,
         group: "output",
         hidden: !cn.vendor_id,
-        onSelect: () =>
-          send({
+        // Email attaches the canonical artifact, so the snapshot is frozen
+        // first — otherwise the mailer would have nothing archived to render.
+        onSelect: () => {
+          void (async () => {
+            try {
+              await resolveSourceDocumentRecordId("vendor_credit_note", cn.id);
+            } catch (error: unknown) {
+              toast({
+                title: "Could not prepare the document",
+                description: normalizeError(error).message,
+                variant: "destructive",
+              });
+              return;
+            }
+            send({
             documentType: "vendor_credit_note",
             documentId: cn.id,
             documentNumber: cn.credit_note_number,
@@ -302,7 +316,9 @@ export function useVendorCreditNoteActions(
             recipientName: cn.vendor?.name ?? "",
             total: cn.total,
             currency: cn.currency ?? undefined,
-          }),
+            });
+          })();
+        },
       },
       {
         id: "print",
