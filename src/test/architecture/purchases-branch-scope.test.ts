@@ -26,7 +26,7 @@ const TABLES = [
   "vendor_credit_notes",
   "rfqs",
   "expenses",
-  "vendor_pricelists",
+  "supplier_item_terms",
   "vendor_statements",
 ] as const;
 
