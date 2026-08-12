@@ -56,6 +56,12 @@ export const REVERSIBLE_DOCUMENTS: ReversibleDocument[] = [
   },
   { documentType: "expense", module: "purchases", label: "Expense", table: "expenses" },
   {
+    documentType: "vendor_credit_note",
+    module: "purchases",
+    label: "Vendor credit note",
+    table: "vendor_credit_notes",
+  },
+  {
     documentType: "goods_receipt",
     module: "receiving",
     label: "Goods receipt",

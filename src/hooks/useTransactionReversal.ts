@@ -91,7 +91,9 @@ export type ReversalDocumentType =
   | "payment"
   | "bill"
   | "bill_payment"
-  | "goods_receipt";
+  | "goods_receipt"
+  /** ADR 0132 Phase 4 — reversal of a posted vendor credit note. */
+  | "vendor_credit_note";
 
 export type ReversalOperation =
   | "void"
@@ -1032,6 +1034,71 @@ export function useTransactionReversal() {
     }
   };
 
+  /**
+   * ADR 0132 Phase 4 — reverse a POSTED vendor credit note.
+   *
+   * `reverse_vendor_credit_note_atomic` owns every leg in one transaction:
+   * unwinding live bill applications, voiding the credit-note journal entry
+   * through `void_journal_entry_atomic`, and writing the compensating
+   * `vendor_credit_movements` rows that give the credit balance back. Never
+   * unwind an application or touch a bill balance from the client.
+   */
+  const reverseVendorCreditNote = async (options: {
+    creditNoteId: string;
+    reason: string;
+    /** Code from `reversal_reason_codes` (ADR 0129) — validated server-side. */
+    reasonCode: string;
+    reversalDate?: string;
+  }): Promise<boolean> => {
+    if (!currentOrg || !user) {
+      toast({ title: "Error", description: "Organization or user not available", variant: "destructive" });
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("reverse_vendor_credit_note_atomic" as any, {
+        _vcn_id: options.creditNoteId,
+        _reason: options.reason,
+        _reason_code: options.reasonCode,
+        _reversal_date: options.reversalDate ?? null,
+        _actor: user.id,
+        _client_request_id: null,
+      } as any);
+      if (error) throw error;
+
+      const result = (data ?? {}) as { result?: string; credit_note_number?: string | null };
+      const label = result.credit_note_number ?? options.creditNoteId;
+
+      if (result.result === "already_reversed") {
+        toast({ title: "Already Reversed", description: `Vendor credit note ${label} has already been reversed.` });
+        return true;
+      }
+
+      logAction({
+        action: "voided",
+        entityType: "vendor_credit_note",
+        entityId: options.creditNoteId,
+        entityName: result.credit_note_number ?? undefined,
+        changesSummary: `Vendor credit note reversed (${options.reasonCode}). Reason: ${options.reason}`,
+      });
+
+      toast({
+        title: "Vendor Credit Note Reversed",
+        description: `Credit note ${label} was reversed: its postings, applications and credit balance were all unwound.`,
+      });
+      return true;
+    } catch (error: any) {
+      console.error("Error reversing vendor credit note:", error);
+      toast({
+        title: "Error Reversing Credit Note",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+
 
   /**
    * ADR 0126 — Void a supplier payment. The whole operation (journal reversal,
@@ -1262,6 +1329,7 @@ export function useTransactionReversal() {
     voidBill,
     voidBillPayment,
     reverseGoodsReceipt,
+    reverseVendorCreditNote,
     // unreconcilePayment intentionally NOT exposed — ADR 0012 Wave R2.
     // The wizard's wrong_invoice_applied → unapplyPayment path is the only
     // supported way to detach a payment. Re-introducing this on the public

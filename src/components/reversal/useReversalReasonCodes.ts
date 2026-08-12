@@ -16,6 +16,7 @@ export type ReversalDocumentType =
   | "bill"
   | "bill_payment"
   | "goods_receipt"
+  | "vendor_credit_note"
   | "pos_transaction"
   | "payroll_run";
 
