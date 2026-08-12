@@ -61,14 +61,14 @@ export function VendorCreditNoteLinkedRecords({ creditNote }: Props) {
     rows.push({
       label: "Journal entry",
       value: "Posted entry",
-      to: `/accounting/journal-entries/${cn.journal_entry_id}`,
+      to: `/finance/journal-entries/${cn.journal_entry_id}`,
     });
   }
   if (cn.reversal_journal_entry_id) {
     rows.push({
       label: "Reversal entry",
       value: "Reversal entry",
-      to: `/accounting/journal-entries/${cn.reversal_journal_entry_id}`,
+      to: `/finance/journal-entries/${cn.reversal_journal_entry_id}`,
     });
   }
 
