@@ -33,6 +33,7 @@ import {
   type ExpenseFormValues,
 } from "./ExpenseFormFields";
 import { usePaymentAccounts } from "./usePaymentAccounts";
+import { usePurchasableVendors } from "../suppliers/usePurchasableVendors";
 
 export default function ExpenseEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,12 +48,10 @@ export default function ExpenseEditPage() {
   const { categories, updateExpense } = useExpensesPaginated({});
   const { record, loading: isLoading, error } = useExpenseRecord(id);
 
+  const purchasable = usePurchasableVendors(contacts as any);
   const vendors = useMemo(
-    () =>
-      contacts
-        .filter((c) => c.type === "supplier" || c.type === "both")
-        .map((c) => ({ id: c.id, name: c.name })),
-    [contacts],
+    () => purchasable.map((c: any) => ({ id: c.id, name: c.name })),
+    [purchasable],
   );
 
   const [form, setForm] = useState<ExpenseFormValues>(() =>

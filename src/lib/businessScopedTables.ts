@@ -200,7 +200,7 @@ export const BUSINESS_SCOPED_TABLES = [
   "estimates",
   "email_templates",
   "bank_transactions",
-  "vendor_pricelists",
+  "supplier_item_terms",
   "pos_payment_methods",
   // NOTE: `permission_group_rules` is FK-bound to `permission_groups` which
   // is workspace-scoped — also workspace-scoped, do NOT add to this registry.

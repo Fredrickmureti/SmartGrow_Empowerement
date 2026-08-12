@@ -21,7 +21,7 @@ const TABLES = [
   "purchase_returns",
   "vendor_credit_notes",
   "rfqs",
-  "vendor_pricelists",
+  "supplier_item_terms",
 ] as const;
 
 const SCOPES = ["src/hooks", "src/pages"];

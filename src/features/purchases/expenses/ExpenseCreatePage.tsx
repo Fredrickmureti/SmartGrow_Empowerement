@@ -29,6 +29,7 @@ import {
   type ExpenseFormValues,
 } from "./ExpenseFormFields";
 import { usePaymentAccounts } from "./usePaymentAccounts";
+import { usePurchasableVendors } from "../suppliers/usePurchasableVendors";
 
 export default function ExpenseCreatePage() {
   const navigate = useNavigate();
@@ -41,12 +42,13 @@ export default function ExpenseCreatePage() {
 
   const { categories, createExpense } = useExpensesPaginated({});
 
+  // Canonical gate: only parties whose supplier role may receive procurement
+  // documents. The database enforces the same rule on expenses via
+  // trg_expenses_supplier_purchasable.
+  const purchasable = usePurchasableVendors(contacts as any);
   const vendors = useMemo(
-    () =>
-      contacts
-        .filter((c) => c.type === "supplier" || c.type === "both")
-        .map((c) => ({ id: c.id, name: c.name })),
-    [contacts],
+    () => purchasable.map((c: any) => ({ id: c.id, name: c.name })),
+    [purchasable],
   );
 
   const [form, setForm] = useState<ExpenseFormValues>(() => {
