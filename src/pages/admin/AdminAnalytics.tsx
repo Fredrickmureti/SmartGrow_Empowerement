@@ -27,6 +27,7 @@ import {
   Cell,
 } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { toPlatformUsd, sumPlatformUsd } from "@/services/fx/platformUsd";
 
 interface MonthlyData {
   month: string;
