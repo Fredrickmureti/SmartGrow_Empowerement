@@ -215,12 +215,14 @@ export function SupplierTermsTab({ record, refresh }: TabProps) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="terms-currency">Currency</Label>
-                <Input
-                  id="terms-currency"
+                <CurrencyCombobox
+                  currencies={currencies}
                   value={form.defaultCurrency}
-                  onChange={(e) =>
-                    setForm({ ...form, defaultCurrency: e.target.value.toUpperCase() })
+                  onValueChange={(code) =>
+                    setForm({ ...form, defaultCurrency: code })
                   }
+                  placeholder="Select currency…"
+                  disabled={currenciesLoading}
                 />
               </div>
               <div>
