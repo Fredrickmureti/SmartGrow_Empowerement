@@ -28,6 +28,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import {
   ReportSurface,
   ReportTable,
@@ -75,7 +76,7 @@ function provenance(row: {
   return bits.join(" · ");
 }
 
-export default function FxExposureReport() {
+function FxExposureReportInner() {
   const [asOf, setAsOf] = useState<string>(today());
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -346,6 +347,14 @@ export default function FxExposureReport() {
         )}
       </div>
     </ReportPageLayout>
+  );
+}
+
+export default function FxExposureReport() {
+  return (
+    <ReportFilterProvider>
+      <FxExposureReportInner />
+    </ReportFilterProvider>
   );
 }
 
