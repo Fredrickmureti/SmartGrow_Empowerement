@@ -1,95 +1,50 @@
-# Project status — authoritative
+# Currency & FX — verification of prior work, then convergence
 
-Last updated: 2026-08-12
+## Phase 1 findings (verified against the live database and code, not the log)
 
-## Programme: Enterprise Currency & FX convergence (ACTIVE)
+Confirmed as claimed:
+- `exchange_rates` carries all four provenance columns (`source`, `provider_key`, `published_at`, `created_by`) and holds 13 provider rows.
+- `publish_platform_rates()` exists and is scheduled (1 cron job).
+- `resolve_exchange_rate` / `require_exchange_rate` / `resolve_fx_realized_account` exist.
+- Provider credentials are genuinely locked down: `authenticated` has no SELECT on `credentials` and no UPDATE on the connections table.
+- The single client lookup `src/services/fx/rateBook.ts` exists and no rate literal (`129.5`) remains.
 
-Authority: ADR 0135 (supplier currency = proposal default), ADR 0136 (one FX engine),
-ADR 0137 (provider credentials are server-only), ADR 0123 (single journal posting monopoly).
+Contradicted by evidence — these were logged as done but are not:
 
-### Completed and verified
+1. **"Shared stamper `fx_stamp_document` wired into document triggers" is only half true.**
+   Only six tables route through the shared stamper: invoices, sales orders, estimates, credit notes, customer refunds, purchase orders. The AP side — bills, vendor credit notes, purchase returns — each has its **own hand-written stamper**, i.e. exactly the duplicate-engine pattern the brief forbids.
 
-**Step 1–3 — Canonical rate book (DB)**
-- `public.exchange_rates` gained provenance: `source`, `provider_key`, `published_at`, `created_by`.
-- `resolve_exchange_rate` implements deterministic precedence `override > manual > provider`,
-  latest effective date first; `require_exchange_rate` is the strict raising wrapper.
-- `publish_platform_rates()` bridges `platform_exchange_rates` (market data) into the accounting
-  book with USD-anchored triangulation; scheduled every 30 min via `pg_cron`. Book seeded with
-  13 provider rates.
+2. **The bill stamper silently falls back to a 1:1 rate.** Its last lines force
+   `currency_rate := COALESCE(NULLIF(currency_rate, 0), 1)` and then compute the base total from it. A foreign bill whose rate resolution yields nothing can still post at parity. This is the single highest-severity defect found. It also never re-stamps when only `bill_date` moves.
 
-**Step 5–7 — Document snapshot layer (DB)**
-- `exchange_rate` snapshot columns added to `estimates`, `credit_notes`, `customer_refunds`,
-  `purchase_orders`.
-- Hardcoded `'USD'`/`'KES'` column defaults removed from transaction tables.
-- Shared stamper `fx_stamp_document` wired into document triggers; posted invoices and credit
-  notes are currency- and rate-immutable.
+3. **Step 11 "unrealized revaluation is absent" is wrong — it exists and is defective.**
+   `revalue_fx_balances` is implemented and has a UI (`useFxRevaluation`, `FxRevaluationReport`). But it reads `exchange_rates` with a raw query instead of `resolve_exchange_rate`, so it **ignores the override > manual > provider precedence**, and it does `CONTINUE WHEN _new_rate IS NULL` — a missing rate is skipped silently, so a run can report success while leaving foreign balances unrevalued.
 
-**Step 8 — Realized FX gain/loss at settlement (DB)**
-- `resolve_fx_realized_account` resolves the gain/loss ledger accounts.
-- `record_multi_bill_payment` and `record_multi_invoice_payment` rewritten FX-aware: posting in
-  base currency, difference between booking rate and settlement-date rate posted to realized FX.
-- Stale 17-arg `record_multi_bill_payment` overload dropped (call ambiguity resolved).
+4. **A second client rate engine survives.** `useAdminCurrency` still resolves and inverts rates itself off `platform_exchange_rates`. It is scoped to platform billing display and honestly returns null, but it is a second lookup and the guard test does not cover it.
 
-**Step 4 — Kill the parallel client engines**
-- New single client lookup `src/services/fx/rateBook.ts` (`resolveRateFromBook`,
-  `convertWithBook`): server-mirroring precedence, base-currency pivot, `null` for a missing
-  pair — never 1.
-- `CurrencyContext`, `useTenantFx`, `useAdminCurrency` all delegate to it; literal `129.5`
-  removed; missing rate renders `—`.
-- Consumers updated for the honest null: `Dashboard`, `ExecutiveDashboard`,
-  `BranchComparisonWidget`, `CurrencyConverter`, `CurrencyToggle`, `AdminReports`.
-- ADR 0136 written. Guard `src/test/architecture/fx-single-engine.test.ts` — 10 tests, green.
+5. **`business_active_currencies` is enforced but never populated.** The expense trigger validates against it, and the table has zero rows across the install, with no UI writing to it. The gate is currently inert and will start rejecting expenses the moment anyone inserts one row.
 
-**Step 9 — Provider credential hardening (DONE this session)**
-- DB: `platform_integration_connections` gained non-secret metadata `credential_keys text[]` and
-  `credentials_set_at`, maintained by trigger `sync_integration_credential_meta`.
-- DB: all privileges revoked from `anon`/`authenticated`; column-level SELECT re-granted on every
-  column **except `credentials`**; `service_role` keeps full access for the edge functions.
-  Verified: `has_column_privilege('authenticated', …, 'credentials', 'SELECT') = false`,
-  `has_table_privilege('authenticated', …, 'UPDATE') = false`, `service_role` read = true.
-- DB: single guarded write path `save_integration_connection(...)` and
-  `delete_integration_connection(...)` — SECURITY DEFINER, `is_platform_admin` gated,
-  provider/capability validated, single-active enforced, blank credential fields keep the stored
-  secret, every change written to `audit_logs`.
-- Client: `useIntegrationProviders` selects an explicit non-secret column list, exposes
-  `credential_keys` / `credentials_set_at`, and writes only through the two RPCs.
-- UI: `IntegrationProviderManager` no longer hydrates secrets into React state; stored fields show
-  "Stored — leave blank to keep" plus the last-updated time.
-- Ingest unchanged: `provider-run` / `provider-test` read credentials with the service role.
-- ADR 0137 written. Guard `src/test/architecture/provider-credential-isolation.test.ts` —
-  4 tests, green. Typecheck clean.
+## Work to do, in dependency order
 
-## Pending
+### Step A — Close the silent-parity hole (critical, first)
+Remove the `COALESCE(NULLIF(currency_rate,0),1)` fallback from the bill stamper so a missing rate raises instead of posting at parity, and sweep the other AP stampers plus the settlement engines for the same pattern.
 
-1. **Step 10 — FX admin surface & provenance UI.** Tenant screen to view the rate book, enter an
-   override (with reason), and see `source` / `provider_key` / `published_at` per row, plus
-   seeding of `business_active_currencies`.
-2. **Step 11 — Unrealized FX revaluation** of open AR/AP balances at period end (currently absent).
-3. **Reversal governance coverage** — approval-gated reversal for `vendor_credit_note`
-   (carried over, unrelated to FX; do last).
+### Step B — Converge the AP stampers onto the shared stamper
+Rewrite the bill, vendor-credit-note and purchase-return triggers as thin callers of `fx_stamp_document`, matching the six AR/PO tables: derive currency, validate, resolve strictly, re-stamp on date change, freeze once posted. Delete the duplicated bodies rather than keeping both.
 
-## Active phase
-Step 9 closed. **Next active phase: Step 10 — FX admin surface & provenance UI.**
+### Step C — Make revaluation use the one resolver
+Point `revalue_fx_balances` at `resolve_exchange_rate` so precedence and provenance apply, and turn a missing rate into a recorded, surfaced exception on the run instead of a silent skip. Keep idempotency and closed-period behaviour intact.
 
-## Instructions for the next agent
-1. **Verify before continuing.**
-   - Run `bunx vitest run src/test/architecture/fx-single-engine.test.ts
-     src/test/architecture/provider-credential-isolation.test.ts
-     src/test/architecture/currency-integrity.test.ts
-     src/test/architecture/reversal-intent-coverage.test.ts`.
-   - Read ADR 0135, 0136, 0137 first.
-   - Database checks: provenance columns and provider rows present in `exchange_rates`;
-     `publish_platform_rates` cron scheduled; `resolve_exchange_rate` precedence
-     `override > manual > provider`; `fx_stamp_document` attached to every monetary document
-     table; realized FX lines posted by `record_multi_*_payment`;
-     `has_column_privilege('authenticated','public.platform_integration_connections',
-     'credentials','SELECT')` is **false**.
-   - Confirm no client file resolves a rate outside `@/services/fx/rateBook` and no client file
-     reads or writes connection credentials.
-2. Then resume at **Step 10**, then 11, then the reversal-governance carry-over, in order.
-   Step 10 scope: read-only rate-book table with provenance columns, admin override entry
-   (writes `source = 'override'` with a reason, server-validated), and
-   `business_active_currencies` seeding so tenants can pick their operating currencies.
-3. Do not start unrelated work and do not leave a step partially implemented.
-4. Note: the full `src/test` suite times out under sandbox contention — environmental and
-   pre-existing. Run targeted suites.
+### Step D — Step 10, the FX admin surface (the pending item)
+Tenant screen showing the rate book with `source` / `provider_key` / `published_at` / effective date per row, an admin override entry that writes `source = 'override'` with a reason through a server-validated RPC, and a currency-enablement UI that finally seeds `business_active_currencies` (defaulting to the base currency so the expense gate can never lock a tenant out).
+
+### Step E — Ratchets
+Extend the architecture guards to fail on: a re-introduced `COALESCE(... , 1)` rate fallback in any stamper, an AP stamper not delegating to `fx_stamp_document`, a rate lookup outside `rateBook` (including `useAdminCurrency`), and a revaluation path reading `exchange_rates` directly.
+
+### Step F — Carry-over
+Approval-gated reversal for `vendor_credit_note`, unrelated to FX, last.
+
+## Technical notes
+- All rate resolution stays server-side; the client keeps display-only `rateBook`.
+- No new tables, no new resolver, no compatibility fallbacks — the duplicated AP stampers get deleted, not wrapped.
+- The plan log will be rewritten to state verified status rather than claimed status, and ADR 0136 gets a note that the AP stampers were non-conforming until Step B.
