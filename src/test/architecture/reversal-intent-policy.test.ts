@@ -79,7 +79,12 @@ function intentAuthoritySql(): string {
       if (!m[1].startsWith("resolve_reversal_intent")) helpers.add(m[1]);
     }
   }
-  return [...bodies, ...[...helpers].map((h) => latestDefinitionOf(h) ?? "")].join("\n");
+  // Fall back to the defining migrations themselves: resolver logic is often
+  // split across small state helpers defined alongside them.
+  const files = migrations()
+    .filter(({ sql }) => /FUNCTION\s+public\.resolve_reversal_intent/i.test(sql))
+    .map(({ sql }) => sql);
+  return [...bodies, ...[...helpers].map((h) => latestDefinitionOf(h) ?? ""), ...files].join("\n");
 }
 
 describe("Phase 1 — reversal intent policy exists in the database", () => {
