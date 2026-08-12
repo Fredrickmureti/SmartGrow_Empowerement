@@ -187,14 +187,23 @@ export async function fetchTopOpenCounterparties(
 
   const byContact = new Map<string, { name: string; amount: number; daysOverdue: number }>();
   for (const r of rows) {
+    const key = r.contact_id || "unknown";
     const name = (r.contact_id && names.get(r.contact_id)) || "Unknown";
     const daysOverdue = daysOverdueFrom(r.due_date || r.document_date);
-    const existing = byContact.get(name) || { name, amount: 0, daysOverdue: 0 };
+    const existing = byContact.get(key) || { name, amount: 0, daysOverdue: 0 };
     // Base currency: exposures across currencies may only be added up after
     // conversion (`base_residual_amount`), never as raw document amounts.
     existing.amount += Number(r.base_residual_amount ?? r.residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
-    byContact.set(name, existing);
+    byContact.set(key, existing);
+  }
+
+  // Unapplied vendor credit is a real payable offset — net it per supplier so
+  // this list agrees with `get_ap_summary` and the aged payables report.
+  const vendorCredit = await fetchVendorCreditByContact(orgId, businessId);
+  for (const [contactId, credit] of vendorCredit) {
+    const existing = byContact.get(contactId);
+    if (existing) existing.amount -= credit;
   }
 
   return Array.from(byContact.values())
