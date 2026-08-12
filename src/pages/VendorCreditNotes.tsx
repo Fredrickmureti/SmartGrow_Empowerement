@@ -200,76 +200,49 @@ export default function VendorCreditNotes() {
                   <TableHead>Vendor</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Linked Bill</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Commercial</TableHead>
+                  <TableHead>Accounting</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Applied</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredNotes.map((cn) => {
-                  const badge = statusBadge[cn.status] || statusBadge.draft;
-                  return (
-                    <TableRow key={cn.id} className="cursor-pointer" onClick={() => setPeekId(cn.id)}>
-                      <TableCell className="font-medium font-mono">{cn.credit_note_number}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {cn.vendor ? (
-                          <ClickableEntity onClick={() => setPreviewContactId(cn.vendor_id)}>
-                            {cn.vendor.name}
-                          </ClickableEntity>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell>{format(new Date(cn.credit_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {cn.bill_id && cn.bill?.bill_number ? (
-                          <ClickableEntity onClick={() => navigate(`/purchases/bills?id=${cn.bill_id}`)}>
-                            {cn.bill.bill_number}
-                          </ClickableEntity>
-                        ) : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(cn.total, cn.currency)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(cn.amount_applied, cn.currency)}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setPeekId(cn.id)}>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
-                            </DropdownMenuItem>
-                            {cn.status === "draft" && (
-                              <>
-                                <DropdownMenuItem onClick={() => confirmVendorCreditNote(cn.id)}>
-                                  <CheckCircle className="mr-2 h-4 w-4" /> Confirm & Post GL
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => deleteVendorCreditNote(cn.id)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {cn.status === "confirmed" && (
-                              <DropdownMenuItem onClick={() => {
-                                setApplyDialogCN(cn);
-                                setApplyAmount(String(cn.total - cn.amount_applied));
-                                setApplyBillId(cn.bill_id || "");
-                              }}>
-                                <FileText className="mr-2 h-4 w-4" /> Apply to Bill
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {filteredNotes.map((cn) => (
+                  <TableRow key={cn.id} className="cursor-pointer" onClick={() => setPeekId(cn.id)}>
+                    <TableCell className="font-medium font-mono">{cn.credit_note_number}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {cn.vendor ? (
+                        <ClickableEntity onClick={() => setPreviewContactId(cn.vendor_id)}>
+                          {cn.vendor.name}
+                        </ClickableEntity>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>{format(new Date(cn.credit_date), "MMM d, yyyy")}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {cn.bill_id && cn.bill?.bill_number ? (
+                        <ClickableEntity onClick={() => navigate(`/purchases/bills?id=${cn.bill_id}`)}>
+                          {cn.bill.bill_number}
+                        </ClickableEntity>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <DocumentStatusBadge kind="vendor_credit_note" status={commercialStateOf(cn)} />
+                    </TableCell>
+                    <TableCell>
+                      <DocumentStatusBadge kind="vendor_credit_note" status={accountingStateOf(cn)} />
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(cn.total, cn.currency)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(cn.amount_applied, cn.currency)}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <VendorCreditNoteRowActions
+                        creditNote={cn}
+                        onPeek={setPeekId}
+                        onChanged={refreshCreditNotes}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
