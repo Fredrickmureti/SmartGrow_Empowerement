@@ -65,33 +65,32 @@ export function useAdminCurrency() {
   });
 
   /**
-   * Resolve the rate to convert 1 USD into `target`, using a direct lookup
-   * first and triangulating through USD when needed. Returns 1 if we can't
-   * find a path (no silent-fallback to a wrong rate — the UI will look the
-   * same as "no conversion configured").
+   * Resolve the rate to convert 1 USD into `target` from the platform market
+   * book, direct or inverted.
+   *
+   * ADR 0136: returns `null` when no path exists. It must never invent 1 and
+   * must never carry a hardcoded literal — an unknown rate is displayed as
+   * unknown, not as an unconverted number wearing the target currency's
+   * symbol. This is platform BILLING display only; tenant accounting rates
+   * come from `public.exchange_rates` via the server resolver.
    */
   const usdToTargetRate = useCallback(
-    (target: string): number => {
-      const t = target.toUpperCase();
+    (target: string): number | null => {
+      const t = (target || "").toUpperCase();
+      if (!t) return null;
       if (t === "USD") return 1;
       const rates = exchangeRates ?? [];
-      // 1) Direct USD → target
-      const direct = rates.find(
-        (r) => r.from_currency === "USD" && r.to_currency === t
-      );
-      if (direct) return Number(direct.rate);
-      // 2) Reverse: target → USD, invert
-      const reverse = rates.find(
-        (r) => r.from_currency === t && r.to_currency === "USD"
-      );
-      if (reverse && Number(reverse.rate) !== 0) return 1 / Number(reverse.rate);
-      return 1;
+      const direct = rates.find((r) => r.from_currency === "USD" && r.to_currency === t);
+      if (direct && Number(direct.rate) > 0) return Number(direct.rate);
+      const reverse = rates.find((r) => r.from_currency === t && r.to_currency === "USD");
+      if (reverse && Number(reverse.rate) > 0) return 1 / Number(reverse.rate);
+      return null;
     },
     [exchangeRates]
   );
 
-  /** Back-compat helper — kept so old admin pages keep compiling. */
-  const usdToKesRate = usdToTargetRate("KES") || 129.5;
+  /** Back-compat helper — `null` when the KES row is absent. No literal fallback. */
+  const usdToKesRate = usdToTargetRate("KES");
 
   /** Currencies the admin can choose from in the toggle. */
   const availableCurrencies: AvailableAdminCurrency[] = (() => {
