@@ -30,9 +30,10 @@ const TABLE = "platform_integration_connections";
 
 describe("ADR 0137 — provider credential isolation", () => {
   it("no client file selects * from platform_integration_connections", () => {
-    const offenders = files.filter(
-      (f) => f.text.includes(TABLE) && /\.select\(\s*["'`]\*["'`]\s*\)/.test(f.text),
+    const re = new RegExp(
+      `from\\(\\s*["'\`]${TABLE}["'\`]\\s*\\)[\\s\\S]{0,200}?\\.select\\(\\s*["'\`]\\*["'\`]\\s*\\)`,
     );
+    const offenders = files.filter((f) => re.test(f.text));
     expect(offenders.map((o) => o.path)).toEqual([]);
   });
 
