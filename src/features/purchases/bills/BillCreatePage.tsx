@@ -116,6 +116,9 @@ export default function BillCreatePage() {
 
   const vendors = usePurchasableVendors(contacts);
 
+  // ADR 0135 — supplier-proposed currency; the database stamps and freezes it.
+  const { currency: documentCurrency } = useSupplierDocumentCurrency(formData.vendor_id);
+
   useEffect(() => {
     if (prefillContactId) {
       void handleVendorChange(prefillContactId);
@@ -299,7 +302,7 @@ export default function BillCreatePage() {
           discount_amount: formData.discount_amount,
           total: 0,
           amount_paid: 0,
-          currency: baseCurrency,
+          currency: documentCurrency,
           notes: formData.notes || null,
           attachment_url: null,
           project_id: formData.project_id,

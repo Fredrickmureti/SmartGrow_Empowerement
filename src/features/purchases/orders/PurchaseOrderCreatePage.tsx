@@ -96,6 +96,10 @@ export default function PurchaseOrderCreatePage() {
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
 
+  // ADR 0135 — the supplier only *proposes* the document currency; the database
+  // stamps and freezes it (and the rate) on insert.
+  const { currency: documentCurrency } = useSupplierDocumentCurrency(formData.vendor_id);
+
   useEffect(() => {
     if (prefillContactId) setFormData((p) => ({ ...p, vendor_id: prefillContactId }));
   }, [prefillContactId]);
@@ -253,7 +257,7 @@ export default function PurchaseOrderCreatePage() {
           tax_amount: 0,
           discount_amount: formData.discount_amount,
           total: 0,
-          currency: baseCurrency,
+          currency: documentCurrency,
           deliver_to_warehouse_id: formData.deliver_to_warehouse_id,
           deliver_to_branch_id: formData.deliver_to_branch_id,
           shipping_address: formData.shipping_address || null,
