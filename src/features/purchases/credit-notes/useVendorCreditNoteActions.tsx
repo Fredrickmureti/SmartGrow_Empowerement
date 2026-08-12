@@ -2,10 +2,24 @@
  * useVendorCreditNoteActions — the single declaration of what you can do to
  * a Vendor Credit Note, shared by the record page header and the list row
  * menu (src/pages/VendorCreditNotes.tsx).
+ *
+ * ADR 0132 Phase 3: the commercial lifecycle (draft → submitted → approved /
+ * rejected / cancelled) is distinct from the accounting one (unposted →
+ * posted → reversed) and from settlement. Every transition is a server
+ * command; the browser decides nothing about money or governance.
  */
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle, FileText, Pencil, Trash2 } from "lucide-react";
+import {
+  Ban,
+  CheckCircle,
+  FileText,
+  Pencil,
+  Send,
+  ThumbsUp,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
 import {
@@ -26,13 +40,25 @@ export function useVendorCreditNoteActions(
 ) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { confirmVendorCreditNote, deleteVendorCreditNote, applyCreditFifo } =
-    useVendorCreditNotes();
+  const {
+    confirmVendorCreditNote,
+    deleteVendorCreditNote,
+    applyCreditFifo,
+    submitVendorCreditNote,
+    approveVendorCreditNote,
+    rejectVendorCreditNote,
+    cancelVendorCreditNote,
+  } = useVendorCreditNotes();
 
   return useMemo<DocumentAction[]>(() => {
     if (!cn) return [];
-    const status = cn.status as string;
-    const isDraft = status === "draft";
+    const commercial = cn.commercial_status ?? (cn.status === "draft" ? "draft" : "approved");
+    const accounting =
+      cn.accounting_status ?? (cn.status === "draft" ? "unposted" : cn.status === "void" ? "reversed" : "posted");
+    const isDraft = commercial === "draft" || commercial === "rejected";
+    const isSubmitted = commercial === "submitted";
+    const unposted = accounting === "unposted";
+    const posted = accounting === "posted";
     const open = (cn.total ?? 0) - (cn.amount_applied ?? 0);
 
     const run = (label: string, fn: () => Promise<unknown>) => () => {
@@ -58,30 +84,64 @@ export function useVendorCreditNoteActions(
         icon: Pencil,
         group: "core",
         primary: true,
-        disabled: !isDraft,
-        disabledReason: isDraft
-          ? undefined
-          : "A confirmed credit note can no longer be edited.",
+        disabled: !(isDraft && unposted),
+        disabledReason:
+          isDraft && unposted
+            ? undefined
+            : "Only a draft credit note can be edited.",
         onSelect: () => navigate(`/purchases/credit-notes/${cn.id}/edit`),
       },
       {
+        id: "submit",
+        label: "Submit for approval",
+        icon: Send,
+        group: "core",
+        primary: isDraft && unposted,
+        hidden: !(isDraft && unposted),
+        onSelect: run("Credit note submitted", () => submitVendorCreditNote(cn.id)),
+      },
+      {
+        id: "approve",
+        label: "Approve",
+        icon: ThumbsUp,
+        group: "core",
+        primary: isSubmitted,
+        hidden: !isSubmitted,
+        onSelect: run("Credit note approved", () => approveVendorCreditNote(cn.id)),
+      },
+      {
+        id: "reject",
+        label: "Reject",
+        icon: XCircle,
+        group: "core",
+        destructive: true,
+        hidden: !isSubmitted,
+        onSelect: () => {
+          const reason = window.prompt(
+            `Why is ${cn.credit_note_number} being rejected?`,
+          );
+          if (reason === null) return;
+          run("Credit note rejected", () =>
+            rejectVendorCreditNote(cn.id, reason || undefined),
+          )();
+        },
+      },
+      {
         id: "confirm",
-        label: "Confirm & post GL",
+        label: "Post to GL",
         icon: CheckCircle,
         group: "core",
-        primary: isDraft,
-        hidden: !isDraft,
-        onSelect: run("Credit note confirmed", () =>
-          confirmVendorCreditNote(cn.id),
-        ),
+        primary: commercial === "approved" && unposted,
+        hidden: !unposted || commercial === "cancelled" || commercial === "rejected",
+        onSelect: run("Credit note posted", () => confirmVendorCreditNote(cn.id)),
       },
       {
         id: "apply-to-bill",
         label: "Apply to bills",
         icon: FileText,
         group: "core",
-        primary: status === "confirmed",
-        hidden: status !== "confirmed" || open <= 0,
+        primary: posted && open > 0,
+        hidden: !posted || open <= 0,
         onSelect: () => {
           if (
             !window.confirm(
@@ -93,11 +153,27 @@ export function useVendorCreditNoteActions(
         },
       },
       {
+        id: "cancel",
+        label: "Cancel",
+        icon: Ban,
+        destructive: true,
+        hidden: posted || commercial === "cancelled",
+        onSelect: () => {
+          const reason = window.prompt(
+            `Cancel credit note ${cn.credit_note_number}? Add a reason (optional).`,
+          );
+          if (reason === null) return;
+          run("Credit note cancelled", () =>
+            cancelVendorCreditNote(cn.id, reason || undefined),
+          )();
+        },
+      },
+      {
         id: "delete",
         label: "Delete",
         icon: Trash2,
         destructive: true,
-        hidden: !isDraft,
+        hidden: !(isDraft && unposted),
         onSelect: () => {
           if (!window.confirm(`Delete credit note ${cn.credit_note_number}?`))
             return;
@@ -120,3 +196,4 @@ export function useVendorCreditNoteActions(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cn, navigate]);
 }
+
