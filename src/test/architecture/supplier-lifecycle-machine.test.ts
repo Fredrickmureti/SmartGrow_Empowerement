@@ -26,19 +26,22 @@ const MIGRATIONS = join(process.cwd(), "supabase/migrations");
 
 /** RPC → (target state, legal from-states). Mirrors the deployed definitions. */
 const TRANSITIONS: Record<string, { to: string; from: string[] }> = {
-  start_supplier_qualification: { to: "qualifying", from: ["draft"] },
   approve_supplier: { to: "approved", from: ["draft", "qualifying", "suspended"] },
-  suspend_supplier: { to: "suspended", from: ["approved"] },
+  suspend_supplier: { to: "suspended", from: ["draft", "qualifying", "approved"] },
+  reinstate_supplier: { to: "approved", from: ["suspended"] },
   block_supplier: {
     to: "blocked",
     from: ["draft", "qualifying", "approved", "suspended"],
   },
-  unblock_supplier: { to: "suspended", from: ["blocked"] },
+  unblock_supplier: { to: "draft", from: ["blocked"] },
   archive_supplier: {
     to: "archived",
-    from: ["draft", "qualifying", "suspended", "blocked"],
+    from: ["draft", "qualifying", "approved", "suspended", "blocked"],
   },
-  restore_supplier: { to: "draft", from: ["archived"] },
+  unarchive_supplier: { to: "draft", from: ["archived"] },
+  // Automatic transitions: a failed compliance check suspends immediately and
+  // an elapsed qualification drops an approved supplier back to qualifying.
+  sweep_supplier_qualification_expiry: { to: "qualifying", from: ["approved"] },
 };
 
 /** States that must never be purchasable. */
