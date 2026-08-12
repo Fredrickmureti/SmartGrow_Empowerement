@@ -5,6 +5,11 @@
  * VendorCreditNoteCreatePage so every VCN business record has a full
  * `/new` + `/:id/edit` route on top of RecordFormShell. Only draft
  * credit notes are editable — the underlying hook enforces this.
+ *
+ * ADR 0132: the number stays server-owned (read-only here). Origin, reason
+ * code and the supplier's own document reference remain correctable while the
+ * note is a draft; upstream references (return / GRN / PO) are stamped by the
+ * create writer and are therefore shown, not re-pointed.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -13,7 +18,6 @@ import { toast } from "sonner";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { ErrorState, LoadingState } from "@/design-system";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +39,17 @@ import { useContacts } from "@/hooks/useContacts";
 import { useBills } from "@/hooks/useBills";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
+import { VendorCreditNoteLineageFields } from "./VendorCreditNoteLineageFields";
+import {
+  VendorCreditNoteTotalsPreview,
+  computeVendorCreditNoteTotals,
+} from "./VendorCreditNoteTotalsPreview";
+import {
+  emptyLineage,
+  lineageError,
+  toLineagePayload,
+  type LineageFormState,
+} from "./vendorCreditNoteLineage";
 
 type LineItem = Omit<VendorCreditNoteItem, "id" | "credit_note_id">;
 
@@ -66,24 +81,37 @@ export default function VendorCreditNoteEditPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [primed, setPrimed] = useState(false);
   const [formData, setFormData] = useState({
-    credit_note_number: "",
     vendor_id: "",
     bill_id: "",
     credit_date: new Date().toISOString().split("T")[0],
     notes: "",
     currency: baseCurrency,
   });
+  const [lineage, setLineage] = useState<LineageFormState>(emptyLineage);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
+
+  const patchLineage = useCallback(
+    (patch: Partial<LineageFormState>) => setLineage((p) => ({ ...p, ...patch })),
+    [],
+  );
 
   useEffect(() => {
     if (!cn || primed) return;
     setFormData({
-      credit_note_number: cn.credit_note_number,
       vendor_id: cn.vendor_id ?? "",
       bill_id: cn.bill_id ?? "",
       credit_date: cn.credit_date,
       notes: cn.notes ?? "",
       currency: cn.currency || baseCurrency,
+    });
+    setLineage({
+      origin: cn.origin ?? "adjustment",
+      reason_code: cn.reason_code ?? "",
+      vendor_document_number: cn.vendor_document_number ?? "",
+      vendor_document_date: cn.vendor_document_date ?? "",
+      source_return_id: cn.source_return_id ?? "",
+      goods_receipt_id: cn.goods_receipt_id ?? "",
+      purchase_order_id: cn.purchase_order_id ?? "",
     });
     if (cn.items && cn.items.length > 0) {
       setLineItems(
@@ -139,9 +167,10 @@ export default function VendorCreditNoteEditPage() {
     setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   }, []);
 
-  const subtotal = lineItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-  const taxTotal = lineItems.reduce((s, i) => s + i.tax_amount, 0);
-  const grandTotal = lineItems.reduce((s, i) => s + i.line_total, 0);
+  const totals = useMemo(() => computeVendorCreditNoteTotals(lineItems), [lineItems]);
+
+  const billId =
+    formData.bill_id && formData.bill_id !== "__none__" ? formData.bill_id : null;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,23 +179,29 @@ export default function VendorCreditNoteEditPage() {
       toast.error("Please fill required fields");
       return;
     }
+    const provenanceError = lineageError(lineage, billId);
+    if (provenanceError) {
+      toast.error(provenanceError);
+      return;
+    }
     setIsSubmitting(true);
     try {
+      const payload = toLineagePayload(lineage);
       await updateVendorCreditNote(
         cn.id,
         {
-          credit_note_number: formData.credit_note_number,
           vendor_id: formData.vendor_id || null,
-          bill_id:
-            formData.bill_id && formData.bill_id !== "__none__"
-              ? formData.bill_id
-              : null,
+          bill_id: billId,
           credit_date: formData.credit_date,
-          subtotal,
-          tax_amount: taxTotal,
-          total: grandTotal,
+          subtotal: totals.subtotal,
+          tax_amount: totals.taxTotal,
+          total: totals.grandTotal,
           currency: formData.currency || baseCurrency,
           notes: formData.notes || null,
+          origin: payload.origin,
+          reason_code: payload.reason_code,
+          vendor_document_number: payload.vendor_document_number,
+          vendor_document_date: payload.vendor_document_date,
         } as any,
         lineItems.filter((item) => item.description),
       );
@@ -236,14 +271,11 @@ export default function VendorCreditNoteEditPage() {
       <FieldGroup label="Credit Note Details">
         <FieldGrid columns={2}>
           <div className="space-y-2">
-            <Label>Credit Note # *</Label>
-            <Input
-              value={formData.credit_note_number}
-              onChange={(e) =>
-                setFormData({ ...formData, credit_note_number: e.target.value })
-              }
-              required
-            />
+            <Label>Credit Note #</Label>
+            <Input value={cn.credit_note_number} disabled readOnly />
+            <p className="text-xs text-muted-foreground">
+              Numbering is server-controlled and cannot be changed.
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Supplier *</Label>
@@ -300,6 +332,15 @@ export default function VendorCreditNoteEditPage() {
         </FieldGrid>
       </FieldGroup>
 
+      <FieldGroup label="Provenance">
+        <VendorCreditNoteLineageFields
+          value={lineage}
+          onChange={patchLineage}
+          vendorId={formData.vendor_id}
+          disabled={isSubmitting}
+        />
+      </FieldGroup>
+
       <FieldGroup label="Line Items">
         <EditableLineItemsGrid
           columns={PRICED_LINE_COLUMNS}
@@ -321,22 +362,10 @@ export default function VendorCreditNoteEditPage() {
             />
           )}
           footer={
-            <div className="flex justify-end">
-              <div className="w-64 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(subtotal, formData.currency)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax:</span>
-                  <span>{formatCurrency(taxTotal, formData.currency)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg border-t pt-2">
-                  <span>Total:</span>
-                  <span>{formatCurrency(grandTotal, formData.currency)}</span>
-                </div>
-              </div>
-            </div>
+            <VendorCreditNoteTotalsPreview
+              totals={totals}
+              formatCurrency={formatLineCurrency}
+            />
           }
         />
       </FieldGroup>
