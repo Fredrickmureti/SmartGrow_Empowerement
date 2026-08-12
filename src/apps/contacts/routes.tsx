@@ -49,14 +49,13 @@ export function ContactsApp() {
           }
         />
         
-        {/* Suppliers (filtered to type=supplier or both) */}
+        {/* Retired: suppliers are a procurement role, owned by Purchases.
+            This route existed as a second supplier surface that wrote
+            contacts.supplier_rank directly and never created the supplier
+            role record. It now redirects to the canonical master. */}
         <Route
           path="vendors"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <Contacts defaultTypeFilter="supplier" />
-            </SubscriptionProtectedRoute>
-          }
+          element={<Navigate to="/purchases/suppliers" replace />}
         />
         
         {/* Companies (filtered to contacts with company field) */}

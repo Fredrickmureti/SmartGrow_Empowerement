@@ -162,9 +162,9 @@ export const ACTION_REGISTRY: ActionDefinition[] = [
   },
   {
     id: "create-supplier", category: "purchases", label: "Supplier", icon: UserPlus,
-    path: "/contacts-app/vendors", queryParams: "action=create&type=supplier",
+    path: "/purchases/suppliers/new",
     keywords: ["vendor"],
-    appInstall: "contacts", permission: "manageContacts",
+    appInstall: "purchases", permission: "managePurchases",
   },
 
   // ── Inventory ──────────────────────────────────────────────────────

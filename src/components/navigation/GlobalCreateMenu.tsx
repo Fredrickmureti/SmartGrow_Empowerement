@@ -89,7 +89,7 @@ function useCreateMenuCategories(): CreateMenuCategory[] {
     }
     if (isInstalled("contacts") && permissions.canManageContacts) {
       items.push(
-        { label: "Supplier", icon: UserPlus, path: "/contacts-app/vendors", queryParams: "action=create&type=supplier" },
+        { label: "Supplier", icon: UserPlus, path: "/purchases/suppliers/new" },
       );
     }
     if (items.length > 0) {

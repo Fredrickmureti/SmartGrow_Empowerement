@@ -6761,6 +6761,7 @@ export type Database = {
           migration_session_id: string | null
           notes: string | null
           organization_id: string
+          party_snapshot: Json | null
           payment_term_id: string | null
           project_id: string | null
           purchase_order_id: string | null
@@ -6807,6 +6808,7 @@ export type Database = {
           migration_session_id?: string | null
           notes?: string | null
           organization_id: string
+          party_snapshot?: Json | null
           payment_term_id?: string | null
           project_id?: string | null
           purchase_order_id?: string | null
@@ -6853,6 +6855,7 @@ export type Database = {
           migration_session_id?: string | null
           notes?: string | null
           organization_id?: string
+          party_snapshot?: Json | null
           payment_term_id?: string | null
           project_id?: string | null
           purchase_order_id?: string | null
@@ -53560,6 +53563,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -53599,6 +53603,7 @@ export type Database = {
           notes?: string | null
           order_date?: string
           organization_id: string
+          party_snapshot?: Json | null
           po_number: string
           project_id?: string | null
           requisition_id?: string | null
@@ -53638,6 +53643,7 @@ export type Database = {
           notes?: string | null
           order_date?: string
           organization_id?: string
+          party_snapshot?: Json | null
           po_number?: string
           project_id?: string | null
           requisition_id?: string | null
@@ -63058,8 +63064,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deactivated_at: string | null
           iban: string | null
           id: string
+          is_active: boolean
           is_primary: boolean
           is_verified: boolean
           organization_id: string
@@ -63080,8 +63088,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          deactivated_at?: string | null
           iban?: string | null
           id?: string
+          is_active?: boolean
           is_primary?: boolean
           is_verified?: boolean
           organization_id: string
@@ -63102,8 +63112,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          deactivated_at?: string | null
           iban?: string | null
           id?: string
+          is_active?: boolean
           is_primary?: boolean
           is_verified?: boolean
           organization_id?: string
@@ -63125,6 +63137,7 @@ export type Database = {
       }
       supplier_categories: {
         Row: {
+          asl_enforced: boolean
           business_id: string
           code: string
           created_at: string
@@ -63138,6 +63151,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          asl_enforced?: boolean
           business_id: string
           code: string
           created_at?: string
@@ -63151,6 +63165,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          asl_enforced?: boolean
           business_id?: string
           code?: string
           created_at?: string
@@ -63231,6 +63246,7 @@ export type Database = {
       }
       supplier_item_terms: {
         Row: {
+          branch_id: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -63238,17 +63254,21 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           id: string
+          is_active: boolean
           lead_time_days: number
           min_order_qty: number
           notes: string | null
+          organization_id: string | null
           preferred_rank: number
           price_break_tiers: Json
           product_id: string
           supplier_id: string
+          unit_price: number | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          branch_id?: string | null
           business_id: string
           created_at?: string
           created_by?: string | null
@@ -63256,17 +63276,21 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          is_active?: boolean
           lead_time_days?: number
           min_order_qty?: number
           notes?: string | null
+          organization_id?: string | null
           preferred_rank?: number
           price_break_tiers?: Json
           product_id: string
           supplier_id: string
+          unit_price?: number | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          branch_id?: string | null
           business_id?: string
           created_at?: string
           created_by?: string | null
@@ -63274,17 +63298,92 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          is_active?: boolean
           lead_time_days?: number
           min_order_qty?: number
           notes?: string | null
+          organization_id?: string | null
           preferred_rank?: number
           price_break_tiers?: Json
           product_id?: string
           supplier_id?: string
+          unit_price?: number | null
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "supplier_item_terms_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "supplier_item_terms_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_item_terms_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_lifecycle_events: {
+        Row: {
+          actor_user_id: string | null
+          business_id: string
+          created_at: string
+          from_state: string | null
+          id: string
+          metadata: Json
+          organization_id: string
+          reason: string | null
+          seq: number
+          supplier_id: string
+          to_state: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          business_id: string
+          created_at?: string
+          from_state?: string | null
+          id?: string
+          metadata?: Json
+          organization_id: string
+          reason?: string | null
+          seq: number
+          supplier_id: string
+          to_state: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          business_id?: string
+          created_at?: string
+          from_state?: string | null
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          reason?: string | null
+          seq?: number
+          supplier_id?: string
+          to_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_lifecycle_events_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       supplier_qualification_documents: {
         Row: {
@@ -63426,8 +63525,56 @@ export type Database = {
           },
         ]
       }
+      supplier_terms_changes: {
+        Row: {
+          business_id: string
+          changed_by: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          new_values: Json
+          old_values: Json
+          organization_id: string
+          reason: string | null
+          supplier_id: string
+        }
+        Insert: {
+          business_id: string
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          new_values?: Json
+          old_values?: Json
+          organization_id: string
+          reason?: string | null
+          supplier_id: string
+        }
+        Update: {
+          business_id?: string
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          new_values?: Json
+          old_values?: Json
+          organization_id?: string
+          reason?: string | null
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_terms_changes_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
+          archived_at: string | null
           business_id: string
           category_id: string | null
           contact_id: string
@@ -63441,6 +63588,7 @@ export type Database = {
           id: string
           is_preferred: boolean
           last_qualified_at: string | null
+          lifecycle_seq: number
           lifecycle_state: string
           minimum_order_value: number | null
           organization_id: string
@@ -63451,6 +63599,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           business_id: string
           category_id?: string | null
           contact_id: string
@@ -63464,6 +63613,7 @@ export type Database = {
           id?: string
           is_preferred?: boolean
           last_qualified_at?: string | null
+          lifecycle_seq?: number
           lifecycle_state?: string
           minimum_order_value?: number | null
           organization_id: string
@@ -63474,6 +63624,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           business_id?: string
           category_id?: string | null
           contact_id?: string
@@ -63487,6 +63638,7 @@ export type Database = {
           id?: string
           is_preferred?: boolean
           last_qualified_at?: string | null
+          lifecycle_seq?: number
           lifecycle_state?: string
           minimum_order_value?: number | null
           organization_id?: string
@@ -67531,144 +67683,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vendor_pricelists: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          currency: string
-          id: string
-          is_active: boolean
-          is_preferred: boolean
-          lead_time_days: number
-          min_order_qty: number
-          notes: string | null
-          organization_id: string
-          product_id: string
-          unit_price: number
-          updated_at: string
-          valid_from: string | null
-          valid_until: string | null
-          vendor_id: string
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          currency?: string
-          id?: string
-          is_active?: boolean
-          is_preferred?: boolean
-          lead_time_days?: number
-          min_order_qty?: number
-          notes?: string | null
-          organization_id: string
-          product_id: string
-          unit_price?: number
-          updated_at?: string
-          valid_from?: string | null
-          valid_until?: string | null
-          vendor_id: string
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          currency?: string
-          id?: string
-          is_active?: boolean
-          is_preferred?: boolean
-          lead_time_days?: number
-          min_order_qty?: number
-          notes?: string | null
-          organization_id?: string
-          product_id?: string
-          unit_price?: number
-          updated_at?: string
-          valid_from?: string | null
-          valid_until?: string | null
-          vendor_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_pricelists_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -82807,6 +82821,58 @@ export type Database = {
           },
         ]
       }
+      vendor_pricelists: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          created_at: string | null
+          currency: string | null
+          id: string | null
+          is_active: boolean | null
+          is_preferred: boolean | null
+          lead_time_days: number | null
+          min_order_qty: number | null
+          notes: string | null
+          organization_id: string | null
+          product_id: string | null
+          supplier_id: string | null
+          unit_price: number | null
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+          vendor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_item_terms_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "supplier_item_terms_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_item_terms_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suppliers_contact_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_unapplied_advances: {
         Row: {
           amount: number | null
@@ -83592,6 +83658,14 @@ export type Database = {
       }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
       _assert_reset_permission: { Args: { org_id: string }; Returns: undefined }
+      _assert_supplier_purchasable: {
+        Args: {
+          p_business_id: string
+          p_doc: string
+          p_vendor_contact_id: string
+        }
+        Returns: undefined
+      }
       _confirm_invoice_core: {
         Args: {
           p_final_status?: string
@@ -84266,6 +84340,17 @@ export type Database = {
           out_org_id: string
           out_structure_name: string
         }[]
+      }
+      _supplier_transition: {
+        Args: {
+          p_allowed_from: string[]
+          p_event: string
+          p_metadata?: Json
+          p_reason?: string
+          p_supplier_id: string
+          p_to_state: string
+        }
+        Returns: Json
       }
       _talent_guard_on: { Args: never; Returns: boolean }
       _talent_notify: {
@@ -85031,6 +85116,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -85057,6 +85143,32 @@ export type Database = {
       }
       activate_procurement_contract: {
         Args: { p_contract_id: string }
+        Returns: Json
+      }
+      add_supplier_bank_account: {
+        Args: {
+          p_account_name: string
+          p_account_number: string
+          p_bank_name: string
+          p_branch_code?: string
+          p_country?: string
+          p_currency?: string
+          p_iban?: string
+          p_is_primary?: boolean
+          p_supplier_id: string
+          p_swift_bic?: string
+        }
+        Returns: Json
+      }
+      add_supplier_to_asl: {
+        Args: {
+          p_category_id: string
+          p_effective_from?: string
+          p_effective_to?: string
+          p_notes?: string
+          p_rank?: number
+          p_supplier_id: string
+        }
         Returns: Json
       }
       advance_cycle_count_next_run: {
@@ -85311,6 +85423,7 @@ export type Database = {
           migration_session_id: string | null
           notes: string | null
           organization_id: string
+          party_snapshot: Json | null
           payment_term_id: string | null
           project_id: string | null
           purchase_order_id: string | null
@@ -85870,6 +85983,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -85908,6 +86022,10 @@ export type Database = {
       }
       approve_stock_transfer_atomic: {
         Args: { p_transfer_id: string; p_user_id: string }
+        Returns: Json
+      }
+      approve_supplier: {
+        Args: { p_notes?: string; p_supplier_id: string }
         Returns: Json
       }
       approve_supplier_qualification: {
@@ -86018,6 +86136,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      archive_supplier: {
+        Args: { p_reason?: string; p_supplier_id: string }
+        Returns: Json
       }
       assert_account_in_business: {
         Args: {
@@ -86636,6 +86758,10 @@ export type Database = {
         Args: { p_appointment_id: string; p_receipt_id: string }
         Returns: undefined
       }
+      block_supplier: {
+        Args: { p_reason: string; p_supplier_id: string }
+        Returns: Json
+      }
       calculate_leave_days: {
         Args: {
           p_end_date: string
@@ -86786,6 +86912,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -87609,6 +87736,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -88245,23 +88373,41 @@ export type Database = {
         }
         Returns: Json
       }
-      create_supplier: {
-        Args: {
-          p_business_id: string
-          p_category_id?: string
-          p_contact_id?: string
-          p_default_currency?: string
-          p_default_incoterms?: string
-          p_default_lead_time_days?: number
-          p_email?: string
-          p_name?: string
-          p_notes?: string
-          p_phone?: string
-          p_supplier_code?: string
-          p_tax_id?: string
-        }
-        Returns: Json
-      }
+      create_supplier:
+        | {
+            Args: {
+              p_business_id: string
+              p_category_id?: string
+              p_contact_id?: string
+              p_default_currency?: string
+              p_default_incoterms?: string
+              p_default_lead_time_days?: number
+              p_email?: string
+              p_name?: string
+              p_notes?: string
+              p_phone?: string
+              p_supplier_code?: string
+              p_tax_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_business_id: string
+              p_category_id?: string
+              p_contact_id?: string
+              p_default_currency?: string
+              p_default_incoterms?: string
+              p_default_lead_time_days?: number
+              p_email?: string
+              p_name?: string
+              p_notes?: string
+              p_phone?: string
+              p_supplier_code?: string
+              p_tax_id?: string
+            }
+            Returns: Json
+          }
       create_vendor_credit_note_atomic: {
         Args: {
           _bill_id: string
@@ -88308,6 +88454,10 @@ export type Database = {
       deactivate_collector_assignment: {
         Args: { _contact_id: string }
         Returns: undefined
+      }
+      deactivate_supplier_bank_account: {
+        Args: { p_bank_account_id: string; p_reason?: string }
+        Returns: Json
       }
       default_journal_book_for_source: {
         Args: {
@@ -89841,6 +89991,10 @@ export type Database = {
       ensure_pos_ready_for_business: {
         Args: { _business_id: string }
         Returns: Json
+      }
+      ensure_supplier_for_contact: {
+        Args: { p_contact_id: string }
+        Returns: string
       }
       evaluate_count_tolerance: {
         Args: {
@@ -92551,6 +92705,7 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
+      next_supplier_code: { Args: { p_business_id: string }; Returns: string }
       normalize_display_to_base: {
         Args: { p_display: number; p_packaging_id: string }
         Returns: number
@@ -95984,6 +96139,17 @@ export type Database = {
         }
         Returns: string
       }
+      record_supplier_compliance_check: {
+        Args: {
+          p_check_kind: string
+          p_details?: Json
+          p_expires_at?: string
+          p_outcome: string
+          p_reference?: string
+          p_supplier_id: string
+        }
+        Returns: Json
+      }
       record_terminal_test_result: {
         Args: { p_config_id: string; p_error?: string; p_status: string }
         Returns: undefined
@@ -96151,6 +96317,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -96265,6 +96432,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -96393,6 +96561,14 @@ export type Database = {
         }
       }
       remove_device: { Args: { p_device_id: string }; Returns: boolean }
+      remove_supplier_from_asl: {
+        Args: {
+          p_category_id: string
+          p_reason?: string
+          p_supplier_id: string
+        }
+        Returns: Json
+      }
       rename_department: {
         Args: { p_department_id: string; p_new_name: string }
         Returns: {
@@ -97327,6 +97503,26 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: string
       }
+      resolve_supplier_defaults: {
+        Args: { p_business_id: string; p_contact_id: string }
+        Returns: Json
+      }
+      resolve_supplier_remittance: {
+        Args: {
+          p_business_id: string
+          p_contact_id: string
+          p_currency?: string
+        }
+        Returns: {
+          account_name: string
+          account_number_masked: string
+          bank_account_id: string
+          bank_name: string
+          currency: string
+          iban: string
+          swift_bic: string
+        }[]
+      }
       resolve_timesheet_billing_rate: {
         Args: { _timesheet_id: string }
         Returns: number
@@ -97542,6 +97738,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -98080,6 +98277,7 @@ export type Database = {
           notes: string | null
           order_date: string
           organization_id: string
+          party_snapshot: Json | null
           po_number: string
           project_id: string | null
           requisition_id: string | null
@@ -98143,6 +98341,7 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
+      sweep_supplier_qualification_expiry: { Args: never; Returns: Json }
       sync_pack_onboarding_items: {
         Args: { p_business_id: string }
         Returns: undefined
@@ -98795,6 +98994,14 @@ export type Database = {
         Args: { _application_id: string; _reason?: string }
         Returns: Json
       }
+      unarchive_supplier: {
+        Args: { p_notes?: string; p_supplier_id: string }
+        Returns: Json
+      }
+      unblock_supplier: {
+        Args: { p_notes?: string; p_supplier_id: string }
+        Returns: Json
+      }
       uninstall_app: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: boolean
@@ -98940,6 +99147,19 @@ export type Database = {
           p_items: Json
           p_so_id: string
           p_user_id?: string
+        }
+        Returns: Json
+      }
+      update_supplier_terms: {
+        Args: {
+          p_default_currency?: string
+          p_default_incoterms?: string
+          p_default_lead_time_days?: number
+          p_default_payment_term_id?: string
+          p_minimum_order_value?: number
+          p_preferred_rank?: number
+          p_reason?: string
+          p_supplier_id: string
         }
         Returns: Json
       }
@@ -99342,6 +99562,10 @@ export type Database = {
       }
       verify_pin_unauthenticated: {
         Args: { p_pin: string; p_user_id: string }
+        Returns: Json
+      }
+      verify_supplier_bank_account: {
+        Args: { p_bank_account_id: string }
         Returns: Json
       }
       verify_tenant_ownership_transfer: {
