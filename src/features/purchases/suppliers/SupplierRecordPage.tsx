@@ -81,6 +81,14 @@ import {
   unblockSupplier,
   verifySupplierBankAccount,
 } from "./supplierRpcs";
+import {
+  SupplierAslTab,
+  SupplierHistoryTab,
+  SupplierItemTermsTab,
+  SupplierPaymentsTab,
+  SupplierReturnsTab,
+  SupplierTermsTab,
+} from "./SupplierRecordTabs";
 
 
 const LIFECYCLE_TONE: Record<
@@ -421,6 +429,11 @@ export default function SupplierRecordPage() {
         <Tabs defaultValue="overview" className="w-full">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="terms">Terms</TabsTrigger>
+            <TabsTrigger value="item-terms">
+              Item terms ({record.item_terms.length})
+            </TabsTrigger>
+            <TabsTrigger value="asl">ASL ({record.asl.length})</TabsTrigger>
             <TabsTrigger value="qualification">
               Qualification ({record.qualifications.length})
             </TabsTrigger>
@@ -441,6 +454,15 @@ export default function SupplierRecordPage() {
             </TabsTrigger>
             <TabsTrigger value="bills">
               Bills ({record.bills.length})
+            </TabsTrigger>
+            <TabsTrigger value="payments">
+              Payments ({record.payments.length})
+            </TabsTrigger>
+            <TabsTrigger value="returns">
+              Returns ({record.returns.length})
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              History ({record.lifecycle_events.length})
             </TabsTrigger>
           </TabsList>
 
@@ -983,6 +1005,13 @@ export default function SupplierRecordPage() {
               </div>
             )}
           </TabsContent>
+
+          <SupplierTermsTab record={record} refresh={refresh} />
+          <SupplierItemTermsTab record={record} refresh={refresh} />
+          <SupplierAslTab record={record} refresh={refresh} />
+          <SupplierPaymentsTab record={record} refresh={refresh} />
+          <SupplierReturnsTab record={record} refresh={refresh} />
+          <SupplierHistoryTab record={record} refresh={refresh} />
         </Tabs>
       </PageBody>
 
