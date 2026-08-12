@@ -249,64 +249,13 @@ export default function VendorCreditNotes() {
         )}
       </div>
 
+      {/*
+        No apply-to-bill dialog lives here any more: allocation is a server
+        command exposed by the shared action set, so the list cannot compute
+        or validate credit amounts client-side.
+      */}
 
-      {/* Apply to Bill Dialog */}
-      <Dialog open={!!applyDialogCN} onOpenChange={(open) => { if (!open) setApplyDialogCN(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Apply Credit to Bill</DialogTitle>
-            <DialogDescription>
-              {applyDialogCN && `Apply ${applyDialogCN.credit_note_number} (remaining: ${formatCurrency(applyDialogCN.total - applyDialogCN.amount_applied, applyDialogCN.currency)})`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Bill</Label>
-              <Select value={applyBillId} onValueChange={setApplyBillId}>
-                <SelectTrigger><SelectValue placeholder="Choose a bill" /></SelectTrigger>
-                <SelectContent>
-                  {outstandingBills
-                    .filter((b) => !applyDialogCN?.vendor_id || b.vendor_id === applyDialogCN.vendor_id)
-                    .map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.bill_number} — Balance: {formatCurrency(b.total - (b.amount_paid || 0), b.currency)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Amount to Apply</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={applyAmount}
-                onChange={(e) => setApplyAmount(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setApplyDialogCN(null)}>Cancel</Button>
-            <Button
-              disabled={isSubmitting || !applyBillId || !applyAmount}
-              onClick={async () => {
-                if (!applyDialogCN) return;
-                setIsSubmitting(true);
-                try {
-                  await applyToBill(applyDialogCN.id, applyBillId, Number(applyAmount));
-                  setApplyDialogCN(null);
-                } catch (err: any) {
-                  toast({ title: "Error applying credit", description: normalizeError(err).message, variant: "destructive" });
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}
-            >
-              {isSubmitting ? "Applying..." : "Apply Credit"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       <ContactPreviewDrawer
         open={!!previewContactId}
