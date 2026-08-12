@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeError } from "@/lib/errors";
+import { normalizeError } from "@/services/resilience";
 import { useVendorCreditNotes, type VendorCreditNote } from "@/hooks/useVendorCreditNotes";
 import { useVendorCreditNoteApplications } from "./useVendorCreditNoteApplications";
 import { useVendorOpenBills } from "./useVendorOpenBills";
