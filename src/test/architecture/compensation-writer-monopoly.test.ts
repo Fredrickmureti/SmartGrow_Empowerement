@@ -222,6 +222,36 @@ describe("commercial compensation writer monopoly", () => {
     ).toEqual([]);
   });
 
+  it("no client mutates vendor credit note headers or lines directly", () => {
+    const offenders = appFiles.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return /from\("vendor_credit_notes?(?:_items)?"\)\s*\n?\s*\.(?:update|delete|upsert|insert)/.test(
+        src,
+      );
+    });
+    expect(
+      offenders.map(rel),
+      "vendor credit note money is server-authoritative: use update_vendor_credit_note_atomic / delete_vendor_credit_note_atomic",
+    ).toEqual([]);
+  });
+
+  it("vendor credit note creation carries an idempotency key", () => {
+    const hook = readFileSync(join(SRC, "hooks/useVendorCreditNotes.ts"), "utf8");
+    expect(
+      hook.includes("_client_request_id"),
+      "creation must pass a client request id so retries replay instead of duplicating",
+    ).toBe(true);
+    const createPage = readFileSync(
+      join(SRC, "features/purchases/credit-notes/VendorCreditNoteCreatePage.tsx"),
+      "utf8",
+    );
+    expect(
+      /requestIdRef/.test(createPage),
+      "the create form must hold one deterministic request id per attempt",
+    ).toBe(true);
+  });
+
+
   it("no client-side purchase-return journal lines", () => {
     const offenders = appFiles.filter((f) => readFileSync(f, "utf8").includes("postPurchaseReturnGL"));
     expect(
