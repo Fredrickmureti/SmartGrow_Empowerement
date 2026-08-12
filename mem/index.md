@@ -17,6 +17,7 @@ Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_typ
 Salesperson metrics come only from get_salesperson_performance; attribution inherits from the invoice, never from created_by.
 Treasury ids (bank_accounts.id) and GL ids (accounts.id) are distinct: settlement RPCs take _bank_account_id AND _credit_account_id separately.
 public.profiles.id is a surrogate PK — resolve auth user ids (requester_id, actor_user_id, created_by) via profiles.user_id.
+Suppliers are a role on contacts (ADR-0079): documents key vendor_id→contacts.id; supplier tables are RPC-only; purchasability is a DB gate.
 
 
 
@@ -45,3 +46,4 @@ public.profiles.id is a surrogate PK — resolve auth user ids (requester_id, ac
 - [Document action parity](mem://features/document-action-parity) — purchases row menus, peeks and record pages all render the same `use<Doc>Actions` array; Preview/Print/Download are separate verbs
 - [Profiles lookup key](mem://constraints/profiles-lookup-key) — join profiles on user_id, never id, when mapping auth users to display names
 - [Expense lifecycle & reimbursement](mem://features/expense-reimbursement) — server-only expense transitions, employee payable settlement (payroll queue vs direct), bill-owns-liability rule, reversal register entry
+- [Supplier / vendor master](mem://features/supplier-vendor-master) — ADR-0079 party↔role split, purchasability gate coverage, RPC-only supplier writes, supplier_item_terms convergence, Supplier 360 tabs
