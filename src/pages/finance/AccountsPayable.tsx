@@ -86,6 +86,23 @@ interface UnlinkedAPExpense {
   currency: string;
 }
 
+/** Row shape of the AP-expense probe below; pinned via `.returns<>()`. */
+interface APExpenseRow {
+  id: string;
+  description: string;
+  amount: number;
+  tax_amount: number | null;
+  expense_date: string;
+  vendor_id: string | null;
+  reference: string | null;
+  currency: string | null;
+  vendor: { name: string | null } | null;
+}
+
+/** Identity on the select string — keeps it out of the type-level parser. */
+const sel = (s: string): string => s;
+
+
 export default function AccountsPayable() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -123,13 +140,16 @@ export default function AccountsPayable() {
     const fetchUnlinkedAPExpenses = async () => {
       if (!currentOrg?.id || !currentBusiness?.id || !defaultAccounts.accounts_payable_id) return;
 
-      // Find expenses that credit AP but have no corresponding bill
+      // Find expenses that credit AP but have no corresponding bill.
+      // `sel()` keeps the embedded-select string out of the type-level parser
+      // (see query-builder-type-performance) and `.returns<T>()` pins the shape.
       const { data: apExpenses } = await supabase
         .from("expenses")
-        .select("id, description, amount, tax_amount, expense_date, vendor_id, reference, currency, vendor:contacts(name)")
+        .select(sel("id, description, amount, tax_amount, expense_date, vendor_id, reference, currency, vendor:contacts(name)"))
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .eq("payment_account_id", defaultAccounts.accounts_payable_id);
+        .eq("payment_account_id", defaultAccounts.accounts_payable_id)
+        .returns<APExpenseRow[]>();
 
       if (!apExpenses || apExpenses.length === 0) {
         setUnlinkedExpenses([]);
