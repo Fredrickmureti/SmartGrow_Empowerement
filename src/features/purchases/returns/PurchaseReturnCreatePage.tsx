@@ -38,6 +38,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useContacts } from "@/hooks/useContacts";
+import { usePurchasableVendors } from "../suppliers/usePurchasableVendors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
 import {

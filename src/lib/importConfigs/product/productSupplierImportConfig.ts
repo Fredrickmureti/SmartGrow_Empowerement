@@ -1,7 +1,7 @@
 /**
  * Product SUPPLIER PRICELIST import config (ADR 0074, ADR 0114).
  *
- * Populates `vendor_pricelists` (vendor cost tiers, lead time) and — when the
+ * Populates `supplier_item_terms` (vendor cost tiers, lead time) and — when the
  * sheet carries a vendor product code — registers that code as a
  * supplier-scoped product identifier through the canonical write seam, so a
  * receiving clerk can scan the vendor's own carton label. Before ADR 0114 the
@@ -37,7 +37,7 @@ function toBool(v: unknown): boolean {
 }
 
 /**
- * ADR-0074 batch handler — writes to `vendor_pricelists` only. Vendors
+ * ADR-0074 batch handler — writes supplier item terms only. Vendors
  * must already exist as supplier contacts (contacts.supplier_rank > 0);
  * unknown vendors surface in the errors array instead of being auto-created
  * (business-master data hygiene).
@@ -82,21 +82,24 @@ export function createProductSupplierBatchMigrationHandler(ctx: ImportContext) {
         errors.push({ rowIndex: i + 2, data: row, errors: "Missing/invalid cost_price" });
         continue;
       }
-      const { error } = await supabase.from("vendor_pricelists").insert({
-        organization_id: ctx.orgId,
-        business_id: ctx.businessId,
-        vendor_id: vendorId,
-        product_id: productId,
-        unit_price: Number(row.cost_price),
-        currency: row.currency ? String(row.currency).trim() : "USD",
-        min_order_qty: row.min_order_qty != null ? Math.max(1, Math.floor(Number(row.min_order_qty))) : 1,
-        lead_time_days: row.lead_time_days != null ? Math.max(0, Math.floor(Number(row.lead_time_days))) : 0,
-        is_preferred: toBool(row.is_preferred),
-        is_active: true,
+      // Canonical write seam: the supplier item-terms RPC resolves the party
+      // (contact) to its supplier role server-side. ADR-0079.
+      const { error } = await (supabase as any).rpc("upsert_supplier_item_terms", {
+        p_business_id: ctx.businessId,
+        p_vendor_id: vendorId,
+        p_product_id: productId,
+        p_unit_price: Number(row.cost_price),
+        p_currency_code: row.currency ? String(row.currency).trim() : "USD",
+        p_min_order_qty:
+          row.min_order_qty != null ? Math.max(1, Math.floor(Number(row.min_order_qty))) : 1,
+        p_lead_time_days:
+          row.lead_time_days != null ? Math.max(0, Math.floor(Number(row.lead_time_days))) : 0,
+        p_is_preferred: toBool(row.is_preferred),
         // The vendor product code is an identifier, not a note — it is
         // registered below through the identity write seam.
-        notes: null,
-      } as any);
+        p_notes: null,
+        p_organization_id: ctx.orgId,
+      });
       if (error) {
         if ((error as any).code === "23505") imported++;
         else errors.push({ rowIndex: i + 2, data: row, errors: error.message });
