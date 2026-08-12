@@ -212,3 +212,46 @@ describe("Phase 1 — no client re-derives reversal legality", () => {
     ).not.toMatch(/postCreditNoteToGL|from\(["']credit_notes["']\)/);
   });
 });
+
+/**
+ * Phase 5.3 carry-over — reversal approval gating is GENERIC.
+ *
+ * Vendor credit notes were the last document type whose approval gating was
+ * unverified. They must ride the same mechanism as every other reversible
+ * document (`reversal_approval_requirement` → `assert_can_reverse` →
+ * `request_reversal_approval`), never a bespoke, screen-local gate.
+ */
+describe("reversal approval gating is one generic mechanism", () => {
+  it("the vendor credit note writer refuses through assert_can_reverse", () => {
+    const body = latestDefinitionOf("reverse_vendor_credit_note_atomic");
+    expect(body, "reverse_vendor_credit_note_atomic is not defined in migrations").toBeDefined();
+    expect(body!, "the writer must delegate legality + approval to the shared gate").toMatch(
+      /assert_can_reverse\s*\(/,
+    );
+    expect(body!, "reason vocabulary must be validated by the shared authority").toMatch(
+      /assert_reversal_reason\s*\(/,
+    );
+  });
+
+  it("the vendor credit note surface consults the shared approval hook", () => {
+    const dialog = readFileSync(
+      join(SRC_DIR, "components", "purchases", "ReverseVendorCreditNoteDialog.tsx"),
+      "utf8",
+    );
+    expect(dialog).toMatch(/useReversalApproval\(\s*["']vendor_credit_note["']/);
+    expect(dialog).toMatch(/ReversalApprovalNotice/);
+    // No screen-local approval decision may be reintroduced.
+    expect(dialog).not.toMatch(/from\(["']approval_requests["']\)/);
+    expect(dialog).not.toMatch(/amount_threshold\s*[<>=]/);
+  });
+
+  it("the approval hook routes requests through the one approval engine", () => {
+    const hook = readFileSync(
+      join(SRC_DIR, "components", "reversal", "useReversalApproval.ts"),
+      "utf8",
+    );
+    expect(hook).toMatch(/reversal_approval_requirement/);
+    expect(hook).toMatch(/request_reversal_approval/);
+    expect(hook).not.toMatch(/from\(["']approval_requests["']\)[\s\S]{0,120}\.insert\(/);
+  });
+});
