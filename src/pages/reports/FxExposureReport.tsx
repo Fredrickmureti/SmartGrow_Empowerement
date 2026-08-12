@@ -75,7 +75,7 @@ function provenance(row: {
   return bits.join(" · ");
 }
 
-export default function FxExposureReport() {
+function FxExposureReportInner() {
   const [asOf, setAsOf] = useState<string>(today());
   const [selected, setSelected] = useState<string | null>(null);
 
