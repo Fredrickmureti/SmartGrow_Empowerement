@@ -55,6 +55,14 @@ export default function VendorCreditNoteCreatePage() {
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // One deterministic intent key per create attempt. A retry or a double
+  // submit replays the same server-side creation instead of duplicating it.
+  const requestIdRef = useRef<string>(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `vcn-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+
   const [formData, setFormData] = useState({
     credit_note_number: "",
     vendor_id: "",
