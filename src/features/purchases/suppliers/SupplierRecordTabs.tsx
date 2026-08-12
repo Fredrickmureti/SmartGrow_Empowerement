@@ -39,6 +39,8 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState, Section, StatusBadge } from "@/design-system";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrencies } from "@/hooks/useCurrencies";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
 import { normalizeError } from "@/services/resilience";
 
 import type { SupplierRecord } from "./useSupplierRecord";
@@ -79,6 +81,7 @@ interface TabProps {
 /* ── Commercial terms ─────────────────────────────────────────────────── */
 export function SupplierTermsTab({ record, refresh }: TabProps) {
   const { toast } = useToast();
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
@@ -215,12 +218,14 @@ export function SupplierTermsTab({ record, refresh }: TabProps) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="terms-currency">Currency</Label>
-                <Input
-                  id="terms-currency"
+                <CurrencyCombobox
+                  currencies={currencies}
                   value={form.defaultCurrency}
-                  onChange={(e) =>
-                    setForm({ ...form, defaultCurrency: e.target.value.toUpperCase() })
+                  onValueChange={(code) =>
+                    setForm({ ...form, defaultCurrency: code })
                   }
+                  placeholder="Select currency…"
+                  disabled={currenciesLoading}
                 />
               </div>
               <div>

@@ -30,6 +30,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
+import { useCurrencies } from "@/hooks/useCurrencies";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
 import { useSupplierCategories } from "./useSuppliers";
 import { createSupplier } from "./supplierRpcs";
 
@@ -46,6 +48,7 @@ export default function SupplierCreatePage() {
   const { toast } = useToast();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
   const categories = useSupplierCategories();
 
   const [contactId, setContactId] = useState("");
@@ -255,12 +258,12 @@ export default function SupplierCreatePage() {
               </div>
               <div>
                 <Label htmlFor="cur">Default currency</Label>
-                <Input
-                  id="cur"
-                  placeholder="USD"
+                <CurrencyCombobox
+                  currencies={currencies}
                   value={currency}
-                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                  maxLength={3}
+                  onValueChange={setCurrency}
+                  placeholder="Select currency…"
+                  disabled={currenciesLoading}
                 />
               </div>
               <div>

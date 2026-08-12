@@ -40,6 +40,7 @@ import { useBills, type Bill, type BillItem, type DuplicateVendorInvoice } from 
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useSupplierDocumentCurrency } from "@/features/purchases/suppliers/useSupplierDocumentCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import {
@@ -85,7 +86,7 @@ export default function BillCreatePage() {
   const prefillProjectId = searchParams.get("project_id");
   const { contacts } = useContacts();
   const { products } = useProducts();
-  const { formatCurrency, baseCurrency } = useCurrency();
+  const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const {
     getNextBillNumber,
@@ -115,6 +116,9 @@ export default function BillCreatePage() {
   const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
 
   const vendors = usePurchasableVendors(contacts);
+
+  // ADR 0135 — supplier-proposed currency; the database stamps and freezes it.
+  const { currency: documentCurrency } = useSupplierDocumentCurrency(formData.vendor_id);
 
   useEffect(() => {
     if (prefillContactId) {
@@ -299,7 +303,7 @@ export default function BillCreatePage() {
           discount_amount: formData.discount_amount,
           total: 0,
           amount_paid: 0,
-          currency: baseCurrency,
+          currency: documentCurrency,
           notes: formData.notes || null,
           attachment_url: null,
           project_id: formData.project_id,

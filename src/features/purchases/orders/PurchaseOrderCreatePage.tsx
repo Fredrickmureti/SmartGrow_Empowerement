@@ -45,6 +45,7 @@ import { usePurchaseOrders, type PurchaseOrderItem } from "@/hooks/usePurchaseOr
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useSupplierDocumentCurrency } from "@/features/purchases/suppliers/useSupplierDocumentCurrency";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { normalizeError } from "@/services/resilience";
@@ -80,7 +81,7 @@ export default function PurchaseOrderCreatePage() {
   const { getNextPONumber, createPurchaseOrder } = usePurchaseOrders();
   const { contacts } = useContacts();
   const { products } = useProducts();
-  const { formatCurrency, baseCurrency } = useCurrency();
+  const { formatCurrency } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -95,6 +96,10 @@ export default function PurchaseOrderCreatePage() {
     discount_amount: 0,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
+
+  // ADR 0135 — the supplier only *proposes* the document currency; the database
+  // stamps and freezes it (and the rate) on insert.
+  const { currency: documentCurrency } = useSupplierDocumentCurrency(formData.vendor_id);
 
   useEffect(() => {
     if (prefillContactId) setFormData((p) => ({ ...p, vendor_id: prefillContactId }));
@@ -253,7 +258,7 @@ export default function PurchaseOrderCreatePage() {
           tax_amount: 0,
           discount_amount: formData.discount_amount,
           total: 0,
-          currency: baseCurrency,
+          currency: documentCurrency,
           deliver_to_warehouse_id: formData.deliver_to_warehouse_id,
           deliver_to_branch_id: formData.deliver_to_branch_id,
           shipping_address: formData.shipping_address || null,

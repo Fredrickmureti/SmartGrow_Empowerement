@@ -108,15 +108,18 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     queryFn: async ({ from, to }) => {
       if (!currentOrg || !businessId) return { data: [], count: 0 };
 
+      // `sel` keeps the select string out of supabase-js' type-level parser
+      // (TS2589 on this deeply-nested embed); row shape is pinned below.
+      const sel = (s: string): string => s;
       let query = supabase
         .from("expenses")
         .select(
-          `
+          sel(`
           *,
           category:expense_categories(*),
           vendor:contacts(name),
           payment_account:accounts!expenses_payment_account_id_fkey(id, name, code)
-        `,
+        `),
           { count: "exact" }
         )
         .eq("organization_id", currentOrg.id)
@@ -139,7 +142,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
 
       if (error) throw error;
 
-      return { data: (data || []) as Expense[], count: count || 0 };
+      return { data: (data ?? []) as unknown as Expense[], count: count || 0 };
     },
     pageSize,
     enabled: !!currentOrg && !!businessId,
