@@ -77,13 +77,19 @@ describe("AP credit position provenance", () => {
     // The pre-7b defect: an explicit "AP has no credit-position analogue" branch.
     expect(openItems).not.toMatch(/no credit-position analogue/i);
 
+    // No AP position surface may query the credit-note document table for a
+    // credit balance. Document workspaces may still read `amount_applied` to
+    // render a single note; what is forbidden is deriving a supplier's credit
+    // position from it.
     const offenders = files.filter((f) => {
       const src = readFileSync(f, "utf8");
-      return (
-        /vendor_credit_notes/.test(src) &&
-        /amount_applied/.test(src) &&
-        /(aging|ageing|payable|ap_summary|statement)/i.test(src)
-      );
+      const isPositionSurface =
+        /(aging|ageing|open[_-]?items|ap_summary|net_position)/i.test(src) &&
+        /(finance_ap_open_items|get_ap_summary|get_ap_aging_summary|fetchContactOpenItemAging)/.test(
+          src,
+        );
+      if (!isPositionSurface) return false;
+      return /from\(\s*["'`]vendor_credit_notes/.test(src);
     });
     expect(offenders).toEqual([]);
   });
