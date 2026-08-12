@@ -6038,6 +6038,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bill_grn_matches_bill_item_id_fkey"
+            columns: ["bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_bill_creditable_qty"
+            referencedColumns: ["bill_item_id"]
+          },
+          {
             foreignKeyName: "bill_grn_matches_goods_receipt_id_fkey"
             columns: ["goods_receipt_id"]
             isOneToOne: false
@@ -54196,6 +54203,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_return_items_bill_item_id_fkey"
+            columns: ["bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_bill_creditable_qty"
+            referencedColumns: ["bill_item_id"]
+          },
+          {
             foreignKeyName: "purchase_return_items_display_uom_id_fkey"
             columns: ["display_uom_id"]
             isOneToOne: false
@@ -66885,6 +66899,7 @@ export type Database = {
       vendor_credit_note_items: {
         Row: {
           account_id: string | null
+          bill_item_id: string | null
           created_at: string
           credit_note_id: string
           description: string
@@ -66897,6 +66912,8 @@ export type Database = {
           product_id: string | null
           quantity: number
           sort_order: number
+          source_tax_rate: number | null
+          source_unit_price: number | null
           tax_amount: number
           tax_rate: number
           unit_price: number
@@ -66904,6 +66921,7 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          bill_item_id?: string | null
           created_at?: string
           credit_note_id: string
           description?: string
@@ -66916,6 +66934,8 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           sort_order?: number
+          source_tax_rate?: number | null
+          source_unit_price?: number | null
           tax_amount?: number
           tax_rate?: number
           unit_price?: number
@@ -66923,6 +66943,7 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          bill_item_id?: string | null
           created_at?: string
           credit_note_id?: string
           description?: string
@@ -66935,6 +66956,8 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           sort_order?: number
+          source_tax_rate?: number | null
+          source_unit_price?: number | null
           tax_amount?: number
           tax_rate?: number
           unit_price?: number
@@ -66961,6 +66984,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_items_bill_item_id_fkey"
+            columns: ["bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "bill_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_items_bill_item_id_fkey"
+            columns: ["bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_bill_creditable_qty"
+            referencedColumns: ["bill_item_id"]
           },
           {
             foreignKeyName: "vendor_credit_note_items_credit_note_id_fkey"
@@ -67013,11 +67050,19 @@ export type Database = {
           credit_date: string
           credit_note_number: string
           currency: string
+          exchange_rate: number | null
+          exchange_rate_date: string | null
+          goods_receipt_id: string | null
           id: string
           is_sample_data: boolean
           journal_entry_id: string | null
           notes: string | null
           organization_id: string
+          origin: string
+          purchase_order_id: string | null
+          reason_code: string | null
+          row_version: number
+          source_return_id: string | null
           status: string
           submitted_at: string | null
           submitted_by: string | null
@@ -67025,6 +67070,8 @@ export type Database = {
           tax_amount: number
           total: number
           updated_at: string
+          vendor_document_date: string | null
+          vendor_document_number: string | null
           vendor_id: string
         }
         Insert: {
@@ -67040,11 +67087,19 @@ export type Database = {
           credit_date?: string
           credit_note_number: string
           currency?: string
+          exchange_rate?: number | null
+          exchange_rate_date?: string | null
+          goods_receipt_id?: string | null
           id?: string
           is_sample_data?: boolean
           journal_entry_id?: string | null
           notes?: string | null
           organization_id: string
+          origin?: string
+          purchase_order_id?: string | null
+          reason_code?: string | null
+          row_version?: number
+          source_return_id?: string | null
           status?: string
           submitted_at?: string | null
           submitted_by?: string | null
@@ -67052,6 +67107,8 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          vendor_document_date?: string | null
+          vendor_document_number?: string | null
           vendor_id: string
         }
         Update: {
@@ -67067,11 +67124,19 @@ export type Database = {
           credit_date?: string
           credit_note_number?: string
           currency?: string
+          exchange_rate?: number | null
+          exchange_rate_date?: string | null
+          goods_receipt_id?: string | null
           id?: string
           is_sample_data?: boolean
           journal_entry_id?: string | null
           notes?: string | null
           organization_id?: string
+          origin?: string
+          purchase_order_id?: string | null
+          reason_code?: string | null
+          row_version?: number
+          source_return_id?: string | null
           status?: string
           submitted_at?: string | null
           submitted_by?: string | null
@@ -67079,6 +67144,8 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          vendor_document_date?: string | null
+          vendor_document_number?: string | null
           vendor_id?: string
         }
         Relationships: [
@@ -67185,6 +67252,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_notes_source_return_id_fkey"
+            columns: ["source_return_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_returns"
             referencedColumns: ["id"]
           },
           {
@@ -77956,6 +78030,87 @@ export type Database = {
         }
         Relationships: []
       }
+      v_bill_creditable_qty: {
+        Row: {
+          bill_id: string | null
+          bill_item_id: string | null
+          billed_qty: number | null
+          business_id: string | null
+          credited_qty: number | null
+          description: string | null
+          organization_id: string | null
+          product_id: string | null
+          remaining_net_amount: number | null
+          remaining_qty: number | null
+          tax_rate: number | null
+          unit_price: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_items_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "bill_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bills_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_branch_scoped_policy_check: {
         Row: {
           cmd: string | null
@@ -83813,6 +83968,14 @@ export type Database = {
         }
         Returns: Json
       }
+      _resolve_vendor_credit_note_line: {
+        Args: { _bill_id: string; _exclude_vcn_id: string; _line: Json }
+        Returns: Json
+      }
+      _resolve_vendor_credit_note_lines: {
+        Args: { _bill_id: string; _exclude_vcn_id: string; _items: Json }
+        Returns: Json
+      }
       _rfq_assert_award_decided: {
         Args: { _rfq_id: string }
         Returns: undefined
@@ -85537,11 +85700,19 @@ export type Database = {
           credit_date: string
           credit_note_number: string
           currency: string
+          exchange_rate: number | null
+          exchange_rate_date: string | null
+          goods_receipt_id: string | null
           id: string
           is_sample_data: boolean
           journal_entry_id: string | null
           notes: string | null
           organization_id: string
+          origin: string
+          purchase_order_id: string | null
+          reason_code: string | null
+          row_version: number
+          source_return_id: string | null
           status: string
           submitted_at: string | null
           submitted_by: string | null
@@ -85549,6 +85720,8 @@ export type Database = {
           tax_amount: number
           total: number
           updated_at: string
+          vendor_document_date: string | null
+          vendor_document_number: string | null
           vendor_id: string
         }
         SetofOptions: {
