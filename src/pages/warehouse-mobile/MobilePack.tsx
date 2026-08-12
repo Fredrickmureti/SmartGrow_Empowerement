@@ -95,7 +95,12 @@ export default function MobilePack() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pick_wave_lines")
-        .select("id, sales_order_id, product_id, quantity_picked, quantity_packed, packed_carton_id, product:product_id(sku, name)")
+        .select(
+          // Widened to `string` so the nested relation is not parsed at the
+          // type level (TS2589); the row shape is pinned by the cast below.
+          "id, sales_order_id, product_id, quantity_picked, quantity_packed, packed_carton_id, product:product_id(sku, name)" as string,
+        )
+
         .eq("wave_id", waveId!)
         .eq("sales_order_id", salesOrderId!);
       if (error) throw error;

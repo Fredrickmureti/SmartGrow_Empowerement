@@ -287,10 +287,11 @@ describe("purchases documents — one action vocabulary", () => {
   );
 
   it("every purchases actions hook offers the full output vocabulary", () => {
-    // Vendor credit notes have no document snapshot builder yet, so they
-    // cannot preview/print/download — excluded until one exists.
-    const hooks = ACTION_HOOKS.filter((f) => !/VendorCreditNote/i.test(f));
-    const missing = hooks.filter((f) => {
+    // No exclusions: every purchases document — vendor credit notes included —
+    // has a registered document kind and snapshot builder, so all three output
+    // verbs must be present.
+    const missing = ACTION_HOOKS.filter((f) => {
+
       const src = read(f);
       return !(
         /id: "preview"/.test(src) &&

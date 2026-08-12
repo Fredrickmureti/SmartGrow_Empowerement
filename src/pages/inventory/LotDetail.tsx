@@ -105,6 +105,16 @@ function isInbound(mt: string) {
   return INBOUND_TYPES.has(mt);
 }
 
+/**
+ * supabase-js parses every select string literal at the type level. These two
+ * queries each pull several nested relations, which tips `tsc` into TS2589
+ * ("type instantiation is excessively deep"). Widening the argument to plain
+ * `string` skips that parsing; the row shapes are pinned by the explicit
+ * `LotHeader` / `MovementRow` casts below.
+ */
+const sel = (s: string): string => s;
+
+
 export default function LotDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -123,10 +133,13 @@ export default function LotDetail() {
     const { data: lotRow, error: lotErr } = await supabase
       .from("stock_lots")
       .select(
-        "id, business_id, organization_id, product_id, lot_number, serial_number, expiry_date, manufacture_date, is_active, goods_receipt_id, notes, created_at, product:products(id, name, sku), supplier:contacts(id, name), goods_receipt:goods_receipts(id, receipt_number)",
+        sel(
+          "id, business_id, organization_id, product_id, lot_number, serial_number, expiry_date, manufacture_date, is_active, goods_receipt_id, notes, created_at, product:products(id, name, sku), supplier:contacts(id, name), goods_receipt:goods_receipts(id, receipt_number)",
+        ),
       )
       .eq("id", id)
       .maybeSingle();
+
     if (lotErr || !lotRow) {
       if (lotErr) toast({ title: "Failed to load lot", description: lotErr.message, variant: "destructive" });
       setLot(null);
@@ -142,8 +155,11 @@ export default function LotDetail() {
     const { data: mvRows, error: mvErr } = await supabase
       .from("stock_movements")
       .select(
-        "id, movement_date, movement_type, quantity, warehouse_id, reference_type, reference_id, notes, serial_number, warehouse:warehouses(id, name)",
+        sel(
+          "id, movement_date, movement_type, quantity, warehouse_id, reference_type, reference_id, notes, serial_number, warehouse:warehouses(id, name)",
+        ),
       )
+
       .eq("business_id", header.business_id)
       .eq("product_id", header.product_id)
       .eq("lot_number", header.lot_number)

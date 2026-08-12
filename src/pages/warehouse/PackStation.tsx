@@ -145,8 +145,11 @@ export default function PackStation() {
       const { data, error } = await supabase
         .from("wms_pick_wave_lines")
         .select(
-          "id, quantity_ordered, quantity_picked, quantity_packed, lot_number, product_id, sales_order_id, packed_carton_id, product:product_id(name, sku)",
+          // `as string` keeps supabase-js from parsing this nested select at
+          // the type level (TS2589); the cast below pins the row shape.
+          "id, quantity_ordered, quantity_picked, quantity_packed, lot_number, product_id, sales_order_id, packed_carton_id, product:product_id(name, sku)" as string,
         )
+
         .eq("wave_id", waveId!)
         .order("created_at");
       if (error) throw error;
