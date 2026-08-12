@@ -123,3 +123,9 @@ existing rate engine.
 
 `expense` is listed as reversible but `resolve_reversal_intent_finance` has no expense branch. It predates
 this work and belongs to the Expenses module.
+
+## Unrelated pre-existing build error
+
+`src/pages/inventory/LotDetail.tsx:123` fails typecheck with TS2589 (excessively deep type instantiation on the
+`stock_lots` select with four nested relations). It is untouched by this work; the one-line fix is to type the
+query result explicitly instead of letting the generated types recurse. I will fix it first on approval.
