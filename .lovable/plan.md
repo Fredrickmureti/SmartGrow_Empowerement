@@ -66,7 +66,10 @@ List-surface convergence (this turn):
      transition, with stable idempotency keys (re-run must not duplicate).
    - Print/Download/Email one credit note and confirm a `document_records` + `document_artifacts` pair exists
      and that no `generate-document` legacy fallback was hit (check edge logs).
-   - Confirm no client-side financial math and no direct table writes remain in the credit-note feature.
-2. **Then resume chronologically** with the remaining Phase 5 items above (CI ratchets first), and only after
-   they are closed move to Phase 6 in the rebuild plan.
+   - Confirm no client-side financial math and no direct table writes remain in the credit-note feature
+     (the list page and peek sheet in particular).
+2. **Then resume chronologically** with the remaining Phase 5 items above, in this order:
+   (a) CI architecture ratchets for document-kind + outbox parity, (b) record-page linked-records panel for
+   Purchase Return / Bill lineage, (c) dispute state in analytics tiles. Only after those close, move to
+   Phase 6 in the rebuild plan.
 3. Do not open unrelated domains; keep each phase production-ready before advancing.
