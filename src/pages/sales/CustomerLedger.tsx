@@ -43,6 +43,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { describeLedgerDoc } from "@/services/finance/customerStatementDataset";
+import { ReverseCustomerRefundSheet } from "@/components/payments/ReverseCustomerRefundSheet";
+import type { LedgerEntry } from "@/hooks/useCustomerLedger";
 
 const DOC_ICON: Record<string, any> = {
   invoice: FileText,
@@ -130,6 +132,10 @@ export default function CustomerLedgerPage() {
 
   const rangeLabel = describeDateRange({ from: dateFrom, to: dateTo });
 
+  // Refund rows are the only ledger rows with a reversal surface: a refund is
+  // cash already out of the bank, and the server (ADR 0134) is the only thing
+  // allowed to say what may be done about it. The page never decides.
+  const [refundUnderReview, setRefundUnderReview] = useState<LedgerEntry | null>(null);
 
   const { data: contact } = useContact(id);
   const { entries, outstandingBalance, isLoading } = useCustomerLedger({
@@ -328,6 +334,7 @@ export default function CustomerLedgerPage() {
                   <th className="text-right px-3 py-2 font-medium">Debit</th>
                   <th className="text-right px-3 py-2 font-medium">Credit</th>
                   <th className="text-right px-3 py-2 font-medium">Running Balance</th>
+                  <th className="text-right px-3 py-2 font-medium sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -358,6 +365,19 @@ export default function CustomerLedgerPage() {
                       >
                         {formatCurrency(e.running_balance)}
                       </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        {e.doc_type === "refund" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setRefundUnderReview(e)}
+                          >
+                            <Undo2 className="h-3 w-3 mr-1" />
+                            Reverse
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -370,6 +390,7 @@ export default function CustomerLedgerPage() {
                   <td className="px-3 py-2 text-right tabular-nums">
                     {formatCurrency(outstandingBalance)}
                   </td>
+                  <td />
                 </tr>
               </tbody>
             </table>
@@ -384,6 +405,25 @@ export default function CustomerLedgerPage() {
           <Link className="underline" to={`/sales/payments?customer=${id}`}>Payments</Link>
         </div>
       )}
+
+      <ReverseCustomerRefundSheet
+        open={!!refundUnderReview}
+        onOpenChange={(next) => {
+          if (!next) setRefundUnderReview(null);
+        }}
+        customerId={id ?? null}
+        refund={
+          refundUnderReview
+            ? {
+                id: refundUnderReview.doc_id,
+                reference: refundUnderReview.doc_ref,
+                amount: refundUnderReview.debit || refundUnderReview.credit,
+                currency: refundUnderReview.currency,
+                refundDate: refundUnderReview.entry_date,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

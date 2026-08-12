@@ -87,6 +87,81 @@ describe("reversal intent coverage", () => {
     expect(/voidExpense\(\s*[A-Za-z.]+\s*\)/.test(page)).toBe(false);
   });
 
+  /**
+   * ADR 0134 — the server half was already guarded; a resolver nobody asks is
+   * still an unanswered question. Every registered reversible document must
+   * have at least one client surface that resolves intent or previews
+   * consequences for that exact document type.
+   */
+  /**
+   * Documented per-module surfaces (ADR 0130). POS and payroll reversals are
+   * command taxonomies with their own eligibility projection and writers, so
+   * they do not go through the generic intent hook — but they must still have
+   * a reachable client surface, named here so removing one fails CI.
+   */
+  const MODULE_SURFACES: Record<string, string> = {
+    pos_transaction: "src/services/pos/reversal/eligibility.ts",
+    payroll_run: "src/components/payroll/ReversePayrollDialog.tsx",
+  };
+
+  it("every registered reversible document has a client entry point", () => {
+    const surfaces = walk(join(ROOT, "src")).filter(
+      (file) => !file.includes("/test/") && !file.includes("__tests__"),
+    );
+    const sources = surfaces.map((file) => ({
+      file,
+      src: readFileSync(file, "utf8"),
+    }));
+    const missing: string[] = [];
+    for (const doc of REVERSIBLE_DOCUMENTS) {
+      const moduleSurface = MODULE_SURFACES[doc.documentType];
+      if (moduleSurface) {
+        expect(
+          sources.some(({ file }) => file.endsWith(moduleSurface)),
+          `${doc.documentType}'s documented module surface ${moduleSurface} is gone`,
+        ).toBe(true);
+        continue;
+      }
+      const literal = `"${doc.documentType}"`;
+      const hit = sources.some(
+        ({ file, src }) =>
+          !file.endsWith("services/reversal/registerModules.ts") &&
+          !file.endsWith("hooks/useTransactionReversal.ts") &&
+          src.includes(literal) &&
+          (src.includes("resolveReversalIntent") ||
+            src.includes("useReversalConsequences")),
+      );
+      if (!hit) missing.push(doc.documentType);
+    }
+    expect(
+      missing,
+      `registered reversible documents with no client intent/preview surface: ${missing.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  /**
+   * Preview enrichment is per document type (ADR 0134): the core projection
+   * stays generic and the wrapper dispatches. A missing dispatch line is a
+   * silently empty preview, which reads as "nothing happens" to an operator.
+   */
+  it("preview extras helpers are dispatched from the preview wrapper", () => {
+    let dispatch = "";
+    for (const file of readdirSync(MIGRATIONS)) {
+      if (!file.endsWith(".sql")) continue;
+      const sql = readFileSync(join(MIGRATIONS, file), "utf8");
+      if (/FUNCTION\s+public\.preview_reversal_consequences\s*\(/i.test(sql)) {
+        dispatch = sql;
+      }
+    }
+    expect(dispatch, "no migration defines preview_reversal_consequences").not.toBe("");
+    for (const type of ["expense", "customer_refund"]) {
+      expect(
+        dispatch.includes(`preview_reversal_extras_${type}`),
+        `preview_reversal_consequences does not dispatch to preview_reversal_extras_${type}`,
+      ).toBe(true);
+    }
+  });
+
   it("no reversal dialog hard-codes a reason list", () => {
     const offenders: string[] = [];
     for (const file of walk(join(ROOT, "src"))) {
