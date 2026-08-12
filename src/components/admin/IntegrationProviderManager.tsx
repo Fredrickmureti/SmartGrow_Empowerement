@@ -90,7 +90,7 @@ export function IntegrationProviderManager({
   useEffect(() => {
     if (!activeConnection) return;
     setSelectedProviderId(activeConnection.provider_id);
-    setCreds(activeConnection.credentials || {});
+    setCreds({}); // secrets are never sent to the browser; blank = keep stored value
     setAutoRefresh(activeConnection.auto_refresh_enabled);
     setIntervalHours(activeConnection.auto_refresh_interval_hours);
     setEditingId(activeConnection.id);
@@ -100,6 +100,13 @@ export function IntegrationProviderManager({
     () => providers.find((p) => p.id === selectedProviderId),
     [providers, selectedProviderId],
   );
+
+  const editingConnection = useMemo(
+    () => connections.find((c) => c.id === editingId) ?? null,
+    [connections, editingId],
+  );
+
+  const storedKeys = editingConnection?.credential_keys ?? [];
 
   const credentialFields = useMemo<[string, CredentialField][]>(
     () => Object.entries(selectedProvider?.credential_schema ?? {}),
@@ -112,7 +119,7 @@ export function IntegrationProviderManager({
     const existing = connections.find((c) => c.provider_id === id);
     if (existing) {
       setEditingId(existing.id);
-      setCreds(existing.credentials || {});
+      setCreds({});
       setAutoRefresh(existing.auto_refresh_enabled);
       setIntervalHours(existing.auto_refresh_interval_hours);
     } else {
@@ -254,9 +261,27 @@ export function IntegrationProviderManager({
                         type={field.secret ? "password" : "text"}
                         value={creds[key] ?? ""}
                         onChange={(e) => setCreds({ ...creds, [key]: e.target.value })}
-                        placeholder={field.secret ? "••••••••" : ""}
+                        placeholder={
+                          storedKeys.includes(key)
+                            ? "Stored — leave blank to keep"
+                            : field.secret
+                            ? "••••••••"
+                            : ""
+                        }
                         autoComplete="off"
                       />
+                      {storedKeys.includes(key) && (
+                        <p className="text-xs text-muted-foreground">
+                          A value is on file
+                          {editingConnection?.credentials_set_at
+                            ? ` (updated ${formatDistanceToNow(
+                                new Date(editingConnection.credentials_set_at),
+                                { addSuffix: true },
+                              )})`
+                            : ""}
+                          . Secrets are stored server-side and are never sent back to this screen.
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>

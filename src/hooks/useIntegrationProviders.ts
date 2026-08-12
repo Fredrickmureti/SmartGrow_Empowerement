@@ -36,7 +36,13 @@ export interface IntegrationConnection {
   provider_id: string;
   display_label: string | null;
   is_active: boolean;
-  credentials: Record<string, string>;
+  /**
+   * Names of the credential fields that are stored server-side. The secret
+   * values themselves are NEVER readable by the browser (column-level grant
+   * revoked in the DB) — see ADR 0137.
+   */
+  credential_keys: string[];
+  credentials_set_at: string | null;
   config: Record<string, unknown>;
   auto_refresh_enabled: boolean;
   auto_refresh_interval_hours: number;
@@ -85,7 +91,12 @@ export function useIntegrationProviders(capabilityKey: string) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("platform_integration_connections")
-        .select("*")
+        .select(
+          "id, capability_key, provider_id, display_label, is_active, config, " +
+            "auto_refresh_enabled, auto_refresh_interval_hours, last_test_at, last_test_ok, " +
+            "last_test_message, last_run_at, last_run_status, last_run_message, next_run_at, " +
+            "credential_keys, credentials_set_at, created_at, updated_at",
+        )
         .eq("capability_key", capabilityKey)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -119,45 +130,24 @@ export function useIntegrationProviders(capabilityKey: string) {
     mutationFn: async (input: {
       id?: string;
       provider_id: string;
+      /** Blank values mean "keep the stored secret" — nothing is ever read back. */
       credentials: Record<string, string>;
       auto_refresh_enabled?: boolean;
       auto_refresh_interval_hours?: number;
       activate?: boolean;
     }) => {
-      const payload = {
-        capability_key: capabilityKey,
-        provider_id: input.provider_id,
-        credentials: input.credentials,
-        auto_refresh_enabled: input.auto_refresh_enabled ?? false,
-        auto_refresh_interval_hours: input.auto_refresh_interval_hours ?? 24,
-        is_active: input.activate ?? false,
-      };
-
-      // If activating, deactivate other connections for this capability first
-      if (payload.is_active) {
-        await (supabase as any)
-          .from("platform_integration_connections")
-          .update({ is_active: false })
-          .eq("capability_key", capabilityKey);
-      }
-
-      if (input.id) {
-        const { error } = await (supabase as any)
-          .from("platform_integration_connections")
-          .update(payload)
-          .eq("id", input.id);
-        if (error) throw error;
-        return input.id;
-      } else {
-        const { data: u } = await supabase.auth.getUser();
-        const { data, error } = await (supabase as any)
-          .from("platform_integration_connections")
-          .insert({ ...payload, created_by: u.user?.id })
-          .select("id")
-          .single();
-        if (error) throw error;
-        return (data as { id: string }).id;
-      }
+      // Credentials only ever travel one way: browser -> guarded server routine.
+      const { data, error } = await (supabase as any).rpc("save_integration_connection", {
+        p_capability_key: capabilityKey,
+        p_provider_id: input.provider_id,
+        p_credentials: input.credentials ?? {},
+        p_id: input.id ?? null,
+        p_auto_refresh_enabled: input.auto_refresh_enabled ?? false,
+        p_auto_refresh_interval_hours: input.auto_refresh_interval_hours ?? 24,
+        p_activate: input.activate ?? false,
+      });
+      if (error) throw error;
+      return data as string;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["integration-connections", capabilityKey] });
@@ -169,10 +159,7 @@ export function useIntegrationProviders(capabilityKey: string) {
 
   const deleteConnection = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any)
-        .from("platform_integration_connections")
-        .delete()
-        .eq("id", id);
+      const { error } = await (supabase as any).rpc("delete_integration_connection", { p_id: id });
       if (error) throw error;
     },
     onSuccess: () => {

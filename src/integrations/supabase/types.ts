@@ -42250,7 +42250,9 @@ export type Database = {
           config: Json
           created_at: string
           created_by: string | null
+          credential_keys: string[]
           credentials: Json
+          credentials_set_at: string | null
           display_label: string | null
           id: string
           is_active: boolean
@@ -42271,7 +42273,9 @@ export type Database = {
           config?: Json
           created_at?: string
           created_by?: string | null
+          credential_keys?: string[]
           credentials?: Json
+          credentials_set_at?: string | null
           display_label?: string | null
           id?: string
           is_active?: boolean
@@ -42292,7 +42296,9 @@ export type Database = {
           config?: Json
           created_at?: string
           created_by?: string | null
+          credential_keys?: string[]
           credentials?: Json
+          credentials_set_at?: string | null
           display_label?: string | null
           id?: string
           is_active?: boolean
@@ -89033,6 +89039,10 @@ export type Database = {
         Args: { _entry_id: string }
         Returns: undefined
       }
+      delete_integration_connection: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       delete_journal_entry_atomic: {
         Args: { _je_id: string; _org_id: string }
         Returns: boolean
@@ -98516,6 +98526,19 @@ export type Database = {
           payslip_count: number
           structure_id: string
         }[]
+      }
+      save_integration_connection: {
+        Args: {
+          p_activate?: boolean
+          p_auto_refresh_enabled?: boolean
+          p_auto_refresh_interval_hours?: number
+          p_capability_key: string
+          p_credentials?: Json
+          p_display_label?: string
+          p_id?: string
+          p_provider_id: string
+        }
+        Returns: string
       }
       scanner_issue_trust: {
         Args: {
