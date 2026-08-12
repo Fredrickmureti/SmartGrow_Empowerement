@@ -3,14 +3,18 @@
  *
  * Enterprise UX Standardization: replaces the inline dialog on
  * `src/pages/VendorCreditNotes.tsx` with a full RecordFormShell page.
+ *
+ * ADR 0132: the number is minted by `create_vendor_credit_note_atomic` and the
+ * form never proposes one; provenance (origin / reason / upstream document /
+ * supplier paper) is captured here because the writer refuses to let it be
+ * back-filled afterwards.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +36,17 @@ import { useContacts } from "@/hooks/useContacts";
 import { useBills } from "@/hooks/useBills";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
+import { VendorCreditNoteLineageFields } from "./VendorCreditNoteLineageFields";
+import {
+  VendorCreditNoteTotalsPreview,
+  computeVendorCreditNoteTotals,
+} from "./VendorCreditNoteTotalsPreview";
+import {
+  emptyLineage,
+  lineageError,
+  toLineagePayload,
+  type LineageFormState,
+} from "./vendorCreditNoteLineage";
 
 type LineItem = Omit<VendorCreditNoteItem, "id" | "credit_note_id">;
 
@@ -49,7 +64,7 @@ const emptyLine = (sort_order = 0): LineItem => ({
 
 export default function VendorCreditNoteCreatePage() {
   const navigate = useNavigate();
-  const { getNextCreditNoteNumber, createVendorCreditNote } = useVendorCreditNotes();
+  const { createVendorCreditNote } = useVendorCreditNotes();
   const { contacts } = useContacts();
   const { bills } = useBills();
   const { formatCurrency, baseCurrency } = useCurrency();
@@ -64,26 +79,19 @@ export default function VendorCreditNoteCreatePage() {
   );
 
   const [formData, setFormData] = useState({
-    credit_note_number: "",
     vendor_id: "",
     bill_id: "",
     credit_date: new Date().toISOString().split("T")[0],
     notes: "",
     currency: baseCurrency,
   });
+  const [lineage, setLineage] = useState<LineageFormState>(emptyLineage);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const nextNum = await getNextCreditNoteNumber();
-        setFormData((p) => ({ ...p, credit_note_number: nextNum }));
-      } catch (e) {
-        // number generation is best-effort; keep manual entry as fallback
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const patchLineage = useCallback(
+    (patch: Partial<LineageFormState>) => setLineage((p) => ({ ...p, ...patch })),
+    [],
+  );
 
   const vendors = contacts.filter(
     (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
@@ -118,10 +126,10 @@ export default function VendorCreditNoteCreatePage() {
     setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   }, []);
 
+  const totals = useMemo(() => computeVendorCreditNoteTotals(lineItems), [lineItems]);
 
-  const subtotal = lineItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-  const taxTotal = lineItems.reduce((s, i) => s + i.tax_amount, 0);
-  const grandTotal = lineItems.reduce((s, i) => s + i.line_total, 0);
+  const billId =
+    formData.bill_id && formData.bill_id !== "__none__" ? formData.bill_id : null;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,19 +137,22 @@ export default function VendorCreditNoteCreatePage() {
       toast.error("Please fill required fields");
       return;
     }
+    const provenanceError = lineageError(lineage, billId);
+    if (provenanceError) {
+      toast.error(provenanceError);
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const created = await createVendorCreditNote(
+      await createVendorCreditNote(
         {
-          credit_note_number: formData.credit_note_number,
           vendor_id: formData.vendor_id || null,
-          bill_id:
-            formData.bill_id && formData.bill_id !== "__none__" ? formData.bill_id : null,
+          bill_id: billId,
           status: "draft",
           credit_date: formData.credit_date,
-          subtotal,
-          tax_amount: taxTotal,
-          total: grandTotal,
+          subtotal: totals.subtotal,
+          tax_amount: totals.taxTotal,
+          total: totals.grandTotal,
           amount_applied: 0,
           currency: formData.currency || baseCurrency,
           notes: formData.notes || null,
@@ -149,9 +160,9 @@ export default function VendorCreditNoteCreatePage() {
         } as any,
         lineItems,
         requestIdRef.current,
+        toLineagePayload(lineage),
       );
 
-      toast.success("Credit note created");
       navigate("/purchases/credit-notes");
     } catch (err: any) {
       toast.error(normalizeError(err).message || "Failed to create credit note");
@@ -174,20 +185,19 @@ export default function VendorCreditNoteCreatePage() {
       <FieldGroup label="Credit Note Details">
         <FieldGrid columns={2}>
           <div className="space-y-2">
-            <Label>Credit Note # *</Label>
-            <Input
-              value={formData.credit_note_number}
-              onChange={(e) =>
-                setFormData({ ...formData, credit_note_number: e.target.value })
-              }
-              required
-            />
+            <Label>Credit Note #</Label>
+            <Input value="Assigned on save" disabled readOnly />
+            <p className="text-xs text-muted-foreground">
+              Numbering is server-controlled and gap-free.
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Supplier *</Label>
             <Select
               value={formData.vendor_id}
-              onValueChange={(v) => setFormData({ ...formData, vendor_id: v })}
+              onValueChange={(v) =>
+                setFormData((p) => ({ ...p, vendor_id: v, bill_id: "" }))
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select supplier" />
@@ -212,7 +222,7 @@ export default function VendorCreditNoteCreatePage() {
           <div className="space-y-2">
             <Label>Linked Bill (optional)</Label>
             <Select
-              value={formData.bill_id}
+              value={formData.bill_id || "__none__"}
               onValueChange={(v) => setFormData({ ...formData, bill_id: v })}
             >
               <SelectTrigger>
@@ -232,6 +242,15 @@ export default function VendorCreditNoteCreatePage() {
             </Select>
           </div>
         </FieldGrid>
+      </FieldGroup>
+
+      <FieldGroup label="Provenance">
+        <VendorCreditNoteLineageFields
+          value={lineage}
+          onChange={patchLineage}
+          vendorId={formData.vendor_id}
+          disabled={isSubmitting}
+        />
       </FieldGroup>
 
       <FieldGroup label="Line Items">
@@ -255,26 +274,13 @@ export default function VendorCreditNoteCreatePage() {
             />
           )}
           footer={
-            <div className="flex justify-end">
-              <div className="w-64 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(subtotal, formData.currency)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax:</span>
-                  <span>{formatCurrency(taxTotal, formData.currency)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg border-t pt-2">
-                  <span>Total:</span>
-                  <span>{formatCurrency(grandTotal, formData.currency)}</span>
-                </div>
-              </div>
-            </div>
+            <VendorCreditNoteTotalsPreview
+              totals={totals}
+              formatCurrency={formatLineCurrency}
+            />
           }
         />
       </FieldGroup>
-
 
       <FieldGroup label="Notes">
         <div className="space-y-2">

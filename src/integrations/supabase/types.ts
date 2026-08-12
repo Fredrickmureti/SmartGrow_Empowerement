@@ -67065,6 +67065,7 @@ export type Database = {
           credit_note_number: string
           currency: string
           dispute_reason: string | null
+          dispute_resolution: string | null
           dispute_resolved_at: string | null
           dispute_resolved_by: string | null
           disputed_at: string | null
@@ -67121,6 +67122,7 @@ export type Database = {
           credit_note_number: string
           currency?: string
           dispute_reason?: string | null
+          dispute_resolution?: string | null
           dispute_resolved_at?: string | null
           dispute_resolved_by?: string | null
           disputed_at?: string | null
@@ -67177,6 +67179,7 @@ export type Database = {
           credit_note_number?: string
           currency?: string
           dispute_reason?: string | null
+          dispute_resolution?: string | null
           dispute_resolved_at?: string | null
           dispute_resolved_by?: string | null
           disputed_at?: string | null
@@ -67258,6 +67261,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "vendor_credit_notes_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -67318,6 +67328,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_notes_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
             referencedColumns: ["id"]
           },
           {
@@ -84197,6 +84214,7 @@ export type Database = {
           credit_note_number: string
           currency: string
           dispute_reason: string | null
+          dispute_resolution: string | null
           dispute_resolved_at: string | null
           dispute_resolved_by: string | null
           disputed_at: string | null

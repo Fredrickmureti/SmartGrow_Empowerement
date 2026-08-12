@@ -17,7 +17,10 @@ import type {
 import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { VendorCreditNote } from "@/hooks/useVendorCreditNotes";
+import { VendorCreditNoteLinkedRecords } from "./VendorCreditNoteLinkedRecords";
+import { originLabel, reasonCodeLabel } from "./vendorCreditNoteLineage";
 import { useVendorCreditNoteRecord } from "./useVendorCreditNoteRecord";
+
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -150,16 +153,51 @@ export function useVendorCreditNoteView(
             },
             {
               label: "Origin",
-              value: prettyState((creditNote as any).origin),
+              value: originLabel((creditNote as any).origin),
             },
             ...((creditNote as any).reason_code
-              ? [{ label: "Reason", value: prettyState((creditNote as any).reason_code) }]
+              ? [
+                  {
+                    label: "Reason",
+                    value: reasonCodeLabel((creditNote as any).reason_code),
+                  },
+                ]
               : []),
             ...((creditNote as any).vendor_document_number
               ? [
                   {
                     label: "Vendor document",
                     value: String((creditNote as any).vendor_document_number),
+                  },
+                ]
+              : []),
+            ...((creditNote as any).vendor_document_date
+              ? [
+                  {
+                    label: "Vendor document date",
+                    value: fmtDate((creditNote as any).vendor_document_date),
+                  },
+                ]
+              : []),
+            // A supplier dispute is counterparty behaviour, not an internal
+            // rejection — its outcome is part of the audit trail.
+            ...((creditNote as any).disputed_at
+              ? [
+                  {
+                    label: "Dispute",
+                    value: (creditNote as any).dispute_resolved_at
+                      ? `Resolved — ${prettyState(
+                          (creditNote as any).dispute_resolution ?? "closed",
+                        )}`
+                      : `Open since ${fmtDate((creditNote as any).disputed_at)}`,
+                  },
+                ]
+              : []),
+            ...((creditNote as any).dispute_reason
+              ? [
+                  {
+                    label: "Dispute reason",
+                    value: String((creditNote as any).dispute_reason),
                   },
                 ]
               : []),
@@ -171,6 +209,7 @@ export function useVendorCreditNoteView(
       lineEmpty: "No line items on this credit note.",
       extraSections: creditNote ? (
         <>
+          <VendorCreditNoteLinkedRecords creditNote={creditNote} />
           {creditNote.notes && (
             <Section title="Notes">
               <p className="whitespace-pre-wrap text-sm text-muted-foreground">
@@ -184,6 +223,7 @@ export function useVendorCreditNoteView(
           />
         </>
       ) : undefined,
+
     };
   }, [creditNote, loading, error, formatCurrency]);
 
