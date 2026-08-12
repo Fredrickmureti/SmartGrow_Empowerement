@@ -1,128 +1,79 @@
-# Project status — authoritative
+# FX: verification verdict, then Step G (exposure reporting) and the reversal carry-over
 
-Last updated: 2026-08-12 (session: FX convergence, Steps A–F)
+## Phase 1 — Verification of the previous session (evidence-backed)
 
-## Programme: Enterprise Currency & FX convergence
+Checked against the live database and the code, not the log.
 
-Authority: ADR 0135 (supplier currency = proposal default), ADR 0136 (one FX engine,
-no silent 1:1), ADR 0137 (provider credentials are server-only),
-ADR 0123 (single journal posting monopoly).
+Confirmed genuinely done:
+- **Steps A/B (AP stampers).** `_tg_stamp_bill_currency`, `_tg_stamp_vcn_currency` and
+  `_tg_stamp_purchase_return_currency` all now call the shared `fx_stamp_document`. No
+  `COALESCE(..., 1)` parity fallback remains in any of them, each freezes a posted
+  document via `_fx_document_is_posted`, and each re-stamps when the document date moves.
+  `fx_stamp_document` calls `require_exchange_rate`, which raises `23514` on a missing rate.
+- **Resolver precedence.** `resolve_exchange_rate` orders by effective date, then
+  business-specific over org-wide, then `override > manual > provider`, then
+  `published_at`, and returns NULL rather than inventing 1.
+- **Step D.** `set_exchange_rate_override` and `set_business_active_currency` exist.
+- **Step F.** `revalue_fx_balances`, `reverse_fx_revaluation_run` and
+  `fx_revaluation_readiness` exist, and the readiness function is consumed by
+  `useFxRevaluation`, `FinanceAccountingControls` and `ClosePeriodSheet`.
+- **Step E.** The only client rate lookups are `@/services/fx/rateBook` and its thin
+  readers (`CurrencyContext`, `useTenantFx`, `useAdminCurrency`, `platformUsd`,
+  `usePlatformAdmin`, `AdminAnalytics`). Guards exist: `fx-single-engine`,
+  `no-silent-currency-fallback`, `currency-integrity`, `credit-fx-policy`.
 
-## Completed and verified
+Correctly logged as pending:
+- **Step G — FX exposure reporting.** No `fx_exposure*` function and no exposure surface
+  exists anywhere in the codebase.
+- **Reversal governance for vendor credit notes.** The document type is registered as
+  reversible, but whether its reversal is approval-gated is unconfirmed and is the first
+  thing that step will establish.
 
-**Rate book & resolver (DB)** — `public.exchange_rates` carries provenance
-(`source`, `provider_key`, `published_at`, `created_by`). `resolve_exchange_rate`
-implements `override > manual > provider`, latest effective date first;
-`require_exchange_rate` is the strict wrapper. `publish_platform_rates()` bridges
-`platform_exchange_rates` into the book on a 30-minute `pg_cron` schedule.
+Worth stating plainly: `business_active_currencies` is still empty and `exchange_rates`
+holds 13 provider rows with zero overrides, so the Step D and F paths are implemented but
+have not yet been exercised with real tenant data. That is expected, not a defect — the
+gates default open on the base currency.
 
-**Document snapshots (DB)** — `fx_stamp_document` stamps currency + rate on every
-monetary document; posted documents are currency- and rate-immutable.
+Verdict: resume at Step G. No rework of Steps A–F is warranted.
 
-**Realized FX at settlement (DB)** — `record_multi_bill_payment` /
-`record_multi_invoice_payment` post the booking-vs-settlement difference to the
-realized FX accounts resolved by `resolve_fx_realized_account`.
+## Phase 2 — Work to do
 
-**Provider credential hardening (DB + UI)** — ADR 0137. `credentials` is unreadable by
-`authenticated`; all writes go through `save_integration_connection` /
-`delete_integration_connection`. Guard: `provider-credential-isolation.test.ts`.
+### Step G — FX exposure reporting (the active phase)
+A controller must see what is at risk *before* revaluing, using the same resolver the
+revaluation uses — no second engine, no client-side conversion.
 
-**Step A/B — AP stampers converged (DB, this session)** — `_tg_stamp_bill_currency`,
-`_tg_stamp_vcn_currency`, `_tg_stamp_purchase_return_currency` and `_tg_stamp_po_currency`
-now call the shared `fx_stamp_document`. The `COALESCE(NULLIF(currency_rate,0), 1)`
-silent-parity hole is gone, documents re-stamp when the document date changes, and posted
-documents are frozen via `_fx_document_is_posted`.
+1. `public.fx_exposure_by_currency(business, as_of)` — SECURITY DEFINER, gated on
+   `user_can_access_business`, EXECUTE to `authenticated` only. Per foreign currency it
+   returns open AR, open AP, open bank/cash balances, the booked base value of those open
+   items, the rate `resolve_exchange_rate` gives at `as_of` (with `source`, `provider_key`,
+   `effective_date`), the revalued base value, and the resulting unrealized difference.
+   Currencies with no rate on file come back with a null rate and a flag — never silently
+   dropped, never valued at 1:1. Reuses the open-item definitions of `revalue_fx_balances`
+   so the two can never disagree.
+2. `public.fx_exposure_open_items(business, currency, as_of)` — the document-level
+   drill-down behind a currency row: document type, number, date, party, foreign amount,
+   booked rate, booked base amount, current rate, revalued base, difference.
+3. `useFxExposure` / `useFxExposureOpenItems` hooks and an **FX Exposure** report placed
+   with the existing finance reporting surfaces, following the established report layout
+   and masthead conventions. Each currency row expands to its open items. Missing rates
+   render as `—` with an explicit "no rate on file" state linking to the rate book, per
+   ADR 0136. Totals sit alongside the revaluation readiness the FX tab already renders.
+4. Guard extension in `fx-single-engine.test.ts`: the exposure surface must not read
+   `exchange_rates` directly from the client and must not compute a posted amount.
 
-**Step C — Revaluation converged (DB, this session)** — `revalue_fx_balances` resolves
-through `resolve_exchange_rate` and raises `23514` on a missing rate (recorded in the run's
-`notes`) instead of silently skipping the balance.
+### Step H — Reversal governance carry-over (vendor credit notes)
+First establish how approval gating is expressed for the document types that already have
+it (invoice, bill, expense), then bring `vendor_credit_note` onto that exact mechanism —
+no bespoke path. If the audit shows the gate already applies generically, record that and
+close the item instead of adding code.
 
-**Step D — FX admin surface (DB + UI, this session)**
-- `set_exchange_rate_override(business, from, to, rate, effective_date, reason)` —
-  SECURITY DEFINER, `user_can_access_business` gated, validates the pair against
-  `currencies`, rejects a non-positive rate and a future effective date, always inserts a
-  **new** `source = 'override'` row (provider provenance is never mutated) and writes an
-  `audit_logs` entry with the reason.
-- `set_business_active_currency(business, currency, enabled)` — same gating; the base
-  currency is force-enabled and cannot be disabled, so enabling a first foreign currency
-  can never lock a company out of its own base currency.
-- `src/components/settings/CurrencySettings.tsx` rebuilt: rate book with provenance
-  (source badge, provider key, effective and published dates), override entry with a
-  mandatory reason, operating-currency toggles, provider rows non-deletable.
+### Step I — Close the loop
+- ADR 0138 recording the exposure report as a read-only projection of the one resolver.
+- Update `mem://features/currency-and-fx-resolution` and the plan log with verified status.
 
-**Step E — Client convergence & ratchets (this session)**
-- `useAdminCurrency.usdToTargetRate` now delegates to `@/services/fx/rateBook`; its
-  hand-rolled direct/reverse lookup is gone.
-- New `@/services/fx/platformUsd` (`toPlatformUsd`, `sumPlatformUsd`) replaces the two
-  duplicated `toUSD` engines in `usePlatformAdmin` and `AdminAnalytics`, which returned the
-  **unconverted amount** on a missing rate. Unconvertible amounts are now excluded and
-  counted, never summed at 1:1.
-- All 24 `|| "USD"` silent fallbacks in `src/hooks`, `src/components`, `src/pages` removed:
-  tenant writes take the business base currency (projects, employee advances, WMS tariffs),
-  display formatters render `—` when a record has no currency, and the four genuinely
-  USD-canonical platform-billing sites carry an explicit `architecture-allow` marker.
-- Guards green: `fx-single-engine.test.ts` (16), `no-silent-currency-fallback.test.ts` (3),
-  `currency-integrity.test.ts` (6), `no-client-payment-math.test.ts` (5),
-  `credit-fx-policy.test.ts` (3). Typecheck clean.
-
-**Step F — Period-end revaluation workflow (DB + UI, this session)**
-- `fx_revaluation_runs` gains `fiscal_period_id`, `reversed_at`, `reversed_by_run_id`;
-  a partial unique index allows only one **posted** run per (business, fiscal period).
-- `revalue_fx_balances` now: requires `finance.manage_periods` (it was unpermissioned),
-  binds the run to the fiscal period covering the run date, refuses to post into a
-  non-open period, refuses a second posted run for the same period, and **auto-reverses
-  the prior posted run** (`reversal_policy = 'next_period'`) before posting the new
-  valuation, so unrealized amounts never accumulate.
-- New `reverse_fx_revaluation_run(run, date, user, next_run)` posts an exact mirror of the
-  original journal entry's lines (branch preserved) as `fx_revaluation_reversal`, and is
-  idempotent (returns the existing reversal JE if already reversed).
-- New `fx_revaluation_readiness(business, as_of)` returns per-currency open foreign
-  monetary balances, the rate the resolver would use, and the missing-rate list.
-  SECURITY DEFINER, `user_can_access_business` gated, EXECUTE to `authenticated` only.
-- `close_fiscal_period` calls that readiness function and **raises `23514`** when the
-  period holds unrevalued foreign balances.
-- UI: `useFxRevaluationReadiness` hook; the FX tab of `FinanceAccountingControls` shows the
-  period, per-currency balances with the resolved rate, missing-rate and closed-period
-  alerts, disables the run button in those states, and shows reversal/failure on each run.
-  `ClosePeriodSheet` shows the same check as a blocking readiness row.
-- Run history with the rate used per balance already exists in `FxRevaluationReport`
-  (`fx_revaluation_lines` old_rate/new_rate drill-down) — verified, no duplicate UI built.
-- Guards green: `fx-single-engine` (16), `no-silent-currency-fallback` (3),
-  `currency-integrity` (6). Typecheck clean.
-
-## Pending
-
-1. **Step G — FX exposure reporting.** Open AR/AP by currency with the rate used, so a
-   controller can see exposure before revaluing.
-2. **Reversal governance coverage** — approval-gated reversal for `vendor_credit_note`
-   (carried over, unrelated to FX; do last).
-
-## Active phase
-
-Steps A–F are closed. **Next active phase: Step G — FX exposure reporting.**
-
-## Instructions for the next agent
-
-1. **Verify this session's work before writing anything new.**
-   - `bunx vitest run src/test/architecture/fx-single-engine.test.ts
-     src/test/architecture/no-silent-currency-fallback.test.ts
-     src/test/architecture/currency-integrity.test.ts
-     src/test/architecture/provider-credential-isolation.test.ts` and
-     `bunx tsgo --noEmit -p tsconfig.app.json`.
-   - Read ADR 0135, 0136, 0137 first.
-   - Database: confirm `set_exchange_rate_override` and `set_business_active_currency` exist,
-     are SECURITY DEFINER, are EXECUTE-granted to `authenticated` only, and refuse a caller
-     outside the business; confirm the AP stampers contain no `, 1)` parity fallback and that
-     `revalue_fx_balances` raises rather than skipping.
-   - Client: confirm no file outside `@/services/fx/rateBook` resolves a rate, and no
-     `|| "USD"` exists without an `architecture-allow` marker.
-   - Step F specifically: confirm `revalue_fx_balances` raises `42501` without
-     `finance.manage_periods`, that a second run in the same period is refused, that the
-     prior run flips to `reversed` with a balanced mirror JE, and that `close_fiscal_period`
-     raises `23514` while `fx_revaluation_readiness(...)->>'needs_revaluation'` is true.
-2. Then resume at **Step G — FX exposure reporting**: open AR/AP by currency with the rate
-   used and the base-currency exposure, sourced from the same resolver (no new engine),
-   then the reversal-governance carry-over. In order.
-3. Do not start unrelated work and do not leave a step partially implemented.
-4. Note: the full `src/test` suite times out under sandbox contention — environmental and
-   pre-existing. Run targeted suites.
+## Technical notes
+- Exposure is a **read-only projection**. It posts nothing and derives every rate from
+  `resolve_exchange_rate` server-side; the browser only formats what the function returns.
+- No new tables, no new resolver, no new rate store.
+- Open-item scope is shared with `revalue_fx_balances` so the exposure report and the
+  revaluation run can never present different numbers for the same date.
