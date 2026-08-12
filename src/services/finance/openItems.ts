@@ -318,6 +318,57 @@ export async function fetchUnappliedCustomerCredit(
   );
 }
 
+/**
+ * Unapplied vendor credit (unapplied vendor credit notes / purchase returns)
+ * for an org, optionally narrowed to one supplier. This is a genuine credit
+ * position against the supplier and reduces the net payable.
+ *
+ * ADR 0132: reads `finance_ap_vendor_credit`, the single canonical definition
+ * of unapplied vendor credit, projected from `vendor_credit_balances` — never
+ * derived from `vendor_credit_notes.total - amount_applied`. `get_ap_summary`,
+ * `get_ap_aging_summary` and `get_ar_ap_aging_from_ledger` read the same view.
+ */
+export async function fetchUnappliedVendorCredit(
+  orgId: string,
+  businessId?: string | null,
+  contactId?: string | string[] | null,
+): Promise<number> {
+  const byContact = await fetchVendorCreditByContact(orgId, businessId, contactId);
+  let total = 0;
+  for (const amount of byContact.values()) total += amount;
+  return total;
+}
+
+/** Unapplied vendor credit keyed by supplier contact id (base currency). */
+async function fetchVendorCreditByContact(
+  orgId: string,
+  businessId?: string | null,
+  contactId?: string | string[] | null,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  let q = supabase
+    .from("finance_ap_vendor_credit" as any)
+    .select("contact_id, base_credit_amount")
+    .eq("organization_id", orgId);
+  if (businessId) q = q.eq("business_id", businessId);
+  if (Array.isArray(contactId)) {
+    if (contactId.length === 0) return out;
+    q = q.in("contact_id", contactId);
+  } else if (contactId) {
+    q = q.eq("contact_id", contactId);
+  }
+
+  const { data, error } = await q;
+  if (error) return out;
+  for (const row of (data || []) as any[]) {
+    const key = row.contact_id as string | null;
+    if (!key) continue;
+    out.set(key, (out.get(key) || 0) + (Number(row.base_credit_amount) || 0));
+  }
+  return out;
+}
+
+
 
 export interface ReceivableCounterparty {
   contactId: string;
