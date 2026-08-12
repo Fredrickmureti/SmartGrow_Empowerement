@@ -28,6 +28,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import {
   ReportSurface,
   ReportTable,
@@ -346,6 +347,14 @@ function FxExposureReportInner() {
         )}
       </div>
     </ReportPageLayout>
+  );
+}
+
+export default function FxExposureReport() {
+  return (
+    <ReportFilterProvider>
+      <FxExposureReportInner />
+    </ReportFilterProvider>
   );
 }
 
