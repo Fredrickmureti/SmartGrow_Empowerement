@@ -10,9 +10,9 @@ import { normalizeError } from "@/services/resilience";
 /**
  * Supplier item terms — the single canonical item-pricing engine.
  *
- * Reads come from `supplier_item_terms` (keyed on the supplier *role*), while
- * writes go through the `vendor_pricelists` compatibility view, whose
- * INSTEAD OF triggers resolve the party (contact) to its supplier record.
+ * Reads come from `supplier_item_terms` (keyed on the supplier *role*); writes
+ * go through the `upsert_supplier_item_terms` / `deactivate_supplier_item_terms`
+ * RPCs, which resolve the party (contact) to its supplier record server-side.
  * The exposed shape stays party-keyed (`vendor_id`) for existing callers.
  */
 export interface VendorPriceList {
@@ -112,36 +112,24 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
       const effectiveBranchId =
         input.branch_id === undefined ? branchId : input.branch_id;
 
-      // If marking as preferred, unset other preferred for same product within the same branch scope.
-      if (input.is_preferred) {
-        let q: any = (supabase as any)
-          .from("vendor_pricelists")
-          .update({ is_preferred: false })
-          .eq("organization_id", organizationId)
-          .eq("business_id", businessId)
-          .eq("product_id", input.product_id)
-          .eq("is_preferred", true);
-        if (effectiveBranchId === null) {
-          q = q.is("branch_id", null);
-        } else {
-          q = q.eq("branch_id", effectiveBranchId);
-        }
-        await q;
-      }
-
-      const { data, error } = await (supabase as any)
-        .from("vendor_pricelists")
-        .insert({
-          ...input,
-          organization_id: organizationId,
-          business_id: businessId,
-          branch_id: effectiveBranchId,
-        })
-        .select()
-        .single();
+      const { data, error } = await (supabase as any).rpc("upsert_supplier_item_terms", {
+        p_business_id: businessId,
+        p_organization_id: organizationId,
+        p_branch_id: effectiveBranchId,
+        p_vendor_id: input.vendor_id,
+        p_product_id: input.product_id,
+        p_unit_price: input.unit_price,
+        p_currency_code: input.currency,
+        p_min_order_qty: input.min_order_qty,
+        p_lead_time_days: input.lead_time_days,
+        p_is_preferred: input.is_preferred,
+        p_effective_from: input.valid_from,
+        p_effective_to: input.valid_until,
+        p_notes: input.notes,
+      });
 
       if (error) throw error;
-      return data;
+      return data as string;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendor-pricelists"] });
@@ -154,28 +142,28 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<VendorPriceList> & { id: string }) => {
-      // If marking as preferred, unset other preferred for same product within the same branch scope.
-      if (updates.is_preferred) {
-        const entry = priceLists.find((p) => p.id === id);
-        if (entry) {
-          let q: any = (supabase as any)
-            .from("vendor_pricelists")
-            .update({ is_preferred: false })
-            .eq("organization_id", organizationId)
-            .eq("business_id", businessId)
-            .eq("product_id", entry.product_id)
-            .eq("is_preferred", true)
-            .neq("id", id);
-          if (entry.branch_id === null) q = q.is("branch_id", null);
-          else q = q.eq("branch_id", entry.branch_id);
-          await q;
-        }
-      }
+      if (!businessId) throw new Error("Missing business");
+      const entry = priceLists.find((p) => p.id === id);
+      const vendorId2 = updates.vendor_id ?? entry?.vendor_id;
+      const productId2 = updates.product_id ?? entry?.product_id;
+      if (!vendorId2 || !productId2) throw new Error("Price list entry not loaded");
 
-      const { error } = await (supabase as any)
-        .from("vendor_pricelists")
-        .update(updates)
-        .eq("id", id);
+      const { error } = await (supabase as any).rpc("upsert_supplier_item_terms", {
+        p_id: id,
+        p_business_id: businessId,
+        p_organization_id: organizationId,
+        p_branch_id: updates.branch_id ?? entry?.branch_id ?? null,
+        p_vendor_id: vendorId2,
+        p_product_id: productId2,
+        p_unit_price: updates.unit_price ?? entry?.unit_price ?? null,
+        p_currency_code: updates.currency ?? entry?.currency ?? null,
+        p_min_order_qty: updates.min_order_qty ?? entry?.min_order_qty ?? null,
+        p_lead_time_days: updates.lead_time_days ?? entry?.lead_time_days ?? null,
+        p_is_preferred: updates.is_preferred ?? entry?.is_preferred ?? false,
+        p_effective_from: updates.valid_from ?? entry?.valid_from ?? null,
+        p_effective_to: updates.valid_until ?? entry?.valid_until ?? null,
+        p_notes: updates.notes ?? entry?.notes ?? null,
+      });
 
       if (error) throw error;
     },
@@ -190,10 +178,9 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any)
-        .from("vendor_pricelists")
-        .update({ is_active: false })
-        .eq("id", id);
+      const { error } = await (supabase as any).rpc("deactivate_supplier_item_terms", {
+        p_id: id,
+      });
 
       if (error) throw error;
     },
