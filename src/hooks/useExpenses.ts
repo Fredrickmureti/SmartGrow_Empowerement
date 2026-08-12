@@ -261,10 +261,20 @@ export function useExpenses() {
     }
   };
 
-  /** Void a posted expense — reversal + audit happen server-side. */
-  const voidExpense = async (id: string, reason?: string) => {
+  /**
+   * Void a posted expense — reversal + audit happen server-side.
+   *
+   * A reason code from `reversal_reason_codes` is mandatory (ADR 0129); the
+   * server refuses the void without one, so callers must come through
+   * `VoidExpenseDialog` rather than firing this from a menu item.
+   */
+  const voidExpense = async (id: string, reason?: string, reasonCode?: string) => {
     const expense = expenses.find((e) => e.id === id);
-    const res = await voidExpenseRpc(id, reason ?? (expense ? `Void of expense: ${expense.description}` : null));
+    const res = await voidExpenseRpc(
+      id,
+      reason ?? (expense ? `Void of expense: ${expense.description}` : null),
+      reasonCode ?? null,
+    );
 
     if (currentOrg?.id) {
       void dispatchApprovalNotification({
