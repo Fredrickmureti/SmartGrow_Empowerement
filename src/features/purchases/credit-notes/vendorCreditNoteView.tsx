@@ -231,7 +231,7 @@ export function useVendorCreditNoteView(
       ) : undefined,
 
     };
-  }, [creditNote, loading, error, formatCurrency]);
+  }, [creditNote, loading, error, formatCurrency, refetch]);
 
   return { creditNote, loading, error, view, refresh: refetch };
 }
