@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { resolveRateFromBook } from "@/services/fx/rateBook";
 
 export interface Currency {
   id: string;
@@ -30,8 +31,10 @@ interface CurrencyContextType {
   isLoading: boolean;
   formatCurrency: (amount: number, currencyCode?: string) => string;
   getCurrencySymbol: (currencyCode?: string) => string;
-  getExchangeRate: (fromCurrency: string, toCurrency: string, date?: string) => number;
-  convertCurrency: (amount: number, fromCurrency: string, toCurrency: string, date?: string) => number;
+  /** Resolved rate, or `null` when no rate is on file. NEVER silently 1. */
+  getExchangeRate: (fromCurrency: string, toCurrency: string, date?: string) => number | null;
+  /** Converted amount, or `null` when no rate is on file. */
+  convertCurrency: (amount: number, fromCurrency: string, toCurrency: string, date?: string) => number | null;
   addExchangeRate: (fromCurrency: string, toCurrency: string, rate: number, effectiveDate?: string) => Promise<void>;
   refreshCurrencies: () => Promise<void>;
   refreshExchangeRates: () => Promise<void>;
@@ -140,99 +143,34 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     [baseCurrency, currencies]
   );
 
+  /**
+   * Display-only lookup against the ONE rate book (`public.exchange_rates`),
+   * delegated to the single shared engine in `@/services/fx/rateBook`, which
+   * mirrors the server precedence (override > manual > provider, latest
+   * effective date first).
+   *
+   * Returns `null` when nothing is on file — the browser may display a rate,
+   * it may never compute an accounting one (ADR 0136).
+   */
   const getExchangeRate = useCallback(
-    (fromCurrency: string, toCurrency: string, date?: string): number => {
-      if (fromCurrency === toCurrency) return 1;
-
-      const targetDate = date || new Date().toISOString().split("T")[0];
-      
-      // 1. Try direct rate first (e.g., USD -> KES)
-      const directRate = exchangeRates.find(
-        (r) =>
-          r.from_currency === fromCurrency &&
-          r.to_currency === toCurrency &&
-          r.effective_date <= targetDate
-      );
-
-      if (directRate) return directRate.rate;
-
-      // 2. Try reverse rate and invert it (e.g., KES -> USD, then 1/rate)
-      const reverseRate = exchangeRates.find(
-        (r) =>
-          r.from_currency === toCurrency &&
-          r.to_currency === fromCurrency &&
-          r.effective_date <= targetDate
-      );
-
-      if (reverseRate && reverseRate.rate !== 0) {
-        return 1 / reverseRate.rate;
-      }
-
-      // 3. Try triangulation through USD (common base currency)
-      const baseCurrencyForTriangulation = "USD";
-      
-      if (fromCurrency !== baseCurrencyForTriangulation && toCurrency !== baseCurrencyForTriangulation) {
-        // Find from -> USD rate
-        let fromToBase = exchangeRates.find(
-          (r) =>
-            r.from_currency === fromCurrency &&
-            r.to_currency === baseCurrencyForTriangulation &&
-            r.effective_date <= targetDate
-        )?.rate;
-
-        // Try reverse if not found
-        if (!fromToBase) {
-          const baseToFrom = exchangeRates.find(
-            (r) =>
-              r.from_currency === baseCurrencyForTriangulation &&
-              r.to_currency === fromCurrency &&
-              r.effective_date <= targetDate
-          )?.rate;
-          if (baseToFrom && baseToFrom !== 0) {
-            fromToBase = 1 / baseToFrom;
-          }
-        }
-
-        // Find USD -> to rate
-        let baseToTarget = exchangeRates.find(
-          (r) =>
-            r.from_currency === baseCurrencyForTriangulation &&
-            r.to_currency === toCurrency &&
-            r.effective_date <= targetDate
-        )?.rate;
-
-        // Try reverse if not found
-        if (!baseToTarget) {
-          const targetToBase = exchangeRates.find(
-            (r) =>
-              r.from_currency === toCurrency &&
-              r.to_currency === baseCurrencyForTriangulation &&
-              r.effective_date <= targetDate
-          )?.rate;
-          if (targetToBase && targetToBase !== 0) {
-            baseToTarget = 1 / targetToBase;
-          }
-        }
-
-        if (fromToBase && baseToTarget) {
-          return fromToBase * baseToTarget;
-        }
-      }
-
-      // No rate found - return 1 (no conversion)
-      return 1;
-    },
-    [exchangeRates]
+    (fromCurrency: string, toCurrency: string, date?: string): number | null =>
+      resolveRateFromBook(exchangeRates as any, fromCurrency, toCurrency, date, baseCurrency),
+    [exchangeRates, baseCurrency],
   );
 
   const convertCurrency = useCallback(
-    (amount: number, fromCurrency: string, toCurrency: string, date?: string): number => {
+    (amount: number, fromCurrency: string, toCurrency: string, date?: string): number | null => {
       const rate = getExchangeRate(fromCurrency, toCurrency, date);
+      if (rate === null) return null;
       return amount * rate;
     },
     [getExchangeRate]
   );
 
+  /**
+   * A tenant-entered rate is an OVERRIDE: it outranks the provider-published
+   * row for the same day and never mutates it.
+   */
   const addExchangeRate = async (
     fromCurrency: string,
     toCurrency: string,
@@ -241,12 +179,14 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   ) => {
     if (!currentOrg) throw new Error("No organization selected");
 
-    const { error } = await supabase.from("exchange_rates").upsert({
+    const { error } = await supabase.from("exchange_rates").insert({
       organization_id: currentOrg.id,
-      from_currency: fromCurrency,
-      to_currency: toCurrency,
+      business_id: currentBusiness?.id ?? null,
+      from_currency: fromCurrency.toUpperCase(),
+      to_currency: toCurrency.toUpperCase(),
       rate,
       effective_date: effectiveDate || new Date().toISOString().split("T")[0],
+      source: "override",
     });
 
     if (error) throw error;

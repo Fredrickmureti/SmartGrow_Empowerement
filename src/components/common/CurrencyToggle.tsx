@@ -42,9 +42,8 @@ export function CurrencyToggle({
   // Check if exchange rate exists for the selected currency pair
   const hasExchangeRate = useMemo(() => {
     if (!effectiveValue || !baseCurrency || effectiveValue === baseCurrency) return true;
-    const rate = getExchangeRate(baseCurrency, effectiveValue);
-    // If rate is 1 and currencies are different, no rate exists
-    return rate !== 1 || effectiveValue === baseCurrency;
+    // `null` is the honest "no rate on file" answer from the rate book.
+    return getExchangeRate(baseCurrency, effectiveValue) !== null;
   }, [effectiveValue, baseCurrency, getExchangeRate]);
 
   const handleChange = (newValue: string) => {
