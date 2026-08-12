@@ -10645,6 +10645,7 @@ export type Database = {
           etims_qr_code_url: string | null
           etims_transmission_status: string | null
           etims_transmitted_at: string | null
+          exchange_rate: number | null
           id: string
           invoice_id: string | null
           is_sample_data: boolean
@@ -10686,6 +10687,7 @@ export type Database = {
           etims_qr_code_url?: string | null
           etims_transmission_status?: string | null
           etims_transmitted_at?: string | null
+          exchange_rate?: number | null
           id?: string
           invoice_id?: string | null
           is_sample_data?: boolean
@@ -10727,6 +10729,7 @@ export type Database = {
           etims_qr_code_url?: string | null
           etims_transmission_status?: string | null
           etims_transmitted_at?: string | null
+          exchange_rate?: number | null
           id?: string
           invoice_id?: string | null
           is_sample_data?: boolean
@@ -12102,6 +12105,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string
+          exchange_rate: number | null
           id: string
           journal_entry_id: string | null
           organization_id: string
@@ -12129,7 +12133,8 @@ export type Database = {
           contact_id: string
           created_at?: string
           created_by?: string | null
-          currency?: string
+          currency: string
+          exchange_rate?: number | null
           id?: string
           journal_entry_id?: string | null
           organization_id: string
@@ -12158,6 +12163,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string
+          exchange_rate?: number | null
           id?: string
           journal_entry_id?: string | null
           organization_id?: string
@@ -19568,6 +19574,7 @@ export type Database = {
           customer_signature_url: string | null
           discount_amount: number | null
           estimate_number: string
+          exchange_rate: number | null
           expiry_date: string
           id: string
           is_sample_data: boolean
@@ -19605,6 +19612,7 @@ export type Database = {
           customer_signature_url?: string | null
           discount_amount?: number | null
           estimate_number: string
+          exchange_rate?: number | null
           expiry_date: string
           id?: string
           is_sample_data?: boolean
@@ -19642,6 +19650,7 @@ export type Database = {
           customer_signature_url?: string | null
           discount_amount?: number | null
           estimate_number?: string
+          exchange_rate?: number | null
           expiry_date?: string
           id?: string
           is_sample_data?: boolean
@@ -20303,7 +20312,7 @@ export type Database = {
           department_id?: string | null
           description: string
           employee_id?: string | null
-          exchange_rate?: number
+          exchange_rate: number
           expense_date?: string
           expense_number?: string | null
           id?: string
@@ -53849,6 +53858,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -53889,6 +53899,7 @@ export type Database = {
           deliver_to_branch_id?: string | null
           deliver_to_warehouse_id?: string | null
           discount_amount?: number | null
+          exchange_rate?: number | null
           expected_date?: string | null
           id?: string
           is_sample_data?: boolean
@@ -53929,6 +53940,7 @@ export type Database = {
           deliver_to_branch_id?: string | null
           deliver_to_warehouse_id?: string | null
           discount_amount?: number | null
+          exchange_rate?: number | null
           expected_date?: string | null
           id?: string
           is_sample_data?: boolean
@@ -84382,6 +84394,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _fx_document_is_posted: {
+        Args: { p_id: string; p_source_type: string }
+        Returns: boolean
+      }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
       _loan_assert_transition: {
@@ -85655,6 +85671,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -86091,6 +86108,7 @@ export type Database = {
           etims_qr_code_url: string | null
           etims_transmission_status: string | null
           etims_transmitted_at: string | null
+          exchange_rate: number | null
           id: string
           invoice_id: string | null
           is_sample_data: boolean
@@ -86133,6 +86151,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string
+          exchange_rate: number | null
           id: string
           journal_entry_id: string | null
           organization_id: string
@@ -86522,6 +86541,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -87451,6 +87471,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -88275,6 +88296,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -90881,6 +90903,15 @@ export type Database = {
       force_end_cashier_sessions: {
         Args: { p_cashier_id: string; p_ended_by: string }
         Returns: number
+      }
+      fx_stamp_document: {
+        Args: {
+          p_biz: string
+          p_currency: string
+          p_date: string
+          p_org: string
+        }
+        Returns: Record<string, unknown>
       }
       garnishment_apply_pack_to_org: {
         Args: { p_org_id: string; p_pack_id: string }
@@ -96867,6 +96898,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -96982,6 +97014,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -98306,6 +98339,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
@@ -98845,6 +98879,7 @@ export type Database = {
           deliver_to_branch_id: string | null
           deliver_to_warehouse_id: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_sample_data: boolean
