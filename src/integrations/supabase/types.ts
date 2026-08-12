@@ -98660,6 +98660,10 @@ export type Database = {
         }
         Returns: Json
       }
+      set_business_active_currency: {
+        Args: { p_business_id: string; p_currency: string; p_enabled: boolean }
+        Returns: undefined
+      }
       set_cashier_pin: {
         Args: { p_cashier_id: string; p_pin: string }
         Returns: boolean
@@ -98676,6 +98680,17 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      set_exchange_rate_override: {
+        Args: {
+          p_business_id: string
+          p_effective_date?: string
+          p_from_currency: string
+          p_rate: number
+          p_reason?: string
+          p_to_currency: string
+        }
+        Returns: string
       }
       set_label_run_status: {
         Args: {
