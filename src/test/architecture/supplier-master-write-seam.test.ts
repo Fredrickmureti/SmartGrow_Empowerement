@@ -72,7 +72,7 @@ describe("supplier master — client writes go through RPCs", () => {
       }
     }
     expect(
-      offenders.join("\n") && offenders,
+      offenders,
       `Supplier role tables are RPC-only. Offenders:\n${offenders.join("\n")}`,
     ).toEqual([]);
   });
