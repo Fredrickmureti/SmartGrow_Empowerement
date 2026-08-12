@@ -273,10 +273,11 @@ export async function fetchContactOpenItemAging(
     );
   }
 
-  if (side === "ar") {
-    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds);
-    if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
-  }
+  const credit =
+    side === "ar"
+      ? await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds)
+      : await fetchUnappliedVendorCredit(params.orgId, params.businessId, contactIds);
+  if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
 
   return buckets;
 }
