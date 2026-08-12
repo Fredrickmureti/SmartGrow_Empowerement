@@ -36,12 +36,12 @@ const STATE_TONE: Record<
   string,
   "neutral" | "info" | "success" | "warning" | "danger"
 > = {
-  prospect: "neutral",
+  draft: "neutral",
   qualifying: "info",
-  qualified: "info",
-  active: "success",
-  suspended: "danger",
-  retired: "neutral",
+  approved: "success",
+  suspended: "warning",
+  blocked: "danger",
+  archived: "neutral",
 };
 
 function fmtState(s: string) {
@@ -101,12 +101,12 @@ export default function SupplierListPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
             <option value="all">All lifecycle states</option>
-            <option value="prospect">Prospect</option>
+            <option value="draft">Draft</option>
             <option value="qualifying">Qualifying</option>
-            <option value="qualified">Qualified</option>
-            <option value="active">Active</option>
+            <option value="approved">Approved</option>
             <option value="suspended">Suspended</option>
-            <option value="retired">Retired</option>
+            <option value="blocked">Blocked</option>
+            <option value="archived">Archived</option>
           </select>
         </FilterBar>
 
@@ -190,9 +190,10 @@ export default function SupplierListPage() {
                           <Star className="h-4 w-4 fill-current" />
                           #{r.preferred_rank ?? "?"}
                         </span>
-                      ) : r.lifecycle_state === "suspended" ? (
+                      ) : r.lifecycle_state === "suspended" ||
+                        r.lifecycle_state === "blocked" ? (
                         <ShieldAlert className="ml-auto h-4 w-4 text-destructive" />
-                      ) : r.lifecycle_state === "active" ? (
+                      ) : r.lifecycle_state === "approved" ? (
                         <ShieldCheck className="ml-auto h-4 w-4 text-muted-foreground" />
                       ) : (
                         "—"

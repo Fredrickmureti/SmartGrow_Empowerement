@@ -232,8 +232,9 @@ export function VoidExpenseDialog({
                 <ReversalApprovalNotice
                   approval={approval}
                   isLoading={isLoadingApproval}
-                  onRequestApproval={requestApproval}
                   isRequesting={isRequestingApproval}
+                  canRequest={reasonComplete}
+                  onRequestApproval={() => requestApproval(reasonCode, reason.trim())}
                 />
 
                 <ReversalReasonField
