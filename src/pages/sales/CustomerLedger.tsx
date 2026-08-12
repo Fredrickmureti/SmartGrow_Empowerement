@@ -405,6 +405,25 @@ export default function CustomerLedgerPage() {
           <Link className="underline" to={`/sales/payments?customer=${id}`}>Payments</Link>
         </div>
       )}
+
+      <ReverseCustomerRefundSheet
+        open={!!refundUnderReview}
+        onOpenChange={(next) => {
+          if (!next) setRefundUnderReview(null);
+        }}
+        customerId={id ?? null}
+        refund={
+          refundUnderReview
+            ? {
+                id: refundUnderReview.doc_id,
+                reference: refundUnderReview.doc_ref,
+                amount: refundUnderReview.debit || refundUnderReview.credit,
+                currency: refundUnderReview.currency,
+                refundDate: refundUnderReview.entry_date,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
