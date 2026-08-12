@@ -21605,6 +21605,7 @@ export type Database = {
           business_id: string
           created_at: string
           created_by: string | null
+          fiscal_period_id: string | null
           id: string
           journal_book_id: string | null
           journal_entry_id: string | null
@@ -21612,6 +21613,8 @@ export type Database = {
           organization_id: string
           reversal_journal_entry_id: string | null
           reversal_policy: string
+          reversed_at: string | null
+          reversed_by_run_id: string | null
           run_date: string
           status: string
           total_unrealized_gain: number
@@ -21625,6 +21628,7 @@ export type Database = {
           business_id: string
           created_at?: string
           created_by?: string | null
+          fiscal_period_id?: string | null
           id?: string
           journal_book_id?: string | null
           journal_entry_id?: string | null
@@ -21632,6 +21636,8 @@ export type Database = {
           organization_id: string
           reversal_journal_entry_id?: string | null
           reversal_policy?: string
+          reversed_at?: string | null
+          reversed_by_run_id?: string | null
           run_date: string
           status?: string
           total_unrealized_gain?: number
@@ -21645,6 +21651,7 @@ export type Database = {
           business_id?: string
           created_at?: string
           created_by?: string | null
+          fiscal_period_id?: string | null
           id?: string
           journal_book_id?: string | null
           journal_entry_id?: string | null
@@ -21652,6 +21659,8 @@ export type Database = {
           organization_id?: string
           reversal_journal_entry_id?: string | null
           reversal_policy?: string
+          reversed_at?: string | null
+          reversed_by_run_id?: string | null
           run_date?: string
           status?: string
           total_unrealized_gain?: number
@@ -21681,6 +21690,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "fx_revaluation_runs_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "fx_revaluation_runs_journal_book_id_fkey"
@@ -21792,6 +21808,13 @@ export type Database = {
             columns: ["reversal_journal_entry_id"]
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_revaluation_runs_reversed_by_run_id_fkey"
+            columns: ["reversed_by_run_id"]
+            isOneToOne: false
+            referencedRelation: "fx_revaluation_runs"
             referencedColumns: ["id"]
           },
           {
@@ -90914,6 +90937,10 @@ export type Database = {
         Args: { p_cashier_id: string; p_ended_by: string }
         Returns: number
       }
+      fx_revaluation_readiness: {
+        Args: { _as_of: string; _business_id: string }
+        Returns: Json
+      }
       fx_stamp_document: {
         Args: {
           p_biz: string
@@ -98295,6 +98322,15 @@ export type Database = {
       reversal_bank_lines: {
         Args: { _document_id: string; _document_type: string }
         Returns: Json
+      }
+      reverse_fx_revaluation_run: {
+        Args: {
+          _next_run_id?: string
+          _reversal_date: string
+          _run_id: string
+          _user_id?: string
+        }
+        Returns: string
       }
       reverse_landed_cost_bill: {
         Args: { p_bill_id: string; p_reason?: string }
