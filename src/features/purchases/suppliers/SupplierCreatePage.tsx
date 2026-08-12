@@ -1,17 +1,16 @@
 /**
  * SupplierCreatePage — create a new supplier record.
  *
- * Two-step wire:
- *   1. Insert a `contacts` row typed as supplier (organization + business
- *      scoped) so RLS + existing contact tooling continue to work.
- *   2. Insert the canonical `suppliers` row referencing the new contact.
+ * Server-authoritative: the page calls `create_supplier`, which writes the
+ * party (`contacts`) and the procurement role (`suppliers`) in ONE
+ * transaction. Per ADR-0079, `contacts` owns identity (name, email, phone,
+ * tax id) and `suppliers` owns procurement lifecycle (code, category,
+ * currency, incoterms, lead time). AP defaults stay on the contact and are
+ * not duplicated here.
  *
- * The two-step is deliberate: `contacts` remains the identity/address
- * store shared with Sales, while `suppliers` is the procurement master
- * record with lifecycle + qualification metadata (P1).
- *
- * When P11 workbench cutover retires the legacy vendor CRUD, this
- * page becomes the only entry point for creating a supplier.
+ * Linking an existing contact promotes that party to the supplier role
+ * rather than creating a duplicate company — this is how a customer that we
+ * also buy from is modelled (ADR-0038 dual role).
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -32,6 +31,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSupplierCategories } from "./useSuppliers";
+import { createSupplier } from "./supplierRpcs";
+
+interface PartyOption {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  tax_id: string | null;
+}
 
 export default function SupplierCreatePage() {
   const navigate = useNavigate();
@@ -40,6 +48,8 @@ export default function SupplierCreatePage() {
   const { currentBusiness } = useBusinesses();
   const categories = useSupplierCategories();
 
+  const [contactId, setContactId] = useState("");
+  const [parties, setParties] = useState<PartyOption[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -59,6 +69,38 @@ export default function SupplierCreatePage() {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Existing parties in this company — lets an existing customer become a
+  // supplier without duplicating the party record.
+  useEffect(() => {
+    if (!currentBusiness) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("contacts")
+        .select("id, name, email, phone, tax_id")
+        .eq("business_id", currentBusiness.id)
+        .eq("is_active", true)
+        .is("parent_contact_id", null)
+        .order("name")
+        .limit(500);
+      if (!cancelled) setParties((data ?? []) as PartyOption[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentBusiness?.id]);
+
+  function selectParty(id: string) {
+    setContactId(id);
+    const p = parties.find((x) => x.id === id);
+    if (p) {
+      setName(p.name ?? "");
+      setEmail(p.email ?? "");
+      setPhone(p.phone ?? "");
+      setTaxId(p.tax_id ?? "");
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!currentOrg || !currentBusiness) {
@@ -69,48 +111,32 @@ export default function SupplierCreatePage() {
       });
       return;
     }
-    if (!name.trim()) {
+    if (!contactId && !name.trim()) {
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
     setBusy(true);
     try {
-      const { data: contact, error: cErr } = await (supabase as any)
-        .from("contacts")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          type: "supplier",
-          name: name.trim(),
-          email: email.trim() || null,
-          phone: phone.trim() || null,
-          tax_id: taxId.trim() || null,
-          notes: notes.trim() || null,
-          supplier_rank: 1,
-        })
-        .select("id")
-        .single();
-      if (cErr) throw cErr;
+      const res = await createSupplier({
+        businessId: currentBusiness.id,
+        contactId: contactId || null,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        taxId: taxId.trim(),
+        notes: notes.trim(),
+        supplierCode: code.trim(),
+        categoryId: categoryId || null,
+        defaultCurrency: currency.trim(),
+        defaultIncoterms: incoterms.trim(),
+        defaultLeadTimeDays: leadTime ? Number(leadTime) : null,
+      });
 
-      const { data: supplier, error: sErr } = await (supabase as any)
-        .from("suppliers")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          contact_id: contact.id,
-          category_id: categoryId || null,
-          supplier_code: code.trim() || null,
-          lifecycle_state: "prospect",
-          default_currency: currency.trim() || null,
-          default_incoterms: incoterms.trim() || null,
-          default_lead_time_days: leadTime ? Number(leadTime) : null,
-        })
-        .select("id")
-        .single();
-      if (sErr) throw sErr;
-
-      toast({ title: "Supplier created", description: name.trim() });
-      navigate(`/purchases/suppliers/${supplier.id}`);
+      toast({
+        title: res.created ? "Supplier created" : "Supplier already existed",
+        description: name.trim(),
+      });
+      navigate(`/purchases/suppliers/${res.supplier_id}`);
     } catch (err: any) {
       toast({
         title: "Failed to create supplier",
