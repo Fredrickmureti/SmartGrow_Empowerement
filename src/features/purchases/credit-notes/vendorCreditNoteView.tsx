@@ -126,8 +126,38 @@ export function useVendorCreditNoteView(
             { label: "Credit date", value: fmtDate(creditNote.credit_date) },
             { label: "Linked bill", value: creditNote.bill?.bill_number ?? "—" },
             { label: "Currency", value: creditNote.currency },
+            // ADR 0132: commercial, accounting and settlement states are
+            // independent — surface all three rather than one blended badge.
+            {
+              label: "Approval",
+              value: prettyState((creditNote as any).commercial_status),
+            },
+            {
+              label: "Accounting",
+              value: prettyState((creditNote as any).accounting_status),
+            },
+            {
+              label: "Settlement",
+              value: prettyState((creditNote as any).settlement_status),
+            },
+            {
+              label: "Origin",
+              value: prettyState((creditNote as any).origin),
+            },
+            ...((creditNote as any).reason_code
+              ? [{ label: "Reason", value: prettyState((creditNote as any).reason_code) }]
+              : []),
+            ...((creditNote as any).vendor_document_number
+              ? [
+                  {
+                    label: "Vendor document",
+                    value: String((creditNote as any).vendor_document_number),
+                  },
+                ]
+              : []),
           ]
         : undefined,
+
       lineColumns: COLUMNS,
       lineRows: rows,
       lineEmpty: "No line items on this credit note.",
