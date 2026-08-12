@@ -545,7 +545,7 @@ export function SupplierAslTab({ record, refresh }: TabProps) {
 
 /* ── Payments ─────────────────────────────────────────────────────────── */
 export function SupplierPaymentsTab({ record }: TabProps) {
-  const navigate = useNavigate();
+  // No standalone payment detail page exists yet — rows stay read-only.
   return (
     <TabsContent value="payments" className="mt-4">
       {record.payments.length === 0 ? (
@@ -567,11 +567,7 @@ export function SupplierPaymentsTab({ record }: TabProps) {
             </TableHeader>
             <TableBody>
               {record.payments.map((p) => (
-                <TableRow
-                  key={p.id}
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/purchases/payments/${p.id}`)}
-                >
+                <TableRow key={p.id}>
                   <TableCell>{fmt(p.payment_date)}</TableCell>
                   <TableCell>{p.payment_method ?? "—"}</TableCell>
                   <TableCell>{p.reference ?? "—"}</TableCell>
