@@ -80,25 +80,14 @@ function accountingStateOf(cn: CreditNoteRow): string {
 }
 
 export default function VendorCreditNotes() {
-  const { creditNotes, isLoading, confirmVendorCreditNote, deleteVendorCreditNote, applyToBill, refreshCreditNotes } = useVendorCreditNotes();
+  const { creditNotes, isLoading, refreshCreditNotes } = useVendorCreditNotes();
   const navigate = useNavigate();
-  // Vendors used to be prefetched here for a create dialog picker; the
-  // create flow is now the RecordFormShell route at /purchases/credit-notes/new,
-  // so this list no longer needs the contacts fetch.
-  const { bills } = useBills();
   const { formatCurrency, baseCurrency } = useCurrency();
-  const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
-  const [applyDialogCN, setApplyDialogCN] = useState<typeof creditNotes[number] | null>(null);
-  const [applyBillId, setApplyBillId] = useState("");
-  const [applyAmount, setApplyAmount] = useState("");
   const [peekId, setPeekId] = usePeekParam();
-
-  const outstandingBills = bills.filter((b) => ["received", "partial", "overdue"].includes(b.status));
 
   const handleOpenCreate = () => {
     navigate("/purchases/credit-notes/new");
@@ -108,7 +97,8 @@ export default function VendorCreditNotes() {
     const matchesSearch =
       cn.credit_note_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cn.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || cn.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" || commercialStateOf(cn) === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
