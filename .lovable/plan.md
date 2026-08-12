@@ -1,6 +1,6 @@
 # Project status — authoritative
 
-Last updated: 2026-08-12 (session: FX convergence, Steps A–E)
+Last updated: 2026-08-12 (session: FX convergence, Steps A–F)
 
 ## Programme: Enterprise Currency & FX convergence
 
@@ -65,20 +65,41 @@ through `resolve_exchange_rate` and raises `23514` on a missing rate (recorded i
   `currency-integrity.test.ts` (6), `no-client-payment-math.test.ts` (5),
   `credit-fx-policy.test.ts` (3). Typecheck clean.
 
+**Step F — Period-end revaluation workflow (DB + UI, this session)**
+- `fx_revaluation_runs` gains `fiscal_period_id`, `reversed_at`, `reversed_by_run_id`;
+  a partial unique index allows only one **posted** run per (business, fiscal period).
+- `revalue_fx_balances` now: requires `finance.manage_periods` (it was unpermissioned),
+  binds the run to the fiscal period covering the run date, refuses to post into a
+  non-open period, refuses a second posted run for the same period, and **auto-reverses
+  the prior posted run** (`reversal_policy = 'next_period'`) before posting the new
+  valuation, so unrealized amounts never accumulate.
+- New `reverse_fx_revaluation_run(run, date, user, next_run)` posts an exact mirror of the
+  original journal entry's lines (branch preserved) as `fx_revaluation_reversal`, and is
+  idempotent (returns the existing reversal JE if already reversed).
+- New `fx_revaluation_readiness(business, as_of)` returns per-currency open foreign
+  monetary balances, the rate the resolver would use, and the missing-rate list.
+  SECURITY DEFINER, `user_can_access_business` gated, EXECUTE to `authenticated` only.
+- `close_fiscal_period` calls that readiness function and **raises `23514`** when the
+  period holds unrevalued foreign balances.
+- UI: `useFxRevaluationReadiness` hook; the FX tab of `FinanceAccountingControls` shows the
+  period, per-currency balances with the resolved rate, missing-rate and closed-period
+  alerts, disables the run button in those states, and shows reversal/failure on each run.
+  `ClosePeriodSheet` shows the same check as a blocking readiness row.
+- Run history with the rate used per balance already exists in `FxRevaluationReport`
+  (`fx_revaluation_lines` old_rate/new_rate drill-down) — verified, no duplicate UI built.
+- Guards green: `fx-single-engine` (16), `no-silent-currency-fallback` (3),
+  `currency-integrity` (6). Typecheck clean.
+
 ## Pending
 
-1. **Step F — Unrealized FX revaluation surface.** The engine (`revalue_fx_balances`,
-   `useFxRevaluation`, `FxRevaluationReport`) exists and is now resolver-backed, but there
-   is no period-end workflow around it: no scheduled/period-close trigger, no reversal of
-   the prior period's unrealized entry, no run history UI beyond the report.
-2. **Step G — FX exposure reporting.** Open AR/AP by currency with the rate used, so a
+1. **Step G — FX exposure reporting.** Open AR/AP by currency with the rate used, so a
    controller can see exposure before revaluing.
-3. **Reversal governance coverage** — approval-gated reversal for `vendor_credit_note`
+2. **Reversal governance coverage** — approval-gated reversal for `vendor_credit_note`
    (carried over, unrelated to FX; do last).
 
 ## Active phase
 
-Steps A–E are closed. **Next active phase: Step F — unrealized FX revaluation workflow.**
+Steps A–F are closed. **Next active phase: Step G — FX exposure reporting.**
 
 ## Instructions for the next agent
 
@@ -95,10 +116,13 @@ Steps A–E are closed. **Next active phase: Step F — unrealized FX revaluatio
      `revalue_fx_balances` raises rather than skipping.
    - Client: confirm no file outside `@/services/fx/rateBook` resolves a rate, and no
      `|| "USD"` exists without an `architecture-allow` marker.
-2. Then resume at **Step F**, then G, then the reversal-governance carry-over, in order.
-   Step F scope: reverse the prior period's unrealized entry on the next run, bind a run to a
-   fiscal period, block a period close while an un-run revaluation exists for an open foreign
-   balance, and give the run history a UI with the rate used per balance.
+   - Step F specifically: confirm `revalue_fx_balances` raises `42501` without
+     `finance.manage_periods`, that a second run in the same period is refused, that the
+     prior run flips to `reversed` with a balanced mirror JE, and that `close_fiscal_period`
+     raises `23514` while `fx_revaluation_readiness(...)->>'needs_revaluation'` is true.
+2. Then resume at **Step G — FX exposure reporting**: open AR/AP by currency with the rate
+   used and the base-currency exposure, sourced from the same resolver (no new engine),
+   then the reversal-governance carry-over. In order.
 3. Do not start unrelated work and do not leave a step partially implemented.
 4. Note: the full `src/test` suite times out under sandbox contention — environmental and
    pre-existing. Run targeted suites.

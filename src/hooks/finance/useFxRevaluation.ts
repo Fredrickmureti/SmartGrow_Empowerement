@@ -10,6 +10,7 @@ import { normalizeError } from "@/services/resilience";
  * Backed by `public.fx_revaluation_runs` and the `revalue_fx_balances` RPC.
  */
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -22,13 +23,40 @@ export interface FxRevaluationRun {
   business_id: string;
   run_date: string;
   base_currency: string;
-  status: "draft" | "posted" | "reversed";
+  status: "draft" | "posted" | "reversed" | "failed";
   total_unrealized_gain: number;
   total_unrealized_loss: number;
   journal_entry_id: string | null;
+  reversal_journal_entry_id?: string | null;
+  fiscal_period_id?: string | null;
+  reversed_at?: string | null;
   notes: string | null;
   created_at: string;
 }
+
+/**
+ * Period-end readiness, straight from `public.fx_revaluation_readiness`.
+ * The same function gates `close_fiscal_period` server-side, so the UI and the
+ * database can never disagree about whether a period may be closed.
+ */
+export interface FxRevaluationReadiness {
+  base_currency: string;
+  as_of: string;
+  fiscal_period_id: string | null;
+  fiscal_period_name: string | null;
+  fiscal_period_status: string | null;
+  foreign_balances: Array<{
+    currency: string;
+    foreign_balance: number;
+    account_count: number;
+    rate: number | null;
+  }>;
+  missing_rates: string[];
+  needs_revaluation: boolean;
+  last_run_id: string | null;
+  last_run_date: string | null;
+}
+
 
 export function useFxRevaluation() {
   const { currentOrg } = useOrganization();
@@ -116,4 +144,26 @@ export function useFxRevaluation() {
   );
 
   return { runs, isLoading, isRunning, fetchRuns, runRevaluation };
+}
+
+/**
+ * useFxRevaluationReadiness — foreign monetary balances still awaiting
+ * revaluation as of a date, with the rate the resolver would use. Mirrors the
+ * server-side gate on `close_fiscal_period` (ADR 0136).
+ */
+export function useFxRevaluationReadiness(asOf: string | null | undefined) {
+  const { currentBusiness } = useBusinesses();
+  return useQuery({
+    queryKey: ["fx-revaluation-readiness", currentBusiness?.id, asOf],
+    enabled: !!currentBusiness?.id && !!asOf,
+    staleTime: 30_000,
+    queryFn: async (): Promise<FxRevaluationReadiness | null> => {
+      const { data, error } = await (supabase as any).rpc(
+        "fx_revaluation_readiness",
+        { _business_id: currentBusiness!.id, _as_of: asOf },
+      );
+      if (error) throw error;
+      return (data ?? null) as FxRevaluationReadiness | null;
+    },
+  });
 }
