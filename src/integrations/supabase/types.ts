@@ -19998,31 +19998,43 @@ export type Database = {
         Row: {
           business_id: string
           created_at: string
+          created_by: string | null
           effective_date: string
           from_currency: string
           id: string
           organization_id: string
+          provider_key: string | null
+          published_at: string
           rate: number
+          source: string
           to_currency: string
         }
         Insert: {
           business_id: string
           created_at?: string
+          created_by?: string | null
           effective_date?: string
           from_currency: string
           id?: string
           organization_id: string
+          provider_key?: string | null
+          published_at?: string
           rate: number
+          source?: string
           to_currency: string
         }
         Update: {
           business_id?: string
           created_at?: string
+          created_by?: string | null
           effective_date?: string
           from_currency?: string
           id?: string
           organization_id?: string
+          provider_key?: string | null
+          published_at?: string
           rate?: number
+          source?: string
           to_currency?: string
         }
         Relationships: [
@@ -89062,6 +89074,21 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      describe_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: {
+          effective_date: string
+          provider_key: string
+          rate: number
+          scope: string
+          source: string
+        }[]
+      }
       detect_negative_asset_findings: {
         Args: { p_org: string }
         Returns: number
@@ -96153,6 +96180,7 @@ export type Database = {
         }
         Returns: string
       }
+      publish_platform_rates: { Args: { p_on_date?: string }; Returns: number }
       publish_salary_rule_set: {
         Args: { p_effective_from?: string; p_structure_id: string }
         Returns: string
