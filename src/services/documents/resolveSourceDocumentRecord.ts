@@ -266,6 +266,14 @@ const REGISTRY: Record<string, RegistryEntry> = {
     partyKind: "supplier",
     build: wrap(fetchAndBuildPurchasesReturnSnapshot),
   },
+  vendor_credit_note: {
+    kindCode: "purchases.credit_note",
+    sourceModule: "purchases",
+    sourceDocType: "vendor_credit_note",
+    partyKind: "supplier",
+    build: wrap(fetchAndBuildVendorCreditNoteSnapshot),
+  },
+
   goods_receipt: {
     kindCode: "purchases.grn",
     sourceModule: "purchases",
