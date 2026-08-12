@@ -92,6 +92,18 @@ export interface VendorCreditNote {
   vendor_document_number?: string | null;
   vendor_document_date?: string | null;
   row_version?: number;
+  /** ADR 0132 Phase 3 — three orthogonal states; `status` is their projection. */
+  commercial_status?: "draft" | "submitted" | "approved" | "rejected" | "cancelled";
+  accounting_status?: "unposted" | "posted" | "reversed";
+  settlement_status?: "open" | "partially_applied" | "applied" | "refunded";
+  submitted_at?: string | null;
+  submitted_by?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  rejected_at?: string | null;
+  rejected_reason?: string | null;
+  approval_request_id?: string | null;
+
   vendor?: { name: string } | null;
   bill?: { bill_number: string } | null;
   items?: VendorCreditNoteItem[];
