@@ -329,6 +329,41 @@ export function useVendorCreditNotes() {
     await fetchCreditNotes();
   };
 
+  /**
+   * ADR 0132 Phase 5 — a supplier dispute is NOT an internal rejection.
+   * Rejection is our own approver refusing the claim; a dispute is the
+   * counterparty refusing it, and it can be raised on an already-approved
+   * (but unposted) note. Both outcomes are server commands.
+   */
+  const disputeVendorCreditNote = async (id: string, reason?: string) => {
+    const { error } = await supabase.rpc("vendor_credit_note_dispute" as any, {
+      _id: id,
+      _reason: reason ?? null,
+    });
+    if (error) throw error;
+    toast({ title: "Marked as disputed by supplier" });
+    await fetchCreditNotes();
+  };
+
+  const resolveVendorCreditNoteDispute = async (
+    id: string,
+    outcome: "accepted" | "withdrawn",
+  ) => {
+    const { error } = await supabase.rpc("vendor_credit_note_resolve_dispute" as any, {
+      _id: id,
+      _outcome: outcome,
+    });
+    if (error) throw error;
+    toast({
+      title:
+        outcome === "accepted"
+          ? "Dispute resolved — supplier accepted the claim"
+          : "Dispute resolved — claim withdrawn",
+    });
+    await fetchCreditNotes();
+  };
+
+
   const confirmVendorCreditNote = async (id: string) => {
     if (!user) throw new Error("Not authenticated");
     const cn = creditNotes.find((c) => c.id === id);
