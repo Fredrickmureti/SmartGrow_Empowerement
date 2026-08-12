@@ -286,17 +286,18 @@ export default function ReportCenter() {
                         className="cursor-pointer hover:border-primary/30 hover:bg-accent/30 transition-all group"
                         onClick={() => handleNavigate(report)}
                       >
-                        <CardContent className="flex items-center justify-between p-4">
-                          <div className="flex items-center gap-3">
+                        <CardContent className="flex min-w-0 items-center justify-between gap-2 p-4">
+                          <div className="flex min-w-0 items-center gap-3">
                             <report.icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                            <div>
+                            <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-sm">{report.name}</p>
-                                {isFav && <Star className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                                <p className="font-medium text-sm break-words">{report.name}</p>
+                                {isFav && <Star className="h-3 w-3 shrink-0 text-amber-500 fill-amber-500" />}
                               </div>
-                              <p className="text-xs text-muted-foreground">{report.description}</p>
+                              <p className="text-xs text-muted-foreground break-words">{report.description}</p>
                             </div>
                           </div>
+
                           <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
