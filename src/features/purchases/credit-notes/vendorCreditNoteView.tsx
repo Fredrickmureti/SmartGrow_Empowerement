@@ -28,6 +28,14 @@ function fmtDate(v: string | null | undefined) {
   }
 }
 
+/** snake_case server state → human label, e.g. "partially_applied" → "Partially applied". */
+function prettyState(v: string | null | undefined) {
+  if (!v) return "—";
+  const s = v.replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+
 const COLUMNS: LineItemColumn[] = [
   { id: "description", header: "Description", priority: 1, minWidth: 200 },
   { id: "qty", header: "Qty", numeric: true, priority: 2, minWidth: 70, compactLabel: "Qty" },
@@ -126,8 +134,38 @@ export function useVendorCreditNoteView(
             { label: "Credit date", value: fmtDate(creditNote.credit_date) },
             { label: "Linked bill", value: creditNote.bill?.bill_number ?? "—" },
             { label: "Currency", value: creditNote.currency },
+            // ADR 0132: commercial, accounting and settlement states are
+            // independent — surface all three rather than one blended badge.
+            {
+              label: "Approval",
+              value: prettyState((creditNote as any).commercial_status),
+            },
+            {
+              label: "Accounting",
+              value: prettyState((creditNote as any).accounting_status),
+            },
+            {
+              label: "Settlement",
+              value: prettyState((creditNote as any).settlement_status),
+            },
+            {
+              label: "Origin",
+              value: prettyState((creditNote as any).origin),
+            },
+            ...((creditNote as any).reason_code
+              ? [{ label: "Reason", value: prettyState((creditNote as any).reason_code) }]
+              : []),
+            ...((creditNote as any).vendor_document_number
+              ? [
+                  {
+                    label: "Vendor document",
+                    value: String((creditNote as any).vendor_document_number),
+                  },
+                ]
+              : []),
           ]
         : undefined,
+
       lineColumns: COLUMNS,
       lineRows: rows,
       lineEmpty: "No line items on this credit note.",

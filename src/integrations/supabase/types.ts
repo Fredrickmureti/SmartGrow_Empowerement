@@ -67038,13 +67038,18 @@ export type Database = {
       }
       vendor_credit_notes: {
         Row: {
+          accounting_status: string
           amount_applied: number
+          approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           bill_id: string | null
           branch_id: string | null
           business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
           client_request_id: string | null
+          commercial_status: string
           created_at: string
           created_by: string | null
           credit_date: string
@@ -67061,7 +67066,11 @@ export type Database = {
           origin: string
           purchase_order_id: string | null
           reason_code: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
           row_version: number
+          settlement_status: string
           source_return_id: string | null
           status: string
           submitted_at: string | null
@@ -67075,13 +67084,18 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
+          accounting_status?: string
           amount_applied?: number
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           bill_id?: string | null
           branch_id?: string | null
           business_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_request_id?: string | null
+          commercial_status?: string
           created_at?: string
           created_by?: string | null
           credit_date?: string
@@ -67098,7 +67112,11 @@ export type Database = {
           origin?: string
           purchase_order_id?: string | null
           reason_code?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
           row_version?: number
+          settlement_status?: string
           source_return_id?: string | null
           status?: string
           submitted_at?: string | null
@@ -67112,13 +67130,18 @@ export type Database = {
           vendor_id: string
         }
         Update: {
+          accounting_status?: string
           amount_applied?: number
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           bill_id?: string | null
           branch_id?: string | null
           business_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_request_id?: string | null
+          commercial_status?: string
           created_at?: string
           created_by?: string | null
           credit_date?: string
@@ -67135,7 +67158,11 @@ export type Database = {
           origin?: string
           purchase_order_id?: string | null
           reason_code?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejected_reason?: string | null
           row_version?: number
+          settlement_status?: string
           source_return_id?: string | null
           status?: string
           submitted_at?: string | null
@@ -84103,6 +84130,65 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
+      _vcn_load: {
+        Args: { _id: string }
+        Returns: {
+          accounting_status: string
+          amount_applied: number
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          bill_id: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_request_id: string | null
+          commercial_status: string
+          created_at: string
+          created_by: string | null
+          credit_date: string
+          credit_note_number: string
+          currency: string
+          exchange_rate: number | null
+          exchange_rate_date: string | null
+          goods_receipt_id: string | null
+          id: string
+          is_sample_data: boolean
+          journal_entry_id: string | null
+          notes: string | null
+          organization_id: string
+          origin: string
+          purchase_order_id: string | null
+          reason_code: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejected_reason: string | null
+          row_version: number
+          settlement_status: string
+          source_return_id: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          vendor_document_date: string | null
+          vendor_document_number: string | null
+          vendor_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "vendor_credit_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _vcn_requires_approval: {
+        Args: { _business_id: string; _org_id: string }
+        Returns: boolean
+      }
       _wms_accrue_storage_days_internal: {
         Args: { p_as_of: string; p_business_id: string }
         Returns: number
@@ -85681,52 +85767,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "wms_trailer_visits"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      approve_vendor_credit_note: {
-        Args: { p_id: string }
-        Returns: {
-          amount_applied: number
-          approved_at: string | null
-          approved_by: string | null
-          bill_id: string | null
-          branch_id: string | null
-          business_id: string
-          client_request_id: string | null
-          created_at: string
-          created_by: string | null
-          credit_date: string
-          credit_note_number: string
-          currency: string
-          exchange_rate: number | null
-          exchange_rate_date: string | null
-          goods_receipt_id: string | null
-          id: string
-          is_sample_data: boolean
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string
-          origin: string
-          purchase_order_id: string | null
-          reason_code: string | null
-          row_version: number
-          source_return_id: string | null
-          status: string
-          submitted_at: string | null
-          submitted_by: string | null
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          vendor_document_date: string | null
-          vendor_document_number: string | null
-          vendor_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "vendor_credit_notes"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -99015,6 +99055,16 @@ export type Database = {
         }
         Returns: string
       }
+      vendor_credit_note_approve: { Args: { _id: string }; Returns: Json }
+      vendor_credit_note_cancel: {
+        Args: { _id: string; _reason?: string }
+        Returns: Json
+      }
+      vendor_credit_note_reject: {
+        Args: { _id: string; _reason?: string }
+        Returns: Json
+      }
+      vendor_credit_note_submit: { Args: { _id: string }; Returns: Json }
       verify_cashier_pin: {
         Args: { p_cashier_id: string; p_pin: string }
         Returns: boolean
