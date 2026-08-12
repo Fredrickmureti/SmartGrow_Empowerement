@@ -88014,21 +88014,46 @@ export type Database = {
         }
         Returns: Json
       }
-      create_vendor_credit_note_atomic: {
-        Args: {
-          _bill_id: string
-          _branch_id: string
-          _business_id: string
-          _client_request_id?: string
-          _credit_date: string
-          _issue?: boolean
-          _items: Json
-          _notes: string
-          _org_id: string
-          _vendor_id: string
-        }
-        Returns: Json
-      }
+      create_vendor_credit_note_atomic:
+        | {
+            Args: {
+              _bill_id: string
+              _branch_id: string
+              _business_id: string
+              _client_request_id?: string
+              _credit_date: string
+              _issue?: boolean
+              _items: Json
+              _notes: string
+              _org_id: string
+              _vendor_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _bill_id: string
+              _branch_id: string
+              _business_id: string
+              _client_request_id?: string
+              _credit_date: string
+              _exchange_rate?: number
+              _exchange_rate_date?: string
+              _goods_receipt_id?: string
+              _issue?: boolean
+              _items: Json
+              _notes: string
+              _org_id: string
+              _origin?: string
+              _purchase_order_id?: string
+              _reason_code?: string
+              _source_return_id?: string
+              _vendor_document_date?: string
+              _vendor_document_number?: string
+              _vendor_id: string
+            }
+            Returns: Json
+          }
       cron_caller_auth_header: { Args: never; Returns: Json }
       current_employee_id: {
         Args: { _organization_id: string }
@@ -98655,17 +98680,33 @@ export type Database = {
         }
         Returns: Json
       }
-      update_vendor_credit_note_atomic: {
-        Args: {
-          _bill_id?: string
-          _credit_date?: string
-          _items?: Json
-          _notes?: string
-          _vcn_id: string
-          _vendor_id?: string
-        }
-        Returns: Json
-      }
+      update_vendor_credit_note_atomic:
+        | {
+            Args: {
+              _bill_id?: string
+              _credit_date?: string
+              _items?: Json
+              _notes?: string
+              _vcn_id: string
+              _vendor_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _bill_id?: string
+              _credit_date?: string
+              _items?: Json
+              _notes?: string
+              _origin?: string
+              _reason_code?: string
+              _vcn_id: string
+              _vendor_document_date?: string
+              _vendor_document_number?: string
+              _vendor_id?: string
+            }
+            Returns: Json
+          }
       upsert_collector_assignment: {
         Args: {
           _business_id?: string
