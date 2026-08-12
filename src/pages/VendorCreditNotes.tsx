@@ -165,11 +165,12 @@ export default function VendorCreditNotes() {
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="applied">Applied</SelectItem>
-              <SelectItem value="void">Void</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
+              {COMMERCIAL_FILTERS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
