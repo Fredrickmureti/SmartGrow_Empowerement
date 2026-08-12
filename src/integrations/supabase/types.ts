@@ -83399,72 +83399,6 @@ export type Database = {
           },
         ]
       }
-      vendor_pricelists: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          created_at: string | null
-          currency: string | null
-          id: string | null
-          is_active: boolean | null
-          is_preferred: boolean | null
-          lead_time_days: number | null
-          min_order_qty: number | null
-          notes: string | null
-          organization_id: string | null
-          product_id: string | null
-          supplier_id: string | null
-          unit_price: number | null
-          updated_at: string | null
-          valid_from: string | null
-          valid_until: string | null
-          vendor_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "supplier_item_terms_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "supplier_item_terms_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_item_terms_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_item_terms_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["supplier_id"]
-          },
-          {
-            foreignKeyName: "suppliers_contact_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "suppliers_contact_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-        ]
-      }
       vendor_unapplied_advances: {
         Row: {
           amount: number | null
@@ -89039,6 +88973,10 @@ export type Database = {
       deactivate_supplier_bank_account: {
         Args: { p_bank_account_id: string; p_reason?: string }
         Returns: Json
+      }
+      deactivate_supplier_item_terms: {
+        Args: { p_id: string }
+        Returns: undefined
       }
       default_journal_book_for_source: {
         Args: {
@@ -99963,6 +99901,25 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      upsert_supplier_item_terms: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_currency_code?: string
+          p_effective_from?: string
+          p_effective_to?: string
+          p_id?: string
+          p_is_preferred?: boolean
+          p_lead_time_days?: number
+          p_min_order_qty?: number
+          p_notes?: string
+          p_organization_id?: string
+          p_product_id: string
+          p_unit_price: number
+          p_vendor_id: string
+        }
+        Returns: string
       }
       upsert_system_account: {
         Args: {
