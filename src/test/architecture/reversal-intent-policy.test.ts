@@ -70,7 +70,16 @@ function intentAuthoritySql(): string {
   )) {
     resolvers.add(m[1]);
   }
-  return [dispatcher, ...[...resolvers].map((r) => latestDefinitionOf(r) ?? "")].join("\n");
+  const bodies = [dispatcher, ...[...resolvers].map((r) => latestDefinitionOf(r) ?? "")];
+  // Resolvers lean on shared state helpers (settlement, bank reconciliation,
+  // period state); those helpers are part of the authority surface.
+  const helpers = new Set<string>();
+  for (const body of bodies) {
+    for (const m of body.matchAll(/public\.([a-z_]+)\s*\(/gi)) {
+      if (!m[1].startsWith("resolve_reversal_intent")) helpers.add(m[1]);
+    }
+  }
+  return [...bodies, ...[...helpers].map((h) => latestDefinitionOf(h) ?? "")].join("\n");
 }
 
 describe("Phase 1 — reversal intent policy exists in the database", () => {
