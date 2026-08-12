@@ -97228,6 +97228,14 @@ export type Database = {
         Args: { _document_id: string; _document_type: string }
         Returns: Json
       }
+      resolve_reversal_intent_customer_refund: {
+        Args: { _document_id: string }
+        Returns: Json
+      }
+      resolve_reversal_intent_expense: {
+        Args: { _document_id: string }
+        Returns: Json
+      }
       resolve_reversal_intent_finance: {
         Args: { _document_id: string; _document_type: string }
         Returns: Json
