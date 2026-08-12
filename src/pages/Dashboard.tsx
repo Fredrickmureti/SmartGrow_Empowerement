@@ -124,6 +124,7 @@ export default function Dashboard() {
   const displayAmount = (amount: number) => {
     if (displayCurrency !== baseCurrency) {
       const converted = convertCurrency(amount, baseCurrency, displayCurrency);
+      if (converted === null) return "—";
       return formatCurrency(converted, displayCurrency);
     }
     return formatCurrency(amount, baseCurrency);

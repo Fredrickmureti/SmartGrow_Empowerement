@@ -39,7 +39,9 @@ export function BranchComparisonWidget() {
   const displayCurrency = viewCurrency || baseCurrency;
   const displayAmount = (amount: number) => {
     if (displayCurrency !== baseCurrency) {
-      return formatCurrency(convertCurrency(amount, baseCurrency, displayCurrency), displayCurrency);
+      const converted = convertCurrency(amount, baseCurrency, displayCurrency);
+      if (converted === null) return "—";
+      return formatCurrency(converted, displayCurrency);
     }
     return formatCurrency(amount, baseCurrency);
   };

@@ -32,7 +32,9 @@ export function CurrencyConverter({
       <span>{formatCurrency(amount, fromCurrency)}</span>
       {showIcon && <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />}
       <span className="text-muted-foreground">
-        ≈ {formatCurrency(convertedAmount, targetCurrency)}
+        {convertedAmount === null
+          ? `no ${fromCurrency}→${targetCurrency} rate on file`
+          : `≈ ${formatCurrency(convertedAmount, targetCurrency)}`}
       </span>
     </span>
   );
