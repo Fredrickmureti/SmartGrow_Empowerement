@@ -109,7 +109,78 @@ export interface BillHistoryRow {
   currency: string | null;
 }
 
+export interface ItemTermsRow {
+  id: string;
+  product_id: string;
+  unit_price: number | null;
+  currency_code: string | null;
+  min_order_qty: number | null;
+  lead_time_days: number | null;
+  preferred_rank: number | null;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_active: boolean;
+  notes: string | null;
+  product?: { id: string; name: string; sku: string | null } | null;
+}
+
+export interface AslRow {
+  id: string;
+  category_id: string;
+  rank: number | null;
+  effective_from: string | null;
+  effective_to: string | null;
+  notes: string | null;
+  approved_at: string | null;
+  category?: { id: string; code: string; name: string } | null;
+}
+
+export interface TermsChangeRow {
+  id: string;
+  changed_by: string | null;
+  reason: string | null;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  effective_from: string | null;
+  created_at: string;
+}
+
+export interface LifecycleEventRow {
+  id: string;
+  seq: number;
+  from_state: string | null;
+  to_state: string;
+  reason: string | null;
+  actor_user_id: string | null;
+  created_at: string;
+}
+
+export interface PaymentHistoryRow {
+  id: string;
+  payment_date: string | null;
+  amount: number | null;
+  payment_method: string | null;
+  reference: string | null;
+  status: string | null;
+}
+
+export interface ReturnHistoryRow {
+  id: string;
+  return_number: string | null;
+  status: string;
+  return_kind: string | null;
+  return_date: string | null;
+  total: number | null;
+  currency: string | null;
+}
+
 export interface SupplierRecord extends SupplierRow {
+  item_terms: ItemTermsRow[];
+  asl: AslRow[];
+  terms_changes: TermsChangeRow[];
+  lifecycle_events: LifecycleEventRow[];
+  payments: PaymentHistoryRow[];
+  returns: ReturnHistoryRow[];
   qualifications: QualificationRow[];
   compliance: ComplianceCheckRow[];
   bank_accounts: BankAccountRow[];
@@ -168,6 +239,12 @@ export function useSupplierRecord(id: string | null | undefined) {
       requisitions,
       pos,
       bills,
+      itemTerms,
+      asl,
+      termsChanges,
+      lifecycleEvents,
+      payments,
+      returns,
     ] = await Promise.all([
       s
         .from("supplier_qualifications")
@@ -222,6 +299,47 @@ export function useSupplierRecord(id: string | null | undefined) {
         .eq("vendor_id", contactId)
         .order("bill_date", { ascending: false })
         .limit(50),
+      s
+        .from("supplier_item_terms")
+        .select(
+          "id, product_id, unit_price, currency_code, min_order_qty, lead_time_days, preferred_rank, effective_from, effective_to, is_active, notes, product:products!product_id(id, name, sku)",
+        )
+        .eq("supplier_id", id)
+        .order("effective_from", { ascending: false })
+        .limit(200),
+      s
+        .from("approved_supplier_list")
+        .select(
+          "id, category_id, rank, effective_from, effective_to, notes, approved_at, category:supplier_categories(id, code, name)",
+        )
+        .eq("supplier_id", id)
+        .order("rank", { ascending: true }),
+      s
+        .from("supplier_terms_changes")
+        .select("*")
+        .eq("supplier_id", id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      s
+        .from("supplier_lifecycle_events")
+        .select("id, seq, from_state, to_state, reason, actor_user_id, created_at")
+        .eq("supplier_id", id)
+        .order("seq", { ascending: false })
+        .limit(100),
+      s
+        .from("bill_payments")
+        .select("id, payment_date, amount, payment_method, reference, status")
+        .eq("vendor_id", contactId)
+        .order("payment_date", { ascending: false })
+        .limit(50),
+      s
+        .from("purchase_returns")
+        .select(
+          "id, return_number, status, return_kind, return_date, total, currency",
+        )
+        .eq("vendor_id", contactId)
+        .order("return_date", { ascending: false })
+        .limit(50),
     ]);
 
     const docsByQual = new Map<string | null, QualificationDocumentRow[]>();
@@ -256,6 +374,12 @@ export function useSupplierRecord(id: string | null | undefined) {
         requisitions: reqRows,
         purchase_orders: (pos.data ?? []) as POHistoryRow[],
         bills: (bills.data ?? []) as BillHistoryRow[],
+        item_terms: (itemTerms.data ?? []) as ItemTermsRow[],
+        asl: (asl.data ?? []) as AslRow[],
+        terms_changes: (termsChanges.data ?? []) as TermsChangeRow[],
+        lifecycle_events: (lifecycleEvents.data ?? []) as LifecycleEventRow[],
+        payments: (payments.data ?? []) as PaymentHistoryRow[],
+        returns: (returns.data ?? []) as ReturnHistoryRow[],
       },
       loading: false,
       error: null,
