@@ -17,7 +17,10 @@ import type {
 import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { VendorCreditNote } from "@/hooks/useVendorCreditNotes";
+import { VendorCreditNoteLinkedRecords } from "./VendorCreditNoteLinkedRecords";
+import { originLabel, reasonCodeLabel } from "./vendorCreditNoteLineage";
 import { useVendorCreditNoteRecord } from "./useVendorCreditNoteRecord";
+
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
