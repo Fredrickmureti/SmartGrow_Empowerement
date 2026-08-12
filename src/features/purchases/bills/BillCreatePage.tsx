@@ -85,7 +85,7 @@ export default function BillCreatePage() {
   const prefillProjectId = searchParams.get("project_id");
   const { contacts } = useContacts();
   const { products } = useProducts();
-  const { formatCurrency, baseCurrency } = useCurrency();
+  const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const {
     getNextBillNumber,

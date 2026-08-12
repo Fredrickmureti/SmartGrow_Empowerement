@@ -80,7 +80,7 @@ export default function PurchaseOrderCreatePage() {
   const { getNextPONumber, createPurchaseOrder } = usePurchaseOrders();
   const { contacts } = useContacts();
   const { products } = useProducts();
-  const { formatCurrency, baseCurrency } = useCurrency();
+  const { formatCurrency } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
