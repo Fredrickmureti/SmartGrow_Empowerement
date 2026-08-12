@@ -24,29 +24,39 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 const WRITER = "src/hooks/useVendorCreditNotes.ts";
 const ACTIONS = "src/features/purchases/credit-notes/useVendorCreditNoteActions.tsx";
 
-/** RPC name → the state the outbox emits when that command succeeds. */
-const TRANSITIONS: Array<{ rpc: string; state: string }> = [
-  { rpc: "create_vendor_credit_note_atomic", state: "created" },
-  { rpc: "vendor_credit_note_submit", state: "submitted" },
-  { rpc: "vendor_credit_note_approve", state: "approved" },
-  { rpc: "vendor_credit_note_reject", state: "rejected" },
-  { rpc: "vendor_credit_note_cancel", state: "cancelled" },
-  { rpc: "vendor_credit_note_dispute", state: "disputed" },
-  { rpc: "vendor_credit_note_resolve_dispute", state: "dispute resolved" },
-  { rpc: "issue_vendor_credit_note_atomic", state: "posted" },
-  { rpc: "apply_vendor_credit_to_bill_atomic", state: "applied" },
-  { rpc: "reverse_vendor_credit_note_atomic", state: "reversed" },
+/**
+ * RPC name → the state the outbox emits when that command succeeds, and the
+ * module that owns the call. Reversal is deliberately NOT in the credit-note
+ * hook: it belongs to the shared reversal engine, which every reversible
+ * document routes through.
+ */
+const TRANSITIONS: Array<{ rpc: string; state: string; owner: string }> = [
+  { rpc: "create_vendor_credit_note_atomic", state: "created", owner: WRITER },
+  { rpc: "vendor_credit_note_submit", state: "submitted", owner: WRITER },
+  { rpc: "vendor_credit_note_approve", state: "approved", owner: WRITER },
+  { rpc: "vendor_credit_note_reject", state: "rejected", owner: WRITER },
+  { rpc: "vendor_credit_note_cancel", state: "cancelled", owner: WRITER },
+  { rpc: "vendor_credit_note_dispute", state: "disputed", owner: WRITER },
+  { rpc: "vendor_credit_note_resolve_dispute", state: "dispute resolved", owner: WRITER },
+  { rpc: "issue_vendor_credit_note_atomic", state: "posted", owner: WRITER },
+  { rpc: "apply_vendor_credit_to_bill_atomic", state: "applied", owner: WRITER },
+  {
+    rpc: "reverse_vendor_credit_note_atomic",
+    state: "reversed",
+    owner: "src/hooks/useTransactionReversal.ts",
+  },
 ];
 
 describe("vendor credit note — every lifecycle transition is server-emitted", () => {
   const writer = read(WRITER);
 
-  it.each(TRANSITIONS)("$state goes through $rpc", ({ rpc }) => {
+  it.each(TRANSITIONS)("$state goes through $rpc", ({ rpc, owner }) => {
     expect(
-      writer.includes(rpc),
-      `${rpc} is missing from ${WRITER}; its lifecycle event would never be emitted`,
+      read(owner).includes(rpc),
+      `${rpc} is missing from ${owner}; its lifecycle event would never be emitted`,
     ).toBe(true);
   });
+
 
   it("the writer module never writes vendor_credit_notes directly", () => {
     const direct =
