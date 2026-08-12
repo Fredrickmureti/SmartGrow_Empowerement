@@ -89924,7 +89924,11 @@ export type Database = {
         Returns: Json
       }
       expense_void: {
-        Args: { p_expense_id: string; p_reason?: string }
+        Args: {
+          p_expense_id: string
+          p_reason?: string
+          p_reason_code?: string
+        }
         Returns: Json
       }
       expire_app_trials: { Args: never; Returns: number }
