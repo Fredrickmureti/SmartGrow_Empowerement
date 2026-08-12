@@ -83,3 +83,58 @@ Scope it after A–D.
 - No change to `post_expense_gl`, `void_journal_entry_atomic`, or the ADR-0123 posting monopoly.
 - Regression surface to re-run: `reversal-intent-coverage`, `vendor-credit-period-close`,
   `ap-credit-position-provenance`, expense posting guards, reversal writer monopoly.
+---
+
+## CLOSED — 2026-08-12
+
+All plan items delivered. Nothing deferred.
+
+### A. Preview enrichment — done
+- `preview_reversal_extras_expense` — analytic distributions and project cost entries
+  withdrawn, employee reimbursement payable cancelled, converted bill as a related document,
+  and an **error**-severity warning while the expense is still queued for payroll.
+- `preview_reversal_extras_customer_refund` — the bank cash-out leg (`bank_accounts.name`)
+  and the source receipt / credit note the refund drew down.
+- `preview_reversal_consequences` dispatches to `preview_reversal_extras_<type>` and merges
+  money lines, related documents and warnings into the base projection.
+  `preview_reversal_consequences_core` was left generic — no new branches, no monolith growth.
+- Both helpers are internal: execute revoked from `PUBLIC`/`anon`/`authenticated`; only the
+  SECURITY DEFINER wrapper (and `service_role`) reaches them.
+
+### B. Expense void path verified — done
+`src/pages/Expenses.tsx` opens `VoidExpenseDialog` from the row menu; the confirm handler
+passes `(id, reason, reasonCode)` into `expense_void` and reports
+`payroll_reimbursement_dequeued` back to the operator. No bare `voidExpense(id)` call remains
+anywhere — pinned by the coverage guard. Runtime intent/preview RPCs are membership-gated, so
+they cannot be exercised from the SQL console; the guard proves the wiring statically instead
+of asserting it in prose.
+
+### C. `customer_refund` reversal is reachable — done
+`ReverseCustomerRefundSheet` (`src/components/payments/`) opens from the refund rows of the
+customer ledger. It resolves intent, renders the enriched preview, and — because the resolver
+refuses every operation on paid cash — states the corrective move and routes the user to
+record a customer receipt. If the resolver ever allows an operation, the sheet renders it
+rather than growing a second policy. `ReversalDocumentType` now includes `customer_refund`.
+
+### D. ADR — done
+`docs/adr/0134-expense-and-refund-reversal-parity.md`: expense as a first-class reversible
+document, the payroll-queue interlock as a cash-leak control, refunds refusing honestly, the
+per-type preview-extras pattern, and the guard's shift from whitelist to SQL-derived coverage.
+
+### E. Reversal fabric sweep — done
+`reversal-intent-coverage` grew two guards on top of the SQL-derived coverage check:
+- every registered reversible document has a client entry point — either the generic
+  intent/preview hook, or a documented per-module surface (`pos_transaction` →
+  `services/pos/reversal/eligibility.ts`, `payroll_run` → `ReversePayrollDialog.tsx`, ADR 0130);
+- `preview_reversal_consequences` dispatches to the extras helper for every enriched type,
+  so a missing dispatch line cannot ship as a silently empty preview.
+
+Green: `reversal-intent-coverage` (6), `reversal-consequence-preview` (9),
+`ReversePayrollDialog` (8). Typecheck clean (`useExpensesPaginated` TS2589 is pre-existing and
+untouched by this wave).
+
+### Next dependency-safe step (new wave, not part of this plan)
+`governance_action_registry` carries `reversal.*` keys for invoice, payment, bill,
+bill_payment, expense and goods_receipt but none for `vendor_credit_note`. Either that
+reversal is governed through another key or it has no approval requirement — worth resolving
+before the next reversal-adjacent change.
