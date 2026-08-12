@@ -2,9 +2,11 @@
  * Supplier lifecycle state machine — invariant contract.
  *
  * Every transition goes through `public._supplier_transition(...)`, called by
- * the thin RPCs (`approve_supplier`, `suspend_supplier`, `block_supplier`,
- * `unblock_supplier`, `archive_supplier`, `restore_supplier`,
- * `start_supplier_qualification`). That single writer guarantees:
+ * the thin RPCs (`approve_supplier`, `suspend_supplier`, `reinstate_supplier`,
+ * `block_supplier`, `unblock_supplier`, `archive_supplier`,
+ * `unarchive_supplier`) and by the automatic paths
+ * (`record_supplier_compliance_check` on failure,
+ * `sweep_supplier_qualification_expiry`). That single writer guarantees:
  *
  *  - row lock (`FOR UPDATE`) → no lost update on concurrent approvals;
  *  - tenancy check via `user_has_business_access`;
