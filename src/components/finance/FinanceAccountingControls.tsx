@@ -14,7 +14,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { supabase } from "@/integrations/supabase/client";
 import { useJournalBooks, type JournalType } from "@/hooks/finance/useJournalBooks";
 import { useReconciliationRules } from "@/hooks/finance/useReconciliationRules";
-import { useFxRevaluation } from "@/hooks/finance/useFxRevaluation";
+import { useFxRevaluation, useFxRevaluationReadiness } from "@/hooks/finance/useFxRevaluation";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
@@ -59,6 +59,9 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   const [ruleDraft, setRuleDraft] = useState({ name: "", bank_account_id: "", description_pattern: "", amount_sign: "any", counterpart_account_id: "", auto_post: false, description_template: "" });
   const [applyBankAccountId, setApplyBankAccountId] = useState("");
   const [fxDraft, setFxDraft] = useState({ run_date: new Date().toISOString().slice(0, 10), base_currency: currentBusiness?.base_currency ?? "", unrealized_gain_account_id: "", unrealized_loss_account_id: "" });
+
+  const { data: readiness } = useFxRevaluationReadiness(fxDraft.run_date);
+  const periodBlocked = !!readiness?.fiscal_period_id && readiness.fiscal_period_status !== "open";
 
   const incomeAccounts = useMemo(() => accounts.filter((account) => account.account_type === "income"), [accounts]);
   const expenseAccounts = useMemo(() => accounts.filter((account) => account.account_type === "expense"), [accounts]);
