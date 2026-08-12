@@ -93,6 +93,17 @@ describe("reversal intent coverage", () => {
    * have at least one client surface that resolves intent or previews
    * consequences for that exact document type.
    */
+  /**
+   * Documented per-module surfaces (ADR 0130). POS and payroll reversals are
+   * command taxonomies with their own eligibility projection and writers, so
+   * they do not go through the generic intent hook — but they must still have
+   * a reachable client surface, named here so removing one fails CI.
+   */
+  const MODULE_SURFACES: Record<string, string> = {
+    pos_transaction: "src/services/pos/reversal/eligibility.ts",
+    payroll_run: "src/components/payroll/ReversePayrollDialog.tsx",
+  };
+
   it("every registered reversible document has a client entry point", () => {
     const surfaces = walk(join(ROOT, "src")).filter(
       (file) => !file.includes("/test/") && !file.includes("__tests__"),
@@ -103,6 +114,14 @@ describe("reversal intent coverage", () => {
     }));
     const missing: string[] = [];
     for (const doc of REVERSIBLE_DOCUMENTS) {
+      const moduleSurface = MODULE_SURFACES[doc.documentType];
+      if (moduleSurface) {
+        expect(
+          sources.some(({ file }) => file.endsWith(moduleSurface)),
+          `${doc.documentType}'s documented module surface ${moduleSurface} is gone`,
+        ).toBe(true);
+        continue;
+      }
       const literal = `"${doc.documentType}"`;
       const hit = sources.some(
         ({ file, src }) =>
