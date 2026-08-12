@@ -1,18 +1,27 @@
+/**
+ * Vendor Credit Notes list.
+ *
+ * ADR 0132: the list is a *view* of the tri-status lifecycle (commercial /
+ * accounting / settlement) owned by the server. It renders the shared
+ * `useVendorCreditNoteActions` array through `VendorCreditNoteRowActions`, so
+ * the row menu can never drift from the record page, and it holds no apply
+ * dialog of its own — allocation of credit against bills is a server command
+ * reached through the shared "Apply to bills" action.
+ */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useVendorCreditNotes } from "@/hooks/useVendorCreditNotes";
-import { useBills } from "@/hooks/useBills";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useToast } from "@/hooks/use-toast";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { usePeekParam } from "@/design-system";
+import { DocumentStatusBadge } from "@/design-system/records";
 import { VendorCreditNotePeekSheet } from "@/features/purchases/credit-notes/VendorCreditNotePeekSheet";
+import { VendorCreditNoteRowActions } from "@/features/purchases/credit-notes/VendorCreditNoteRowActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -29,42 +38,46 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import {
   Plus,
   Search,
-  MoreHorizontal,
-  Trash2,
-  CheckCircle,
-  Eye,
   Loader2,
   FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
-import { normalizeError } from "@/services/resilience";
 
-const statusBadge: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft: { label: "Draft", variant: "secondary" },
-  confirmed: { label: "Confirmed", variant: "default" },
-  applied: { label: "Applied", variant: "outline" },
-  void: { label: "Void", variant: "destructive" },
-};
+/**
+ * The commercial state is what an operator filters on: it is the state the
+ * claim is in with the supplier. Accounting and settlement states are shown
+ * on the record, not used as list filters, so the two vocabularies never get
+ * mixed into one misleading dropdown.
+ */
+const COMMERCIAL_FILTERS = [
+  { value: "draft", label: "Draft" },
+  { value: "submitted", label: "Submitted" },
+  { value: "approved", label: "Approved" },
+  { value: "disputed", label: "Disputed" },
+  { value: "rejected", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
+] as const;
+
+type CreditNoteRow = ReturnType<typeof useVendorCreditNotes>["creditNotes"][number];
+
+/** Fallback for rows written before the tri-status columns existed. */
+function commercialStateOf(cn: CreditNoteRow): string {
+  return (
+    cn.commercial_status ??
+    (cn.status === "draft" ? "draft" : cn.status === "void" ? "cancelled" : "approved")
+  );
+}
+
+function accountingStateOf(cn: CreditNoteRow): string {
+  return (
+    cn.accounting_status ??
+    (cn.status === "draft" ? "unposted" : cn.status === "void" ? "reversed" : "posted")
+  );
+}
 
 export default function VendorCreditNotes() {
   const { creditNotes, isLoading, confirmVendorCreditNote, deleteVendorCreditNote, applyToBill, refreshCreditNotes } = useVendorCreditNotes();
