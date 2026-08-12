@@ -116,13 +116,16 @@ export function useVendorCreditNotes() {
 
   const createVendorCreditNote = async (
     creditNote: Omit<VendorCreditNote, "id" | "organization_id" | "business_id" | "branch_id" | "created_by" | "created_at" | "updated_at" | "vendor" | "bill" | "items">,
-    items: Omit<VendorCreditNoteItem, "id" | "credit_note_id">[]
+    items: Omit<VendorCreditNoteItem, "id" | "credit_note_id">[],
+    clientRequestId?: string,
   ) => {
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
 
     // ADR 0132: one writer creates the header, its lines and its number in a
     // single transaction. The browser never inserts into vendor_credit_notes
-    // and never allocates the number itself.
+    // and never allocates the number itself. `clientRequestId` makes the
+    // creation idempotent — a retry or double submit replays instead of
+    // minting a second credit note.
     const { data, error } = await supabase.rpc("create_vendor_credit_note_atomic" as any, {
       _org_id: currentOrg.id,
       _business_id: currentBusiness.id,
@@ -133,18 +136,21 @@ export function useVendorCreditNotes() {
       _notes: creditNote.notes ?? null,
       _items: items,
       _issue: false,
+      _client_request_id: clientRequestId ?? null,
     });
 
     if (error) throw error;
-    const result = (data ?? {}) as { id: string; credit_note_number: string };
+    const result = (data ?? {}) as { id: string; credit_note_number: string; replayed?: boolean };
 
-    logAction({
-      action: "created",
-      entityType: "credit_note",
-      entityId: result.id,
-      entityName: result.credit_note_number,
-      changesSummary: `Created vendor credit note ${result.credit_note_number}`,
-    });
+    if (!result.replayed) {
+      logAction({
+        action: "created",
+        entityType: "credit_note",
+        entityId: result.id,
+        entityName: result.credit_note_number,
+        changesSummary: `Created vendor credit note ${result.credit_note_number}`,
+      });
+    }
 
     toast({ title: "Vendor credit note created", description: result.credit_note_number });
     await fetchCreditNotes();
@@ -153,11 +159,13 @@ export function useVendorCreditNotes() {
 
 
   /**
-   * Edit a draft vendor credit note (header + items). Only draft VCNs
-   * are editable — confirmed/applied notes must be voided instead.
-   * Items are replaced wholesale (delete + re-insert) to keep the
-   * client-side model simple; the DB trigger `_uom_normalize_line`
-   * still stamps qty_in_base_uom on the inserts.
+   * Edit a draft vendor credit note (header + items).
+   *
+   * Server-authoritative: `update_vendor_credit_note_atomic` locks the row,
+   * refuses anything that is not a draft, replaces the lines and recomputes
+   * subtotal / tax / total from those lines. The browser never writes
+   * `vendor_credit_notes` or `vendor_credit_note_items` and never decides
+   * document money.
    */
   const updateVendorCreditNote = async (
     id: string,
@@ -166,36 +174,17 @@ export function useVendorCreditNotes() {
   ) => {
     const existing = creditNotes.find((c) => c.id === id);
     if (!existing) throw new Error("Credit note not found");
-    if (existing.status !== "draft") {
-      throw new Error("Only draft credit notes can be edited");
-    }
 
-    const { vendor: _v, bill: _b, items: _i, ...dbUpdates } = updates as any;
-
-    const { error } = await supabase
-      .from("vendor_credit_notes")
-      .update(dbUpdates)
-      .eq("id", id);
+    const { error } = await supabase.rpc("update_vendor_credit_note_atomic" as any, {
+      _vcn_id: id,
+      _vendor_id: updates.vendor_id ?? null,
+      _bill_id: (updates as any).bill_id ?? null,
+      _credit_date: updates.credit_date ?? null,
+      _notes: updates.notes ?? null,
+      _items: items.map((item, i) => ({ ...item, sort_order: i })),
+    });
     if (error) throw error;
 
-    // Replace items wholesale
-    const { error: delError } = await supabase
-      .from("vendor_credit_note_items")
-      .delete()
-      .eq("credit_note_id", id);
-    if (delError) throw delError;
-
-    if (items.length > 0) {
-      const itemsToInsert = items.map((item, i) => ({
-        ...item,
-        credit_note_id: id,
-        sort_order: i,
-      }));
-      const { error: insError } = await supabase
-        .from("vendor_credit_note_items")
-        .insert(itemsToInsert);
-      if (insError) throw insError;
-    }
 
     logAction({
       action: "updated",
