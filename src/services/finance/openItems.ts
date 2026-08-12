@@ -133,7 +133,8 @@ export interface OpenItemRow {
  * that buckets by age and nets unapplied customer credit in one place. Bucket
  * boundaries and credit netting are accounting rules, so they live in SQL — an
  * app-side re-derivation is how the dashboard and the aging report drift apart.
- * AP has no credit-position analogue, so it still aggregates the projection.
+ * AP aggregates the projection and nets unapplied vendor credit
+ * (`finance_ap_vendor_credit`), the same view `get_ap_summary` reads.
  */
 export async function fetchTopOpenCounterparties(
   side: "ar" | "ap",
@@ -187,14 +188,23 @@ export async function fetchTopOpenCounterparties(
 
   const byContact = new Map<string, { name: string; amount: number; daysOverdue: number }>();
   for (const r of rows) {
+    const key = r.contact_id || "unknown";
     const name = (r.contact_id && names.get(r.contact_id)) || "Unknown";
     const daysOverdue = daysOverdueFrom(r.due_date || r.document_date);
-    const existing = byContact.get(name) || { name, amount: 0, daysOverdue: 0 };
+    const existing = byContact.get(key) || { name, amount: 0, daysOverdue: 0 };
     // Base currency: exposures across currencies may only be added up after
     // conversion (`base_residual_amount`), never as raw document amounts.
     existing.amount += Number(r.base_residual_amount ?? r.residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
-    byContact.set(name, existing);
+    byContact.set(key, existing);
+  }
+
+  // Unapplied vendor credit is a real payable offset — net it per supplier so
+  // this list agrees with `get_ap_summary` and the aged payables report.
+  const vendorCredit = await fetchVendorCreditByContact(orgId, businessId);
+  for (const [contactId, credit] of vendorCredit) {
+    const existing = byContact.get(contactId);
+    if (existing) existing.amount -= credit;
   }
 
   return Array.from(byContact.values())
@@ -263,10 +273,11 @@ export async function fetchContactOpenItemAging(
     );
   }
 
-  if (side === "ar") {
-    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds);
-    if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
-  }
+  const credit =
+    side === "ar"
+      ? await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds)
+      : await fetchUnappliedVendorCredit(params.orgId, params.businessId, contactIds);
+  if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
 
   return buckets;
 }
@@ -306,6 +317,57 @@ export async function fetchUnappliedCustomerCredit(
     0,
   );
 }
+
+/**
+ * Unapplied vendor credit (unapplied vendor credit notes / purchase returns)
+ * for an org, optionally narrowed to one supplier. This is a genuine credit
+ * position against the supplier and reduces the net payable.
+ *
+ * ADR 0132: reads `finance_ap_vendor_credit`, the single canonical definition
+ * of unapplied vendor credit, projected from `vendor_credit_balances` — never
+ * derived from `vendor_credit_notes.total - amount_applied`. `get_ap_summary`,
+ * `get_ap_aging_summary` and `get_ar_ap_aging_from_ledger` read the same view.
+ */
+export async function fetchUnappliedVendorCredit(
+  orgId: string,
+  businessId?: string | null,
+  contactId?: string | string[] | null,
+): Promise<number> {
+  const byContact = await fetchVendorCreditByContact(orgId, businessId, contactId);
+  let total = 0;
+  for (const amount of byContact.values()) total += amount;
+  return total;
+}
+
+/** Unapplied vendor credit keyed by supplier contact id (base currency). */
+async function fetchVendorCreditByContact(
+  orgId: string,
+  businessId?: string | null,
+  contactId?: string | string[] | null,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  let q = supabase
+    .from("finance_ap_vendor_credit" as any)
+    .select("contact_id, base_credit_amount")
+    .eq("organization_id", orgId);
+  if (businessId) q = q.eq("business_id", businessId);
+  if (Array.isArray(contactId)) {
+    if (contactId.length === 0) return out;
+    q = q.in("contact_id", contactId);
+  } else if (contactId) {
+    q = q.eq("contact_id", contactId);
+  }
+
+  const { data, error } = await q;
+  if (error) return out;
+  for (const row of (data || []) as any[]) {
+    const key = row.contact_id as string | null;
+    if (!key) continue;
+    out.set(key, (out.get(key) || 0) + (Number(row.base_credit_amount) || 0));
+  }
+  return out;
+}
+
 
 
 export interface ReceivableCounterparty {
