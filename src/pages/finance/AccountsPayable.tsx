@@ -123,13 +123,16 @@ export default function AccountsPayable() {
     const fetchUnlinkedAPExpenses = async () => {
       if (!currentOrg?.id || !currentBusiness?.id || !defaultAccounts.accounts_payable_id) return;
 
-      // Find expenses that credit AP but have no corresponding bill
+      // Find expenses that credit AP but have no corresponding bill.
+      // `sel()` keeps the embedded-select string out of the type-level parser
+      // (see query-builder-type-performance) and `.returns<T>()` pins the shape.
       const { data: apExpenses } = await supabase
         .from("expenses")
-        .select("id, description, amount, tax_amount, expense_date, vendor_id, reference, currency, vendor:contacts(name)")
+        .select(sel("id, description, amount, tax_amount, expense_date, vendor_id, reference, currency, vendor:contacts(name)"))
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .eq("payment_account_id", defaultAccounts.accounts_payable_id);
+        .eq("payment_account_id", defaultAccounts.accounts_payable_id)
+        .returns<APExpenseRow[]>();
 
       if (!apExpenses || apExpenses.length === 0) {
         setUnlinkedExpenses([]);

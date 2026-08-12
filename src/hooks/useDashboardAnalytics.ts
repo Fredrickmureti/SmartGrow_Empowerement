@@ -148,8 +148,11 @@ export function useDashboardAnalytics() {
       );
 
       // Expenses table has no branch_id column → company-scope only.
+      // `sel()` keeps the embedded-select string out of the type-level parser
+      // (see query-builder-type-performance): the expenses row type is wide
+      // enough that parsing it inline blows the instantiation depth limit.
       const expensesQuery = applyScope(
-        supabase.from("expenses").select("*, category:expense_categories(name)"),
+        supabase.from("expenses").select(sel("*, category:expense_categories(name)")),
         { branchScoped: false }
       );
 
