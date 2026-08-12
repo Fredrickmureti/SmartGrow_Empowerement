@@ -270,11 +270,61 @@ export function useVendorCreditNotes() {
    *  - posts through `post_journal_entry_atomic` only
    *  - flips status and links journal_entry_id in the same transaction
    */
+  /**
+   * Governance (ADR 0132 Phase 3). Submitting routes through the canonical
+   * approval engine (`approval_route('vendor_credit_note.approve', …)`); when a
+   * rule matches, the decision is taken in the approvals inbox and mirrored
+   * back onto the note. Approving your own note still needs an override.
+   */
+  const submitVendorCreditNote = async (id: string) => {
+    const { data, error } = await supabase.rpc("vendor_credit_note_submit" as any, { _id: id });
+    if (error) throw error;
+    const res = (data ?? {}) as { gated?: boolean };
+    toast({
+      title: res.gated ? "Sent for approval" : "Submitted",
+      description: res.gated
+        ? "An approver has been notified in the approvals inbox."
+        : "This credit note is ready to be approved.",
+    });
+    await fetchCreditNotes();
+    return res;
+  };
+
+  const approveVendorCreditNote = async (id: string) => {
+    const { error } = await supabase.rpc("vendor_credit_note_approve" as any, { _id: id });
+    if (error) throw error;
+    toast({ title: "Credit note approved" });
+    await fetchCreditNotes();
+  };
+
+  const rejectVendorCreditNote = async (id: string, reason?: string) => {
+    const { error } = await supabase.rpc("vendor_credit_note_reject" as any, {
+      _id: id,
+      _reason: reason ?? null,
+    });
+    if (error) throw error;
+    toast({ title: "Credit note rejected" });
+    await fetchCreditNotes();
+  };
+
+  const cancelVendorCreditNote = async (id: string, reason?: string) => {
+    const { error } = await supabase.rpc("vendor_credit_note_cancel" as any, {
+      _id: id,
+      _reason: reason ?? null,
+    });
+    if (error) throw error;
+    toast({ title: "Credit note cancelled" });
+    await fetchCreditNotes();
+  };
+
   const confirmVendorCreditNote = async (id: string) => {
     if (!user) throw new Error("Not authenticated");
     const cn = creditNotes.find((c) => c.id === id);
     if (!cn) throw new Error("Credit note not found");
-    if (cn.status !== "draft") throw new Error("Only draft credit notes can be confirmed");
+    if ((cn as any).accounting_status && (cn as any).accounting_status !== "unposted") {
+      throw new Error("This credit note has already been posted");
+    }
+
 
     const { data, error } = await supabase.rpc("issue_vendor_credit_note_atomic" as any, {
       _vcn_id: id,
