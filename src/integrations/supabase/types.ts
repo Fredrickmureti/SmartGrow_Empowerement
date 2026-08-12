@@ -66808,8 +66808,10 @@ export type Database = {
           credit_note_id: string
           id: string
           is_sample_data: boolean
+          journal_entry_id: string | null
           notes: string | null
           organization_id: string
+          reversal_journal_entry_id: string | null
           reversal_reason: string | null
           reversed_at: string | null
           reversed_by: string | null
@@ -66824,8 +66826,10 @@ export type Database = {
           credit_note_id: string
           id?: string
           is_sample_data?: boolean
+          journal_entry_id?: string | null
           notes?: string | null
           organization_id: string
+          reversal_journal_entry_id?: string | null
           reversal_reason?: string | null
           reversed_at?: string | null
           reversed_by?: string | null
@@ -66840,8 +66844,10 @@ export type Database = {
           credit_note_id?: string
           id?: string
           is_sample_data?: boolean
+          journal_entry_id?: string | null
           notes?: string | null
           organization_id?: string
+          reversal_journal_entry_id?: string | null
           reversal_reason?: string | null
           reversed_at?: string | null
           reversed_by?: string | null
@@ -66883,6 +66889,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vendor_credit_note_applications_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -66901,6 +66949,48 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
         ]
@@ -98644,6 +98734,10 @@ export type Database = {
           _reversal_date: string
         }
         Returns: string
+      }
+      unapply_vendor_credit_from_bill_atomic: {
+        Args: { _application_id: string; _reason?: string }
+        Returns: Json
       }
       uninstall_app: {
         Args: { p_app_id: string; p_org_id: string }
