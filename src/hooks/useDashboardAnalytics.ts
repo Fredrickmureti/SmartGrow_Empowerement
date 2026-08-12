@@ -12,6 +12,21 @@ import {
 /** Identity on the select string — keeps it out of the type-level parser. */
 const sel = (s: string): string => s;
 
+/** Fields of `expenses` this hook reads; pinned via `.returns<>()`. */
+interface DashboardExpenseRow {
+  id: string;
+  amount: number;
+  tax_amount: number | null;
+  expense_date: string;
+  status: string | null;
+  vendor_id: string | null;
+  description: string | null;
+  currency: string | null;
+  expense_number: string | null;
+  category: { name: string | null } | null;
+  [key: string]: unknown;
+}
+
 
 export interface SalesSummary {
   totalSales: number;
@@ -155,7 +170,10 @@ export function useDashboardAnalytics() {
       // (see query-builder-type-performance): the expenses row type is wide
       // enough that parsing it inline blows the instantiation depth limit.
       const expensesQuery = applyScope(
-        supabase.from("expenses").select(sel("*, category:expense_categories(name)")),
+        supabase
+          .from("expenses")
+          .select(sel("*, category:expense_categories(name)"))
+          .returns<DashboardExpenseRow[]>(),
         { branchScoped: false }
       );
 
