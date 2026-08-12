@@ -334,6 +334,7 @@ export default function CustomerLedgerPage() {
                   <th className="text-right px-3 py-2 font-medium">Debit</th>
                   <th className="text-right px-3 py-2 font-medium">Credit</th>
                   <th className="text-right px-3 py-2 font-medium">Running Balance</th>
+                  <th className="text-right px-3 py-2 font-medium sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,6 +365,19 @@ export default function CustomerLedgerPage() {
                       >
                         {formatCurrency(e.running_balance)}
                       </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        {e.doc_type === "refund" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setRefundUnderReview(e)}
+                          >
+                            <Undo2 className="h-3 w-3 mr-1" />
+                            Reverse
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -376,6 +390,7 @@ export default function CustomerLedgerPage() {
                   <td className="px-3 py-2 text-right tabular-nums">
                     {formatCurrency(outstandingBalance)}
                   </td>
+                  <td />
                 </tr>
               </tbody>
             </table>
