@@ -48,6 +48,7 @@ export default function SupplierCreatePage() {
   const { toast } = useToast();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
   const categories = useSupplierCategories();
 
   const [contactId, setContactId] = useState("");
