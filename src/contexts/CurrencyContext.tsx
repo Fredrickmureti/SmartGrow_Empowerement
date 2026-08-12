@@ -30,8 +30,10 @@ interface CurrencyContextType {
   isLoading: boolean;
   formatCurrency: (amount: number, currencyCode?: string) => string;
   getCurrencySymbol: (currencyCode?: string) => string;
-  getExchangeRate: (fromCurrency: string, toCurrency: string, date?: string) => number;
-  convertCurrency: (amount: number, fromCurrency: string, toCurrency: string, date?: string) => number;
+  /** Resolved rate, or `null` when no rate is on file. NEVER silently 1. */
+  getExchangeRate: (fromCurrency: string, toCurrency: string, date?: string) => number | null;
+  /** Converted amount, or `null` when no rate is on file. */
+  convertCurrency: (amount: number, fromCurrency: string, toCurrency: string, date?: string) => number | null;
   addExchangeRate: (fromCurrency: string, toCurrency: string, rate: number, effectiveDate?: string) => Promise<void>;
   refreshCurrencies: () => Promise<void>;
   refreshExchangeRates: () => Promise<void>;
