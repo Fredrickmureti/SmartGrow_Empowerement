@@ -45,6 +45,7 @@ import { usePurchaseOrders, type PurchaseOrderItem } from "@/hooks/usePurchaseOr
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useSupplierDocumentCurrency } from "@/features/purchases/suppliers/useSupplierDocumentCurrency";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { normalizeError } from "@/services/resilience";

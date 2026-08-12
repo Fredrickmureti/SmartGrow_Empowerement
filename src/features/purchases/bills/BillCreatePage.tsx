@@ -40,6 +40,7 @@ import { useBills, type Bill, type BillItem, type DuplicateVendorInvoice } from 
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useSupplierDocumentCurrency } from "@/features/purchases/suppliers/useSupplierDocumentCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import {
