@@ -69,7 +69,7 @@ export function useSuppliers() {
     const { data, error: err } = await (supabase as any)
       .from("suppliers")
       .select(
-        "*, contact:contacts(id, name, email, phone, tax_number), category:supplier_categories(id, code, name)",
+        "*, contact:contacts(id, name, email, phone, tax_id), category:supplier_categories(id, code, name)",
       )
       .eq("organization_id", currentOrg.id)
       .eq("business_id", currentBusiness.id)

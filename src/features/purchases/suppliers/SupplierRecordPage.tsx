@@ -74,12 +74,12 @@ const LIFECYCLE_TONE: Record<
   string,
   "neutral" | "info" | "success" | "warning" | "danger"
 > = {
-  prospect: "neutral",
+  draft: "neutral",
   qualifying: "info",
-  qualified: "info",
-  active: "success",
-  suspended: "danger",
-  retired: "neutral",
+  approved: "success",
+  suspended: "warning",
+  blocked: "danger",
+  archived: "neutral",
 };
 
 const QUAL_TONE: Record<
@@ -150,10 +150,9 @@ export default function SupplierRecordPage() {
     return <ErrorState title="Supplier not found" description="This supplier does not exist or you don't have access." />;
 
   const canSubmit =
-    record.lifecycle_state === "prospect" ||
+    record.lifecycle_state === "draft" ||
     record.lifecycle_state === "qualifying" ||
-    record.lifecycle_state === "qualified" ||
-    record.lifecycle_state === "active";
+    record.lifecycle_state === "approved";
 
   const activeQual = record.qualifications.find(
     (q) => q.state === "submitted",
@@ -458,7 +457,7 @@ export default function SupplierRecordPage() {
             {record.qualifications.length === 0 ? (
               <EmptyState
                 title="No qualification cycles"
-                description="Submit the first qualification to move this supplier out of prospect state."
+                description="Submit the first qualification to move this supplier out of draft state."
                 action={
                   canSubmit ? (
                     <Button size="sm" onClick={handleSubmit} disabled={busy}>
@@ -857,8 +856,8 @@ export default function SupplierRecordPage() {
             </DialogTitle>
             <DialogDescription>
               {reviewOpen?.mode === "approve"
-                ? "Record the qualification score and expiry. The supplier becomes qualified and eligible for procurement."
-                : "Reject the current qualification cycle. The supplier returns to prospect state."}
+                ? "Record the qualification score and expiry. The supplier becomes approved and eligible for procurement."
+                : "Reject the current qualification cycle. The supplier returns to draft state."}
             </DialogDescription>
           </DialogHeader>
           {reviewOpen?.mode === "approve" && (
