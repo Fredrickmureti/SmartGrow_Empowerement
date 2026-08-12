@@ -308,7 +308,7 @@ export default function FxExposureReport() {
           />
         </div>
 
-        <ReportSurface title="Exposure by currency" profile="operational">
+        <ReportSurface title="Exposure by currency" profile="operational" asOfDate={`As of ${asOf}`}>
           <ReportTable
             columns={columns}
             rows={tableRows}
@@ -322,10 +322,13 @@ export default function FxExposureReport() {
           <ReportSurface
             title={`${selected} open items`}
             profile="operational"
-            actions={
-              <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
-                Close
-              </Button>
+            asOfDate={`As of ${asOf}`}
+            banner={
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
+                  Close
+                </Button>
+              </div>
             }
           >
             {drillLoading ? (
