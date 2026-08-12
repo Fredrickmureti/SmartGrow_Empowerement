@@ -155,8 +155,11 @@ export default function LotDetail() {
     const { data: mvRows, error: mvErr } = await supabase
       .from("stock_movements")
       .select(
-        "id, movement_date, movement_type, quantity, warehouse_id, reference_type, reference_id, notes, serial_number, warehouse:warehouses(id, name)",
+        sel(
+          "id, movement_date, movement_type, quantity, warehouse_id, reference_type, reference_id, notes, serial_number, warehouse:warehouses(id, name)",
+        ),
       )
+
       .eq("business_id", header.business_id)
       .eq("product_id", header.product_id)
       .eq("lot_number", header.lot_number)
