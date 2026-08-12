@@ -1,6 +1,6 @@
 ---
 name: Currency representation and FX resolution
-description: ADR 0135 + ADR 0136 — ISO code text wire format, one rate book with override>manual>provider precedence, server-only booking/settlement rates, single client lookup rateBook.ts, missing rate renders as an absence
+description: ADR 0135 + 0136 + 0138 — ISO code text wire format, one rate book with override>manual>provider precedence, server-only booking/settlement rates, single client lookup rateBook.ts, missing rate renders as an absence, FX exposure report is a projection of the one resolver
 type: feature
 ---
 
@@ -25,5 +25,16 @@ type: feature
 - Documents snapshot currency + rate via `fx_stamp_document` triggers; posted documents are
   immutable. Realized FX gain/loss is posted at settlement by
   `record_multi_invoice_payment` / `record_multi_bill_payment` (ADR 0123 posting monopoly).
+- **Unrealized**: `revalue_fx_balances` (+ `reverse_fx_revaluation_run`,
+  `fx_revaluation_readiness`) is the only revaluation engine.
+- **Exposure (pre-revaluation view)**: `fx_exposure_by_currency` /
+  `fx_exposure_open_items` → `useFxExposure` → `/finance/reports/fx-exposure`. Read-only
+  projection over the same resolver and the same open-balance scope as revaluation; the
+  browser formats only. A currency with no rate shows "No rate on file" (ADR 0138).
+- Reversal approval gating is generic for every reversible document, vendor credit notes
+  included: `reversal_approval_requirement` → `assert_can_reverse` →
+  `request_reversal_approval`. No document type gets a bespoke gate.
 - Guards: `src/test/architecture/currency-integrity.test.ts`,
-  `src/test/architecture/fx-single-engine.test.ts`. Authority: ADR 0135, ADR 0136.
+  `src/test/architecture/fx-single-engine.test.ts`,
+  `src/test/architecture/reversal-intent-policy.test.ts`.
+  Authority: ADR 0135, ADR 0136, ADR 0138.
