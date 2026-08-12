@@ -293,7 +293,9 @@ export default function AdminReports() {
 
   const chartRevenueData = revenueData.map((d) => ({
     month: d.month,
-    revenue: convertAmount(d.revenue),
+    // `null` = no rate on file for the display currency; the chart plots a gap
+    // rather than an unconverted USD figure.
+    revenue: convertAmount(d.revenue) ?? null,
     count: d.count,
   }));
 
