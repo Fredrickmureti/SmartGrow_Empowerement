@@ -131,22 +131,26 @@ export function useAdminCurrency() {
   /**
    * Convert an amount **stored in USD** into the admin's chosen display
    * currency. Pass `target` to override the current display preference.
+   * Returns `null` when no rate is on file for the target.
    */
   const convertAmount = useCallback(
-    (amountInUsd: number, target?: string): number => {
+    (amountInUsd: number, target?: string): number | null => {
       const t = (target ?? displayCurrency).toUpperCase();
       if (t === "USD") return amountInUsd;
-      return amountInUsd * usdToTargetRate(t);
+      const rate = usdToTargetRate(t);
+      return rate === null ? null : amountInUsd * rate;
     },
     [displayCurrency, usdToTargetRate],
   );
 
-  // Format currency in the admin's display currency. Falls back to the
-  // ISO code if Intl can't render the symbol.
+  // Format currency in the admin's display currency. Renders an em dash when
+  // no rate is on file — an unconverted USD figure must never be shown
+  // wearing another currency's symbol.
   const formatCurrency = useCallback(
     (amountInUsd: number, target?: string): string => {
       const code = (target ?? displayCurrency).toUpperCase();
       const converted = convertAmount(amountInUsd, code);
+      if (converted === null) return "—";
       // JPY / KES / UGX / TZS / RWF have effectively no fractional unit in
       // common usage — render them as integers.
       const zeroDecimal = new Set(["JPY", "KES", "UGX", "TZS", "RWF", "NGN"]);
