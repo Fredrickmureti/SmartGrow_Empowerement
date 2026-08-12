@@ -15,6 +15,7 @@ import {
   CheckCircle,
   FileText,
   Pencil,
+  RotateCcw,
   Send,
   ThumbsUp,
   Trash2,
@@ -32,11 +33,17 @@ import { normalizeError } from "@/services/resilience";
 interface Options {
   onChanged?: () => void;
   onDeleted?: () => void;
+  /**
+   * ADR 0132 Phase 4 — opens the reversal sheet. Reversal is never invoked
+   * straight from a menu item: it is only ever entered through intent +
+   * consequence preview, so the rules cannot drift between call sites.
+   */
+  onReverse?: () => void;
 }
 
 export function useVendorCreditNoteActions(
   cn: VendorCreditNote | null | undefined,
-  { onChanged, onDeleted }: Options = {},
+  { onChanged, onDeleted, onReverse }: Options = {},
 ) {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -169,6 +176,14 @@ export function useVendorCreditNoteActions(
         },
       },
       {
+        id: "reverse",
+        label: "Reverse",
+        icon: RotateCcw,
+        destructive: true,
+        hidden: !posted || !onReverse,
+        onSelect: () => onReverse?.(),
+      },
+      {
         id: "delete",
         label: "Delete",
         icon: Trash2,
@@ -194,6 +209,6 @@ export function useVendorCreditNoteActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cn, navigate]);
+  }, [cn, navigate, onReverse]);
 }
 
