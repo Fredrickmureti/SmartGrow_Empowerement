@@ -171,6 +171,26 @@ export default function SupplierCreatePage() {
           <Section title="Identity">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
+                <Label htmlFor="party">Existing contact (optional)</Label>
+                <select
+                  id="party"
+                  value={contactId}
+                  onChange={(e) => selectParty(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">— Create a new party —</option>
+                  {parties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Link a contact you already trade with (e.g. a customer you
+                  also buy from) instead of creating a duplicate party.
+                </p>
+              </div>
+              <div className="sm:col-span-2">
                 <Label htmlFor="name">Legal name *</Label>
                 <Input
                   id="name"
