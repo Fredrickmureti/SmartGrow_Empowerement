@@ -6,10 +6,13 @@
  */
 import { useMemo } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Pencil } from "lucide-react";
 import { RecordScaffold } from "@/design-system";
+import type { DocumentAction } from "@/design-system/records";
 import { useJournalEntries } from "@/hooks/useJournalEntries";
 import { useCurrency } from "@/hooks/useCurrency";
 import { buildJournalEntryView } from "./journalEntryView";
+import { useJournalEntryActions } from "./useJournalEntryActions";
 
 export default function JournalEntryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,10 +36,32 @@ export default function JournalEntryDetailPage() {
     [entry, journalEntries, formatCurrency],
   );
 
+  const outputActions = useJournalEntryActions(entry);
+
   if (!id) return <Navigate to="/finance/journal-entries" replace />;
 
   const notFound = !isLoading && !entry;
   const canEdit = entry?.status === "draft";
+
+  // `actions` replaces the scaffold's default cluster, so Edit travels in
+  // the same array as the output verbs.
+  const actions: DocumentAction[] = entry
+    ? [
+        {
+          id: "edit",
+          label: "Edit",
+          icon: Pencil,
+          group: "core",
+          primary: canEdit,
+          disabled: !canEdit,
+          disabledReason: canEdit
+            ? undefined
+            : "Only a draft entry can be edited — post a reversal instead.",
+          onSelect: () => navigate(`/finance/journal-entries/${id}/edit`),
+        },
+        ...outputActions,
+      ]
+    : [];
 
   return (
     <RecordScaffold
@@ -50,11 +75,7 @@ export default function JournalEntryDetailPage() {
       kind="generic"
       statusSlot={view?.status}
       meta={view?.meta}
-      onEdit={
-        canEdit
-          ? () => navigate(`/finance/journal-entries/${id}/edit`)
-          : undefined
-      }
+      actions={actions}
       detailFields={view?.detailFields}
       lineColumns={view?.lineColumns}
       lineRows={view?.lineRows}

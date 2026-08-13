@@ -5,9 +5,11 @@
  */
 import { useMemo } from "react";
 import { PeekScaffold } from "@/design-system";
+import { DocumentActionsMenu } from "@/design-system/records";
 import { useJournalEntries } from "@/hooks/useJournalEntries";
 import { useCurrency } from "@/hooks/useCurrency";
 import { buildJournalEntryView } from "./journalEntryView";
+import { useJournalEntryActions } from "./useJournalEntryActions";
 
 interface JournalEntryPeekSheetProps {
   entryId: string | null;
@@ -39,6 +41,7 @@ export function JournalEntryPeekSheet({
 
   const open = !!entryId;
   const notFound = !isLoading && !!entryId && !entry;
+  const actions = useJournalEntryActions(entry);
 
   return (
     <PeekScaffold
@@ -50,6 +53,9 @@ export function JournalEntryPeekSheet({
       title={view ? `Journal Entry ${view.docNumber}` : "Journal Entry"}
       description={view?.title}
       fullPageHref={entryId ? `/finance/journal-entries/${entryId}` : undefined}
+      extraHeaderActions={
+        actions.length ? <DocumentActionsMenu actions={actions} /> : undefined
+      }
       loading={isLoading && !entry}
       error={notFound ? "This journal entry no longer exists or you don't have access." : null}
       detailFields={view?.detailFields}

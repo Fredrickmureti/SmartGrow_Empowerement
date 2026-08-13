@@ -3,6 +3,7 @@ import { JOURNAL_ENTRY_IMPORT_FIELDS } from "@/lib/importConfigs/journalEntryImp
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useJournalEntries, JournalEntry } from "@/hooks/useJournalEntries";
+import { JournalEntryOutputMenuItems } from "@/features/finance/journal-entries/JournalEntryOutputMenuItems";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useContacts } from "@/hooks/useContacts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -457,6 +458,7 @@ export default function JournalEntries() {
                               <Eye className="mr-2 h-4 w-4" />
                               View
                             </DropdownMenuItem>
+                            <JournalEntryOutputMenuItems entry={entry} />
                             {/* View Source Document — opens TransactionPreviewDrawer */}
                             {entry.source_type && (entry as any).source_id && (
                               <DropdownMenuItem onClick={() => {

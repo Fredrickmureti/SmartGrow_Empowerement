@@ -43,6 +43,7 @@ import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snaps
 import { fetchAndBuildVendorCreditNoteSnapshot } from "@/services/documents/snapshots/purchasesVendorCreditNote";
 import { fetchAndBuildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
+import { fetchAndBuildFinanceJournalEntrySnapshot } from "@/services/documents/snapshots/financeJournalEntry";
 import {
   fetchFrozenPosReceipt,
 } from "@/features/pos/receipts/dispatchPosReceipt";
@@ -288,6 +289,18 @@ const REGISTRY: Record<string, RegistryEntry> = {
     sourceDocType: "vendor_statement",
     partyKind: "supplier",
     build: wrap(fetchAndBuildVendorStatementSnapshot),
+  },
+  /**
+   * Journal voucher — internal accounting evidence. No counterparty, so
+   * `partyKind` is null (same rationale as a purchase requisition); the
+   * kind carries no `email` intent.
+   */
+  journal_entry: {
+    kindCode: "finance.journal_entry",
+    sourceModule: "finance",
+    sourceDocType: "journal_entry",
+    partyKind: null,
+    build: wrap(fetchAndBuildFinanceJournalEntrySnapshot),
   },
   pos_receipt: {
     kindCode: "pos.receipt_customer",
