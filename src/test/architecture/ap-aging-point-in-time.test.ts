@@ -46,4 +46,27 @@ describe("Aged Payables — point-in-time engine", () => {
     expect(PAGE).not.toContain("amount_paid");
     expect(HOOK).not.toContain("amount_paid");
   });
+
+  // Phase 8 — export parity. A CSV/XLSX/PDF export must be the same engine
+  // answer as the screen, just unpaged: re-run the query, never re-aggregate
+  // the rows already in the browser.
+  it("exports re-run the engine unpaged instead of exporting the visible page", () => {
+    expect(PAGE).toContain("fetchApAging(");
+    expect(PAGE).toMatch(/fetchApAging\(\{\s*\.\.\.agingArgs,\s*limit:\s*null/);
+    // The exported rows come from the fresh full result, not from component state.
+    expect(PAGE).toMatch(/full\.vendors\.map\(/);
+    expect(PAGE).not.toMatch(/vendors\.map\([^)]*\)\s*,?\s*\/\/?\s*export/i);
+  });
+
+  it("export grand total is the engine total, not a browser sum", () => {
+    expect(PAGE).toMatch(/vendor:\s*"TOTAL"/);
+    expect(PAGE).toMatch(/full\.totals\.(not_due|current|days30|days60|days90|total)/);
+    expect(PAGE).not.toMatch(/reduce\(\s*\(/);
+  });
+
+  it("export carries the same as-of date and reporting currency as the screen", () => {
+    expect(PAGE).toMatch(/subtitle:\s*`As of \$\{asOfDate\}`/);
+    expect(PAGE).toMatch(/currency:\s*full\.currency/);
+  });
 });
+
