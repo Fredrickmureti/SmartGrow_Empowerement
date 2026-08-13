@@ -24,6 +24,7 @@ import {
   useState,
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { PackagingInput } from "@/features/products/save/saveProductAtomic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,12 @@ type BarcodeRow = {
 export interface ProductPackagingEditorHandle {
   /** Persist pending rows after the parent creates the product. */
   commit: (productId: string) => Promise<void>;
+  /**
+   * Payload for the single-transaction product save
+   * (`save_product_atomic`). Only edited/new levels are sent; untouched rows
+   * are left alone.
+   */
+  collect: () => PackagingInput[];
   /** True if create-mode buffer holds at least one row. */
   hasPending: () => boolean;
 }
@@ -373,6 +380,17 @@ export const ProductPackagingEditor = forwardRef<
     async commit(newProductId: string) {
       if (rows.length === 0) return;
       await persistRows(newProductId, rows);
+    },
+    collect(): PackagingInput[] {
+      return rows
+        .filter((r) => r._dirty)
+        .map((r) => ({
+          ...(r._new ? {} : { id: r.id }),
+          name: r.name.trim(),
+          qty_in_base_uom: r.qty_in_base_uom,
+          is_purchase_default: r.is_purchase_default,
+          is_sales_default: r.is_sales_default,
+        }));
     },
     hasPending() {
       return isCreateMode && rows.some((r) => r._dirty);
