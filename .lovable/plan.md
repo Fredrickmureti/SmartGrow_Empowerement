@@ -1,93 +1,52 @@
-# Product Domain — Foundation Wave: Live Status
+# Product Domain Foundation — Verification Verdict & Continuation
 
-Authoritative status for the Product Domain foundation wave. Roadmap and audit findings live in
-`.lovable/plan/product-domain-foundation-audit-engineering-wave-2026-08-13.md` (approved). This file
-tracks *where we are*. Execution is chronological: Phase N is finished and coherent before Phase N+1.
+## Phase 1 verification verdict (independent, checked against the live database)
 
-## Roadmap status
+Confirmed genuinely implemented, not merely claimed:
 
-| Phase | Scope | Status |
-|---|---|---|
-| 0 | ADR 0140 — ownership matrix, scope matrix, event lifecycle | **Done** |
-| 1 | Physical attributes foundation (weight / volume / dimensions) | **Done — needs independent verification** |
-| 2 | Landed Cost weight + volume allocation via canonical read seam | **Done — needs independent verification** |
-| 3 | Nested packaging structure (`parent_packaging_id`, shipping role) | **Next — not started** |
-| 4 | `upsert_product_atomic` single write command | Pending |
-| 5 | Ownership cleanup (SKU uniqueness, archive lifecycle, terms/pricing/localization) | Pending |
-| 6 | UI decomposition of `ProductForm.tsx` (1150 lines) | Pending |
-| 7 | pgTAP + architecture + Landed Cost integration tests | Pending |
+- `product_physical_attributes` exists, keyed per level (`packaging_id` nullable), with the integrity trigger `trg_enforce_physical_attribute_integrity` installed.
+- `uom_categories.dimension` exists and is populated for every category (no nulls); the single existing business has both volume and length families seeded, so the forward-only seeder change did not leave a backfill hole here.
+- `resolve_product_measure(...)` exists as the single read seam and does what the notes claim: exact level, then base-unit x pack size fallback, then `convert_uom`.
+- `landed_cost_allocate_voucher` really allocates on weight and volume through that seam; the old hard refusal for those bases is gone.
+- No second measure/UoM conversion implementation was introduced in `src/` — only the editor and the read helper.
 
-**Currently active phase: none — Phase 2 closed out, Phase 3 not yet opened.**
+Verdict: **Phases 0-2 are substantially real**, with three defects that make them not yet coherent. They are the first work items below.
 
-## Completed and shipped
+### Defects found during verification
 
-**Phase 0 — Architecture report**
-- `docs/adr/0140-product-domain-foundation.md`. Decisions: the Product domain owns physical facts;
-  measurements are stored per level (base unit = `packaging_id IS NULL`, or a specific packaging row);
-  every measure carries a `units_of_measure` FK (no `weight_kg`-style columns); `gross_weight` is
-  server-derived/validated from net + tare; all reads go through one seam.
+1. **Not fail-closed on missing reference unit.** `resolve_product_measure` returns the raw captured value when the business has no reference unit for the dimension. Weights captured in different units then get summed as if they were the same unit, and Landed Cost allocates on a meaningless total. It must raise instead.
+2. **Non-deterministic target unit.** The reference unit is chosen with `LIMIT 1` over all categories of that dimension. With more than one mass or volume category in a tenant, the allocation basis silently depends on row order.
+3. **Allocation ignores the receipt line's packaging level.** `goods_receipt_items` carries `packaging_id` / `display_quantity`, but allocation resolves the base-level measure and multiplies by `quantity_received`. This is only correct if `quantity_received` is always base units; the pairing must be proven by test and made explicit, otherwise case receipts are weighted wrongly.
+4. **Phase 2 GL residue is still open** (as the notes admitted): no landed-cost function references `resolve_product_gl_account`; capitalization still uses the generic posting-account resolver.
+5. **No pgTAP coverage** for any of the above.
 
-**Phase 1 — Physical attributes**
-- `uom_categories.dimension` added with a CHECK over `count | mass | volume | length | area | other`.
-- `seed_default_uom_for_business` extended to provision Volume (L, mL, m³, cm³) and Length
-  (cm, mm, m, in, ft) families — previously only Count and Weight were seeded.
-- `product_physical_attributes` keyed by `(product_id, packaging_id NULLABLE)`.
-- `trg_enforce_physical_attribute_integrity`: mass measures require a mass UoM, volume a volume UoM,
-  dimensions a length UoM; cross-tenant / cross-business units rejected; gross must equal net + tare
-  within 0.5% tolerance.
-- Legacy `products.tare_weight` / `weight_unit` (free text) migrated into base-level tare weights and
-  retained read-only for POS scale flows.
-- UI: `UomSelect` gained a `dimension` filter; `src/components/products/ProductPhysicalAttributesEditor.tsx`
-  plus `src/features/products/physical/physicalAttributes.ts`; wired into `src/pages/inventory/ProductForm.tsx`
-  via an imperative post-save `commit`.
+## Work plan
 
-**Phase 2 — Landed Cost integration**
-- `resolve_product_measure(...)` is the single read seam: packaging-level row → base unit × pack size →
-  `convert_uom` to the requested target UoM.
-- `landed_cost_allocate_voucher` now allocates on `weight` and `volume` bases (the previous hard
-  `RAISE EXCEPTION` is gone) and **fails closed**: missing master data raises an exception naming the
-  offending products rather than silently falling back to value basis.
-- TypeScript typecheck clean after the wave.
+### Phase 2R — Close Phase 2 properly
+- Make `resolve_product_measure` fail closed: raise a named exception when no reference unit exists for the dimension, and when a tenant has more than one category for a dimension resolve the target deterministically (business-configured reference, then oldest category) rather than by `LIMIT 1`.
+- Route landed-cost capitalization through the `resolve_product_gl_account` ladder (ADR 0122) instead of `resolve_posting_account`.
+- Resolve physical measures at the receipt line's own packaging level, falling back to base x pack size, so a case receipt weighs a case.
+- pgTAP for these three: missing reference unit refuses, mixed-unit products reconcile after conversion, weight/volume allocation totals equal the voucher amount to the cent, and a voucher with one unmeasured product refuses naming that product.
 
-## Known gaps still open (carried from the audit)
+### Phase 3 — Packaging structure (as originally scoped)
+`parent_packaging_id`, a shipping-role marker, cycle-safe depth validation, and a trigger asserting a child's `qty_in_base_uom` is consistent with its parent's multiplier. Flat `qty_in_base_uom` stays the canonical arithmetic field so every existing consumer keeps working.
 
-- Phase 1/2 have **no pgTAP coverage yet** (deferred to Phase 7 by design, but this is the largest
-  outstanding risk on the work just shipped).
-- Landed Cost capitalization still calls `resolve_posting_account` instead of the
-  `resolve_product_gl_account` ladder (ADR 0122) — scoped in Phase 2's charter, **not yet done**.
-  Close this before Phase 3 so Phase 2 is genuinely coherent.
-- `ProductForm.tsx` still performs sequential non-atomic client writes; the physical-attribute commit
-  is one more child write on that same unsafe path. Phase 4 removes this.
-- Packaging remains flat; no level can express its own weight/volume/dimensions relationship to a parent.
-- No unique `(organization_id, sku)`; no `status` / `archived_at`; `etims_*` still on `products`;
-  no `product.updated` / `product.archived` events.
+### Phase 4 — `upsert_product_atomic`
+One server command owning product master + identifiers + packaging + physical attributes in a single transaction, replacing the sequential client-side writes in `ProductForm.tsx` (including the post-save physical-attribute commit, which today can leave a product saved with attributes lost). Writes keep using the existing identity write seam; no new engines.
 
-## Instructions for the next agent
+### Phase 5 — Ownership cleanup
+Product lifecycle (`status` / `archived_at` — neither column exists today, so archive is not modelled), SKU uniqueness at the right scope, move the eight `etims_*` columns off `products` into the localization pack, and emit `product.updated` / `product.archived` through `publish_business_event`.
 
-1. **Verify before you build.** Do not open Phase 3 until Phases 1 and 2 are confirmed correct:
-   - Read `docs/adr/0140-product-domain-foundation.md` and the two migrations
-     `supabase/migrations/20260813225010_*.sql` and `20260813225210_*.sql`.
-   - Confirm in the live database: `product_physical_attributes` exists with the expected keys and
-     constraints, `uom_categories.dimension` is populated for every existing category, and
-     `seed_default_uom_for_business` really provisions volume and length for existing businesses
-     (backfill if older businesses were missed — a forward-only seeder change is not a backfill).
-   - Exercise `resolve_product_measure` directly in SQL for: base-level only, packaging-level override,
-     packaging fallback via pack size, cross-UoM conversion, and missing data.
-   - Exercise `landed_cost_allocate_voucher` on weight and volume bases: totals must reconcile exactly
-     to the voucher amount (no rounding leakage), and a voucher containing one product without
-     measurements must refuse with the product named.
-   - Confirm the integrity trigger rejects: length UoM on a weight measure, a unit from another
-     business, and gross ≠ net + tare beyond tolerance.
-   - Confirm no second measure-conversion or UoM implementation was introduced anywhere in `src/`
-     (`convert_uom` and `resolve_product_measure` are the only seams).
-   Report the verification verdict explicitly before writing code.
-2. **Close Phase 2 residue**: route landed-cost capitalization through `resolve_product_gl_account`.
-3. **Then resume chronologically at Phase 3 — Packaging structure**: `parent_packaging_id`,
-   shipping-role marker, cycle-safe depth validation, and a trigger asserting a child's
-   `qty_in_base_uom` is consistent with its parent's multiplier. Keep flat `qty_in_base_uom` as the
-   canonical arithmetic field so every existing consumer keeps working.
-4. **Rules of engagement**: no new engines (reuse `convert_uom`, `resolve_product_identity`,
-   `resolve_product_gl_account`, `publish_business_event`, `resolve_exchange_rate`, `cost_layers`);
-   no business logic in the browser; master data stays separate from transactional state; product
-   creation must never create inventory outside the explicit opening-balance workflow. Do not skip
-   ahead to Phase 4+, do not start unrelated domains, and do not leave a phase partially landed.
+### Phase 6 — UI decomposition
+Split `ProductForm.tsx` (1150 lines) into per-facet sections over the Phase 4 command. Presentation only; no business rules in the browser.
+
+### Phase 7 — Test hardening
+pgTAP for tenant isolation, historical immutability and snapshots, packaging consistency; architecture tests pinning the single measure seam and the single write command; a Landed Cost integration test on both physical bases.
+
+### Appended from this review (not in the previous plan)
+- **Measurement snapshots.** Editing a product weight today retroactively changes how an already-allocated landed-cost voucher would compute. Decide and implement where the allocation basis is snapshotted so posted history cannot change meaning.
+- **Blocking policy.** Define, as configuration rather than code, whether a product without physical attributes may be purchased or received at all, instead of only failing at allocation time.
+- **Supplier-product relationship** (MOQ, lead time, supplier UoM/packaging) was in the parent prompt and appears in no phase. Audit whether a canonical supplier-product entity exists before Phase 5 closes, and record the verdict.
+
+## Rules of engagement (unchanged)
+No new engines — reuse `convert_uom`, `resolve_product_identity`, `resolve_product_gl_account`, `publish_business_event`, `resolve_exchange_rate`, `cost_layers`. No business logic in the browser. Master data stays separate from transactional state. Product creation never creates inventory outside the explicit opening-balance workflow. Phases run in order; none is left partially landed.
