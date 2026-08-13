@@ -71,7 +71,7 @@ export function KpiTile({
   const body = (
     <>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-[length:var(--ds-text-caption)] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="text-[length:var(--ds-text-caption)] font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
         {delta !== undefined && (
@@ -81,7 +81,7 @@ export function KpiTile({
       {loading ? (
         <Skeleton className="mt-2 h-7 w-16 rounded-md" />
       ) : (
-        <div className="mt-1 flex items-baseline gap-1">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
           <span
             className={cn(
               "font-semibold leading-none tabular-nums",
@@ -99,7 +99,7 @@ export function KpiTile({
         </div>
       )}
       {hint && (
-        <p className="mt-1 truncate text-[length:var(--ds-text-micro)] text-muted-foreground">
+        <p className="mt-1 text-[length:var(--ds-text-micro)] leading-snug text-muted-foreground">
           {hint}
         </p>
       )}
