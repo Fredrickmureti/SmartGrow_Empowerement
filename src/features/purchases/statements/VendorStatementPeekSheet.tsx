@@ -22,7 +22,7 @@ interface Props {
 export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
   const { formatCurrency } = useCurrency();
   const { record, view } = useVendorStatementView(statementId, formatCurrency);
-  const { dispatching, download, emailOpen, setEmailOpen, sendDocument } =
+  const { dispatching, download, print, emailOpen, setEmailOpen, sendDocument } =
     useVendorStatementActions(record);
 
   return (
@@ -49,6 +49,15 @@ export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
                   <Download className="mr-2 h-4 w-4" />
                 )}
                 PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void print()}
+                disabled={dispatching}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print
               </Button>
               <Button
                 variant="outline"
