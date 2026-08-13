@@ -76,7 +76,7 @@ function Item({
           <CollapsibleContent className="mt-0.5 ml-3 border-l border-border pl-2 space-y-0.5">
             {item.children!.map((c) => (
               <Item
-                key={c.to + c.label}
+                key={(c.to ?? "") + c.label}
                 item={c}
                 collapsed={collapsed}
                 depth={depth + 1}
@@ -92,7 +92,7 @@ function Item({
 
   return (
     <NavLink
-      to={item.to}
+      to={item.to ?? "#"}
       end={item.end}
       title={collapsed ? item.label : undefined}
       onClick={onNavigate}
@@ -183,7 +183,7 @@ export function SidebarBody({
             <div className="space-y-0.5">
               {group.items.map((item) => (
                 <Item
-                  key={item.to + item.label}
+                  key={(item.to ?? "") + item.label}
                   item={item}
                   collapsed={collapsed}
                   onNavigate={onNavigate}
