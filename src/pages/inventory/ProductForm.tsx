@@ -357,6 +357,18 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
         });
       }
 
+      try {
+        await physicalRef.current?.commit(createdId);
+      } catch (physErr: any) {
+        console.error("[Products] physical attributes commit failed", physErr);
+        toast({
+          title: "Product created — measurements save failed",
+          description: physErr?.message ?? "Open the product to retry.",
+          variant: "destructive",
+        });
+      }
+
+
       queryClient.invalidateQueries({ queryKey: ["products-paginated"] });
       goBackToList(createdId);
     } catch (error: any) {
