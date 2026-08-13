@@ -32,12 +32,20 @@ async function toFiscalDocument(supabase: any, orgId: string, invoiceId: string)
     if (item.product_id) {
       const { data: product } = await supabase
         .from("products")
-        .select("etims_classification_code, etims_unit_code, etims_packaging_unit, tax_rate_id")
+        .select("tax_rate_id")
         .eq("id", item.product_id)
         .single();
-      cls = product?.etims_classification_code ?? null;
-      unit = product?.etims_unit_code ?? null;
-      pkg = product?.etims_packaging_unit ?? null;
+      // Country-specific fiscal metadata lives in product_tax_localization,
+      // never on the product master.
+      const { data: loc } = await supabase
+        .from("product_tax_localization")
+        .select("classification_code, unit_code, packaging_unit")
+        .eq("product_id", item.product_id)
+        .eq("jurisdiction", "KE")
+        .maybeSingle();
+      cls = loc?.classification_code ?? null;
+      unit = loc?.unit_code ?? null;
+      pkg = loc?.packaging_unit ?? null;
       if (product?.tax_rate_id) {
         const { data: tr } = await supabase
           .from("tax_rates").select("etims_tax_code, rate").eq("id", product.tax_rate_id).single();
