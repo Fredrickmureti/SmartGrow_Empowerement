@@ -1,54 +1,66 @@
-# Procurement Contracts — Authoritative Project Status (2026-08-13)
+# Procurement Contracts — Verification Verdict (2026-08-13) and Remaining Roadmap
 
-Roadmap of record: `.lovable/plan/procurement-contracts-audit-findings-reconstruction-roadmap-2026-08-13.md` (12 phases).
-This file tracks execution against it. Phase numbering below is that roadmap's numbering.
+Roadmap of record: `.lovable/plan/procurement-contracts-audit-findings-reconstruction-roadmap-2026-08-13.md`.
+This file supersedes the previous engineer's status section with independently verified findings.
 
-## 1. Completed and verified
+## 1. Verification verdict on claimed work
 
-**Phase 1 — Boundary locked.** `procurement_contract_status` enum in place; `trg_pc_status_guard` enforces legal transitions; `FOR ALL` RLS replaced with read policies plus deny-by-default writes on `procurement_contracts`, `_lines`, `_releases`, `_versions`, `_amendments`. All mutation runs through SECURITY DEFINER RPCs: `create_`, `submit_`, `activate_`, `amend_`, `renew_`, `terminate_`, `set_procurement_contract_state`, `procurement_contracts_sweep_expiries`.
+Checked directly against the live database and the code, not against the prior notes.
 
-**Phase 2 — Currency & FX.** `currency` FK'd to canonical `currencies`; `trg_pc_currency_guard` validates against `business_active_currencies`; `base_currency`, `exchange_rate`, `exchange_rate_date` stored. Create form uses `CurrencyContext` currencies, not free text.
+Confirmed as genuinely in place:
 
-**Phase 3 — UOM.** `base_uom_id` + `ceiling_quantity_base` on lines; `trg_pc_line_normalize` normalizes via canonical `convert_uom()`. No contract-local conversion logic.
+- Lifecycle guard and RPC-only writes. `trg_pc_status_guard` and `trg_pc_currency_guard` exist on `procurement_contracts`; the five contract tables carry **read-only** RLS for `authenticated` (SELECT policies only, no INSERT/UPDATE/DELETE policies), so all mutation must pass through the eight SECURITY DEFINER RPCs (`create_`, `submit_`, `activate_`, `amend_`, `renew_`, `terminate_`, `set_..._state`, `..._sweep_expiries`).
+- Currency and UOM columns: `currency`, `base_currency`, `exchange_rate`, `exchange_rate_date` on the header; `trg_pc_line_normalize` on lines.
+- Utilization ledger and staging triggers exist: `trg_goods_receipt_contract_stage`, `trg_bill_item_contract_stage`, `trg_bill_payment_contract_stage`, `trg_purchase_order_contract_reversal`.
+- PO enforcement trigger `trg_purchase_order_contract_ceiling` exists and, per the migration, also stamps `purchase_orders.contract_version` / `contract_snapshot` — so the snapshot **write** side of Phase 9 is real.
+- Event topics registered: seven `procurement.contract.*` prefixes.
+- PO create page wires supplier contracts, contract line coverage and negotiated price, and writes `contract_id` / `contract_line_id`.
 
-**Phase 4 — Versioning & amendments.** `procurement_contract_versions` and `procurement_contract_amendments` created; amendments cut a new version; record page renders version and amendment history.
+Failed or overstated claims:
 
-**Phase 6 — Utilization model.** `procurement_contract_releases` rebuilt as a signed append-only ledger with `entry_kind` in (commitment, reversal, receipt, billing, payment). Stage triggers post progress: `trg_goods_receipt_contract_stage`, `trg_bill_item_contract_stage`, `trg_bill_payment_contract_stage`, plus `trg_purchase_order_contract_reversal` returning ceiling on PO cancel/revise.
+1. **Phase 5 is not partially done, it is broken.** `submit_procurement_contract` calls `approval_route('procurement_contract.activate', ...)` but wraps it in `EXCEPTION WHEN OTHERS THEN v_req := NULL`, so a policy failure is silently swallowed. There is **no mirror trigger** on `approval_requests` for `entity_type = 'procurement_contract'` (the table has mirrors for expense, purchase_return, requisition, rfq, vendor_credit_note only). A governance approval therefore never activates the contract, and `activate_procurement_contract` still hand-rolls its own creator≠approver check and can be called while a live request is open. Governance is decorative today.
+2. **FX inside activation violates ADR-0136.** `activate_procurement_contract` reads `public.exchange_rates` with a hand-rolled `ORDER BY effective_date DESC LIMIT 1` instead of `resolve_exchange_rate` / `require_exchange_rate`, ignores `source` precedence, has no inverse-pair handling, and stores `NULL` silently when no rate exists — a second FX lookup path, exactly what the ADR forbids.
+3. **Phase 9 read side is absent.** No code anywhere reads `contract_snapshot`, `contract_version` or `contract_unit_price`. The PO record page shows no contract terms as-of issuance.
+4. **Phase 8 is not complete.** Requisition screens never surface or write `contract_line_id`, requisition → PO conversion drops it, Supplier 360 contract tab has no utilization, and PO lines give no remaining-capacity feedback.
+5. **Nothing is exercised.** Zero rows in `procurement_contracts`, `procurement_contract_releases`, and zero POs with a `contract_id`. Every trigger path above is unproven at runtime; no tests exist for the domain (Phase 12 untouched).
+6. **Phase 11 untouched.** Contract list is a plain table with no KPIs or lifecycle filters.
 
-**Phase 7 — Enforcement.** `trg_purchase_order_contract_ceiling` extended: currency match, contract window, price tolerance (`price_tolerance_percent` / `_amount`), item coverage (`enforce_item_coverage`), quantity and value ceilings, `FOR UPDATE` locking retained, releases written on approval.
+Verdict: the structural spine (Phases 1–4, 6, 7, 10) is real; governance, FX-in-activation, snapshot consumption, consumer wiring, workspace UI and all verification are outstanding.
 
-**Phase 10 — Event taxonomy.** `procurement.contract.*` prefixes registered in `business_event_topics` (created, activated, amended, terminated, expired, release_recorded, ceiling_breached_attempt).
+## 2. Remaining roadmap, in dependency order
 
-**Phase 8 (partial) — PO consumer wired.** `useSupplierContracts` hook (active, in-window contracts for the selected vendor, remaining ceiling). Contract selector on PO create and edit; vendor change clears coverage; line product selection captures `contract_line_id` and the negotiated `unit_price` (contract price outranks vendor price list); PO detail shows the contract or "Spot buy". `tsgo --noEmit` clean.
+### Phase A — Repair activation governance (was Phase 5)
+- Confirm/insert the `procurement_contract.activate` key in `governance_action_registry`.
+- Remove the swallow-all around `approval_route`; a policy error must fail the submit.
+- Add `_mirror_approval_to_procurement_contract()` + AFTER UPDATE trigger on `approval_requests` filtered to `entity_type = 'procurement_contract'`: approved → activate, rejected/cancelled → back to draft.
+- `activate_procurement_contract` becomes the ungated fallback: refuse with `ERRCODE 42501`, `HINT = 'GOV_USE_APPROVAL_ENGINE'` while a live request exists; keep the creator≠approver backstop.
 
-## 2. Currently active phase
+### Phase B — Fold activation FX into the one engine
+- Replace the inline `exchange_rates` query with `require_exchange_rate` (or `resolve_exchange_rate` plus an explicit "no rate on file" failure). Never store a silent `NULL`/1 rate.
+- Contract display surfaces render `—` when no rate resolves.
 
-**Phase 8 — Wire the UI consumers.** PO create/edit/detail are done. Remaining in this phase:
+### Phase C — Prove the spine works (moved ahead of new UI)
+Runtime verification of already-built triggers before more consumers depend on them:
+- lifecycle: illegal transitions rejected;
+- enforcement: wrong currency, out-of-window contract, over-tolerance price, uncovered item, quantity and value ceiling breach;
+- ledger nets to zero after PO approve → cancel; receipt/bill/payment stages post exactly once;
+- concurrency: two simultaneous POs cannot jointly exceed one ceiling (`FOR UPDATE` path).
+Any defect found here is fixed inside this phase.
 
-- Requisition line contract reference in the UI. `purchase_requisition_items.contract_line_id` and the RPC field already exist (`requisitionRpcs.ts:31`, `useRequisitions.ts:178`) but no requisition screen surfaces or writes it, and requisition → PO conversion does not carry it forward.
-- Supplier 360 contract tab: currently a read-only list; extend with per-contract utilization (committed / received / billed / paid / remaining) and expiry state.
-- Remaining-capacity feedback at line level on POs (per-line remaining quantity/value, over-ceiling warning before submit) — the header selector shows remaining value only.
+### Phase D — Snapshot consumption (Phase 9 read side)
+- PO record page renders "Terms as of issuance" from `contract_snapshot` / `contract_version` / line `contract_unit_price`, not a live join.
+- Amendment history links the version a PO was issued under.
 
-## 3. Pending work (not started)
+### Phase E — Finish the consumers (Phase 8 remainder)
+- Requisition line contract reference: surface and write `contract_line_id`; carry it through requisition → PO conversion.
+- Supplier 360 contract tab: per-contract committed / received / billed / paid / remaining and expiry state.
+- PO line-level remaining quantity and value with an over-ceiling warning before submit.
 
-- **Phase 5 — Approval engine reuse.** `activate_procurement_contract` still hand-rolls the creator≠approver check; it does not call `approval_route()` and there is no `approval_request_id` column. This is the largest remaining architectural deviation and blocks parity with RFQ/requisition governance.
-- **Phase 9 — Snapshots.** `purchase_orders.contract_snapshot` / `contract_version` and `purchase_order_items.contract_unit_price` columns exist, but population at issuance is unverified and nothing reads them. Must be confirmed or completed.
-- **Phase 11 — Workspace UI.** Contract list is still a plain table: no KPIs (active, pending approval, expiring 30/60/90, ≥90% exhausted, off-contract leakage), no state/supplier/expiry filters, no per-row utilization bars.
-- **Phase 12 — Tests.** No tests exist for this domain: lifecycle transitions, ceiling and price enforcement, concurrent consumption of one ceiling, cancellation reversal, FX correctness, UoM conversion, amendment as-of resolution, architecture guards.
+### Phase F — Contracts workspace (Phase 11)
+KPIs bound to real states: active, pending approval, expiring 30/60/90, ≥90% exhausted, off-contract leakage; filters by state, supplier, expiry; per-row utilization.
 
-## 4. Next milestone
+### Phase G — Test suite (Phase 12)
+Domain lifecycle, enforcement, concurrency, FX, UoM, amendment as-of resolution, plus architecture guards: no direct browser writes to contract tables, no second approval/FX/UOM engine, no legacy contract route.
 
-Finish **Phase 8** (requisition contract reference, Supplier 360 utilization, line-level remaining capacity), then proceed in roadmap order: **Phase 5 → 9 → 11 → 12**. Phase 5 is taken after 8 because the activation path is user-facing and should change once, with the workbench already wired.
-
-## 5. Instructions for the next agent
-
-1. **Verify before building.** Do not trust this file. Confirm against the live database and code:
-   - RLS on all five contract tables denies direct browser INSERT/UPDATE/DELETE and grants match the policies.
-   - `trg_pc_status_guard` rejects illegal transitions; `trg_purchase_order_contract_ceiling` rejects wrong currency, out-of-window contracts, over-tolerance prices, uncovered items and ceiling breaches.
-   - The release ledger nets correctly: approve a PO, cancel it, and confirm committed value returns to zero; receipt/bill/payment stages post exactly once and are not double counted.
-   - The PO create/edit contract selector writes `contract_id` and `contract_line_id` end to end and the enforcement trigger sees them.
-   Record the verdict at the top of this file before writing new code. Fix any defect found in already-"completed" phases before advancing.
-2. **Resume at the next milestone in section 4** — do not pick up unrelated areas of the system.
-3. Keep each phase coherent and production-ready before moving on: no orphaned columns, no UI that writes fields nothing enforces, no half-wired workflow.
-4. Architectural rules that still hold: contracts make no GL postings; no second FX, UOM, approval or event engine; all writes through SECURITY DEFINER RPCs; `supplier_item_terms` / `price_lists` own standing pricing while a cited contract takes precedence.
-5. Update this file as phases close, then archive it when the roadmap is complete.
+## 3. Standing architectural rules
+Contracts make no GL postings. No second FX, UOM, approval or event engine. All writes through SECURITY DEFINER RPCs. `supplier_item_terms` / price lists own standing pricing; a cited contract takes precedence at PO time.
