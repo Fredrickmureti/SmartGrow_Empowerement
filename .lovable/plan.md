@@ -1,45 +1,53 @@
-# Landed Cost — Verification Verdict & Completion Plan
+# Landed Cost — Verification Verdict & Remaining Phases
 
-## Verification of the previous engineer's final claims
+## Phase 1 — Independent verification (done, evidence below)
 
-Checked directly against the working tree.
+Checked against the working tree and the live database, not against the previous notes.
 
-| Claim | Verdict | Evidence |
+| Claim / plan item | Verdict | Evidence |
 | --- | --- | --- |
-| `landed_cost_voucher` registered in the document-kind registry with status tones | Confirmed | Present in `documentStatus.tsx` (kind union + status meta block) |
-| `useLandedCostActions` — single action vocabulary, server-RPC driven | Confirmed | Allocate / Post / Reverse (reason required) / Delete-draft, each calling a database RPC; read-only + subscription guards present; no browser status writes |
-| `LandedCostRecordPage` (full page) and `LandedCostPeekSheet` (drawer) off one descriptor | Confirmed | Both project the shared `useLandedCostView` through `RecordScaffold` / `PeekScaffold` |
-| `LandedCostListPage` — lifecycle buckets, KPIs, search, peek | Confirmed | Aggregates computed from real voucher rows (`landedCostKpis`), no fabricated metrics |
-| Create page pending | Confirmed missing | No `LandedCostCreatePage.tsx` |
-| Route wiring pending | Confirmed missing | `src/apps/purchases/routes.tsx` still lazy-loads the interim `src/pages/purchases/LandedCosts.tsx`; no `new` / `:id` routes. **The four new pages are therefore unreachable in the running app.** |
-| Business-context import inconsistent | Not a defect | `@/hooks/useBusinesses` is a re-export of `@/contexts/BusinessContext`; both resolve to the same hook. Worth normalising for consistency only. |
-| `src/features` excluded from typecheck | Confirmed | `tsconfig.app.json` excludes `src/features`, so none of these files are covered by the project typecheck |
+| List / Record / Peek surfaces off one descriptor | Confirmed | `LandedCostListPage`, `LandedCostRecordPage`, `LandedCostPeekSheet`, `landedCostView.tsx` |
+| Create page pending | **Now done** | `LandedCostCreatePage.tsx` exists; currency uses the canonical `CurrencyCombobox` over `public.currencies`, rate is read-only via `describe_exchange_rate`, no client base-amount arithmetic |
+| Route wiring pending | **Now done** | `src/apps/purchases/routes.tsx` wires `landed-costs`, `/new`, `/:id`; the interim `src/pages/purchases/LandedCosts.tsx` is gone |
+| Typecheck blind spot | **Now covered** | `tsconfig.landed-costs.json` + `npm run typecheck:landed-costs` |
+| FX made server-authoritative | Confirmed in DB | Trigger `trg_lc_vouchers_fx_stamp` → `_landed_cost_voucher_fx_stamp`; `landed_cost_allocate_voucher` raises when no rate is on file; no `COALESCE(rate, 1)` remains in the allocation/sync path |
+| Posting through the canonical engine | Confirmed | `landed_cost_post_voucher` resolves accounts via `resolve_posting_account`, checks `is_period_locked`, revalues via `inventory_apply_cost_revaluation`, posts one balanced entry through `post_journal_entry_atomic`, emits `_emit_landed_cost_outbox` |
+| Consumed stock handled | Confirmed | Post splits `capitalized` vs `expensed` from the revaluation result and books the sold portion to COGS |
+| Legacy ADR-0077 engine removed | Confirmed | `landed_cost_bills`, `allocate_l_bill`, `post_l_bill`, `reverse_l_bill` no longer exist in the database |
 
-Verdict: Phase 5B is genuinely ~80% landed and of good architectural quality. The gap is the create surface, the routing, and the typecheck blind spot.
+**Genuinely still missing** (verified absent, not assumed):
 
-## Phase 5B — finish (this work)
+- No approval gate: `landed_cost_post_voucher` contains no governance call. The canonical engine is `approval_route` / `approval_decide` + a `_mirror_approval_to_*` trigger + a self-approval guard — landed cost has none of the three, and no `landed_cost.post` action is registered.
+- No component-type catalog UI. `landed_cost_component_types` holds 6 rows, but nothing in `src/` outside the landed-cost feature reads or maintains it.
+- No document kind: `document_kinds` has no landed-cost row, so there is no print/download/email profile and no snapshot builder.
+- No pgTAP coverage under `supabase/tests/`; the only proof is the ad-hoc `landed_cost_selftest` function.
+- No architecture guard test for this module.
+- No landed-cost visibility in Finance or Inventory reporting surfaces.
+- `weight` / `volume` bases still raise — product master carries no net weight/volume.
 
-1. **`LandedCostCreatePage.tsx`** — draft voucher creation using the hooks that already exist (`useLandedCostComponentTypes`, `useCompletedGoodsReceipts`):
-   - header: voucher date, currency + canonical FX rate, default allocation basis, shipment reference, supplier/notes;
-   - charge lines chosen from the component-type catalog (capitalisable flag and expense account come from the catalog row — never hardcoded);
-   - receipt scope picked from real completed goods receipts (searchable);
-   - insert header → components → receipt scope; totals are left to the `_landed_cost_voucher_recalc` trigger. On success navigate to the record page. No allocation or posting from the browser.
-2. **Route wiring** in `src/apps/purchases/routes.tsx`: `landed-costs` → `LandedCostListPage`, `landed-costs/new` → create page, `landed-costs/:id` → record page. Delete `src/pages/purchases/LandedCosts.tsx` (interim shell, superseded).
-3. **Typecheck coverage**: add `src/features/purchases/landed-costs/**` to the typechecked set so this class of break cannot land silently again; run the check and fix whatever it surfaces.
-4. Normalise the business-context import in `useLandedCosts.ts` to `@/hooks/useBusinesses` for consistency with the rest of Purchases.
+## Phase 2 — Remaining work, dependency-ordered
 
-## Phase 5C — catalog & registries
+### 5C.1 Governance gate (server first)
+Register `landed_cost.post` (and `landed_cost.reverse`) in the governance action registry. `landed_cost_post_voucher` calls the canonical approval path: when a matching rule exists it routes an approval request via `approval_route` and leaves the voucher `pending_approval` instead of posting; a `_mirror_approval_to_landed_cost` trigger applies the decision and resumes posting. Add the self-approval guard trigger consistent with the other documents. No landed-cost-local approval columns beyond the mirror the other modules already use.
 
-- Component-type settings screen: catalog CRUD with capitalisable flag and expense-account binding (country-agnostic, account resolved through `default_account_settings`).
-- Register `landed_cost_voucher` in the `document_kinds` registry and the governance action registry (`landed_cost.post`, `landed_cost.reverse`).
+### 5C.2 Component-type catalog screen
+A settings surface for `landed_cost_component_types`: name, capitalisable flag, default allocation basis, expense account bound through `default_account_settings` (no country-specific literals, no seeded vocabulary beyond what the tenant configures).
 
-## Phase 6 — approvals, matching, reporting
+### 5C.3 Document profile
+Register a `landed_cost_voucher` document kind with its own snapshot builder and template — landed-cost vocabulary (charges, allocation basis, affected receipts, capitalised vs expensed), never invoice/"Bill To" semantics. Reuse the shared rendering/print/email pipeline.
 
-- Enforce the approval gate on posting via `approval_requests` (the column is modelled but unenforced).
-- Surface landed-cost uplift inside the 3-way bill-match UI.
-- Landed cost per receipt / product / supplier reports plus a clearing-account ageing integrity check, all reading canonical finance and inventory data.
+### 6.1 Reporting integration
+Surface landed cost through the canonical paths only: clearing-account balance and capitalised-vs-expensed exposure in Finance; unit-cost uplift per receipt/product in Inventory valuation reporting; landed-cost uplift shown inside the 3-way bill-match view. No landed-cost-specific totals tables.
 
-## Carried-over known gaps
+### 6.2 Test & guard layer
+- pgTAP under `supabase/tests/landed_cost_*`: FX stamping and refusal without a rate, deterministic allocation with rounding drift absorbed, capitalised/expensed split when stock is partly sold, balanced journal (debits = credits), period-lock refusal, posted-voucher immutability, reversal symmetry, idempotent re-post.
+- `src/test/architecture/landed-cost-domain.test.ts`: no second FX/approval/accounting/valuation implementation inside the module, no client-side authoritative arithmetic, no direct journal or status writes from the browser.
+- Retire `landed_cost_selftest` once pgTAP covers its assertions.
 
-- `weight` / `volume` allocation bases stay rejected until the product master carries net weight/volume — a product-domain change, not a landed-cost one.
-- Engine behaviour was proven end-to-end by the `landed_cost_selftest` run (Phase 5A); pgTAP capture of those assertions under `supabase/tests/` is still outstanding and is folded into Phase 6.
+### 6.3 Carried-over dependency
+`weight` / `volume` allocation stays refused until the product master carries net weight/volume — that is a product-domain change and will be raised there, not solved locally.
+
+## Technical notes
+
+- Canonical engines this work consumes: `approval_route` / `approval_decide` (governance), `resolve_exchange_rate` / `fx_stamp_document` (FX), `inventory_apply_cost_revaluation` (valuation), `post_journal_entry_atomic` (accounting), `resolve_posting_account` + `default_account_settings` (account roles), `business_event_outbox` (events), the shared document/render pipeline, existing RLS + `user_has_business_access` (security).
+- All lifecycle transitions stay server-side RPCs; the browser keeps requesting operations only.
