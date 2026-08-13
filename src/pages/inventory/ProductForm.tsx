@@ -488,6 +488,23 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
         </Section>
       )}
 
+      {/* Physical attributes — canonical weight / volume / dimensions */}
+      {formData.type === "product" && currentOrg && currentBusiness && (
+        <Section
+          title="Physical attributes"
+          description="Weight, volume and dimensions used by freight, landed cost, shipping and warehouse capacity."
+        >
+          <ProductPhysicalAttributesEditor
+            ref={physicalRef}
+            productId={editing?.id ?? null}
+            organizationId={currentOrg.id}
+            businessId={currentBusiness.id}
+          />
+        </Section>
+      )}
+
+
+
       {/* Inventory unit */}
       {formData.type === "product" && (
         <Section
