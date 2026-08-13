@@ -76,6 +76,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Statutory return (PAYE/NSSF/NHIF/SHIF/HL) | `statutory_return` | PdfBuilder (statutory-pinned) | WIRED |
 | Audit / investigation certificate | `audit_certificate` | PdfBuilder (statutory-pinned) | WIRED |
 | GRN / receiving voucher (A4 copy) | `goods_receipt` | PdfBuilder | WIRED (auto-dispatch from `GoodsReceiptWizardPage` via `printOrPreview({ intent: 'a4_document' })`; policy resolved by ADR-0088) |
+| Journal entry posted / reviewed (journal voucher) | `journal_entry` | PdfBuilder (`journal_voucher` ledger layout) | WIRED (snapshot pipeline — `finance.journal_entry` document kind; Preview/Print/Download from `useJournalEntryActions`; no `email` intent) |
 | Stock adjustment voucher | `stock_adjustment` | PdfBuilder | WIRED (Wave 21 — `fetchStockAdjustment`) |
 | Stock transfer note | `stock_transfer` | PdfBuilder | WIRED (Wave 21 — `fetchStockTransfer`) |
 | Vendor return note (A4) | `vendor_return` | PdfBuilder | WIRED (Wave 21 — `fetchPurchaseReturn`; alias `purchase_return`) |

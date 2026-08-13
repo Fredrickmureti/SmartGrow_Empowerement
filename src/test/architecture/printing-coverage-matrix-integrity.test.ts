@@ -67,6 +67,10 @@ const MATRIX_ROW_EXEMPT = new Set<string>([
   "tax_certificate",
   "statutory_return",
   "audit_certificate",
+  // Ledger evidence: the journal voucher is frozen into `document_records`
+  // and drawn by the `journal_voucher` layout through the rendering engine,
+  // so it has no legacy `generate-document` fetcher by design.
+  "journal_entry",
 ]);
 
 // Bi-directional aliases: presence of any name on either side satisfies
