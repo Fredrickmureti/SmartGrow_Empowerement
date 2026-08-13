@@ -307,6 +307,8 @@ export default function ContractListPage() {
               <TableBody>
                 {filtered.map((r) => {
                   const pct = utilizationPct(r.committed_value, r.ceiling_value);
+                  const expiry = expiryLabel(r);
+                  const exhaustion = exhaustionPercent(r);
                   return (
                     <TableRow
                       key={r.id}
