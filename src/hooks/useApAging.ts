@@ -157,8 +157,9 @@ export function useApAging({
         })),
       }));
 
+      const reconData = recon.data as unknown;
       const reconRow = (
-        Array.isArray(recon.data) ? recon.data[0] : recon.data
+        Array.isArray(reconData) ? reconData[0] : reconData
       ) as Record<string, unknown> | undefined;
 
       return {
