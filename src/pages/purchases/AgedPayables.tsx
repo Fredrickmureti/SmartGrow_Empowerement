@@ -283,13 +283,15 @@ export default function AgedPayables() {
                             ) : (
                               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                             )}
-                            <ClickableEntity
-                              onClick={() => {
-                                setPreviewContactId(row.vendorId);
-                              }}
-                            >
-                              {row.vendorName}
-                            </ClickableEntity>
+                            <span onClick={(e) => e.stopPropagation()}>
+                              <ClickableEntity
+                                onClick={() => {
+                                  setPreviewContactId(row.vendorId);
+                                }}
+                              >
+                                {row.vendorName}
+                              </ClickableEntity>
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
