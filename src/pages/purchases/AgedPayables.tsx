@@ -1,17 +1,27 @@
-// @ts-nocheck
-import { useState, useEffect, useMemo, useCallback } from "react";
+/**
+ * Aged Payables.
+ *
+ * Every number on this screen comes from `get_ap_aging_summary`, which is
+ * built on the point-in-time AP subledger projection
+ * `finance_ap_open_items_as_of`. The browser does no aging arithmetic, no
+ * residual derivation and never reads `bills.status` / `bills.amount_paid`:
+ * the residual decides whether a document is open, and the as-of date bounds
+ * both the obligation and every settlement against it.
+ */
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useApAging, type ApAgingVendor } from "@/hooks/useApAging";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -27,126 +37,72 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Download, FileText, Calendar, ChevronDown, ChevronRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Loader2,
+  Search,
+  FileText,
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react";
 import { format } from "date-fns";
 import { AGING_BUCKET_LABELS, AGING_BUCKET_SHORT_LABELS } from "@/services/finance/aging";
 
+const PAGE_SIZE = 50;
 
-interface AgingBill {
-  id: string;
-  bill_number: string;
-  due_date: string;
-  balance: number;
-  bucket: string;
-}
-
-interface AgingRow {
-  vendor_id: string;
-  vendor_name: string;
-  not_due: number;
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  total: number;
-  bills: AgingBill[];
-}
-
+const fmtDate = (value: string | null) =>
+  value ? format(new Date(value), "MMM d, yyyy") : "—";
 
 export default function AgedPayables() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
   const { formatCurrency, baseCurrency } = useCurrency();
-  const [isLoading, setIsLoading] = useState(true);
-  const [agingData, setAgingData] = useState<AgingRow[]>([]);
+  const navigate = useNavigate();
+
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split("T")[0]);
   const [searchQuery, setSearchQuery] = useState("");
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
-  // Phase 10: branch toggle. Default to current branch when one is active,
-  // otherwise show all branches (Odoo behavior). User can flip between them.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [branchScope, setBranchScope] = useState<"current" | "all">(
-    currentBranch?.id ? "current" : "all"
+    currentBranch?.id ? "current" : "all",
   );
-  const navigate = useNavigate();
 
-  const fetchAgingData = useCallback(async () => {
-    if (!currentOrg || !currentBusiness) return;
-    setIsLoading(true);
+  const branchFilter =
+    branchScope === "current" && currentBranch?.id ? currentBranch.id : null;
 
-    try {
-      // Phase 10: server-side aggregation via get_ap_aging_summary RPC.
-      // Was previously a client-side reduce over a 1000-row Supabase query
-      // — broke for any company past 1000 lifetime bills.
-      const branchFilter =
-        branchScope === "current" && currentBranch?.id ? currentBranch.id : null;
+  const { data, isLoading, refetch } = useApAging({
+    organizationId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    branchId: branchFilter,
+    asOf: asOfDate,
+  });
 
-      const { data, error } = await supabase.rpc("get_ap_aging_summary" as any, {
-        p_organization_id: currentOrg.id,
-        p_business_id: currentBusiness.id,
-        p_branch_id: branchFilter,
-        p_as_of: asOfDate,
-      });
-      if (error) throw error;
+  const vendors = data?.vendors ?? [];
+  const totals = data?.totals;
+  const reconciliation = data?.reconciliation;
 
-      const result = data as any;
-      const vendors: AgingRow[] = (result?.vendors || []).map((v: any) => ({
-        vendor_id: v.vendor_id || "unknown",
-        vendor_name: v.vendor_name || "Unknown Vendor",
-        not_due: Number(v.not_due || 0),
-        current: Number(v.current || 0),
-        days30: Number(v.days30 || 0),
-        days60: Number(v.days60 || 0),
-        days90: Number(v.days90 || 0),
-        total: Number(v.total || 0),
+  const filteredVendors = useMemo(() => {
+    if (!searchQuery) return vendors;
+    const q = searchQuery.toLowerCase();
+    return vendors.filter((v) => v.vendorName.toLowerCase().includes(q));
+  }, [vendors, searchQuery]);
 
-        bills: (v.bills || []).map((b: any) => ({
-          id: b.id,
-          bill_number: b.bill_number || b.id?.slice(0, 8),
-          due_date: b.due_date,
-          balance: Number(b.balance || 0),
-          bucket: b.bucket || "current",
-        })),
-      }));
+  const visibleVendors = filteredVendors.slice(0, visibleCount);
 
-      setAgingData(vendors.sort((a, b) => b.total - a.total));
-    } catch (err) {
-      console.error("Error fetching aged payables:", err);
-      setAgingData([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentOrg?.id, currentBusiness?.id, currentBranch?.id, branchScope, asOfDate]);
+  const toggleVendor = (vendorId: string) =>
+    setExpandedVendors((prev) => {
+      const next = new Set(prev);
+      if (next.has(vendorId)) next.delete(vendorId);
+      else next.add(vendorId);
+      return next;
+    });
 
-  useEffect(() => {
-    fetchAgingData();
-  }, [fetchAgingData]);
-
-  const filteredData = useMemo(() => {
-    if (!searchQuery) return agingData;
-    return agingData.filter((row) =>
-      row.vendor_name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [agingData, searchQuery]);
-
-  const totals = useMemo(() => {
-    return filteredData.reduce(
-      (acc, row) => ({
-        not_due: acc.not_due + row.not_due,
-        current: acc.current + row.current,
-        days30: acc.days30 + row.days30,
-        days60: acc.days60 + row.days60,
-        days90: acc.days90 + row.days90,
-        total: acc.total + row.total,
-      }),
-      { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 }
-    );
-  }, [filteredData]);
-
-  const getExportConfig = useCallback((): ExportConfig => {
+  const getExportConfig = (): ExportConfig => {
     const cols: ExportColumn[] = [
       { key: "vendor", header: "Vendor", width: 22 },
       { key: "not_due", header: AGING_BUCKET_LABELS.not_due, format: "currency", width: 14, align: "right" },
@@ -154,27 +110,31 @@ export default function AgedPayables() {
       { key: "days30", header: AGING_BUCKET_LABELS.days30, format: "currency", width: 14, align: "right" },
       { key: "days60", header: AGING_BUCKET_LABELS.days60, format: "currency", width: 14, align: "right" },
       { key: "days90", header: AGING_BUCKET_LABELS.days90, format: "currency", width: 14, align: "right" },
+      { key: "credit", header: "Unapplied credit", format: "currency", width: 14, align: "right" },
       { key: "total", header: "Total", format: "currency", width: 14, align: "right" },
     ];
+    // Exports use the same server dataset as the screen — never a second query.
     const rows = [
-      ...filteredData.map((row) => ({
-        vendor: row.vendor_name,
+      ...filteredVendors.map((row) => ({
+        vendor: row.vendorName,
         not_due: row.not_due,
         current: row.current,
         days30: row.days30,
         days60: row.days60,
         days90: row.days90,
+        credit: row.credit,
         total: row.total,
         _isGrandTotal: false,
       })),
       {
         vendor: "TOTAL",
-        not_due: totals.not_due,
-        current: totals.current,
-        days30: totals.days30,
-        days60: totals.days60,
-        days90: totals.days90,
-        total: totals.total,
+        not_due: totals?.not_due ?? 0,
+        current: totals?.current ?? 0,
+        days30: totals?.days30 ?? 0,
+        days60: totals?.days60 ?? 0,
+        days90: totals?.days90 ?? 0,
+        credit: totals?.credit ?? 0,
+        total: totals?.total ?? 0,
         _isGrandTotal: true,
       },
     ];
@@ -184,14 +144,21 @@ export default function AgedPayables() {
       columns: cols,
       rows,
       generatedAt: new Date(),
-      currency: baseCurrency,
+      currency: data?.currency ?? baseCurrency,
       organizationId: currentOrg?.id,
       businessId: currentBusiness?.id,
     };
-  }, [filteredData, totals, asOfDate, baseCurrency, currentOrg?.id, currentBusiness?.id]);
+  };
 
-
-
+  const summaryCards = [
+    { label: AGING_BUCKET_LABELS.not_due, value: totals?.not_due ?? 0, tone: "text-foreground" },
+    { label: `${AGING_BUCKET_LABELS.current} overdue`, value: totals?.current ?? 0, tone: "text-accent-foreground" },
+    { label: AGING_BUCKET_LABELS.days30, value: totals?.days30 ?? 0, tone: "text-accent-foreground" },
+    { label: AGING_BUCKET_LABELS.days60, value: totals?.days60 ?? 0, tone: "text-destructive" },
+    { label: AGING_BUCKET_LABELS.days90, value: totals?.days90 ?? 0, tone: "text-destructive" },
+    { label: "Unapplied credit", value: totals?.credit ?? 0, tone: "text-muted-foreground" },
+    { label: "Total outstanding", value: totals?.total ?? 0, tone: "text-foreground" },
+  ];
 
   return (
     <>
@@ -201,10 +168,10 @@ export default function AgedPayables() {
             <div>
               <h1 className="page-title">Aged Payables</h1>
               <p className="text-sm text-muted-foreground">
-                Outstanding vendor bills grouped by aging period
+                What we owed as of {fmtDate(asOfDate)}, from the AP subledger
               </p>
             </div>
-            <RefreshButton onRefresh={fetchAgingData} tooltip="Refresh aging report" />
+            <RefreshButton onRefresh={() => refetch()} tooltip="Refresh aging report" />
           </div>
           <ReportExportButtons
             compact
@@ -214,60 +181,46 @@ export default function AgedPayables() {
           />
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.not_due}</p>
-              <p className="text-lg font-bold text-foreground">{formatCurrency(totals.not_due)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.current} overdue</p>
-              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.current)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days30}</p>
-              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days30)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days60}</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days60)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days90}</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days90)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">Total Outstanding</p>
-              <p className="text-lg font-bold">{formatCurrency(totals.total)}</p>
-            </CardContent>
-          </Card>
+        {reconciliation && !reconciliation.inBalance && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Aging total {formatCurrency(reconciliation.agingTotal)} does not match the AP
+              control account {formatCurrency(reconciliation.controlAccountBalance)} as of{" "}
+              {fmtDate(asOfDate)} — variance {formatCurrency(reconciliation.variance)}.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {summaryCards.map((card) => (
+            <Card key={card.label}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+                <p className={`text-lg font-bold ${card.tone}`}>{formatCurrency(card.value)}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-
-        {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search vendors..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setVisibleCount(PAGE_SIZE);
+              }}
               className="pl-9"
             />
           </div>
           {currentBranch?.id && (
-            <Select value={branchScope} onValueChange={(v: any) => setBranchScope(v)}>
+            <Select
+              value={branchScope}
+              onValueChange={(v: "current" | "all") => setBranchScope(v)}
+            >
               <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="current">Current branch</SelectItem>
@@ -286,16 +239,17 @@ export default function AgedPayables() {
           </div>
         </div>
 
-        {/* Table */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredData.length === 0 ? (
+        ) : filteredVendors.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium">No outstanding payables</h3>
-            <p className="text-muted-foreground">All vendor bills are fully paid as of {format(new Date(asOfDate), "MMM d, yyyy")}</p>
+            <p className="text-muted-foreground">
+              Nothing was open as of {fmtDate(asOfDate)}
+            </p>
           </div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
@@ -308,99 +262,182 @@ export default function AgedPayables() {
                   <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
                   <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days60}</TableHead>
                   <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days90}</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
                 </TableRow>
-
               </TableHeader>
               <TableBody>
-                {filteredData.map((row) => {
-                  const isExpanded = expandedVendors.has(row.vendor_id);
+                {visibleVendors.map((row: ApAgingVendor) => {
+                  const isExpanded = expandedVendors.has(row.vendorId);
                   return (
                     <>
-                    <TableRow
-                      key={row.vendor_id}
-                      className="cursor-pointer hover:bg-muted/30"
-                      onClick={() => {
-                        setExpandedVendors(prev => {
-                          const next = new Set(prev);
-                          if (next.has(row.vendor_id)) next.delete(row.vendor_id);
-                          else next.add(row.vendor_id);
-                          return next;
-                        });
-                      }}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                          <ClickableEntity onClick={(e) => { e.stopPropagation(); setPreviewContactId(row.vendor_id); }}>
-                            {row.vendor_name}
-                          </ClickableEntity>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.not_due > 0 ? formatCurrency(row.not_due) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.current > 0 ? formatCurrency(row.current) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.days30 > 0 ? formatCurrency(row.days30) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.days60 > 0 ? formatCurrency(row.days60) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.days90 > 0 ? (
-                          <span className="text-destructive font-medium">{formatCurrency(row.days90)}</span>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-bold tabular-nums">
-                        {formatCurrency(row.total)}
-                      </TableCell>
-                    </TableRow>
-                    {isExpanded && row.bills.sort((a, b) => b.balance - a.balance).map((bill) => (
                       <TableRow
-                        key={bill.id}
-                        className="bg-muted/20 cursor-pointer hover:bg-muted/40"
-                        onClick={() => navigate(`/purchases/bills?id=${bill.id}`)}
+                        key={row.vendorId}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => toggleVendor(row.vendorId)}
                       >
-                        <TableCell className="pl-10 text-xs text-primary">
-                          {bill.bill_number}
-                          <span className="ml-2 text-muted-foreground">
-                            {bill.due_date ? `Due ${format(new Date(bill.due_date), "MMM d, yyyy")}` : "No due date"}
-                          </span>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {isExpanded ? (
+                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <ClickableEntity
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewContactId(row.vendorId);
+                              }}
+                            >
+                              {row.vendorName}
+                            </ClickableEntity>
+                          </div>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "not_due" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "current" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days30" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days60" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days90" ? <span className="text-destructive">{formatCurrency(bill.balance)}</span> : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(bill.balance)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.not_due > 0 ? formatCurrency(row.not_due) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.current > 0 ? formatCurrency(row.current) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.days30 > 0 ? formatCurrency(row.days30) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.days60 > 0 ? formatCurrency(row.days60) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.days90 > 0 ? (
+                            <span className="text-destructive font-medium">
+                              {formatCurrency(row.days90)}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {row.credit > 0 ? `(${formatCurrency(row.credit)})` : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-bold tabular-nums">
+                          {formatCurrency(row.total)}
+                        </TableCell>
                       </TableRow>
-                    ))}
+
+                      {isExpanded && (
+                        <TableRow key={`${row.vendorId}-detail`} className="bg-muted/20">
+                          <TableCell colSpan={8} className="p-0">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs">Document</TableHead>
+                                  <TableHead className="text-xs">Date</TableHead>
+                                  <TableHead className="text-xs">Due</TableHead>
+                                  <TableHead className="text-xs text-right">Original</TableHead>
+                                  <TableHead className="text-xs text-right">Paid</TableHead>
+                                  <TableHead className="text-xs text-right">Credited</TableHead>
+                                  <TableHead className="text-xs text-right">Residual</TableHead>
+                                  <TableHead className="text-xs text-right">Days</TableHead>
+                                  <TableHead className="text-xs">Bucket</TableHead>
+                                  <TableHead className="text-xs text-right">Links</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {row.bills.map((bill) => (
+                                  <TableRow key={bill.id} className="text-xs">
+                                    <TableCell>
+                                      <ClickableEntity
+                                        onClick={() =>
+                                          bill.sourceKind === "bill"
+                                            ? navigate(`/purchases/bills?id=${bill.id}`)
+                                            : navigate(`/accounting/journal-entries?id=${bill.id}`)
+                                        }
+                                      >
+                                        {bill.billNumber}
+                                      </ClickableEntity>
+                                    </TableCell>
+                                    <TableCell>{fmtDate(bill.documentDate)}</TableCell>
+                                    <TableCell>{fmtDate(bill.dueDate)}</TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {formatCurrency(bill.documentTotal)}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {bill.paid > 0 ? formatCurrency(bill.paid) : "—"}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {bill.credited > 0 ? formatCurrency(bill.credited) : "—"}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums font-medium">
+                                      {formatCurrency(bill.balance)}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {bill.daysPastDue > 0 ? bill.daysPastDue : "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {AGING_BUCKET_SHORT_LABELS[bill.bucket] ?? bill.bucket}
+                                    </TableCell>
+                                    <TableCell className="text-right space-x-2">
+                                      <ClickableEntity
+                                        onClick={() =>
+                                          navigate(`/purchases/statements?vendor=${row.vendorId}`)
+                                        }
+                                      >
+                                        Statement
+                                      </ClickableEntity>
+                                      {bill.journalEntryId && (
+                                        <ClickableEntity
+                                          onClick={() =>
+                                            navigate(
+                                              `/accounting/journal-entries?id=${bill.journalEntryId}`,
+                                            )
+                                          }
+                                        >
+                                          Journal
+                                        </ClickableEntity>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </>
                   );
                 })}
-                {/* Totals row */}
-                <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>Total ({filteredData.length} vendors)</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.not_due)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.current)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days30)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days60)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days90)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.total)}</TableCell>
-                </TableRow>
 
+                <TableRow className="bg-muted/50 font-bold">
+                  <TableCell>Total ({totals?.vendorCount ?? 0} vendors)</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.not_due ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.current ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days30 ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days60 ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days90 ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.credit ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.total ?? 0)}</TableCell>
+                </TableRow>
               </TableBody>
             </Table>
+
+            {filteredVendors.length > visibleVendors.length && (
+              <div className="flex justify-center p-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                >
+                  Show more ({filteredVendors.length - visibleVendors.length} remaining)
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       <ContactPreviewDrawer
         open={!!previewContactId}
-        onOpenChange={(open) => { if (!open) setPreviewContactId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setPreviewContactId(null);
+        }}
         contactId={previewContactId}
       />
     </>
