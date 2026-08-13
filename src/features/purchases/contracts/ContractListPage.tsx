@@ -361,19 +361,30 @@ export default function ContractListPage() {
                           {money(r.ceiling_value, r.currency)}
                         </div>
                         {pct != null && (
-                          <div className="mt-1 h-1.5 w-32 ml-auto rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={`h-full ${
-                                pct >= 90
-                                  ? "bg-destructive"
-                                  : pct >= 70
-                                    ? "bg-warning"
-                                    : "bg-primary"
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                          <>
+                            <div className="mt-1 h-1.5 w-32 ml-auto rounded-full bg-muted overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  pct >= 90
+                                    ? "bg-destructive"
+                                    : pct >= 70
+                                      ? "bg-warning"
+                                      : "bg-primary"
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                              {Math.round(exhaustion ?? 0)}% committed ·{" "}
+                              {money(
+                                Number(r.ceiling_value ?? 0) - Number(r.committed_value ?? 0),
+                                r.currency,
+                              )}{" "}
+                              left
+                            </div>
+                          </>
                         )}
+
                       </TableCell>
                     </TableRow>
                   );
