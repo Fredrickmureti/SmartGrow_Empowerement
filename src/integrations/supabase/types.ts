@@ -77060,31 +77060,6 @@ export type Database = {
           },
         ]
       }
-      finance_ap_open_items: {
-        Row: {
-          aging_bucket: string | null
-          base_residual_amount: number | null
-          branch_id: string | null
-          business_id: string | null
-          contact_id: string | null
-          credited_amount: number | null
-          currency: string | null
-          days_past_due: number | null
-          document_date: string | null
-          document_id: string | null
-          document_number: string | null
-          document_status: string | null
-          document_total: number | null
-          due_date: string | null
-          exchange_rate: number | null
-          journal_entry_id: string | null
-          organization_id: string | null
-          paid_amount: number | null
-          residual_amount: number | null
-          source_kind: string | null
-        }
-        Relationships: []
-      }
       finance_ap_vendor_credit: {
         Row: {
           base_credit_amount: number | null
