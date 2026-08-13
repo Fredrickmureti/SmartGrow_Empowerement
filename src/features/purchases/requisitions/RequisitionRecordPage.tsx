@@ -93,6 +93,9 @@ const LINE_COLUMNS: LineItemColumn[] = [
   { id: "unit", header: "Est. unit", numeric: true, priority: 2, minWidth: 100, compactLabel: "@" },
   { id: "total", header: "Est. total", numeric: true, priority: 1, minWidth: 110 },
   { id: "supplier", header: "Suggested supplier", priority: 3, minWidth: 140 },
+  // Pre-negotiated coverage. Demand that cites a contract line is already
+  // priced — sourcing must see it before it shops the line around.
+  { id: "contract", header: "Contract coverage", priority: 3, minWidth: 180 },
   { id: "ordered", header: "Ordered", numeric: true, priority: 2, minWidth: 90 },
   { id: "received", header: "Received", numeric: true, priority: 3, minWidth: 90 },
   { id: "cancelled", header: "Short-closed", numeric: true, priority: 3, minWidth: 100 },
@@ -225,6 +228,30 @@ export default function RequisitionRecordPage() {
             ),
           },
           { columnId: "supplier", content: sup?.contact?.name ?? sup?.supplier_code ?? "—" },
+          {
+            columnId: "contract",
+            content: (() => {
+              const cl = l.contract_line_id
+                ? record.contract_lines[l.contract_line_id]
+                : null;
+              if (!cl) return "Spot buy";
+              const remaining =
+                cl.ceiling_quantity_base == null
+                  ? null
+                  : cl.ceiling_quantity_base - Number(cl.committed_quantity_base ?? 0);
+              return (
+                <Link
+                  to={`/purchases/contracts/${cl.contract_id}`}
+                  className="text-primary hover:underline"
+                >
+                  <span className="font-mono">{cl.contract_number ?? "Contract"}</span>
+                  {" · "}
+                  {money(cl.unit_price, cl.currency ?? record.currency)}
+                  {remaining != null && ` · ${remaining} left`}
+                </Link>
+              );
+            })(),
+          },
           { columnId: "ordered", content: Number(l.quantity_ordered ?? 0) },
           { columnId: "received", content: Number(l.quantity_received ?? 0) },
           { columnId: "cancelled", content: Number(l.quantity_cancelled ?? 0) },

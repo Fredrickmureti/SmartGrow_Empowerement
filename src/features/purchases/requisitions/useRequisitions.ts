@@ -210,6 +210,25 @@ export interface RequisitionProcurementLink {
   path: string;
 }
 
+/**
+ * The negotiated coverage a requisition line cites. Demand that names a
+ * contract line is pre-priced: the buyer must see the agreed price and the
+ * remaining ceiling before sourcing it, otherwise the contract is invisible
+ * until the PO trigger rejects the order.
+ */
+export interface RequisitionContractLine {
+  id: string;
+  contract_id: string;
+  description: string | null;
+  unit_price: number;
+  currency: string | null;
+  ceiling_quantity_base: number | null;
+  committed_quantity_base: number | null;
+  contract_number: string | null;
+  contract_title: string | null;
+  contract_status: string | null;
+}
+
 export interface RequisitionRecord extends RequisitionRow {
   items: RequisitionItem[];
   approvals: RequisitionApproval[];
@@ -219,6 +238,8 @@ export interface RequisitionRecord extends RequisitionRow {
     supplier_code: string | null;
     contact?: { id: string; name: string } | null;
   }>;
+  /** Keyed by `purchase_requisition_items.contract_line_id`. */
+  contract_lines: Record<string, RequisitionContractLine>;
 }
 
 export function useRequisitionRecord(id: string | undefined) {
@@ -324,6 +345,37 @@ export function useRequisitionRecord(id: string | undefined) {
         procurement.push(...roll.values());
       }
 
+      // Negotiated coverage cited by the demand lines (read-only; the ceiling
+      // itself is enforced server-side at PO approval).
+      const contractLineIds = Array.from(
+        new Set(items.map((i) => i.contract_line_id).filter((x): x is string => !!x)),
+      );
+      const contract_lines: Record<string, RequisitionContractLine> = {};
+      if (contractLineIds.length > 0) {
+        const { data: clData } = await (supabase as any)
+          .from("procurement_contract_lines")
+          .select(
+            "id, contract_id, description, unit_price, ceiling_quantity_base, committed_quantity_base, contract:procurement_contracts(contract_number, title, status, currency)",
+          )
+          .in("id", contractLineIds);
+        for (const l of (clData ?? []) as any[]) {
+          contract_lines[l.id] = {
+            id: l.id,
+            contract_id: l.contract_id,
+            description: l.description ?? null,
+            unit_price: Number(l.unit_price ?? 0),
+            currency: l.contract?.currency ?? null,
+            ceiling_quantity_base:
+              l.ceiling_quantity_base == null ? null : Number(l.ceiling_quantity_base),
+            committed_quantity_base:
+              l.committed_quantity_base == null ? null : Number(l.committed_quantity_base),
+            contract_number: l.contract?.contract_number ?? null,
+            contract_title: l.contract?.title ?? null,
+            contract_status: l.contract?.status ?? null,
+          };
+        }
+      }
+
       const profiles = await hydrateProfiles([
         (core as any).requester_id,
         ...approvals.map((a) => a.actor_user_id),
@@ -339,6 +391,7 @@ export function useRequisitionRecord(id: string | undefined) {
           actor: profiles.get(a.actor_user_id) ?? null,
         })),
         suggested_suppliers: suppliers,
+        contract_lines,
       });
     } catch (e: any) {
       setError(e?.message ?? String(e));
