@@ -87,8 +87,23 @@ export function EmailReportDialog({
   const [attach, setAttach] = useState(true);
   const [isSending, setIsSending] = useState(false);
 
-  // Resolve config once per open so we can prefill subject from title.
-  const previewConfig = useMemo(() => (open ? buildConfig() : null), [open, buildConfig]);
+  // Resolve config once per open so we can prefill subject from title. The
+  // builder may be async (server-paginated reports fetch the full dataset).
+  const [previewConfig, setPreviewConfig] = useState<ExportConfig | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setPreviewConfig(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const cfg = await buildConfig();
+      if (!cancelled) setPreviewConfig(cfg);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, buildConfig]);
 
   useEffect(() => {
     if (!open) return;
