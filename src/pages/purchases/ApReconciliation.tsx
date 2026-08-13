@@ -66,10 +66,19 @@ export default function ApReconciliation() {
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
 
-  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split("T")[0]);
+  // The as-of date carries over from Aged Payables so both screens answer the
+  // same question on the same date.
+  const asOfParam =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("as_of")
+      : null;
+  const [asOfDate, setAsOfDate] = useState(
+    asOfParam || new Date().toISOString().split("T")[0],
+  );
   const [branchScope, setBranchScope] = useState<"current" | "all">(
     currentBranch?.id ? "current" : "all",
   );
+
 
   const branchFilter = branchScope === "current" && currentBranch?.id ? currentBranch.id : null;
 
