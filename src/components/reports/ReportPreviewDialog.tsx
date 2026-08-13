@@ -24,7 +24,8 @@ import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 interface ReportPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  getExportConfig: () => ExportConfig;
+  /** May be async — server-paginated reports resolve the full dataset here. */
+  getExportConfig: () => ExportConfig | Promise<ExportConfig>;
 }
 
 export function ReportPreviewDialog({
@@ -48,7 +49,10 @@ export function ReportPreviewDialog({
       return;
     }
 
-    const cfg = getExportConfig();
+    let cancelled = false;
+    void (async () => {
+    const cfg = await getExportConfig();
+    if (cancelled) return;
     cfg.generatedAt = new Date();
     setConfig(cfg);
     setIsLoading(true);
@@ -117,6 +121,11 @@ export function ReportPreviewDialog({
         setErrorMsg(err?.message ?? String(err));
       })
       .finally(() => setIsLoading(false));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, getExportConfig]);
 
   const handlePrint = async () => {

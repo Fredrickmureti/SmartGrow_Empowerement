@@ -27,7 +27,7 @@ Bucket boundaries stay single-sourced: `finance_aging_bucket` in SQL, mirrored o
 
 ## 2. Currently active phase
 
-**Phase 5 — Drift removal and guards. IN PROGRESS (~75%).** 5.0–5.3 are done; 5.4–5.6 remain.
+**Phase 5 — Drift removal and guards. IN PROGRESS (~95%).** 5.0–5.5 are done; only 5.6 remains.
 
 **Known verification gap:** this sandbox has no `psql`/`PGHOST`, so
 `supabase/tests/ap_aging_as_of_test.sql` was written against verified live function definitions
@@ -35,23 +35,32 @@ and enum values but has **not been executed**. The next agent must run it first 
 
 ---
 
+## 2b. Completed this turn — 5.5 Server-side pagination (verified)
+
+- Migration: `get_ap_aging_summary` now takes `p_search`, `p_limit`, `p_offset`; returns
+  `vendors` (the page), `page` (`limit/offset/search/returned/has_more`), `filtered`
+  (`vendor_count`, `total` for the searched cohort) and unfiltered grand `totals` for the KPI
+  strip. Search and ordering happen in SQL. Guard switched to `finance_can_read_org`; `PUBLIC`
+  and `anon` revoked; the old 4-arg overload dropped so there is a single entry point.
+- `src/hooks/useApAging.ts`: exported `fetchApAging` (one fetch path), added
+  `search/limit/offset` args, `page` in the result, `placeholderData` for smooth paging.
+- `src/pages/purchases/AgedPayables.tsx`: debounced server search, `Show more` raises the server
+  page limit, "Showing N of M vendors", no browser `filter`/`slice`; export re-runs
+  `fetchApAging({ limit: null })` — same engine, full searched cohort.
+- `ReportExportButtons` / `ReportPreviewDialog` / `EmailReportDialog` now accept an async
+  `getExportConfig`/`buildConfig` (needed for export-time full fetch).
+- New guard `src/test/architecture/ap-aging-server-pagination.test.ts` (5 tests, passing);
+  existing AP guards and `tsgo --noEmit -p tsconfig.app.json` pass.
+
+---
+
 ## 3. Pending work (in execution order)
 
-### 5.4 Retire `finance_ap_open_items` (next task)
-No app caller remains after 5.1. Remaining references are the legacy-view assertions in
-`src/test/architecture/reports-data-source-contract.test.ts` and
-`supabase/tests/open_items_settlement_channels_test.sql`. Either drop the view in a migration or
-redefine it as a thin wrapper over `finance_ap_open_items_as_of(CURRENT_DATE)` with a comment
-explaining why; update those two guards in the same change. Confirm the AR twin is untouched.
-
-### 5.5 Server-side pagination for the vendor list
-`get_ap_aging_summary` returns the whole payload and `AgedPayables.tsx` pages it in the browser
-(`visibleCount`). Add `_limit`/`_offset` (or keyset on exposure) plus a server-side total and
-vendor count, and switch the page to it.
-
-### 5.6 Export parity
-Prove the Aged Payables export projects the same server dataset as the screen (no second query,
-no browser recomputation) and extend `ap-aging-point-in-time.test.ts` to assert it.
+### 5.6 Export parity (next task)
+The export already re-queries the engine with `limit: null` (5.5). What remains: extend
+`ap-aging-point-in-time.test.ts` to assert export rows and screen rows come from the same RPC,
+with no browser recomputation of buckets or totals, and that the grand-total row uses the
+server `totals` payload.
 
 ---
 
@@ -68,19 +77,24 @@ variance drill-down (which documents cause the variance). No unrelated domain un
 1. **Verify before you build.** Do not trust this document.
    - Execute `supabase/tests/ap_aging_as_of_test.sql` against a database and fix any failure it
      reports. This is the highest-priority item: the fixture is written but unexecuted.
+   - Verify 5.5: `get_ap_aging_summary` exists ONLY in the 7-arg form, is `SECURITY DEFINER` with
+     pinned `search_path`, calls `finance_can_read_org`, is not executable by `anon`, and that a
+     paged call plus an unlimited call return identical grand `totals`.
    - Confirm `finance_can_read_org` exists and that the four AP functions are `SECURITY DEFINER`,
      pin `search_path`, call the guard, and are not executable by `anon`.
    - Confirm no `finance_ap_open_items` read remains in `src/` or `supabase/functions/`.
    - Run `bunx vitest run src/test/architecture/ap-aging-point-in-time.test.ts
      src/test/architecture/ap-aging-scenario-fixtures.test.ts
+     src/test/architecture/ap-aging-server-pagination.test.ts
      src/test/architecture/customer-statement-dataset-parity.test.ts` and
      `bunx tsgo --noEmit -p tsconfig.app.json`.
    Record the verdict (per item: confirmed / defect found) at the top of this file before editing
    code. Note: a full-suite `vitest run` currently has ~200 pre-existing failures unrelated to
    payables (WMS topics, etc.) — do not treat those as this workstream's regressions.
-2. **Then resume at 5.4** and work 5.4 → 5.6 in order.
+2. **Then resume at 5.6**, then close Phase 5 and move to the reconciliation surface in §4.
 3. **Do not** start a new domain, leave a phase half-built, or add UI without its server contract.
 4. Update this file at the end of your turn so it stays the authoritative status source.
+
 
 ---
 

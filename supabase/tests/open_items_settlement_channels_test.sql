@@ -16,15 +16,40 @@ BEGIN
   END IF;
 END $$;
 
--- 2) Contract: the AP projection subtracts applied vendor credit notes.
+-- 2) Contract: the AP surface is the point-in-time engine, and it subtracts
+--    applied vendor credit notes. `finance_ap_open_items` survives only as a
+--    deprecated CURRENT_DATE mirror of that engine (Phase 5.4), so both the
+--    function and the view must recognise the credit-application channel and
+--    the view must be security_invoker (it is granted to `authenticated`).
 DO $$
-DECLARE v_def text;
+DECLARE v_fn text; v_def text; v_invoker boolean;
 BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO v_fn
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'finance_ap_open_items_as_of';
+  IF v_fn IS NULL THEN
+    RAISE EXCEPTION 'finance_ap_open_items_as_of is missing — payables have no point-in-time engine';
+  END IF;
+  IF v_fn !~* 'vendor_credit_note_applications' THEN
+    RAISE EXCEPTION 'finance_ap_open_items_as_of ignores vendor_credit_note_applications — payables will be overstated';
+  END IF;
+
   SELECT pg_get_viewdef('public.finance_ap_open_items'::regclass, true) INTO v_def;
   IF v_def !~* 'vendor_credit_note_applications' THEN
     RAISE EXCEPTION 'finance_ap_open_items ignores vendor_credit_note_applications — payables will be overstated';
   END IF;
+  IF v_def !~* 'current_date' THEN
+    RAISE EXCEPTION 'finance_ap_open_items must be the CURRENT_DATE mirror of finance_ap_open_items_as_of';
+  END IF;
+
+  SELECT COALESCE('security_invoker=true' = ANY (c.reloptions), false) INTO v_invoker
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public' AND c.relname = 'finance_ap_open_items';
+  IF NOT v_invoker THEN
+    RAISE EXCEPTION 'finance_ap_open_items must be security_invoker — otherwise it leaks payables across organisations';
+  END IF;
 END $$;
+
 
 -- 3) The drift detector exists, so this class of divergence cannot go silent.
 DO $$

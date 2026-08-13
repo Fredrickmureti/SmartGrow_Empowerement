@@ -10,7 +10,7 @@ import { normalizeError } from "@/services/resilience";
  * "who sent which report when" audit they get for outbound documents.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Mail, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -41,7 +41,7 @@ interface EmailReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Returns the FULLY ENRICHED ExportConfig (with org/branding context). */
-  buildConfig: () => ExportConfig;
+  buildConfig: () => ExportConfig | Promise<ExportConfig>;
   /**
    * Optional default recipient (e.g. selected vendor's email on a vendor
    * statement page). User can still edit/remove.
@@ -87,8 +87,23 @@ export function EmailReportDialog({
   const [attach, setAttach] = useState(true);
   const [isSending, setIsSending] = useState(false);
 
-  // Resolve config once per open so we can prefill subject from title.
-  const previewConfig = useMemo(() => (open ? buildConfig() : null), [open, buildConfig]);
+  // Resolve config once per open so we can prefill subject from title. The
+  // builder may be async (server-paginated reports fetch the full dataset).
+  const [previewConfig, setPreviewConfig] = useState<ExportConfig | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setPreviewConfig(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const cfg = await buildConfig();
+      if (!cancelled) setPreviewConfig(cfg);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, buildConfig]);
 
   useEffect(() => {
     if (!open) return;
@@ -150,7 +165,7 @@ export function EmailReportDialog({
     if (invalidCc) return toast.error(`Invalid CC address: ${invalidCc}`);
     if (invalidBcc) return toast.error(`Invalid BCC address: ${invalidBcc}`);
 
-    const cfg = buildConfig();
+    const cfg = await buildConfig();
     if (!cfg.organizationId) {
       toast.error("Cannot send: organization context is missing.");
       return;

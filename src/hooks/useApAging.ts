@@ -66,11 +66,25 @@ export interface ApAgingReconciliation {
   inBalance: boolean;
 }
 
+/** Description of the page the server returned, plus the searched cohort. */
+export interface ApAgingPage {
+  limit: number | null;
+  offset: number;
+  search: string | null;
+  returned: number;
+  hasMore: boolean;
+  /** Vendors matching the search across ALL pages. */
+  filteredVendorCount: number;
+  /** Net payable for the searched cohort across ALL pages. */
+  filteredTotal: number;
+}
+
 export interface ApAgingResult {
   asOf: string;
   currency: string | null;
   vendors: ApAgingVendor[];
   totals: ApAgingTotals;
+  page: ApAgingPage;
   reconciliation: ApAgingReconciliation | null;
 }
 
@@ -93,100 +107,151 @@ export interface UseApAgingArgs {
   businessId?: string | null;
   branchId?: string | null;
   asOf: string;
+  /** Vendor-name search. Applied in SQL — the browser never filters rows. */
+  search?: string | null;
+  /** Page size. `null` (or omitted) returns the whole searched cohort. */
+  limit?: number | null;
+  offset?: number;
   enabled?: boolean;
 }
 
-export function useApAging({
+/**
+ * Single fetch path for payables aging. Screens page it; exports call it with
+ * `limit: null` so the exported file is the same server dataset, not a
+ * browser-side re-aggregation of whatever happened to be on screen.
+ */
+export async function fetchApAging({
   organizationId,
   businessId,
   branchId,
   asOf,
-  enabled = true,
-}: UseApAgingArgs) {
-  return useQuery<ApAgingResult>({
-    queryKey: ["ap-aging", organizationId, businessId, branchId ?? "all", asOf],
-    enabled: Boolean(enabled && organizationId && businessId),
-    queryFn: async () => {
-      const [summary, recon] = await Promise.all([
-        supabase.rpc("get_ap_aging_summary" as never, {
-          p_organization_id: organizationId,
-          p_business_id: businessId,
-          p_branch_id: branchId ?? null,
-          p_as_of: asOf,
-        } as never),
-        supabase.rpc("finance_ap_aging_reconciliation" as never, {
-          _org_id: organizationId,
-          _business_id: businessId,
-          _branch_id: branchId ?? null,
-          _as_of: asOf,
-        } as never),
-      ]);
+  search,
+  limit = null,
+  offset = 0,
+}: UseApAgingArgs): Promise<ApAgingResult> {
+  const [summary, recon] = await Promise.all([
+    supabase.rpc("get_ap_aging_summary" as never, {
+      p_organization_id: organizationId,
+      p_business_id: businessId,
+      p_branch_id: branchId ?? null,
+      p_as_of: asOf,
+      p_search: search?.trim() ? search.trim() : null,
+      p_limit: limit ?? null,
+      p_offset: offset ?? 0,
+    } as never),
+    supabase.rpc("finance_ap_aging_reconciliation" as never, {
+      _org_id: organizationId,
+      _business_id: businessId,
+      _branch_id: branchId ?? null,
+      _as_of: asOf,
+    } as never),
+  ]);
 
-      if (summary.error) throw summary.error;
+  if (summary.error) throw summary.error;
 
-      const payload = (summary.data ?? {}) as Record<string, unknown>;
-      const rawVendors = (payload.vendors ?? []) as Record<string, unknown>[];
-      const rawTotals = (payload.totals ?? {}) as Record<string, unknown>;
+  const payload = (summary.data ?? {}) as Record<string, unknown>;
+  const rawVendors = (payload.vendors ?? []) as Record<string, unknown>[];
+  const rawTotals = (payload.totals ?? {}) as Record<string, unknown>;
+  const rawPage = (payload.page ?? {}) as Record<string, unknown>;
+  const rawFiltered = (payload.filtered ?? {}) as Record<string, unknown>;
 
-      const vendors: ApAgingVendor[] = rawVendors.map((v) => ({
-        vendorId: String(v.vendor_id ?? "unknown"),
-        vendorName: String(v.vendor_name ?? "Unknown Vendor"),
-        not_due: num(v.not_due),
-        current: num(v.current),
-        days30: num(v.days30),
-        days60: num(v.days60),
-        days90: num(v.days90),
-        gross: num(v.gross),
-        credit: num(v.credit),
-        total: num(v.total),
-        bills: ((v.bills ?? []) as Record<string, unknown>[]).map((b) => ({
-          id: String(b.id),
-          billNumber: String(b.bill_number ?? String(b.id).slice(0, 8)),
-          documentDate: (b.document_date as string) ?? null,
-          dueDate: (b.due_date as string) ?? null,
-          documentTotal: num(b.document_total),
-          paid: num(b.paid),
-          credited: num(b.credited),
-          balance: num(b.balance),
-          baseBalance: num(b.base_balance),
-          currency: (b.currency as string) ?? null,
-          daysPastDue: num(b.days_past_due),
-          bucket: (b.bucket as AgingBucketKey) ?? "current",
-          sourceKind: (b.source_kind as "bill" | "journal") ?? "bill",
-          journalEntryId: (b.journal_entry_id as string) ?? null,
-        })),
-      }));
+  const vendors: ApAgingVendor[] = rawVendors.map((v) => ({
+    vendorId: String(v.vendor_id ?? "unknown"),
+    vendorName: String(v.vendor_name ?? "Unknown Vendor"),
+    not_due: num(v.not_due),
+    current: num(v.current),
+    days30: num(v.days30),
+    days60: num(v.days60),
+    days90: num(v.days90),
+    gross: num(v.gross),
+    credit: num(v.credit),
+    total: num(v.total),
+    bills: ((v.bills ?? []) as Record<string, unknown>[]).map((b) => ({
+      id: String(b.id),
+      billNumber: String(b.bill_number ?? String(b.id).slice(0, 8)),
+      documentDate: (b.document_date as string) ?? null,
+      dueDate: (b.due_date as string) ?? null,
+      documentTotal: num(b.document_total),
+      paid: num(b.paid),
+      credited: num(b.credited),
+      balance: num(b.balance),
+      baseBalance: num(b.base_balance),
+      currency: (b.currency as string) ?? null,
+      daysPastDue: num(b.days_past_due),
+      bucket: (b.bucket as AgingBucketKey) ?? "current",
+      sourceKind: (b.source_kind as "bill" | "journal") ?? "bill",
+      journalEntryId: (b.journal_entry_id as string) ?? null,
+    })),
+  }));
 
-      const reconData = recon.data as unknown;
-      const reconRow = (
-        Array.isArray(reconData) ? reconData[0] : reconData
-      ) as Record<string, unknown> | undefined;
+  const reconData = recon.data as unknown;
+  const reconRow = (
+    Array.isArray(reconData) ? reconData[0] : reconData
+  ) as Record<string, unknown> | undefined;
 
-      return {
-        asOf: String(payload.as_of ?? asOf),
-        currency: (payload.currency as string) ?? null,
-        vendors,
-        totals: {
-          not_due: num(rawTotals.not_due),
-          current: num(rawTotals.current),
-          days30: num(rawTotals.days30),
-          days60: num(rawTotals.days60),
-          days90: num(rawTotals.days90),
-          gross: num(rawTotals.gross),
-          credit: num(rawTotals.credit),
-          total: num(rawTotals.total),
-          vendorCount: num(rawTotals.vendor_count),
-        },
-        reconciliation:
-          !recon.error && reconRow
-            ? {
-                agingTotal: num(reconRow.aging_total),
-                controlAccountBalance: num(reconRow.control_account_balance),
-                variance: num(reconRow.variance),
-                inBalance: Boolean(reconRow.in_balance),
-              }
-            : null,
-      };
+  return {
+    asOf: String(payload.as_of ?? asOf),
+    currency: (payload.currency as string) ?? null,
+    vendors,
+    totals: {
+      not_due: num(rawTotals.not_due),
+      current: num(rawTotals.current),
+      days30: num(rawTotals.days30),
+      days60: num(rawTotals.days60),
+      days90: num(rawTotals.days90),
+      gross: num(rawTotals.gross),
+      credit: num(rawTotals.credit),
+      total: num(rawTotals.total),
+      vendorCount: num(rawTotals.vendor_count),
     },
+    page: {
+      limit: rawPage.limit == null ? null : num(rawPage.limit),
+      offset: num(rawPage.offset),
+      search: (rawPage.search as string) ?? null,
+      returned: num(rawPage.returned) || vendors.length,
+      hasMore: Boolean(rawPage.has_more),
+      filteredVendorCount: num(rawFiltered.vendor_count),
+      filteredTotal: num(rawFiltered.total),
+    },
+    reconciliation:
+      !recon.error && reconRow
+        ? {
+            agingTotal: num(reconRow.aging_total),
+            controlAccountBalance: num(reconRow.control_account_balance),
+            variance: num(reconRow.variance),
+            inBalance: Boolean(reconRow.in_balance),
+          }
+        : null,
+  };
+}
+
+export function useApAging(args: UseApAgingArgs) {
+  const {
+    organizationId,
+    businessId,
+    branchId,
+    asOf,
+    search = null,
+    limit = null,
+    offset = 0,
+    enabled = true,
+  } = args;
+
+  return useQuery<ApAgingResult>({
+    queryKey: [
+      "ap-aging",
+      organizationId,
+      businessId,
+      branchId ?? "all",
+      asOf,
+      search?.trim() || "",
+      limit ?? "all",
+      offset,
+    ],
+    enabled: Boolean(enabled && organizationId && businessId),
+    placeholderData: (prev) => prev,
+    queryFn: () =>
+      fetchApAging({ organizationId, businessId, branchId, asOf, search, limit, offset }),
   });
 }
+

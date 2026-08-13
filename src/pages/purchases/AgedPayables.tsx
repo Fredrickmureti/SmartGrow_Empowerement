@@ -7,15 +7,21 @@
  * residual derivation and never reads bill status or paid-to-date columns:
  * the residual decides whether a document is open, and the as-of date bounds
  * both the obligation and every settlement against it.
+ *
+ * Phase 5.5 — search and paging are SERVER-side. The browser never filters or
+ * slices the vendor list, so a 10k-vendor tenant transfers one page, and the
+ * export re-runs the same query with no page limit rather than exporting
+ * whatever happened to be loaded.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useApAging, type ApAgingVendor } from "@/hooks/useApAging";
+import { useApAging, fetchApAging, type ApAgingVendor } from "@/hooks/useApAging";
+
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -65,34 +71,48 @@ export default function AgedPayables() {
 
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split("T")[0]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [pageLimit, setPageLimit] = useState(PAGE_SIZE);
   const [branchScope, setBranchScope] = useState<"current" | "all">(
     currentBranch?.id ? "current" : "all",
   );
 
+  // Debounce keystrokes into the server query; the browser never filters rows.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedSearch(searchQuery.trim());
+      setPageLimit(PAGE_SIZE);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const branchFilter =
     branchScope === "current" && currentBranch?.id ? currentBranch.id : null;
 
-  const { data, isLoading, refetch } = useApAging({
+  const agingArgs = {
     organizationId: currentOrg?.id,
     businessId: currentBusiness?.id,
     branchId: branchFilter,
     asOf: asOfDate,
+    search: appliedSearch || null,
+  };
+
+  const { data, isLoading, isFetching, refetch } = useApAging({
+    ...agingArgs,
+    limit: pageLimit,
+    offset: 0,
   });
 
-  const vendors = data?.vendors ?? [];
+  const vendors: ApAgingVendor[] = data?.vendors ?? [];
   const totals = data?.totals;
   const reconciliation = data?.reconciliation;
+  const page = data?.page;
+  const matchedCount = page?.filteredVendorCount ?? vendors.length;
+  const remaining = Math.max(matchedCount - vendors.length, 0);
 
-  const filteredVendors = useMemo(() => {
-    if (!searchQuery) return vendors;
-    const q = searchQuery.toLowerCase();
-    return vendors.filter((v) => v.vendorName.toLowerCase().includes(q));
-  }, [vendors, searchQuery]);
 
-  const visibleVendors = filteredVendors.slice(0, visibleCount);
 
   const toggleVendor = (vendorId: string) =>
     setExpandedVendors((prev) => {
@@ -102,7 +122,7 @@ export default function AgedPayables() {
       return next;
     });
 
-  const getExportConfig = (): ExportConfig => {
+  const getExportConfig = async (): Promise<ExportConfig> => {
     const cols: ExportColumn[] = [
       { key: "vendor", header: "Vendor", width: 22 },
       { key: "not_due", header: AGING_BUCKET_LABELS.not_due, format: "currency", width: 14, align: "right" },
@@ -113,9 +133,12 @@ export default function AgedPayables() {
       { key: "credit", header: "Unapplied credit", format: "currency", width: 14, align: "right" },
       { key: "total", header: "Total", format: "currency", width: 14, align: "right" },
     ];
-    // Exports use the same server dataset as the screen — never a second query.
+    // Exports re-run the SAME engine query with no page limit, so the file is
+    // the complete searched cohort rather than the page on screen. No browser
+    // aggregation, no second data source.
+    const full = await fetchApAging({ ...agingArgs, limit: null, offset: 0 });
     const rows = [
-      ...filteredVendors.map((row) => ({
+      ...full.vendors.map((row) => ({
         vendor: row.vendorName,
         not_due: row.not_due,
         current: row.current,
@@ -128,13 +151,13 @@ export default function AgedPayables() {
       })),
       {
         vendor: "TOTAL",
-        not_due: totals?.not_due ?? 0,
-        current: totals?.current ?? 0,
-        days30: totals?.days30 ?? 0,
-        days60: totals?.days60 ?? 0,
-        days90: totals?.days90 ?? 0,
-        credit: totals?.credit ?? 0,
-        total: totals?.total ?? 0,
+        not_due: full.totals.not_due,
+        current: full.totals.current,
+        days30: full.totals.days30,
+        days60: full.totals.days60,
+        days90: full.totals.days90,
+        credit: full.totals.credit,
+        total: full.totals.total,
         _isGrandTotal: true,
       },
     ];
@@ -144,10 +167,11 @@ export default function AgedPayables() {
       columns: cols,
       rows,
       generatedAt: new Date(),
-      currency: data?.currency ?? baseCurrency,
+      currency: full.currency ?? baseCurrency,
       organizationId: currentOrg?.id,
       businessId: currentBusiness?.id,
     };
+
   };
 
   const summaryCards = [
@@ -211,7 +235,6 @@ export default function AgedPayables() {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                setVisibleCount(PAGE_SIZE);
               }}
               className="pl-9"
             />
@@ -243,12 +266,14 @@ export default function AgedPayables() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredVendors.length === 0 ? (
+        ) : vendors.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium">No outstanding payables</h3>
             <p className="text-muted-foreground">
-              Nothing was open as of {fmtDate(asOfDate)}
+              {appliedSearch
+                ? `No vendor matching "${appliedSearch}" was open as of ${fmtDate(asOfDate)}`
+                : `Nothing was open as of ${fmtDate(asOfDate)}`}
             </p>
           </div>
         ) : (
@@ -267,7 +292,7 @@ export default function AgedPayables() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleVendors.map((row: ApAgingVendor) => {
+                {vendors.map((row: ApAgingVendor) => {
                   const isExpanded = expandedVendors.has(row.vendorId);
                   return (
                     <>
@@ -407,7 +432,14 @@ export default function AgedPayables() {
                 })}
 
                 <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>Total ({totals?.vendorCount ?? 0} vendors)</TableCell>
+                  <TableCell>
+                    Total ({totals?.vendorCount ?? 0} vendors)
+                    {appliedSearch && (
+                      <span className="ml-1 font-normal text-xs text-muted-foreground">
+                        — matching “{appliedSearch}”: {formatCurrency(page?.filteredTotal ?? 0)}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals?.not_due ?? 0)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals?.current ?? 0)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days30 ?? 0)}</TableCell>
@@ -419,17 +451,23 @@ export default function AgedPayables() {
               </TableBody>
             </Table>
 
-            {filteredVendors.length > visibleVendors.length && (
-              <div className="flex justify-center p-3">
+            {remaining > 0 && (
+              <div className="flex flex-col items-center gap-1 p-3">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  disabled={isFetching}
+                  onClick={() => setPageLimit((c) => c + PAGE_SIZE)}
                 >
-                  Show more ({filteredVendors.length - visibleVendors.length} remaining)
+                  {isFetching && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                  Show more ({remaining} remaining)
                 </Button>
+                <p className="text-xs text-muted-foreground">
+                  Showing {vendors.length} of {matchedCount} vendors
+                </p>
               </div>
             )}
+
           </div>
         )}
       </div>
