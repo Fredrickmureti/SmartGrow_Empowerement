@@ -93697,9 +93697,26 @@ export type Database = {
         Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
       }
+      landed_cost_clearing_exposure: {
+        Args: { p_business_id: string }
+        Returns: Json
+      }
       landed_cost_post_voucher: {
         Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
+      }
+      landed_cost_receipt_summary: {
+        Args: { p_receipt_ids: string[] }
+        Returns: {
+          allocated_amount: number
+          capitalized_amount: number
+          currency: string
+          expensed_amount: number
+          goods_receipt_id: string
+          pending_count: number
+          posted_count: number
+          voucher_count: number
+        }[]
       }
       landed_cost_reverse_voucher: {
         Args: { p_actor?: string; p_reason: string; p_voucher_id: string }
@@ -93712,6 +93729,18 @@ export type Database = {
       landed_cost_selftest_run: {
         Args: { p_actor: string; p_business: string }
         Returns: Json
+      }
+      landed_cost_valuation_attribution: {
+        Args: { p_business_id: string; p_product_ids?: string[] }
+        Returns: {
+          last_applied_at: string
+          last_voucher_id: string
+          product_id: string
+          revaluation_count: number
+          unit_cost_after: number
+          unit_cost_before: number
+          uplift_amount: number
+        }[]
       }
       leave_to_attendance_stamp: {
         Args: { _leave_id: string }
