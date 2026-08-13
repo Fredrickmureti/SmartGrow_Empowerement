@@ -302,6 +302,18 @@ const REGISTRY: Record<string, RegistryEntry> = {
     partyKind: null,
     build: wrap(fetchAndBuildFinanceJournalEntrySnapshot),
   },
+  /**
+   * Landed cost voucher — internal costing evidence. The supplier who
+   * invoiced the freight is not the audience, so `partyKind` is null and
+   * the kind carries no `email` intent.
+   */
+  landed_cost_voucher: {
+    kindCode: "purchases.landed_cost_voucher",
+    sourceModule: "purchases",
+    sourceDocType: "landed_cost_voucher",
+    partyKind: null,
+    build: wrap(fetchAndBuildLandedCostVoucherSnapshot),
+  },
   pos_receipt: {
     kindCode: "pos.receipt_customer",
     sourceModule: "pos",
