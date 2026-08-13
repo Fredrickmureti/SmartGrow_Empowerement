@@ -8,8 +8,12 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import {
+  fetchLandedCostClearingExposure,
+  fetchLandedCostReceiptSummary,
+  fetchLandedCostValuationAttribution,
+} from "./landedCostRpcs";
 
 export interface LandedCostReceiptSummary {
   goods_receipt_id: string;
@@ -31,11 +35,8 @@ export function useLandedCostReceiptSummary(receiptIds: string[]) {
     queryKey: ["landed-cost-receipt-summary", key],
     enabled: ids.length > 0,
     queryFn: async (): Promise<LandedCostReceiptSummary[]> => {
-      const { data, error } = await supabase.rpc("landed_cost_receipt_summary", {
-        p_receipt_ids: ids,
-      });
-      if (error) throw new Error(error.message);
-      return (data ?? []).map((r) => ({
+      const data = await fetchLandedCostReceiptSummary(ids);
+      return data.map((r) => ({
         goods_receipt_id: r.goods_receipt_id as string,
         voucher_count: Number(r.voucher_count ?? 0),
         allocated_amount: Number(r.allocated_amount ?? 0),
@@ -73,11 +74,8 @@ export function useLandedCostValuationAttribution(enabled = true) {
     queryKey: ["landed-cost-valuation-attribution", bizId],
     enabled: enabled && !!bizId,
     queryFn: async (): Promise<LandedCostValuationAttribution[]> => {
-      const { data, error } = await supabase.rpc("landed_cost_valuation_attribution", {
-        p_business_id: bizId!,
-      });
-      if (error) throw new Error(error.message);
-      return (data ?? []).map((r) => ({
+      const data = await fetchLandedCostValuationAttribution(bizId!);
+      return data.map((r) => ({
         product_id: r.product_id as string,
         revaluation_count: Number(r.revaluation_count ?? 0),
         uplift_amount: Number(r.uplift_amount ?? 0),
@@ -112,11 +110,7 @@ export function useLandedCostClearingExposure() {
     queryKey: ["landed-cost-clearing-exposure", bizId],
     enabled: !!bizId,
     queryFn: async (): Promise<LandedCostClearingExposure> => {
-      const { data, error } = await supabase.rpc("landed_cost_clearing_exposure", {
-        p_business_id: bizId!,
-      });
-      if (error) throw new Error(error.message);
-      const raw = (data ?? {}) as Record<string, unknown>;
+      const raw = await fetchLandedCostClearingExposure(bizId!);
       return {
         clearing_account_id: (raw.clearing_account_id as string | null) ?? null,
         clearing_balance: Number(raw.clearing_balance ?? 0),
