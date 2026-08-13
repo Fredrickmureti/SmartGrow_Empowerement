@@ -4,22 +4,15 @@
  * embedded inside another app shell (e.g. /finance/reports/*), the
  * owning app supplies its own nav and this one is not used.
  */
-import {
-  BarChart3,
-  PiggyBank,
-  Calculator,
-  BookOpen,
-  FileText,
-  Clock,
-  Target,
-  Building2,
-  Wallet,
-  History,
-  Receipt,
-  Package,
-} from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
+import { buildReportsNavChildren } from "@/services/reports/reportsNav";
 
+/**
+ * Standalone `/reports/*` sidebar. Same registry-driven families as the
+ * Finance shell — there is exactly one list of reports in the codebase
+ * (`REPORT_REGISTRY`), so the two navs can no longer drift.
+ */
 export const REPORTS_NAV: WorkspaceNav = {
   groups: [
     {
@@ -27,30 +20,8 @@ export const REPORTS_NAV: WorkspaceNav = {
       items: [{ to: "/reports", label: "All reports", icon: BarChart3, end: true }],
     },
     {
-      label: "Financial",
-      items: [
-        { to: "/reports/financial", label: "Financial statements", icon: PiggyBank },
-        { to: "/reports/trial-balance", label: "Trial balance", icon: Calculator },
-        { to: "/reports/general-ledger", label: "General ledger", icon: BookOpen },
-        { to: "/reports/partner-ledger", label: "Partner ledger", icon: FileText },
-        { to: "/reports/journal-report", label: "Journal report", icon: BookOpen },
-        { to: "/reports/aging", label: "Aging", icon: Clock },
-        { to: "/reports/budget", label: "Budget vs actual", icon: Target },
-        { to: "/reports/depreciation", label: "Depreciation", icon: Building2 },
-        { to: "/reports/cash-flow", label: "Cash flow", icon: Wallet },
-        { to: "/reports/audit-trail", label: "Audit trail", icon: History },
-        { to: "/finance/reports/run-history", label: "Report run history", icon: History },
-      ],
-    },
-    {
-      label: "Operational",
-      items: [
-        { to: "/reports/sales", label: "Sales", icon: FileText },
-        { to: "/reports/management", label: "Management", icon: BarChart3 },
-        { to: "/reports/tax", label: "Tax", icon: Receipt },
-        { to: "/reports/stock", label: "Stock", icon: Package },
-        { to: "/reports/intelligence", label: "Business intelligence", icon: BarChart3 },
-      ],
+      label: "Report families",
+      items: buildReportsNavChildren(),
     },
   ],
 };
