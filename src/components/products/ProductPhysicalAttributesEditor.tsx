@@ -32,10 +32,18 @@ import {
   persistPhysicalAttributes,
   type PhysicalAttributeRow,
 } from "@/features/products/physical/physicalAttributes";
+import type { PhysicalInput } from "@/features/products/save/saveProductAtomic";
 
 export interface ProductPhysicalAttributesEditorHandle {
   /** Persist buffered levels after the parent creates the product. */
   commit: (productId: string) => Promise<void>;
+  /**
+   * Payload for the single-transaction product save
+   * (`save_product_atomic`). Preferred over `commit` — the parent sends
+   * master + packaging + measurements + identifiers in one call so a failure
+   * can never leave a half-saved product behind.
+   */
+  collect: () => PhysicalInput[];
   hasPending: () => boolean;
 }
 
@@ -148,6 +156,31 @@ export const ProductPhysicalAttributesEditor = forwardRef<
           // pack-level measurements on the saved product.
           rows: rows.filter((r) => r.packagingId === null),
         });
+      },
+      collect(): PhysicalInput[] {
+        const out: PhysicalInput[] = [];
+        for (const r of rows) {
+          if (isRowEmpty(r)) {
+            // A cleared level is a deliberate removal, not a no-op.
+            if (r.id) out.push({ id: r.id, _delete: true });
+            continue;
+          }
+          out.push({
+            id: r.id ?? null,
+            packaging_id: r.packagingId,
+            net_weight: r.netWeight,
+            net_weight_uom_id: r.netWeightUomId,
+            tare_weight: r.tareWeight,
+            tare_weight_uom_id: r.tareWeightUomId,
+            volume: r.volume,
+            volume_uom_id: r.volumeUomId,
+            length: r.length,
+            width: r.width,
+            height: r.height,
+            dimension_uom_id: r.dimensionUomId,
+          });
+        }
+        return out;
       },
       hasPending() {
         return isCreateMode && rows.some((r) => !isRowEmpty(r));
