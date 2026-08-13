@@ -46,6 +46,10 @@ export function PurchaseOrderReceiptsSection({
   currency?: string;
 }) {
   const { receipts, loading, refetch } = useGoodsReceiptsForOrder(purchaseOrderId);
+  const { formatCurrency } = useCurrency();
+  const { byReceipt: landedCostByReceipt } = useLandedCostReceiptSummary(
+    receipts.map((r) => r.id),
+  );
   const [reversing, setReversing] = useState<OrderGoodsReceipt | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
