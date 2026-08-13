@@ -104,7 +104,50 @@ const LEDGER_LAYOUTS: Record<
       org as never,
       opts as never,
     ),
+  // Landed cost voucher — internal costing evidence (charges, receipts
+  // covered, per-line apportionment, capitalised vs expensed control).
+  // Same rationale as the journal voucher: no counterparty, no tax ladder,
+  // no amount due, so the commercial renderer cannot draw it.
+  "purchases.landed_cost_voucher": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/landedCost.ts")).generateLandedCostVoucherPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
 };
+
+const LANDED_COST_FORBIDDEN_BLOCKS = new Set(["party"]);
+const LANDED_COST_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
+
+/**
+ * A landed cost voucher template may never grow invoice anatomy: no party
+ * block (nobody is billed by it) and no commercial line-item table.
+ */
+export function assertLandedCostTemplateContract(
+  template: ResolvedTemplate,
+  blocks: AstBlock[],
+): void {
+  if (template.kind_code !== "purchases.landed_cost_voucher") return;
+  const layout = (template.ast as unknown as Record<string, unknown>)["layout"];
+  if (layout !== "landed_cost_voucher") {
+    throw new Error(
+      "landed_cost_template_contract: layout must be landed_cost_voucher",
+    );
+  }
+  for (const block of blocks) {
+    if (LANDED_COST_FORBIDDEN_BLOCKS.has(block.type)) {
+      throw new Error(`landed_cost_template_contract: forbidden block ${block.type}`);
+    }
+    if (
+      block.type === "table" &&
+      LANDED_COST_FORBIDDEN_TABLE_PRESETS.has(block.preset)
+    ) {
+      throw new Error(
+        `landed_cost_template_contract: forbidden table preset ${block.preset}`,
+      );
+    }
+  }
+}
 
 const JOURNAL_FORBIDDEN_BLOCKS = new Set(["party"]);
 const JOURNAL_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
