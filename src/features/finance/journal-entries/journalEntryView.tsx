@@ -60,7 +60,7 @@ function fmtDateTime(iso: string | null): string | null {
 
 export function buildJournalEntryView(
   entry: JournalEntry,
-  { formatCurrency, findEntry }: BuildOpts,
+  { formatCurrency, findEntry, sourceDocument }: BuildOpts,
 ): JournalEntryView {
   const title = entry.description || `Journal Entry ${entry.entry_number}`;
   const docNumber = entry.entry_number;
