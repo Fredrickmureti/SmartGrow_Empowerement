@@ -48,6 +48,7 @@ export type DocumentKind =
   | "journal_entry"
   | "stock_adjustment"
   | "stock_transfer"
+  | "landed_cost_voucher"
   | "generic";
 
 
