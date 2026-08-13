@@ -49,7 +49,10 @@ export function ReportPreviewDialog({
       return;
     }
 
-    const cfg = getExportConfig();
+    let cancelled = false;
+    void (async () => {
+    const cfg = await getExportConfig();
+    if (cancelled) return;
     cfg.generatedAt = new Date();
     setConfig(cfg);
     setIsLoading(true);
