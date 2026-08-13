@@ -77062,12 +77062,14 @@ export type Database = {
       }
       finance_ap_open_items: {
         Row: {
-          applied_amount: number | null
+          aging_bucket: string | null
           base_residual_amount: number | null
           branch_id: string | null
           business_id: string | null
           contact_id: string | null
+          credited_amount: number | null
           currency: string | null
+          days_past_due: number | null
           document_date: string | null
           document_id: string | null
           document_number: string | null
@@ -77077,7 +77079,9 @@ export type Database = {
           exchange_rate: number | null
           journal_entry_id: string | null
           organization_id: string | null
+          paid_amount: number | null
           residual_amount: number | null
+          source_kind: string | null
         }
         Relationships: []
       }
