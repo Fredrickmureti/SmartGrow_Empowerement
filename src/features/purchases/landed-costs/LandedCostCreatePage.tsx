@@ -72,17 +72,15 @@ export default function LandedCostCreatePage() {
   const navigate = useNavigate();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  const { rate: fxRate, isLoading: fxLoading } = useTenantFx();
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
   const { types, loading: typesLoading } = useLandedCostComponentTypes();
 
-  const baseCurrency = currentBusiness?.base_currency ?? "KES";
+  const baseCurrency = currentBusiness?.base_currency ?? "";
 
   const [voucherDate, setVoucherDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
-  const [currency, setCurrency] = useState(baseCurrency);
-  const [exchangeRate, setExchangeRate] = useState(1);
-  const [rateTouched, setRateTouched] = useState(false);
+  const [currency, setCurrency] = useState("");
   const [defaultBasis, setDefaultBasis] = useState<LandedCostBasis>("value");
   const [shipmentReference, setShipmentReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -94,28 +92,44 @@ export default function LandedCostCreatePage() {
   const { receipts, loading: receiptsLoading } =
     useCompletedGoodsReceipts(receiptSearch);
 
-  // Currency defaults follow the business once it resolves.
+  // The default currency is the business base currency — the same canonical
+  // context every other purchasing document uses. No module-specific default.
   useEffect(() => {
-    setCurrency((c) => (c === "KES" && baseCurrency ? baseCurrency : c));
-  }, [baseCurrency]);
+    if (!currency && baseCurrency) setCurrency(baseCurrency);
+  }, [baseCurrency, currency]);
 
-  // Rate is read from the canonical rate book; the operator may override it,
-  // and we never silently fall back to 1:1 for a foreign currency.
-  const bookRate = useMemo(
-    () =>
-      currency === baseCurrency
-        ? 1
-        : fxRate(currency, baseCurrency, voucherDate),
-    [currency, baseCurrency, voucherDate, fxRate],
-  );
-
-  useEffect(() => {
-    if (rateTouched) return;
-    if (bookRate !== null) setExchangeRate(bookRate);
-  }, [bookRate, rateTouched]);
+  // Display only. The authoritative rate is resolved and stamped server-side
+  // on insert; this call just shows the operator what the rate book holds
+  // (and its provenance) for the chosen currency and date.
+  const { data: fxRate, isLoading: fxLoading } = useQuery({
+    queryKey: [
+      "landed-cost-fx-describe",
+      currentOrg?.id,
+      currentBusiness?.id,
+      currency,
+      voucherDate,
+    ],
+    enabled:
+      !!currentOrg?.id && !!currentBusiness?.id && !!currency && !!voucherDate,
+    queryFn: async (): Promise<DescribedRate | null> => {
+      const { data, error } = await supabase.rpc("describe_exchange_rate", {
+        p_org_id: currentOrg!.id,
+        p_business_id: currentBusiness!.id,
+        p_currency: currency,
+        p_on_date: voucherDate,
+      });
+      if (error) throw error;
+      const row = (data as DescribedRate[] | null)?.[0];
+      return row ?? null;
+    },
+  });
 
   const missingRate =
-    currency !== baseCurrency && bookRate === null && !rateTouched && !fxLoading;
+    !!currency &&
+    !!baseCurrency &&
+    currency !== baseCurrency &&
+    !fxLoading &&
+    !fxRate;
 
   const addCharge = () => {
     const first = types[0];
@@ -145,7 +159,6 @@ export default function LandedCostCreatePage() {
     );
 
   const chargeTotal = charges.reduce((s, c) => s + (Number(c.amount) || 0), 0);
-  const baseTotal = chargeTotal * (Number(exchangeRate) || 0);
 
   const validCharges = charges.filter(
     (c) => c.componentTypeId && Number(c.amount) > 0,
@@ -155,9 +168,11 @@ export default function LandedCostCreatePage() {
     submitting ||
     !currentOrg?.id ||
     !currentBusiness?.id ||
+    !currency ||
+    missingRate ||
     validCharges.length === 0 ||
-    receiptIds.length === 0 ||
-    !(Number(exchangeRate) > 0);
+    receiptIds.length === 0;
+
 
   const onSubmit = async () => {
     if (submitDisabled) return;
