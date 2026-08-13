@@ -84979,6 +84979,10 @@ export type Database = {
           needs_employer: boolean
         }[]
       }
+      _pc_apply_activation: {
+        Args: { p_actor: string; p_contract_id: string }
+        Returns: Json
+      }
       _pc_emit: {
         Args: {
           _contract_id: string
