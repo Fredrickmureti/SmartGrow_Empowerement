@@ -174,6 +174,50 @@ export default function ContractListPage() {
         }
       />
       <PageBody>
+        <KpiRibbon>
+          <KpiTile
+            label="Active"
+            value={kpis.active}
+            hint={
+              kpis.ceilingValue
+                ? `${compactMoney(kpis.committedValue)} committed of ${compactMoney(kpis.ceilingValue)} ${currency}`
+                : "No value ceilings set"
+            }
+            tone={kpis.active ? "positive" : "neutral"}
+            loading={loading}
+          />
+          <KpiTile
+            label="Awaiting approval"
+            value={kpis.pendingApproval}
+            hint="Routed to the approval engine"
+            tone={kpis.pendingApproval ? "info" : "neutral"}
+            loading={loading}
+          />
+          <KpiTile
+            label="Expiring ≤ 30d"
+            value={kpis.expiring30}
+            hint={`${kpis.expiring60} in 60d · ${kpis.expiring90} in 90d`}
+            tone={kpis.expiring30 ? "critical" : kpis.expiring90 ? "warning" : "neutral"}
+            loading={loading}
+          />
+          <KpiTile
+            label="90%+ exhausted"
+            value={kpis.exhausted}
+            hint="Committed against the value ceiling"
+            tone={kpis.exhausted ? "critical" : "neutral"}
+            loading={loading}
+          />
+          <KpiTile
+            label="Off-contract leakage"
+            value={compactMoney(leakage.value)}
+            unit={currency || undefined}
+            hint={`${leakage.orderCount} orders on ${leakage.supplierCount} contracted suppliers, last ${leakage.windowDays}d`}
+            tone={leakage.orderCount ? "warning" : "neutral"}
+            higherIsBetter={false}
+            loading={loading}
+          />
+        </KpiRibbon>
+
         <FilterBar>
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -185,9 +229,22 @@ export default function ContractListPage() {
             />
           </div>
           <select
+            value={lens}
+            onChange={(e) => setLens(e.target.value as ContractLifecycleLens)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Lifecycle lens"
+          >
+            {(Object.keys(LENS_LABEL) as ContractLifecycleLens[]).map((k) => (
+              <option key={k} value={k}>
+                {LENS_LABEL[k]}
+              </option>
+            ))}
+          </select>
+          <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Status"
           >
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
@@ -197,7 +254,21 @@ export default function ContractListPage() {
             <option value="terminated">Terminated</option>
             <option value="suspended">Suspended</option>
           </select>
+          <select
+            value={supplier}
+            onChange={(e) => setSupplier(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Supplier"
+          >
+            <option value="all">All suppliers</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
         </FilterBar>
+
 
         {loading ? (
           <LoadingState />
