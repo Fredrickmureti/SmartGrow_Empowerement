@@ -52379,6 +52379,8 @@ export type Database = {
       }
       products: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           base_uom_id: string | null
           business_id: string
           category_id: string | null
@@ -52406,6 +52408,7 @@ export type Database = {
           is_serial_tracked: boolean
           is_variant_parent: boolean
           is_weighted: boolean | null
+          lifecycle_reason: string | null
           min_age: number | null
           min_order_quantity: number | null
           name: string
@@ -52422,6 +52425,7 @@ export type Database = {
           sales_account_id: string | null
           sales_uom_id: string | null
           sku: string | null
+          status: Database["public"]["Enums"]["product_lifecycle_status"]
           stock_quantity: number | null
           tare_weight: number | null
           tax_rate: number | null
@@ -52435,6 +52439,8 @@ export type Database = {
           weight_unit: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           base_uom_id?: string | null
           business_id: string
           category_id?: string | null
@@ -52462,6 +52468,7 @@ export type Database = {
           is_serial_tracked?: boolean
           is_variant_parent?: boolean
           is_weighted?: boolean | null
+          lifecycle_reason?: string | null
           min_age?: number | null
           min_order_quantity?: number | null
           name: string
@@ -52478,6 +52485,7 @@ export type Database = {
           sales_account_id?: string | null
           sales_uom_id?: string | null
           sku?: string | null
+          status?: Database["public"]["Enums"]["product_lifecycle_status"]
           stock_quantity?: number | null
           tare_weight?: number | null
           tax_rate?: number | null
@@ -52491,6 +52499,8 @@ export type Database = {
           weight_unit?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           base_uom_id?: string | null
           business_id?: string
           category_id?: string | null
@@ -52518,6 +52528,7 @@ export type Database = {
           is_serial_tracked?: boolean
           is_variant_parent?: boolean
           is_weighted?: boolean | null
+          lifecycle_reason?: string | null
           min_age?: number | null
           min_order_quantity?: number | null
           name?: string
@@ -52534,6 +52545,7 @@ export type Database = {
           sales_account_id?: string | null
           sales_uom_id?: string | null
           sku?: string | null
+          status?: Database["public"]["Enums"]["product_lifecycle_status"]
           stock_quantity?: number | null
           tare_weight?: number | null
           tax_rate?: number | null
@@ -100166,6 +100178,75 @@ export type Database = {
         Args: { p_action: string; p_contract_id: string; p_reason?: string }
         Returns: Json
       }
+      set_product_lifecycle_status: {
+        Args: { p_product_id: string; p_reason?: string; p_status: string }
+        Returns: {
+          archived_at: string | null
+          archived_by: string | null
+          base_uom_id: string | null
+          business_id: string
+          category_id: string | null
+          cogs_account_id: string | null
+          cost_price: number | null
+          created_at: string
+          description: string | null
+          etims_classification_code: string | null
+          etims_country_origin: string | null
+          etims_item_code: string | null
+          etims_origin_country: string | null
+          etims_packaging_unit: string | null
+          etims_registered_at: string | null
+          etims_registration_status: string | null
+          etims_unit_code: string | null
+          expiry_alert_days: number
+          id: string
+          image_url: string | null
+          inventory_account_id: string | null
+          is_active: boolean | null
+          is_age_restricted: boolean | null
+          is_expiry_tracked: boolean
+          is_lot_tracked: boolean
+          is_sample_data: boolean
+          is_serial_tracked: boolean
+          is_variant_parent: boolean
+          is_weighted: boolean | null
+          lifecycle_reason: string | null
+          min_age: number | null
+          min_order_quantity: number | null
+          name: string
+          order_quantity_increment: number | null
+          organization_id: string
+          plu_code: string | null
+          price_per_unit: number | null
+          purchase_account_id: string | null
+          purchase_uom_id: string | null
+          reorder_level: number | null
+          reorder_quantity: number | null
+          requires_qc: boolean
+          review_reason: string | null
+          sales_account_id: string | null
+          sales_uom_id: string | null
+          sku: string | null
+          status: Database["public"]["Enums"]["product_lifecycle_status"]
+          stock_quantity: number | null
+          tare_weight: number | null
+          tax_rate: number | null
+          tax_rate_id: string | null
+          track_inventory: boolean | null
+          type: Database["public"]["Enums"]["product_type"]
+          unit_price: number
+          updated_at: string
+          variant_axis_values: Json | null
+          variant_parent_id: string | null
+          weight_unit: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "products"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_proforma_status_atomic: {
         Args: {
           p_proforma_id: string
@@ -104645,6 +104726,7 @@ export type Database = {
         | "migration"
         | "pos"
       product_identifier_status: "active" | "inactive" | "archived"
+      product_lifecycle_status: "draft" | "active" | "discontinued" | "archived"
       product_type: "product" | "service"
       qc_resolution_kind:
         | "accept"
@@ -105872,6 +105954,7 @@ export const Constants = {
         "pos",
       ],
       product_identifier_status: ["active", "inactive", "archived"],
+      product_lifecycle_status: ["draft", "active", "discontinued", "archived"],
       product_type: ["product", "service"],
       qc_resolution_kind: [
         "accept",
