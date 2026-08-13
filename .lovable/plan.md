@@ -2,139 +2,105 @@
 
 Authoritative status document. Update it after every implementation step.
 
-**Active phase:** Phase 5 (lifecycle & localization extraction) — backend COMPLETE,
-client rewiring PARTIAL.
-**Next phase:** finish the Phase 5 client rewiring, then Phase 6 — `ProductForm`
-decomposition.
+**Active phase:** Phase 5 (lifecycle & localization) — backend verified COMPLETE,
+client rewiring PENDING.
+**Next phase:** finish Phase 5 client work, then Phase 5B (events + supplier terms),
+Phase 6 (`ProductForm` decomposition), Phase 7 (read model), Phase 8 (tests).
 
-## Completed and verified
+## Independent verification (this session)
 
-### Phase 0 — Architecture report
-`docs/adr/0140-product-domain-foundation.md` records the target shape of the
-product domain.
+Re-checked the previous engineer's claims directly against the live database and
+the codebase rather than trusting the log.
 
-### Phase 1 — Physical attributes foundation
-`product_physical_attributes` (base level + per-packaging level),
-`resolve_product_measure` as the single read seam, `uom_categories.dimension`
-populated, volume/length units seeded.
+Confirmed real:
+- `products` has **zero** `etims_*` columns; all 4 products have exactly one
+  `product_tax_localization` row. The localization extraction genuinely landed.
+- Lifecycle columns `status`, `archived_at`, `archived_by`, `lifecycle_reason`
+  all exist on `products`.
+- All six claimed functions exist: `save_product_atomic`,
+  `resolve_product_measure`, `set_product_lifecycle_status`,
+  `upsert_product_tax_localization`, `resolve_product_tax_localization`,
+  `resolve_fiscal_jurisdiction`.
+- Tables `product_physical_attributes`, `product_tax_localization` and the
+  pre-existing `supplier_item_terms` are present.
+- `product_packaging` carries `parent_packaging_id`, `qty_in_parent`,
+  `is_shipping_unit` — Phase 3 landed.
 
-### Phase 2 — Landed cost weight/volume allocation
-`landed_cost_allocate_voucher` supports the `weight` and `volume` bases through
-the measure seam.
+Confirmed still open (matches the previous engineer's own "remaining" list, so the
+log is honest, not inflated):
+- `ProductForm.tsx` still holds `etims_classification_code`, `etims_unit_code`,
+  `etims_packaging_unit`, `etims_country_origin` in `formData` and hydrates them
+  from `(editing as any).etims_*` — columns that no longer exist. **Today those
+  four fields silently hydrate empty on every edit and round-trip through the
+  backend compat layer.** This is a live data-integrity defect, not cosmetic.
+- `ProductDetailPanel.tsx` still renders the badge from `product.is_active ===
+  false`. `is_active` is now a derived column; the real lifecycle
+  (draft/active/deprecated/archived) is invisible everywhere in the UI.
+- No product lifecycle action exists in the UI at all — `set_product_lifecycle_status`
+  has no caller.
+- Only `product.created` is emitted through `publish_business_event`;
+  `product.updated` and `product.archived` are not.
+- `ProductForm.tsx` is still 1182 lines.
+- The two SQL suites written in earlier phases have still never been executed.
 
-### Phase 2R — Hardening (defects found during independent verification)
-- `resolve_product_measure` is now **fail-closed**: no configured reference unit
-  raises instead of returning raw, unconvertible numbers. Reference-unit choice
-  is deterministic (no `LIMIT 1` lottery).
-- Landed cost measures a receipt line at **its own packaging level**
-  (`packaging_id` × `display_quantity`) — a case weighs a case.
-- `_landed_cost_post_apply` resolves Inventory/COGS accounts per product via
-  `resolve_product_gl_account` and groups journal lines by resolved account,
-  replacing the generic posting accounts.
-- Guard: `supabase/tests/product_measure_landed_cost_basis_test.sql`.
+Verdict: Phases 0–4 are real and Phase 5's backend is real. The wave is genuinely
+at the point the log claims. No rework of landed phases is required.
 
-### Phase 3 — Nested packaging structure
-- `product_packaging` gains `parent_packaging_id`, `qty_in_parent`,
-  `is_shipping_unit`. `qty_in_base_uom` remains canonical for all arithmetic;
-  `qty_in_parent` is derived when omitted.
-- `trg_enforce_packaging_hierarchy` refuses cycles, cross-product/business
-  parents, depth beyond 8 levels, and any child whose base quantity contradicts
-  parent × units-per-parent. `trg_repropagate_packaging_children` refuses a
-  parent quantity change that would contradict a nested level.
-- One shipping unit per product (partial unique index).
-- Guard: `supabase/tests/product_packaging_hierarchy_test.sql`.
+## Plan
 
-### Phase 4 — Atomic product write
-- `save_product_atomic(p_product, p_product_id, p_packaging, p_physical,
-  p_identifiers)` saves master + packaging + measurements + identifiers in ONE
-  transaction. Identifier rows are routed through `upsert_product_identifier` /
-  `retire_product_identifier`, so identity invariants stay in one place.
-  New packaging levels are referenceable inside the same payload via
-  `client_key` / `parent_client_key` / `packaging_client_key`.
-  `authenticated` + `service_role` only; `anon`/`PUBLIC` revoked.
-- Client seam `src/features/products/save/saveProductAtomic.ts` owns the
-  operator copy (`describeProductSaveFailure`) — no SQLSTATE reaches a toast.
-- `ProductForm` submits one call for both create and edit. The three
-  best-effort `commit()` calls are gone, so "product created — packaging save
-  failed" half-records are structurally impossible.
-- The editors expose `collect()` payloads (`ProductPackagingEditor`,
-  `ProductPhysicalAttributesEditor`, `ProductIdentifiersEditor`); `commit()`
-  remains only for their standalone in-place save buttons.
-- Opening stock deliberately keeps `create_product_with_opening_stock_atomic`
-  (it posts to the ledger and may require approval); children are saved
-  atomically immediately after in that one path.
-- Guards: `src/test/architecture/product-save-single-transaction.test.ts`,
-  section 7 of `product_packaging_hierarchy_test.sql`.
+### Phase 5C — Finish the lifecycle & localization client (first, in order)
+1. Move the four eTIMS fields out of `formData` into a dedicated `localization`
+   state in `ProductForm`, hydrate on edit via `resolve_product_tax_localization`,
+   and submit them as the `localization` payload of `saveProductAtomic`. Remove
+   the `(editing as any).etims_*` reads.
+2. Once no client sends legacy keys, drop the `etims_*` compat branch from
+   `save_product_atomic` so there is one shape, not two.
+3. Replace the `is_active === false` badge in `ProductDetailPanel` with a status
+   badge and a lifecycle action driven by `allowedProductTransitions` /
+   `setProductLifecycleStatus`, surfacing `PRODUCT_ARCHIVE_HAS_STOCK` through the
+   existing operator-copy seam (no SQLSTATE in a toast).
+4. Repoint product pickers and list queries from `is_active` to
+   `status = 'active'`, and add an architecture test forbidding new
+   `is_active` filters on `products` so the derived column cannot drift back into
+   being treated as truth.
 
-### Phase 5 — Product lifecycle & localization extraction (ACTIVE)
-Done and verified at the database/edge boundary:
-- `product_lifecycle_status` enum + `status`, `archived_at`, `archived_by`,
-  `lifecycle_reason` on `products`. `is_active` is now DERIVED by
-  `trg_enforce_product_lifecycle` and must not be treated as the truth.
-- Transition matrix enforced in the trigger; `PRODUCT_ARCHIVE_HAS_STOCK` blocks
-  archiving a product that still holds stock;
-  `trg_reject_archived_product_movement` blocks movements on archived products
-  on every path. `set_product_lifecycle_status` is the only write seam.
-- `product_tax_localization` (per-jurisdiction fiscal metadata) created and
-  backfilled; the eight `etims_*` columns were DROPPED from `products`.
-  Seams: `upsert_product_tax_localization` / `resolve_product_tax_localization`.
-- `save_product_atomic` takes `p_localization` and still accepts legacy
-  `etims_*` keys on the product payload (compat layer).
-- eTIMS edge functions (`_shared/etims/invoice.ts`, `registerItem.ts`) read and
-  write fiscal metadata from `product_tax_localization` only.
-- Defect found and fixed during this step: the jurisdiction was derived from
-  `origin_country`, so an imported product was filed under the supplier's
-  country where eTIMS (`jurisdiction = 'KE'`) would never find it.
-  `resolve_fiscal_jurisdiction(business_id)` is now the source, existing rows
-  were repaired/de-duplicated, and
-  `trg_normalize_localization_jurisdiction` backstops the legacy create path.
-- Client seams added: `src/features/products/lifecycle/productLifecycle.ts`
-  (status labels, transition matrix mirroring the DB, error copy) and the
-  `localization` payload on `src/features/products/save/saveProductAtomic.ts`.
+### Phase 5B — Events and supplier-owned purchasing terms
+5. Emit `product.updated` and `product.archived` through `publish_business_event`
+   from the canonical write seams (`save_product_atomic`,
+   `set_product_lifecycle_status`) — not from the browser.
+6. Supplier-product relationship (in the parent prompt, absent from every prior
+   phase): confirm `supplier_item_terms` is the canonical owner of MOQ, order
+   increment, lead time, supplier SKU/UoM/currency and effective dates; add a
+   resolver with a product-level fallback and mark `products.min_order_quantity`
+   / `order_quantity_increment` as deprecated defaults in the ADR. No new engine.
 
-Remaining Phase 5 work (do this first):
-1. `ProductForm` still keeps `etims_*` in `formData` and relies on the backend
-   compat layer. Move those four fields into a dedicated `localization` state,
-   hydrate them on edit from `product_tax_localization` (the columns no longer
-   exist on `products`, so today they hydrate empty), and pass them as
-   `localization` to `saveProductAtomic`.
-2. Surface lifecycle in the UI: a status badge and a status action in
-   `ProductDetailPanel` driven by `setProductLifecycleStatus` /
-   `allowedProductTransitions`, replacing the `is_active === false` "Inactive"
-   badge.
-3. Ensure sales/purchase pickers filter on `status = 'active'` rather than
-   `is_active`.
-
-## Pending
+### Phase 5D — Historical immutability (appended; a real gap)
+7. Editing a product weight today retroactively changes how an already-posted
+   landed-cost voucher would allocate. Snapshot the allocation basis on the
+   voucher line at apply time so posted history cannot change meaning, and pin it
+   with a pgTAP test.
+8. Make "may a product without physical attributes be purchased/received" a
+   configuration value in the existing settings hierarchy rather than a failure
+   that only appears at allocation time.
 
 ### Phase 6 — `ProductForm` decomposition
-1193 lines in one file. Split into per-concern sections driven by the existing
-`RecordFormShell` sections; no behavioural change.
+Split the 1182-line file into per-concern sections over the existing
+`RecordFormShell`, each fed by the single `saveProductAtomic` command.
+Presentation only; no behavioural change and no business rules moved into React.
 
 ### Phase 7 — Read-model consolidation
-One product read model for list/detail/pickers, with the packaging hierarchy
-and measurements resolved server-side.
+One product read model for list, detail and pickers, with the packaging hierarchy,
+resolved measures and lifecycle status resolved server-side.
 
-## Verification not yet run
-The two new SQL suites (`product_measure_landed_cost_basis_test.sql`,
-`product_packaging_hierarchy_test.sql`) have not been executed against a live
-database — they are written to run inside a rolled-back transaction and need a
-psql/pgTAP run.
+### Phase 8 — Verification sweep (never yet run)
+Execute `product_measure_landed_cost_basis_test.sql`,
+`product_packaging_hierarchy_test.sql`, `bunx vitest run src/test/architecture`
+and a typecheck; then exercise the real UI: one save creating a nested pack +
+barcode + weight, and a forced failure proving nothing was written.
 
-## Instructions for the next agent
-1. **Verify before building.** Run the two SQL suites above and
-   `bunx vitest run src/test/architecture` plus `bunx tsgo --noEmit -p
-   tsconfig.app.json`. Then exercise the real UI: create a product with a
-   nested pack, a barcode and a weight in one save, and confirm one
-   transaction wrote everything; force a failure (e.g. contradictory pack
-   quantity) and confirm NOTHING was written and the operator sees the copy
-   from `describeProductSaveFailure`.
-2. Confirm `save_product_atomic` never writes `product_identifiers` directly
-   and stays `authenticated`-only.
-3. Also verify Phase 5: confirm `products` has no `etims_*` columns, that every
-   product has exactly one `product_tax_localization` row under its business
-   jurisdiction, that archiving a stocked product is refused, and that an
-   archived product cannot receive a stock movement on any path.
-4. Only after that, finish the three remaining Phase 5 client items above —
-   do not pick unrelated work and do not start Phase 6 while the lifecycle is
-   invisible in the UI.
+## Rules of engagement (unchanged)
+No new engines — reuse `convert_uom`, `resolve_product_identity`,
+`resolve_product_gl_account`, `publish_business_event`, `resolve_exchange_rate`,
+`cost_layers`. No business logic in the browser. Master data stays separate from
+transactional state. Product creation never creates inventory outside the explicit
+opening-balance workflow. Phases run in order; none is left partially landed.
