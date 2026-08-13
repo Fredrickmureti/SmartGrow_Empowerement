@@ -2,8 +2,10 @@
 
 Authoritative status document. Update it after every implementation step.
 
-**Active phase:** Phase 4 (atomic product write) — COMPLETE.
-**Next phase:** Phase 5 — product lifecycle & localization extraction.
+**Active phase:** Phase 5 (lifecycle & localization extraction) — backend COMPLETE,
+client rewiring PARTIAL.
+**Next phase:** finish the Phase 5 client rewiring, then Phase 6 — `ProductForm`
+decomposition.
 
 ## Completed and verified
 
@@ -64,15 +66,46 @@ the measure seam.
 - Guards: `src/test/architecture/product-save-single-transaction.test.ts`,
   section 7 of `product_packaging_hierarchy_test.sql`.
 
-## Pending
+### Phase 5 — Product lifecycle & localization extraction (ACTIVE)
+Done and verified at the database/edge boundary:
+- `product_lifecycle_status` enum + `status`, `archived_at`, `archived_by`,
+  `lifecycle_reason` on `products`. `is_active` is now DERIVED by
+  `trg_enforce_product_lifecycle` and must not be treated as the truth.
+- Transition matrix enforced in the trigger; `PRODUCT_ARCHIVE_HAS_STOCK` blocks
+  archiving a product that still holds stock;
+  `trg_reject_archived_product_movement` blocks movements on archived products
+  on every path. `set_product_lifecycle_status` is the only write seam.
+- `product_tax_localization` (per-jurisdiction fiscal metadata) created and
+  backfilled; the eight `etims_*` columns were DROPPED from `products`.
+  Seams: `upsert_product_tax_localization` / `resolve_product_tax_localization`.
+- `save_product_atomic` takes `p_localization` and still accepts legacy
+  `etims_*` keys on the product payload (compat layer).
+- eTIMS edge functions (`_shared/etims/invoice.ts`, `registerItem.ts`) read and
+  write fiscal metadata from `product_tax_localization` only.
+- Defect found and fixed during this step: the jurisdiction was derived from
+  `origin_country`, so an imported product was filed under the supplier's
+  country where eTIMS (`jurisdiction = 'KE'`) would never find it.
+  `resolve_fiscal_jurisdiction(business_id)` is now the source, existing rows
+  were repaired/de-duplicated, and
+  `trg_normalize_localization_jurisdiction` backstops the legacy create path.
+- Client seams added: `src/features/products/lifecycle/productLifecycle.ts`
+  (status labels, transition matrix mirroring the DB, error copy) and the
+  `localization` payload on `src/features/products/save/saveProductAtomic.ts`.
 
-### Phase 5 — Product lifecycle & localization extraction (NEXT)
-- `products` has no `status` / `archived_at`; `is_active` is a boolean stand-in
-  that cannot express draft vs active vs discontinued vs archived.
-- Add a lifecycle enum + transition guard, and block sales/purchase selection
-  of non-sellable states at the database, not just in pickers.
-- Move the `etims_*` columns off `products` into a localization extension table
-  so the core master stops carrying one country's tax vocabulary.
+Remaining Phase 5 work (do this first):
+1. `ProductForm` still keeps `etims_*` in `formData` and relies on the backend
+   compat layer. Move those four fields into a dedicated `localization` state,
+   hydrate them on edit from `product_tax_localization` (the columns no longer
+   exist on `products`, so today they hydrate empty), and pass them as
+   `localization` to `saveProductAtomic`.
+2. Surface lifecycle in the UI: a status badge and a status action in
+   `ProductDetailPanel` driven by `setProductLifecycleStatus` /
+   `allowedProductTransitions`, replacing the `is_active === false` "Inactive"
+   badge.
+3. Ensure sales/purchase pickers filter on `status = 'active'` rather than
+   `is_active`.
+
+## Pending
 
 ### Phase 6 — `ProductForm` decomposition
 1193 lines in one file. Split into per-concern sections driven by the existing
@@ -98,6 +131,10 @@ psql/pgTAP run.
    from `describeProductSaveFailure`.
 2. Confirm `save_product_atomic` never writes `product_identifiers` directly
    and stays `authenticated`-only.
-3. Only after that, start **Phase 5** — do not pick unrelated work, and do not
-   leave the lifecycle model half-applied (schema, guards, pickers and posting
-   paths land together).
+3. Also verify Phase 5: confirm `products` has no `etims_*` columns, that every
+   product has exactly one `product_tax_localization` row under its business
+   jurisdiction, that archiving a stocked product is refused, and that an
+   archived product cannot receive a stock movement on any path.
+4. Only after that, finish the three remaining Phase 5 client items above —
+   do not pick unrelated work and do not start Phase 6 while the lifecycle is
+   invisible in the UI.
