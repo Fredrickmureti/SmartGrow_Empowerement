@@ -71,34 +71,48 @@ export default function AgedPayables() {
 
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split("T")[0]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [pageLimit, setPageLimit] = useState(PAGE_SIZE);
   const [branchScope, setBranchScope] = useState<"current" | "all">(
     currentBranch?.id ? "current" : "all",
   );
 
+  // Debounce keystrokes into the server query; the browser never filters rows.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedSearch(searchQuery.trim());
+      setPageLimit(PAGE_SIZE);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const branchFilter =
     branchScope === "current" && currentBranch?.id ? currentBranch.id : null;
 
-  const { data, isLoading, refetch } = useApAging({
+  const agingArgs = {
     organizationId: currentOrg?.id,
     businessId: currentBusiness?.id,
     branchId: branchFilter,
     asOf: asOfDate,
+    search: appliedSearch || null,
+  };
+
+  const { data, isLoading, isFetching, refetch } = useApAging({
+    ...agingArgs,
+    limit: pageLimit,
+    offset: 0,
   });
 
-  const vendors = data?.vendors ?? [];
+  const vendors: ApAgingVendor[] = data?.vendors ?? [];
   const totals = data?.totals;
   const reconciliation = data?.reconciliation;
+  const page = data?.page;
+  const matchedCount = page?.filteredVendorCount ?? vendors.length;
+  const remaining = Math.max(matchedCount - vendors.length, 0);
 
-  const filteredVendors = useMemo(() => {
-    if (!searchQuery) return vendors;
-    const q = searchQuery.toLowerCase();
-    return vendors.filter((v) => v.vendorName.toLowerCase().includes(q));
-  }, [vendors, searchQuery]);
 
-  const visibleVendors = filteredVendors.slice(0, visibleCount);
 
   const toggleVendor = (vendorId: string) =>
     setExpandedVendors((prev) => {
