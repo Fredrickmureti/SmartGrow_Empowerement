@@ -21,7 +21,6 @@ import {
   ErrorState,
   EmptyState,
   KpiRibbon,
-  KpiTile,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
