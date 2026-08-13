@@ -40,9 +40,10 @@ the strength of the previous status file.
    `paid_amount = 0` and `credited_amount = 0`. A payment posted against a manual AP journal
    line stays in aging forever. Aging and the AP control account will drift the moment a
    manual AP accrual is paid.
-4. **Test suite cannot run in this sandbox.** `vitest`/`tsgo` binaries are not installed in
-   `node_modules`, so the guard tests were verified by reading them, not by execution. First
-   action in build mode is to install and run them.
+4. **Guard tests now execute and pass.** Dependencies were missing from the sandbox; after
+   restoring them, all four AP/statement guard suites run green (26 tests). These are static
+   architecture guards — they prove no drift, not that the SQL engine returns correct numbers.
+   That proof still depends on executing the SQL fixture (Phase 6).
 
 ---
 
