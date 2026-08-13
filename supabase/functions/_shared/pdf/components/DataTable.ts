@@ -172,9 +172,14 @@ function formatCellValue(
   isHeader: boolean,
   currency?: string,
   zeroAsDash?: boolean,
+  isTotalRow?: boolean,
 ): string {
   if (rawVal === null || rawVal === undefined || rawVal === "") {
-    return winansiSafe(isHeader ? "" : "—");
+    // A total row has no line number, no account code and no narration —
+    // printing "—" in those cells asserts a missing value that was never
+    // supposed to exist. Money columns keep the dash: there, "nothing on
+    // this side" is a real accounting statement.
+    return winansiSafe(isHeader || (isTotalRow && !isNumericColumn(col)) ? "" : "—");
   }
   // Statutory statements print a nil figure as a dash, never as 0.00 —
   // "0.00" asserts a measured zero, "—" asserts nothing to report.
