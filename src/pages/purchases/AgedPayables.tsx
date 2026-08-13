@@ -7,15 +7,21 @@
  * residual derivation and never reads bill status or paid-to-date columns:
  * the residual decides whether a document is open, and the as-of date bounds
  * both the obligation and every settlement against it.
+ *
+ * Phase 5.5 — search and paging are SERVER-side. The browser never filters or
+ * slices the vendor list, so a 10k-vendor tenant transfers one page, and the
+ * export re-runs the same query with no page limit rather than exporting
+ * whatever happened to be loaded.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useApAging, type ApAgingVendor } from "@/hooks/useApAging";
+import { useApAging, fetchApAging, type ApAgingVendor } from "@/hooks/useApAging";
+
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
