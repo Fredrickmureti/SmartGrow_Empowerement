@@ -432,7 +432,14 @@ export default function AgedPayables() {
                 })}
 
                 <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>Total ({totals?.vendorCount ?? 0} vendors)</TableCell>
+                  <TableCell>
+                    Total ({totals?.vendorCount ?? 0} vendors)
+                    {appliedSearch && (
+                      <span className="ml-1 font-normal text-xs text-muted-foreground">
+                        — matching “{appliedSearch}”: {formatCurrency(page?.filteredTotal ?? 0)}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals?.not_due ?? 0)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals?.current ?? 0)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days30 ?? 0)}</TableCell>
