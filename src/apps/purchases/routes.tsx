@@ -85,6 +85,7 @@ const VendorStatementRecordPage = lazy(
   () => import("@/features/purchases/statements/VendorStatementRecordPage"),
 );
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
+const ApReconciliation = lazy(() => import("@/pages/purchases/ApReconciliation"));
 const LandedCosts = lazy(() => import("@/pages/purchases/LandedCosts"));
 
 // P1 — Supplier 360 workbench (canonical supplier master).
