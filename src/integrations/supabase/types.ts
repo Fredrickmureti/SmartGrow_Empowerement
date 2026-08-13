@@ -91463,6 +91463,25 @@ export type Database = {
           source_kind: string
         }[]
       }
+      finance_ap_reconciliation_detail: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: {
+          contact_id: string
+          contact_name: string
+          document_count: number
+          ledger_net: number
+          projection_credit: number
+          projection_net: number
+          projection_open: number
+          reason: string
+          variance: number
+        }[]
+      }
       finance_ap_vendor_credit_as_of: {
         Args: {
           _as_of?: string
