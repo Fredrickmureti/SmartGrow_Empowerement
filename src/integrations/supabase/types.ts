@@ -85211,6 +85211,10 @@ export type Database = {
         Args: { _grn_id: string; _payload: Json; _state: string }
         Returns: undefined
       }
+      _emit_landed_cost_outbox: {
+        Args: { _payload: Json; _state: string; _voucher_id: string }
+        Returns: undefined
+      }
       _emit_po_outbox: {
         Args: {
           _business_id: string
@@ -93695,6 +93699,14 @@ export type Database = {
       }
       landed_cost_reverse_voucher: {
         Args: { p_actor?: string; p_reason: string; p_voucher_id: string }
+        Returns: Json
+      }
+      landed_cost_selftest: {
+        Args: { p_actor: string; p_business: string }
+        Returns: Json
+      }
+      landed_cost_selftest_run: {
+        Args: { p_actor: string; p_business: string }
         Returns: Json
       }
       leave_to_attendance_stamp: {
