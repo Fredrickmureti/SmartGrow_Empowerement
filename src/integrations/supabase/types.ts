@@ -51768,6 +51768,180 @@ export type Database = {
           },
         ]
       }
+      product_physical_attributes: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          dimension_uom_id: string | null
+          gross_weight: number | null
+          gross_weight_uom_id: string | null
+          height: number | null
+          id: string
+          length: number | null
+          net_weight: number | null
+          net_weight_uom_id: string | null
+          notes: string | null
+          organization_id: string
+          packaging_id: string | null
+          product_id: string
+          tare_weight: number | null
+          tare_weight_uom_id: string | null
+          updated_at: string
+          updated_by: string | null
+          volume: number | null
+          volume_uom_id: string | null
+          width: number | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          dimension_uom_id?: string | null
+          gross_weight?: number | null
+          gross_weight_uom_id?: string | null
+          height?: number | null
+          id?: string
+          length?: number | null
+          net_weight?: number | null
+          net_weight_uom_id?: string | null
+          notes?: string | null
+          organization_id: string
+          packaging_id?: string | null
+          product_id: string
+          tare_weight?: number | null
+          tare_weight_uom_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          volume?: number | null
+          volume_uom_id?: string | null
+          width?: number | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          dimension_uom_id?: string | null
+          gross_weight?: number | null
+          gross_weight_uom_id?: string | null
+          height?: number | null
+          id?: string
+          length?: number | null
+          net_weight?: number | null
+          net_weight_uom_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          packaging_id?: string | null
+          product_id?: string
+          tare_weight?: number | null
+          tare_weight_uom_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          volume?: number | null
+          volume_uom_id?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_physical_attributes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_dimension_uom_id_fkey"
+            columns: ["dimension_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_gross_weight_uom_id_fkey"
+            columns: ["gross_weight_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_net_weight_uom_id_fkey"
+            columns: ["net_weight_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_tare_weight_uom_id_fkey"
+            columns: ["tare_weight_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_physical_attributes_volume_uom_id_fkey"
+            columns: ["volume_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_pricing: {
         Row: {
           business_id: string
@@ -67373,6 +67547,7 @@ export type Database = {
         Row: {
           business_id: string
           created_at: string
+          dimension: string
           id: string
           name: string
           organization_id: string
@@ -67382,6 +67557,7 @@ export type Database = {
         Insert: {
           business_id: string
           created_at?: string
+          dimension?: string
           id?: string
           name: string
           organization_id: string
@@ -67391,6 +67567,7 @@ export type Database = {
         Update: {
           business_id?: string
           created_at?: string
+          dimension?: string
           id?: string
           name?: string
           organization_id?: string
@@ -87845,6 +88022,15 @@ export type Database = {
         Args: { p_as_of?: string; p_business_id: string }
         Returns: undefined
       }
+      assert_uom_dimension: {
+        Args: {
+          p_business: string
+          p_dimension: string
+          p_label: string
+          p_uom: string
+        }
+        Returns: undefined
+      }
       assign_employee_to_branch: {
         Args: {
           p_assignment_type?: string
@@ -99235,6 +99421,16 @@ export type Database = {
           sku: string
           status: string
         }[]
+      }
+      resolve_product_measure: {
+        Args: {
+          p_business: string
+          p_measure: string
+          p_packaging: string
+          p_product: string
+          p_target_uom?: string
+        }
+        Returns: number
       }
       resolve_product_price: {
         Args: {
