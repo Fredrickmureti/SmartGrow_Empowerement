@@ -26157,9 +26157,9 @@ export type Database = {
           capitalized_amount?: number
           created_at?: string
           created_by?: string | null
-          currency?: string
+          currency: string
           default_basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
-          exchange_rate?: number
+          exchange_rate: number
           exchange_rate_date?: string | null
           expensed_amount?: number
           id?: string
