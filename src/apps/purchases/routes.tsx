@@ -531,6 +531,20 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* AP subledger ↔ control account reconciliation drill-down */}
+        <Route
+          path="ap-reconciliation"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="AP Reconciliation">
+                <ApReconciliation />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
         
         {/* Catch all */}
         <Route path="*" element={<Navigate to="bills" replace />} />
