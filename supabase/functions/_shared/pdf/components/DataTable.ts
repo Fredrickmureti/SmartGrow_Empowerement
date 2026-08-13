@@ -513,6 +513,7 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
       const col = columns[i];
       let display = formatCellValue(
         col, row[col.key], isCaption, currency, statement,
+        !!(row._isSubtotal || row._isGrandTotal),
       );
       if (statement && treat.uppercase && i === 0) display = display.toUpperCase();
       const indent = i === 0 && depth > 0 ? depth * 12 : 0;
