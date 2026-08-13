@@ -3318,9 +3318,14 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   sales_order: "invoice",
   delivery_note: "invoice",
   sales_return: "credit_note",
-  customer_statement: "invoice",
-  vendor_statement: "invoice",
-  legal_recipient_statement: "invoice",
+  // Statements are ledgers, not transactional documents. Mapping them to the
+  // tenant's invoice template made them inherit invoice labels ("Bill To"),
+  // an item table and an "Amount Paid / Balance Due" block. An unmatched
+  // template_type falls back to DEFAULT_TEMPLATE_SETTINGS (branding only),
+  // which is exactly what a statement wants until a tenant configures one.
+  customer_statement: "statement",
+  vendor_statement: "statement",
+  legal_recipient_statement: "statement",
   bill: "invoice",
   // Wave 21 — inventory / warehouse A4 vouchers.
   // These reuse the invoice template shape (numbered header, tabular
