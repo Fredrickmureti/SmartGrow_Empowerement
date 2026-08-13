@@ -75,7 +75,7 @@ export interface ContractRow {
   start_date: string | null;
   end_date: string | null;
   ceiling_value: number | null;
-  utilized_value: number | null;
+  committed_value: number | null;
   currency: string | null;
 }
 
@@ -272,7 +272,7 @@ export function useSupplierRecord(id: string | null | undefined) {
       s
         .from("procurement_contracts")
         .select(
-          "id, contract_number, status, start_date, end_date, ceiling_value, utilized_value, currency",
+          "id, contract_number, status, start_date, end_date, ceiling_value, committed_value, currency",
         )
         .eq("supplier_id", id)
         .order("start_date", { ascending: false }),

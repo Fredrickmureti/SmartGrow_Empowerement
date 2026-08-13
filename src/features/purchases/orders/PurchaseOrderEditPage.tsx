@@ -56,6 +56,11 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { DeliverToPicker } from "@/components/addresses/DeliverToPicker";
 import { useBranches } from "@/hooks/useBranches";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
+import {
+  useSupplierContracts,
+  contractRemaining,
+  findContractLine,
+} from "@/features/purchases/contracts/useSupplierContracts";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
@@ -99,11 +104,37 @@ export default function PurchaseOrderEditPage() {
     notes: "",
     discount_amount: 0,
     project_id: null as string | null,
+    contract_id: null as string | null,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [primed, setPrimed] = useState(false);
 
   const { priceLists } = useVendorPriceLists(formData.vendor_id || undefined);
+  // Contract draw-down — same rule as create: one supplier agreement per PO,
+  // re-validated by the ceiling trigger on approval.
+  const { contracts } = useSupplierContracts(formData.vendor_id || null);
+  const selectedContract = contracts.find((c) => c.id === formData.contract_id);
+
+  const applyContract = (nextId: string) => {
+    const next = nextId === "none" ? null : nextId;
+    setFormData((prev) => ({ ...prev, contract_id: next }));
+    const contract = contracts.find((c) => c.id === next);
+    setLineItems((prev) =>
+      prev.map((item: any) => {
+        const line = findContractLine(contract, item.product_id);
+        if (!line) return { ...item, contract_line_id: null };
+        const unit_price = line.unit_price ?? item.unit_price;
+        const subtotal = (item.quantity || 0) * unit_price;
+        return {
+          ...item,
+          contract_line_id: line.id,
+          unit_price,
+          line_total: subtotal,
+          tax_amount: subtotal * ((item.tax_rate || 0) / 100),
+        };
+      }),
+    );
+  };
 
   useEffect(() => {
     if (!po || primed) return;
@@ -122,6 +153,8 @@ export default function PurchaseOrderEditPage() {
       discount_amount: po.discount_amount || 0,
       project_id:
         (po as unknown as { project_id?: string | null }).project_id ?? null,
+      contract_id:
+        (po as unknown as { contract_id?: string | null }).contract_id ?? null,
     });
     setLineItems(
       po.items && po.items.length > 0
@@ -135,6 +168,7 @@ export default function PurchaseOrderEditPage() {
             tax_amount: item.tax_amount,
             line_total: item.line_total,
             sort_order: item.sort_order,
+            contract_line_id: item.contract_line_id ?? null,
             project_id: item.project_id ?? null,
             task_id: item.task_id ?? null,
             packaging_id: item.packaging_id ?? null,
@@ -179,20 +213,26 @@ export default function PurchaseOrderEditPage() {
     (index: number, productId: string) => {
       const product = products.find((p) => p.id === productId);
       const vendorPrice = priceLists.find((pl) => pl.product_id === productId);
+      // Contract price outranks the vendor price list — it is the rate the
+      // ceiling trigger enforces.
+      const contractLine = findContractLine(selectedContract, productId);
       patchLineItem(index, {
         product_id: productId,
+        contract_line_id: contractLine?.id ?? null,
         ...(product
           ? {
               description: product.name,
-              unit_price: vendorPrice
-                ? vendorPrice.unit_price
-                : product.cost_price || product.unit_price,
+              unit_price:
+                contractLine?.unit_price ??
+                (vendorPrice
+                  ? vendorPrice.unit_price
+                  : product.cost_price || product.unit_price),
               tax_rate: product.tax_rate || 0,
             }
           : {}),
       } as Partial<LineItem>);
     },
-    [products, priceLists, patchLineItem],
+    [products, priceLists, patchLineItem, selectedContract],
   );
 
   // Scan-to-line — shared workspace transport, cost-priced seed.
@@ -262,6 +302,7 @@ export default function PurchaseOrderEditPage() {
           notes: formData.notes || null,
           discount_amount: formData.discount_amount,
           project_id: formData.project_id,
+          contract_id: formData.contract_id,
         } as Partial<PurchaseOrder>,
         validItems,
       );
@@ -379,9 +420,13 @@ export default function PurchaseOrderEditPage() {
               <Label>Supplier *</Label>
               <Select
                 value={formData.vendor_id}
-                onValueChange={(v) =>
-                  setFormData({ ...formData, vendor_id: v })
-                }
+                onValueChange={(v) => {
+                  // Contracts are supplier-specific — drop coverage on change.
+                  setFormData({ ...formData, vendor_id: v, contract_id: null });
+                  setLineItems((prev) =>
+                    prev.map((i: any) => ({ ...i, contract_line_id: null })),
+                  );
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select supplier" />
@@ -404,6 +449,36 @@ export default function PurchaseOrderEditPage() {
                   setFormData({ ...formData, order_date: e.target.value })
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Contract</Label>
+              <Select
+                value={formData.contract_id || "none"}
+                onValueChange={applyContract}
+                disabled={!formData.vendor_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No contract" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No contract (spot buy)</SelectItem>
+                  {contracts.map((c) => {
+                    const remaining = contractRemaining(c);
+                    return (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.contract_number} — {c.title}
+                        {remaining != null ? ` · ${remaining.toLocaleString()} left` : ""}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedContract && (
+                <p className="text-xs text-muted-foreground">
+                  Agreed prices and ceilings of {selectedContract.contract_number} are enforced on
+                  approval.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Expected delivery</Label>

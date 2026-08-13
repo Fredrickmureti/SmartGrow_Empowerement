@@ -109,6 +109,13 @@ export function usePurchaseOrderView(
             { label: "Order date", value: fmtDate(po.order_date) },
             { label: "Expected date", value: fmtDate(po.expected_date) },
             { label: "Currency", value: po.currency },
+            {
+              label: "Contract",
+              value:
+                (po as any).contract?.contract_number
+                  ? `${(po as any).contract.contract_number} — ${(po as any).contract.title}`
+                  : "Spot buy (no contract)",
+            },
             { label: "Billing status", value: formatStatus(po.billing_status ?? "no") },
             {
               // A PO destination is OUR location, never the supplier's

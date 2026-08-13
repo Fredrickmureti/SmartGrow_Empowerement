@@ -856,7 +856,7 @@ export default function SupplierRecordPage() {
                           {money(c.ceiling_value, c.currency)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {money(c.utilized_value, c.currency)}
+                          {money(c.committed_value, c.currency)}
                         </TableCell>
                       </TableRow>
                     ))}
