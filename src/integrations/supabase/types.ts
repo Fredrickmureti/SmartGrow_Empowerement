@@ -51700,10 +51700,13 @@ export type Database = {
           id: string
           is_purchase_default: boolean
           is_sales_default: boolean
+          is_shipping_unit: boolean
           name: string
           organization_id: string
+          parent_packaging_id: string | null
           product_id: string
           qty_in_base_uom: number
+          qty_in_parent: number | null
           updated_at: string
         }
         Insert: {
@@ -51712,10 +51715,13 @@ export type Database = {
           id?: string
           is_purchase_default?: boolean
           is_sales_default?: boolean
+          is_shipping_unit?: boolean
           name: string
           organization_id: string
+          parent_packaging_id?: string | null
           product_id: string
           qty_in_base_uom: number
+          qty_in_parent?: number | null
           updated_at?: string
         }
         Update: {
@@ -51724,10 +51730,13 @@ export type Database = {
           id?: string
           is_purchase_default?: boolean
           is_sales_default?: boolean
+          is_shipping_unit?: boolean
           name?: string
           organization_id?: string
+          parent_packaging_id?: string | null
           product_id?: string
           qty_in_base_uom?: number
+          qty_in_parent?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -51751,6 +51760,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "product_packaging_parent_packaging_id_fkey"
+            columns: ["parent_packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "product_packaging_product_id_fkey"
@@ -99954,6 +99970,16 @@ export type Database = {
           p_provider_id: string
         }
         Returns: string
+      }
+      save_product_atomic: {
+        Args: {
+          p_identifiers?: Json
+          p_packaging?: Json
+          p_physical?: Json
+          p_product: Json
+          p_product_id?: string
+        }
+        Returns: Json
       }
       scanner_issue_trust: {
         Args: {

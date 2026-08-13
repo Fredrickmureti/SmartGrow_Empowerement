@@ -60,3 +60,10 @@ Non-inventory and service items hide stock-related tabs.
 
 ADR-0002: AVCO on receipt (NOT FIFO). The ValuationTab badge says "AVCO" —
 do not change copy to FIFO without an ADR amendment.
+
+## Phase 3–4 (2026-08-13) — nested packaging + atomic product save
+- `product_packaging` now has `parent_packaging_id`, `qty_in_parent`, `is_shipping_unit`. `qty_in_base_uom` stays CANONICAL for all arithmetic; `qty_in_parent` is derived when omitted. `trg_enforce_packaging_hierarchy` refuses cycles, cross-product/business parents, depth > 8, and any child whose base quantity contradicts parent × qty_in_parent; `trg_repropagate_packaging_children` refuses a parent quantity change that would contradict a nested level. One shipping unit per product (partial unique index).
+- Product saves go through ONE transaction: `save_product_atomic(p_product, p_product_id, p_packaging, p_physical, p_identifiers)` — master + packaging + physical attributes + identifiers, all-or-nothing. Identifier writes inside it delegate to `upsert_product_identifier` / `retire_product_identifier` (never direct table writes). New packaging levels are referenced by measurement/identifier rows in the same payload via `client_key` / `parent_client_key` / `packaging_client_key`.
+- Client seam: `src/features/products/save/saveProductAtomic.ts` (`saveProductAtomic`, `describeProductSaveFailure`). Operator copy for save failures comes from there — no raw SQLSTATE in toasts. Opening stock stays on `create_product_with_opening_stock_atomic` (ledger path unchanged).
+- Guard: `supabase/tests/product_packaging_hierarchy_test.sql`.
+- NOT YET DONE: `src/pages/inventory/ProductForm.tsx` still does master save + three best-effort `commit()` calls (identifiers/packaging/physical). Wiring it to `saveProductAtomic` — which requires the child editors to expose `collect()` payloads instead of `commit()` — is the next step.
