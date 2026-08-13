@@ -50,7 +50,27 @@ Phase 5 is roughly one third landed and does not compile against the design syst
 
 ---
 
-## Phase 5A — Prove the engines before building UI on them
+## Phase 5A — Prove the engines before building UI on them — **DONE, PASSED**
+
+Executed via `public.landed_cost_selftest(business, actor)` (seeds a full PO → GRN →
+cost-layer → partial-sale scenario, runs allocate/post/reverse, then rolls everything
+back). All 13 assertions pass: allocation totals to the charge, non-stock line skipped
+with reason `not_inventory_tracked`, re-allocation idempotent, journal balances
+3 500 / 3 500, capitalised 2 400 + expensed 600, uplift applied to remaining quantity
+only, one revaluation row per layer, double-post refused, reversal reason required,
+reversal restores unit costs and mirrors the journal.
+
+Two genuine Phase 4 defects were found and fixed on the way:
+
+1. `landed_cost_clearing` / `cogs` were unresolvable — added `resolve_posting_account`
+   (branch → business `default_account_settings` → legacy fallback), registered the
+   `landed_cost_clearing` role and provisioned account 2099 per business.
+2. Posting and reversal always threw `event_type landed_cost.posted is not whitelisted`
+   — `emit_business_event` only whitelists `product.import.*` / `stock.*`. Replaced with
+   `_emit_landed_cost_outbox`, emitting `procurement.landed_cost.posted|reversed` through
+   the same outbox path goods receipts use.
+
+
 
 Do this first; building a workspace on unverified engines is how defects get hidden.
 
