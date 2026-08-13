@@ -165,7 +165,7 @@ export function EmailReportDialog({
     if (invalidCc) return toast.error(`Invalid CC address: ${invalidCc}`);
     if (invalidBcc) return toast.error(`Invalid BCC address: ${invalidBcc}`);
 
-    const cfg = buildConfig();
+    const cfg = await buildConfig();
     if (!cfg.organizationId) {
       toast.error("Cannot send: organization context is missing.");
       return;
