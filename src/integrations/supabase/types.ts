@@ -85211,6 +85211,10 @@ export type Database = {
         Args: { _grn_id: string; _payload: Json; _state: string }
         Returns: undefined
       }
+      _emit_landed_cost_outbox: {
+        Args: { _payload: Json; _state: string; _voucher_id: string }
+        Returns: undefined
+      }
       _emit_po_outbox: {
         Args: {
           _business_id: string
