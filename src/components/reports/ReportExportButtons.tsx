@@ -85,7 +85,7 @@ export function ReportExportButtons({
   const handleExport = async (format: "excel" | "csv") => {
     setIsExporting(true);
     try {
-      const config = buildConfig();
+      const config = await buildConfig();
 
       switch (format) {
         case "excel":
@@ -108,7 +108,7 @@ export function ReportExportButtons({
   const handlePrintReport = async () => {
     setIsGeneratingPDF(true);
     try {
-      const config = buildConfig();
+      const config = await buildConfig();
       await printReportAsPdf(config);
       toast.success("Report opened for printing");
     } catch (error) {
@@ -122,7 +122,7 @@ export function ReportExportButtons({
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     try {
-      const config = buildConfig();
+      const config = await buildConfig();
       await exportToPDF(config);
       toast.success("PDF downloaded successfully");
     } catch (error) {
@@ -237,7 +237,7 @@ export function ReportExportButtons({
         <ReportPreviewDialog
           open={showPreview}
           onOpenChange={setShowPreview}
-          getExportConfig={() => enrichExportConfig(getExportConfig())}
+          getExportConfig={async () => enrichExportConfig(await getExportConfig())}
         />
       )}
 
