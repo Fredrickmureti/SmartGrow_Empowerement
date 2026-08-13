@@ -38,3 +38,20 @@ type: feature
   `src/test/architecture/fx-single-engine.test.ts`,
   `src/test/architecture/reversal-intent-policy.test.ts`.
   Authority: ADR 0135, ADR 0136, ADR 0138.
+
+## Landed cost (audited 2026-08-13)
+
+- `landed_cost_vouchers.currency` must be an **active** code from `public.currencies`;
+  no schema default, no free text. UI picks it with the shared `CurrencyCombobox` +
+  `useCurrencies`; the default is the business base currency.
+- `_landed_cost_voucher_fx_stamp` (BEFORE INSERT/UPDATE) stamps `currency`,
+  `exchange_rate`, `exchange_rate_date` through `fx_stamp_document` →
+  `require_exchange_rate`. **Any rate sent by the browser is ignored.** Missing rate
+  raises. Currency/rate/rate-date are immutable once `posted` or `reversed`; changing
+  them on a draft re-values components via `_landed_cost_voucher_revalue_components`.
+- No `COALESCE(exchange_rate, 1)` anywhere in the landed cost path — allocation and
+  component sync raise instead of valuing at parity.
+- Create page displays provenance via `describe_exchange_rate` only (source +
+  effective date); it never converts an accounting amount.
+- Guards: `src/test/architecture/landed-cost-currency.test.ts`,
+  `supabase/tests/landed_cost_currency_fx_test.sql`.
