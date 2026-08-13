@@ -652,19 +652,26 @@ export default function VendorStatements() {
                               <Eye className="mr-2 h-4 w-4" />View Statement
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                              try {
-                                const data = await generateStatementData({ contact_id: statement.contact_id, period_start: statement.period_start, period_end: statement.period_end });
-                                await handleDownloadPdf(data);
-                              } catch (err: any) { toast.error("Failed to download: " + normalizeError(err).message); }
+                              // The statement is already saved: download its
+                              // frozen snapshot rather than re-folding the
+                              // ledger, so the bytes match what was archived.
+                              const res = await downloadVendorStatement({
+                                statementId: statement.id,
+                                format: "pdf",
+                                contactName: statement.contacts?.name,
+                                dateLabel: statement.period_start,
+                                periodEndLabel: statement.period_end,
+                              });
+                              if (!res.success) toast.error("Failed to download: " + (res.error ?? "Unknown error"));
                             }}>
                               <Download className="mr-2 h-4 w-4" />Download PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                              const res = await downloadExport({
-                                documentType: "vendor_statement",
-                                documentId: statement.id,
+                              const res = await downloadVendorStatement({
+                                statementId: statement.id,
                                 format: "csv",
-                                filename: `vendor-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "vendor"}.csv`,
+                                contactName: statement.contacts?.name,
+                                dateLabel: format(new Date(statement.statement_date), "yyyy-MM-dd"),
                               });
                               if (!res.success) toast.error("Export failed: " + (res.error ?? "Unknown error"));
                               else toast.success("CSV export archived to version history");
