@@ -10,7 +10,7 @@ import { normalizeError } from "@/services/resilience";
  * "who sent which report when" audit they get for outbound documents.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Mail, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
