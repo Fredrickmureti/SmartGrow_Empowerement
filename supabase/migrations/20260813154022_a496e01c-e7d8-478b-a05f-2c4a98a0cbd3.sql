@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.landed_cost_selftest(uuid, uuid) TO postgres, authenticated;
