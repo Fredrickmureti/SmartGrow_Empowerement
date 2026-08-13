@@ -68506,13 +68506,94 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_statement_send_jobs: {
+        Row: {
+          attempts: number
+          branch_id: string | null
+          business_id: string
+          claimed_at: string | null
+          completed_at: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          max_attempts: number
+          message: string | null
+          next_attempt_at: string
+          organization_id: string
+          recipient_email: string
+          requested_by: string | null
+          statement_id: string
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          branch_id?: string | null
+          business_id: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          max_attempts?: number
+          message?: string | null
+          next_attempt_at?: string
+          organization_id: string
+          recipient_email: string
+          requested_by?: string | null
+          statement_id: string
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          branch_id?: string | null
+          business_id?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          max_attempts?: number
+          message?: string | null
+          next_attempt_at?: string
+          organization_id?: string
+          recipient_email?: string
+          requested_by?: string | null
+          statement_id?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_statement_send_jobs_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_statements: {
         Row: {
+          branch_id: string | null
           business_id: string
           closing_balance: number
           contact_id: string
           created_at: string
           created_by: string | null
+          currency: string | null
+          document_record_id: string | null
+          finalized_at: string | null
           id: string
           opening_balance: number
           organization_id: string
@@ -68526,11 +68607,15 @@ export type Database = {
           total_payments: number
         }
         Insert: {
+          branch_id?: string | null
           business_id: string
           closing_balance?: number
           contact_id: string
           created_at?: string
           created_by?: string | null
+          currency?: string | null
+          document_record_id?: string | null
+          finalized_at?: string | null
           id?: string
           opening_balance?: number
           organization_id: string
@@ -68544,11 +68629,15 @@ export type Database = {
           total_payments?: number
         }
         Update: {
+          branch_id?: string | null
           business_id?: string
           closing_balance?: number
           contact_id?: string
           created_at?: string
           created_by?: string | null
+          currency?: string | null
+          document_record_id?: string | null
+          finalized_at?: string | null
           id?: string
           opening_balance?: number
           organization_id?: string
@@ -68562,6 +68651,20 @@ export type Database = {
           total_payments?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_statements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_statements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
           {
             foreignKeyName: "vendor_statements_business_id_fkey"
             columns: ["business_id"]
@@ -68596,6 +68699,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_party_supplier"
             referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "vendor_statements_document_record_id_fkey"
+            columns: ["document_record_id"]
+            isOneToOne: false
+            referencedRelation: "document_records"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "vendor_statements_organization_id_fkey"
@@ -88614,6 +88724,37 @@ export type Database = {
           target_kind: string
         }[]
       }
+      claim_vendor_statement_send_jobs: {
+        Args: { _limit?: number }
+        Returns: {
+          attempts: number
+          branch_id: string | null
+          business_id: string
+          claimed_at: string | null
+          completed_at: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          max_attempts: number
+          message: string | null
+          next_attempt_at: string
+          organization_id: string
+          recipient_email: string
+          requested_by: string | null
+          statement_id: string
+          status: string
+          subject: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "vendor_statement_send_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cleanup_automation_tracker: { Args: never; Returns: undefined }
       cleanup_old_hardware_exec_log: { Args: never; Returns: number }
       cleanup_orphan_signups: {
@@ -88840,6 +88981,10 @@ export type Database = {
       complete_tenant_ownership_transfer: {
         Args: { p_transfer_id: string }
         Returns: Json
+      }
+      complete_vendor_statement_send_job: {
+        Args: { _error?: string; _job_id: string; _success: boolean }
+        Returns: undefined
       }
       complete_yard_move: {
         Args: { p_confirmed_code?: string; p_task_id: string }
@@ -90902,6 +91047,15 @@ export type Database = {
           p_recipient_type?: string
           p_recipient_vendor_id?: string
           p_template_variables?: Json
+        }
+        Returns: string
+      }
+      enqueue_vendor_statement_send: {
+        Args: {
+          _message?: string
+          _recipient_email: string
+          _statement_id: string
+          _subject: string
         }
         Returns: string
       }
@@ -100536,6 +100690,37 @@ export type Database = {
           _system_role: string
         }
         Returns: string
+      }
+      upsert_vendor_statement_atomic: {
+        Args: { _payload: Json }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          closing_balance: number
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          document_record_id: string | null
+          finalized_at: string | null
+          id: string
+          opening_balance: number
+          organization_id: string
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          sent_at: string | null
+          sent_to: string | null
+          statement_date: string
+          total_billed: number
+          total_payments: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "vendor_statements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       user_belongs_to_org:
         | { Args: { _org_id: string; _user_id: string }; Returns: boolean }

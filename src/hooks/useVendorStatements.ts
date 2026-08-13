@@ -221,41 +221,47 @@ export function useVendorStatements() {
     };
   };
 
-  // Save statement record
+  // Save statement record.
+  //
+  // Server-authoritative and idempotent: `upsert_vendor_statement_atomic`
+  // owns tenancy checks, the contact↔business assertion and the uniqueness
+  // key (business, branch, contact, period). Re-running a period — a retried
+  // bulk run, a double click — updates the existing snapshot instead of
+  // minting a duplicate statement for the same vendor and period, which is
+  // what the AR side already guarantees.
   const saveStatement = useMutation({
     mutationFn: async (data: VendorStatementData) => {
       if (!organizationId) throw new Error("No organization selected");
       if (!currentBusiness?.id) throw new Error("No business selected");
 
-      const { data: userData } = await supabase.auth.getUser();
-
-      const { data: statement, error } = await supabase
-        .from("vendor_statements")
-        .insert({
-          organization_id: organizationId,
-          business_id: currentBusiness.id,
-          // Stamp branch from active context — keeps statement scoped per branch.
-          branch_id: data.branch_id ?? branchId,
-          contact_id: data.contact.id,
-          statement_date: new Date().toISOString().split('T')[0],
-          period_start: data.periodStart,
-          period_end: data.periodEnd,
-          opening_balance: data.openingBalance,
-          total_billed: data.transactions
-            .filter(t => t.type === 'bill')
-            .reduce((sum, t) => sum + t.debit, 0),
-          total_payments: data.transactions
-            .filter(t => t.type === 'payment' || t.type === 'vendor_credit_note')
-            .reduce((sum, t) => sum + t.credit, 0),
-          closing_balance: data.closingBalance,
-          created_by: userData?.user?.id,
-        } as any)
-        .select()
-        .single();
+      const { data: statement, error } = await supabase.rpc(
+        "upsert_vendor_statement_atomic" as any,
+        {
+          _payload: {
+            organization_id: organizationId,
+            business_id: currentBusiness.id,
+            branch_id: data.branch_id ?? branchId,
+            contact_id: data.contact.id,
+            statement_date: new Date().toISOString().split("T")[0],
+            period_start: data.periodStart,
+            period_end: data.periodEnd,
+            opening_balance: data.openingBalance,
+            total_billed: data.transactions
+              .filter((t) => t.type === "bill")
+              .reduce((sum, t) => sum + t.debit, 0),
+            total_payments: data.transactions
+              .filter((t) => t.type === "payment" || t.type === "vendor_credit_note")
+              .reduce((sum, t) => sum + t.credit, 0),
+            closing_balance: data.closingBalance,
+            currency: (currentBusiness as any)?.base_currency ?? null,
+          },
+        } as any,
+      );
 
       if (error) throw error;
-      return statement;
+      return Array.isArray(statement) ? statement[0] : statement;
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendor-statements"] });
       toast.success("Vendor statement saved");

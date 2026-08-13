@@ -8,11 +8,63 @@
  * document kind. Callers never touch `generate-document` or the legacy
  * `usePrintOrPreview` shim, which means archive rules, disposition rules
  * and the print-job audit trail cannot be bypassed by a manual click.
+ *
+ * Two dispositions, one snapshot — mirroring `dispatchCustomerStatement`:
+ *
+ *   • `downloadVendorStatement` — renders the frozen snapshot to bytes and
+ *     hands them to the browser. It never touches hardware and never mints a
+ *     print job.
+ *   • `dispatchVendorStatement` — the explicit print/output-intent path,
+ *     used only when an operator asks to print.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
 import { startPrintDocumentIntent } from "@/services/printing/PrintService";
+import { downloadExport, type ExportResult } from "@/services/exports";
+
+/** The ONE legacy `(documentType, documentId)` pair for this kind. */
+export const VENDOR_STATEMENT_DOC_TYPE = "vendor_statement" as const;
+
+export interface VendorStatementFileArgs {
+  /** `vendor_statements.id` of the saved statement. */
+  statementId: string;
+  /** Extract medium. `pdf` is a download, not a print job. */
+  format: "pdf" | "csv" | "xlsx";
+  /** Vendor name used in the offered filename. */
+  contactName?: string | null;
+  /** Statement date or period start, used in the offered filename. */
+  dateLabel?: string | null;
+  /** Optional period end; included in the filename when present. */
+  periodEndLabel?: string | null;
+}
+
+/** Deterministic, operator-legible filename for every AP statement surface. */
+export function vendorStatementFilename(args: VendorStatementFileArgs): string {
+  const parts = [
+    "vendor-statement",
+    (args.contactName ?? "vendor").trim().replace(/\s+/g, "-").toLowerCase() || "vendor",
+    args.dateLabel ?? null,
+    args.periodEndLabel ?? null,
+  ].filter(Boolean);
+  return `${parts.join("-")}.${args.format}`;
+}
+
+/**
+ * DOWNLOAD disposition. Renders the frozen snapshot and hands the bytes to
+ * the browser. Never throws — surfaces get a structured result.
+ */
+export async function downloadVendorStatement(
+  args: VendorStatementFileArgs,
+): Promise<ExportResult> {
+  return downloadExport({
+    documentType: VENDOR_STATEMENT_DOC_TYPE,
+    documentId: args.statementId,
+    format: args.format,
+    filename: vendorStatementFilename(args),
+  });
+}
+
 
 export interface DispatchVendorStatementArgs {
   /** `vendor_statements.id` of the saved statement. */

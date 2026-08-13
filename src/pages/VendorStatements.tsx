@@ -77,7 +77,8 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
-import { downloadExport } from "@/services/exports";
+import { downloadVendorStatement } from "@/features/purchases/statements/dispatchVendorStatement";
+import { fetchPayableCounterparties } from "@/services/finance/openItems";
 
 export default function VendorStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -214,7 +215,6 @@ export default function VendorStatements() {
         statementId = (saved as any)?.id;
         if (!statementId) {
           const { data: found } = await supabase
-            // SCOPE-EXEMPT: `vendor_statements` is workspace-wide (no business_id column)
             .from("vendor_statements")
             .select("id")
             .eq("contact_id", previewData.contact.id)
@@ -265,7 +265,6 @@ export default function VendorStatements() {
         statementId = (saved as any)?.id;
         if (!statementId) {
           const { data: found } = await supabase
-            // SCOPE-EXEMPT: `vendor_statements` is workspace-wide (no business_id column)
             .from("vendor_statements")
             .select("id")
             .eq("contact_id", dataToUse.contact.id)
@@ -283,11 +282,12 @@ export default function VendorStatements() {
       // "Download PDF" is a DOWNLOAD disposition — render the frozen
       // snapshot to PDF bytes and hand them to the browser. Dispatching a
       // print job here is what made a download silently hit a printer.
-      const res = await downloadExport({
-        documentType: "vendor_statement",
-        documentId: statementId,
+      const res = await downloadVendorStatement({
+        statementId,
         format: "pdf",
-        filename: `vendor-statement-${dataToUse.contact.name ?? "contact"}-${dataToUse.periodStart}-${dataToUse.periodEnd}.pdf`,
+        contactName: dataToUse.contact.name,
+        dateLabel: dataToUse.periodStart,
+        periodEndLabel: dataToUse.periodEnd,
       });
       if (!res.success) throw new Error(res.error ?? "Unknown error");
 
@@ -301,67 +301,91 @@ export default function VendorStatements() {
 
   const handleBulkGenerate = async (sendEmail = false) => {
     if (isBulkGenerating) return;
+    // A statement summarises one legal entity's books — refuse to bulk-run
+    // without a Company, which would cross entity boundaries.
+    if (!currentBusiness?.id) {
+      toast.error("Select a Company first to generate statements.");
+      return;
+    }
+    if (!currentOrg?.id) return;
     setIsBulkGenerating(true);
-    try {
-      let bulkQuery = supabase
-        .from("bills")
-        .select("vendor_id")
-        .eq("organization_id", currentOrg?.id)
-        .in("status", ["received", "partial", "overdue"])
-        .not("vendor_id", "is", null);
-      bulkQuery = bulkQuery.eq("business_id", currentBusiness!.id);
-      const { data: outstandingBills } = await bulkQuery;
 
-      if (!outstandingBills || outstandingBills.length === 0) {
-        toast.info("No vendors with outstanding bills found");
+    try {
+      // Canonical AP cohort: GL-anchored open items net of unapplied vendor
+      // credit. Never `bills.status`, which invents debt for unposted bills
+      // and hides payables that originate from manual journals.
+      const cohort = await fetchPayableCounterparties(
+        currentOrg.id,
+        currentBusiness.id,
+      );
+
+      if (cohort.length === 0) {
+        toast.info("No vendors with outstanding balances found");
         setIsBulkGenerating(false);
         return;
       }
 
-      const uniqueVendorIds = [...new Set(outstandingBills.map(b => b.vendor_id).filter(Boolean))] as string[];
-      setBulkProgress({ current: 0, total: uniqueVendorIds.length });
+      setBulkProgress({ current: 0, total: cohort.length });
 
       let successCount = 0;
-      let emailCount = 0;
-      for (let i = 0; i < uniqueVendorIds.length; i++) {
+      let queuedCount = 0;
+      let skippedNoEmail = 0;
+      const failures: string[] = [];
+      for (let i = 0; i < cohort.length; i++) {
+        const target = cohort[i];
         try {
           const data = await generateStatementData({
-            contact_id: uniqueVendorIds[i],
+            contact_id: target.contactId,
             period_start: periodStart,
             period_end: periodEnd,
           });
           const saved = await saveStatement.mutateAsync(data);
+          successCount++;
 
-          if (sendEmail && data.contact.email) {
-            try {
-              const stId = (saved as any)?.id;
-              if (stId) {
-                await supabase.functions.invoke("send-document-email", {
-                  body: {
-                    documentType: "vendor_statement",
-                    documentId: stId,
-                    to: data.contact.email,
-                    subject: `Account Statement - ${format(new Date(periodStart), "MMM yyyy")} to ${format(new Date(periodEnd), "MMM yyyy")}`,
-                    body: `Dear ${data.contact.name},\n\nPlease find attached the account statement for the period ${format(new Date(periodStart), "MMMM d, yyyy")} to ${format(new Date(periodEnd), "MMMM d, yyyy")}.\n\nClosing balance: ${formatCurrency(data.closingBalance)}\n\nBest regards`,
-                  },
-                });
-                emailCount++;
-              }
-            } catch (emailErr) {
-              console.error(`Email failed for ${data.contact.name}:`, emailErr);
+          if (sendEmail) {
+            const statementId = (saved as any)?.id;
+            if (!data.contact.email) {
+              skippedNoEmail++;
+            } else if (statementId) {
+              // Durable queue, not a browser email loop: one row per
+              // (statement, recipient) with an idempotency key, drained and
+              // retried by the scheduled worker.
+              const { error: queueError } = await supabase.rpc(
+                "enqueue_vendor_statement_send" as any,
+                {
+                  _statement_id: statementId,
+                  _recipient_email: data.contact.email,
+                  _subject: `Account Statement - ${format(new Date(periodStart), "MMM yyyy")} to ${format(new Date(periodEnd), "MMM yyyy")}`,
+                  _message: `Dear ${data.contact.name},\n\nPlease find attached the account statement for the period ${format(new Date(periodStart), "MMMM d, yyyy")} to ${format(new Date(periodEnd), "MMMM d, yyyy")}.\n\nClosing balance: ${formatCurrency(data.closingBalance)}\n\nBest regards`,
+                } as any,
+              );
+              if (queueError) throw queueError;
+              queuedCount++;
             }
           }
-          successCount++;
         } catch (err) {
-          console.error(`Failed for vendor ${uniqueVendorIds[i]}:`, err);
+          const message = normalizeError(err).message || "Unknown error";
+          console.error(`Failed for vendor ${target.contactId}:`, err);
+          failures.push(`${target.contactName}: ${message}`);
         }
-        setBulkProgress({ current: i + 1, total: uniqueVendorIds.length });
+        setBulkProgress({ current: i + 1, total: cohort.length });
       }
 
-      toast.success(sendEmail
-        ? `Generated ${successCount} statements, emailed ${emailCount}`
-        : `Generated ${successCount} of ${uniqueVendorIds.length} statements`
-      );
+      if (sendEmail) {
+        toast.success(
+          `Generated ${successCount} statements, queued ${queuedCount} for delivery` +
+            (skippedNoEmail > 0 ? ` (${skippedNoEmail} without an email address)` : ""),
+        );
+      } else {
+        toast.success(`Generated ${successCount} of ${cohort.length} statements`);
+      }
+      if (failures.length > 0) {
+        // Named failures, not a silent shortfall.
+        toast.error(
+          `${failures.length} statement(s) failed`,
+          { description: failures.slice(0, 3).join(" · ") },
+        );
+      }
     } catch (error: any) {
       toast.error("Bulk generation failed: " + (normalizeError(error).message || "Unknown error"));
     } finally {
@@ -628,19 +652,26 @@ export default function VendorStatements() {
                               <Eye className="mr-2 h-4 w-4" />View Statement
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                              try {
-                                const data = await generateStatementData({ contact_id: statement.contact_id, period_start: statement.period_start, period_end: statement.period_end });
-                                await handleDownloadPdf(data);
-                              } catch (err: any) { toast.error("Failed to download: " + normalizeError(err).message); }
+                              // The statement is already saved: download its
+                              // frozen snapshot rather than re-folding the
+                              // ledger, so the bytes match what was archived.
+                              const res = await downloadVendorStatement({
+                                statementId: statement.id,
+                                format: "pdf",
+                                contactName: statement.contacts?.name,
+                                dateLabel: statement.period_start,
+                                periodEndLabel: statement.period_end,
+                              });
+                              if (!res.success) toast.error("Failed to download: " + (res.error ?? "Unknown error"));
                             }}>
                               <Download className="mr-2 h-4 w-4" />Download PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                              const res = await downloadExport({
-                                documentType: "vendor_statement",
-                                documentId: statement.id,
+                              const res = await downloadVendorStatement({
+                                statementId: statement.id,
                                 format: "csv",
-                                filename: `vendor-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "vendor"}.csv`,
+                                contactName: statement.contacts?.name,
+                                dateLabel: format(new Date(statement.statement_date), "yyyy-MM-dd"),
                               });
                               if (!res.success) toast.error("Export failed: " + (res.error ?? "Unknown error"));
                               else toast.success("CSV export archived to version history");
