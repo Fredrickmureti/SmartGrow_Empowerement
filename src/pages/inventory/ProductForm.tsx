@@ -102,7 +102,6 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
   const { activeWarehouses } = useWarehouses();
   const { taxRates } = useTaxRates();
   const { isComplianceAvailable, complianceInfo } = useTaxCompliance();
-  const { createProduct, updateProduct } = useProducts();
   const queryClient = useQueryClient();
 
   const identifiersRef = useRef<ProductIdentifiersEditorHandle | null>(null);
