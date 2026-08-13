@@ -26070,6 +26070,48 @@ export type Database = {
           },
         ]
       }
+      landed_cost_voucher_receipts: {
+        Row: {
+          business_id: string
+          created_at: string
+          goods_receipt_id: string
+          id: string
+          organization_id: string
+          voucher_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          goods_receipt_id: string
+          id?: string
+          organization_id: string
+          voucher_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          goods_receipt_id?: string
+          id?: string
+          organization_id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landed_cost_voucher_receipts_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_voucher_receipts_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       landed_cost_vouchers: {
         Row: {
           allocated_at: string | null
@@ -93641,6 +93683,10 @@ export type Database = {
       }
       label_vars_for_product: {
         Args: { p_business_id: string; p_product_id: string }
+        Returns: Json
+      }
+      landed_cost_allocate_voucher: {
+        Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
       }
       leave_to_attendance_stamp: {
