@@ -75,8 +75,8 @@ export function ReportExportButtons({
   const { enrichExportConfig } = useReportExportContext();
 
   /** Single funnel — every export call enriches with org/branding context. */
-  const buildConfig = (): ExportConfig => {
-    const raw = getExportConfig();
+  const buildConfig = async (): Promise<ExportConfig> => {
+    const raw = await getExportConfig();
     const enriched = enrichExportConfig(raw);
     enriched.generatedAt = new Date();
     return enriched;
