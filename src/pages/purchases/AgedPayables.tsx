@@ -4,7 +4,7 @@
  * Every number on this screen comes from `get_ap_aging_summary`, which is
  * built on the point-in-time AP subledger projection
  * `finance_ap_open_items_as_of`. The browser does no aging arithmetic, no
- * residual derivation and never reads `bills.status` / `bills.amount_paid`:
+ * residual derivation and never reads bill status or paid-to-date columns:
  * the residual decides whether a document is open, and the as-of date bounds
  * both the obligation and every settlement against it.
  */
