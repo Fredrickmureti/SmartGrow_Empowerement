@@ -105,6 +105,9 @@ export function buildJournalEntryView(
   if (entry.void_reason) {
     detailFields.push({ label: "Void reason", value: entry.void_reason });
   }
+  for (const fact of sourceDocument?.facts ?? []) {
+    detailFields.push({ label: fact.label, value: formatCurrency(fact.amount) });
+  }
 
   const lineColumns: LineItemColumn[] = [
     { id: "account", header: "Account" },
