@@ -208,13 +208,25 @@ export default function AgedPayables() {
         {reconciliation && !reconciliation.inBalance && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Aging total {formatCurrency(reconciliation.agingTotal)} does not match the AP
-              control account {formatCurrency(reconciliation.controlAccountBalance)} as of{" "}
-              {fmtDate(asOfDate)} — variance {formatCurrency(reconciliation.variance)}.
+            <AlertDescription className="flex flex-wrap items-center gap-2">
+              <span>
+                Aging total {formatCurrency(reconciliation.agingTotal)} does not match the AP
+                control account {formatCurrency(reconciliation.controlAccountBalance)} as of{" "}
+                {fmtDate(asOfDate)} — variance {formatCurrency(reconciliation.variance)}.
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(`/purchases/ap-reconciliation?as_of=${asOfDate}`)
+                }
+              >
+                Investigate
+              </Button>
             </AlertDescription>
           </Alert>
         )}
+
 
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {summaryCards.map((card) => (
