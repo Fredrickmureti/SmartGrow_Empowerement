@@ -6,6 +6,10 @@ import { useBranch } from "@/contexts/BranchContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { parseAssistantContent, type ActionBlock } from "@/lib/ai/actionBlocks";
+import {
+  mapAssistantResponseError,
+  mapAssistantThrownError,
+} from "@/lib/ai/assistantErrors";
 
 type AIRequestType = "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions";
 
