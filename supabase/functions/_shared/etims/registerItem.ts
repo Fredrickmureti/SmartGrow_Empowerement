@@ -97,6 +97,28 @@ export async function handle(req: Request): Promise<Response> {
       );
     }
 
+    // Country-specific fiscal metadata lives in product_tax_localization,
+    // never on the product master.
+    const { data: localization } = await supabase
+      .from("product_tax_localization")
+      .select("*")
+      .eq("product_id", productId)
+      .eq("jurisdiction", "KE")
+      .maybeSingle();
+
+    const saveLocalization = (patch: Record<string, unknown>) =>
+      supabase.from("product_tax_localization").upsert(
+        {
+          organization_id: product.organization_id,
+          business_id: product.business_id,
+          product_id: productId,
+          jurisdiction: "KE",
+          ...patch,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "product_id,jurisdiction" },
+      );
+
     // Fetch the tax compliance config
     const { data: configData, error: configError } = await supabase
       .from("tax_compliance_configs")
@@ -121,12 +143,12 @@ export async function handle(req: Request): Promise<Response> {
     console.log(`Registering item with eTIMS. Mode: ${isTestMode ? 'sandbox' : 'production'}, URL: ${baseUrl}`);
 
     // Check if already registered
-    if (product.etims_item_code && product.etims_registration_status === "registered") {
+    if (localization?.item_code && localization.registration_status === "registered") {
       return new Response(
         JSON.stringify({ 
           success: true, 
           alreadyRegistered: true,
-          itemCode: product.etims_item_code,
+          itemCode: localization.item_code,
           message: "Product already registered with eTIMS" 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -144,13 +166,13 @@ export async function handle(req: Request): Promise<Response> {
       tin: config.tin,
       bhfId: config.bhf_id,
       itemCd: itemCode,
-      itemClsCd: product.etims_classification_code || "5020101", // Default classification
+      itemClsCd: localization?.classification_code || "5020101", // Default classification
       itemTyCd: product.type === "service" ? "3" : "1", // 1 = Raw Material, 2 = Finished Product, 3 = Service
       itemNm: product.name,
       itemStdNm: product.name,
-      orgnNatCd: product.etims_origin_country || "KE",
-      pkgUnitCd: product.etims_packaging_unit || "CT",
-      qtyUnitCd: product.etims_unit_code || "U",
+      orgnNatCd: localization?.origin_country || "KE",
+      pkgUnitCd: localization?.packaging_unit || "CT",
+      qtyUnitCd: localization?.unit_code || "U",
       taxTyCd: "A", // VAT 16% - should be from product tax settings
       btchNo: null,
       bcd: product.barcode || null,
@@ -234,32 +256,22 @@ export async function handle(req: Request): Promise<Response> {
           error_message: apiError.message,
         });
 
-        // Update product with failed status
-        await supabase
-          .from("products")
-          .update({
-            etims_registration_status: "failed",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", productId);
+        // Record the failure on the localization record
+        await saveLocalization({ registration_status: "failed" });
 
         throw apiError;
       }
     }
 
-    // Update product with eTIMS data
-    const { error: updateError } = await supabase
-      .from("products")
-      .update({
-        etims_item_code: registeredItemCode,
-        etims_registered_at: new Date().toISOString(),
-        etims_registration_status: "registered",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", productId);
+    // Record the registration on the localization record
+    const { error: updateError } = await saveLocalization({
+      item_code: registeredItemCode,
+      registered_at: new Date().toISOString(),
+      registration_status: "registered",
+    });
 
     if (updateError) {
-      console.error("Failed to update product:", updateError);
+      console.error("Failed to update product tax localization:", updateError);
     }
 
     // Log the successful registration
