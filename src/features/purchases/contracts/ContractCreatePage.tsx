@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import { useCurrencyContext } from "@/contexts/CurrencyContext";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
 import { useProducts } from "@/hooks/useProducts";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -227,19 +228,12 @@ export default function ContractCreatePage() {
             </div>
             <div>
               <Label>Currency</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  {currencies.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.code} — {c.name}
-                      {c.code === baseCurrency ? " (base)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CurrencyCombobox
+                currencies={currencies}
+                value={currency}
+                onValueChange={setCurrency}
+                placeholder="Search currency..."
+              />
             </div>
             <div>
               <Label>Price tolerance (%)</Label>
