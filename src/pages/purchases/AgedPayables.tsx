@@ -443,17 +443,23 @@ export default function AgedPayables() {
               </TableBody>
             </Table>
 
-            {filteredVendors.length > visibleVendors.length && (
-              <div className="flex justify-center p-3">
+            {remaining > 0 && (
+              <div className="flex flex-col items-center gap-1 p-3">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  disabled={isFetching}
+                  onClick={() => setPageLimit((c) => c + PAGE_SIZE)}
                 >
-                  Show more ({filteredVendors.length - visibleVendors.length} remaining)
+                  {isFetching && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                  Show more ({remaining} remaining)
                 </Button>
+                <p className="text-xs text-muted-foreground">
+                  Showing {vendors.length} of {matchedCount} vendors
+                </p>
               </div>
             )}
+
           </div>
         )}
       </div>
