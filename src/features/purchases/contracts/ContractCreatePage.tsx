@@ -227,19 +227,12 @@ export default function ContractCreatePage() {
             </div>
             <div>
               <Label>Currency</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  {currencies.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.code} — {c.name}
-                      {c.code === baseCurrency ? " (base)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CurrencyCombobox
+                currencies={currencies}
+                value={currency}
+                onValueChange={setCurrency}
+                placeholder="Search currency..."
+              />
             </div>
             <div>
               <Label>Price tolerance (%)</Label>
