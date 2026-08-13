@@ -2,10 +2,16 @@
  * ProductForm — routed create/edit surface for a Product / Service.
  *
  * Replaces the legacy inline `<Dialog>` in `src/pages/Products.tsx`. Same
- * behavior (opening-stock atomic RPC, identifier commit, packaging commit,
- * scanner onboarding prefill) but hosted on `/inventory-app/products/new`
+ * behavior (opening-stock atomic RPC, scanner onboarding prefill) but hosted
+ * on `/inventory-app/products/new`
  * and `/inventory-app/products/:id/edit` inside `RecordFormShell` — the
  * enterprise UX standard.
+ *
+ * Save is ONE transaction: `saveProductAtomic` sends the master row together
+ * with packaging levels, measurements and identifiers, so a failure in any
+ * child can never leave a half-built product behind (the old "product created
+ * — packaging save failed" toast). Opening stock keeps its own dedicated RPC
+ * because it posts to the general ledger and may require approval.
  */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -49,6 +55,7 @@ import { useProductUomLock } from "@/hooks/inventory/useProductUomLock";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
+import { saveProductAtomic } from "@/features/products/save/saveProductAtomic";
 
 import { ProductImageUpload } from "@/components/products/ProductImageUpload";
 import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
