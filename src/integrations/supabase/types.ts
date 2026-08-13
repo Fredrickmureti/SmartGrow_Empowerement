@@ -99145,6 +99145,10 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_posting_account: {
+        Args: { p_branch_id?: string; p_business_id: string; p_key: string }
+        Returns: string
+      }
       resolve_product_account_override: {
         Args: {
           p_business_id: string
