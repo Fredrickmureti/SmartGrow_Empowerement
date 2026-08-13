@@ -32,6 +32,8 @@ interface BuildOpts {
   formatCurrency: (n: number) => string;
   /** Look up related entries by id (for reversal chip labels). */
   findEntry?: (id: string) => JournalEntry | undefined;
+  /** Originating business document, resolved by `useJournalSourceDocument`. */
+  sourceDocument?: JournalSourceDocument | null;
 }
 
 export interface JournalEntryView {
