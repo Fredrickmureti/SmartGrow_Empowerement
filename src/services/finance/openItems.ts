@@ -488,3 +488,92 @@ export async function fetchNetPositionByCurrency(
       maxDaysOverdue: Number(r.max_days_overdue) || 0,
     }));
 }
+
+export interface PayableCounterparty {
+  contactId: string;
+  contactName: string;
+  netAmount: number;
+  maxDaysOverdue: number;
+}
+
+/**
+ * The set of vendors we actually owe money to right now — the AP mirror of
+ * {@link fetchReceivableCounterparties}.
+ *
+ * ADR: this is the ONLY sanctioned cohort for vendor-statement runs and
+ * payment sweeps. There is no `finance_ap_net_position` view, so the cohort is
+ * folded here from the two GL-anchored projections: `finance_ap_open_items`
+ * (residual per posted payable, JE-gated) less `finance_ap_vendor_credit`
+ * (unapplied vendor credit). A cohort derived from `bills.status` is wrong in
+ * both directions — it invents debt for unposted bills and hides payables that
+ * came from manual journals on the AP control account.
+ */
+export async function fetchPayableCounterparties(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<PayableCounterparty[]> {
+  const today = asOf ?? new Date().toISOString().slice(0, 10);
+
+  let openQ = supabase
+    .from("finance_ap_open_items" as any)
+    .select("contact_id, residual_amount, base_residual_amount, due_date")
+    .eq("organization_id", orgId)
+    .gt("residual_amount", 0.01);
+  if (businessId) openQ = openQ.eq("business_id", businessId);
+  if (branchId) openQ = openQ.eq("branch_id", branchId);
+
+  let creditQ = supabase
+    .from("finance_ap_vendor_credit" as any)
+    .select("contact_id, credit_amount, base_credit_amount")
+    .eq("organization_id", orgId);
+  if (businessId) creditQ = creditQ.eq("business_id", businessId);
+
+  const [openRes, creditRes] = await Promise.all([openQ, creditQ]);
+  if (openRes.error) throw openRes.error;
+  if (creditRes.error) throw creditRes.error;
+
+  const byContact = new Map<string, PayableCounterparty>();
+  const asOfMs = new Date(`${today}T00:00:00Z`).getTime();
+
+  for (const r of (openRes.data || []) as any[]) {
+    if (!r.contact_id) continue;
+    const amount = Number(r.base_residual_amount ?? r.residual_amount) || 0;
+    const overdue = r.due_date
+      ? Math.max(0, Math.floor((asOfMs - new Date(`${r.due_date}T00:00:00Z`).getTime()) / 86_400_000))
+      : 0;
+    const existing = byContact.get(r.contact_id);
+    if (existing) {
+      existing.netAmount += amount;
+      existing.maxDaysOverdue = Math.max(existing.maxDaysOverdue, overdue);
+    } else {
+      byContact.set(r.contact_id, {
+        contactId: r.contact_id,
+        contactName: "Unknown",
+        netAmount: amount,
+        maxDaysOverdue: overdue,
+      });
+    }
+  }
+
+  for (const r of (creditRes.data || []) as any[]) {
+    if (!r.contact_id) continue;
+    const credit = Number(r.base_credit_amount ?? r.credit_amount) || 0;
+    const existing = byContact.get(r.contact_id);
+    if (existing) existing.netAmount -= credit;
+  }
+
+  const rows = Array.from(byContact.values()).filter((r) => r.netAmount > 0.01);
+  if (rows.length === 0) return [];
+
+  // Names are a display concern, resolved once for the whole cohort.
+  const { data: names } = await supabase
+    .from("contacts")
+    .select("id, name")
+    .in("id", rows.map((r) => r.contactId));
+  const nameById = new Map((names || []).map((c: any) => [c.id, c.name as string]));
+  for (const r of rows) r.contactName = nameById.get(r.contactId) || "Unknown";
+
+  return rows.sort((a, b) => b.netAmount - a.netAmount);
+}
