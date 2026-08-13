@@ -17,6 +17,9 @@ import { RotateCcw, Undo2 } from "lucide-react";
 import { GoodsReceiptReturnLedger } from "./GoodsReceiptReturnLedger";
 import { ReverseGoodsReceiptDialog } from "@/components/purchases/ReverseGoodsReceiptDialog";
 import { useGoodsReceiptsForOrder, type OrderGoodsReceipt } from "./useGoodsReceiptsForOrder";
+import { LandedCostReceiptChip } from "@/features/purchases/landed-costs/LandedCostReceiptChip";
+import { useLandedCostReceiptSummary } from "@/features/purchases/landed-costs/useLandedCostReporting";
+import { useCurrency } from "@/hooks/useCurrency";
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
