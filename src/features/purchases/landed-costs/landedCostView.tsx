@@ -103,7 +103,7 @@ export function useLandedCostView(
           {
             label: "Expensed to COGS",
             value: formatCurrency(Number(voucher.expensed_amount ?? 0)),
-            emphasis: true,
+            emphasized: true,
           },
         ]
       : [];
