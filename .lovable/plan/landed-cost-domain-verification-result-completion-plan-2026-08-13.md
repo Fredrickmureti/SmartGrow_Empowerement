@@ -138,4 +138,5 @@ Any failure here becomes a Phase 4 fix and is done before Phase 5B.
    `products` has no net weight or volume master data. Enabling them is a
    product-master change, not a landed-cost change.
 2. Approval gating on posting is modelled but not enforced.
-3. All engine behaviour remains unproven until Phase 5A runs.
+3. Engine behaviour is proven (Phase 5A). Next: Phase 5B UI.
+
