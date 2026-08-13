@@ -13,13 +13,24 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calculator, BookCheck, RotateCcw, Trash2 } from "lucide-react";
+import {
+  Calculator,
+  BookCheck,
+  RotateCcw,
+  Trash2,
+  FileSearch,
+  Printer,
+  Download,
+} from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
+import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
+import { useRecordDownload } from "@/features/purchases/record/useRecordDownload";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +64,12 @@ export function useLandedCostActions(
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
+  // Output disposition. Preview / Print / Download render the SAME frozen
+  // snapshot through the one document pipeline; a landed cost voucher is
+  // internal costing evidence, so there is deliberately no Email verb.
+  const { preview } = useDocumentPreview();
+  const { print, printing } = useRecordPrint("landed_cost_voucher");
+  const { download, downloading } = useRecordDownload("landed_cost_voucher");
   const [prompt, setPrompt] = useState<PromptKind>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,6 +96,7 @@ export function useLandedCostActions(
   const actions = useMemo<DocumentAction[]>(() => {
     if (!voucher) return [];
     const status = String(voucher.status);
+    const voucherLabel = voucher.voucher_number ?? voucher.id.slice(0, 8);
     const componentCount = record?.components.length ?? 0;
     const scopeCount = record?.scope.length ?? 0;
     const chargeTotal = (record?.components ?? []).reduce(
@@ -179,6 +197,35 @@ export function useLandedCostActions(
         }),
       },
       {
+        id: "preview",
+        label: "Preview",
+        icon: FileSearch,
+        group: "output",
+        onSelect: () =>
+          preview({
+            documentType: "landed_cost_voucher",
+            documentId: voucher.id,
+            title: `Landed cost ${voucherLabel}`,
+            filename: `landed-cost-${voucherLabel}`,
+          }),
+      },
+      {
+        id: "print",
+        label: printing ? "Generating…" : "Print",
+        icon: Printer,
+        group: "output",
+        disabled: printing,
+        onSelect: () => void print(voucher.id, `Landed cost ${voucherLabel}`),
+      },
+      {
+        id: "download",
+        label: downloading ? "Preparing…" : "Download PDF",
+        icon: Download,
+        group: "output",
+        disabled: downloading,
+        onSelect: () => void download(voucher.id, `landed-cost-${voucherLabel}`),
+      },
+      {
         id: "delete",
         label: "Delete voucher",
         icon: Trash2,
@@ -191,7 +238,18 @@ export function useLandedCostActions(
     ];
     // `run` is recreated each render by design; the deps below are the real inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voucher, record, busy, isReadOnly, openUpgradeModal]);
+  }, [
+    voucher,
+    record,
+    busy,
+    isReadOnly,
+    openUpgradeModal,
+    preview,
+    print,
+    printing,
+    download,
+    downloading,
+  ]);
 
   const dialogs = (
     <>
