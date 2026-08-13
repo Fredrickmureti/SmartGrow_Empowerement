@@ -171,10 +171,13 @@ export default function LandedCostCreatePage() {
           business_id: currentBusiness!.id,
           status: "draft",
           voucher_date: voucherDate,
+          // Currency is a canonical ISO code; the exchange rate and rate date
+          // are stamped SERVER-side by `_landed_cost_voucher_fx_stamp`
+          // (fx_stamp_document → require_exchange_rate). The browser never
+          // supplies a booking rate.
           currency,
-          exchange_rate: Number(exchangeRate),
-          exchange_rate_date: voucherDate,
           default_basis: defaultBasis,
+
           shipment_reference: shipmentReference.trim() || null,
           notes: notes.trim() || null,
         } as never)
@@ -263,39 +266,44 @@ export default function LandedCostCreatePage() {
           </FieldCell>
           <FieldCell>
             <Label htmlFor="lc-currency">Charge currency</Label>
-            <Input
-              id="lc-currency"
+            <CurrencyCombobox
+              currencies={currencies}
               value={currency}
-              onChange={(e) => {
-                setCurrency(e.target.value.toUpperCase().slice(0, 3));
-                setRateTouched(false);
-              }}
+              onValueChange={setCurrency}
+              disabled={currenciesLoading}
             />
           </FieldCell>
           <FieldCell>
-            <Label htmlFor="lc-rate">Rate to {baseCurrency}</Label>
-            <NumericInput
-              id="lc-rate"
-              value={exchangeRate}
-              onValueChange={(v) => {
-                setRateTouched(true);
-                setExchangeRate(v ?? 0);
-              }}
-              disabled={currency === baseCurrency}
-            />
-            {missingRate ? (
+            <Label>Exchange rate</Label>
+            {currency === baseCurrency ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Charges are already in the base currency — no conversion applies.
+              </p>
+            ) : fxLoading ? (
+              <p className="mt-1 text-xs text-muted-foreground">Resolving rate…</p>
+            ) : fxRate ? (
+              <div className="text-sm">
+                <div className="font-medium">
+                  1 {currency} = {Number(fxRate.rate).toLocaleString(undefined, {
+                    maximumFractionDigits: 6,
+                  })}{" "}
+                  {baseCurrency}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Source: {RATE_SOURCE_LABEL[fxRate.source ?? ""] ?? fxRate.source}
+                  {" · Effective: "}
+                  {fxRate.effective_date}
+                </p>
+              </div>
+            ) : (
               <p className="mt-1 text-xs text-destructive">
                 No rate on file for {currency} → {baseCurrency} on {voucherDate}.
-                Add one to the rate book or enter the contracted rate.
-              </p>
-            ) : (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {currency === baseCurrency
-                  ? "Charges are already in the base currency."
-                  : "Pre-filled from the canonical rate book."}
+                Publish or override a rate in the rate book before saving — the
+                voucher cannot be valued at parity.
               </p>
             )}
           </FieldCell>
+
           <FieldCell>
             <Label>Default allocation basis</Label>
             <Select
@@ -443,10 +451,11 @@ export default function LandedCostCreatePage() {
                 </div>
                 {currency !== baseCurrency && (
                   <div className="text-xs text-muted-foreground">
-                    ≈ {baseTotal.toFixed(2)} {baseCurrency}
+                    Base-currency value is stamped by the server on save.
                   </div>
                 )}
               </div>
+
             </div>
           </div>
         )}
