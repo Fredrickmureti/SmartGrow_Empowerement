@@ -69,6 +69,12 @@ function dateTime(v: unknown): string | null {
   return `${formatDate(iso.slice(0, 10))} ${iso.slice(11, 16)}`;
 }
 
+/** "expense" → "Expense", "bank_feed" → "Bank feed". */
+function humanise(v: unknown): string | null {
+  const s = str(v)?.replace(/_/g, " ");
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : null;
+}
+
 /**
  * A voucher is a filed accounting record with an account column, two money
  * columns and a signature strip. None of that survives an 80 mm roll, and
