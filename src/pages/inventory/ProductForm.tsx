@@ -100,6 +100,8 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
   const identifiersRef = useRef<ProductIdentifiersEditorHandle | null>(null);
   const packagingRef = useRef<ProductPackagingEditorHandle | null>(null);
+  const physicalRef = useRef<ProductPhysicalAttributesEditorHandle | null>(null);
+
 
   const editing = mode === "edit" ? product ?? null : null;
 
