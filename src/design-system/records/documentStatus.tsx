@@ -183,6 +183,14 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
     active: { label: "Active", tone: "success" },
     expired: { label: "Expired", tone: "warning" },
   },
+  landed_cost_voucher: {
+    // The voucher lifecycle is charge capture → allocation → GL posting.
+    // "Allocated" means the cost is spread but the ledger has not moved yet.
+    pending_approval: { label: "Pending approval", tone: "warning" },
+    allocated: { label: "Allocated", tone: "accent" },
+    posted: { label: "Posted", tone: "success" },
+    reversed: { label: "Reversed", tone: "danger" },
+  },
 };
 
 
