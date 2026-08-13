@@ -9,6 +9,7 @@ import { DocumentActionsMenu } from "@/design-system/records";
 import { useJournalEntries } from "@/hooks/useJournalEntries";
 import { useCurrency } from "@/hooks/useCurrency";
 import { buildJournalEntryView } from "./journalEntryView";
+import { useJournalSourceDocument } from "./useJournalSourceDocument";
 import { useJournalEntryActions } from "./useJournalEntryActions";
 
 interface JournalEntryPeekSheetProps {
@@ -34,6 +35,7 @@ export function JournalEntryPeekSheet({
         ? buildJournalEntryView(entry, {
             formatCurrency,
             findEntry: (id) => journalEntries.find((e) => e.id === id),
+            sourceDocument,
           })
         : null,
     [entry, journalEntries, formatCurrency],

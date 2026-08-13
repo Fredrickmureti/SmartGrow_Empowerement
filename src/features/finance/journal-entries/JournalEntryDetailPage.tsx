@@ -12,6 +12,7 @@ import type { DocumentAction } from "@/design-system/records";
 import { useJournalEntries } from "@/hooks/useJournalEntries";
 import { useCurrency } from "@/hooks/useCurrency";
 import { buildJournalEntryView } from "./journalEntryView";
+import { useJournalSourceDocument } from "./useJournalSourceDocument";
 import { useJournalEntryActions } from "./useJournalEntryActions";
 
 export default function JournalEntryDetailPage() {
@@ -31,6 +32,7 @@ export default function JournalEntryDetailPage() {
         ? buildJournalEntryView(entry, {
             formatCurrency,
             findEntry: (rid) => journalEntries.find((e) => e.id === rid),
+            sourceDocument,
           })
         : null,
     [entry, journalEntries, formatCurrency],
