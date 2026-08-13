@@ -204,30 +204,16 @@ export function useAIAssistant() {
       );
 
       if (!response.ok) {
-        if (response.status === 429) {
-          toast.error("Rate limit exceeded. Please wait a moment.");
-          return;
-        }
-        if (response.status === 402) {
-          toast.error("AI credits exhausted. Please add credits.");
-          return;
-        }
-        if (response.status === 403) {
-          const errorData = await response.json().catch(() => ({} as any));
-          toast.error(
-            errorData.reason ||
-              errorData.error ||
-              "AI help isn't enabled for your plan. Please contact your administrator.",
-          );
-          return;
-        }
-        if (response.status === 503) {
-          const errorData = await response.json().catch(() => ({}));
-          toast.error(errorData.error || "AI service temporarily unavailable.");
-          return;
-        }
-        throw new Error("Failed to get response");
+        const errorData = await response
+          .json()
+          .catch(() => null as { error?: string; reason?: string } | null);
+        const mapped = mapAssistantResponseError(response.status, errorData);
+        console.error("[ai-assistant] request failed", mapped);
+        toast.error(mapped.message);
+        setMessages(newMessages);
+        return;
       }
+
 
       if (!response.body) throw new Error("No response body");
 
