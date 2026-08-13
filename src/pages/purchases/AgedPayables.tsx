@@ -235,7 +235,6 @@ export default function AgedPayables() {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                setVisibleCount(PAGE_SIZE);
               }}
               className="pl-9"
             />
@@ -267,12 +266,14 @@ export default function AgedPayables() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredVendors.length === 0 ? (
+        ) : vendors.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium">No outstanding payables</h3>
             <p className="text-muted-foreground">
-              Nothing was open as of {fmtDate(asOfDate)}
+              {appliedSearch
+                ? `No vendor matching "${appliedSearch}" was open as of ${fmtDate(asOfDate)}`
+                : `Nothing was open as of ${fmtDate(asOfDate)}`}
             </p>
           </div>
         ) : (
@@ -291,7 +292,7 @@ export default function AgedPayables() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleVendors.map((row: ApAgingVendor) => {
+                {vendors.map((row: ApAgingVendor) => {
                   const isExpanded = expandedVendors.has(row.vendorId);
                   return (
                     <>
