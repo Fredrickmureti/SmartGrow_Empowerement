@@ -86,7 +86,16 @@ const VendorStatementRecordPage = lazy(
 );
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
 const ApReconciliation = lazy(() => import("@/pages/purchases/ApReconciliation"));
-const LandedCosts = lazy(() => import("@/pages/purchases/LandedCosts"));
+// Landed Cost (ADR 0077) — voucher domain: list → create → record.
+const LandedCostListPage = lazy(
+  () => import("@/features/purchases/landed-costs/LandedCostListPage"),
+);
+const LandedCostCreatePage = lazy(
+  () => import("@/features/purchases/landed-costs/LandedCostCreatePage"),
+);
+const LandedCostRecordPage = lazy(
+  () => import("@/features/purchases/landed-costs/LandedCostRecordPage"),
+);
 
 // P1 — Supplier 360 workbench (canonical supplier master).
 const SupplierListPage = lazy(
@@ -278,7 +287,27 @@ export function PurchasesApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Landed Costs">
-                <LandedCosts />
+                <LandedCostListPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="landed-costs/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Landed Costs">
+                <LandedCostCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="landed-costs/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Landed Costs">
+                <LandedCostRecordPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
