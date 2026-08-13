@@ -8,7 +8,7 @@
  */
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { Download, Send } from "lucide-react";
+import { Download, Printer, Send } from "lucide-react";
 
 import { RecordScaffold } from "@/design-system/records";
 import type { DocumentAction } from "@/design-system/records";
@@ -23,7 +23,7 @@ export default function VendorStatementRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
   const { record, view } = useVendorStatementView(id, formatCurrency);
-  const { dispatching, download, emailOpen, setEmailOpen, sendDocument } =
+  const { dispatching, download, print, emailOpen, setEmailOpen, sendDocument } =
     useVendorStatementActions(record);
 
   // One action vocabulary — the same array the Statements row menu renders.
@@ -41,6 +41,13 @@ export default function VendorStatementRecordPage() {
               onSelect: () => void download(),
             },
             {
+              id: "print",
+              label: "Print",
+              icon: Printer,
+              disabled: dispatching,
+              onSelect: () => void print(),
+            },
+            {
               id: "email",
               label: "Send",
               icon: Send,
@@ -49,7 +56,7 @@ export default function VendorStatementRecordPage() {
             },
           ]
         : [],
-    [record, dispatching, download, setEmailOpen],
+    [record, dispatching, download, print, setEmailOpen],
   );
 
   return (

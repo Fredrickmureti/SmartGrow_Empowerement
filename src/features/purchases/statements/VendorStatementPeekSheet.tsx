@@ -3,7 +3,7 @@
  * `useVendorStatementView` descriptor that the record page renders, so the
  * two surfaces cannot drift. This file owns the frame and the actions only.
  */
-import { Download, Send, Loader2 } from "lucide-react";
+import { Download, Printer, Send, Loader2 } from "lucide-react";
 
 import { PeekScaffold } from "@/design-system/records";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ interface Props {
 export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
   const { formatCurrency } = useCurrency();
   const { record, view } = useVendorStatementView(statementId, formatCurrency);
-  const { dispatching, download, emailOpen, setEmailOpen, sendDocument } =
+  const { dispatching, download, print, emailOpen, setEmailOpen, sendDocument } =
     useVendorStatementActions(record);
 
   return (
@@ -49,6 +49,15 @@ export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
                   <Download className="mr-2 h-4 w-4" />
                 )}
                 PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void print()}
+                disabled={dispatching}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print
               </Button>
               <Button
                 variant="outline"
