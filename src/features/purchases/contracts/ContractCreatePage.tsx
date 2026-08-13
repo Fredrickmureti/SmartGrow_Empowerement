@@ -5,7 +5,7 @@
  * inline; each carries an optional product FK plus min/max/ceiling
  * quantities that the ceiling trigger enforces at PO time.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import { useCurrencyContext } from "@/contexts/CurrencyContext";
+import { useProducts } from "@/hooks/useProducts";
 import { Switch } from "@/components/ui/switch";
 import {
   createProcurementContract,
@@ -52,6 +53,15 @@ export default function ContractCreatePage() {
   const { currentBusiness } = useBusinesses();
   const { rows: suppliers, loading: suppliersLoading } = useSuppliers();
   const { currencies, baseCurrency } = useCurrencyContext();
+  const { products } = useProducts();
+
+  const productOptions = useMemo(
+    () =>
+      products
+        .filter((p) => p.is_active !== false)
+        .map((p) => ({ id: p.id, name: p.name, sku: p.sku, unit_price: p.unit_price })),
+    [products],
+  );
 
   const [supplierId, setSupplierId] = useState<string>("");
   const [contractNumber, setContractNumber] = useState("");
@@ -78,6 +88,8 @@ export default function ContractCreatePage() {
       setLines((ls) => [
         ...ls,
         {
+          product_id: null,
+          supplier_sku: null,
           description: "",
           unit_price: null,
           ceiling_quantity: null,
@@ -281,7 +293,7 @@ export default function ContractCreatePage() {
 
         <Section
           title="Lines"
-          description="Optional pre-agreed items with ceilings enforced at PO time."
+          description="Optional pre-agreed items with ceilings enforced at PO time. Pick a catalog product to bind the line to the item master, or leave it free-text for non-catalog scope."
         >
           <EditableLineItemsGrid
             columns={CONTRACT_LINE_COLUMNS}
@@ -301,6 +313,7 @@ export default function ContractCreatePage() {
                 key={i}
                 index={i}
                 item={line}
+                products={productOptions}
                 layout={layout}
                 disabled={busy}
                 onPatch={updateLine}
