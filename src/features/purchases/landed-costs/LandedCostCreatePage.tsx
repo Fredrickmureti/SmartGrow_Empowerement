@@ -10,12 +10,18 @@
  * Sources of truth consumed, never re-implemented here:
  *   charge catalogue  → `landed_cost_component_types` (capitalisable flag and
  *                       expense account come from the catalogue row)
+ *   currency          → the canonical catalogue `public.currencies` via
+ *                       `useCurrencies` + the shared `CurrencyCombobox`
  *   receipt scope     → completed `goods_receipts`
- *   FX rate           → the canonical rate book via `useTenantFx`
+ *   FX rate           → resolved and STAMPED server-side on insert by
+ *                       `fx_stamp_document` → `require_exchange_rate`. This
+ *                       screen only *displays* `describe_exchange_rate`; it
+ *                       never sends a rate and never converts an amount.
  *   totals / base amounts / voucher number → database triggers
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Search, Trash2 } from "lucide-react";
 
@@ -39,11 +45,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useCurrencies } from "@/hooks/useCurrencies";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useTenantFx } from "@/hooks/useTenantFx";
 import { normalizeError } from "@/services/resilience";
 import {
   useCompletedGoodsReceipts,
@@ -56,6 +63,23 @@ const BASES: { value: LandedCostBasis; label: string; hint: string }[] = [
   { value: "quantity", label: "By quantity", hint: "Pro-rata on received quantity." },
   { value: "manual", label: "Manual", hint: "Amounts entered per line after allocation." },
 ];
+
+/** Shape returned by the canonical `public.describe_exchange_rate`. */
+interface DescribedRate {
+  rate: number;
+  source: string | null;
+  provider_key: string | null;
+  effective_date: string;
+  scope: string | null;
+}
+
+const RATE_SOURCE_LABEL: Record<string, string> = {
+  base: "Base currency",
+  override: "Tenant override",
+  manual: "Manual entry",
+  provider: "Platform",
+};
+
 
 interface ChargeLine {
   key: string;
