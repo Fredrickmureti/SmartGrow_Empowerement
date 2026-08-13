@@ -91476,6 +91476,7 @@ export type Database = {
           organization_id: string
         }[]
       }
+      finance_can_read_org: { Args: { _org_id: string }; Returns: boolean }
       finance_loan_receivable_integrity_check: {
         Args: { _org: string }
         Returns: {
