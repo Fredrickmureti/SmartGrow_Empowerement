@@ -210,6 +210,25 @@ export interface RequisitionProcurementLink {
   path: string;
 }
 
+/**
+ * The negotiated coverage a requisition line cites. Demand that names a
+ * contract line is pre-priced: the buyer must see the agreed price and the
+ * remaining ceiling before sourcing it, otherwise the contract is invisible
+ * until the PO trigger rejects the order.
+ */
+export interface RequisitionContractLine {
+  id: string;
+  contract_id: string;
+  description: string | null;
+  unit_price: number;
+  currency: string | null;
+  ceiling_quantity_base: number | null;
+  committed_quantity_base: number | null;
+  contract_number: string | null;
+  contract_title: string | null;
+  contract_status: string | null;
+}
+
 export interface RequisitionRecord extends RequisitionRow {
   items: RequisitionItem[];
   approvals: RequisitionApproval[];
@@ -219,6 +238,8 @@ export interface RequisitionRecord extends RequisitionRow {
     supplier_code: string | null;
     contact?: { id: string; name: string } | null;
   }>;
+  /** Keyed by `purchase_requisition_items.contract_line_id`. */
+  contract_lines: Record<string, RequisitionContractLine>;
 }
 
 export function useRequisitionRecord(id: string | undefined) {
