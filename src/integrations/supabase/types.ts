@@ -93701,6 +93701,10 @@ export type Database = {
         Args: { p_actor: string; p_business: string }
         Returns: Json
       }
+      landed_cost_selftest_run: {
+        Args: { p_actor: string; p_business: string }
+        Returns: Json
+      }
       leave_to_attendance_stamp: {
         Args: { _leave_id: string }
         Returns: number
