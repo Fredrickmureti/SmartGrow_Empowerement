@@ -253,8 +253,8 @@ export async function generateJournalVoucherPdf(
     ["Status", status ? status.toUpperCase() : null],
     ["Posting date", date(snapshot["posting_date"] ?? snapshot["issue_date"])],
     ["Reference", str(snapshot["reference"])],
-    ["Source", str(snapshot["source"])?.replace(/_/g, " ") ?? "Manual"],
-    ["Source detail", str(snapshot["source_detail"])?.replace(/_/g, " ") ?? null],
+    ["Source", humanise(snapshot["source"]) ?? "Manual"],
+    ["Source detail", humanise(snapshot["source_detail"])],
     ["Currency", currency || null],
     [
       "Rate to base",
