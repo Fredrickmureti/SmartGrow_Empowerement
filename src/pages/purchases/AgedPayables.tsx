@@ -171,7 +171,7 @@ export default function AgedPayables() {
                 What we owed as of {fmtDate(asOfDate)}, from the AP subledger
               </p>
             </div>
-            <RefreshButton onRefresh={() => refetch()} tooltip="Refresh aging report" />
+            <RefreshButton onRefresh={async () => { await refetch(); }} tooltip="Refresh aging report" />
           </div>
           <ReportExportButtons
             compact
@@ -284,8 +284,7 @@ export default function AgedPayables() {
                               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                             )}
                             <ClickableEntity
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
                                 setPreviewContactId(row.vendorId);
                               }}
                             >
