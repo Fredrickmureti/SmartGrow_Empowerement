@@ -76,6 +76,10 @@ export function PurchaseOrderReceiptsSection({
               <p className="text-xs text-muted-foreground">
                 Received {fmtDate(receipt.receipt_date)}
               </p>
+              <LandedCostReceiptChip
+                summary={landedCostByReceipt.get(receipt.id)}
+                formatCurrency={formatCurrency}
+              />
             </div>
             <div className="flex items-center gap-2">
             <Button
