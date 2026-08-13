@@ -6,6 +6,10 @@ import { useBranch } from "@/contexts/BranchContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { parseAssistantContent, type ActionBlock } from "@/lib/ai/actionBlocks";
+import {
+  mapAssistantResponseError,
+  mapAssistantThrownError,
+} from "@/lib/ai/assistantErrors";
 
 type AIRequestType = "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions";
 
@@ -204,30 +208,16 @@ export function useAIAssistant() {
       );
 
       if (!response.ok) {
-        if (response.status === 429) {
-          toast.error("Rate limit exceeded. Please wait a moment.");
-          return;
-        }
-        if (response.status === 402) {
-          toast.error("AI credits exhausted. Please add credits.");
-          return;
-        }
-        if (response.status === 403) {
-          const errorData = await response.json().catch(() => ({} as any));
-          toast.error(
-            errorData.reason ||
-              errorData.error ||
-              "AI help isn't enabled for your plan. Please contact your administrator.",
-          );
-          return;
-        }
-        if (response.status === 503) {
-          const errorData = await response.json().catch(() => ({}));
-          toast.error(errorData.error || "AI service temporarily unavailable.");
-          return;
-        }
-        throw new Error("Failed to get response");
+        const errorData = await response
+          .json()
+          .catch(() => null as { error?: string; reason?: string } | null);
+        const mapped = mapAssistantResponseError(response.status, errorData);
+        console.error("[ai-assistant] request failed", mapped);
+        toast.error(mapped.message);
+        setMessages(newMessages);
+        return;
       }
+
 
       if (!response.body) throw new Error("No response body");
 
@@ -286,9 +276,10 @@ export function useAIAssistant() {
 
       // Final parse to make sure trailing action lines are picked up.
       flush();
-    } catch (error: any) {
-      console.error("Chat error:", error);
-      toast.error("Failed to send message");
+    } catch (error: unknown) {
+      const mapped = mapAssistantThrownError(error);
+      console.error("[ai-assistant] chat failed", mapped, error);
+      toast.error(mapped.message);
       // Remove the user message on error
       setMessages(messages);
     } finally {
