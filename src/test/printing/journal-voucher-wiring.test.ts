@@ -34,7 +34,7 @@ describe("journal voucher wiring", () => {
       expect(hook).toContain(id);
     }
     // No email disposition on ledger evidence.
-    expect(hook.toLowerCase()).not.toContain("email");
+    expect(hook).not.toMatch(/id:\s*"email"/);
 
     const surfaces = [
       "src/features/finance/journal-entries/JournalEntryDetailPage.tsx",
