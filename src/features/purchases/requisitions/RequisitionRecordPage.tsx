@@ -228,6 +228,30 @@ export default function RequisitionRecordPage() {
             ),
           },
           { columnId: "supplier", content: sup?.contact?.name ?? sup?.supplier_code ?? "—" },
+          {
+            columnId: "contract",
+            content: (() => {
+              const cl = l.contract_line_id
+                ? record.contract_lines[l.contract_line_id]
+                : null;
+              if (!cl) return "Spot buy";
+              const remaining =
+                cl.ceiling_quantity_base == null
+                  ? null
+                  : cl.ceiling_quantity_base - Number(cl.committed_quantity_base ?? 0);
+              return (
+                <Link
+                  to={`/purchases/contracts/${cl.contract_id}`}
+                  className="text-primary hover:underline"
+                >
+                  <span className="font-mono">{cl.contract_number ?? "Contract"}</span>
+                  {" · "}
+                  {money(cl.unit_price, cl.currency ?? record.currency)}
+                  {remaining != null && ` · ${remaining} left`}
+                </Link>
+              );
+            })(),
+          },
           { columnId: "ordered", content: Number(l.quantity_ordered ?? 0) },
           { columnId: "received", content: Number(l.quantity_received ?? 0) },
           { columnId: "cancelled", content: Number(l.quantity_cancelled ?? 0) },
