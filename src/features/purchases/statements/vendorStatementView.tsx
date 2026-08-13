@@ -26,7 +26,10 @@ import {
   useVendorStatementRecord,
   type VendorStatementRecord,
 } from "./useVendorStatementRecord";
-import { dispatchVendorStatement } from "./dispatchVendorStatement";
+import {
+  dispatchVendorStatement,
+  downloadVendorStatement,
+} from "./dispatchVendorStatement";
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -200,5 +203,5 @@ export function useVendorStatementActions(record: VendorStatementRecord | null) 
       }
     : null;
 
-  return { dispatching, download, emailOpen, setEmailOpen, sendDocument };
+  return { dispatching, download, print, emailOpen, setEmailOpen, sendDocument };
 }
