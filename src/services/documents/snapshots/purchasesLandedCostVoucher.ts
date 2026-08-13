@@ -96,7 +96,7 @@ export async function fetchAndBuildLandedCostVoucherSnapshot(
       )
       .eq("voucher_id", voucherId),
     (client as any)
-      .from("landed_cost_voucher_scope")
+      .from("landed_cost_voucher_receipts")
       .select(
         `
         id, goods_receipt_id,
