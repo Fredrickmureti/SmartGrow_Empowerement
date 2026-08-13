@@ -113,6 +113,164 @@ export function useContracts() {
   return { rows, loading, error, refresh: fetchRows };
 }
 
+/* ------------------------------------------------------------------ *
+ * Portfolio lenses — lifecycle and exhaustion states derived from the
+ * canonical row. No second source of truth: expiry comes from
+ * `end_date`, exhaustion from committed vs. ceiling (never received).
+ * ------------------------------------------------------------------ */
+
+export type ContractLifecycleLens =
+  | "all"
+  | "active"
+  | "pending_approval"
+  | "expiring_30"
+  | "expiring_60"
+  | "expiring_90"
+  | "exhausted"
+  | "expired";
+
+/** Whole days until `end_date`; null when the contract has no end. */
+export function daysToExpiry(row: Pick<ContractRow, "end_date">): number | null {
+  if (!row.end_date) return null;
+  const end = new Date(`${row.end_date}T00:00:00Z`).getTime();
+  const today = new Date();
+  const start = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Math.round((end - start) / 86_400_000);
+}
+
+/** Committed / ceiling as a percentage; null when no value ceiling is set. */
+export function exhaustionPercent(
+  row: Pick<ContractRow, "ceiling_value" | "committed_value">,
+): number | null {
+  const ceiling = Number(row.ceiling_value ?? 0);
+  if (!ceiling) return null;
+  return (Number(row.committed_value ?? 0) / ceiling) * 100;
+}
+
+const LIVE_STATES = new Set(["active", "suspended"]);
+
+export function matchesLens(row: ContractRow, lens: ContractLifecycleLens): boolean {
+  if (lens === "all") return true;
+  if (lens === "active") return row.status === "active";
+  if (lens === "pending_approval") return row.status === "pending_approval";
+  if (lens === "expired") return row.status === "expired";
+  if (lens === "exhausted") {
+    const pct = exhaustionPercent(row);
+    return LIVE_STATES.has(row.status) && pct != null && pct >= 90;
+  }
+  const window = lens === "expiring_30" ? 30 : lens === "expiring_60" ? 60 : 90;
+  const days = daysToExpiry(row);
+  return LIVE_STATES.has(row.status) && days != null && days >= 0 && days <= window;
+}
+
+export interface ContractPortfolioKpis {
+  active: number;
+  pendingApproval: number;
+  expiring30: number;
+  expiring60: number;
+  expiring90: number;
+  exhausted: number;
+  expired: number;
+  committedValue: number;
+  ceilingValue: number;
+}
+
+export function portfolioKpis(rows: ContractRow[]): ContractPortfolioKpis {
+  const kpi: ContractPortfolioKpis = {
+    active: 0,
+    pendingApproval: 0,
+    expiring30: 0,
+    expiring60: 0,
+    expiring90: 0,
+    exhausted: 0,
+    expired: 0,
+    committedValue: 0,
+    ceilingValue: 0,
+  };
+  for (const r of rows) {
+    if (matchesLens(r, "active")) kpi.active += 1;
+    if (matchesLens(r, "pending_approval")) kpi.pendingApproval += 1;
+    if (matchesLens(r, "expiring_30")) kpi.expiring30 += 1;
+    if (matchesLens(r, "expiring_60")) kpi.expiring60 += 1;
+    if (matchesLens(r, "expiring_90")) kpi.expiring90 += 1;
+    if (matchesLens(r, "exhausted")) kpi.exhausted += 1;
+    if (matchesLens(r, "expired")) kpi.expired += 1;
+    if (LIVE_STATES.has(r.status)) {
+      kpi.committedValue += Number(r.committed_value ?? 0);
+      kpi.ceilingValue += Number(r.ceiling_value ?? 0);
+    }
+  }
+  return kpi;
+}
+
+/**
+ * Off-contract leakage — purchase orders raised on a supplier that holds a
+ * live contract, but issued without citing one. Measured over the trailing
+ * window on non-draft orders, because a draft has not yet committed spend.
+ */
+export interface ContractLeakage {
+  orderCount: number;
+  value: number;
+  supplierCount: number;
+  windowDays: number;
+}
+
+export function useContractLeakage(
+  contractedSupplierIds: string[],
+  windowDays = 90,
+): { leakage: ContractLeakage; loading: boolean } {
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const [leakage, setLeakage] = useState<ContractLeakage>({
+    orderCount: 0,
+    value: 0,
+    supplierCount: 0,
+    windowDays,
+  });
+  const [loading, setLoading] = useState(false);
+  const key = contractedSupplierIds.slice().sort().join(",");
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = key ? key.split(",") : [];
+    if (!currentOrg || !currentBusiness || ids.length === 0) {
+      setLeakage({ orderCount: 0, value: 0, supplierCount: 0, windowDays });
+      return;
+    }
+    const since = new Date(Date.now() - windowDays * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    setLoading(true);
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("purchase_orders")
+        .select("id, supplier_id, total, order_date, status, contract_id")
+        .eq("organization_id", currentOrg.id)
+        .eq("business_id", currentBusiness.id)
+        .in("supplier_id", ids)
+        .is("contract_id", null)
+        .gte("order_date", since)
+        .not("status", "in", "(draft,cancelled)")
+        .limit(1000);
+      if (cancelled) return;
+      const orders = (data ?? []) as { supplier_id: string; total: number | null }[];
+      setLeakage({
+        orderCount: orders.length,
+        value: orders.reduce((sum, o) => sum + Number(o.total ?? 0), 0),
+        supplierCount: new Set(orders.map((o) => o.supplier_id)).size,
+        windowDays,
+      });
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentOrg?.id, currentBusiness?.id, key, windowDays]);
+
+  return { leakage, loading };
+}
+
+
 export interface ContractLine {
   id: string;
   contract_id: string;
