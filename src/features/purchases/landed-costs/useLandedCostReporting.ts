@@ -75,7 +75,6 @@ export function useLandedCostValuationAttribution(enabled = true) {
     queryFn: async (): Promise<LandedCostValuationAttribution[]> => {
       const { data, error } = await supabase.rpc("landed_cost_valuation_attribution", {
         p_business_id: bizId!,
-        p_product_ids: null,
       });
       if (error) throw new Error(error.message);
       return (data ?? []).map((r) => ({
