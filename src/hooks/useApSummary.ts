@@ -8,7 +8,7 @@ import { useBranch } from "@/contexts/BranchContext";
  * Canonical Accounts Payable summary.
  *
  * The ONLY approved source of AP outstanding/overdue/aging figures in the UI.
- * It reads `get_ap_summary`, which aggregates the `finance_ap_open_items`
+ * It reads `get_ap_summary`, which aggregates the `finance_ap_open_items_as_of`
  * projection (posted AP documents net of allocations, credit notes and
  * advances) — never `bills.total - bills.amount_paid` client-side, which
  * ignores credit notes, advances, multi-currency and unposted drafts.

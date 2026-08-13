@@ -1,7 +1,7 @@
 /**
  * Canonical AR / AP open-item access.
  *
- * ADR: `finance_ar_open_items` / `finance_ap_open_items` are the ONLY source
+ * ADR: `finance_ar_open_items` / `finance_ap_open_items_as_of` are the ONLY source
  * of receivable / payable figures. They are GL-gated projections — a document
  * only appears once a posted journal entry exists on the AR/AP control
  * account. Sales/purchase document status (`invoices.status`, `bills.status`)
@@ -279,7 +279,7 @@ export async function fetchTopOpenCounterparties(
  * Per-counterparty open-item aging.
  *
  * ADR: contact-level receivable / payable figures MUST come from
- * `finance_ar_open_items` / `finance_ap_open_items`, never from a status list
+ * `finance_ar_open_items` / `finance_ap_open_items_as_of`, never from a status list
  * over `invoices` / `bills`. Residual there nets every settlement channel
  * (cash receipts and applied credit notes) and only counts documents with a
  * posted journal entry on the control account.
@@ -590,8 +590,8 @@ export interface PayableCounterparty {
  *
  * ADR: this is the ONLY sanctioned cohort for vendor-statement runs and
  * payment sweeps. There is no `finance_ap_net_position` view, so the cohort is
- * folded here from the two GL-anchored projections: `finance_ap_open_items`
- * (residual per posted payable, JE-gated) less `finance_ap_vendor_credit`
+ * folded here from the two GL-anchored engines: `finance_ap_open_items_as_of`
+ * (residual per posted payable, JE-gated) less `finance_ap_vendor_credit_as_of`
  * (unapplied vendor credit). A cohort derived from `bills.status` is wrong in
  * both directions — it invents debt for unposted bills and hides payables that
  * came from manual journals on the AP control account.

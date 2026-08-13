@@ -183,7 +183,7 @@ export function useVendorStatements() {
     }));
 
     // ----- Aging buckets (canonical) -----
-    // ADR 0027: read from the GL-anchored `finance_ap_open_items` projection
+    // ADR 0027: read from the GL-anchored `finance_ap_open_items_as_of` engine
     // through the one shared helper instead of recomputing from
     // `bills.total - amount_paid`, so vendor statements agree with Aged
     // Payables and `get_ap_aging_summary`.
