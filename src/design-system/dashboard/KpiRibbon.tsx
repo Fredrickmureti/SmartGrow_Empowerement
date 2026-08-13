@@ -155,8 +155,8 @@ export function KpiRibbon({ items, className, label = "Key metrics" }: KpiRibbon
     <ul
       aria-label={label}
       className={cn(
-        "grid min-w-0 max-w-full grid-cols-2 gap-[var(--ds-dashboard-gap)]",
-        "@2xl/page:grid-cols-3 @4xl/page:grid-cols-6",
+        "grid min-w-0 max-w-full gap-[var(--ds-dashboard-gap)]",
+        "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]",
         className,
       )}
     >
