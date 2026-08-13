@@ -1,108 +1,121 @@
-# Landed Cost Domain — Reconstruction Plan & Status
+# Landed Cost Domain — Verification Result & Completion Plan
 
 **Authoritative status file.** Update after every implementation step.
 
-## Domain definition (settled)
+## Domain definition (settled, unchanged)
 
 A **Landed Cost Voucher** accumulates acquisition charges (freight, insurance, duty,
-clearing, handling, demurrage) and capitalises them onto the stock received on one or
-more Goods Receipts. It is a *value-only* event: quantities never change.
+clearing, handling, demurrage) and capitalises them onto stock received on one or more
+Goods Receipts. It is a value-only event: quantities never change.
 
 Lifecycle: `draft → (pending_approval) → allocated → posted → reversed | cancelled`.
 
-Accounting on post:
+Posting effect:
 ```text
-Dr Inventory              capitalised share (stock still on hand)
-Dr Cost of Goods Sold     share belonging to stock already sold
-Dr <expense account>      non-capitalisable charges (e.g. demurrage)
+Dr Inventory              share still on hand
+Dr Cost of Goods Sold     share already sold
+Dr <expense account>      non-capitalisable charges
     Cr Landed Cost Clearing   total charge (base currency)
 ```
-The supplier bill for the charge posts `Dr Landed Cost Clearing / Cr AP`, so the
-clearing account nets to zero once both sides exist.
 
 ---
 
-## Phase status
+## Phase 1 — Independent verification of the previous engineer's claims
 
-### Phase 1 — Inventory valuation foundation — ✅ DONE
-- `inventory_cost_revaluations` provenance table (RLS, grants, idempotency index).
-- `inventory_apply_cost_revaluation(gri, amount, source_type, source_id, actor)`:
-  value-only unit-cost uplift on the cost layers of a receipt line, proportional to
-  `qty_remaining`; returns the capitalised/expensed split; rounding drift absorbed.
-- `inventory_reverse_cost_revaluation(source_type, source_id, actor)` — exact unwind.
-- Fixes the original defect: the old code wrote `stock_movements` with `quantity = 0`,
-  which `_maintain_cost_layers` short-circuits, so landed cost had **zero** effect on AVCO.
+Checked directly against the database and the working tree.
 
-### Phase 2 — Domain model — ✅ DONE
-- Dropped the empty legacy `landed_cost_bills` / `landed_cost_allocations` and the three
-  legacy RPCs. `bill_match_results.landed_cost_bill_id` re-pointed at the voucher;
-  `match_bill_atomic` patched in place.
-- New tables (all with GRANTs + RLS + updated_at triggers):
-  `landed_cost_component_types`, `landed_cost_vouchers`, `landed_cost_components`,
-  `landed_cost_allocations`.
-- Enums `landed_cost_voucher_status`, `landed_cost_allocation_basis`.
-- Auto voucher numbering `LCV-YYYY-#####` per business.
-- RLS forbids browser writes to posted/reversed vouchers — status transitions are RPC-only.
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| Phase 1 — inventory revaluation foundation | Present | `inventory_cost_revaluations` table plus `inventory_apply_cost_revaluation` / `inventory_reverse_cost_revaluation` functions exist |
+| Phase 2 — domain model | Present | `landed_cost_vouchers`, `landed_cost_components`, `landed_cost_component_types`, `landed_cost_allocations` exist; legacy `landed_cost_bills` gone |
+| Phase 3 — allocation engine | Present | `landed_cost_allocate_voucher`, `landed_cost_voucher_receipts`, numbering helpers exist |
+| Phase 4 — posting & reversal | Present | `landed_cost_post_voucher`, `landed_cost_reverse_voucher`, `match_bill_with_landed_cost` exist; 6 seeded component types |
+| Phases 1–4 behaviourally verified | **Not verified** | Zero rows in vouchers, components, allocations, revaluations — **and `goods_receipts` is entirely empty**, so no engine has ever executed |
+| Phase 5 three files landed | Present | `landedCostRpcs.ts`, `useLandedCosts.ts`, `landedCostView.tsx` exist under `src/features/purchases/landed-costs/` |
+| "New files not type-checked" | Confirmed, and worse | `tsconfig.app.json` **excludes `src/features` entirely** — a typecheck cannot catch these files at all. The known break is real: `landedCostView.tsx` sets `kind: "landed_cost_voucher"`, which is not a member of `DocumentKind` |
+| Phase 5 remaining surfaces | Missing | No list/record/peek/create page; `/purchases/landed-costs` still routes to the interim read-only `src/pages/purchases/LandedCosts.tsx` |
 
-### Phase 3 — Allocation engine — ✅ DONE
-- `landed_cost_voucher_receipts` (shipment scope).
-- `landed_cost_allocate_voucher(voucher, actor)`: eligibility filter
-  (`products.track_inventory`, qty > 0), bases `value` / `quantity` / `manual`,
-  exact rounding, idempotent re-run, returns skipped lines with reasons.
-- `weight` / `volume` bases raise an explicit error — no net weight/volume master data
-  exists on `products`. **Open item, see below.**
-- Triggers keep `base_amount` (FX-stamped) and voucher totals coherent.
+Additional findings not in the previous plan:
 
-### Phase 4 — Posting & reversal — ✅ DONE
-- `landed_cost_post_voucher(voucher, actor)`: period-lock check, account resolution with
-  no silent fallbacks, per-receipt-line revaluation, balanced JE via
-  `post_journal_entry_atomic` (`source_type = 'landed_cost_voucher'`, dedupe-safe),
-  `emit_business_event('landed_cost.posted')`.
-- `landed_cost_reverse_voucher(voucher, reason, actor)`: mandatory reason, inventory
-  unwind, mirror JE (`source_subtype = 'reversal'`), `landed_cost.reversed` event.
-- Seeded `landed_cost_clearing` system account role + 6 starter component types per business.
+- The two data hooks read business context from `@/contexts/BusinessContext`, while the
+  live page uses `@/hooks/useBusinesses`. One of the two is the canonical accessor and
+  the feature must use it consistently.
+- Structural existence of the RPCs is not evidence of correctness. Because no goods
+  receipt has ever existed in this database, the allocation, revaluation, posting and
+  reversal paths are **entirely unexercised**. Verification must therefore come from a
+  seeded end-to-end run, not from reading SQL.
 
-### Phase 5 — Workspace UI — 🚧 NEXT (active phase)
-`src/pages/purchases/LandedCosts.tsx` is currently an **interim read-only list** against
-the new model (it compiles and no longer writes statuses from the browser). To build:
-- `src/features/landed-costs/` feature folder mirroring the Bills/GRN pattern:
-  `hooks/useLandedCostVouchers.ts`, `useLandedCostVoucher.ts` (detail + components +
-  allocations), `useLandedCostActions.ts` (allocate / post / reverse via `supabase.rpc`).
-- List surface with status filters; record surface on `RecordScaffold` with tabs:
-  Charges, Scope (goods receipts), Allocation preview, Accounting (JE link), Audit.
-- Peek via `PeekScaffold`; action bar gated by status; reversal reason dialog.
-- Component type settings screen (catalog CRUD).
+Conclusion: the last genuinely completed milestone is **Phase 4 (deployed, unverified)**.
+Phase 5 is roughly one third landed and does not compile against the design system.
+
+---
+
+## Phase 5A — Prove the engines before building UI on them
+
+Do this first; building a workspace on unverified engines is how defects get hidden.
+
+1. Seed a scratch scenario in a test business: supplier, PO, posted goods receipt with
+   two stock-tracked products and one non-stock line, cost layers created.
+2. Create a voucher with two charges (one capitalisable, one expensed), scope it to that
+   receipt, run `landed_cost_allocate_voucher`. Assert: allocations sum exactly to the
+   charge total; the non-stock line is skipped with a reason; re-running is idempotent.
+3. Run `landed_cost_post_voucher`. Assert: journal balances and hits Inventory / COGS /
+   Landed Cost Clearing; `cost_layers.unit_cost` rose only on remaining quantity; one
+   `inventory_cost_revaluations` row per layer.
+4. Run `landed_cost_reverse_voucher`. Assert: unit costs and ledger return to prior
+   state; `reversed_at` set; mirror JE posted.
+5. Negative cases: posting into a locked fiscal period is refused; posting with
+   `landed_cost_clearing` unmapped is refused with a clear error, not a silent fallback.
+6. Capture these as repeatable pgTAP tests under `supabase/tests/` so they stay true.
+
+Any failure here becomes a Phase 4 fix and is done before Phase 5B.
+
+---
+
+## Phase 5B — Workspace UI (finish the partial work)
+
+1. Register `landed_cost_voucher` in `DocumentKind` and add its status overrides in
+   `src/design-system/records/documentStatus.tsx` (draft / pending approval / allocated /
+   posted / reversed / cancelled with correct tones). Without this the existing view file
+   does not compile.
+2. Normalise the business-context import in `useLandedCosts.ts` to the canonical hook.
+3. `LandedCostRecordPage.tsx` — `RecordScaffold` over `useLandedCostView`, status-gated
+   action bar (Allocate / Post / Reverse), reversal-reason dialog, errors surfaced from
+   the RPC result rather than a generic toast.
+4. `LandedCostPeekSheet.tsx` — `PeekScaffold` over the same descriptor.
+5. `LandedCostListPage.tsx` — status lenses and a KPI ribbon whose every number is a real
+   aggregate over `landed_cost_vouchers` (drafts, awaiting allocation, allocated not
+   posted, posted this period, reversed). No decorative metrics.
+6. `LandedCostCreatePage.tsx` — voucher header (date, currency + canonical FX rate,
+   default basis, shipment reference), charge lines drawn from the component-type
+   catalog, and receipt scope picked from real completed goods receipts.
+7. Replace `src/pages/purchases/LandedCosts.tsx` with a re-export of the list page; add
+   `landed-costs/new` and `landed-costs/:id` routes in `src/apps/purchases/routes.tsx`.
+8. Extend the typecheck to cover `src/features` (or add a feature-scoped tsconfig) so
+   this class of break cannot land silently again.
+
+---
+
+## Phase 5C — Catalog & registries
+
+- Component-type settings screen (catalog CRUD, capitalisable flag, expense account
+  binding — no hardcoded accounts, no country assumptions).
 - Register `landed_cost_voucher` in the `document_kinds` registry and the governance
   action registry (`landed_cost.post`, `landed_cost.reverse`).
 
-### Phase 6 — Approvals, matching & reporting — ⏳ PENDING
-- Wire `approval_requests` (`approval_request_id` column already exists) for post.
-- Surface landed cost uplift inside the 3-way bill match UI.
-- Landed cost per receipt/product report + integrity check (clearing account ageing).
+## Phase 6 — Approvals, matching & reporting (unchanged, still pending)
+
+- Wire `approval_requests` for posting (column already exists) and enforce the gate.
+- Surface landed-cost uplift inside the 3-way bill match UI.
+- Landed cost per receipt / product / supplier reports plus a clearing-account ageing
+  integrity check, all reading canonical finance and inventory data.
 
 ---
 
 ## Open items / known gaps
-1. **Weight & volume bases** need `products.net_weight` / `volume` + UoM master data
-   before they can be enabled; engine currently rejects them explicitly.
-2. **No end-to-end runtime test yet** — the engines are deployed but have not been
-   exercised against a real posted GRN (no landed cost data exists in the database).
-3. Approval gating on posting is modelled but not enforced.
 
----
-
-## Instructions for the next agent
-
-1. **Verify Phases 1–4 before writing new code.** Specifically:
-   - Create a throwaway voucher against a real posted GRN in a scratch business, run
-     `landed_cost_allocate_voucher`, then `landed_cost_post_voucher`, and confirm:
-     allocations sum exactly to the charge; `cost_layers.unit_cost` rose only for
-     remaining qty; the JE balances and hits Inventory / COGS / Landed Cost Clearing;
-     `inventory_cost_revaluations` has one row per layer.
-   - Run `landed_cost_reverse_voucher` and confirm unit costs and the ledger return to
-     their prior state and `inventory_cost_revaluations.reversed_at` is set.
-   - Confirm posting is refused in a locked fiscal period and when
-     `landed_cost_clearing` is unmapped.
-2. **Then resume at Phase 5 (Workspace UI)** — do not start Phase 6 or unrelated work
-   until Phase 5 is coherent and shippable end to end.
-3. Keep this file updated as the single source of truth after each step.
+1. `weight` / `volume` allocation bases are rejected by the engine because
+   `products` has no net weight or volume master data. Enabling them is a
+   product-master change, not a landed-cost change.
+2. Approval gating on posting is modelled but not enforced.
+3. All engine behaviour remains unproven until Phase 5A runs.
