@@ -29,7 +29,11 @@ import { useReportExportContext } from "@/contexts/ReportContext";
 import { toast } from "sonner";
 
 interface ReportExportButtonsProps {
-  getExportConfig: () => ExportConfig;
+  /**
+   * May be async: server-paginated reports fetch the FULL dataset at export
+   * time rather than exporting whatever page is on screen.
+   */
+  getExportConfig: () => ExportConfig | Promise<ExportConfig>;
   formats?: ("excel" | "csv" | "print" | "pdf")[];
   compact?: boolean;
   /** Pre-fill the To: field of the Email Report dialog (e.g. selected vendor email). */
