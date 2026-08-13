@@ -293,6 +293,16 @@ export function PurchasesApp() {
           }
         />
         <Route
+          path="landed-costs/component-types"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Landed Costs">
+                <LandedCostComponentTypesPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
           path="landed-costs/new"
           element={
             <SubscriptionProtectedRoute>
@@ -302,6 +312,7 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
         <Route
           path="landed-costs/:id"
           element={
