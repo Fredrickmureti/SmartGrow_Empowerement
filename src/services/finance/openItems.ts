@@ -244,22 +244,40 @@ export async function fetchContactOpenItemAging(
     asOf?: string;
   },
 ): Promise<AgingBuckets> {
-  const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
   const contactIds = Array.isArray(params.contactId) ? params.contactId : [params.contactId];
   const asOf = params.asOf ?? new Date().toISOString().slice(0, 10);
   const asOfDate = new Date(`${asOf}T00:00:00Z`);
-  let q = supabase
-    .from(view as any)
-    .select("document_date, due_date, residual_amount, base_residual_amount")
-    .eq("organization_id", params.orgId)
-    .in("contact_id", contactIds)
-    .lte("document_date", asOf)
-    .gt("residual_amount", 0.01);
-  if (params.businessId) q = q.eq("business_id", params.businessId);
-  if (params.branchId) q = q.eq("branch_id", params.branchId);
 
-  const { data, error } = await q;
-  if (error) throw error;
+  let data: any[] | null = null;
+
+  if (side === "ap") {
+    // AP is served by the point-in-time engine (`finance_ap_open_items_as_of`),
+    // the same source as Aged Payables: settlements only count if they
+    // happened on or before the as-of date, so a vendor statement for a closed
+    // period reproduces the aging that period actually had.
+    const { data: rows, error } = await supabase.rpc("finance_ap_open_items_as_of" as never, {
+      _org_id: params.orgId,
+      _business_id: params.businessId ?? null,
+      _branch_id: params.branchId ?? null,
+      _as_of: asOf,
+    } as never);
+    if (error) throw error;
+    data = ((rows || []) as any[]).filter((r) => contactIds.includes(r.contact_id));
+  } else {
+    let q = supabase
+      .from("finance_ar_open_items" as any)
+      .select("document_date, due_date, residual_amount, base_residual_amount")
+      .eq("organization_id", params.orgId)
+      .in("contact_id", contactIds)
+      .lte("document_date", asOf)
+      .gt("residual_amount", 0.01);
+    if (params.businessId) q = q.eq("business_id", params.businessId);
+    if (params.branchId) q = q.eq("branch_id", params.branchId);
+
+    const { data: rows, error } = await q;
+    if (error) throw error;
+    data = rows as any[];
+  }
 
   const buckets = emptyAgingBuckets();
   for (const row of (data || []) as any[]) {
