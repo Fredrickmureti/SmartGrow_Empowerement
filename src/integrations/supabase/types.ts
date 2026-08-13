@@ -50153,59 +50153,156 @@ export type Database = {
           },
         ]
       }
+      procurement_contract_amendments: {
+        Row: {
+          amendment_number: number
+          business_id: string
+          changes: Json
+          contract_id: string
+          created_at: string
+          created_by: string | null
+          effective_on: string
+          from_version: number
+          id: string
+          kind: string
+          organization_id: string
+          reason: string | null
+          to_version: number
+        }
+        Insert: {
+          amendment_number: number
+          business_id: string
+          changes?: Json
+          contract_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_on: string
+          from_version: number
+          id?: string
+          kind: string
+          organization_id: string
+          reason?: string | null
+          to_version: number
+        }
+        Update: {
+          amendment_number?: number
+          business_id?: string
+          changes?: Json
+          contract_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_on?: string
+          from_version?: number
+          id?: string
+          kind?: string
+          organization_id?: string
+          reason?: string | null
+          to_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_contract_amendments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_contract_amendments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_procurement_contract_utilization"
+            referencedColumns: ["contract_id"]
+          },
+        ]
+      }
       procurement_contract_lines: {
         Row: {
+          base_uom_id: string | null
+          billed_value: number
           ceiling_quantity: number | null
+          ceiling_quantity_base: number | null
           ceiling_value: number | null
+          committed_quantity: number
+          committed_quantity_base: number
+          committed_value: number
           contract_id: string
           created_at: string
           description: string
+          effective_from: string | null
+          effective_to: string | null
           id: string
           max_quantity: number | null
           min_quantity: number | null
           product_id: string | null
+          received_quantity_base: number
+          received_value: number
           sort_order: number
+          supplier_sku: string | null
           unit_price: number
           uom_id: string | null
           updated_at: string
-          utilized_quantity: number
-          utilized_value: number
         }
         Insert: {
+          base_uom_id?: string | null
+          billed_value?: number
           ceiling_quantity?: number | null
+          ceiling_quantity_base?: number | null
           ceiling_value?: number | null
+          committed_quantity?: number
+          committed_quantity_base?: number
+          committed_value?: number
           contract_id: string
           created_at?: string
           description: string
+          effective_from?: string | null
+          effective_to?: string | null
           id?: string
           max_quantity?: number | null
           min_quantity?: number | null
           product_id?: string | null
+          received_quantity_base?: number
+          received_value?: number
           sort_order?: number
+          supplier_sku?: string | null
           unit_price?: number
           uom_id?: string | null
           updated_at?: string
-          utilized_quantity?: number
-          utilized_value?: number
         }
         Update: {
+          base_uom_id?: string | null
+          billed_value?: number
           ceiling_quantity?: number | null
+          ceiling_quantity_base?: number | null
           ceiling_value?: number | null
+          committed_quantity?: number
+          committed_quantity_base?: number
+          committed_value?: number
           contract_id?: string
           created_at?: string
           description?: string
+          effective_from?: string | null
+          effective_to?: string | null
           id?: string
           max_quantity?: number | null
           min_quantity?: number | null
           product_id?: string | null
+          received_quantity_base?: number
+          received_value?: number
           sort_order?: number
+          supplier_sku?: string | null
           unit_price?: number
           uom_id?: string | null
           updated_at?: string
-          utilized_quantity?: number
-          utilized_value?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_contract_lines_base_uom_id_fkey"
+            columns: ["base_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_contract_lines_contract_id_fkey"
             columns: ["contract_id"]
@@ -50213,43 +50310,81 @@ export type Database = {
             referencedRelation: "procurement_contracts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "procurement_contract_lines_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_procurement_contract_utilization"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "procurement_contract_lines_uom_fkey"
+            columns: ["uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
         ]
       }
       procurement_contract_releases: {
         Row: {
+          business_id: string | null
           contract_id: string
           contract_line_id: string | null
+          contract_version: number | null
           created_at: string
+          entry_kind: string
           id: string
-          purchase_order_id: string
+          idempotency_key: string | null
+          organization_id: string | null
+          purchase_order_id: string | null
           purchase_order_item_id: string | null
           quantity: number
+          quantity_base: number
           released_at: string
           released_by: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
           value: number
         }
         Insert: {
+          business_id?: string | null
           contract_id: string
           contract_line_id?: string | null
+          contract_version?: number | null
           created_at?: string
+          entry_kind?: string
           id?: string
-          purchase_order_id: string
+          idempotency_key?: string | null
+          organization_id?: string | null
+          purchase_order_id?: string | null
           purchase_order_item_id?: string | null
           quantity?: number
+          quantity_base?: number
           released_at?: string
           released_by?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
           value?: number
         }
         Update: {
+          business_id?: string | null
           contract_id?: string
           contract_line_id?: string | null
+          contract_version?: number | null
           created_at?: string
+          entry_kind?: string
           id?: string
-          purchase_order_id?: string
+          idempotency_key?: string | null
+          organization_id?: string | null
+          purchase_order_id?: string | null
           purchase_order_item_id?: string | null
           quantity?: number
+          quantity_base?: number
           released_at?: string
           released_by?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
           value?: number
         }
         Relationships: [
@@ -50259,6 +50394,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "procurement_contracts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_contract_releases_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_procurement_contract_utilization"
+            referencedColumns: ["contract_id"]
           },
           {
             foreignKeyName: "procurement_contract_releases_contract_line_id_fkey"
@@ -50297,86 +50439,201 @@ export type Database = {
           },
         ]
       }
+      procurement_contract_versions: {
+        Row: {
+          business_id: string
+          contract_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          header_snapshot: Json
+          id: string
+          lines_snapshot: Json
+          organization_id: string
+          version_number: number
+        }
+        Insert: {
+          business_id: string
+          contract_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          header_snapshot?: Json
+          id?: string
+          lines_snapshot?: Json
+          organization_id: string
+          version_number: number
+        }
+        Update: {
+          business_id?: string
+          contract_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          header_snapshot?: Json
+          id?: string
+          lines_snapshot?: Json
+          organization_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_contract_versions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_contract_versions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_procurement_contract_utilization"
+            referencedColumns: ["contract_id"]
+          },
+        ]
+      }
       procurement_contracts: {
         Row: {
+          approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           auto_renew: boolean
+          base_currency: string | null
+          billed_value: number
           business_id: string
           ceiling_value: number | null
+          closed_at: string | null
+          committed_value: number
           contract_number: string
           created_at: string
           created_by: string
           currency: string
+          current_version: number
           end_date: string | null
+          enforce_item_coverage: boolean
+          exchange_rate: number | null
+          exchange_rate_date: string | null
           id: string
           is_sample_data: boolean
           kind: string
           notes: string | null
           organization_id: string
+          paid_value: number
+          price_tolerance_amount: number
+          price_tolerance_percent: number
+          received_value: number
           start_date: string
-          status: string
+          status: Database["public"]["Enums"]["procurement_contract_status"]
+          submitted_at: string | null
+          submitted_by: string | null
           supplier_id: string
+          suspended_at: string | null
+          suspended_by: string | null
+          suspension_reason: string | null
           terminated_at: string | null
           terminated_by: string | null
           terminated_reason: string | null
           title: string | null
           updated_at: string
-          utilized_value: number
         }
         Insert: {
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           auto_renew?: boolean
+          base_currency?: string | null
+          billed_value?: number
           business_id: string
           ceiling_value?: number | null
+          closed_at?: string | null
+          committed_value?: number
           contract_number: string
           created_at?: string
           created_by: string
           currency?: string
+          current_version?: number
           end_date?: string | null
+          enforce_item_coverage?: boolean
+          exchange_rate?: number | null
+          exchange_rate_date?: string | null
           id?: string
           is_sample_data?: boolean
           kind?: string
           notes?: string | null
           organization_id: string
+          paid_value?: number
+          price_tolerance_amount?: number
+          price_tolerance_percent?: number
+          received_value?: number
           start_date: string
-          status?: string
+          status?: Database["public"]["Enums"]["procurement_contract_status"]
+          submitted_at?: string | null
+          submitted_by?: string | null
           supplier_id: string
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
           terminated_at?: string | null
           terminated_by?: string | null
           terminated_reason?: string | null
           title?: string | null
           updated_at?: string
-          utilized_value?: number
         }
         Update: {
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           auto_renew?: boolean
+          base_currency?: string | null
+          billed_value?: number
           business_id?: string
           ceiling_value?: number | null
+          closed_at?: string | null
+          committed_value?: number
           contract_number?: string
           created_at?: string
           created_by?: string
           currency?: string
+          current_version?: number
           end_date?: string | null
+          enforce_item_coverage?: boolean
+          exchange_rate?: number | null
+          exchange_rate_date?: string | null
           id?: string
           is_sample_data?: boolean
           kind?: string
           notes?: string | null
           organization_id?: string
+          paid_value?: number
+          price_tolerance_amount?: number
+          price_tolerance_percent?: number
+          received_value?: number
           start_date?: string
-          status?: string
+          status?: Database["public"]["Enums"]["procurement_contract_status"]
+          submitted_at?: string | null
+          submitted_by?: string | null
           supplier_id?: string
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
           terminated_at?: string | null
           terminated_by?: string | null
           terminated_reason?: string | null
           title?: string | null
           updated_at?: string
-          utilized_value?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_contracts_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "procurement_contracts_supplier_id_fkey"
             columns: ["supplier_id"]
@@ -53667,6 +53924,7 @@ export type Database = {
       purchase_order_items: {
         Row: {
           contract_line_id: string | null
+          contract_unit_price: number | null
           created_at: string
           description: string
           display_quantity: number | null
@@ -53694,6 +53952,7 @@ export type Database = {
         }
         Insert: {
           contract_line_id?: string | null
+          contract_unit_price?: number | null
           created_at?: string
           description: string
           display_quantity?: number | null
@@ -53721,6 +53980,7 @@ export type Database = {
         }
         Update: {
           contract_line_id?: string | null
+          contract_unit_price?: number | null
           created_at?: string
           description?: string
           display_quantity?: number | null
@@ -53879,6 +54139,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -53920,6 +54182,8 @@ export type Database = {
           branch_id?: string | null
           business_id: string
           contract_id?: string | null
+          contract_snapshot?: Json | null
+          contract_version?: number | null
           converted_at?: string | null
           converted_bill_id?: string | null
           created_at?: string
@@ -53961,6 +54225,8 @@ export type Database = {
           branch_id?: string | null
           business_id?: string
           contract_id?: string | null
+          contract_snapshot?: Json | null
+          contract_version?: number | null
           converted_at?: string | null
           converted_bill_id?: string | null
           created_at?: string
@@ -54036,6 +54302,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "procurement_contracts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "v_procurement_contract_utilization"
+            referencedColumns: ["contract_id"]
           },
           {
             foreignKeyName: "purchase_orders_converted_bill_id_fkey"
@@ -82681,6 +82954,103 @@ export type Database = {
           },
         ]
       }
+      v_procurement_contract_utilization: {
+        Row: {
+          base_currency: string | null
+          billed_value: number | null
+          business_id: string | null
+          ceiling_value: number | null
+          committed_value: number | null
+          contract_id: string | null
+          contract_number: string | null
+          currency: string | null
+          days_to_expiry: number | null
+          end_date: string | null
+          exchange_rate: number | null
+          organization_id: string | null
+          paid_value: number | null
+          received_value: number | null
+          remaining_value: number | null
+          start_date: string | null
+          status:
+            | Database["public"]["Enums"]["procurement_contract_status"]
+            | null
+          supplier_id: string | null
+          title: string | null
+          utilization_percent: number | null
+        }
+        Insert: {
+          base_currency?: string | null
+          billed_value?: number | null
+          business_id?: string | null
+          ceiling_value?: number | null
+          committed_value?: number | null
+          contract_id?: string | null
+          contract_number?: string | null
+          currency?: string | null
+          days_to_expiry?: never
+          end_date?: string | null
+          exchange_rate?: number | null
+          organization_id?: string | null
+          paid_value?: number | null
+          received_value?: number | null
+          remaining_value?: never
+          start_date?: string | null
+          status?:
+            | Database["public"]["Enums"]["procurement_contract_status"]
+            | null
+          supplier_id?: string | null
+          title?: string | null
+          utilization_percent?: never
+        }
+        Update: {
+          base_currency?: string | null
+          billed_value?: number | null
+          business_id?: string | null
+          ceiling_value?: number | null
+          committed_value?: number | null
+          contract_id?: string | null
+          contract_number?: string | null
+          currency?: string | null
+          days_to_expiry?: never
+          end_date?: string | null
+          exchange_rate?: number | null
+          organization_id?: string | null
+          paid_value?: number | null
+          received_value?: number | null
+          remaining_value?: never
+          start_date?: string | null
+          status?:
+            | Database["public"]["Enums"]["procurement_contract_status"]
+            | null
+          supplier_id?: string | null
+          title?: string | null
+          utilization_percent?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_contracts_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "procurement_contracts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_contracts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_party_supplier"
+            referencedColumns: ["supplier_id"]
+          },
+        ]
+      }
       v_sales_return_settlement: {
         Row: {
           applied: number | null
@@ -84609,6 +84979,21 @@ export type Database = {
           needs_employer: boolean
         }[]
       }
+      _pc_emit: {
+        Args: {
+          _contract_id: string
+          _org: string
+          _payload?: Json
+          _state: string
+          _suffix?: string
+        }
+        Returns: undefined
+      }
+      _pc_recompute: { Args: { _contract_id: string }; Returns: undefined }
+      _pc_snapshot_version: {
+        Args: { _contract_id: string; _effective_from: string }
+        Returns: number
+      }
       _pick_hq_branch: { Args: { _business_id: string }; Returns: string }
       _pos_apply_lot_consumption: {
         Args: {
@@ -85692,6 +86077,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -85782,11 +86169,11 @@ export type Database = {
       }
       amend_procurement_contract: {
         Args: {
-          p_ceiling_value?: number
+          p_changes: Json
           p_contract_id: string
-          p_end_date?: string
-          p_notes?: string
-          p_title?: string
+          p_effective_on: string
+          p_kind: string
+          p_reason?: string
         }
         Returns: Json
       }
@@ -86562,6 +86949,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -87492,6 +87881,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -88317,6 +88708,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -88872,9 +89265,12 @@ export type Database = {
           p_contract_number: string
           p_currency: string
           p_end_date: string
+          p_enforce_item_coverage?: boolean
           p_kind: string
           p_lines?: Json
           p_notes?: string
+          p_price_tolerance_amount?: number
+          p_price_tolerance_percent?: number
           p_start_date: string
           p_supplier_id: string
           p_title: string
@@ -96936,6 +97332,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -97052,6 +97450,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -97263,6 +97663,14 @@ export type Database = {
           p_new_wage?: number
         }
         Returns: string
+      }
+      renew_procurement_contract: {
+        Args: {
+          p_contract_id: string
+          p_new_ceiling_value?: number
+          p_new_end_date: string
+        }
+        Returns: Json
       }
       reopen_fiscal_period: {
         Args: { _period_id: string }
@@ -98390,6 +98798,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -98765,6 +99175,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_procurement_contract_state: {
+        Args: { p_action: string; p_contract_id: string; p_reason?: string }
+        Returns: Json
+      }
       set_proforma_status_atomic: {
         Args: {
           p_proforma_id: string
@@ -98944,6 +99358,10 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_procurement_contract: {
+        Args: { p_contract_id: string }
+        Returns: Json
+      }
       submit_profile_change_request: {
         Args: { p_field_key: string; p_new_value: Json; p_reason?: string }
         Returns: string
@@ -98958,6 +99376,8 @@ export type Database = {
           branch_id: string | null
           business_id: string
           contract_id: string | null
+          contract_snapshot: Json | null
+          contract_version: number | null
           converted_at: string | null
           converted_bill_id: string | null
           created_at: string
@@ -99587,7 +100007,7 @@ export type Database = {
         Returns: string
       }
       terminate_procurement_contract: {
-        Args: { p_contract_id: string; p_reason?: string }
+        Args: { p_contract_id: string; p_reason: string }
         Returns: Json
       }
       test_recurring_calendar: {
@@ -103170,6 +103590,14 @@ export type Database = {
         | "payslip"
         | "asset_tag"
         | "generic"
+      procurement_contract_status:
+        | "draft"
+        | "pending_approval"
+        | "active"
+        | "suspended"
+        | "expired"
+        | "terminated"
+        | "closed"
       product_identifier_kind:
         | "gtin"
         | "sku"
@@ -104370,6 +104798,15 @@ export const Constants = {
         "payslip",
         "asset_tag",
         "generic",
+      ],
+      procurement_contract_status: [
+        "draft",
+        "pending_approval",
+        "active",
+        "suspended",
+        "expired",
+        "terminated",
+        "closed",
       ],
       product_identifier_kind: [
         "gtin",

@@ -24,6 +24,9 @@ export interface PurchaseOrderItem {
   tax_amount: number;
   line_total: number;
   sort_order: number;
+  /** Contract line this PO line draws from (enforced server-side on approval). */
+  contract_line_id?: string | null;
+  contract_unit_price?: number | null;
   // UoM provenance — `quantity` stays in base units (DB trigger normalizes).
   packaging_id?: string | null;
   display_quantity?: number | null;
@@ -106,6 +109,7 @@ export function usePurchaseOrders() {
         .select(`
           *,
           vendor:contacts(name),
+          contract:procurement_contracts(id, contract_number, title, currency),
           items:purchase_order_items(*)
         `)
         .eq("organization_id", currentOrg.id)

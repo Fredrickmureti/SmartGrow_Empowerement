@@ -50,6 +50,11 @@ import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { normalizeError } from "@/services/resilience";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
+import {
+  useSupplierContracts,
+  contractRemaining,
+  findContractLine,
+} from "@/features/purchases/contracts/useSupplierContracts";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
@@ -96,6 +101,12 @@ export default function PurchaseOrderCreatePage() {
     discount_amount: 0,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
+  // Contract draw-down: a PO may cite exactly one supplier agreement. The
+  // database re-validates status, window, currency, price and ceilings on
+  // approval — this selector just makes the control reachable.
+  const [contractId, setContractId] = useState<string>("");
+  const { contracts } = useSupplierContracts(formData.vendor_id || null);
+  const selectedContract = contracts.find((c) => c.id === contractId);
 
   // ADR 0135 — the supplier only *proposes* the document currency; the database
   // stamps and freezes it (and the rate) on insert.
@@ -182,20 +193,49 @@ export default function PurchaseOrderCreatePage() {
     (index: number, productId: string) => {
       const product = products.find((p) => p.id === productId);
       const vendorPrice = priceLists.find((pl) => pl.product_id === productId);
+      // A contract price always beats a vendor price list: it is the
+      // negotiated rate the ceiling trigger will enforce.
+      const contractLine = findContractLine(selectedContract, productId);
       patchLineItem(index, {
         product_id: productId,
+        contract_line_id: contractLine?.id ?? null,
         ...(product
           ? {
               description: product.name,
-              unit_price: vendorPrice
-                ? vendorPrice.unit_price
-                : product.cost_price || product.unit_price,
+              unit_price:
+                contractLine?.unit_price ??
+                (vendorPrice ? vendorPrice.unit_price : product.cost_price || product.unit_price),
               tax_rate: product.tax_rate || 0,
             }
           : {}),
       } as Partial<LineItem>);
     },
-    [products, priceLists, patchLineItem],
+    [products, priceLists, patchLineItem, selectedContract],
+  );
+
+  // Re-map coverage whenever the cited contract changes.
+  const applyContract = useCallback(
+    (nextId: string) => {
+      const next = nextId === "none" ? "" : nextId;
+      setContractId(next);
+      const contract = contracts.find((c) => c.id === next);
+      setLineItems((prev) =>
+        prev.map((item) => {
+          const line = findContractLine(contract, item.product_id);
+          if (!line) return { ...item, contract_line_id: null };
+          const unit_price = line.unit_price ?? item.unit_price;
+          const subtotal = item.quantity * unit_price;
+          return {
+            ...item,
+            contract_line_id: line.id,
+            unit_price,
+            line_total: subtotal,
+            tax_amount: subtotal * ((item.tax_rate || 0) / 100),
+          };
+        }),
+      );
+    },
+    [contracts],
   );
 
   const addLineItem = useCallback(
@@ -210,6 +250,9 @@ export default function PurchaseOrderCreatePage() {
 
   const handleVendorChange = async (v: string) => {
     setFormData((p) => ({ ...p, vendor_id: v }));
+    // Contracts are supplier-specific — never carry a selection across vendors.
+    setContractId("");
+    setLineItems((prev) => prev.map((i) => ({ ...i, contract_line_id: null })));
     try {
       const defaults = await fetchContactDefaults(v);
       if (defaults.default_tax_rate_id) {
@@ -263,6 +306,7 @@ export default function PurchaseOrderCreatePage() {
           deliver_to_branch_id: formData.deliver_to_branch_id,
           shipping_address: formData.shipping_address || null,
           notes: formData.notes || null,
+          contract_id: contractId || null,
           converted_bill_id: null,
           converted_at: null,
         } as any,
@@ -312,6 +356,44 @@ export default function PurchaseOrderCreatePage() {
               value={formData.order_date}
               onChange={(e) => setFormData({ ...formData, order_date: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Contract</Label>
+            <Select
+              value={contractId || "none"}
+              onValueChange={applyContract}
+              disabled={!formData.vendor_id}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={formData.vendor_id ? "No contract" : "Select a supplier first"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No contract (spot buy)</SelectItem>
+                {contracts.map((c) => {
+                  const remaining = contractRemaining(c);
+                  return (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.contract_number} — {c.title}
+                      {remaining != null
+                        ? ` · ${formatCurrency(remaining)} left`
+                        : ""}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            {selectedContract && (
+              <p className="text-xs text-muted-foreground">
+                Prices, quantities and the ceiling of {selectedContract.contract_number} are enforced
+                when this order is approved.
+                {selectedContract.currency &&
+                  documentCurrency &&
+                  selectedContract.currency !== documentCurrency &&
+                  ` Warning: contract is in ${selectedContract.currency} but this order is in ${documentCurrency}.`}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Expected Delivery</Label>

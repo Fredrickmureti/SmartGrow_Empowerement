@@ -160,7 +160,7 @@ export default function ContractListPage() {
               </TableHeader>
               <TableBody>
                 {filtered.map((r) => {
-                  const pct = utilizationPct(r.utilized_value, r.ceiling_value);
+                  const pct = utilizationPct(r.committed_value, r.ceiling_value);
                   return (
                     <TableRow
                       key={r.id}
@@ -192,7 +192,7 @@ export default function ContractListPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="text-sm">
-                          {money(r.utilized_value, r.currency)}
+                          {money(r.committed_value, r.currency)}
                           <span className="text-muted-foreground"> / </span>
                           {money(r.ceiling_value, r.currency)}
                         </div>

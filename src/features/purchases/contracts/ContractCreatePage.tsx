@@ -29,6 +29,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
+import { useCurrencyContext } from "@/contexts/CurrencyContext";
+import { Switch } from "@/components/ui/switch";
 import {
   createProcurementContract,
   type ContractLineInput,
@@ -36,9 +38,10 @@ import {
 
 const KINDS = [
   "master",
-  "blanket",
   "framework",
-  "spot",
+  "blanket",
+  "rate",
+  "volume",
   "service",
   "consignment",
 ];
@@ -48,12 +51,15 @@ export default function ContractCreatePage() {
   const { toast } = useToast();
   const { currentBusiness } = useBusinesses();
   const { rows: suppliers, loading: suppliersLoading } = useSuppliers();
+  const { currencies, baseCurrency } = useCurrencyContext();
 
   const [supplierId, setSupplierId] = useState<string>("");
   const [contractNumber, setContractNumber] = useState("");
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<string>("blanket");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(baseCurrency);
+  const [tolerancePercent, setTolerancePercent] = useState("0");
+  const [enforceCoverage, setEnforceCoverage] = useState(false);
   const [startDate, setStartDate] = useState<string>(
     new Date().toISOString().slice(0, 10),
   );
@@ -105,7 +111,7 @@ export default function ContractCreatePage() {
     }
     setBusy(true);
     try {
-      const id = await createProcurementContract({
+      const result = await createProcurementContract({
         businessId: currentBusiness.id,
         supplierId,
         contractNumber: contractNumber || null,
@@ -117,9 +123,11 @@ export default function ContractCreatePage() {
         ceilingValue: ceilingValue ? Number(ceilingValue) : null,
         lines,
         notes: notes || null,
+        priceTolerancePercent: tolerancePercent ? Number(tolerancePercent) : 0,
+        enforceItemCoverage: enforceCoverage,
       });
-      toast({ title: "Contract created" });
-      navigate(`/purchases/contracts/${id}`);
+      toast({ title: "Contract created", description: `${result.contract_number} is in draft — submit it for approval.` });
+      navigate(`/purchases/contracts/${result.contract_id}`);
     } catch (e: any) {
       toast({
         title: "Create failed",
@@ -207,11 +215,41 @@ export default function ContractCreatePage() {
             </div>
             <div>
               <Label>Currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currencies.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.code} — {c.name}
+                      {c.code === baseCurrency ? " (base)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Price tolerance (%)</Label>
               <Input
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                maxLength={3}
+                type="number"
+                min={0}
+                step="0.01"
+                value={tolerancePercent}
+                onChange={(e) => setTolerancePercent(e.target.value)}
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                How far a PO price may exceed the agreed price before it is blocked.
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>Contract items only</Label>
+                <p className="text-xs text-muted-foreground">
+                  Block POs containing items not covered by a contract line.
+                </p>
+              </div>
+              <Switch checked={enforceCoverage} onCheckedChange={setEnforceCoverage} />
             </div>
             <div>
               <Label>Start date</Label>
