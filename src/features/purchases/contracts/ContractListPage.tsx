@@ -174,49 +174,50 @@ export default function ContractListPage() {
         }
       />
       <PageBody>
-        <KpiRibbon>
-          <KpiTile
-            label="Active"
-            value={kpis.active}
-            hint={
-              kpis.ceilingValue
+        <KpiRibbon
+          label="Contract portfolio"
+          items={[
+            {
+              label: "Active",
+              value: kpis.active,
+              hint: kpis.ceilingValue
                 ? `${compactMoney(kpis.committedValue)} committed of ${compactMoney(kpis.ceilingValue)} ${currency}`
-                : "No value ceilings set"
-            }
-            tone={kpis.active ? "success" : "neutral"}
-            loading={loading}
-          />
-          <KpiTile
-            label="Awaiting approval"
-            value={kpis.pendingApproval}
-            hint="Routed to the approval engine"
-            tone={kpis.pendingApproval ? "info" : "neutral"}
-            loading={loading}
-          />
-          <KpiTile
-            label="Expiring ≤ 30d"
-            value={kpis.expiring30}
-            hint={`${kpis.expiring60} in 60d · ${kpis.expiring90} in 90d`}
-            tone={kpis.expiring30 ? "danger" : kpis.expiring90 ? "warning" : "neutral"}
-            loading={loading}
-          />
-          <KpiTile
-            label="90%+ exhausted"
-            value={kpis.exhausted}
-            hint="Committed against the value ceiling"
-            tone={kpis.exhausted ? "danger" : "neutral"}
-            loading={loading}
-          />
-          <KpiTile
-            label="Off-contract leakage"
-            value={compactMoney(leakage.value)}
-            unit={currency || undefined}
-            hint={`${leakage.orderCount} orders on ${leakage.supplierCount} contracted suppliers, last ${leakage.windowDays}d`}
-            tone={leakage.orderCount ? "warning" : "neutral"}
-            higherIsBetter={false}
-            loading={loading}
-          />
-        </KpiRibbon>
+                : "No value ceilings set",
+              tone: kpis.active ? "success" : "neutral",
+              loading,
+            },
+            {
+              label: "Awaiting approval",
+              value: kpis.pendingApproval,
+              hint: "Routed to the approval engine",
+              tone: kpis.pendingApproval ? "info" : "neutral",
+              loading,
+            },
+            {
+              label: "Expiring ≤ 30d",
+              value: kpis.expiring30,
+              hint: `${kpis.expiring60} in 60d · ${kpis.expiring90} in 90d`,
+              tone: kpis.expiring30 ? "danger" : kpis.expiring90 ? "warning" : "neutral",
+              loading,
+            },
+            {
+              label: "90%+ exhausted",
+              value: kpis.exhausted,
+              hint: "Committed against the value ceiling",
+              tone: kpis.exhausted ? "danger" : "neutral",
+              loading,
+            },
+            {
+              label: "Off-contract leakage",
+              value: compactMoney(leakage.value),
+              unit: currency || undefined,
+              hint: `${leakage.orderCount} orders on ${leakage.supplierCount} contracted suppliers, last ${leakage.windowDays}d`,
+              tone: leakage.orderCount ? "warning" : "neutral",
+              higherIsBetter: false,
+              loading,
+            },
+          ]}
+        />
 
         <FilterBar>
           <div className="relative flex-1 max-w-sm">
