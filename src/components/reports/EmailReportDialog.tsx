@@ -41,7 +41,7 @@ interface EmailReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Returns the FULLY ENRICHED ExportConfig (with org/branding context). */
-  buildConfig: () => ExportConfig;
+  buildConfig: () => ExportConfig | Promise<ExportConfig>;
   /**
    * Optional default recipient (e.g. selected vendor's email on a vendor
    * statement page). User can still edit/remove.
