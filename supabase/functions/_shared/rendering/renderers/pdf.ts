@@ -176,6 +176,16 @@ export async function renderAstToPdf(args: {
   const snap = args.context.document.snapshot as Record<string, unknown>;
 
   assertRfqTemplateContract(args.template, args.blocks);
+  assertJournalTemplateContract(args.template, args.blocks);
+
+  const ledgerLayout = LEDGER_LAYOUTS[args.template.kind_code];
+  if (ledgerLayout) {
+    return await ledgerLayout(
+      snap,
+      (snap["organization"] as unknown) ?? (args.context.business as unknown) ?? null,
+      { paperFormat: mediaClassToPaper(args.template.media_class) },
+    );
+  }
 
   const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
   if (statementLayout) return await statementLayout(snap);
