@@ -65,6 +65,11 @@ import {
   ProductPackagingEditor,
   type ProductPackagingEditorHandle,
 } from "@/components/products/ProductPackagingEditor";
+import {
+  ProductPhysicalAttributesEditor,
+  type ProductPhysicalAttributesEditorHandle,
+} from "@/components/products/ProductPhysicalAttributesEditor";
+
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { ProductVariantsPanel } from "@/features/inventory/variants/ProductVariantsPanel";
 import {
@@ -95,6 +100,8 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
   const identifiersRef = useRef<ProductIdentifiersEditorHandle | null>(null);
   const packagingRef = useRef<ProductPackagingEditorHandle | null>(null);
+  const physicalRef = useRef<ProductPhysicalAttributesEditorHandle | null>(null);
+
 
   const editing = mode === "edit" ? product ?? null : null;
 
@@ -350,6 +357,18 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
         });
       }
 
+      try {
+        await physicalRef.current?.commit(createdId);
+      } catch (physErr: any) {
+        console.error("[Products] physical attributes commit failed", physErr);
+        toast({
+          title: "Product created — measurements save failed",
+          description: physErr?.message ?? "Open the product to retry.",
+          variant: "destructive",
+        });
+      }
+
+
       queryClient.invalidateQueries({ queryKey: ["products-paginated"] });
       goBackToList(createdId);
     } catch (error: any) {
@@ -468,6 +487,23 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
           />
         </Section>
       )}
+
+      {/* Physical attributes — canonical weight / volume / dimensions */}
+      {formData.type === "product" && currentOrg && currentBusiness && (
+        <Section
+          title="Physical attributes"
+          description="Weight, volume and dimensions used by freight, landed cost, shipping and warehouse capacity."
+        >
+          <ProductPhysicalAttributesEditor
+            ref={physicalRef}
+            productId={editing?.id ?? null}
+            organizationId={currentOrg.id}
+            businessId={currentBusiness.id}
+          />
+        </Section>
+      )}
+
+
 
       {/* Inventory unit */}
       {formData.type === "product" && (
