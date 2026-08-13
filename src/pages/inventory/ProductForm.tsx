@@ -224,21 +224,28 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     setIsSubmitting(true);
 
     try {
+      // One payload for the whole product: master + packaging + measurements
+      // + identifiers. The database writes all of it or none of it.
+      const children = {
+        packaging: packagingRef.current?.collect() ?? [],
+        physical: physicalRef.current?.collect() ?? [],
+        identifiers: identifiersRef.current?.collect() ?? [],
+      };
+
       if (editing) {
-        await updateProduct(editing.id, formData);
-        // Flush any identifier edits typed but not yet blurred.
-        try {
-          await identifiersRef.current?.commit(editing.id);
-        } catch (idErr) {
-          console.error("[Products] identifier commit failed", idErr);
-        }
+        const { productId } = await saveProductAtomic({
+          product: formData,
+          productId: editing.id,
+          ...children,
+        });
         toast({ title: "Product updated successfully" });
-        goBackToList(editing.id);
+        queryClient.invalidateQueries({ queryKey: ["products-paginated"] });
+        goBackToList(productId);
         return;
       }
 
-      // Create path — opening-stock atomic RPC when the product tracks
-      // inventory and the operator entered per-warehouse quantities.
+      // Create path — opening stock keeps its own atomic RPC because it posts
+      // to the general ledger and may require approval.
       const openingItems = Object.entries(openingByWarehouse)
         .filter(([, qty]) => Number(qty) > 0)
         .map(([warehouse_id, qty]) => {
@@ -311,6 +318,10 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
         }
         createdId = result.product_id as string;
 
+        // Children in a second transaction — the product row already exists
+        // and carries ledger postings, so it must not be rolled back here.
+        await saveProductAtomic({ product: formData, productId: createdId, ...children });
+
         const requiresApproval = result.opening_stock?.requires_approval === true;
         const journalEntryId =
           result.opening_stock?.journal_entry_id ??
@@ -342,39 +353,18 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
         queryClient.invalidateQueries({ queryKey: ["products-paginated"] });
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       } else {
-        const created = await createProduct({ ...formData, is_active: true });
-        createdId = created.id;
+        const { productId } = await saveProductAtomic({
+          product: {
+            ...formData,
+            organization_id: currentOrg?.id ?? null,
+            business_id: currentBusiness?.id ?? null,
+            is_active: true,
+          },
+          ...children,
+        });
+        createdId = productId;
         toast({ title: "Product created successfully" });
       }
-
-      try {
-        await identifiersRef.current?.commit(createdId);
-      } catch (idErr) {
-        console.error("[Products] identifier commit failed", idErr);
-      }
-
-      try {
-        await packagingRef.current?.commit(createdId);
-      } catch (pkgErr: any) {
-        console.error("[Products] packaging commit failed", pkgErr);
-        toast({
-          title: "Product created — packaging save failed",
-          description: pkgErr?.message ?? "Open the product to retry.",
-          variant: "destructive",
-        });
-      }
-
-      try {
-        await physicalRef.current?.commit(createdId);
-      } catch (physErr: any) {
-        console.error("[Products] physical attributes commit failed", physErr);
-        toast({
-          title: "Product created — measurements save failed",
-          description: physErr?.message ?? "Open the product to retry.",
-          variant: "destructive",
-        });
-      }
-
 
       queryClient.invalidateQueries({ queryKey: ["products-paginated"] });
       goBackToList(createdId);
