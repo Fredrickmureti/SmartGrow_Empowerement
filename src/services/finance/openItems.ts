@@ -124,6 +124,8 @@ export interface OpenItemRow {
   dueDate: string | null;
   residual: number;
   daysOverdue: number;
+}
+
 
 /** Row shape returned by the point-in-time AP engine. */
 export interface ApOpenItemAsOfRow {
