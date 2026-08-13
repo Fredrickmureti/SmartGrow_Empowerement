@@ -272,9 +272,10 @@ export function useAIAssistant() {
 
       // Final parse to make sure trailing action lines are picked up.
       flush();
-    } catch (error: any) {
-      console.error("Chat error:", error);
-      toast.error("Failed to send message");
+    } catch (error: unknown) {
+      const mapped = mapAssistantThrownError(error);
+      console.error("[ai-assistant] chat failed", mapped, error);
+      toast.error(mapped.message);
       // Remove the user message on error
       setMessages(messages);
     } finally {
