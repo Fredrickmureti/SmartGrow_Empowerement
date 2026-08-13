@@ -125,12 +125,12 @@ describe("AR/AP open-items views are consumed via RPCs, not directly", () => {
 });
 
 /**
- * Phase 5.4 — `finance_ap_open_items` is retired as an application surface.
- * It survives in the database only as a deprecated CURRENT_DATE mirror of
- * `finance_ap_open_items_as_of`, kept for the drift sensor and SQL contract
- * tests. Any application read of it silently loses point-in-time ability: it
- * can only ever answer "today", so a statement or aging reprint for a closed
- * period would be wrong. Payables reads must go through the RPC.
+ * Phase 10 — `finance_ap_open_items` is dropped from the database entirely.
+ * The only payables projection is `finance_ap_open_items_as_of`, and the
+ * projection/ledger drift sensor (`finance_open_items_tieout`) computes its AP
+ * side inline. Any reference to the retired view — application read or SQL —
+ * silently loses point-in-time ability: it could only ever answer "today", so a
+ * statement or aging reprint for a closed period would be wrong.
  */
 describe("no application code reads the retired finance_ap_open_items view", () => {
   const files = [...walk("src"), ...walk("supabase/functions")].filter(

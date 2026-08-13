@@ -17,12 +17,12 @@ BEGIN
 END $$;
 
 -- 2) Contract: the AP surface is the point-in-time engine, and it subtracts
---    applied vendor credit notes. `finance_ap_open_items` survives only as a
---    deprecated CURRENT_DATE mirror of that engine (Phase 5.4), so both the
---    function and the view must recognise the credit-application channel and
---    the view must be security_invoker (it is granted to `authenticated`).
+--    applied vendor credit notes. The deprecated `finance_ap_open_items`
+--    CURRENT_DATE mirror was dropped in Phase 10 and must never come back — it
+--    could only ever answer "today", so any reprint of a closed period would be
+--    wrong.
 DO $$
-DECLARE v_fn text; v_def text; v_invoker boolean;
+DECLARE v_fn text;
 BEGIN
   SELECT pg_get_functiondef(p.oid) INTO v_fn
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -34,19 +34,11 @@ BEGIN
     RAISE EXCEPTION 'finance_ap_open_items_as_of ignores vendor_credit_note_applications — payables will be overstated';
   END IF;
 
-  SELECT pg_get_viewdef('public.finance_ap_open_items'::regclass, true) INTO v_def;
-  IF v_def !~* 'vendor_credit_note_applications' THEN
-    RAISE EXCEPTION 'finance_ap_open_items ignores vendor_credit_note_applications — payables will be overstated';
-  END IF;
-  IF v_def !~* 'current_date' THEN
-    RAISE EXCEPTION 'finance_ap_open_items must be the CURRENT_DATE mirror of finance_ap_open_items_as_of';
-  END IF;
-
-  SELECT COALESCE('security_invoker=true' = ANY (c.reloptions), false) INTO v_invoker
-    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-   WHERE n.nspname = 'public' AND c.relname = 'finance_ap_open_items';
-  IF NOT v_invoker THEN
-    RAISE EXCEPTION 'finance_ap_open_items must be security_invoker — otherwise it leaks payables across organisations';
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public' AND c.relname = 'finance_ap_open_items'
+  ) THEN
+    RAISE EXCEPTION 'finance_ap_open_items was retired in Phase 10 — payables must be read through finance_ap_open_items_as_of';
   END IF;
 END $$;
 
