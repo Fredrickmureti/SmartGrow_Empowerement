@@ -355,7 +355,7 @@ export function useRequisitionRecord(id: string | undefined) {
         const { data: clData } = await (supabase as any)
           .from("procurement_contract_lines")
           .select(
-            "id, contract_id, description, unit_price, currency, ceiling_quantity_base, committed_quantity_base, contract:procurement_contracts(contract_number, title, status)",
+            "id, contract_id, description, unit_price, ceiling_quantity_base, committed_quantity_base, contract:procurement_contracts(contract_number, title, status, currency)",
           )
           .in("id", contractLineIds);
         for (const l of (clData ?? []) as any[]) {
@@ -364,7 +364,7 @@ export function useRequisitionRecord(id: string | undefined) {
             contract_id: l.contract_id,
             description: l.description ?? null,
             unit_price: Number(l.unit_price ?? 0),
-            currency: l.currency ?? null,
+            currency: l.contract?.currency ?? null,
             ceiling_quantity_base:
               l.ceiling_quantity_base == null ? null : Number(l.ceiling_quantity_base),
             committed_quantity_base:
