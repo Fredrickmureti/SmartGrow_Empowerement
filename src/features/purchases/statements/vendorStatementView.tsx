@@ -160,7 +160,7 @@ export function useVendorStatementActions(record: VendorStatementRecord | null) 
         dateLabel: record.header.period_start ?? record.header.statement_date,
         periodEndLabel: record.header.period_end ?? null,
       });
-      if (!res.ok) throw new Error(res.error ?? "Download failed");
+      if (!res.success) throw new Error(res.error ?? "Download failed");
       toast.success("Statement downloaded.");
     } catch (err) {
       toast.error(`Failed to download statement: ${normalizeError(err).message}`);
