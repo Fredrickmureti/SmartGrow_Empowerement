@@ -183,7 +183,7 @@ export default function ContractListPage() {
                 ? `${compactMoney(kpis.committedValue)} committed of ${compactMoney(kpis.ceilingValue)} ${currency}`
                 : "No value ceilings set"
             }
-            tone={kpis.active ? "positive" : "neutral"}
+            tone={kpis.active ? "success" : "neutral"}
             loading={loading}
           />
           <KpiTile
@@ -197,14 +197,14 @@ export default function ContractListPage() {
             label="Expiring ≤ 30d"
             value={kpis.expiring30}
             hint={`${kpis.expiring60} in 60d · ${kpis.expiring90} in 90d`}
-            tone={kpis.expiring30 ? "critical" : kpis.expiring90 ? "warning" : "neutral"}
+            tone={kpis.expiring30 ? "danger" : kpis.expiring90 ? "warning" : "neutral"}
             loading={loading}
           />
           <KpiTile
             label="90%+ exhausted"
             value={kpis.exhausted}
             hint="Committed against the value ceiling"
-            tone={kpis.exhausted ? "critical" : "neutral"}
+            tone={kpis.exhausted ? "danger" : "neutral"}
             loading={loading}
           />
           <KpiTile
