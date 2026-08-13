@@ -52454,14 +52454,6 @@ export type Database = {
           cost_price: number | null
           created_at: string
           description: string | null
-          etims_classification_code: string | null
-          etims_country_origin: string | null
-          etims_item_code: string | null
-          etims_origin_country: string | null
-          etims_packaging_unit: string | null
-          etims_registered_at: string | null
-          etims_registration_status: string | null
-          etims_unit_code: string | null
           expiry_alert_days: number
           id: string
           image_url: string | null
@@ -52514,14 +52506,6 @@ export type Database = {
           cost_price?: number | null
           created_at?: string
           description?: string | null
-          etims_classification_code?: string | null
-          etims_country_origin?: string | null
-          etims_item_code?: string | null
-          etims_origin_country?: string | null
-          etims_packaging_unit?: string | null
-          etims_registered_at?: string | null
-          etims_registration_status?: string | null
-          etims_unit_code?: string | null
           expiry_alert_days?: number
           id?: string
           image_url?: string | null
@@ -52574,14 +52558,6 @@ export type Database = {
           cost_price?: number | null
           created_at?: string
           description?: string | null
-          etims_classification_code?: string | null
-          etims_country_origin?: string | null
-          etims_item_code?: string | null
-          etims_origin_country?: string | null
-          etims_packaging_unit?: string | null
-          etims_registered_at?: string | null
-          etims_registration_status?: string | null
-          etims_unit_code?: string | null
           expiry_alert_days?: number
           id?: string
           image_url?: string | null
@@ -100077,6 +100053,7 @@ export type Database = {
       save_product_atomic: {
         Args: {
           p_identifiers?: Json
+          p_localization?: Json
           p_packaging?: Json
           p_physical?: Json
           p_product: Json
@@ -100281,14 +100258,6 @@ export type Database = {
           cost_price: number | null
           created_at: string
           description: string | null
-          etims_classification_code: string | null
-          etims_country_origin: string | null
-          etims_item_code: string | null
-          etims_origin_country: string | null
-          etims_packaging_unit: string | null
-          etims_registered_at: string | null
-          etims_registration_status: string | null
-          etims_unit_code: string | null
           expiry_alert_days: number
           id: string
           image_url: string | null
