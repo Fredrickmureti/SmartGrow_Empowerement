@@ -80,6 +80,12 @@ interface IdentifierRow {
 export interface ProductIdentifiersEditorHandle {
   /** Persist pending rows after the parent creates the product. */
   commit: (productId?: string) => Promise<void>;
+  /**
+   * Payload for the single-transaction product save
+   * (`save_product_atomic`). The RPC routes every row through
+   * `upsert_product_identifier`, so the identity invariants stay in one place.
+   */
+  collect: () => IdentifierInput[];
   /** True if at least one row was added in create mode. */
   hasPending: () => boolean;
 }
@@ -318,6 +324,16 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
 
     useImperativeHandle(ref, () => ({
       hasPending: () => rows.some((r) => !r.id && r.code.trim().length > 0),
+      collect: (): IdentifierInput[] =>
+        rowsRef.current
+          .filter((r) => r.code.trim().length > 0 && (r._dirty || !r.id))
+          .map((r) => ({
+            id: r.id ?? null,
+            code: r.code.trim(),
+            kind: r.kind,
+            is_primary: r.is_primary,
+            packaging_id: r.packaging_id,
+          })),
       commit: async (newProductId?: string) => {
         const targetProductId = newProductId ?? productId;
         if (!targetProductId) return;
