@@ -24,7 +24,8 @@ import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 interface ReportPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  getExportConfig: () => ExportConfig;
+  /** May be async — server-paginated reports resolve the full dataset here. */
+  getExportConfig: () => ExportConfig | Promise<ExportConfig>;
 }
 
 export function ReportPreviewDialog({
