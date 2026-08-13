@@ -21,6 +21,13 @@ interface UomSelectProps {
   placeholder?: string;
   disabled?: boolean;
   allowClear?: boolean;
+  /**
+   * Restrict the list to units whose UoM category measures this physical
+   * dimension (`uom_categories.dimension`). Used by the physical-attribute
+   * editors so a weight can never be captured in litres. The database
+   * enforces the same rule — this is convenience, not the invariant.
+   */
+  dimension?: "count" | "mass" | "volume" | "length" | "area";
 }
 
 export function UomSelect({
@@ -29,25 +36,31 @@ export function UomSelect({
   placeholder = "Select unit…",
   disabled,
   allowClear = false,
+  dimension,
 }: UomSelectProps) {
   const { currentBusiness } = useBusinesses();
   const businessId = currentBusiness?.id;
 
   const { data: units = [], isLoading } = useQuery({
-    queryKey: ["units-of-measure", businessId],
+    queryKey: ["units-of-measure", businessId, dimension ?? "all"],
     enabled: !!businessId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("units_of_measure")
-        .select("id, name, code, uom_type, factor_to_reference")
+        .select(
+          "id, name, code, uom_type, factor_to_reference, uom_categories!inner(dimension)",
+        )
         .eq("business_id", businessId!)
-        .eq("is_active", true)
+        .eq("is_active", true);
+      if (dimension) query = query.eq("uom_categories.dimension", dimension);
+      const { data, error } = await query
         .order("uom_type", { ascending: true })
         .order("factor_to_reference", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
   });
+
 
   return (
     <Select
