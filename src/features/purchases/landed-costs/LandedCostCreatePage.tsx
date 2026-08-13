@@ -281,7 +281,6 @@ export default function LandedCostCreatePage() {
                 setRateTouched(true);
                 setExchangeRate(v ?? 0);
               }}
-              decimals={6}
               disabled={currency === baseCurrency}
             />
             {missingRate ? (
@@ -413,7 +412,6 @@ export default function LandedCostCreatePage() {
                     <NumericInput
                       value={c.amount}
                       onValueChange={(v) => patchCharge(c.key, { amount: v ?? 0 })}
-                      decimals={2}
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2 sm:col-span-2">
