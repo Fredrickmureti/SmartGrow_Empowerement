@@ -93689,6 +93689,14 @@ export type Database = {
         Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
       }
+      landed_cost_post_voucher: {
+        Args: { p_actor?: string; p_voucher_id: string }
+        Returns: Json
+      }
+      landed_cost_reverse_voucher: {
+        Args: { p_actor?: string; p_reason: string; p_voucher_id: string }
+        Returns: Json
+      }
       leave_to_attendance_stamp: {
         Args: { _leave_id: string }
         Returns: number
