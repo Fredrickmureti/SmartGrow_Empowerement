@@ -12,6 +12,7 @@ import {
   Truck,
   ScrollText,
   Hourglass,
+  Scale,
   Tags,
   Layers,
   Building2,
