@@ -16,11 +16,17 @@ export interface AllocateResult {
 }
 
 export interface PostResult {
-  journal_entry_id: string | null;
-  capitalized_amount: number;
-  expensed_amount: number;
+  /** Present only when the posting actually reached the ledger. */
+  journal_entry_id?: string | null;
+  capitalized_amount?: number;
+  expensed_amount?: number;
+  /** Server governance verdict: true when an approval request now gates the post. */
+  gated?: boolean;
+  approval_request_id?: string | null;
+  status?: string;
   [key: string]: unknown;
 }
+
 
 function unwrap<T>(data: unknown, error: { message: string } | null): T {
   if (error) throw new Error(error.message);
