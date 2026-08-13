@@ -43,7 +43,10 @@ describe("statement download disposition", () => {
       const body = page(p);
       expect(body).toContain('format: "pdf"');
       expect(body).not.toContain("acknowledgeRecordPrint");
-      expect(body).not.toContain("dispatchVendorStatement");
+      // The module path may be imported (it also exports the download
+      // disposition); what must never appear is a print dispatch CALL.
+      expect(body).not.toMatch(/\bdispatch(Vendor|Customer)Statement\s*\(/);
+
     }
   });
 
