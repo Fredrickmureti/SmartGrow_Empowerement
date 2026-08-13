@@ -18,7 +18,8 @@
     "desktop:package:win": "node scripts/package-electron.mjs --target=win",
     "desktop:package:mac": "node scripts/package-electron.mjs --target=mac",
     "desktop:package:linux": "node scripts/package-electron.mjs --target=linux",
-    "desktop:rebuild": "cd electron && npx electron-rebuild"
+    "desktop:rebuild": "cd electron && npx electron-rebuild",
+    "typecheck:landed-costs": "tsgo -p tsconfig.landed-costs.json"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

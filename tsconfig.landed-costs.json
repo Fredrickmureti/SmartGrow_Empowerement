@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/features/purchases/landed-costs/**/*",
+    "src/vite-env.d.ts",
+    "src/parked-modules.d.ts"
+  ],
+  "exclude": []
+}

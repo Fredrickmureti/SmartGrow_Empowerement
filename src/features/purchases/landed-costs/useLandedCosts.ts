@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useBusinesses } from "@/contexts/BusinessContext";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 export type LandedCostStatus =
   | "draft"
