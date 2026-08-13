@@ -287,7 +287,27 @@ export function PurchasesApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Landed Costs">
-                <LandedCosts />
+                <LandedCostListPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="landed-costs/new"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Landed Costs">
+                <LandedCostCreatePage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="landed-costs/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Landed Costs">
+                <LandedCostRecordPage />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
