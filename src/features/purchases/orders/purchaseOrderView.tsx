@@ -109,12 +109,40 @@ export function usePurchaseOrderView(
             { label: "Order date", value: fmtDate(po.order_date) },
             { label: "Expected date", value: fmtDate(po.expected_date) },
             { label: "Currency", value: po.currency },
+            // ADR-0079 / contract spine: the terms that governed this order are
+            // the ones frozen on it at approval (`contract_snapshot`), not the
+            // contract's current live row. We show the snapshot and only fall
+            // back to the live join for orders not yet approved.
             {
               label: "Contract",
-              value:
-                (po as any).contract?.contract_number
-                  ? `${(po as any).contract.contract_number} — ${(po as any).contract.title}`
-                  : "Spot buy (no contract)",
+              value: (() => {
+                const snap = ((po as any).contract_snapshot ?? null) as
+                  | Record<string, unknown>
+                  | null;
+                const live = (po as any).contract;
+                const number =
+                  (snap?.["contract_number"] as string | undefined) ??
+                  live?.contract_number;
+                if (!number) return "Spot buy (no contract)";
+                return live?.title ? `${number} — ${live.title}` : number;
+              })(),
+            },
+            {
+              label: "Contract terms in force",
+              value: (() => {
+                const snap = ((po as any).contract_snapshot ?? null) as
+                  | Record<string, unknown>
+                  | null;
+                const version =
+                  (po as any).contract_version ?? snap?.["version"] ?? null;
+                if (version == null) {
+                  return (po as any).contract_id
+                    ? "Not yet frozen (order not approved)"
+                    : "—";
+                }
+                const cur = snap?.["currency"] as string | undefined;
+                return `Version ${version}${cur ? ` · ${cur}` : ""}`;
+              })(),
             },
             { label: "Billing status", value: formatStatus(po.billing_status ?? "no") },
             {
