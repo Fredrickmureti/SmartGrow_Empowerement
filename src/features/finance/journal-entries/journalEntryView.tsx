@@ -88,7 +88,18 @@ export function buildJournalEntryView(
     { label: "Date", value: format(new Date(entry.entry_date), "MMMM d, yyyy") },
     { label: "Description", value: entry.description || "—" },
     { label: "Reference", value: entry.reference || "—" },
-    { label: "Source", value: entry.source_type ? entry.source_type.replace(/_/g, " ") : "Manual" },
+    {
+      label: "Source",
+      value: sourceDocument ? (
+        <a className="text-primary underline underline-offset-2" href={sourceDocument.href}>
+          {sourceDocument.label}
+        </a>
+      ) : entry.source_type ? (
+        entry.source_type.replace(/_/g, " ")
+      ) : (
+        "Manual"
+      ),
+    },
     { label: "Status", value: journalEntryStatusBadge(entry) },
   ];
   if (entry.void_reason) {
