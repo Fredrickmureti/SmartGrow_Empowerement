@@ -52318,6 +52318,72 @@ export type Database = {
           },
         ]
       }
+      product_tax_localization: {
+        Row: {
+          business_id: string
+          classification_code: string | null
+          created_at: string
+          id: string
+          item_code: string | null
+          jurisdiction: string
+          organization_id: string
+          origin_country: string
+          packaging_unit: string
+          product_id: string
+          registered_at: string | null
+          registration_status: string
+          unit_code: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          classification_code?: string | null
+          created_at?: string
+          id?: string
+          item_code?: string | null
+          jurisdiction?: string
+          organization_id: string
+          origin_country?: string
+          packaging_unit?: string
+          product_id: string
+          registered_at?: string | null
+          registration_status?: string
+          unit_code?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          classification_code?: string | null
+          created_at?: string
+          id?: string
+          item_code?: string | null
+          jurisdiction?: string
+          organization_id?: string
+          origin_country?: string
+          packaging_unit?: string
+          product_id?: string
+          registered_at?: string | null
+          registration_status?: string
+          unit_code?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_tax_localization_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_tax_localization_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variant_axes: {
         Row: {
           business_id: string
@@ -99470,6 +99536,31 @@ export type Database = {
         }
         Returns: number
       }
+      resolve_product_tax_localization: {
+        Args: { p_jurisdiction?: string; p_product_id: string }
+        Returns: {
+          business_id: string
+          classification_code: string | null
+          created_at: string
+          id: string
+          item_code: string | null
+          jurisdiction: string
+          organization_id: string
+          origin_country: string
+          packaging_unit: string
+          product_id: string
+          registered_at: string | null
+          registration_status: string
+          unit_code: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "product_tax_localization"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       resolve_reversal_bank_block: {
         Args: {
           _actor?: string
@@ -101488,6 +101579,31 @@ export type Database = {
           p_valid_to?: string
         }
         Returns: Json
+      }
+      upsert_product_tax_localization: {
+        Args: { p_payload: Json; p_product_id: string }
+        Returns: {
+          business_id: string
+          classification_code: string | null
+          created_at: string
+          id: string
+          item_code: string | null
+          jurisdiction: string
+          organization_id: string
+          origin_country: string
+          packaging_unit: string
+          product_id: string
+          registered_at: string | null
+          registration_status: string
+          unit_code: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "product_tax_localization"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       upsert_project_cost: {
         Args: {
