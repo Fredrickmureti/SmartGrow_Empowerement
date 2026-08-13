@@ -333,9 +333,25 @@ export default function ContractListPage() {
                           {fmtStatus(r.status)}
                         </StatusBadge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {r.start_date ?? "—"} → {r.end_date ?? "—"}
+                      <TableCell className="text-sm">
+                        <div className="text-muted-foreground">
+                          {r.start_date ?? "—"} → {r.end_date ?? "—"}
+                        </div>
+                        {["active", "suspended"].includes(r.status) && (
+                          <div
+                            className={
+                              expiry.tone === "danger"
+                                ? "text-xs font-medium text-destructive"
+                                : expiry.tone === "warning"
+                                  ? "text-xs font-medium text-warning"
+                                  : "text-xs text-muted-foreground"
+                            }
+                          >
+                            {expiry.text}
+                          </div>
+                        )}
                       </TableCell>
+
                       <TableCell className="text-right">
                         <div className="text-sm">
                           {money(r.committed_value, r.currency)}
