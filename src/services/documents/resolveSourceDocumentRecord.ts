@@ -44,6 +44,7 @@ import { fetchAndBuildVendorCreditNoteSnapshot } from "@/services/documents/snap
 import { fetchAndBuildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import { fetchAndBuildFinanceJournalEntrySnapshot } from "@/services/documents/snapshots/financeJournalEntry";
+import { fetchAndBuildLandedCostVoucherSnapshot } from "@/services/documents/snapshots/purchasesLandedCostVoucher";
 import {
   fetchFrozenPosReceipt,
 } from "@/features/pos/receipts/dispatchPosReceipt";
