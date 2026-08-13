@@ -35,6 +35,7 @@ import {
   identifierWriteMessage,
   retireIdentifier,
 } from "@/features/products/identity/writeIdentifier";
+import type { IdentifierInput } from "@/features/products/save/saveProductAtomic";
 import { activeIdentifiersForProduct } from "@/features/products/identity/activeIdentifiers";
 
 import { resolveProductIdentityOnce } from "@/hooks/inventory/useResolveProductIdentity";
