@@ -27,7 +27,8 @@ export type RecordDownloadKind =
   | "purchase_return"
   | "rfq"
   | "purchase_requisition"
-  | "vendor_credit_note";
+  | "vendor_credit_note"
+  | "landed_cost_voucher";
 
 export function useRecordDownload(kind: RecordDownloadKind) {
   const { toast } = useToast();

@@ -22,6 +22,7 @@ import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snaps
 import { fetchAndBuildPurchasesRfqSnapshot } from "@/services/documents/snapshots/purchasesRfq";
 import { fetchAndBuildPurchasesRequisitionSnapshot } from "@/services/documents/snapshots/purchasesRequisition";
 import { fetchAndBuildVendorCreditNoteSnapshot } from "@/services/documents/snapshots/purchasesVendorCreditNote";
+import { fetchAndBuildLandedCostVoucherSnapshot } from "@/services/documents/snapshots/purchasesLandedCostVoucher";
 
 export type RecordPrintKind =
   | "bill"
@@ -29,7 +30,8 @@ export type RecordPrintKind =
   | "purchase_return"
   | "rfq"
   | "purchase_requisition"
-  | "vendor_credit_note";
+  | "vendor_credit_note"
+  | "landed_cost_voucher";
 
 const KIND_CONFIG: Record<
   RecordPrintKind,
@@ -78,6 +80,16 @@ const KIND_CONFIG: Record<
     kindCode: "purchases.credit_note",
     sourceDocType: "vendor_credit_note",
     build: fetchAndBuildVendorCreditNoteSnapshot,
+  },
+  /**
+   * Internal costing evidence. The freight supplier is not the audience,
+   * so the frozen record carries no counterparty.
+   */
+  landed_cost_voucher: {
+    kindCode: "purchases.landed_cost_voucher",
+    sourceDocType: "landed_cost_voucher",
+    partyKind: null,
+    build: fetchAndBuildLandedCostVoucherSnapshot,
   },
 };
 
