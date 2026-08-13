@@ -122,7 +122,7 @@ export default function AgedPayables() {
       return next;
     });
 
-  const getExportConfig = (): ExportConfig => {
+  const getExportConfig = async (): Promise<ExportConfig> => {
     const cols: ExportColumn[] = [
       { key: "vendor", header: "Vendor", width: 22 },
       { key: "not_due", header: AGING_BUCKET_LABELS.not_due, format: "currency", width: 14, align: "right" },
@@ -133,9 +133,12 @@ export default function AgedPayables() {
       { key: "credit", header: "Unapplied credit", format: "currency", width: 14, align: "right" },
       { key: "total", header: "Total", format: "currency", width: 14, align: "right" },
     ];
-    // Exports use the same server dataset as the screen — never a second query.
+    // Exports re-run the SAME engine query with no page limit, so the file is
+    // the complete searched cohort rather than the page on screen. No browser
+    // aggregation, no second data source.
+    const full = await fetchApAging({ ...agingArgs, limit: null, offset: 0 });
     const rows = [
-      ...filteredVendors.map((row) => ({
+      ...full.vendors.map((row) => ({
         vendor: row.vendorName,
         not_due: row.not_due,
         current: row.current,
@@ -148,13 +151,13 @@ export default function AgedPayables() {
       })),
       {
         vendor: "TOTAL",
-        not_due: totals?.not_due ?? 0,
-        current: totals?.current ?? 0,
-        days30: totals?.days30 ?? 0,
-        days60: totals?.days60 ?? 0,
-        days90: totals?.days90 ?? 0,
-        credit: totals?.credit ?? 0,
-        total: totals?.total ?? 0,
+        not_due: full.totals.not_due,
+        current: full.totals.current,
+        days30: full.totals.days30,
+        days60: full.totals.days60,
+        days90: full.totals.days90,
+        credit: full.totals.credit,
+        total: full.totals.total,
         _isGrandTotal: true,
       },
     ];
@@ -164,10 +167,11 @@ export default function AgedPayables() {
       columns: cols,
       rows,
       generatedAt: new Date(),
-      currency: data?.currency ?? baseCurrency,
+      currency: full.currency ?? baseCurrency,
       organizationId: currentOrg?.id,
       businessId: currentBusiness?.id,
     };
+
   };
 
   const summaryCards = [
