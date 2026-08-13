@@ -145,7 +145,29 @@ export function useVendorStatementActions(record: VendorStatementRecord | null) 
   const [dispatching, setDispatching] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
 
+  // DOWNLOAD — bytes to the browser. No targets, no print job, ever.
   const download = useCallback(async () => {
+    if (!record || dispatching) return;
+    setDispatching(true);
+    try {
+      const res = await downloadVendorStatement({
+        statementId: record.header.id,
+        format: "pdf",
+        contactName: record.data.contact.name,
+        dateLabel: record.header.period_start ?? record.header.statement_date,
+        periodEndLabel: record.header.period_end ?? null,
+      });
+      if (!res.ok) throw new Error(res.error ?? "Download failed");
+      toast.success("Statement downloaded.");
+    } catch (err) {
+      toast.error(`Failed to download statement: ${normalizeError(err).message}`);
+    } finally {
+      setDispatching(false);
+    }
+  }, [record, dispatching]);
+
+  // PRINT — the explicit output-intent path, only when an operator prints.
+  const print = useCallback(async () => {
     if (!record || dispatching) return;
     setDispatching(true);
     try {
@@ -155,9 +177,9 @@ export function useVendorStatementActions(record: VendorStatementRecord | null) 
         businessId: currentBusiness?.id ?? null,
         branchId: currentBranch?.id ?? null,
       });
-      toast.success(`Statement dispatched to ${result.targetCount} target(s).`);
+      toast.success(`Statement sent to ${result.targetCount} target(s).`);
     } catch (err) {
-      toast.error(`Failed to dispatch statement: ${normalizeError(err).message}`);
+      toast.error(`Failed to print statement: ${normalizeError(err).message}`);
     } finally {
       setDispatching(false);
     }
