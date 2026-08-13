@@ -106,7 +106,7 @@ describe("vendor statement dataset", () => {
     expect(fn).toContain('from("vendor_ledger_entries")');
     expect(fn).toContain("buildVendorStatementDataset");
     // Aging must come from the point-in-time engine, not the "as of today" view.
-    expect(fn).toContain('rpc(\n      "finance_ap_open_items_as_of"');
+    expect(fn).toMatch(/rpc\(\s*"finance_ap_open_items_as_of"/);
     expect(fn).toContain("_as_of: periodEnd");
     expect(fn).not.toContain('from("finance_ap_open_items")');
     expect(fn).not.toContain('from("bills")');
