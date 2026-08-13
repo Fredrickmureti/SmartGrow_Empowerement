@@ -78,6 +78,61 @@ const PROCUREMENT_LAYOUTS: Record<
 };
 
 const RFQ_FORBIDDEN_BLOCKS = new Set(["totals"]);
+
+/**
+ * Ledger artefacts — internal accounting evidence rather than commercial
+ * paper. A journal voucher has no counterparty, no quantities, no tax
+ * ladder and no amount due, so `generateDocumentPdf` would draw it as an
+ * invoice with an empty item table. It is drawn by a dedicated debit/credit
+ * sheet layout that is a pure function of the frozen snapshot.
+ *
+ * Registered BEFORE the thermal gate for the same reason the procurement
+ * layouts are: a misconfigured `document_print_policies` row must not be
+ * able to route a general-ledger sheet onto an 80 mm roll.
+ */
+const LEDGER_LAYOUTS: Record<
+  string,
+  (
+    snapshot: Record<string, unknown>,
+    organization: unknown,
+    options: { paperFormat?: string; orientation?: "portrait" | "landscape" },
+  ) => Promise<Uint8Array>
+> = {
+  "finance.journal_entry": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/journal.ts")).generateJournalVoucherPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+};
+
+const JOURNAL_FORBIDDEN_BLOCKS = new Set(["party"]);
+const JOURNAL_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
+
+/**
+ * A journal voucher template may never grow invoice anatomy: no party
+ * block (there is no counterparty) and no commercial line-item table.
+ */
+export function assertJournalTemplateContract(
+  template: ResolvedTemplate,
+  blocks: AstBlock[],
+): void {
+  if (template.kind_code !== "finance.journal_entry") return;
+  const layout = (template.ast as unknown as Record<string, unknown>)["layout"];
+  if (layout !== "journal_voucher") {
+    throw new Error("journal_template_contract: layout must be journal_voucher");
+  }
+  for (const block of blocks) {
+    if (JOURNAL_FORBIDDEN_BLOCKS.has(block.type)) {
+      throw new Error(`journal_template_contract: forbidden block ${block.type}`);
+    }
+    if (block.type === "table" && JOURNAL_FORBIDDEN_TABLE_PRESETS.has(block.preset)) {
+      throw new Error(
+        `journal_template_contract: forbidden table preset ${block.preset}`,
+      );
+    }
+  }
+}
 const RFQ_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
 const RFQ_FORBIDDEN_PARTY_ROLES = new Set(["billTo", "customer", "vendor"]);
 
