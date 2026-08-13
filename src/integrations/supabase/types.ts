@@ -85366,6 +85366,10 @@ export type Database = {
       }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
+      _landed_cost_post_apply: {
+        Args: { p_actor: string; p_voucher_id: string }
+        Returns: Json
+      }
       _loan_assert_transition: {
         Args: { _event: string; _loan_id: string }
         Returns: {

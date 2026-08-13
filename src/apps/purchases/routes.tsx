@@ -96,6 +96,10 @@ const LandedCostCreatePage = lazy(
 const LandedCostRecordPage = lazy(
   () => import("@/features/purchases/landed-costs/LandedCostRecordPage"),
 );
+const LandedCostComponentTypesPage = lazy(
+  () => import("@/features/purchases/landed-costs/LandedCostComponentTypesPage"),
+);
+
 
 // P1 — Supplier 360 workbench (canonical supplier master).
 const SupplierListPage = lazy(
@@ -293,6 +297,16 @@ export function PurchasesApp() {
           }
         />
         <Route
+          path="landed-costs/component-types"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Landed Costs">
+                <LandedCostComponentTypesPage />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
           path="landed-costs/new"
           element={
             <SubscriptionProtectedRoute>
@@ -302,6 +316,7 @@ export function PurchasesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
         <Route
           path="landed-costs/:id"
           element={

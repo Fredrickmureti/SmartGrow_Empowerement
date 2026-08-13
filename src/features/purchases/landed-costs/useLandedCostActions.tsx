@@ -127,9 +127,44 @@ export function useLandedCostActions(
         hidden: status !== "allocated",
         disabled: busy,
         onSelect: guarded(() =>
-          void run("Voucher posted", () => postLandedCostVoucher(voucher.id)),
+          void (async () => {
+            setBusy(true);
+            try {
+              const result = await postLandedCostVoucher(voucher.id);
+              toast({
+                title:
+                  (result as { gated?: boolean } | null)?.gated
+                    ? "Sent for approval"
+                    : "Voucher posted",
+                description: (result as { gated?: boolean } | null)?.gated
+                  ? "Your approval policy gates landed cost postings. The voucher posts automatically once it is approved."
+                  : undefined,
+              });
+              onChanged?.();
+            } catch (error: unknown) {
+              toast({
+                title: "Action failed",
+                description: normalizeError(error).message,
+                variant: "destructive",
+              });
+            } finally {
+              setBusy(false);
+            }
+          })(),
         ),
       },
+      {
+        id: "awaiting-approval",
+        label: "Awaiting approval",
+        icon: BookCheck,
+        group: "lifecycle",
+        hidden: status !== "pending_approval",
+        disabled: true,
+        disabledReason:
+          "This voucher is with its approvers. It posts to the ledger automatically once approved.",
+        onSelect: () => {},
+      },
+
       {
         id: "reverse",
         label: "Reverse posting",
