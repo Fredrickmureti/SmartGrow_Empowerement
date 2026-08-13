@@ -75,6 +75,24 @@ export interface SaveProductInput {
   packaging?: PackagingInput[];
   physical?: PhysicalInput[];
   identifiers?: IdentifierInput[];
+  /**
+   * Per-jurisdiction fiscal metadata (KRA eTIMS today). It lives in
+   * `product_tax_localization`, never on the product master, so the core
+   * product stops carrying one country's tax vocabulary.
+   */
+  localization?: LocalizationInput | null;
+}
+
+export interface LocalizationInput {
+  /** Defaults to `origin_country`, then 'KE'. */
+  jurisdiction?: string;
+  classification_code?: string | null;
+  item_code?: string | null;
+  unit_code?: string | null;
+  packaging_unit?: string | null;
+  origin_country?: string | null;
+  registration_status?: string | null;
+  registered_at?: string | null;
 }
 
 export interface SaveProductResult {
@@ -109,6 +127,15 @@ export function describeProductSaveFailure(message: string): string {
   if (message.includes("PHYSICAL_") || message.includes("MEASURE_")) {
     return "The measurements could not be saved — check the units you selected.";
   }
+  if (message.includes("PRODUCT_LOCALIZATION_INVALID")) {
+    return "The tax details could not be saved — check the classification, unit and packaging codes.";
+  }
+  if (message.includes("PRODUCT_LIFECYCLE_TRANSITION")) {
+    return "That status change is not allowed for this product.";
+  }
+  if (message.includes("PRODUCT_ARCHIVE_HAS_STOCK")) {
+    return "This product still holds stock. Move or write it off before archiving.";
+  }
   if (message.includes("Not a member of organization") || message.includes("Not authenticated")) {
     return "You do not have access to this business.";
   }
@@ -122,6 +149,7 @@ export async function saveProductAtomic(input: SaveProductInput): Promise<SavePr
     p_packaging: input.packaging ?? [],
     p_physical: input.physical ?? [],
     p_identifiers: input.identifiers ?? [],
+    p_localization: input.localization ?? null,
   } as never);
 
   if (error) {
