@@ -93,6 +93,9 @@ const LINE_COLUMNS: LineItemColumn[] = [
   { id: "unit", header: "Est. unit", numeric: true, priority: 2, minWidth: 100, compactLabel: "@" },
   { id: "total", header: "Est. total", numeric: true, priority: 1, minWidth: 110 },
   { id: "supplier", header: "Suggested supplier", priority: 3, minWidth: 140 },
+  // Pre-negotiated coverage. Demand that cites a contract line is already
+  // priced — sourcing must see it before it shops the line around.
+  { id: "contract", header: "Contract coverage", priority: 3, minWidth: 180 },
   { id: "ordered", header: "Ordered", numeric: true, priority: 2, minWidth: 90 },
   { id: "received", header: "Received", numeric: true, priority: 3, minWidth: 90 },
   { id: "cancelled", header: "Short-closed", numeric: true, priority: 3, minWidth: 100 },
