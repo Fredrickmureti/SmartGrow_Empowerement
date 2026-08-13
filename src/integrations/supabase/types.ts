@@ -99289,6 +99289,10 @@ export type Database = {
           serial_number: string
         }[]
       }
+      resolve_fiscal_jurisdiction: {
+        Args: { p_business_id: string }
+        Returns: string
+      }
       resolve_fiscal_provider: {
         Args: { p_branch_id: string; p_org_id: string }
         Returns: string
