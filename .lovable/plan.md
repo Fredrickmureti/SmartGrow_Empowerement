@@ -1,98 +1,101 @@
-# Aged Payables (AP Aging) — Authoritative Project Status
+# Aged Payables (AP Aging) — Verification Verdict & Continuation Plan
 
-Last updated: 2026-08-13. Active workstream: **Aged Payables / AP aging domain reconstruction**
-(roadmap: `.lovable/plan/aged-payables-ap-aging-domain-reconstruction-2026-08-13.md`).
-Predecessor workstream (Vendor Statements) is closed and its output is a dependency of this one.
+Last updated: 2026-08-13 (incoming engineer). Scope: enterprise AP aging subsystem.
 
 ---
 
-## 1. Fully implemented and verified
+## 1. Verification verdict on the previous engineer's claims
 
-| Phase | Deliverable | Evidence |
+Each item was checked directly against the live database and the codebase.
+
+| Claim | Verdict | Evidence |
 |---|---|---|
-| 1 | `finance_ap_open_items_as_of(_org,_business,_branch,_as_of)` — point-in-time AP projection off `ap_subledger_entries`; obligations and settlements both bounded by the as-of date; openness decided by residual, never `bills.status`/`amount_paid`; document **and** base currency using the FX rate at the as-of date | `supabase/migrations/20260813033038_*.sql` |
-| 1 | `finance_ap_vendor_credit_as_of` — branch-scoped, date-bounded unapplied vendor credit | same migration |
-| 2 | `get_ap_aging_summary` rewritten on the Phase 1 engine (per-vendor buckets + per-bill drill-down, credit as its own explicit line) | same migration |
-| 2 | `get_ap_summary` (AP KPI cards) repointed at the same engine; its private aging arithmetic deleted | same migration |
-| 2 | AP branch of `get_ar_ap_aging_from_ledger` repointed at the same engine | `supabase/migrations/20260813033451_*.sql` |
-| 3 | `finance_ap_aging_reconciliation` — aging total vs AP control balance as of the same date, with variance | `20260813033038_*.sql` |
-| 4 | `src/hooks/useApAging.ts` — typed hook, aging + reconciliation fetched in parallel | file exists, typed, no `any` payload arithmetic |
-| 4 | `src/pages/purchases/AgedPayables.tsx` rebuilt — `@ts-nocheck` removed, summary band (total, not due, 0–30, 31–60, 61–90, 90+, unapplied credit, GL variance), vendor table, per-bill drill-down | 445 lines, typed |
-| 5 (part) | Architecture guard `src/test/architecture/ap-aging-point-in-time.test.ts` — forbids client-side bucket/residual arithmetic, forbids reading `bills.status`/`amount_paid` for payables, requires GL reconciliation to be surfaced | test passes alongside `aging-single-source`, `ap-kpis-canonical`, `ap-credit-position-provenance` |
+| `finance_ap_open_items_as_of` exists, SECURITY DEFINER, pinned `search_path` | Confirmed | `pg_proc`: `prosecdef=true`, `search_path=public`, single overload `(uuid,uuid,uuid,date)` |
+| `finance_ap_vendor_credit_as_of` exists, same properties | Confirmed | same query |
+| `finance_ap_aging_reconciliation` exists | Confirmed | same query |
+| `get_ap_aging_summary`, `get_ap_summary`, `get_ar_ap_aging_from_ledger` each have exactly one overload | Confirmed | one row each in `pg_proc` |
+| Functions have org-membership checks | **Defect** | only `get_ap_aging_summary` contains a membership assertion; `finance_ap_open_items_as_of`, `finance_ap_vendor_credit_as_of`, `finance_ap_aging_reconciliation`, `get_ap_summary` have none |
+| Granted to `authenticated` / `service_role` | Confirmed, but **over-granted** | those same four are also executable by `anon` — a SECURITY DEFINER function that bypasses RLS, takes an org id as a parameter, and performs no membership check is readable by an unauthenticated caller |
+| `AgedPayables.tsx` has no `@ts-nocheck`, no browser financial arithmetic | Confirmed | 446 lines; only `slice`/`map` for rendering, no bucket/residual/total math |
+| `useApAging.ts` typed, parallel fetch | Confirmed | 192 lines |
+| Guard tests pass | Confirmed | `ap-aging-point-in-time`, `aging-single-source`, `ap-kpis-canonical`, `ap-credit-position-provenance` — 20 tests green |
+| Phase 5a scenario fixtures | Not started | no AP aging file in `supabase/tests/` |
+| `finance_ap_open_items` retired | Not started | live callers: `src/services/finance/openItems.ts:165,538`, `supabase/functions/generate-document/index.ts:1850`, and transitively `useVendorStatements.ts` |
+| Server-side pagination | Not started | page slices client-side (`PAGE_SIZE = 50`, `visibleCount`) over the full payload |
+| Export parity | Confirmed in code, unguarded | export builds from `filteredVendors` (same server dataset), but no test asserts it |
 
-Bucket boundaries remain single-sourced: `finance_aging_bucket` in SQL, mirrored once in `src/services/finance/aging.ts`.
+### New defect found during verification (not in the previous plan)
 
----
-
-## 2. Currently active phase
-
-**Phase 5 — Drift removal and guards. IN PROGRESS (~40%).**
-The guard tests landed; the data-level proof and the legacy cleanup did not.
-
----
-
-## 3. Pending work (in execution order)
-
-### 5a. Scenario fixtures A–J (highest priority, blocks sign-off)
-No SQL test file exists for AP aging (`supabase/tests/` has none). Add
-`supabase/tests/ap_aging_as_of_test.sql` covering: not due · overdue · partial payment ·
-multi-payment · one payment spanning several bills · vendor credit · payment reversal ·
-historical as-of (report re-run tomorrow for yesterday returns the identical number) ·
-multi-currency · branch scope. Must seed its own isolated org/business — **do not fabricate
-financial rows in the live schema** (the previous agent correctly refused to).
-
-### 5b. Cross-surface equality proof
-Assert in the same fixture that, for one vendor/branch/date, the following agree:
-Aged Payables total · AP KPI total (`get_ap_summary`) · Reports aging total
-(`get_ar_ap_aging_from_ledger`) · Vendor Statement closing balance.
-
-### 5c. Retire `finance_ap_open_items`
-Confirm no remaining caller (check `src/services/finance/openItems.ts`, `src/hooks/useAgingReport.ts`,
-`src/pages/Bills.tsx`, edge functions), then drop the "current position" view, or keep it only as a
-thin wrapper over the as-of function pinned to `CURRENT_DATE` with a comment explaining why.
-
-### 5d. Server-side pagination for the vendor list
-Known, documented gap: `get_ap_aging_summary` returns the whole payload and the page pages it in
-the browser. Add `_limit`/`_offset` (or keyset on exposure) plus a server total, and switch the
-page to it. Until then large books load slowly.
-
-### 5e. Export parity
-Verify the Aged Payables export projects the same server dataset as the screen (no second query,
-no browser recomputation) — extend the guard test to assert it.
+**Vendor Statement aging is not point-in-time.** `useVendorStatements.ts` calls
+`fetchContactOpenItemAging("ap", { asOf: period_end })`, which reads
+`finance_ap_open_items` — a *current-position* view — and then only uses `asOf`
+to choose buckets. Residuals are today's residuals. So for any vendor with a
+payment after the statement period end, the Vendor Statement aging disagrees
+with Aged Payables for the same vendor/date. This breaks the equality the
+parent prompt requires (statement closing = aged payables open = subledger).
 
 ---
 
-## 4. Next milestone after Phase 5 closes
+## 2. Continuation plan (dependency ordered)
 
-Nothing new is opened until 5a–5e are green. The next logical milestone in the AP roadmap is the
-**AP aging ↔ Vendor Statement ↔ GL trial-balance reconciliation surface**: expose
-`finance_ap_aging_reconciliation` variance drill-down (which documents cause the variance) as a
-first-class operator screen rather than a header badge. Only after that should an unrelated domain
-be picked up.
+### Phase 5.0 — Close the authorization hole (blocking, do first)
+- Objective: no AP financial projection is reachable without proven org membership.
+- Owner: database.
+- Change: `REVOKE EXECUTE ... FROM anon` on `finance_ap_open_items_as_of`,
+  `finance_ap_vendor_credit_as_of`, `finance_ap_aging_reconciliation`, `get_ap_summary`;
+  add the same membership assertion `get_ap_aging_summary` already uses to each of them.
+- Acceptance: an anon session gets a permission error; an authenticated member of
+  another org gets an authorization error, not rows.
+
+### Phase 5.1 — Point-in-time correctness for every AP consumer
+- Objective: one as-of engine, no current-position fallback anywhere in AP.
+- Change: `fetchContactOpenItemAging("ap", …)` re-pointed at
+  `finance_ap_open_items_as_of`; Vendor Statement aging then becomes genuinely
+  as-of the period end. Same for the `generate-document` edge function's AP read.
+- Acceptance: statement re-run tomorrow for yesterday returns yesterday's numbers.
+
+### Phase 5.2 — Scenario fixtures A–J (`supabase/tests/ap_aging_as_of_test.sql`)
+Seeds its own isolated org/business/branch and rolls back; no rows written to real
+tenant data. Covers: not due · overdue bucket boundaries · partial payment ·
+multiple payments on one bill · one payment across several bills · vendor credit ·
+bill reversal · payment reversal · historical as-of (payment after the report date
+must not change the report) · multi-currency (document and base) · branch scope.
+
+### Phase 5.3 — Cross-surface equality proof
+In the same fixture, for one vendor/branch/date assert equality of:
+Aged Payables total · `get_ap_summary` total · `get_ar_ap_aging_from_ledger` AP total ·
+Vendor Statement closing balance · AP control-account balance
+(`finance_ap_aging_reconciliation` variance = 0).
+
+### Phase 5.4 — Retire `finance_ap_open_items`
+After 5.1 leaves no functional caller, drop the view (or keep a thin wrapper pinned
+to `CURRENT_DATE` only if a proven dependency remains) and update the architecture
+guards that name it.
+
+### Phase 5.5 — Server-side pagination and scale
+Add `_limit`/`_offset` plus a server-side total and server-side vendor search to
+`get_ap_aging_summary`; the page requests pages instead of slicing. Confirm supporting
+indexes on the underlying `journal_entry_lines` / `ap_subledger_entries` predicates
+via `EXPLAIN`.
+
+### Phase 5.6 — Export parity guard
+Extend `ap-aging-point-in-time.test.ts` to assert the export config is derived from
+the same server payload as the table (no second query, no browser recomputation),
+and that it carries the as-of date and currency it was produced under.
+
+### Phase 6 — Reconciliation drill-down (next milestone, only after 5.x is green)
+Promote `finance_ap_aging_reconciliation` from a header badge to an operator screen
+that lists the documents causing any AP subledger ↔ GL variance.
 
 ---
 
-## 5. Instructions for the next agent
+## 3. Technical notes
 
-1. **Verify before you build.** Do not trust this document. Independently confirm, against the live
-   database and the code:
-   - `finance_ap_open_items_as_of` and `finance_ap_vendor_credit_as_of` exist, are
-     `SECURITY DEFINER` with a pinned `search_path`, have org-membership checks, and are granted to
-     `authenticated` and `service_role`;
-   - `get_ap_aging_summary`, `get_ap_summary` and the AP branch of `get_ar_ap_aging_from_ledger`
-     each have exactly one overload and contain **no** private aging arithmetic;
-   - `src/pages/purchases/AgedPayables.tsx` carries no `@ts-nocheck` and performs no bucket,
-     residual or total arithmetic in the browser;
-   - `bun run test src/test/architecture` and the TypeScript check are green.
-   Record the verdict (per item: confirmed / defect found) at the top of this file before editing code.
-2. **Then resume at Phase 5a** — scenario fixtures — and work 5a → 5e in order.
-3. **Do not** start a new domain, leave a phase half-built, or add UI without its server contract.
-   Each phase reaches a coherent, production-ready state before the next begins.
-4. Update this file at the end of your turn so it stays the authoritative status source.
-
----
-
-## 6. Out of scope (unchanged)
-
-No new tables. No new vendor identity model — supplier identity stays on `contacts` + supplier role.
-All aggregation stays server-side, `SECURITY DEFINER`, matching the existing finance RPC convention.
+- Bucket boundaries stay single-sourced: `finance_aging_bucket` in SQL, mirrored once
+  in `src/services/finance/aging.ts`.
+- Aging is against the **due date** (`finance_aging_bucket(p_due_date, p_as_of)`),
+  never the bill date — verified in the deployed function.
+- No new tables. No new vendor identity model: supplier identity stays
+  `contacts` + supplier role. All aggregation stays server-side and SECURITY DEFINER.
+- Openness stays residual-derived; `bills.status` / `bills.amount_paid` remain
+  forbidden inputs for payables (already enforced by the guard test).
