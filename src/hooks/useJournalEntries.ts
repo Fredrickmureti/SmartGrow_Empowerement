@@ -32,6 +32,7 @@ export interface JournalEntry {
   created_at: string;
   updated_at: string;
   source_type: string | null;
+  source_id: string | null;
   lines?: JournalEntryLine[];
   total_debit?: number;
   total_credit?: number;

@@ -56,3 +56,35 @@ export async function reverseLandedCostVoucher(voucherId: string, reason: string
   });
   return unwrap<Record<string, unknown>>(data, error);
 }
+
+/* ------------------------------------------------------------------ *
+ * Reporting reads.
+ *
+ * Read-only set-based aggregates. They live here for the same reason the
+ * mutators do: one module owns every landed-cost RPC call, so a reviewer can
+ * see the whole database surface of this domain in one file.
+ * ------------------------------------------------------------------ */
+
+export async function fetchLandedCostReceiptSummary(receiptIds: string[]) {
+  const { data, error } = await supabase.rpc("landed_cost_receipt_summary", {
+    p_receipt_ids: receiptIds,
+  });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function fetchLandedCostValuationAttribution(businessId: string) {
+  const { data, error } = await supabase.rpc("landed_cost_valuation_attribution", {
+    p_business_id: businessId,
+  });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function fetchLandedCostClearingExposure(businessId: string) {
+  const { data, error } = await supabase.rpc("landed_cost_clearing_exposure", {
+    p_business_id: businessId,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? {}) as Record<string, unknown>;
+}

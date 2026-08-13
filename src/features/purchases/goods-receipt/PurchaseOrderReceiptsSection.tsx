@@ -17,6 +17,9 @@ import { RotateCcw, Undo2 } from "lucide-react";
 import { GoodsReceiptReturnLedger } from "./GoodsReceiptReturnLedger";
 import { ReverseGoodsReceiptDialog } from "@/components/purchases/ReverseGoodsReceiptDialog";
 import { useGoodsReceiptsForOrder, type OrderGoodsReceipt } from "./useGoodsReceiptsForOrder";
+import { LandedCostReceiptChip } from "@/features/purchases/landed-costs/LandedCostReceiptChip";
+import { useLandedCostReceiptSummary } from "@/features/purchases/landed-costs/useLandedCostReporting";
+import { useCurrency } from "@/hooks/useCurrency";
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -43,6 +46,10 @@ export function PurchaseOrderReceiptsSection({
   currency?: string;
 }) {
   const { receipts, loading, refetch } = useGoodsReceiptsForOrder(purchaseOrderId);
+  const { formatCurrency } = useCurrency();
+  const { byReceipt: landedCostByReceipt } = useLandedCostReceiptSummary(
+    receipts.map((r) => r.id),
+  );
   const [reversing, setReversing] = useState<OrderGoodsReceipt | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -69,6 +76,10 @@ export function PurchaseOrderReceiptsSection({
               <p className="text-xs text-muted-foreground">
                 Received {fmtDate(receipt.receipt_date)}
               </p>
+              <LandedCostReceiptChip
+                summary={landedCostByReceipt.get(receipt.id)}
+                formatCurrency={formatCurrency}
+              />
             </div>
             <div className="flex items-center gap-2">
             <Button

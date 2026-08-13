@@ -9,6 +9,7 @@ import { DocumentActionsMenu } from "@/design-system/records";
 import { useJournalEntries } from "@/hooks/useJournalEntries";
 import { useCurrency } from "@/hooks/useCurrency";
 import { buildJournalEntryView } from "./journalEntryView";
+import { useJournalSourceDocument } from "./useJournalSourceDocument";
 import { useJournalEntryActions } from "./useJournalEntryActions";
 
 interface JournalEntryPeekSheetProps {
@@ -28,15 +29,18 @@ export function JournalEntryPeekSheet({
     [journalEntries, entryId],
   );
 
+  const sourceDocument = useJournalSourceDocument(entry);
+
   const view = useMemo(
     () =>
       entry
         ? buildJournalEntryView(entry, {
             formatCurrency,
             findEntry: (id) => journalEntries.find((e) => e.id === id),
+            sourceDocument,
           })
         : null,
-    [entry, journalEntries, formatCurrency],
+    [entry, journalEntries, formatCurrency, sourceDocument],
   );
 
   const open = !!entryId;

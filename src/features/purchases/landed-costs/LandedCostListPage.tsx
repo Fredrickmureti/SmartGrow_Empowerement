@@ -37,6 +37,7 @@ import {
   type LandedCostVoucherRow,
 } from "./useLandedCosts";
 import { LandedCostPeekSheet } from "./LandedCostPeekSheet";
+import { useLandedCostClearingExposure } from "./useLandedCostReporting";
 
 type BucketId = "capture" | "allocated" | "posted" | "closed" | "all";
 
@@ -80,6 +81,7 @@ export default function LandedCostListPage() {
   const [q, setQ] = useState("");
   const [bucket, setBucket] = useState<BucketId>("capture");
   const [peekId, setPeekId] = useState<string | null>(null);
+  const { exposure } = useLandedCostClearingExposure();
 
   const kpis = useMemo(() => landedCostKpis(rows), [rows]);
 
@@ -145,6 +147,20 @@ export default function LandedCostListPage() {
             </div>
           ))}
         </div>
+
+        {exposure && (exposure.clearing_balance !== 0 || exposure.unposted_count > 0) && (
+          <div className="rounded-lg border bg-card p-4">
+            <p className="text-sm font-medium">Landed cost clearing</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {exposure.clearing_account_id
+                ? `Clearing account balance ${formatCurrency(exposure.clearing_balance)}.`
+                : "No clearing account is mapped for landed cost yet."}
+              {exposure.unposted_count > 0
+                ? ` ${formatCurrency(exposure.unposted_amount)} across ${exposure.unposted_count} voucher(s) has been allocated but not posted, so it is not in the ledger.`
+                : " Every allocated voucher has reached the ledger."}
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {BUCKETS.map((b) => (

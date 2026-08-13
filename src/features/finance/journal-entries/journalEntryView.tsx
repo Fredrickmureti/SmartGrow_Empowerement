@@ -15,6 +15,7 @@ import type {
   LineItemRow,
 } from "@/design-system";
 import type { JournalEntry } from "@/hooks/useJournalEntries";
+import type { JournalSourceDocument } from "./useJournalSourceDocument";
 
 export function journalEntryStatusBadge(entry: JournalEntry): ReactNode {
   const s = entry.status;
@@ -32,6 +33,8 @@ interface BuildOpts {
   formatCurrency: (n: number) => string;
   /** Look up related entries by id (for reversal chip labels). */
   findEntry?: (id: string) => JournalEntry | undefined;
+  /** Originating business document, resolved by `useJournalSourceDocument`. */
+  sourceDocument?: JournalSourceDocument | null;
 }
 
 export interface JournalEntryView {
@@ -57,7 +60,7 @@ function fmtDateTime(iso: string | null): string | null {
 
 export function buildJournalEntryView(
   entry: JournalEntry,
-  { formatCurrency, findEntry }: BuildOpts,
+  { formatCurrency, findEntry, sourceDocument }: BuildOpts,
 ): JournalEntryView {
   const title = entry.description || `Journal Entry ${entry.entry_number}`;
   const docNumber = entry.entry_number;
@@ -85,11 +88,25 @@ export function buildJournalEntryView(
     { label: "Date", value: format(new Date(entry.entry_date), "MMMM d, yyyy") },
     { label: "Description", value: entry.description || "—" },
     { label: "Reference", value: entry.reference || "—" },
-    { label: "Source", value: entry.source_type ? entry.source_type.replace(/_/g, " ") : "Manual" },
+    {
+      label: "Source",
+      value: sourceDocument ? (
+        <a className="text-primary underline underline-offset-2" href={sourceDocument.href}>
+          {sourceDocument.label}
+        </a>
+      ) : entry.source_type ? (
+        entry.source_type.replace(/_/g, " ")
+      ) : (
+        "Manual"
+      ),
+    },
     { label: "Status", value: journalEntryStatusBadge(entry) },
   ];
   if (entry.void_reason) {
     detailFields.push({ label: "Void reason", value: entry.void_reason });
+  }
+  for (const fact of sourceDocument?.facts ?? []) {
+    detailFields.push({ label: fact.label, value: formatCurrency(fact.amount) });
   }
 
   const lineColumns: LineItemColumn[] = [
