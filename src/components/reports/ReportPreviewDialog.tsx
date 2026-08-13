@@ -118,6 +118,11 @@ export function ReportPreviewDialog({
         setErrorMsg(err?.message ?? String(err));
       })
       .finally(() => setIsLoading(false));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, getExportConfig]);
 
   const handlePrint = async () => {
