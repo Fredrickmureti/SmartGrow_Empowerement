@@ -85997,6 +85997,10 @@ export type Database = {
         Returns: Json
       }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
+      _product_localization_from_payload: {
+        Args: { p_product: Json }
+        Returns: Json
+      }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
       _recalc_so_item_invoiced: {
         Args: { p_so_item_ids: string[] }
