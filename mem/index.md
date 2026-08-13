@@ -12,3 +12,5 @@ Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 - [Supplier / vendor master](mem://features/supplier-vendor-master) — party vs role, purchasability gate, RPC-only supplier writes, Supplier 360
 - [Salesperson performance](mem://features/salesperson-performance) — canonical projection and attribution rules
 - [Journal Voucher](mem://features/journal-voucher) — finance.journal_entry printing pipeline, action parity, draft stamping
+- [Vendor statement engine](mem://features/vendor-statement-engine) — AP ledger source, atomic upsert, durable send queue, download vs print, statement template routing
+
