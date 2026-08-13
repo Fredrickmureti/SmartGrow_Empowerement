@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import { useCurrencyContext } from "@/contexts/CurrencyContext";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
 import { useProducts } from "@/hooks/useProducts";
 import { Switch } from "@/components/ui/switch";
 import {
