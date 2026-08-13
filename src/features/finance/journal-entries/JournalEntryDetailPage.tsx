@@ -26,6 +26,8 @@ export default function JournalEntryDetailPage() {
     [journalEntries, id],
   );
 
+  const sourceDocument = useJournalSourceDocument(entry);
+
   const view = useMemo(
     () =>
       entry
@@ -35,7 +37,7 @@ export default function JournalEntryDetailPage() {
             sourceDocument,
           })
         : null,
-    [entry, journalEntries, formatCurrency],
+    [entry, journalEntries, formatCurrency, sourceDocument],
   );
 
   const outputActions = useJournalEntryActions(entry);

@@ -29,6 +29,8 @@ export function JournalEntryPeekSheet({
     [journalEntries, entryId],
   );
 
+  const sourceDocument = useJournalSourceDocument(entry);
+
   const view = useMemo(
     () =>
       entry
@@ -38,7 +40,7 @@ export function JournalEntryPeekSheet({
             sourceDocument,
           })
         : null,
-    [entry, journalEntries, formatCurrency],
+    [entry, journalEntries, formatCurrency, sourceDocument],
   );
 
   const open = !!entryId;
