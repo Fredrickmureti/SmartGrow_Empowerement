@@ -38,6 +38,11 @@ const PERSIST_ALLOWLIST = new Set<string>([
   "purchase_return",
   "rfq",
   "requisition",
+  // Ledger evidence. A posted journal voucher is the artefact an auditor
+  // asks for by number years later, so the printed bytes are archived
+  // exactly like an invoice's — otherwise "the artifact IS the record"
+  // silently does not hold for the general ledger.
+  "journal_entry",
   // Phase 6.1 — HR letter renderers. Each letter is an immutable
   // artifact for HR audit + employee record trails (ADR-0084).
   "offer_letter",

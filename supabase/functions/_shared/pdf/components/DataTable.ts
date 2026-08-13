@@ -172,9 +172,14 @@ function formatCellValue(
   isHeader: boolean,
   currency?: string,
   zeroAsDash?: boolean,
+  isTotalRow?: boolean,
 ): string {
   if (rawVal === null || rawVal === undefined || rawVal === "") {
-    return winansiSafe(isHeader ? "" : "—");
+    // A total row has no line number, no account code and no narration —
+    // printing "—" in those cells asserts a missing value that was never
+    // supposed to exist. Money columns keep the dash: there, "nothing on
+    // this side" is a real accounting statement.
+    return winansiSafe(isHeader || (isTotalRow && !isNumericColumn(col)) ? "" : "—");
   }
   // Statutory statements print a nil figure as a dash, never as 0.00 —
   // "0.00" asserts a measured zero, "—" asserts nothing to report.
@@ -508,6 +513,7 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
       const col = columns[i];
       let display = formatCellValue(
         col, row[col.key], isCaption, currency, statement,
+        !!(row._isSubtotal || row._isGrandTotal),
       );
       if (statement && treat.uppercase && i === 0) display = display.toUpperCase();
       const indent = i === 0 && depth > 0 ? depth * 12 : 0;

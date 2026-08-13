@@ -69,6 +69,12 @@ function dateTime(v: unknown): string | null {
   return `${formatDate(iso.slice(0, 10))} ${iso.slice(11, 16)}`;
 }
 
+/** "expense" → "Expense", "bank_feed" → "Bank feed". */
+function humanise(v: unknown): string | null {
+  const s = str(v)?.replace(/_/g, " ");
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : null;
+}
+
 /**
  * A voucher is a filed accounting record with an account column, two money
  * columns and a signature strip. None of that survives an 80 mm roll, and
@@ -247,8 +253,8 @@ export async function generateJournalVoucherPdf(
     ["Status", status ? status.toUpperCase() : null],
     ["Posting date", date(snapshot["posting_date"] ?? snapshot["issue_date"])],
     ["Reference", str(snapshot["reference"])],
-    ["Source", str(snapshot["source"])?.replace(/_/g, " ") ?? "Manual"],
-    ["Source detail", str(snapshot["source_detail"])?.replace(/_/g, " ") ?? null],
+    ["Source", humanise(snapshot["source"]) ?? "Manual"],
+    ["Source detail", humanise(snapshot["source_detail"])],
     ["Currency", currency || null],
     [
       "Rate to base",
@@ -271,6 +277,15 @@ export async function generateJournalVoucherPdf(
   const hasAnalytic = lines.some((l) => Boolean(str(l["analytic_account_name"])));
   const hasPartner = lines.some((l) => Boolean(str(l["partner_name"])));
 
+  // Debit/credit are always booked in the ledger's base currency. When the
+  // entry was transacted in another currency the transaction columns carry
+  // that side, so labelling the money columns with the transaction symbol
+  // (the old behaviour: USD 54.17 booked as "$54.17" in a KES ledger) would
+  // misstate the entry.
+  const ledgerCurrency = baseCurrency ?? currency;
+  const moneyHeader = (label: string) =>
+    hasTxnCurrency && ledgerCurrency ? `${label} (${ledgerCurrency})` : label;
+
   const columns = [
     { key: "line", header: "#", width: 3.5, align: "right" as const },
     { key: "account_code", header: "Account", width: 9, align: "left" as const },
@@ -289,15 +304,15 @@ export async function generateJournalVoucherPdf(
           { key: "txn_credit", header: "Txn credit", width: 10, format: "number", align: "right" as const },
         ]
       : []),
-    { key: "debit", header: "Debit", width: 13, format: "currency", align: "right" as const },
-    { key: "credit", header: "Credit", width: 13, format: "currency", align: "right" as const },
+    { key: "debit", header: moneyHeader("Debit"), width: 13, format: "currency", align: "right" as const },
+    { key: "credit", header: moneyHeader("Credit"), width: 13, format: "currency", align: "right" as const },
   ];
 
   // Debit/credit are printed exactly as booked — an empty side prints as a
   // blank, never as 0.00, so a reader can never misread which side moved.
   drawDataTable(builder, {
     columns,
-    currency,
+    currency: ledgerCurrency,
     typography,
     rows: [
       ...lines.map((l, idx) => ({
@@ -321,8 +336,12 @@ export async function generateJournalVoucherPdf(
         partner: "",
         analytic: "",
         txn: "",
-        txn_debit: "",
-        txn_credit: "",
+        txn_debit: hasTxnCurrency
+          ? lines.reduce((s, l) => s + num(l["transaction_debit"]), 0) || ""
+          : "",
+        txn_credit: hasTxnCurrency
+          ? lines.reduce((s, l) => s + num(l["transaction_credit"]), 0) || ""
+          : "",
         debit: num(snapshot["total_debit"]),
         credit: num(snapshot["total_credit"]),
         _isGrandTotal: true,
@@ -380,6 +399,9 @@ export async function generateJournalVoucherPdf(
 
   const byEvent = new Map<string, string | null>();
   for (const e of trail) byEvent.set(String(e["event"] ?? ""), str(e["actor"]));
+  // The heading and the three signature wells are one unit: a page that
+  // carries only "Authorisation" reads as a lost page in an audit file.
+  builder.ensureSpace(96);
   drawSectionLabel(builder, "Authorisation");
   drawSignatureStrip(builder, [
     ["Prepared by", byEvent.get("Prepared") ?? null],

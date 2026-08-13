@@ -136,6 +136,77 @@ export function assertJournalTemplateContract(
 const RFQ_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
 const RFQ_FORBIDDEN_PARTY_ROLES = new Set(["billTo", "customer", "vendor"]);
 
+/**
+ * Every dedicated (non-commercial) PDF layout registered in this module,
+ * keyed by document kind. `generateDocumentPdf` — the commercial renderer
+ * that draws "Bill To", a Qty/Price/Tax ladder and a balance due — is the
+ * fallthrough for everything else.
+ */
+function hasDedicatedLayout(kindCode: string): boolean {
+  return (
+    kindCode in LEDGER_LAYOUTS ||
+    kindCode in STATEMENT_LAYOUTS ||
+    kindCode in PROCUREMENT_LAYOUTS ||
+    STATEMENT_KIND_CODES.has(kindCode)
+  );
+}
+
+/**
+ * Table presets that belong to a priced commercial document. Anything else
+ * (`ledger_lines`, `audit_trail`, `aging`, …) describes a report or an
+ * accounting artefact, which the commercial renderer cannot draw.
+ */
+const COMMERCIAL_TABLE_PRESETS = new Set([
+  "line_items",
+  "items",
+  "charges",
+  "allocations",
+  "payments",
+]);
+
+/**
+ * FAIL CLOSED — no semantic fallback.
+ *
+ * This is the defect that printed JE-00001 as an invoice: a template whose
+ * AST unambiguously described a journal voucher reached
+ * `generateDocumentPdf` (because the runtime bundle predated the ledger
+ * registration) and was silently drawn as a commercial document with an
+ * empty item table and a KES 0.00 total. A missing renderer must be a
+ * diagnosable configuration error, never a wrong document.
+ *
+ * A template may only reach the commercial renderer when it does NOT
+ * declare a dedicated `layout` and does NOT carry non-commercial table
+ * anatomy. Both signals live in the AST, so this holds even if a template
+ * loses its `layout` field or a new kind is onboarded without a renderer.
+ */
+export function assertCommercialFallthroughAllowed(
+  template: ResolvedTemplate,
+  blocks: AstBlock[],
+): void {
+  if (hasDedicatedLayout(template.kind_code)) return;
+
+  const layout = (template.ast as unknown as Record<string, unknown>)["layout"];
+  if (typeof layout === "string" && layout.trim().length > 0) {
+    throw new Error(
+      `renderer_not_registered:${template.kind_code}: template declares layout ` +
+        `"${layout}" but no dedicated PDF layout is registered for this kind. ` +
+        `Refusing to draw it as a commercial document.`,
+    );
+  }
+
+  for (const block of blocks) {
+    if (block.type !== "table") continue;
+    const preset = (block as { preset?: string }).preset;
+    if (preset && !COMMERCIAL_TABLE_PRESETS.has(preset)) {
+      throw new Error(
+        `renderer_not_registered:${template.kind_code}: template carries the ` +
+          `non-commercial table preset "${preset}" but no dedicated PDF layout ` +
+          `is registered for this kind. Refusing to draw it as a commercial document.`,
+      );
+    }
+  }
+}
+
 export function assertRfqTemplateContract(template: ResolvedTemplate, blocks: AstBlock[]): void {
   if (template.kind_code !== "purchases.rfq") return;
   const layout = (template.ast as unknown as Record<string, unknown>)["layout"];
@@ -177,6 +248,7 @@ export async function renderAstToPdf(args: {
 
   assertRfqTemplateContract(args.template, args.blocks);
   assertJournalTemplateContract(args.template, args.blocks);
+  assertCommercialFallthroughAllowed(args.template, args.blocks);
 
   const ledgerLayout = LEDGER_LAYOUTS[args.template.kind_code];
   if (ledgerLayout) {
