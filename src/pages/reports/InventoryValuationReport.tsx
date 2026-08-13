@@ -22,6 +22,7 @@ import { BranchScopeToggle, type BranchScope } from "@/components/reports/Branch
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
 import { formatBaseQtyAsPacks, type PackForRollup } from "@/lib/packagingRollup";
+import { useLandedCostValuationAttribution } from "@/features/purchases/landed-costs/useLandedCostReporting";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 function InventoryValuationReportInner() {
@@ -104,6 +105,8 @@ function InventoryValuationReportInner() {
 
   // Packaging definitions for the pack-rollup column. Lets us show
   // "120 (5 Carton)" instead of just "120 pcs" on busy product rows.
+  const { byProduct: landedCostByProduct } = useLandedCostValuationAttribution();
+
   const { data: packsByProduct = new Map<string, PackForRollup[]>() } = useQuery({
     queryKey: ["valuation-packs", orgId, bizId],
     queryFn: async () => {
@@ -188,6 +191,26 @@ function InventoryValuationReportInner() {
       { key: "cost", header: "Unit Cost", format: "currency" },
       { key: "closing_value", header: "Closing Value", format: "currency" },
       {
+        key: "landedCostUplift",
+        header: "Landed cost in unit cost",
+        align: "right",
+        render: (row) => {
+          const uplift = Number(row.values?.landedCostUplift ?? 0);
+          if (!uplift) return <span className="text-muted-foreground">—</span>;
+          const before = row.values?.landedCostUnitBefore;
+          const after = row.values?.landedCostUnitAfter;
+          return (
+            <span title={
+              before !== null && after !== null
+                ? `Unit cost ${before} → ${after} after landed cost`
+                : undefined
+            }>
+              {formatCurrency(uplift)}
+            </span>
+          );
+        },
+      },
+      {
         key: "inQty",
         header: "In",
         align: "right",
@@ -222,9 +245,12 @@ function InventoryValuationReportInner() {
           closing_value: row.closingValue,
           inQty: row.inQty,
           outQty: row.outQty,
+          landedCostUplift: landedCostByProduct.get(row.id)?.uplift_amount ?? 0,
+          landedCostUnitBefore: landedCostByProduct.get(row.id)?.unit_cost_before ?? null,
+          landedCostUnitAfter: landedCostByProduct.get(row.id)?.unit_cost_after ?? null,
         },
       })),
-    [valuationData.rows, packsByProduct],
+    [valuationData.rows, packsByProduct, landedCostByProduct],
   );
 
   const getExportConfig = useCallback((): ExportConfig => {
