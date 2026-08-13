@@ -124,6 +124,74 @@ export interface OpenItemRow {
   dueDate: string | null;
   residual: number;
   daysOverdue: number;
+
+/** Row shape returned by the point-in-time AP engine. */
+export interface ApOpenItemAsOfRow {
+  organization_id: string;
+  business_id: string | null;
+  branch_id: string | null;
+  document_id: string;
+  document_number: string | null;
+  contact_id: string | null;
+  document_date: string | null;
+  due_date: string | null;
+  document_total: number;
+  paid_amount: number;
+  credited_amount: number;
+  residual_amount: number;
+  currency: string | null;
+  base_residual_amount: number;
+  source_kind: "bill" | "journal";
+  aging_bucket: string;
+  days_past_due: number;
+}
+
+export function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * The ONE payables read. `finance_ap_open_items_as_of` is the point-in-time AP
+ * engine behind Aged Payables, `get_ap_summary` and the aging report: payments
+ * and vendor credits count only if they happened on or before `asOf`, so any
+ * surface reading it reproduces the same number for the same date. The legacy
+ * "current position" view is not a substitute — it always answers "today".
+ */
+export async function fetchApOpenItemsAsOf(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<ApOpenItemAsOfRow[]> {
+  const { data, error } = await supabase.rpc("finance_ap_open_items_as_of" as never, {
+    _org_id: orgId,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+    _as_of: asOf ?? today(),
+  } as never);
+  if (error) throw error;
+  return (data ?? []) as unknown as ApOpenItemAsOfRow[];
+}
+
+/** Unapplied vendor credit as of a date — the AP credit half of the same engine. */
+export async function fetchApVendorCreditAsOf(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+  const { data, error } = await supabase.rpc("finance_ap_vendor_credit_as_of" as never, {
+    _org_id: orgId,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+    _as_of: asOf ?? today(),
+  } as never);
+  if (error) throw error;
+  return (data ?? []) as unknown as Array<{
+    contact_id: string | null;
+    credit_amount: number;
+    base_credit_amount: number;
+  }>;
 }
 
 /**
@@ -133,9 +201,10 @@ export interface OpenItemRow {
  * that buckets by age and nets unapplied customer credit in one place. Bucket
  * boundaries and credit netting are accounting rules, so they live in SQL — an
  * app-side re-derivation is how the dashboard and the aging report drift apart.
- * AP aggregates the projection and nets unapplied vendor credit
- * (`finance_ap_vendor_credit`), the same view `get_ap_summary` reads.
+ * AP reads the point-in-time engine and nets unapplied vendor credit from the
+ * same engine, so it agrees with Aged Payables by construction.
  */
+
 export async function fetchTopOpenCounterparties(
   side: "ar" | "ap",
   orgId: string,
@@ -162,20 +231,7 @@ export async function fetchTopOpenCounterparties(
     }));
   }
 
-  const view = "finance_ap_open_items";
-  let q = supabase
-    .from(view as any)
-    .select(
-      "document_id, document_number, contact_id, document_date, due_date, residual_amount, base_residual_amount",
-    )
-    .eq("organization_id", orgId)
-    .gt("residual_amount", 0.01);
-  if (businessId) q = q.eq("business_id", businessId);
-  if (branchId) q = q.eq("branch_id", branchId);
-  const { data, error } = await q;
-  if (error) throw error;
-
-  const rows = (data || []) as any[];
+  const rows = await fetchApOpenItemsAsOf(orgId, businessId, branchId);
   const contactIds = Array.from(new Set(rows.map((r) => r.contact_id).filter(Boolean)));
   const names = new Map<string, string>();
   if (contactIds.length > 0) {
@@ -190,7 +246,9 @@ export async function fetchTopOpenCounterparties(
   for (const r of rows) {
     const key = r.contact_id || "unknown";
     const name = (r.contact_id && names.get(r.contact_id)) || "Unknown";
-    const daysOverdue = daysOverdueFrom(r.due_date || r.document_date);
+    // `days_past_due` is computed by the engine against the as-of date — the
+    // browser never re-derives it from a clock.
+    const daysOverdue = Number(r.days_past_due) || 0;
     const existing = byContact.get(key) || { name, amount: 0, daysOverdue: 0 };
     // Base currency: exposures across currencies may only be added up after
     // conversion (`base_residual_amount`), never as raw document amounts.
@@ -206,6 +264,7 @@ export async function fetchTopOpenCounterparties(
     const existing = byContact.get(contactId);
     if (existing) existing.amount -= credit;
   }
+
 
   return Array.from(byContact.values())
     .filter((c) => c.amount > 0.01)
@@ -255,15 +314,15 @@ export async function fetchContactOpenItemAging(
     // the same source as Aged Payables: settlements only count if they
     // happened on or before the as-of date, so a vendor statement for a closed
     // period reproduces the aging that period actually had.
-    const { data: rows, error } = await supabase.rpc("finance_ap_open_items_as_of" as never, {
-      _org_id: params.orgId,
-      _business_id: params.businessId ?? null,
-      _branch_id: params.branchId ?? null,
-      _as_of: asOf,
-    } as never);
-    if (error) throw error;
-    data = ((rows || []) as any[]).filter((r) => contactIds.includes(r.contact_id));
+    const rows = await fetchApOpenItemsAsOf(
+      params.orgId,
+      params.businessId,
+      params.branchId,
+      asOf,
+    );
+    data = rows.filter((r) => r.contact_id && contactIds.includes(r.contact_id));
   } else {
+
     let q = supabase
       .from("finance_ar_open_items" as any)
       .select("document_date, due_date, residual_amount, base_residual_amount")
@@ -294,7 +353,8 @@ export async function fetchContactOpenItemAging(
   const credit =
     side === "ar"
       ? await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds)
-      : await fetchUnappliedVendorCredit(params.orgId, params.businessId, contactIds);
+      : await fetchUnappliedVendorCredit(params.orgId, params.businessId, contactIds, asOf);
+
   if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
 
   return buckets;
@@ -338,53 +398,61 @@ export async function fetchUnappliedCustomerCredit(
 
 /**
  * Unapplied vendor credit (unapplied vendor credit notes / purchase returns)
- * for an org, optionally narrowed to one supplier. This is a genuine credit
- * position against the supplier and reduces the net payable.
+ * for an org, optionally narrowed to one supplier, as of a reporting date.
  *
- * ADR 0132: reads `finance_ap_vendor_credit`, the single canonical definition
- * of unapplied vendor credit, projected from `vendor_credit_balances` — never
- * derived from `vendor_credit_notes.total - amount_applied`. `get_ap_summary`,
- * `get_ap_aging_summary` and `get_ar_ap_aging_from_ledger` read the same view.
+ * Reads `finance_ap_vendor_credit_as_of`, the single canonical definition of
+ * unapplied vendor credit and the same one `get_ap_summary` and
+ * `get_ap_aging_summary` consume — never
+ * `vendor_credit_notes.total - amount_applied`.
  */
 export async function fetchUnappliedVendorCredit(
   orgId: string,
   businessId?: string | null,
   contactId?: string | string[] | null,
+  asOf?: string,
 ): Promise<number> {
-  const byContact = await fetchVendorCreditByContact(orgId, businessId, contactId);
+  const byContact = await fetchVendorCreditByContact(orgId, businessId, contactId, asOf);
   let total = 0;
   for (const amount of byContact.values()) total += amount;
   return total;
 }
 
-/** Unapplied vendor credit keyed by supplier contact id (base currency). */
+
+/**
+ * Unapplied vendor credit keyed by supplier contact id (base currency),
+ * as of a reporting date. Reads `finance_ap_vendor_credit_as_of` — the same
+ * credit half of the engine Aged Payables and `get_ap_summary` use.
+ */
 async function fetchVendorCreditByContact(
   orgId: string,
   businessId?: string | null,
   contactId?: string | string[] | null,
+  asOf?: string,
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  let q = supabase
-    .from("finance_ap_vendor_credit" as any)
-    .select("contact_id, base_credit_amount")
-    .eq("organization_id", orgId);
-  if (businessId) q = q.eq("business_id", businessId);
-  if (Array.isArray(contactId)) {
-    if (contactId.length === 0) return out;
-    q = q.in("contact_id", contactId);
-  } else if (contactId) {
-    q = q.eq("contact_id", contactId);
+  const wanted = Array.isArray(contactId)
+    ? contactId
+    : contactId
+      ? [contactId]
+      : null;
+  if (wanted && wanted.length === 0) return out;
+
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  try {
+    rows = await fetchApVendorCreditAsOf(orgId, businessId, null, asOf);
+  } catch {
+    return out;
   }
 
-  const { data, error } = await q;
-  if (error) return out;
-  for (const row of (data || []) as any[]) {
-    const key = row.contact_id as string | null;
+  for (const row of rows) {
+    const key = row.contact_id;
     if (!key) continue;
+    if (wanted && !wanted.includes(key)) continue;
     out.set(key, (out.get(key) || 0) + (Number(row.base_credit_amount) || 0));
   }
   return out;
 }
+
 
 
 
@@ -532,35 +600,21 @@ export async function fetchPayableCounterparties(
   branchId?: string | null,
   asOf?: string,
 ): Promise<PayableCounterparty[]> {
-  const today = asOf ?? new Date().toISOString().slice(0, 10);
+  const reportDate = asOf ?? today();
 
-  let openQ = supabase
-    .from("finance_ap_open_items" as any)
-    .select("contact_id, residual_amount, base_residual_amount, due_date")
-    .eq("organization_id", orgId)
-    .gt("residual_amount", 0.01);
-  if (businessId) openQ = openQ.eq("business_id", businessId);
-  if (branchId) openQ = openQ.eq("branch_id", branchId);
-
-  let creditQ = supabase
-    .from("finance_ap_vendor_credit" as any)
-    .select("contact_id, credit_amount, base_credit_amount")
-    .eq("organization_id", orgId);
-  if (businessId) creditQ = creditQ.eq("business_id", businessId);
-
-  const [openRes, creditRes] = await Promise.all([openQ, creditQ]);
-  if (openRes.error) throw openRes.error;
-  if (creditRes.error) throw creditRes.error;
+  const [openRows, creditRows] = await Promise.all([
+    fetchApOpenItemsAsOf(orgId, businessId, branchId, reportDate),
+    fetchApVendorCreditAsOf(orgId, businessId, branchId, reportDate),
+  ]);
 
   const byContact = new Map<string, PayableCounterparty>();
-  const asOfMs = new Date(`${today}T00:00:00Z`).getTime();
 
-  for (const r of (openRes.data || []) as any[]) {
+  for (const r of openRows) {
     if (!r.contact_id) continue;
     const amount = Number(r.base_residual_amount ?? r.residual_amount) || 0;
-    const overdue = r.due_date
-      ? Math.max(0, Math.floor((asOfMs - new Date(`${r.due_date}T00:00:00Z`).getTime()) / 86_400_000))
-      : 0;
+    // Overdue days come from the engine (measured against the as-of date), so
+    // the cohort ages exactly like Aged Payables.
+    const overdue = Number(r.days_past_due) || 0;
     const existing = byContact.get(r.contact_id);
     if (existing) {
       existing.netAmount += amount;
@@ -575,12 +629,13 @@ export async function fetchPayableCounterparties(
     }
   }
 
-  for (const r of (creditRes.data || []) as any[]) {
+  for (const r of creditRows) {
     if (!r.contact_id) continue;
     const credit = Number(r.base_credit_amount ?? r.credit_amount) || 0;
     const existing = byContact.get(r.contact_id);
     if (existing) existing.netAmount -= credit;
   }
+
 
   const rows = Array.from(byContact.values()).filter((r) => r.netAmount > 0.01);
   if (rows.length === 0) return [];

@@ -1843,49 +1843,31 @@ async function fetchVendorStatement(supabase: any, documentId: string): Promise<
     source_type: t.docType,
   }));
 
-  // Aging: the GL-anchored open-items projection, aged as of the period end
-  // (never the server clock), so a reprint of a closed period reproduces the
-  // original buckets. Bucket boundaries mirror the SQL definition.
-  let agingQuery = supabase
-    .from("finance_ap_open_items")
-    .select("document_date, due_date, residual_amount, base_residual_amount")
-    .eq("organization_id", orgId)
-    .eq("contact_id", contactId)
-    .lte("document_date", periodEnd)
-    .gt("residual_amount", 0.01);
-  if (businessId) agingQuery = agingQuery.eq("business_id", businessId);
-  if (branchId) agingQuery = agingQuery.eq("branch_id", branchId);
-  const { data: openItems, error: agingError } = await agingQuery;
+  // Aging: the point-in-time AP engine (`finance_ap_open_items_as_of`), the
+  // same source as Aged Payables and `get_ap_summary`. Settlements count only
+  // if they happened on or before the period end, and the bucket comes from
+  // SQL (`finance_aging_bucket`) — a reprint of a closed period therefore
+  // reproduces exactly what the screen showed for that date.
+  const { data: openItems, error: agingError } = await supabase.rpc(
+    "finance_ap_open_items_as_of",
+    {
+      _org_id: orgId,
+      _business_id: businessId ?? null,
+      _branch_id: branchId ?? null,
+      _as_of: periodEnd,
+    },
+  );
   if (agingError) throw new Error(`Vendor statement aging: ${agingError.message}`);
 
-  const asOf = Date.UTC(
-    Number(periodEnd.slice(0, 4)),
-    Number(periodEnd.slice(5, 7)) - 1,
-    Number(periodEnd.slice(8, 10)),
-  );
   const buckets = { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0 };
   for (const row of (openItems || []) as any[]) {
+    if (row.contact_id !== contactId) continue;
     const residual = Number(row.base_residual_amount ?? row.residual_amount) || 0;
     if (residual <= 0.01) continue;
-    const ref = String(row.due_date || row.document_date || periodEnd);
-    const due = Date.UTC(
-      Number(ref.slice(0, 4)),
-      Number(ref.slice(5, 7)) - 1,
-      Number(ref.slice(8, 10)),
-    );
-    const daysOverdue = Math.floor((asOf - due) / 86_400_000);
-    const key =
-      daysOverdue < 0
-        ? "not_due"
-        : daysOverdue <= 30
-          ? "current"
-          : daysOverdue <= 60
-            ? "days30"
-            : daysOverdue <= 90
-              ? "days60"
-              : "days90";
-    buckets[key] += residual;
+    const key = String(row.aging_bucket) as keyof typeof buckets;
+    if (key in buckets) buckets[key] += residual;
   }
+
 
   const statementAging: StatementAgingBucket[] = [
     { label: "Not yet due", amount: buckets.not_due },

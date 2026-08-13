@@ -105,10 +105,14 @@ describe("vendor statement dataset", () => {
     const fn = edgeVendorFetcher();
     expect(fn).toContain('from("vendor_ledger_entries")');
     expect(fn).toContain("buildVendorStatementDataset");
-    expect(fn).toContain('from("finance_ap_open_items")');
+    // Aging must come from the point-in-time engine, not the "as of today" view.
+    expect(fn).toContain('rpc(\n      "finance_ap_open_items_as_of"');
+    expect(fn).toContain("_as_of: periodEnd");
+    expect(fn).not.toContain('from("finance_ap_open_items")');
     expect(fn).not.toContain('from("bills")');
     expect(fn).not.toContain('from("bill_payments")');
     expect(fn).not.toContain('from("vendor_credit_notes")');
     expect(fn).not.toContain("new Date()");
   });
+
 });
