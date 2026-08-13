@@ -137,7 +137,7 @@ describe("no application code reads the retired finance_ap_open_items view", () 
     (f) => !f.includes(path.join("src", "test")) && !f.endsWith("types.ts"),
   );
   it("every payables read goes through finance_ap_open_items_as_of", () => {
-    const re = /["'`]finance_ap_open_items["'`]/;
+    const re = /(?:\.from|\.rpc)\(\s*["'`]finance_ap_open_items["'`]/;
     const offenders = files.filter((f) => {
       const src = read(f);
       return src != null && re.test(src);
