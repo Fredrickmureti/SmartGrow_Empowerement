@@ -15,6 +15,7 @@ import type {
   LineItemRow,
 } from "@/design-system";
 import type { JournalEntry } from "@/hooks/useJournalEntries";
+import type { JournalSourceDocument } from "./useJournalSourceDocument";
 
 export function journalEntryStatusBadge(entry: JournalEntry): ReactNode {
   const s = entry.status;
