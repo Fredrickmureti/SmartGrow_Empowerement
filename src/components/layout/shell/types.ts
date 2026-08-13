@@ -10,8 +10,11 @@ import type { LucideIcon } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 
 export interface WorkspaceNavItem {
-  /** Absolute route, e.g. "/hr/employees". */
-  to: string;
+  /**
+   * Absolute route, e.g. "/hr/employees". Optional: a grouping node that only
+   * holds `children` (e.g. a report family) has no route of its own.
+   */
+  to?: string;
   label: string;
   icon?: LucideIcon;
   /** Match exactly (e.g. directory root). Defaults to false. */

@@ -17,15 +17,7 @@ import {
   Rss,
   BarChart3,
   ShieldCheck,
-  Calculator,
-  Hourglass,
-  TrendingUp,
-  PieChart,
-  FileBox,
   History,
-  RefreshCw,
-  Wallet,
-  Building,
   CalendarCheck,
   Target,
   Tags,
@@ -35,6 +27,7 @@ import {
 } from "lucide-react";
 
 import type { WorkspaceNav } from "@/components/layout/shell/types";
+import { buildReportsNavChildren } from "@/services/reports/reportsNav";
 
 export const FINANCE_NAV: WorkspaceNav = {
   groups: [
@@ -63,22 +56,11 @@ export const FINANCE_NAV: WorkspaceNav = {
           label: "Reports",
           icon: BarChart3,
           end: true,
+          // Registry-driven, grouped by accounting family. Never hand-list
+          // report links here — add a row to REPORT_REGISTRY instead.
           children: [
-            { to: "/finance/reports/financial", label: "Financial statements", icon: FileText },
-            { to: "/finance/reports/trial-balance", label: "Trial balance", icon: Calculator },
-            { to: "/finance/reports/general-ledger", label: "General ledger", icon: BookOpen },
-            { to: "/finance/reports/aging", label: "Aging", icon: Hourglass },
-            { to: "/finance/reports/partner-ledger", label: "Partner ledger", icon: BookOpen },
-            { to: "/finance/reports/journal-report", label: "Journal", icon: BookOpen },
-            { to: "/finance/reports/cash-flow", label: "Cash flow", icon: Wallet },
-            { to: "/finance/reports/budget", label: "Budget vs actual", icon: Target },
-            { to: "/finance/reports/depreciation", label: "Depreciation", icon: TrendingUp },
-            { to: "/finance/reports/sales", label: "Sales", icon: TrendingUp },
-            { to: "/finance/reports/tax", label: "Tax", icon: ShieldCheck },
-            { to: "/finance/reports/management", label: "Management", icon: PieChart },
-            { to: "/finance/reports/audit-trail", label: "Audit trail", icon: History },
-            { to: "/finance/reports/run-history", label: "Report run history", icon: History },
-            { to: "/finance/reports/intelligence", label: "Business intelligence", icon: BarChart3 },
+            { to: "/finance/reports", label: "All reports", icon: LayoutGrid, end: true },
+            ...buildReportsNavChildren(),
           ],
         },
         { to: "/finance/reversal-register", label: "Reversal register", icon: History },
