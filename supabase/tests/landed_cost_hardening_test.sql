@@ -187,16 +187,13 @@ END $$;
 DO $$
 DECLARE v_missing text;
 BEGIN
-  IF to_regclass('public.governance_actions') IS NULL THEN
-    RETURN; -- registry table not present in this environment
-  END IF;
-  EXECUTE $q$
-    SELECT string_agg(a, ', ')
-      FROM unnest(ARRAY['landed_cost.post','landed_cost.reverse']) a
-     WHERE NOT EXISTS (SELECT 1 FROM public.governance_actions g WHERE g.action_key = a)
-  $q$ INTO v_missing;
+  SELECT string_agg(k, ', ') INTO v_missing
+    FROM unnest(ARRAY['landed_cost.post','landed_cost.reverse']) k
+   WHERE NOT EXISTS (
+     SELECT 1 FROM public.governance_action_registry g WHERE g.action_key = k
+   );
   IF v_missing IS NOT NULL THEN
-    RAISE EXCEPTION 'governance actions not registered: %', v_missing;
+    RAISE EXCEPTION 'landed cost actions absent from governance_action_registry: %', v_missing;
   END IF;
 END $$;
 
