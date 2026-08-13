@@ -291,6 +291,7 @@ export async function renderAstToPdf(args: {
 
   assertRfqTemplateContract(args.template, args.blocks);
   assertJournalTemplateContract(args.template, args.blocks);
+  assertLandedCostTemplateContract(args.template, args.blocks);
   assertCommercialFallthroughAllowed(args.template, args.blocks);
 
   const ledgerLayout = LEDGER_LAYOUTS[args.template.kind_code];
