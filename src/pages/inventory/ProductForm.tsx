@@ -65,6 +65,11 @@ import {
   ProductPackagingEditor,
   type ProductPackagingEditorHandle,
 } from "@/components/products/ProductPackagingEditor";
+import {
+  ProductPhysicalAttributesEditor,
+  type ProductPhysicalAttributesEditorHandle,
+} from "@/components/products/ProductPhysicalAttributesEditor";
+
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { ProductVariantsPanel } from "@/features/inventory/variants/ProductVariantsPanel";
 import {
