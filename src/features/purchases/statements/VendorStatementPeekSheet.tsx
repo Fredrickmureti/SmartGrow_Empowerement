@@ -3,7 +3,7 @@
  * `useVendorStatementView` descriptor that the record page renders, so the
  * two surfaces cannot drift. This file owns the frame and the actions only.
  */
-import { Download, Send, Loader2 } from "lucide-react";
+import { Download, Printer, Send, Loader2 } from "lucide-react";
 
 import { PeekScaffold } from "@/design-system/records";
 import { Button } from "@/components/ui/button";

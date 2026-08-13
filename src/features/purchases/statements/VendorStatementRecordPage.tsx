@@ -8,7 +8,7 @@
  */
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { Download, Send } from "lucide-react";
+import { Download, Printer, Send } from "lucide-react";
 
 import { RecordScaffold } from "@/design-system/records";
 import type { DocumentAction } from "@/design-system/records";
