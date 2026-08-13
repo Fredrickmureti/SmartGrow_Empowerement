@@ -1,11 +1,5 @@
 import { useCurrency } from "@/hooks/useCurrency";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
 
 interface CurrencySelectProps {
   value: string;
@@ -14,34 +8,27 @@ interface CurrencySelectProps {
   className?: string;
 }
 
+/**
+ * Canonical currency picker for form surfaces.
+ *
+ * Thin wrapper over the searchable `CurrencyCombobox` so every consumer gets
+ * type-ahead search over `public.currencies` instead of a long scroll list.
+ */
 export function CurrencySelect({ value, onChange, disabled, className }: CurrencySelectProps) {
   const { currencies, baseCurrency, isLoading } = useCurrency();
 
   // Default to base currency if no value
   const selectedValue = value || baseCurrency || "USD"; // architecture-allow: display-only fallback
 
-  if (isLoading) {
-    return (
-      <Select disabled value={selectedValue}>
-        <SelectTrigger className={className}>
-          <SelectValue placeholder="Loading..." />
-        </SelectTrigger>
-      </Select>
-    );
-  }
-
   return (
-    <Select value={selectedValue} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className={className}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {currencies.map((currency) => (
-          <SelectItem key={currency.id} value={currency.code}>
-            {currency.code} - {currency.symbol}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className={className}>
+      <CurrencyCombobox
+        currencies={currencies}
+        value={selectedValue}
+        onValueChange={onChange}
+        disabled={disabled || isLoading}
+        placeholder={isLoading ? "Loading..." : "Search currency..."}
+      />
+    </div>
   );
 }
