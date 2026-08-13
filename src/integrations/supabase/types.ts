@@ -91969,7 +91969,10 @@ export type Database = {
           p_as_of?: string
           p_branch_id?: string
           p_business_id: string
+          p_limit?: number
+          p_offset?: number
           p_organization_id: string
+          p_search?: string
         }
         Returns: Json
       }
