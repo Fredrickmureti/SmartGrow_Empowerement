@@ -132,6 +132,25 @@ serve(async (req: Request) => {
       console.error("[process-scheduled-automations] Statement send flush failed:", e);
     }
 
+    // ── Vendor statement send-queue flush ──
+    // AP delivery is durable on exactly the same terms as AR: the queue owns
+    // idempotency and retries, so no browser loop ever emails suppliers.
+    try {
+      const { flushVendorStatementSendOutbox } = await import(
+        "../_shared/flushVendorStatementSendOutbox.ts"
+      );
+      const vendorResult = await flushVendorStatementSendOutbox(supabaseUrl, supabaseServiceKey);
+      if (vendorResult.processed > 0) {
+        console.log(
+          `[process-scheduled-automations] Vendor statement sends — ${vendorResult.sent}/${vendorResult.processed} sent, ${vendorResult.failed} failed`,
+        );
+      }
+    } catch (e) {
+      console.error("[process-scheduled-automations] Vendor statement send flush failed:", e);
+    }
+
+
+
 
     // Fetch all due scheduled automations
     const { data: automations, error: fetchError } = await supabase
