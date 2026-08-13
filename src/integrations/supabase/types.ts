@@ -6383,7 +6383,7 @@ export type Database = {
             foreignKeyName: "bill_match_results_landed_cost_bill_id_fkey"
             columns: ["landed_cost_bill_id"]
             isOneToOne: false
-            referencedRelation: "landed_cost_bills"
+            referencedRelation: "landed_cost_vouchers"
             referencedColumns: ["id"]
           },
           {
@@ -23639,6 +23639,77 @@ export type Database = {
           },
         ]
       }
+      inventory_cost_revaluations: {
+        Row: {
+          amount_applied: number
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          layer_id: string
+          organization_id: string
+          product_id: string | null
+          qty_remaining_at_apply: number
+          reversed_at: string | null
+          reversed_by: string | null
+          source_id: string
+          source_line_id: string | null
+          source_type: string
+          unit_cost_after: number
+          unit_cost_before: number
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          amount_applied: number
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          layer_id: string
+          organization_id: string
+          product_id?: string | null
+          qty_remaining_at_apply: number
+          reversed_at?: string | null
+          reversed_by?: string | null
+          source_id: string
+          source_line_id?: string | null
+          source_type: string
+          unit_cost_after: number
+          unit_cost_before: number
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          amount_applied?: number
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          layer_id?: string
+          organization_id?: string
+          product_id?: string | null
+          qty_remaining_at_apply?: number
+          reversed_at?: string | null
+          reversed_by?: string | null
+          source_id?: string
+          source_line_id?: string | null
+          source_type?: string
+          unit_cost_after?: number
+          unit_cost_before?: number
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_cost_revaluations_layer_id_fkey"
+            columns: ["layer_id"]
+            isOneToOne: false
+            referencedRelation: "cost_layers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_additional_costs: {
         Row: {
           amount: number
@@ -25676,49 +25747,74 @@ export type Database = {
         Row: {
           allocated_amount: number
           allocation_ratio: number
+          basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
           basis_value: number
           business_id: string
+          capitalized_amount: number
+          component_id: string
           created_at: string
+          expensed_amount: number
           goods_receipt_id: string
           goods_receipt_item_id: string
           id: string
-          landed_cost_bill_id: string
+          is_manual: boolean
           organization_id: string
-          posted_movement_id: string | null
           product_id: string | null
+          purchase_order_id: string | null
+          revaluation_result: Json | null
           updated_at: string
+          voucher_id: string
         }
         Insert: {
           allocated_amount?: number
           allocation_ratio?: number
+          basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
           basis_value?: number
           business_id: string
+          capitalized_amount?: number
+          component_id: string
           created_at?: string
+          expensed_amount?: number
           goods_receipt_id: string
           goods_receipt_item_id: string
           id?: string
-          landed_cost_bill_id: string
+          is_manual?: boolean
           organization_id: string
-          posted_movement_id?: string | null
           product_id?: string | null
+          purchase_order_id?: string | null
+          revaluation_result?: Json | null
           updated_at?: string
+          voucher_id: string
         }
         Update: {
           allocated_amount?: number
           allocation_ratio?: number
+          basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
           basis_value?: number
           business_id?: string
+          capitalized_amount?: number
+          component_id?: string
           created_at?: string
+          expensed_amount?: number
           goods_receipt_id?: string
           goods_receipt_item_id?: string
           id?: string
-          landed_cost_bill_id?: string
+          is_manual?: boolean
           organization_id?: string
-          posted_movement_id?: string | null
           product_id?: string | null
+          purchase_order_id?: string | null
+          revaluation_result?: Json | null
           updated_at?: string
+          voucher_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "landed_cost_allocations_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_components"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "landed_cost_allocations_goods_receipt_id_fkey"
             columns: ["goods_receipt_id"]
@@ -25741,20 +25837,6 @@ export type Database = {
             referencedColumns: ["goods_receipt_item_id"]
           },
           {
-            foreignKeyName: "landed_cost_allocations_landed_cost_bill_id_fkey"
-            columns: ["landed_cost_bill_id"]
-            isOneToOne: false
-            referencedRelation: "landed_cost_bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "landed_cost_allocations_posted_movement_id_fkey"
-            columns: ["posted_movement_id"]
-            isOneToOne: false
-            referencedRelation: "stock_movements"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "landed_cost_allocations_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -25768,83 +25850,433 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "landed_cost_allocations_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_vouchers"
+            referencedColumns: ["id"]
+          },
         ]
       }
-      landed_cost_bills: {
+      landed_cost_component_types: {
         Row: {
-          allocation_basis: string
-          bill_id: string | null
           business_id: string
-          cost_type: string
+          code: string
           created_at: string
           created_by: string | null
-          currency: string
+          default_basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
           description: string | null
+          expense_account_id: string | null
           id: string
-          notes: string | null
+          is_active: boolean
+          is_capitalizable: boolean
+          name: string
           organization_id: string
-          posted_at: string | null
-          posted_by: string | null
-          status: string
-          total_amount: number
+          sort_order: number
           updated_at: string
-          vendor_id: string | null
         }
         Insert: {
-          allocation_basis?: string
-          bill_id?: string | null
           business_id: string
-          cost_type: string
+          code: string
           created_at?: string
           created_by?: string | null
-          currency?: string
+          default_basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
           description?: string | null
+          expense_account_id?: string | null
           id?: string
-          notes?: string | null
+          is_active?: boolean
+          is_capitalizable?: boolean
+          name: string
           organization_id: string
-          posted_at?: string | null
-          posted_by?: string | null
-          status?: string
-          total_amount: number
+          sort_order?: number
           updated_at?: string
-          vendor_id?: string | null
         }
         Update: {
-          allocation_basis?: string
-          bill_id?: string | null
           business_id?: string
-          cost_type?: string
+          code?: string
           created_at?: string
           created_by?: string | null
-          currency?: string
+          default_basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
           description?: string | null
+          expense_account_id?: string | null
           id?: string
-          notes?: string | null
+          is_active?: boolean
+          is_capitalizable?: boolean
+          name?: string
           organization_id?: string
-          posted_at?: string | null
-          posted_by?: string | null
-          status?: string
-          total_amount?: number
+          sort_order?: number
           updated_at?: string
-          vendor_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "landed_cost_bills_bill_id_fkey"
-            columns: ["bill_id"]
+            foreignKeyName: "landed_cost_component_types_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_component_types_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_component_types_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landed_cost_components: {
+        Row: {
+          amount: number
+          base_amount: number
+          basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          business_id: string
+          component_type_id: string | null
+          created_at: string
+          description: string | null
+          expense_account_id: string | null
+          id: string
+          is_capitalizable: boolean
+          organization_id: string
+          sort_order: number
+          source_bill_id: string | null
+          source_bill_item_id: string | null
+          updated_at: string
+          vendor_id: string | null
+          voucher_id: string
+        }
+        Insert: {
+          amount?: number
+          base_amount?: number
+          basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          business_id: string
+          component_type_id?: string | null
+          created_at?: string
+          description?: string | null
+          expense_account_id?: string | null
+          id?: string
+          is_capitalizable?: boolean
+          organization_id: string
+          sort_order?: number
+          source_bill_id?: string | null
+          source_bill_item_id?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+          voucher_id: string
+        }
+        Update: {
+          amount?: number
+          base_amount?: number
+          basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          business_id?: string
+          component_type_id?: string | null
+          created_at?: string
+          description?: string | null
+          expense_account_id?: string | null
+          id?: string
+          is_capitalizable?: boolean
+          organization_id?: string
+          sort_order?: number
+          source_bill_id?: string | null
+          source_bill_item_id?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landed_cost_components_component_type_id_fkey"
+            columns: ["component_type_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_component_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_source_bill_id_fkey"
+            columns: ["source_bill_id"]
             isOneToOne: false
             referencedRelation: "bills"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
+            foreignKeyName: "landed_cost_components_source_bill_item_id_fkey"
+            columns: ["source_bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "bill_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_source_bill_item_id_fkey"
+            columns: ["source_bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_bill_creditable_qty"
+            referencedColumns: ["bill_item_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
+            foreignKeyName: "landed_cost_components_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "v_party_supplier"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_components_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "landed_cost_vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landed_cost_vouchers: {
+        Row: {
+          allocated_at: string | null
+          allocated_by: string | null
+          approval_request_id: string | null
+          branch_id: string | null
+          business_id: string
+          capitalized_amount: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          default_basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          exchange_rate: number
+          exchange_rate_date: string | null
+          expensed_amount: number
+          id: string
+          journal_entry_id: string | null
+          notes: string | null
+          organization_id: string
+          posted_at: string | null
+          posted_by: string | null
+          posting_date: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          shipment_reference: string | null
+          source_bill_id: string | null
+          status: Database["public"]["Enums"]["landed_cost_voucher_status"]
+          total_amount: number
+          total_base_amount: number
+          updated_at: string
+          vendor_id: string | null
+          voucher_date: string
+          voucher_number: string | null
+        }
+        Insert: {
+          allocated_at?: string | null
+          allocated_by?: string | null
+          approval_request_id?: string | null
+          branch_id?: string | null
+          business_id: string
+          capitalized_amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          default_basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          exchange_rate?: number
+          exchange_rate_date?: string | null
+          expensed_amount?: number
+          id?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          organization_id: string
+          posted_at?: string | null
+          posted_by?: string | null
+          posting_date?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          shipment_reference?: string | null
+          source_bill_id?: string | null
+          status?: Database["public"]["Enums"]["landed_cost_voucher_status"]
+          total_amount?: number
+          total_base_amount?: number
+          updated_at?: string
+          vendor_id?: string | null
+          voucher_date?: string
+          voucher_number?: string | null
+        }
+        Update: {
+          allocated_at?: string | null
+          allocated_by?: string | null
+          approval_request_id?: string | null
+          branch_id?: string | null
+          business_id?: string
+          capitalized_amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          default_basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          exchange_rate?: number
+          exchange_rate_date?: string | null
+          expensed_amount?: number
+          id?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          posted_at?: string | null
+          posted_by?: string | null
+          posting_date?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          shipment_reference?: string | null
+          source_bill_id?: string | null
+          status?: Database["public"]["Enums"]["landed_cost_voucher_status"]
+          total_amount?: number
+          total_base_amount?: number
+          updated_at?: string
+          vendor_id?: string | null
+          voucher_date?: string
+          voucher_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landed_cost_vouchers_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_source_bill_id_fkey"
+            columns: ["source_bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_vouchers_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "v_party_supplier"
@@ -85014,6 +85446,10 @@ export type Database = {
         Returns: undefined
       }
       _next_dock_appointment_no: { Args: { p_org: string }; Returns: string }
+      _next_landed_cost_voucher_no: {
+        Args: { p_business_id: string }
+        Returns: string
+      }
       _next_physical_count_number: { Args: { p_org: string }; Returns: string }
       _payroll_assert_je_line_account: {
         Args: { _account_id: string }
@@ -86245,10 +86681,6 @@ export type Database = {
       advance_cycle_count_next_run: {
         Args: { _cadence: string; _from: string }
         Returns: string
-      }
-      allocate_landed_cost_bill: {
-        Args: { p_bill_id: string; p_goods_receipt_ids?: string[] }
-        Returns: number
       }
       amend_contract: {
         Args: {
@@ -93079,6 +93511,16 @@ export type Database = {
         }
         Returns: Json
       }
+      inventory_apply_cost_revaluation: {
+        Args: {
+          p_actor?: string
+          p_amount: number
+          p_goods_receipt_item_id: string
+          p_source_id: string
+          p_source_type: string
+        }
+        Returns: Json
+      }
       inventory_gl_readiness: {
         Args: { _business_id: string; _org_id: string }
         Returns: {
@@ -93089,6 +93531,10 @@ export type Database = {
           suggested_account_id: string
           suggested_account_label: string
         }[]
+      }
+      inventory_reverse_cost_revaluation: {
+        Args: { p_actor?: string; p_source_id: string; p_source_type: string }
+        Returns: Json
       }
       is_ap_control_account: { Args: { _account_id: string }; Returns: boolean }
       is_app_trialable: { Args: { p_app_id: string }; Returns: boolean }
@@ -96483,7 +96929,6 @@ export type Database = {
         Args: { _entry_id: string; _user_id: string }
         Returns: undefined
       }
-      post_landed_cost_bill: { Args: { p_bill_id: string }; Returns: string }
       post_missing_invoice_journals: {
         Args: {
           _branch_id?: string
@@ -98967,10 +99412,6 @@ export type Database = {
           _run_id: string
           _user_id?: string
         }
-        Returns: string
-      }
-      reverse_landed_cost_bill: {
-        Args: { p_bill_id: string; p_reason?: string }
         Returns: string
       }
       reverse_stock_adjustment_atomic: {
@@ -103569,6 +104010,19 @@ export type Database = {
         | "completed"
         | "failed"
         | "cancelled"
+      landed_cost_allocation_basis:
+        | "value"
+        | "quantity"
+        | "weight"
+        | "volume"
+        | "manual"
+      landed_cost_voucher_status:
+        | "draft"
+        | "pending_approval"
+        | "allocated"
+        | "posted"
+        | "reversed"
+        | "cancelled"
       legal_order_calc_model:
         | "fixed"
         | "percent_disposable"
@@ -104756,6 +105210,21 @@ export const Constants = {
         "paused",
         "completed",
         "failed",
+        "cancelled",
+      ],
+      landed_cost_allocation_basis: [
+        "value",
+        "quantity",
+        "weight",
+        "volume",
+        "manual",
+      ],
+      landed_cost_voucher_status: [
+        "draft",
+        "pending_approval",
+        "allocated",
+        "posted",
+        "reversed",
         "cancelled",
       ],
       legal_order_calc_model: [
