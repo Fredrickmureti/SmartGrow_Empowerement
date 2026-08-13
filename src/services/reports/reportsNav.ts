@@ -129,32 +129,30 @@ function childrenOf(def: ReportDefinition): ReportDefinition[] {
   return REPORT_REGISTRY.filter((r) => r.parentId === def.id);
 }
 
-function toNavItem(def: ReportDefinition): WorkspaceNavItem {
-  const kids = childrenOf(def);
-  return {
+function toNavItems(def: ReportDefinition): WorkspaceNavItem[] {
+  const hub: WorkspaceNavItem = {
     to: def.path,
     label: def.name,
     icon: def.icon,
     permission: def.permission,
-    // Query-string variants share the base path, so only mark the hub `end`
-    // when it has no children of its own.
-    end: kids.length === 0 ? undefined : true,
-    ...(kids.length > 0
-      ? {
-          children: kids.map((k) => ({
-            to: k.path,
-            label: k.name,
-            icon: k.icon,
-            permission: k.permission,
-          })),
-        }
-      : {}),
+    end: true,
   };
+  // Hub views (P&L / Balance sheet) share the hub route with a query string,
+  // so they render as siblings inside the family rather than as a nested
+  // folder — the sidebar turns any item with children into a non-clickable
+  // disclosure, which would make the hub itself unreachable.
+  return [hub, ...childrenOf(def).map((k) => ({
+    to: k.path,
+    label: k.name,
+    icon: k.icon,
+    permission: k.permission,
+    end: true as const,
+  }))];
 }
 
 /**
  * The `Reports` sub-tree: one collapsible node per family, each holding its
- * reports. `basePath` is the route of the reports landing page for this shell.
+ * reports.
  */
 export function buildReportsNavChildren(): WorkspaceNavItem[] {
   const byId = new Map(REPORT_REGISTRY.map((r) => [r.id, r]));
@@ -164,11 +162,11 @@ export function buildReportsNavChildren(): WorkspaceNavItem[] {
     const children = family.reportIds
       .map((id) => byId.get(id))
       .filter((d): d is ReportDefinition => Boolean(d))
-      .map(toNavItem);
+      .flatMap(toNavItems);
     if (children.length === 0) continue;
 
-    // A one-report family is noise as a folder — surface the report directly.
-    if (children.length === 1 && !children[0].children) {
+    // A single-report family is noise as a folder — surface the report itself.
+    if (children.length === 1) {
       items.push({ ...children[0], icon: family.icon });
       continue;
     }
