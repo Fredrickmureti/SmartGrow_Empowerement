@@ -96,6 +96,10 @@ const LandedCostCreatePage = lazy(
 const LandedCostRecordPage = lazy(
   () => import("@/features/purchases/landed-costs/LandedCostRecordPage"),
 );
+const LandedCostComponentTypesPage = lazy(
+  () => import("@/features/purchases/landed-costs/LandedCostComponentTypesPage"),
+);
+
 
 // P1 — Supplier 360 workbench (canonical supplier master).
 const SupplierListPage = lazy(
