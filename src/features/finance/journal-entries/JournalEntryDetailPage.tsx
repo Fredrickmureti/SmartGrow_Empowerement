@@ -10,6 +10,7 @@ import { RecordScaffold } from "@/design-system";
 import { useJournalEntries } from "@/hooks/useJournalEntries";
 import { useCurrency } from "@/hooks/useCurrency";
 import { buildJournalEntryView } from "./journalEntryView";
+import { useJournalEntryActions } from "./useJournalEntryActions";
 
 export default function JournalEntryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +34,8 @@ export default function JournalEntryDetailPage() {
     [entry, journalEntries, formatCurrency],
   );
 
+  const outputActions = useJournalEntryActions(entry);
+
   if (!id) return <Navigate to="/finance/journal-entries" replace />;
 
   const notFound = !isLoading && !entry;
@@ -55,6 +58,7 @@ export default function JournalEntryDetailPage() {
           ? () => navigate(`/finance/journal-entries/${id}/edit`)
           : undefined
       }
+      actions={outputActions}
       detailFields={view?.detailFields}
       lineColumns={view?.lineColumns}
       lineRows={view?.lineRows}
