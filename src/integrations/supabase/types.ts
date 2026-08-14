@@ -62975,6 +62975,54 @@ export type Database = {
           },
         ]
       }
+      stock_lot_expiry_policies: {
+        Row: {
+          business_id: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          min_shelf_life_days: number
+          notes: string | null
+          organization_id: string
+          outbound_enforcement: string
+          receipt_enforcement: string
+          require_expiry_on_receipt: boolean
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          min_shelf_life_days?: number
+          notes?: string | null
+          organization_id: string
+          outbound_enforcement?: string
+          receipt_enforcement?: string
+          require_expiry_on_receipt?: boolean
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          min_shelf_life_days?: number
+          notes?: string | null
+          organization_id?: string
+          outbound_enforcement?: string
+          receipt_enforcement?: string
+          require_expiry_on_receipt?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_lots: {
         Row: {
           business_id: string
@@ -89290,6 +89338,20 @@ export type Database = {
         Args: { p_product_id: string }
         Returns: undefined
       }
+      check_serial_position_drift: {
+        Args: { p_business_id?: string }
+        Returns: {
+          detail: string
+          net_quantity: number
+          observed_warehouse_id: string
+          product_id: string
+          recorded_status: string
+          recorded_warehouse_id: string
+          scope: string
+          serial_id: string
+          serial_number: string
+        }[]
+      }
       check_stock_quant_drift: {
         Args: { _business_id?: string }
         Returns: {
@@ -99581,6 +99643,30 @@ export type Database = {
           warehouse_id: string
         }[]
       }
+      resolve_lot_expiry_policy: {
+        Args: { p_business_id: string; p_product_id: string }
+        Returns: {
+          business_id: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          min_shelf_life_days: number
+          notes: string | null
+          organization_id: string
+          outbound_enforcement: string
+          receipt_enforcement: string
+          require_expiry_on_receipt: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "stock_lot_expiry_policies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       resolve_my_employee: {
         Args: never
         Returns: {
@@ -100725,6 +100811,10 @@ export type Database = {
         Args: { p_appointment_id: string }
         Returns: undefined
       }
+      stock_movement_signed_quantity: {
+        Args: { p_movement_type: string; p_quantity: number }
+        Returns: number
+      }
       stock_reservation_is_open: {
         Args: { p_expires_at: string; p_status: string }
         Returns: boolean
@@ -101443,6 +101533,14 @@ export type Database = {
           _currency: string
         }
         Returns: number
+      }
+      trace_lot_genealogy: {
+        Args: {
+          p_business_id: string
+          p_lot_number: string
+          p_product_id: string
+        }
+        Returns: Json
       }
       trailer_departure_blockers: {
         Args: { p_visit_id: string }
