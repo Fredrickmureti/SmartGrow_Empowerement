@@ -38,13 +38,20 @@ export type DomainEventType =
   | 'pos.cart_total_changed'
   | 'pos.payment_completed'
   | 'pos.session_idle'
-  // Stock Event Fabric (ADR 0076). Emitted by DB trigger
-  // `tg_stock_movement_emit_event` for every stock_movements INSERT.
-  | 'stock.movement.received'
-  | 'stock.movement.dispatched'
-  | 'stock.movement.transferred'
-  | 'stock.movement.adjusted'
-  | 'stock.movement.posted'
+  // Stock Event Fabric (ADR 0076, consolidated in the Inventory Foundation
+  // Wave · Phase 6). ONE emitter — `tg_stock_movement_emit_event` — publishes
+  // exactly one `inventory.movement.recorded` row per stock_movements INSERT,
+  // with `movement_class` (received/dispatched/transferred/adjusted/posted)
+  // in the payload. The five legacy `stock.movement.*` topics are retired.
+  | 'inventory.movement.recorded'
+  // Inventory lot / serial / valuation lifecycle (Phase 6).
+  | 'inventory.lot.quarantined'
+  | 'inventory.lot.released'
+  | 'inventory.lot.recall_opened'
+  | 'inventory.lot.recall_closed'
+  | 'inventory.serial.status_changed'
+  | 'inventory.valuation.revalued'
+  | 'inventory.valuation.revaluation_reversed'
   // Non-movement stock lifecycle (Session 8 · Priority B). Emitted by
   // DB triggers on stock_adjustments, stock_transfers, physical_counts.
   | 'stock.adjustment.posted'

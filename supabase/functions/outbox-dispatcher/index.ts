@@ -91,8 +91,26 @@ async function handleInventoryMovementRecorded(row: OutboxRow): Promise<void> {
   // Reorder-alert recompute lives in check_low_stock_products; call it
   // per-org so subsequent movements trigger fresh alerts. This is cheap
   // enough (single RPC, per event batch) and idempotent.
+  //
+  // Inventory Foundation Wave · Phase 6: this topic now covers EVERY stock
+  // movement (previously only point-of-sale movements reached the outbox),
+  // so reorder recompute finally runs for receipts, transfers, adjustments,
+  // scrap and counts as well.
   const { error } = await admin.rpc("check_low_stock_products");
   if (error) throw new Error(`reorder recompute: ${error.message}`);
+}
+
+// Inventory lot / serial / valuation lifecycle topics (Phase 6). Their state
+// is already durable in `lot_quarantine`, `product_recalls`, `stock_serials`
+// and `inventory_cost_revaluations`; the events exist for audit, analytics and
+// future notification consumers. Registered explicitly so the closed registry
+// does not dead-letter them.
+async function handleInventoryLifecycleRecorded(row: OutboxRow): Promise<void> {
+  console.log(JSON.stringify({
+    event_id: row.id, event_type: row.event_type,
+    source_doc_type: row.source_doc_type, source_doc_id: row.source_doc_id,
+    outcome: "recorded",
+  }));
 }
 
 // --- Phase F handlers -----------------------------------------------------
@@ -444,6 +462,15 @@ async function handleRfqLifecycleNoop(row: OutboxRow): Promise<void> {
 const HANDLERS: Record<string, HandlerFn> = {
   "pos.sale.committed":              handlePosSaleCommitted,
   "inventory.movement.recorded":     handleInventoryMovementRecorded,
+
+  // Inventory lot / serial / valuation lifecycle (Foundation Wave · Phase 6)
+  "inventory.lot.quarantined":                handleInventoryLifecycleRecorded,
+  "inventory.lot.released":                   handleInventoryLifecycleRecorded,
+  "inventory.lot.recall_opened":              handleInventoryLifecycleRecorded,
+  "inventory.lot.recall_closed":              handleInventoryLifecycleRecorded,
+  "inventory.serial.status_changed":          handleInventoryLifecycleRecorded,
+  "inventory.valuation.revalued":             handleInventoryLifecycleRecorded,
+  "inventory.valuation.revaluation_reversed": handleInventoryLifecycleRecorded,
   "payment.card.captured":           (r) => handleCardSettlementLine(r, "capture"),
   "payment.card.reversed":           (r) => handleCardSettlementLine(r, "reversal"),
   "settlement.card.closed":          handleSettlementCardClosed,
