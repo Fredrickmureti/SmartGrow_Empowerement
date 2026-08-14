@@ -56,6 +56,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { saveProductAtomic } from "@/features/products/save/saveProductAtomic";
+import { useProductTaxLocalization } from "@/features/products/localization/productTaxLocalization";
+
 
 import { ProductImageUpload } from "@/components/products/ProductImageUpload";
 import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
@@ -140,10 +142,6 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     cogs_account_id: null as string | null,
     inventory_account_id: null as string | null,
     tax_rate_id: null as string | null,
-    etims_classification_code: "",
-    etims_unit_code: "U",
-    etims_packaging_unit: "CT",
-    etims_country_origin: currentBusiness?.country || "",
     base_uom_id: null as string | null,
     sales_uom_id: null as string | null,
     purchase_uom_id: null as string | null,
@@ -151,6 +149,17 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     is_expiry_tracked: industryProfile.defaultExpiryTracking,
     expiry_alert_days: 30,
   });
+
+  // Fiscal metadata is NOT product master data — it lives per jurisdiction in
+  // `product_tax_localization`. Kept in its own state so the product payload
+  // never carries one country's tax vocabulary.
+  const [localization, setLocalization] = useState({
+    classification_code: "",
+    unit_code: "U",
+    packaging_unit: "CT",
+    origin_country: currentBusiness?.country || "",
+  });
+
 
   // Category tier of the GL ladder (ADR 0122): product → category (walking
   // parents) → company default. Presentation only; posting uses the same
@@ -164,11 +173,31 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     if (mode !== "create") return;
     setFormData((f) => ({
       ...f,
-      etims_country_origin: f.etims_country_origin || currentBusiness?.country || "",
       is_lot_tracked: f.is_lot_tracked || industryProfile.defaultLotTracking,
       is_expiry_tracked: f.is_expiry_tracked || industryProfile.defaultExpiryTracking,
     }));
+    setLocalization((l) => ({
+      ...l,
+      origin_country: l.origin_country || currentBusiness?.country || "",
+    }));
   }, [mode, currentBusiness?.country, industryProfile.defaultLotTracking, industryProfile.defaultExpiryTracking]);
+
+  // Fiscal metadata hydrates from `product_tax_localization`, not from the
+  // product row — those columns no longer exist on `products`.
+  const { data: existingLocalization } = useProductTaxLocalization(
+    mode === "edit" ? editing?.id : null,
+  );
+
+  useEffect(() => {
+    if (mode !== "edit") return;
+    setLocalization({
+      classification_code: existingLocalization?.classification_code || "",
+      unit_code: existingLocalization?.unit_code || "U",
+      packaging_unit: existingLocalization?.packaging_unit || "CT",
+      origin_country:
+        existingLocalization?.origin_country || currentBusiness?.country || "",
+    });
+  }, [mode, existingLocalization, currentBusiness?.country]);
 
   // Hydrate from existing product on edit.
   useEffect(() => {
@@ -194,11 +223,6 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
       cogs_account_id: editing.cogs_account_id || null,
       inventory_account_id: editing.inventory_account_id || null,
       tax_rate_id: (editing as any).tax_rate_id || null,
-      etims_classification_code: (editing as any).etims_classification_code || "",
-      etims_unit_code: (editing as any).etims_unit_code || "U",
-      etims_packaging_unit: (editing as any).etims_packaging_unit || "CT",
-      etims_country_origin:
-        (editing as any).etims_country_origin || currentBusiness?.country || "",
       base_uom_id: (editing as any).base_uom_id || null,
       sales_uom_id: (editing as any).sales_uom_id || null,
       purchase_uom_id: (editing as any).purchase_uom_id || null,
@@ -207,6 +231,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
       expiry_alert_days: (editing as any).expiry_alert_days ?? 30,
     });
   }, [mode, editing, currentBusiness?.country]);
+
 
   const backHref = "/inventory-app/products";
 
@@ -224,12 +249,20 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
     try {
       // One payload for the whole product: master + packaging + measurements
-      // + identifiers. The database writes all of it or none of it.
+      // + identifiers + fiscal localization. The database writes all of it or
+      // none of it. The jurisdiction is resolved server-side from the business.
       const children = {
         packaging: packagingRef.current?.collect() ?? [],
         physical: physicalRef.current?.collect() ?? [],
         identifiers: identifiersRef.current?.collect() ?? [],
+        localization: {
+          classification_code: localization.classification_code || null,
+          unit_code: localization.unit_code || null,
+          packaging_unit: localization.packaging_unit || null,
+          origin_country: localization.origin_country || null,
+        },
       };
+
 
       if (editing) {
         const { productId } = await saveProductAtomic({
@@ -1110,23 +1143,24 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
               </Select>
             </div>
             <EtimsClassificationCodeSelect
-              value={formData.etims_classification_code}
+              value={localization.classification_code}
               onChange={(v) =>
-                setFormData({ ...formData, etims_classification_code: v })
+                setLocalization({ ...localization, classification_code: v })
               }
             />
             <EtimsUnitCodeSelect
-              value={formData.etims_unit_code}
-              onChange={(v) => setFormData({ ...formData, etims_unit_code: v })}
+              value={localization.unit_code}
+              onChange={(v) => setLocalization({ ...localization, unit_code: v })}
             />
             <EtimsPackagingCodeSelect
-              value={formData.etims_packaging_unit}
-              onChange={(v) => setFormData({ ...formData, etims_packaging_unit: v })}
+              value={localization.packaging_unit}
+              onChange={(v) => setLocalization({ ...localization, packaging_unit: v })}
             />
             <EtimsCountryOriginSelect
-              value={formData.etims_country_origin}
-              onChange={(v) => setFormData({ ...formData, etims_country_origin: v })}
+              value={localization.origin_country}
+              onChange={(v) => setLocalization({ ...localization, origin_country: v })}
             />
+
           </FieldGrid>
         </Section>
       )}
