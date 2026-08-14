@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
 import { formatBaseQtyAsPacks, type PackForRollup } from "@/lib/packagingRollup";
+import { resolveAvailability } from "@/lib/inventory/availability";
 
 interface Props {
   data: ProductDetailData;
