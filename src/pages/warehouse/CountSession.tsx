@@ -388,16 +388,21 @@ export default function CountSession() {
                         </div>
                         {unit && !unit.isBase && Number(countedByLine[l.id] ?? 0) > 0 && (
                           <p className="mt-1 text-xs text-muted-foreground">
-                            = {toBaseUnits(Number(countedByLine[l.id]), unit)} base units
+                            = {toBaseUnits(Number(countedByLine[l.id]), unit)} {qtyFmt.baseLabelFor(l.product_id)}
                           </p>
                         )}
                       </td>
 
                       {!blind && (
                         <td className={`p-2 text-right font-mono ${l.variance_qty && Number(l.variance_qty) !== 0 ? "text-destructive" : ""}`}>
-                          {l.variance_qty == null ? "—" : Number(l.variance_qty).toFixed(2)}
+                          {l.variance_qty == null ? (
+                            "—"
+                          ) : (
+                            <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.variance_qty} signed />
+                          )}
                         </td>
                       )}
+
                       <td className="p-2">
                         {outcome ? (
                           <div className="flex items-center gap-2">
