@@ -94,7 +94,7 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
           { count: "exact" },
         )
         .eq("organization_id", currentOrg!.id)
-        .eq("is_active", true)
+        .eq("status", "active")
         .eq("business_id", currentBusiness!.id)
         .or("is_variant_parent.is.null,is_variant_parent.eq.false");
 

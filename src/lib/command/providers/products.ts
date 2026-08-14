@@ -23,7 +23,7 @@ async function fetchProducts(
     .from("products")
     .select("id, name, sku")
     .or(`name.ilike.${pattern},sku.ilike.${pattern}`)
-    .eq("is_active", true)
+    .eq("status", "active")
     .limit(8)
     .abortSignal(ctx.signal);
 

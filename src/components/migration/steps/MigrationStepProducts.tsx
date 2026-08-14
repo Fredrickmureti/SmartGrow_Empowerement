@@ -29,7 +29,7 @@ export function MigrationStepProducts({ onComplete, onSkip }: Props) {
         .from("products")
         .select("id, product_type")
         .eq("organization_id", currentOrg.id)
-        .eq("is_active", true);
+        .eq("status", "active");
       return data || [];
     },
     enabled: !!currentOrg?.id,

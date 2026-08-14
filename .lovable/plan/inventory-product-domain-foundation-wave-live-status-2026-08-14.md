@@ -2,10 +2,11 @@
 
 Authoritative status document. Update it after every implementation step.
 
-**Active phase:** Phase 5 (lifecycle & localization) — backend verified COMPLETE,
-client rewiring PENDING.
-**Next phase:** finish Phase 5 client work, then Phase 5B (events + supplier terms),
+**Active phase:** Phase 5C — COMPLETE (localization client, lifecycle badge +
+action, `status` repointing, architecture guard test).
+**Next phase:** Phase 5B (supplier terms resolver + ADR note), Phase 5D,
 Phase 6 (`ProductForm` decomposition), Phase 7 (read model), Phase 8 (tests).
+
 
 ## Independent verification (this session)
 

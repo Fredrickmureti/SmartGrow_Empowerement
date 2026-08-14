@@ -64,11 +64,11 @@ export default function Forecast() {
       // 1. Products in scope
       const { data: products, error: pErr } = await supabase
         .from("products")
-        .select("id, name, sku, reorder_level, type, is_active, track_inventory")
+        .select("id, name, sku, reorder_level, type, status, track_inventory")
         .eq("organization_id", orgId)
         .eq("business_id", businessId)
         .eq("type", "product")
-        .eq("is_active", true)
+        .eq("status", "active")
         .eq("track_inventory", true)
         .order("name");
       if (pErr) throw pErr;

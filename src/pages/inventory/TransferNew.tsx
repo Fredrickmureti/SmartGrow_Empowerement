@@ -52,7 +52,7 @@ export default function TransferNew() {
   );
 
   const inventoryProducts = useMemo(
-    () => products.filter((p: any) => p.type === "product" && p.is_active),
+    () => products.filter((p: any) => p.type === "product" && (p.status ?? "active") === "active"),
     [products],
   );
 

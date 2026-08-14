@@ -206,11 +206,11 @@ export default function Inventory() {
 
       const { data, error, count } = await supabase
         .from("products")
-        .select("id, name, sku, reorder_level, cost_price, type, track_inventory, is_active", { count: "exact" })
+        .select("id, name, sku, reorder_level, cost_price, type, track_inventory, status", { count: "exact" })
         .eq("organization_id", organizationId)
         .eq("business_id", businessId)
         .eq("type", "product")
-        .eq("is_active", true)
+        .eq("status", "active")
         .order("name")
         .range(from, to);
 
