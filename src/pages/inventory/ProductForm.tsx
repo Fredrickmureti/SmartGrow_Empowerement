@@ -60,12 +60,8 @@ import { useProductTaxLocalization } from "@/features/products/localization/prod
 
 
 import { ProductImageUpload } from "@/components/products/ProductImageUpload";
-import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
-import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
 import { useProductCategories } from "@/hooks/useProductCategories";
 import { resolveCategoryAccount, type CategoryAccountField } from "@/lib/productCategoryAccounts";
-import { ProductStockPanel } from "@/components/products/ProductStockPanel";
-import { UomSelect } from "@/components/products/UomSelect";
 import {
   ProductIdentifiersEditor,
   type ProductIdentifiersEditorHandle,
@@ -81,12 +77,6 @@ import {
 
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { ProductVariantsPanel } from "@/features/inventory/variants/ProductVariantsPanel";
-import {
-  EtimsUnitCodeSelect,
-  EtimsPackagingCodeSelect,
-  EtimsClassificationCodeSelect,
-  EtimsCountryOriginSelect,
-} from "@/components/etims/EtimsCodeSelectors";
 import { PurchasingDefaultsSection } from "./product-form/sections/PurchasingDefaultsSection";
 import { IdentitySection } from "./product-form/sections/IdentitySection";
 import { InventoryUnitSection } from "./product-form/sections/InventoryUnitSection";
