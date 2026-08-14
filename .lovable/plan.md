@@ -1,9 +1,10 @@
 # Inventory Foundation Wave — execution ledger
 
 **Reference architecture:** ADR 0142 (single balance / availability / reservation),
-ADR 0078 (AVCO canonical), ADR 0064 (locations & quants), ADR 0079 (Inventory vs Warehouse).
+ADR 0078 (AVCO canonical), ADR 0064 (locations & quants), ADR 0025 (lot quants & FEFO),
+ADR 0079 (Inventory vs Warehouse).
 **Domain map:** `docs/audit/inventory-domain-map.md`
-**Last updated:** 2026-08-14 (Phase 3 execution session)
+**Last updated:** 2026-08-14 (handoff verification session)
 
 ---
 
@@ -11,85 +12,116 @@ ADR 0078 (AVCO canonical), ADR 0064 (locations & quants), ADR 0079 (Inventory vs
 
 | Phase | Scope | State |
 |---|---|---|
-| 1 | Single balance store + single availability engine | ✅ VERIFIED |
-| 1b | `get_available_pos_stock_for_register` repointed onto the engine | ✅ VERIFIED |
-| 2 | Single reservation engine + lifecycle | ✅ VERIFIED |
-| 3 | Movement ledger completeness (4 items) | ✅ COMPLETE — see Part 2 |
-| 4 | Costing & valuation guard (AVCO canonical, ADR 0078) | ▶ NEXT |
-| 5 | Lots / serials / expiry traceability closure | NOT STARTED |
+| 1 | Single balance store + single availability engine | VERIFIED |
+| 1b | `get_available_pos_stock_for_register` repointed onto the engine | VERIFIED |
+| 2 | Single reservation engine + lifecycle | VERIFIED |
+| 3 | Movement ledger completeness | VERIFIED (re-verified this session) |
+| 4 | Costing & valuation guard (AVCO canonical, ADR 0078) | VERIFIED (re-verified this session) |
+| 5 | Lots / serials / expiry traceability closure | IN PROGRESS — partial foundation exists, gaps below |
 | 6 | Business events: one emitter, complete topics | NOT STARTED |
-| 7 | UI repoint — clear the 8 allowlisted files | NOT STARTED |
+| 7 | UI repoint — clear the allowlisted files | NOT STARTED |
 | 8 | Documentation + operator guide refresh | NOT STARTED |
 
 ---
 
-## Part 2 — Phase 3, implemented and verified this session
+## Part 2 — Verification verdict on the previous agent's claims
 
-| Item | Delivered | Verification |
+Checked directly against the live database, not the ledger text.
+
+| Claim | Verdict | Evidence |
 |---|---|---|
-| 1. Reversal parity | `stock_movement_writers` registry (25 routines: 18 forward with a named reversal, 6 reversal routines, 1 self-test harness) + `check_movement_reversal_coverage()` reporting unregistered writers, stale registrations, and reversals that no longer exist | `check_movement_reversal_coverage()` returns 0 rows against the live database |
-| 2. Value-only guard | `enforce_stock_movement_integrity` rejects `landed_cost` movements with non-zero quantity (`INVENTORY_VALUE_ONLY_MOVEMENT`) and quantity-bearing types with zero quantity (`INVENTORY_EMPTY_MOVEMENT`) | Trigger body inspected in `pg_proc`; ratchet asserts both error codes |
-| 3. Provenance | `stock_movement_source_types` registry (27 kinds, 8 with a target table) + mandatory, registered, existence-checked `reference_type`/`reference_id` on every movement except `opening` / `migration` | All 25 writers audited: every inserted `reference_type` literal is registered and every named target table resolves |
-| 4. Drift detection | `check_stock_quant_drift` is now four-way (`stock_quants` vs `warehouse_stock`, `warehouse_stock_lots` via `lot_id → stock_lots.lot_number`, and `products.stock_quantity`), returning `scope / warehouse_id / product_id / lot_number / quant_qty / projected_qty / drift`; surfaced at `/inventory-app/reports/integrity` | Function executes; page typechecks; nav entry added under Insights |
+| Reversal parity registry + coverage check | Confirmed | `stock_movement_writers` = 25 rows; `check_movement_reversal_coverage()` returns 0 rows |
+| Provenance registry | Confirmed | `stock_movement_source_types` = 27 rows |
+| Integrity trigger with five error codes | Confirmed | `trg_enforce_stock_movement_integrity` present on `stock_movements` |
+| Four-way drift check | Confirmed | `check_stock_quant_drift(NULL)` returns 0 rows |
+| Valuation writer registry + coverage | Confirmed | `inventory_valuation_writers` = 5 rows; `check_valuation_writer_coverage()` returns 0 rows |
+| Valuation authority triggers | Confirmed, names differ from ledger | actual: `trg_enforce_valuation_authority_ws` (warehouse_stock), `trg_enforce_valuation_authority_cl` (cost_layers) |
+| Valuation drift check | Confirmed | `check_inventory_valuation_drift(NULL, 0.01)` returns 0 rows |
+| Ratchets present | Confirmed | `supabase/tests/inventory_movement_ledger_test.sql`, `inventory_valuation_guard_test.sql` |
 
-**Ratchet:** `supabase/tests/inventory_movement_ledger_test.sql` fails if the
-registries disappear, the integrity trigger is dropped, any guard error code is
-removed, a source type points at a missing table, reversal coverage regresses,
-or the drift check stops covering all four stores.
+Caveat recorded for the next agent: the tenant database currently holds **zero
+`stock_movements`, zero `stock_lots`, zero `stock_serials` and zero
+lot/serial-tracked products**. Every "returns 0 rows" result above is therefore a
+*structural* pass, not a behavioural one. Phases 1–4 are verified as
+architecture; they are not yet proven against live volume. Phase 5 adds the
+first behavioural ratchet that does not depend on tenant data.
 
-**Frontend touched:** `src/hooks/inventory/useStockQuants.ts` (new
-`StockQuantDriftRow` shape, new `useMovementReversalCoverage`, fixed a broken
-`./useOrganization` import and corrected org-vs-business scoping in
-`useLocationSummary`), `src/pages/inventory/InventoryIntegrity.tsx` (new),
-`src/apps/inventory/routes.tsx`, `src/apps/inventory/nav.ts`.
-`tsgo --noEmit` is clean.
+Phase 4 is marked VERIFIED and the ledger is now correct — the only outstanding
+item the previous agent named (updating this file) is done.
 
 ---
 
-## Part 3 — Instructions for the next agent
+## Part 3 — Phase 5 scope: lots, serials, expiry, traceability
 
-**First, verify — do not trust this ledger.** Before writing anything:
+Reconnaissance found a real foundation already in place, so Phase 5 is closure,
+not construction. Do not rebuild any of these:
 
-1. Run `check_movement_reversal_coverage()` and `check_stock_quant_drift(NULL)`
-   against the live database; both must return zero rows.
-2. Confirm `trg_enforce_stock_movement_integrity` exists on `stock_movements`
-   and that its body still raises all five documented error codes.
-3. Confirm every `stock_movement_source_types.target_table` resolves, and that
-   no function inserting into `stock_movements` is missing from
-   `stock_movement_writers`.
-4. Confirm the ratchet file `supabase/tests/inventory_movement_ledger_test.sql`
-   is present and its assertions still match the shipped objects.
-5. Load `/inventory-app/reports/integrity` and confirm both cards render.
+Present and correct: `stock_lots` / `stock_serials` masters, per-lot balances via
+`_maintain_warehouse_stock_lots`, `resolve_fefo_lots` + `consume_lots_atomic`,
+`enforce_serial_on_movement`, `enforce_downstream_lot_stamping` (invoices, credit
+notes, sales returns), `recall_lot`, `rebuild_warehouse_stock_lots`, the
+`LotPickerPopover` / `SerialPickerPopover` / `OutboundLineTracking` UI seam, and
+architecture tests `recall-rpc`, `serial-tracking`, `outbound-lot-serial-ui`.
 
-Only after those checks pass, **resume at Phase 4 — costing and valuation
-guard**. Phase 4 adds no new valuation engine. It enforces ADR 0078:
+Confirmed gaps to close in Phase 5:
 
-- AVCO on `products.cost_price` / `warehouse_stock.average_cost` is the only
-  valuation authority; `cost_layers` is lot-level detail and must never be read
-  as a valuation source.
-- Add a guard/test that fails when a function outside the AVCO writer set
-  updates a valuation field, and a ratchet under `supabase/tests/`.
-- Add a valuation-drift check (AVCO value vs `cost_layers` roll-up) and surface
-  it on the existing Inventory integrity report rather than building a new page.
+1. **No expiry policy at the movement boundary.** No routine in the database
+   references `stock_lots.expiry_date` for outbound blocking. An expired lot can
+   be sold, transferred or picked with no server-side objection; `expiry_alert_days`
+   is a UI-only notion today. Add a policy-driven guard (business configuration,
+   not hardcoded): block / warn / allow outbound consumption of expired lots,
+   resolved server-side, with the decision stamped on the movement.
+2. **Genealogy is assembled in the browser.** `src/pages/inventory/LotDetail.tsx`
+   builds the lot lifecycle chain from raw table reads in the page. Move it to a
+   canonical server-side projection (`trace_lot_genealogy`) returning the
+   supplier → receipt → lot → warehouse → transfer → sale → customer chain, and
+   repoint `LotDetail` and `recall_lot` onto the same function so recall analysis
+   and the operator screen cannot disagree.
+3. **No lot/serial integrity ratchet.** Phases 3 and 4 each ship a
+   `supabase/tests/*.sql` ratchet; lots and serials have none. Add
+   `inventory_lot_serial_traceability_test.sql` asserting: the lot-tracked
+   outbound requirement is enforced, serial enforcement trigger is installed,
+   the expiry guard raises its documented error codes, `warehouse_stock_lots`
+   remains a derived projection, and the genealogy function exists.
+4. **Serial lifecycle has no drift check.** `stock_serials.status` /
+   `current_warehouse_id` are maintained by trigger, but nothing detects a serial
+   whose status disagrees with its last movement. Extend the existing integrity
+   surface (`check_stock_quant_drift` family) with a serial-position check rather
+   than adding a new page.
+5. **Traceability surfacing.** Add the two new checks as cards on the existing
+   `/inventory-app/reports/integrity` page. No new route.
 
-Do not jump to Phases 5–8 before Phase 4 is coherent and ratcheted. Phase 7 (UI
-repoint) stays blocked until the server-side guards for Phases 4–6 are in place.
+Explicitly out of scope for Phase 5: recall workflow UI, FEFO changes for
+non-expiry-tracked products, Warehouse-owned pick execution, and any change to
+Purchasing or Sales.
 
+---
 
-============================
-Phase 4 (costing & valuation guard) is implemented and verified in the database; only the plan-file update remains.
+## Part 4 — Phases 6–8 (unchanged, dependency-ordered)
 
-Verified first (Phase 3 re-check): reversal coverage 0 rows, quant drift 0 rows, integrity trigger present, 27 source types / 25 registered writers.
+- **Phase 6 — Events.** One emitter. Audit `trg_stock_movement_emit_event`
+  against `business_event_outbox` topic coverage; every lot/serial/valuation
+  state transition from Phases 3–5 must emit with an idempotency key of the
+  documented `stock.<entity>:<id>` shape. No new event infrastructure.
+- **Phase 7 — UI repoint.** Blocked until Phases 5–6 are ratcheted. Clear the
+  allowlisted files that still compute inventory truth in the browser.
+- **Phase 8 — Docs.** ADR addendum for the expiry policy and genealogy
+  projection; refresh the operator guide.
 
-Phase 4 delivered:
+---
 
-inventory_valuation_writers registry (5 routines, flagged as AVCO and/or layer writers) — AVCO on products.cost_price / warehouse_stock.average_cost remains the sole valuation authority.
-check_valuation_writer_coverage() static scan flags unregistered costing logic or stale registrations — returns 0 rows live.
-enforce_valuation_write_authority() with triggers on warehouse_stock and cost_layers: API roles (anon/authenticated) can never move average_cost or touch cost layers; layer provenance (product_id, business_id, source_movement_id, qty_total, received_at) is immutable; negative valuation and out-of-range qty_remaining rejected. All four error codes confirmed in the deployed body, both triggers installed.
-check_inventory_valuation_drift(business, tolerance) comparing warehouse AVCO and product AVCO against the remaining cost-layer roll-up — 0 rows live.
-Frontend: useValuationDrift / useValuationWriterCoverage hooks plus two new cards ("Valuation agreement", "Costing write authority") on /inventory-app/reports/integrity. tsgo --noEmit clean.
-Ratchet: supabase/tests/inventory_valuation_guard_test.sql.
-Remaining (not done): updating .lovable/plan.md to mark Phase 4 complete/verified and set Phase 5 (lots/serials/expiry traceability closure) as next, with the standard "verify Phase 4 before continuing" handoff — re-run the three checks above (check_valuation_writer_coverage(), check_inventory_valuation_drift(NULL,0.01), both triggers present) before resuming.
+## Part 5 — Technical notes for the implementing agent
 
-
-===========
+- Expiry policy belongs in the existing business-configuration mechanism
+  (`default_account_settings`-style pattern or the branch-overridable settings
+  table), never as a literal in the movement trigger.
+- The expiry guard must run inside the same transaction as the movement insert,
+  as a `BEFORE INSERT` addition to the existing integrity trigger chain — do not
+  add a competing trigger that duplicates `enforce_stock_movement_integrity`.
+- `trace_lot_genealogy(business_id, product_id, lot_number)` returns a single
+  `jsonb` document. `recall_lot` calls it instead of re-querying.
+- Register any new routine that writes `stock_movements` in
+  `stock_movement_writers`, or the Phase 3 ratchet will fail — that is intended.
+- Re-run all four checks before resuming:
+  `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
+  `check_valuation_writer_coverage()`, `check_inventory_valuation_drift(NULL, 0.01)`.
