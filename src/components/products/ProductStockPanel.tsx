@@ -167,15 +167,14 @@ export function ProductStockPanel({
     return { activeBranchRows: active, otherBranchRows: other, transitRows: transit };
   }, [rows, branchId]);
 
-  // Totals — branch-scoped headline, company-wide secondary disclosure.
-  const branchOnHand = activeBranchRows.reduce((s, r) => s + (r.quantity || 0), 0);
-  const branchReserved = activeBranchRows.reduce(
-    (s, r) => s + (r.reserved_quantity || 0),
-    0
-  );
-  const branchAvailable = branchOnHand - branchReserved;
-  const companyOnHand = rows.reduce((s, r) => s + (r.quantity || 0), 0);
-  const transitQty = transitRows.reduce((s, r) => s + (r.quantity || 0), 0);
+  // Totals — ADR 0142: the branch headline figures come from the canonical
+  // server availability engine; the per-warehouse rows below stay a read model.
+  const branchOnHand = availability?.onHand ?? 0;
+  const branchReserved = availability?.reserved ?? 0;
+  const branchAvailable = availability?.available ?? 0;
+  const companyOnHand = companyAvailability?.onHand ?? 0;
+  const transitQty = availability?.inTransit ?? 0;
+
   // Forecast = available + incoming. Outgoing is already captured in
   // reserved_quantity (POS holds + sales reservations).
   const forecasted = branchAvailable + (incoming || 0);
