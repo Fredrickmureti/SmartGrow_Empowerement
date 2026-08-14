@@ -18,7 +18,7 @@ import type {
 export const RETURN_LINES_KEY = "wms-return-lines";
 
 const LINE_COLUMNS =
-  "id, return_order_id, product_id, lpn_id, lpn_out_id, lot_number, serial_number, uom, expected_qty, received_qty, condition_code, inspection_state, qc_inspection_id, disposition, destination_location_id, restock_qty, quarantine_qty, scrap_qty, photo_count, blocked_reason, captured_at, inspected_at, dispositioned_at, posted_at, notes, row_version, created_at, products(name, sku)";
+  "id, return_order_id, product_id, lpn_id, lpn_out_id, lot_number, serial_number, uom, expected_qty, received_qty, entered_qty, packaging_id, condition_code, inspection_state, qc_inspection_id, disposition, destination_location_id, restock_qty, quarantine_qty, scrap_qty, photo_count, blocked_reason, captured_at, inspected_at, dispositioned_at, posted_at, notes, row_version, created_at, products(name, sku), packaging:product_packaging(name)";
 
 export function useReturnLines(returnId: string | null | undefined) {
   return useQuery({
@@ -71,7 +71,15 @@ function useInvalidateLines() {
 export interface CaptureReturnLineInput {
   returnId: string;
   productId: string;
+  /**
+   * What the operator captured. With `packagingId` set this is expressed in
+   * that packaging level and `wms_capture_return_line` converts it through
+   * `wms_to_base_qty`; otherwise it is already in base ledger units. The
+   * browser never multiplies a packaging factor into a ledger quantity.
+   */
   receivedQty: number;
+  /** `product_packaging.id` the quantity was captured in, null for base. */
+  packagingId?: string | null;
   expectedQty?: number | null;
   lpnId?: string | null;
   lotNumber?: string | null;
@@ -91,6 +99,8 @@ export function useCaptureReturnLine() {
         p_return_id: input.returnId,
         p_product_id: input.productId,
         p_received_qty: input.receivedQty,
+        p_entered_qty: input.receivedQty,
+        p_packaging_id: input.packagingId ?? null,
         p_expected_qty: input.expectedQty ?? null,
         p_lpn_id: input.lpnId ?? null,
         p_lot_number: input.lotNumber ?? null,
@@ -107,6 +117,7 @@ export function useCaptureReturnLine() {
     onSuccess: invalidate,
   });
 }
+
 
 export interface InspectionCheckInput {
   check_code: string;

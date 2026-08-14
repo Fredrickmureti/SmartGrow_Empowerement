@@ -21,6 +21,9 @@ export interface ReceivingLine {
   expiry_date: string | null;
   expected_qty: number | null;
   received_qty: number | null;
+  /** What the operator typed, in `packaging_id`'s level (audit truth). */
+  entered_qty: number | null;
+  packaging_id: string | null;
   damaged_qty: number | null;
   qc_hold: boolean;
   uom: string | null;
@@ -56,7 +59,7 @@ export function useReceivingLines(sessionId: string | null | undefined) {
       const { data, error } = await supabase
         .from("wms_receiving_lines" as any)
         .select(
-          "id, session_id, product_id, purchase_order_item_id, inbound_shipment_item_id, lot_number, serial_number, expiry_date, expected_qty, received_qty, damaged_qty, qc_hold, uom, line_state, staging_location_id, notes, captured_at, products(name, sku)",
+          "id, session_id, product_id, purchase_order_item_id, inbound_shipment_item_id, lot_number, serial_number, expiry_date, expected_qty, received_qty, entered_qty, packaging_id, damaged_qty, qc_hold, uom, line_state, staging_location_id, notes, captured_at, products(name, sku), packaging:product_packaging(name)",
         )
         .eq("session_id", sessionId!)
         .order("created_at", { ascending: true });

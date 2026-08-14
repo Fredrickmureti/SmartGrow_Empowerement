@@ -93292,6 +93292,7 @@ export type Database = {
           assigned_to: string
           counted_at: string
           counted_qty: number
+          entered_qty: number
           expiry_date: string
           id: string
           is_blind: boolean
@@ -93299,6 +93300,8 @@ export type Database = {
           location_id: string
           location_name: string
           lot_number: string
+          packaging_id: string
+          packaging_name: string
           product_id: string
           product_name: string
           product_sku: string

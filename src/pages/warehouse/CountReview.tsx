@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
-import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
+import { useCountLines, countLineProductLabel, countLineEnteredLabel } from "@/features/warehouse/counts/useCountLines";
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
 
@@ -224,7 +224,15 @@ export default function CountReview() {
                       <td className="p-2">{countLineProductLabel(l)}</td>
                       <td className="p-2">{l.lot_number ?? "—"}</td>
                       <td className="p-2 text-right font-mono">{l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}</td>
-                      <td className="p-2 text-right font-mono">{Number(l.counted_qty ?? 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono">
+                        {Number(l.counted_qty ?? 0).toFixed(2)}
+                        {countLineEnteredLabel(l) && (
+                          <span className="block text-xs text-muted-foreground">
+                            entered {countLineEnteredLabel(l)}
+                          </span>
+                        )}
+                      </td>
+
                       <td className="p-2 text-right font-mono text-destructive">{Number(l.variance_qty ?? 0).toFixed(2)}</td>
                       <td className="p-2">
                         {outcome ? (
