@@ -176,5 +176,36 @@ export function InventorySettings() {
         )}
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Product physical attributes</CardTitle>
+        <CardDescription>
+          Landed costs allocated by weight or volume need a measured product.
+          Requiring the measurement up front turns a late allocation failure
+          into a clear message at receipt time.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+          <div className="space-y-1">
+            <Label htmlFor="require-physical" className="font-medium">
+              Require physical attributes before receiving
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Applies to stock-tracked products only. Off by default.
+            </p>
+          </div>
+          <Switch
+            id="require-physical"
+            checked={requirePhysical}
+            disabled={loading || savingPolicy}
+            onCheckedChange={handleTogglePhysical}
+          />
+        </div>
+      </CardContent>
+    </Card>
+    </div>
   );
 }
+
