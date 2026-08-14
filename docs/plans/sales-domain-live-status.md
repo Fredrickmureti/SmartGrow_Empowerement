@@ -127,26 +127,97 @@ Pricing and Tax domains respectively — not Sales.
 
 ---
 
-## Phase 1 — Sales lifecycle reconstruction — ⏳ not started
+## Phase 1 — Sales lifecycle reconstruction ✅ COMPLETE (documentation)
 
-To verify: the real document graph from live RPCs/triggers
-(`create_sales_order_atomic`, `confirm_sales_order_atomic`,
-`convert_estimate_to_so_atomic`, `convert_so_to_invoice_atomic`,
-`create_delivery_from_sales_order_atomic`, `create_invoice_from_delivery_atomic`,
-`complete_delivery_atomic`, `cancel_*`), classifying each document as
-intent / obligation / inventory event / accounting event, which are optional,
-which are immutable after posting, which require reversal rather than edit.
+Reconstructed from live `pg_proc` / `pg_trigger`, not from migrations.
 
-Known so far: `sales_orders` is protected by
-`trg_00_sales_order_governed_write` (rejects direct status, totals, `is_locked`,
-`converted_invoice_id`, `exchange_rate` writes with SQLSTATE 42501); benign
-header fields stay editable. Delivery completion posts COGS and moves stock.
+### The real document graph
 
-## Phase 2 — Product consumption — ⏳ not started
+```text
+crm_leads ──convert_lead_to_estimate──▶ ESTIMATE ──convert_estimate_to_so_atomic──▶ SALES ORDER
+                                          │                                            │
+                                          └──convert_estimate_to_invoice_atomic──┐      │
+PROFORMA ──convert_proforma_to_invoice_atomic────────────────────────────────────┤      │
+                                                                                 ▼      │
+   SALES ORDER ──confirm_sales_order_atomic──▶ (stock reserved)                INVOICE ◀┤
+        │                                                                        ▲      │
+        ├──create_delivery_from_sales_order_atomic──▶ DELIVERY NOTE              │      │
+        │                                              │ dispatch_delivery_atomic│      │
+        │                                              ▼                         │      │
+        │                                       complete_delivery_atomic         │      │
+        │                                       (stock out + COGS posted)        │      │
+        │                                              │                         │      │
+        │                                   create_invoice_from_delivery_atomic ─┘      │
+        └──convert_so_to_invoice_atomic───────────────────────────────────────────────── ┘
 
-To verify: every Sales read of Product; absence of Sales-local product / UoM /
-packaging tables; duplicate SKU resolution; whether the manual product picker
-should route through the identity read seam like the scanner does.
+INVOICE ──confirm_invoice_atomic / confirm_invoice_and_release_stock_atomic──▶ posted (AR + journal)
+   │
+   ├──create_sales_return_atomic ▶ SALES RETURN ──approve_sales_return_atomic──▶ stock back in
+   ├──create_credit_note_atomic  ▶ CREDIT NOTE  ──confirm_credit_note_atomic──▶ apply_credit_to_invoice_atomic
+   └──payments ──▶ allocations (Finance)
+
+POS ──create_pos_credit_sale_invoice_atomic──▶ INVOICE (same AR spine)
+```
+
+### Classification
+
+| Document | Nature | Optional? | Inventory effect | Accounting effect |
+| --- | --- | --- | --- | --- |
+| Estimate / Quote | commercial intent | yes | none | none |
+| Proforma | commercial intent | yes | none | none |
+| Sales order | obligation | yes (invoice-direct is legal) | **reservation** on confirm | none |
+| Delivery note | fulfilment event | yes (service sales) | **stock out + COGS** on completion | COGS + inventory journal |
+| Invoice | financial obligation | **no** — the AR spine | optional release on confirm (`confirm_invoice_and_release_stock_atomic`) | AR + revenue + tax journal |
+| Sales return | reverse fulfilment | yes | stock in on approval | reverses COGS |
+| Credit note | financial reversal | yes | none | AR reversal, allocation |
+| Payment / allocation | settlement | yes | none | Finance-owned |
+
+### Immutability and reversal (live triggers)
+
+- `sales_orders` — `trg_00_sales_order_governed_write` rejects direct writes to
+  status, totals, `is_locked`, `converted_invoice_id`, `exchange_rate` (42501);
+  benign header fields stay editable. `sales_order_items` locked by
+  `enforce_sales_order_items_lock_trg`; `trg_lock_so_on_dn_invoice` locks the
+  order once a delivery note or invoice exists.
+- `estimates` — `trg_estimate_status_write_guard`.
+- `proforma_invoices` — `trg_proforma_status_write_guard` +
+  `trg_proforma_block_converted_delete`.
+- `credit_notes` — `sod_credit_notes_guard` (no self-approval).
+- `invoices` — **no status/totals governed-write guard**. The only invoice
+  guards are `trg_invoices_block_void_with_allocations`,
+  `enforce_invoice_requires_journal`, contact/business match, count limit, and
+  `cascade_voided_invoice_allocations`. ❌ **The AR spine is the least protected
+  document in the domain** — a plain `update invoices set status/total` is not
+  rejected the way the same write is on a sales order. Fix in Phase 9/10.
+- All Sales tables carry `trg_enforce_org_write_lock` (org-level freeze).
+
+Corrections after posting are by reversal (`create_credit_note_atomic`,
+`create_sales_return_atomic`, `create_return_delivery_atomic`,
+`cancel_delivery_atomic`, `cancel_sales_order_atomic`), never by edit.
+
+## Phase 2 — Product consumption ✅ COMPLETE
+
+- Sales owns **no** product-like table. The only tables Sales writes are its own
+  documents plus `contacts` and `tax_rates` (read).
+- Products reach Sales exclusively through the server RPC
+  `list_products_with_branch_stock` (`useBranchScopedProducts`), which returns
+  branch-true `on_hand` / `reserved` / `available` from the canonical
+  availability engine — company-wide `products.stock_quantity` is deliberately
+  not used. ✅ correct consumption shape.
+- ⚠ **The projection is too narrow to be a correct consumer.** It returns
+  `unit_price`, `tax_rate`, `tax_rate_id`, `track_inventory`, GL accounts —
+  but **no `base_uom_id`, no `sales_uom_id`, no packaging levels, no
+  `min_order_quantity` unit context**. Sales therefore *cannot* express a
+  packaging-aware line even if the UI wanted to. Phase 3's first required
+  action is widening this RPC's projection (Product domain change, consumed by
+  Sales) rather than adding a second product query in Sales.
+- ⚠ The manual product picker bypasses the ADR 0114 identity read seam that the
+  scanner path (`DocumentLineScanner`) uses, so a picked line never receives
+  `packaging_id` / `qty_in_base_uom` while a scanned line could. One seam, two
+  behaviours.
+- No duplicate-SKU handling in Sales — correct: uniqueness and ambiguity are
+  the resolver's job (`status = 'ambiguous'`).
+
 
 ## Phase 3 — UoM & packaging — ⏳ not started (highest risk)
 
