@@ -19,6 +19,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { BinScanField } from "@/features/warehouse/locations/BinScanField";
 import type { ResolvedLocation } from "@/features/warehouse/locations/useResolveLocationIdentity";
+import { useWarehouseQtyFormatter, WarehouseQty, AggregateQty } from "@/features/warehouse/quantity/warehouseQty";
 import {
   useLpn, useLpnContents, resolveLpnByCode,
 } from "@/features/warehouse/lpn/useLpnOps";
@@ -81,6 +82,7 @@ export function MobilePlateDetail() {
   const { data: contents } = useLpnContents(id);
   const [busy, setBusy] = useState(false);
   const [dest, setDest] = useState<ResolvedLocation | null>(null);
+  const qtyFmt = useWarehouseQtyFormatter((contents ?? []).map((c) => c.product_id));
 
   const move = async (bin: ResolvedLocation | null) => {
     if (!plate || !bin) return;
@@ -89,7 +91,9 @@ export function MobilePlateDetail() {
       const r = await enqueue("wms_lpn_move", {
         _lpn_id: plate.id,
         _to_location_id: bin.location_id,
-        _expected_version: null,
+        // Optimistic concurrency is mandatory server-side: send the revision
+        // this screen is showing, so a stale RF handset is rejected.
+        _expected_version: plate.row_version,
         _reason: "RF plate move",
       });
       toast.success(r.queued ? "Queued (offline)" : `Moved to ${bin.code}`);
@@ -144,7 +148,7 @@ export function MobilePlateDetail() {
           </div>
           <div className="rounded border p-3">
             <div className="text-xs text-muted-foreground">Contents</div>
-            <div>{(contents ?? []).length} SKU · {units} units</div>
+            <div>{(contents ?? []).length} SKU · <AggregateQty qty={units} /></div>
           </div>
         </div>
 
@@ -164,7 +168,9 @@ export function MobilePlateDetail() {
                       {c.products?.sku ?? ""}{c.lot_number ? ` · ${c.lot_number}` : ""}
                     </div>
                   </div>
-                  <div className="tabular-nums">{Number(c.quantity)}</div>
+                  <div className="tabular-nums">
+                    <WarehouseQty fmt={qtyFmt} productId={c.product_id} baseQty={c.quantity} />
+                  </div>
                 </li>
               ))}
             </ul>
