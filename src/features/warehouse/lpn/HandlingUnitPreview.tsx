@@ -32,7 +32,10 @@ export function HandlingUnitPreview({ row }: { row: LpnOverviewRow }) {
         <StatusBadge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge>
       }
       metrics={[
-        { label: "Units", value: Number(row.total_quantity ?? 0).toLocaleString() },
+        {
+          label: "Base units",
+          value: `${Number(row.total_quantity ?? 0).toLocaleString()} across ${Number(row.sku_count ?? 0)} SKU${Number(row.sku_count ?? 0) === 1 ? "" : "s"}`,
+        },
         { label: "SKUs", value: String(Number(row.sku_count ?? 0)) },
       ]}
       workspaceHref={`/warehouse-app/plates/${row.id}`}
