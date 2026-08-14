@@ -124,6 +124,15 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
   );
   const captureUnit = optionByKey(captureUnits, unitKey);
 
+  // Phase 2.4 — unit truth on every rendered return quantity.
+  const lineProductIds = useMemo(
+    () => (lines ?? []).map((l) => l.product_id),
+    [lines],
+  );
+  const qtyBaseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, qtyBaseLabels);
+
+
   const submitCapture = () => {
     if (!captureForm.productId) {
       toast.error("Pick a product");
