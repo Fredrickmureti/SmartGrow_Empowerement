@@ -26,7 +26,9 @@ interface Task {
   quantity: number | null;
   lot_number: string | null;
   warehouse_id: string | null;
+  row_version: number;
   destination_location_id: string | null;
+
   source_loc: { code: string | null } | null;
   dest_loc: { code: string | null } | null;
   product: { sku: string | null; name: string | null } | null;
@@ -56,7 +58,7 @@ export default function MobilePutaway() {
       const { data, error } = await supabase
         .from("wms_tasks")
         .select(
-          "id, state, quantity, lot_number, warehouse_id, destination_location_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
+          "id, state, quantity, lot_number, warehouse_id, row_version, destination_location_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
         )
         .eq("id", id!)
         .maybeSingle();
@@ -197,6 +199,7 @@ export default function MobilePutaway() {
                 warehouse_id: task.warehouse_id ?? "",
                 quantity: task.quantity,
                 destination_location_id: task.destination_location_id,
+                row_version: task.row_version,
               }}
             />
           </div>

@@ -48,12 +48,32 @@ const EXCEPTION_KINDS: { value: ExceptionKind; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+/**
+ * The server rejects a stale optimistic lock with `wms_task_stale`. Operators
+ * need "someone else moved this" — not a version number.
+ */
+function staleAware(e: unknown, fallback: string) {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (msg.includes("wms_task_stale") || msg.includes("row_version")) {
+    return "Someone else just updated this task. Refresh and try again.";
+  }
+  return msg || fallback;
+}
+
+
 export interface PutawayTaskLike {
   id: string;
   warehouse_id: string;
   quantity: number | null;
   destination_location_id: string | null;
+  /**
+   * Optimistic lock the server checks (Phase 3). Both reassign and partial
+   * putaway reject a stale version, so the board must pass the version it
+   * rendered — never omit it.
+   */
+  row_version: number;
 }
+
 
 interface Props {
   task: PutawayTaskLike;
@@ -92,13 +112,14 @@ export function PutawayTaskActions({ task, disabled, compact }: Props) {
     mutationFn: async () => {
       const { error } = await supabase.rpc("wms_reassign_putaway_task", {
         p_task_id: task.id,
+        p_row_version: task.row_version,
         p_location_id: bin,
         p_reason: reason.trim() || undefined,
       });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Destination updated"); refresh(); close(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Reassign failed"),
+    onError: (e: unknown) => toast.error(staleAware(e, "Reassign failed")),
   });
 
   const split = useMutation({
@@ -107,14 +128,16 @@ export function PutawayTaskActions({ task, disabled, compact }: Props) {
       // this offline without double-storing the portion on reconnect.
       await enqueue("wms_split_putaway_task", {
         p_task_id: task.id,
+        p_row_version: task.row_version,
         p_quantity: Number(qty),
         p_location_id: bin || null,
         p_reason: reason.trim() || null,
       });
     },
     onSuccess: () => { toast.success("Partial putaway stored"); refresh(); close(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Partial putaway failed"),
+    onError: (e: unknown) => toast.error(staleAware(e, "Partial putaway failed")),
   });
+
 
   const raise = useMutation({
     mutationFn: async () => {

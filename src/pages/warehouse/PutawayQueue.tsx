@@ -209,6 +209,7 @@ export default function PutawayQueue() {
                 warehouse_id: t.warehouse_id,
                 quantity: t.quantity,
                 destination_location_id: t.destination_location_id,
+                row_version: t.row_version,
               }}
             />
           )}

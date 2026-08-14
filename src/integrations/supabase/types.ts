@@ -104117,7 +104117,12 @@ export type Database = {
         Returns: string
       }
       wms_reassign_putaway_task: {
-        Args: { p_location_id: string; p_reason?: string; p_task_id: string }
+        Args: {
+          p_location_id: string
+          p_reason?: string
+          p_row_version: number
+          p_task_id: string
+        }
         Returns: Json
       }
       wms_reassign_task: {
@@ -104321,6 +104326,7 @@ export type Database = {
           p_location_id?: string
           p_quantity: number
           p_reason?: string
+          p_row_version: number
           p_task_id: string
         }
         Returns: Json
