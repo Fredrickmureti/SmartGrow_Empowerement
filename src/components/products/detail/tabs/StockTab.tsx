@@ -16,6 +16,32 @@ export function StockTab({ data }: Props) {
   const rules = new Map<string, any>();
   for (const r of data.reorderRules) rules.set(r.warehouse_id, r);
 
+  const productId = (data.product as any)?.id as string | undefined;
+  const businessId = (data.product as any)?.business_id as string | undefined;
+  const warehouseIds: string[] = (data.warehouseStock ?? []).map(
+    (ws: any) => ws.warehouse_id,
+  );
+
+  // ADR 0142 — per-warehouse availability is resolved by the server engine.
+  // The browser never derives `quantity - reserved_quantity` itself.
+  const { data: availabilityByWarehouse } = useQuery({
+    queryKey: ["stock-availability-by-warehouse", productId, businessId, warehouseIds],
+    enabled: !!productId && !!businessId && warehouseIds.length > 0,
+    queryFn: async () => {
+      const entries = await Promise.all(
+        warehouseIds.map(async (warehouseId) => [
+          warehouseId,
+          await resolveAvailability({
+            productId: productId!,
+            businessId: businessId!,
+            warehouseId,
+          }),
+        ] as const),
+      );
+      return new Map(entries);
+    },
+  });
+
   const baseLabel = (data.product as any)?.unit_of_measure ?? "ea";
   const packs: PackForRollup[] = (data.packaging ?? []).map((p: any) => ({
     name: p.name,
@@ -28,6 +54,7 @@ export function StockTab({ data }: Props) {
     const pack = formatBaseQtyAsPacks(n, packs, baseLabel);
     return pack === base ? base : `${pack} (${base})`;
   };
+
 
   if (data.warehouseStock.length === 0) {
     return (
