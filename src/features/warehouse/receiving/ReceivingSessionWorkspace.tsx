@@ -57,6 +57,9 @@ import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 
 export interface ReceivingSessionSummary {
   id: string;
@@ -100,6 +103,7 @@ function CaptureRow({
   busy,
   serialTracked,
   units,
+  baseLabel,
 }: {
   line: ReceivingLine;
   onCapture: (v: {
@@ -118,7 +122,10 @@ function CaptureRow({
   serialTracked: boolean;
   /** Phase 11 — the packaging levels this product may be received in. */
   units: ReceivingUnitOption[];
+  /** Product's own base UoM label — never a hardcoded unit word. */
+  baseLabel: string;
 }) {
+
   const outstanding = Math.max(Number(line.expected_qty ?? 0) - Number(line.received_qty ?? 0), 0);
   const [qty, setQty] = useState<string>(serialTracked ? "1" : outstanding ? String(outstanding) : "");
   const [lot, setLot] = useState(line.lot_number ?? "");
@@ -214,10 +221,11 @@ function CaptureRow({
       </Button>
       {!unit.isBase && baseQty > 0 && (
         <p className="w-full text-xs text-muted-foreground">
-          Books {baseQty} base unit{baseQty === 1 ? "" : "s"}
-          {baseDamaged > 0 ? ` · ${baseDamaged} damaged` : ""} — {qty} × {unit.label}
+          Books {baseQty} {baseLabel}
+          {baseDamaged > 0 ? ` · ${baseDamaged} ${baseLabel} damaged` : ""} — {qty} × {unit.label}
         </p>
       )}
+
       {serialInvalid && (
         <p className="w-full text-xs text-destructive">
           Serial-tracked item — capture one unit at a time with its serial number.
@@ -276,15 +284,29 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   const totals = useMemo(() => {
     const rows = lines ?? [];
     return {
-      expected: rows.reduce((s, l) => s + Number(l.expected_qty ?? 0), 0),
-      received: rows.reduce((s, l) => s + Number(l.received_qty ?? 0), 0),
       short: rows.filter((l) => l.line_state !== "expected" && variance(l) < 0).length,
+
       over: rows.filter((l) => variance(l) > 0).length,
       unexpected: rows.filter((l) => l.line_state === "unexpected").length,
       pending: rows.filter((l) => l.line_state === "expected").length,
       holds: rows.filter((l) => l.qc_hold).length,
+      // Line counts, not summed quantities: a session mixes products whose base
+      // UoMs differ (kg + ea), so a single quantity total is meaningless.
+      lineCount: rows.length,
+      captured: rows.filter((l) => l.line_state !== "expected").length,
     };
   }, [lines]);
+
+
+  // Phase 2.4 — unit truth. Every quantity below renders through the canonical
+  // Product packaging + base-UoM vocabulary, never as a naked base integer.
+  const lineProductIds = useMemo(
+    () => (lines ?? []).map((l) => l.product_id),
+    [lines],
+  );
+  const qtyBaseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, qtyBaseLabels);
+
 
   // Trailer context for the session on screen — resolved through the dock
   // appointment from the yard's visit record. Read-only.
@@ -513,8 +535,9 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <StatusBadge tone="neutral">expected {totals.expected}</StatusBadge>
-          <StatusBadge tone="info">received {totals.received}</StatusBadge>
+          <StatusBadge tone="neutral">{totals.lineCount} lines</StatusBadge>
+          <StatusBadge tone="info">captured {totals.captured}</StatusBadge>
+
           <StatusBadge tone={totals.short ? "danger" : "neutral"}>short {totals.short}</StatusBadge>
           <StatusBadge tone={totals.over ? "warning" : "neutral"}>over {totals.over}</StatusBadge>
           <StatusBadge tone={totals.unexpected ? "warning" : "neutral"}>unexpected {totals.unexpected}</StatusBadge>
@@ -626,18 +649,28 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                         {l.products?.name ?? "—"}
                         {l.products?.sku && <span className="ml-1 text-xs text-muted-foreground font-mono">{l.products.sku}</span>}
                       </TableCell>
-                      <TableCell className="text-right">{Number(l.expected_qty ?? 0)}</TableCell>
                       <TableCell className="text-right">
-                        {Number(l.received_qty ?? 0)}
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.expected_qty} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.received_qty} />
                         {l.packaging?.name && l.entered_qty != null && (
                           <span className="block text-xs text-muted-foreground">
-                            entered {Number(l.entered_qty)} × {l.packaging.name}
+                            entered{" "}
+                            <WarehouseQty
+                              fmt={qtyFmt}
+                              productId={l.product_id}
+                              baseQty={l.received_qty}
+                              enteredQty={l.entered_qty}
+                              packagingName={l.packaging.name}
+                            />
                           </span>
                         )}
                       </TableCell>
                       <TableCell className={`text-right ${v === 0 ? "" : v < 0 ? "text-destructive" : "text-warning"}`}>
-                        {v > 0 ? `+${v}` : v}
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={v} signed />
                       </TableCell>
+
                       <TableCell className="text-xs text-muted-foreground">
                         {[l.lot_number, l.expiry_date].filter(Boolean).join(" · ") || "—"}
                       </TableCell>
@@ -693,6 +726,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                             busy={capture.isPending}
                             serialTracked={tracking.get(l.product_id).is_serial_tracked}
                             units={unitOptions.get(l.product_id) ?? []}
+                            baseLabel={qtyFmt.baseLabelFor(l.product_id)}
+
                             onCapture={(v2) => runCapture(l, v2)}
                           />
                         </TableCell>
