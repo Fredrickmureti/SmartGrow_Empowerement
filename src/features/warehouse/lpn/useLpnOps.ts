@@ -258,20 +258,30 @@ export async function nextLpnCode(businessId: string, warehouseId: string, lpnTy
   return data as string;
 }
 
-/** Operations available on a plate. */
+/**
+ * Operations available on a plate.
+ *
+ * Two invariants are encoded in these types (Phase 6):
+ *   1. `expectedVersion` is REQUIRED on every action. Every plate RPC now
+ *      rejects a NULL version, so a caller that cannot say which revision of
+ *      the plate the operator saw must not compile.
+ *   2. Capture actions carry the packaging LEVEL the operator handled
+ *      (`packagingId`), never a browser-converted base quantity. The server
+ *      converts through `wms_to_base_qty` against `product_packaging`.
+ */
 export type LpnAction =
-  | { kind: "move"; toLocationId: string; expectedVersion?: number | null; reason?: string | null }
-  | { kind: "load"; productId: string; quantity: number; lotNumber?: string | null; serialNumber?: string | null }
-  | { kind: "unload"; productId: string; quantity: number; lotNumber?: string | null }
-  | { kind: "split"; lines: Array<{ product_id: string; quantity: number; lot_number?: string | null }>; newType?: LpnType | null }
-  | { kind: "merge"; sourceIds: string[] }
-  | { kind: "nest"; parentId: string }
-  | { kind: "unnest" }
-  | { kind: "seal"; expectedVersion?: number | null }
-  | { kind: "dispatch"; expectedVersion?: number | null; reference?: string | null }
-  | { kind: "return"; toLocationId: string; reason: string; expectedVersion?: number | null }
-  | { kind: "retire"; reason: string; expectedVersion?: number | null }
-  | { kind: "transition"; toStatus: string; expectedVersion?: number | null; reason?: string | null };
+  | { kind: "move"; toLocationId: string; expectedVersion: number; reason?: string | null }
+  | { kind: "load"; productId: string; quantity: number; expectedVersion: number; packagingId?: string | null; lotNumber?: string | null; serialNumber?: string | null }
+  | { kind: "unload"; productId: string; quantity: number; expectedVersion: number; packagingId?: string | null; lotNumber?: string | null }
+  | { kind: "split"; lines: Array<{ product_id: string; quantity: number; packaging_id?: string | null; lot_number?: string | null }>; expectedVersion: number; newType?: LpnType | null }
+  | { kind: "merge"; sourceIds: string[]; expectedVersion: number }
+  | { kind: "nest"; parentId: string; expectedVersion: number }
+  | { kind: "unnest"; expectedVersion: number }
+  | { kind: "seal"; expectedVersion: number }
+  | { kind: "dispatch"; expectedVersion: number; reference?: string | null }
+  | { kind: "return"; toLocationId: string; reason: string; expectedVersion: number }
+  | { kind: "retire"; reason: string; expectedVersion: number }
+  | { kind: "transition"; toStatus: string; expectedVersion: number; reason?: string | null };
 
 /**
  * The plate RPCs reject work by raising named exceptions. PostgREST returns
@@ -289,6 +299,8 @@ const REJECTION_COPY: Array<[RegExp, string]> = [
   [/wms_lpn_not_found/, "That plate no longer exists — it may have been merged or consumed."],
   [/wms_lpn_locked|wms_lpn_immutable/, "This plate is closed out and can no longer be changed."],
   [/wms_lpn_version_conflict|stale/, "Someone else changed this plate. Reload and try again."],
+  [/wms_lpn_version_required/, "This screen lost track of the plate's revision. Reload the plate and try again."],
+  [/WMS_LPN_OVER_CAPACITY/, "That would push the handling unit past its container's weight limit. Use another pallet or carton."],
   [/wms_lpn_invalid_transition/, "That status change is not allowed from the plate's current state."],
   [/wms_lpn_reason_required/, "A reason code is required for this action."],
 ];
@@ -320,29 +332,29 @@ const SUCCESS_COPY: Record<LpnAction["kind"], string> = {
 function actionToRpc(lpnId: string, a: LpnAction): { name: string; args: Record<string, unknown> } {
   switch (a.kind) {
     case "move":
-      return { name: "wms_lpn_move", args: { _lpn_id: lpnId, _to_location_id: a.toLocationId, _expected_version: a.expectedVersion ?? null, _reason: a.reason ?? null } };
+      return { name: "wms_lpn_move", args: { _lpn_id: lpnId, _to_location_id: a.toLocationId, _expected_version: a.expectedVersion, _reason: a.reason ?? null } };
     case "load":
-      return { name: "wms_lpn_load", args: { _lpn_id: lpnId, _product_id: a.productId, _quantity: a.quantity, _lot_number: a.lotNumber ?? null, _serial_number: a.serialNumber ?? null } };
+      return { name: "wms_lpn_load", args: { _lpn_id: lpnId, _product_id: a.productId, _quantity: a.quantity, _expected_version: a.expectedVersion, _packaging_id: a.packagingId ?? null, _lot_number: a.lotNumber ?? null, _serial_number: a.serialNumber ?? null } };
     case "unload":
-      return { name: "wms_lpn_unload", args: { _lpn_id: lpnId, _product_id: a.productId, _quantity: a.quantity, _lot_number: a.lotNumber ?? null } };
+      return { name: "wms_lpn_unload", args: { _lpn_id: lpnId, _product_id: a.productId, _quantity: a.quantity, _expected_version: a.expectedVersion, _packaging_id: a.packagingId ?? null, _lot_number: a.lotNumber ?? null } };
     case "split":
-      return { name: "wms_lpn_split", args: { _lpn_id: lpnId, _lines: a.lines, _new_lpn_type: a.newType ?? null } };
+      return { name: "wms_lpn_split", args: { _lpn_id: lpnId, _lines: a.lines, _expected_version: a.expectedVersion, _new_lpn_type: a.newType ?? null } };
     case "merge":
-      return { name: "wms_lpn_merge", args: { _source_lpn_ids: a.sourceIds, _target_lpn_id: lpnId } };
+      return { name: "wms_lpn_merge", args: { _source_lpn_ids: a.sourceIds, _target_lpn_id: lpnId, _expected_version: a.expectedVersion } };
     case "nest":
-      return { name: "wms_lpn_nest", args: { _child_lpn_id: lpnId, _parent_lpn_id: a.parentId } };
+      return { name: "wms_lpn_nest", args: { _child_lpn_id: lpnId, _parent_lpn_id: a.parentId, _expected_version: a.expectedVersion } };
     case "unnest":
-      return { name: "wms_lpn_unnest", args: { _child_lpn_id: lpnId } };
+      return { name: "wms_lpn_unnest", args: { _child_lpn_id: lpnId, _expected_version: a.expectedVersion } };
     case "seal":
-      return { name: "wms_lpn_seal", args: { _lpn_id: lpnId, _expected_version: a.expectedVersion ?? null } };
+      return { name: "wms_lpn_seal", args: { _lpn_id: lpnId, _expected_version: a.expectedVersion } };
     case "dispatch":
-      return { name: "wms_lpn_dispatch", args: { _lpn_id: lpnId, _expected_version: a.expectedVersion ?? null, _reference: a.reference ?? null } };
+      return { name: "wms_lpn_dispatch", args: { _lpn_id: lpnId, _expected_version: a.expectedVersion, _reference: a.reference ?? null } };
     case "return":
-      return { name: "wms_lpn_receive_return", args: { _lpn_id: lpnId, _to_location_id: a.toLocationId, _reason: a.reason, _expected_version: a.expectedVersion ?? null } };
+      return { name: "wms_lpn_receive_return", args: { _lpn_id: lpnId, _to_location_id: a.toLocationId, _reason: a.reason, _expected_version: a.expectedVersion } };
     case "retire":
-      return { name: "wms_lpn_retire", args: { _lpn_id: lpnId, _reason: a.reason, _expected_version: a.expectedVersion ?? null } };
+      return { name: "wms_lpn_retire", args: { _lpn_id: lpnId, _reason: a.reason, _expected_version: a.expectedVersion } };
     case "transition":
-      return { name: "wms_transition_lpn", args: { _lpn_id: lpnId, _to_status: a.toStatus, _expected_version: a.expectedVersion ?? 0, _reason: a.reason ?? null } };
+      return { name: "wms_transition_lpn", args: { _lpn_id: lpnId, _to_status: a.toStatus, _expected_version: a.expectedVersion, _reason: a.reason ?? null } };
   }
 }
 

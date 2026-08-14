@@ -188,12 +188,16 @@ export default function LicensePlates() {
                 <Button
                   variant="outline"
                   disabled={selected.length < 2 || mergeAction.isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    // The merge target's revision must travel with the call:
+                    // wms_lpn_merge rejects a missing version (Phase 6).
+                    const target = (rows ?? []).find((r) => r.id === mergeTarget);
+                    if (!target) return;
                     mergeAction.run(
-                      { kind: "merge", sourceIds: selected.slice(1) },
+                      { kind: "merge", sourceIds: selected.slice(1), expectedVersion: target.row_version },
                       { onSuccess: () => setSelected([]) },
-                    )
-                  }
+                    );
+                  }}
                 >
                   <Layers className="mr-2 h-4 w-4" /> Merge into {(rows ?? []).find((r) => r.id === mergeTarget)?.code}
                 </Button>

@@ -70002,6 +70002,7 @@ export type Database = {
           code: string
           country: string | null
           created_at: string
+          enforce_handling_unit_capacity: boolean
           id: string
           is_active: boolean | null
           is_default: boolean | null
@@ -70024,6 +70025,7 @@ export type Database = {
           code: string
           country?: string | null
           created_at?: string
+          enforce_handling_unit_capacity?: boolean
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
@@ -70046,6 +70048,7 @@ export type Database = {
           code?: string
           country?: string | null
           created_at?: string
+          enforce_handling_unit_capacity?: boolean
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
@@ -86914,12 +86917,20 @@ export type Database = {
         }
         Returns: string
       }
+      _wms_lpn_assert_version: {
+        Args: {
+          _expected_version: number
+          _lpn: Database["public"]["Tables"]["wms_license_plates"]["Row"]
+        }
+        Returns: undefined
+      }
       _wms_lpn_branch: {
         Args: {
           _lpn: Database["public"]["Tables"]["wms_license_plates"]["Row"]
         }
         Returns: string
       }
+      _wms_lpn_capacity_check: { Args: { _lpn_id: string }; Returns: undefined }
       _wms_lpn_guard: {
         Args: {
           _lpn: Database["public"]["Tables"]["wms_license_plates"]["Row"]
@@ -86939,6 +86950,10 @@ export type Database = {
           _to_status?: string
         }
         Returns: undefined
+      }
+      _wms_lpn_require_version: {
+        Args: { _expected_version: number }
+        Returns: number
       }
       _wms_manifest_after_dispatch: {
         Args: { p_manifest_id: string }
@@ -103329,7 +103344,7 @@ export type Database = {
       }
       wms_lpn_dispatch: {
         Args: {
-          _expected_version?: number
+          _expected_version: number
           _lpn_id: string
           _reference?: string
         }
@@ -103363,8 +103378,10 @@ export type Database = {
       }
       wms_lpn_load: {
         Args: {
+          _expected_version: number
           _lot_number?: string
           _lpn_id: string
+          _packaging_id?: string
           _product_id: string
           _quantity: number
           _serial_number?: string
@@ -103398,7 +103415,11 @@ export type Database = {
         }
       }
       wms_lpn_merge: {
-        Args: { _source_lpn_ids: string[]; _target_lpn_id: string }
+        Args: {
+          _expected_version: number
+          _source_lpn_ids: string[]
+          _target_lpn_id: string
+        }
         Returns: {
           branch_id: string | null
           business_id: string
@@ -103429,7 +103450,7 @@ export type Database = {
       }
       wms_lpn_move: {
         Args: {
-          _expected_version?: number
+          _expected_version: number
           _lpn_id: string
           _reason?: string
           _to_location_id: string
@@ -103463,7 +103484,11 @@ export type Database = {
         }
       }
       wms_lpn_nest: {
-        Args: { _child_lpn_id: string; _parent_lpn_id: string }
+        Args: {
+          _child_lpn_id: string
+          _expected_version: number
+          _parent_lpn_id: string
+        }
         Returns: {
           branch_id: string | null
           business_id: string
@@ -103494,7 +103519,7 @@ export type Database = {
       }
       wms_lpn_receive_return: {
         Args: {
-          _expected_version?: number
+          _expected_version: number
           _lpn_id: string
           _reason: string
           _to_location_id: string
@@ -103528,7 +103553,7 @@ export type Database = {
         }
       }
       wms_lpn_retire: {
-        Args: { _expected_version?: number; _lpn_id: string; _reason: string }
+        Args: { _expected_version: number; _lpn_id: string; _reason: string }
         Returns: {
           branch_id: string | null
           business_id: string
@@ -103558,7 +103583,7 @@ export type Database = {
         }
       }
       wms_lpn_seal: {
-        Args: { _expected_version?: number; _lpn_id: string }
+        Args: { _expected_version: number; _lpn_id: string }
         Returns: {
           branch_id: string | null
           business_id: string
@@ -103589,7 +103614,7 @@ export type Database = {
       }
       wms_lpn_set_packaging: {
         Args: {
-          _expected_version?: number
+          _expected_version: number
           _lpn_id: string
           _packaging_type_id: string
         }
@@ -103623,6 +103648,7 @@ export type Database = {
       }
       wms_lpn_split: {
         Args: {
+          _expected_version: number
           _lines: Json
           _lpn_id: string
           _new_lpn_type?: Database["public"]["Enums"]["wms_lpn_type"]
@@ -103663,8 +103689,10 @@ export type Database = {
       }
       wms_lpn_unload: {
         Args: {
+          _expected_version: number
           _lot_number?: string
           _lpn_id: string
+          _packaging_id?: string
           _product_id: string
           _quantity: number
         }
@@ -103697,7 +103725,7 @@ export type Database = {
         }
       }
       wms_lpn_unnest: {
-        Args: { _child_lpn_id: string }
+        Args: { _child_lpn_id: string; _expected_version: number }
         Returns: {
           branch_id: string | null
           business_id: string
