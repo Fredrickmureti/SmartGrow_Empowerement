@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
+import { useProductTaxLocalization } from "@/features/products/localization/productTaxLocalization";
+
 import {
   formatQtyWithPacks,
   type PackForRollup,
