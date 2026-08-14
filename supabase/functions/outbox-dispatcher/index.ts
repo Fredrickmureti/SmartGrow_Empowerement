@@ -471,6 +471,13 @@ const HANDLERS: Record<string, HandlerFn> = {
   "inventory.serial.status_changed":          handleInventoryLifecycleRecorded,
   "inventory.valuation.revalued":             handleInventoryLifecycleRecorded,
   "inventory.valuation.revaluation_reversed": handleInventoryLifecycleRecorded,
+
+  // Phase 8 behavioural sweep: these two were emitted by
+  // `physical_count_post` / `_physical_count_post_side_effects` but were never
+  // registered here nor in `business_event_topics`, so they dead-lettered as
+  // unknown_event_type. Record-only — the state is already durable.
+  "inventory.physical_count.posted":           handleInventoryLifecycleRecorded,
+  "inventory.reorder.recompute":               handleInventoryLifecycleRecorded,
   "payment.card.captured":           (r) => handleCardSettlementLine(r, "capture"),
   "payment.card.reversed":           (r) => handleCardSettlementLine(r, "reversal"),
   "settlement.card.closed":          handleSettlementCardClosed,
