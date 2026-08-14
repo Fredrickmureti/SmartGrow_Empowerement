@@ -18,6 +18,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveAvailability } from "@/lib/inventory/availability";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
@@ -167,15 +168,30 @@ export function ProductStockPanel({
     return { activeBranchRows: active, otherBranchRows: other, transitRows: transit };
   }, [rows, branchId]);
 
-  // Totals — branch-scoped headline, company-wide secondary disclosure.
-  const branchOnHand = activeBranchRows.reduce((s, r) => s + (r.quantity || 0), 0);
-  const branchReserved = activeBranchRows.reduce(
-    (s, r) => s + (r.reserved_quantity || 0),
-    0
-  );
-  const branchAvailable = branchOnHand - branchReserved;
-  const companyOnHand = rows.reduce((s, r) => s + (r.quantity || 0), 0);
-  const transitQty = transitRows.reduce((s, r) => s + (r.quantity || 0), 0);
+  // Canonical availability — branch-scoped headline and company-wide total.
+  const { data: availability } = useQuery({
+    queryKey: ["stock-availability", productId, businessId, branchId],
+    enabled: !!productId && !!businessId,
+    queryFn: () =>
+      resolveAvailability({ productId, businessId: businessId!, branchId }),
+  });
+  const { data: companyAvailability } = useQuery({
+    queryKey: ["stock-availability", productId, businessId, "company"],
+    enabled: !!productId && !!businessId,
+    queryFn: () =>
+      resolveAvailability({ productId, businessId: businessId!, branchId: null }),
+  });
+
+
+
+  // Totals — ADR 0142: the branch headline figures come from the canonical
+  // server availability engine; the per-warehouse rows below stay a read model.
+  const branchOnHand = availability?.onHand ?? 0;
+  const branchReserved = availability?.reserved ?? 0;
+  const branchAvailable = availability?.available ?? 0;
+  const companyOnHand = companyAvailability?.onHand ?? 0;
+  const transitQty = availability?.inTransit ?? 0;
+
   // Forecast = available + incoming. Outgoing is already captured in
   // reserved_quantity (POS holds + sales reservations).
   const forecasted = branchAvailable + (incoming || 0);

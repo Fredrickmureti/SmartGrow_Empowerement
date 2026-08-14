@@ -94627,78 +94627,42 @@ export type Database = {
           user_id: string
         }[]
       }
-      list_products_with_branch_stock:
-        | {
-            Args: {
-              p_branch_id?: string
-              p_business_id: string
-              p_org_id: string
-            }
-            Returns: {
-              available: number
-              branch_scope_label: string
-              business_id: string
-              category_id: string
-              cogs_account_id: string
-              cost_price: number
-              description: string
-              id: string
-              image_url: string
-              inventory_account_id: string
-              is_active: boolean
-              min_order_quantity: number
-              name: string
-              on_hand: number
-              order_quantity_increment: number
-              organization_id: string
-              purchase_account_id: string
-              reorder_level: number
-              reserved: number
-              sales_account_id: string
-              sku: string
-              tax_rate: number
-              tax_rate_id: string
-              track_inventory: boolean
-              type: string
-              unit_price: number
-            }[]
-          }
-        | {
-            Args: {
-              p_branch_id?: string
-              p_business_id: string
-              p_include_variant_parents?: boolean
-              p_org_id: string
-            }
-            Returns: {
-              available: number
-              branch_scope_label: string
-              business_id: string
-              category_id: string
-              cogs_account_id: string
-              cost_price: number
-              description: string
-              id: string
-              image_url: string
-              inventory_account_id: string
-              is_active: boolean
-              min_order_quantity: number
-              name: string
-              on_hand: number
-              order_quantity_increment: number
-              organization_id: string
-              purchase_account_id: string
-              reorder_level: number
-              reserved: number
-              sales_account_id: string
-              sku: string
-              tax_rate: number
-              tax_rate_id: string
-              track_inventory: boolean
-              type: string
-              unit_price: number
-            }[]
-          }
+      list_products_with_branch_stock: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_include_variant_parents?: boolean
+          p_org_id: string
+        }
+        Returns: {
+          available: number
+          branch_scope_label: string
+          business_id: string
+          category_id: string
+          cogs_account_id: string
+          cost_price: number
+          description: string
+          id: string
+          image_url: string
+          inventory_account_id: string
+          is_active: boolean
+          min_order_quantity: number
+          name: string
+          on_hand: number
+          order_quantity_increment: number
+          organization_id: string
+          purchase_account_id: string
+          reorder_level: number
+          reserved: number
+          sales_account_id: string
+          sku: string
+          tax_rate: number
+          tax_rate_id: string
+          track_inventory: boolean
+          type: string
+          unit_price: number
+        }[]
+      }
       list_scan_events: {
         Args: { p_limit?: number; p_register?: string; p_verdict?: string }
         Returns: {
@@ -99995,6 +99959,24 @@ export type Database = {
           p_exclude_source_id?: string
           p_exclude_source_type?: string
           p_product_id: string
+          p_warehouse_id?: string
+        }
+        Returns: {
+          available: number
+          blocked: number
+          in_transit: number
+          on_hand: number
+          product_id: string
+          reserved: number
+        }[]
+      }
+      resolve_stock_availability_batch: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_exclude_source_id?: string
+          p_exclude_source_type?: string
+          p_product_ids: string[]
           p_warehouse_id?: string
         }
         Returns: {

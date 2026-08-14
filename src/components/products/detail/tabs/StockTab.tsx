@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
 import { formatBaseQtyAsPacks, type PackForRollup } from "@/lib/packagingRollup";
+import { resolveAvailability } from "@/lib/inventory/availability";
 
 interface Props {
   data: ProductDetailData;
@@ -15,6 +16,32 @@ interface Props {
 export function StockTab({ data }: Props) {
   const rules = new Map<string, any>();
   for (const r of data.reorderRules) rules.set(r.warehouse_id, r);
+
+  const productId = (data.product as any)?.id as string | undefined;
+  const businessId = (data.product as any)?.business_id as string | undefined;
+  const warehouseIds: string[] = (data.warehouseStock ?? []).map(
+    (ws: any) => ws.warehouse_id,
+  );
+
+  // ADR 0142 — per-warehouse availability is resolved by the server engine.
+  // The browser never derives availability arithmetic itself.
+  const { data: availabilityByWarehouse } = useQuery({
+    queryKey: ["stock-availability-by-warehouse", productId, businessId, warehouseIds],
+    enabled: !!productId && !!businessId && warehouseIds.length > 0,
+    queryFn: async () => {
+      const entries = await Promise.all(
+        warehouseIds.map(async (warehouseId) => [
+          warehouseId,
+          await resolveAvailability({
+            productId: productId!,
+            businessId: businessId!,
+            warehouseId,
+          }),
+        ] as const),
+      );
+      return new Map(entries);
+    },
+  });
 
   const baseLabel = (data.product as any)?.unit_of_measure ?? "ea";
   const packs: PackForRollup[] = (data.packaging ?? []).map((p: any) => ({
@@ -28,6 +55,7 @@ export function StockTab({ data }: Props) {
     const pack = formatBaseQtyAsPacks(n, packs, baseLabel);
     return pack === base ? base : `${pack} (${base})`;
   };
+
 
   if (data.warehouseStock.length === 0) {
     return (
@@ -51,9 +79,11 @@ export function StockTab({ data }: Props) {
         </TableHeader>
         <TableBody>
           {data.warehouseStock.map((ws: any) => {
-            const onHand = Number(ws.quantity) || 0;
-            const reserved = Number(ws.reserved_quantity) || 0;
-            const available = onHand - reserved;
+            const a = availabilityByWarehouse?.get(ws.warehouse_id);
+            const onHand = a?.onHand ?? 0;
+            const reserved = a?.reserved ?? 0;
+            const available = a?.available ?? 0;
+
             const rule = rules.get(ws.warehouse_id);
             const reorderAt = rule?.min_quantity ?? ws.reorder_level ?? null;
             const low = reorderAt != null && available <= Number(reorderAt);

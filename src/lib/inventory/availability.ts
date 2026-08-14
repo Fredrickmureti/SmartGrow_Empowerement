@@ -73,14 +73,42 @@ export async function resolveAvailability(
   };
 }
 
-/** Convenience batch reader. Fans out one RPC per product. */
+/**
+ * Batch reader — ONE call to the canonical engine
+ * (`resolve_stock_availability_batch`) for every product in scope.
+ * Products with no stock come back as zero rows.
+ */
 export async function resolveAvailabilityFor(
   productIds: string[],
   scope: Omit<ResolveAvailabilityArgs, "productId">,
 ): Promise<Map<string, StockAvailability>> {
   const unique = Array.from(new Set(productIds.filter(Boolean)));
-  const rows = await Promise.all(
-    unique.map((productId) => resolveAvailability({ ...scope, productId })),
+  const map = new Map<string, StockAvailability>();
+  if (unique.length === 0 || !scope.businessId) return map;
+
+  const { data, error } = await supabase.rpc(
+    "resolve_stock_availability_batch" as never,
+    {
+      p_product_ids: unique,
+      p_business_id: scope.businessId,
+      p_branch_id: scope.branchId ?? null,
+      p_warehouse_id: scope.warehouseId ?? null,
+    } as never,
   );
-  return new Map(rows.map((r) => [r.productId, r]));
+  if (error) throw error;
+
+  for (const row of ((data as unknown as Record<string, unknown>[]) ?? [])) {
+    const productId = String(row.product_id);
+    map.set(productId, {
+      productId,
+      onHand: Number(row.on_hand) || 0,
+      reserved: Number(row.reserved) || 0,
+      blocked: Number(row.blocked) || 0,
+      inTransit: Number(row.in_transit) || 0,
+      available: Number(row.available) || 0,
+    });
+  }
+  for (const id of unique) if (!map.has(id)) map.set(id, empty(id));
+  return map;
 }
+

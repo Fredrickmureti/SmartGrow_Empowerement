@@ -88,23 +88,12 @@ export function ProductDetailPanel({
     enabled: open,
   });
 
-  const onHand = useMemo(
-    () =>
-      (data?.warehouseStock ?? []).reduce(
-        (s, ws: any) => s + (Number(ws.quantity) || 0),
-        0,
-      ),
-    [data],
-  );
-  const reserved = useMemo(
-    () =>
-      (data?.warehouseStock ?? []).reduce(
-        (s, ws: any) => s + (Number(ws.reserved_quantity) || 0),
-        0,
-      ),
-    [data],
-  );
-  const available = onHand - reserved;
+  // ADR 0142 — on-hand / reserved / available come from the server engine.
+  // The browser never sums `warehouse_stock` to reach a decision number.
+  const onHand = data?.availability.onHand ?? 0;
+  const reserved = data?.availability.reserved ?? 0;
+  const available = data?.availability.available ?? 0;
+
 
   // ─── Derived values (no hooks beyond here) ──────────────────────────
   const product = data?.product ?? null;

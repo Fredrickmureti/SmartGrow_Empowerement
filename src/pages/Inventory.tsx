@@ -20,7 +20,7 @@ import { AdjustmentPeekSheet } from "@/components/inventory/AdjustmentPeekSheet"
 import { ReverseAdjustmentDialog } from "@/components/inventory/ReverseAdjustmentDialog";
 import type { StockAdjustment } from "@/hooks/useInventory";
 import { exportMovementsToCSV } from "@/lib/exportMovements";
-import { getProductOnHand } from "@/lib/inventory/readOnHand";
+import { resolveAvailabilityFor } from "@/lib/inventory/availability";
 import { useQtyFormatter } from "@/hooks/inventory/useQtyFormatter";
 import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
 import { ProductBadgeStrip } from "@/components/products/ProductBadgeStrip";
@@ -216,28 +216,28 @@ export default function Inventory() {
 
       if (error) throw error;
       const products = data || [];
-      // Branch-true on-hand from warehouse_stock — never products.stock_quantity.
-      const onHandMap = await getProductOnHand({
-        orgId: organizationId,
-        businessId,
-        branchId: branchId ?? null,
-        productIds: products.map((p: any) => p.id),
-      });
+      // ADR 0142: availability is a server decision. One batch call to the
+      // canonical engine — never derived by browser arithmetic.
+      const availability = await resolveAvailabilityFor(
+        products.map((p: any) => p.id),
+        { businessId, branchId: branchId ?? null },
+      );
       const enriched = products.map((p: any) => {
-        const oh = onHandMap.get(p.id);
+        const a = availability.get(p.id);
         return {
           ...p,
-          on_hand: oh?.onHand ?? 0,
-          on_hand_reserved: oh?.reserved ?? 0,
+          on_hand: a?.onHand ?? 0,
+          on_hand_reserved: a?.reserved ?? 0,
+          on_hand_available: a?.available ?? 0,
         };
       });
       return { data: enriched, count: count || 0 };
+
     },
     enabled: !!organizationId && !!businessId,
     placeholderData: (prev) => prev,
   });
 
-  // Fetch reserved quantities for displayed products
   const stockLevelProducts = stockLevelsData?.data || [];
   const stockLevelsTotalPages = Math.ceil((stockLevelsData?.count || 0) / PAGE_SIZE);
   
@@ -248,27 +248,9 @@ export default function Inventory() {
   const stockQtyFormatter = useQtyFormatter({ productIds });
   // Pack-rows + multi-uom presence for listing rows.
   const { packsByProduct, hasPackagingSet } = useProductPackagingBatch(productIds);
-  const { data: reservedMap = new Map() } = useQuery({
-    queryKey: ["reserved-qty", organizationId, businessId, branchId, productIds],
-    queryFn: async () => {
-      if (productIds.length === 0 || !organizationId || !businessId) return new Map<string, number>();
-      // warehouse_stock is (business, branch)-scoped — never read it without those filters.
-      let q = supabase
-        .from("warehouse_stock")
-        .select("product_id, reserved_quantity, branch_id")
-        .eq("organization_id", organizationId)
-        .eq("business_id", businessId)
-        .in("product_id", productIds);
-      if (currentBranch?.id) q = q.eq("branch_id", currentBranch.id);
-      const { data } = await q;
-      const map = new Map<string, number>();
-      (data || []).forEach((ws: any) => {
-        map.set(ws.product_id, (map.get(ws.product_id) || 0) + (ws.reserved_quantity || 0));
-      });
-      return map;
-    },
-    enabled: productIds.length > 0 && !!organizationId && !!businessId,
-  });
+  // On-hand / reserved / available all arrive from the availability engine
+  // with the page query above — no second read model, no local arithmetic.
+
 
   // Incoming stock from open POs — MUST be company- and branch-scoped.
   // Filtering by organization_id alone leaks other companies' open POs into
@@ -373,7 +355,7 @@ export default function Inventory() {
                 ["warehouse-stock-totals"] as const,
                 ["stock-levels-paginated"] as const,
                 ["low-stock-products"] as const,
-                ["reserved-qty"] as const,
+                
                 ["stock-adjustments"] as const,
               ]}
               tooltip="Refresh inventory"
@@ -702,8 +684,9 @@ export default function Inventory() {
                         {stockLevelProducts.map((product: any) => {
                           const stockQty = product.on_hand ?? 0;
                           const reorderLevel = product.reorder_level || 0;
-                          const reserved = product.on_hand_reserved ?? (reservedMap.get(product.id) || 0);
-                          const available = stockQty - reserved;
+                          const reserved = product.on_hand_reserved ?? 0;
+                          const available = product.on_hand_available ?? 0;
+
                           const incoming = incomingMap.get(product.id) || 0;
                           const isLow = reorderLevel > 0 && stockQty <= reorderLevel;
                           const trackInventory = product.track_inventory !== false && product.type !== "service";
