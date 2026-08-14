@@ -20,7 +20,7 @@ import { AdjustmentPeekSheet } from "@/components/inventory/AdjustmentPeekSheet"
 import { ReverseAdjustmentDialog } from "@/components/inventory/ReverseAdjustmentDialog";
 import type { StockAdjustment } from "@/hooks/useInventory";
 import { exportMovementsToCSV } from "@/lib/exportMovements";
-import { getProductOnHand } from "@/lib/inventory/readOnHand";
+import { resolveAvailabilityFor } from "@/lib/inventory/availability";
 import { useQtyFormatter } from "@/hooks/inventory/useQtyFormatter";
 import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
 import { ProductBadgeStrip } from "@/components/products/ProductBadgeStrip";
