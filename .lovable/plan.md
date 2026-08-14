@@ -41,22 +41,29 @@ Verification:
 Known, accepted scope notes:
 - GS1 scan path in `ReceivingSessionWorkspace` uses `baseUnits` resolved by the
   server-side identity gate (`resolve_product_identity`), not browser math — allowed.
-- Desktop `CountSession` / `CountReview` capture in base units only (no unit selector);
-  they pass no packaging id, which the server treats as base units. Adding a desktop
-  count unit selector is Phase 2 work, not a correctness gap.
 
 ---
 
-## Phase 2 — ACTIVE NEXT: Desktop capture parity + UoM display truth
+## Phase 2 — ACTIVE: Desktop capture parity + UoM display truth
 
-1. Add the unit selector to desktop `CountSession` (mirror `MobileCount`), passing
-   `p_packaging_id` / `p_entered_qty`; extend the architecture guard to cover it.
-2. Desktop returns capture surface — same treatment.
-3. Review/variance screens (`CountReview`, receiving variance table, returns review) must
-   show **entered qty + unit** alongside the base quantity, sourced from the new
-   `entered_qty` / `packaging_id` columns rather than re-deriving.
-4. Ensure every warehouse quantity render goes through the shared `formatQty` rollup so
-   packaging labels come from the Product foundation, never hardcoded strings.
+1. DONE — desktop `CountSession` has a per-line unit selector and sends
+   `p_packaging_id` / `p_entered_qty` (row-level units via `useProductPackagingBatch`).
+2. DONE — desktop returns capture (`ReturnLinesPanel` + `useReturnLines`) sends packaging
+   metadata; capture dialog has a unit selector.
+3. DONE — review surfaces show entered qty + unit from the audit columns:
+   - migration redefined `get_count_lines` to return `entered_qty`, `packaging_id`,
+     `packaging_name`;
+   - `useCountLines` exposes those fields plus `countLineEnteredLabel()`;
+   - `CountReview` differences table renders "entered N × Case";
+   - receiving (`useReceivingLines` + `ReceivingSessionWorkspace`) and returns
+     (`returnsModel` / `useReturnLines` / `ReturnLinesPanel`) select `entered_qty`,
+     `packaging_id` and a joined `product_packaging(name)` and render the same line.
+   Verified: typecheck clean, 8/8 architecture guards passing.
+4. PENDING — NEXT TASK: route every warehouse quantity render through the shared
+   `formatQty` / packaging rollup so unit labels come from the Product foundation rather
+   than ad-hoc strings, and extend the architecture guard to forbid hardcoded unit labels
+   on warehouse surfaces.
+
 
 ## Phase 3 — Pending: Product foundation consumption audit
 - Prove Warehouse reads product attributes (tracking mode, shelf-life, dimensions,
