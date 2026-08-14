@@ -299,12 +299,18 @@ Performance as projections vs transactional surfaces.
 
 ## Current active phase
 
-**Phase 1 — Sales lifecycle reconstruction** (documentation only; it defines
-the document graph the later phases enforce).
+**Phase 3 — UoM & packaging** (the line quantity contract). First required
+action is upstream-shaped: widen the `list_products_with_branch_stock`
+projection to carry `base_uom_id`, `sales_uom_id` and the product's packaging
+levels, so a Sales line can express a customer unit at all.
 
 ## Verified complete
 
-- Phase 0 — upstream contract verification (evidence above).
+- Phase 0 — upstream contract verification.
+- Phase 1 — lifecycle reconstruction (document graph, classification,
+  immutability/reversal map).
+- Phase 2 — Product consumption (no Sales-local product tables; single server
+  read seam; projection too narrow; picker bypasses the identity seam).
 
 ## Blocked phases
 
@@ -313,10 +319,12 @@ defect.
 
 ## Remaining actionable work
 
-1. Phase 1 — reconstruct the lifecycle from live RPCs and triggers.
-2. Phase 3 — the line quantity contract (highest business risk: quantities are
-   currently ambiguous between customer units and inventory units).
-3. Phase 4 — collapse three pricing sources to one server-side resolver.
-4. Phase 7 — create a sale-time tax resolver in the Tax domain.
-5. Phase 10 — idempotency + server-side line money validation.
-6. Phase 9 — governed write path for estimates.
+1. Phase 3 — the line quantity contract (highest business risk: quantities are
+   ambiguous between customer units and inventory units).
+2. Phase 4 — collapse three pricing sources to one server-side resolver.
+3. Phase 7 — create a sale-time tax resolver in the Tax domain.
+4. Phase 9/10 — governed write path for **invoices** (currently unguarded) and
+   estimates; idempotency + server-side line money validation.
+5. Phase 2 follow-up — route the manual product picker through the ADR 0114
+   identity read seam.
+
