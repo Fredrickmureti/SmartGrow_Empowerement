@@ -31,7 +31,14 @@ import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import {
+  unitOptionsFor,
+  toBaseUnits,
+  BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import { RETURN_CONDITIONS, type ReturnCondition } from "@/features/warehouse/returns/returnsModel";
+
 import { Undo2 } from "lucide-react";
 
 interface ReturnRow {
