@@ -8144,6 +8144,7 @@ export type Database = {
           receipt_theme: Json | null
           registration_number: string | null
           require_bill_approval: boolean
+          require_product_physical_attributes: boolean
           sales_return_prefix: string | null
           sample_data_prompt_dismissed: boolean | null
           setup_wizard_completed: boolean | null
@@ -8201,6 +8202,7 @@ export type Database = {
           receipt_theme?: Json | null
           registration_number?: string | null
           require_bill_approval?: boolean
+          require_product_physical_attributes?: boolean
           sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
@@ -8258,6 +8260,7 @@ export type Database = {
           receipt_theme?: Json | null
           registration_number?: string | null
           require_bill_approval?: boolean
+          require_product_physical_attributes?: boolean
           sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
@@ -25748,6 +25751,11 @@ export type Database = {
           allocated_amount: number
           allocation_ratio: number
           basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          basis_packaging_id: string | null
+          basis_per_unit: number | null
+          basis_qty: number | null
+          basis_snapshot_at: string | null
+          basis_uom_id: string | null
           basis_value: number
           business_id: string
           capitalized_amount: number
@@ -25769,6 +25777,11 @@ export type Database = {
           allocated_amount?: number
           allocation_ratio?: number
           basis: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          basis_packaging_id?: string | null
+          basis_per_unit?: number | null
+          basis_qty?: number | null
+          basis_snapshot_at?: string | null
+          basis_uom_id?: string | null
           basis_value?: number
           business_id: string
           capitalized_amount?: number
@@ -25790,6 +25803,11 @@ export type Database = {
           allocated_amount?: number
           allocation_ratio?: number
           basis?: Database["public"]["Enums"]["landed_cost_allocation_basis"]
+          basis_packaging_id?: string | null
+          basis_per_unit?: number | null
+          basis_qty?: number | null
+          basis_snapshot_at?: string | null
+          basis_uom_id?: string | null
           basis_value?: number
           business_id?: string
           capitalized_amount?: number
@@ -25808,6 +25826,20 @@ export type Database = {
           voucher_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "landed_cost_allocations_basis_packaging_id_fkey"
+            columns: ["basis_packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landed_cost_allocations_basis_uom_id_fkey"
+            columns: ["basis_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "landed_cost_allocations_component_id_fkey"
             columns: ["component_id"]
@@ -97546,6 +97578,10 @@ export type Database = {
       product_pack_price: {
         Args: { p_packaging_id: string; p_product_id: string }
         Returns: number
+      }
+      product_physical_attributes_required: {
+        Args: { p_business_id: string }
+        Returns: boolean
       }
       project_employee_cost_rate: {
         Args: { _employee_id: string; _project_id: string }
