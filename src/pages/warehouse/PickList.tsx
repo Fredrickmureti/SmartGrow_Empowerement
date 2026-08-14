@@ -128,6 +128,12 @@ export default function PickList() {
   );
   const done = useMemo(() => (tasks ?? []).filter((t) => t.state === "completed"), [tasks]);
 
+  // Phase 2.4 — unit truth: pack rollup + the product's own base UoM label.
+  const taskProductIds = useMemo(() => (tasks ?? []).map((t) => t.product_id), [tasks]);
+  const qtyBaseLabels = useProductBaseUomLabels(taskProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(taskProductIds, qtyBaseLabels);
+
+
   // Resolve the currently scanned bin+product to the single matching task.
   // A match requires: bin code equals task.source_loc.code (case-insensitive)
   // AND scanned product resolves to task.product_id.
