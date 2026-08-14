@@ -88,6 +88,17 @@ import {
   EtimsCountryOriginSelect,
 } from "@/components/etims/EtimsCodeSelectors";
 import { PurchasingDefaultsSection } from "./product-form/sections/PurchasingDefaultsSection";
+import { IdentitySection } from "./product-form/sections/IdentitySection";
+import { InventoryUnitSection } from "./product-form/sections/InventoryUnitSection";
+import { LotExpirySection } from "./product-form/sections/LotExpirySection";
+import { PricingSection } from "./product-form/sections/PricingSection";
+import { InventoryTrackingSection } from "./product-form/sections/InventoryTrackingSection";
+import { GlAccountsSection } from "./product-form/sections/GlAccountsSection";
+import { TaxComplianceSection } from "./product-form/sections/TaxComplianceSection";
+import type {
+  ProductFormPatch,
+  ProductLocalizationPatch,
+} from "./product-form/formState";
 
 interface ProductFormProps {
   mode: "create" | "edit";
