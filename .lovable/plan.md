@@ -106,48 +106,40 @@ are stripped before matching. Verified live: **zero offenders**. One shrink-only
 allowlist entry: `_wms_maybe_enqueue_replen` (BIN grain, not yet exposed by the
 engine — retire by adding a location grain to the batch engine).
 
-### Phase 8 — started
-ADR 0142 addendum written (batch engine + planner repoint + exemption).
-
-
-### Phase 8 — documentation + behavioural sweep
-- ADR 0142 addendum for the batch engine; ADR addenda for the Phase 5 expiry policy
-  and the Phase 6 event fabric; refresh the operator guide.
-- Run and read in full: `inventory_movement_ledger_test.sql`,
-  `inventory_valuation_guard_test.sql`, `inventory_lot_serial_traceability_test.sql`,
-  `inventory_event_fabric_test.sql`, `inventory_reservation_engine_test.sql`, plus
-  `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
-  `check_valuation_writer_coverage()`, `check_inventory_valuation_drift(NULL,0.01)`,
-  `check_serial_position_drift(NULL)`.
-- Behavioural proof: receive stock through the UI, then confirm one movement →
-  one quant row → one `inventory.movement.recorded` outbox row with
-  `handler_scope='server'`, drained by `outbox-dispatcher`, and one cost layer with
-  the expected AVCO.
-
 ---
 
-## 4. Instructions for the next agent
+## 4. Phase 8 — remaining work (ACTIVE)
 
-**Do the verification step first. Do not start Phase 7d before it passes.**
+- [x] ADR 0142 addendum — batch engine, planner repoint, BIN-grain exemption.
+- [ ] ADR addenda for the Phase 5 expiry policy and the Phase 6 event fabric;
+      refresh the operator guide.
+- [ ] Run and read in full: `inventory_movement_ledger_test.sql`,
+      `inventory_valuation_guard_test.sql`, `inventory_lot_serial_traceability_test.sql`,
+      `inventory_event_fabric_test.sql`, `inventory_reservation_engine_test.sql`,
+      `inventory_availability_single_formula_test.sql`, plus
+      `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
+      `check_valuation_writer_coverage()`, `check_inventory_valuation_drift(NULL,0.01)`,
+      `check_serial_position_drift(NULL)`.
+- [ ] **BLOCKED — behavioural proof.** The tenant database is still empty
+      (0 `stock_movements`, 0 `stock_quants`). Receive stock through the UI, then
+      confirm one movement → one quant row → one `inventory.movement.recorded`
+      outbox row with `handler_scope='server'`, drained by `outbox-dispatcher`, and
+      one cost layer at the expected AVCO. Every phase to date is *structurally*
+      proven only; this is the wave's single largest outstanding risk.
+- [ ] Follow-up carried out of Phase 7e: add a location grain to
+      `resolve_stock_availability_batch` and delete the `_wms_maybe_enqueue_replen`
+      allowlist entry.
 
-1. **Verify Phase 7a/7b on the database, not on this document.**
-   - `resolve_stock_availability_batch` exists with the 4-arg signature, is
-     `SECURITY DEFINER`, has a business-access check, grants to `authenticated` and
-     `service_role`, and no `anon` grant.
-   - `resolve_stock_availability` is a wrapper — its body must contain no second
-     availability formula.
-   - `list_products_with_branch_stock` has exactly **one** overload and no
-     `quantity - reserved_quantity` arithmetic in its body.
-2. **Verify Phase 7c in the code.** Run
-   `bunx vitest run src/test/architecture/availability-is-server-owned.test.ts` and
-   `tsgo`. Then spot-read `Inventory.tsx`, `StockTab.tsx`, `ProductStockPanel.tsx`
-   and `useProductDetailData.ts` and confirm every *decision-driving* number comes
-   from `data.availability` / RPC columns. Display-only "reserved" chips reading the
-   `warehouse_stock` read model are acceptable.
-3. **If verification fails**, fix the defect inside Phase 7 and re-verify. Record the
-   defect in this file. Do not proceed with a partially correct phase.
-4. **If verification passes**, execute **Phase 7d**, then **Phase 7e**, then close
-   Phase 7 in the status ledger above and only then open Phase 8.
+## 5. Instructions for the next agent
+
+1. Do not re-verify Phases 1–7; they were independently re-checked against the live
+   database on 2026-08-14b (evidence in section 3). Re-run the two ratchets if in doubt:
+   `bunx vitest run src/test/architecture/availability-is-server-owned.test.ts` and the
+   SQL file `supabase/tests/inventory_availability_single_formula_test.sql`.
+2. Execute Phase 8 in the order above. Do not open new phases until the behavioural
+   sweep has real data behind it.
+3. Never mark a phase VERIFIED on the strength of code existing.
+
 
 ### Rules of engagement (unchanged)
 - Chronological execution: finish the active phase to a production-ready state before
