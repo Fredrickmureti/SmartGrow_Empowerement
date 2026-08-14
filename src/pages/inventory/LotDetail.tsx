@@ -13,7 +13,7 @@
  *
  * ADR 0070. No writes. No RPCs. No schema changes.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -63,17 +63,32 @@ interface LotHeader {
   goods_receipt?: { id: string; receipt_number: string | null } | null;
 }
 
-interface MovementRow {
+interface TimelineRow {
   id: string;
   movement_date: string;
   movement_type: string;
-  quantity: number;
-  warehouse_id: string;
+  signed_quantity: number;
+  direction: "in" | "out";
+  warehouse_id: string | null;
+  warehouse_name: string | null;
   reference_type: string | null;
   reference_id: string | null;
-  notes: string | null;
   serial_number: string | null;
-  warehouse?: { id: string; name: string } | null;
+  notes: string | null;
+}
+
+interface DistributionRow {
+  warehouse_id: string | null;
+  warehouse_name: string;
+  quantity: number;
+}
+
+interface LotGenealogy {
+  total_on_hand: number;
+  distribution: DistributionRow[];
+  timeline: TimelineRow[];
+  downstream_customers: unknown[];
+  quarantine: unknown[];
 }
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -85,25 +100,11 @@ const REFERENCE_LABELS: Record<string, string> = {
   stock_transfer: "Stock Transfer",
   stock_adjustment: "Stock Adjustment",
   scrap: "Scrap",
-  pos_register: "POS Sale",
+  pos_transaction: "POS Sale",
   purchase_return: "Purchase Return",
   physical_count: "Physical Count",
 };
 
-// Movement types that ADD stock (positive quantity flow).
-const INBOUND_TYPES = new Set([
-  "receipt",
-  "goods_receipt",
-  "purchase",
-  "sales_return",
-  "transfer_in",
-  "adjustment_in",
-  "opening_balance",
-]);
-
-function isInbound(mt: string) {
-  return INBOUND_TYPES.has(mt);
-}
 
 /**
  * supabase-js parses every select string literal at the type level. These two
@@ -121,7 +122,7 @@ export default function LotDetail() {
   const { toast } = useToast();
   const { can } = usePermissions();
   const [lot, setLot] = useState<LotHeader | null>(null);
-  const [movements, setMovements] = useState<MovementRow[]>([]);
+  const [genealogy, setGenealogy] = useState<LotGenealogy | null>(null);
   const [loading, setLoading] = useState(true);
   const [recallOpen, setRecallOpen] = useState(false);
   const [recallReason, setRecallReason] = useState("");
@@ -143,32 +144,27 @@ export default function LotDetail() {
     if (lotErr || !lotRow) {
       if (lotErr) toast({ title: "Failed to load lot", description: lotErr.message, variant: "destructive" });
       setLot(null);
-      setMovements([]);
+      setGenealogy(null);
       setLoading(false);
       return;
     }
     const header = lotRow as unknown as LotHeader;
     setLot(header);
 
-    // Timeline: business + product + lot_number is the canonical
-    // traceability query. Never drop any of the three predicates.
-    const { data: mvRows, error: mvErr } = await supabase
-      .from("stock_movements")
-      .select(
-        sel(
-          "id, movement_date, movement_type, quantity, warehouse_id, reference_type, reference_id, notes, serial_number, warehouse:warehouses(id, name)",
-        ),
-      )
-
-      .eq("business_id", header.business_id)
-      .eq("product_id", header.product_id)
-      .eq("lot_number", header.lot_number)
-      .order("movement_date", { ascending: true });
-    if (mvErr) {
-      toast({ title: "Failed to load movements", description: mvErr.message, variant: "destructive" });
-      setMovements([]);
+    // Genealogy is a SERVER projection (ADR 0142 Phase 5). The browser never
+    // decides whether a movement adds or removes stock, and never nets a lot
+    // balance — `trace_lot_genealogy` owns direction, distribution and the
+    // downstream customer trace.
+    const { data: gen, error: genErr } = await supabase.rpc("trace_lot_genealogy" as never, {
+      p_business_id: header.business_id,
+      p_product_id: header.product_id,
+      p_lot_number: header.lot_number,
+    } as never);
+    if (genErr) {
+      toast({ title: "Failed to load lot history", description: genErr.message, variant: "destructive" });
+      setGenealogy(null);
     } else {
-      setMovements((mvRows ?? []) as unknown as MovementRow[]);
+      setGenealogy((gen ?? null) as unknown as LotGenealogy | null);
     }
     setLoading(false);
   }, [id, toast]);
@@ -177,19 +173,10 @@ export default function LotDetail() {
     void load();
   }, [load]);
 
-  const distribution = useMemo(() => {
-    const bucket = new Map<string, { warehouse: string; net: number }>();
-    for (const m of movements) {
-      const key = m.warehouse_id;
-      const name = m.warehouse?.name ?? "—";
-      const cur = bucket.get(key) ?? { warehouse: name, net: 0 };
-      cur.net += isInbound(m.movement_type) ? m.quantity : -m.quantity;
-      bucket.set(key, cur);
-    }
-    return Array.from(bucket.entries()).map(([id, v]) => ({ id, ...v }));
-  }, [movements]);
+  const distribution = genealogy?.distribution ?? [];
+  const movements = genealogy?.timeline ?? [];
+  const totalOnHand = Number(genealogy?.total_on_hand ?? 0);
 
-  const totalOnHand = distribution.reduce((s, d) => s + d.net, 0);
 
   if (loading) {
     return (
@@ -377,10 +364,11 @@ export default function LotDetail() {
             ) : (
               <div className="space-y-2">
                 {distribution.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between text-sm border-b last:border-b-0 pb-2 last:pb-0">
-                    <span>{d.warehouse}</span>
-                    <span className={`font-mono ${d.net > 0 ? "text-foreground" : d.net < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                      {d.net.toLocaleString()}
+                  <div key={d.warehouse_id ?? d.warehouse_name} className="flex items-center justify-between text-sm border-b last:border-b-0 pb-2 last:pb-0">
+                    <span>{d.warehouse_name}</span>
+                    <span className={`font-mono ${Number(d.quantity) > 0 ? "text-foreground" : Number(d.quantity) < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                      {Number(d.quantity).toLocaleString()}
+
                     </span>
                   </div>
                 ))}
@@ -415,7 +403,7 @@ export default function LotDetail() {
               </TableHeader>
               <TableBody>
                 {movements.map((m) => {
-                  const inbound = isInbound(m.movement_type);
+                  const inbound = m.direction === "in";
                   const refLabel = m.reference_type
                     ? REFERENCE_LABELS[m.reference_type] ?? m.reference_type
                     : "—";
@@ -440,10 +428,11 @@ export default function LotDetail() {
                           <div className="font-mono text-[10px] text-muted-foreground">{m.reference_id.slice(0, 8)}</div>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs">{m.warehouse?.name ?? "—"}</TableCell>
+                      <TableCell className="text-xs">{m.warehouse_name ?? "—"}</TableCell>
                       <TableCell className="font-mono text-xs">{m.serial_number ?? "—"}</TableCell>
                       <TableCell className={`text-right font-mono ${inbound ? "" : "text-orange-700"}`}>
-                        {inbound ? "+" : "−"}{m.quantity.toLocaleString()}
+                        {inbound ? "+" : "−"}{Math.abs(Number(m.signed_quantity)).toLocaleString()}
+
                       </TableCell>
                     </TableRow>
                   );

@@ -234,3 +234,36 @@ export function useValuationWriterCoverage(enabled = true) {
     staleTime: 300_000,
   });
 }
+
+/**
+ * Ops helper — serial position drift (ADR 0142 Phase 5). Compares each
+ * serial's recorded status/warehouse against its movement history, using the
+ * server-side direction authority. Empty result = serials and the movement
+ * ledger agree.
+ */
+export type SerialPositionDriftRow = {
+  scope: "status_vs_position" | "warehouse_mismatch" | "orphan_serial";
+  serial_id: string;
+  serial_number: string;
+  product_id: string;
+  recorded_status: string;
+  recorded_warehouse_id: string | null;
+  observed_warehouse_id: string | null;
+  net_quantity: number;
+  detail: string;
+};
+
+export function useSerialPositionDrift(businessId?: string) {
+  return useQuery({
+    queryKey: ["serial-position-drift", businessId],
+    enabled: Boolean(businessId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("check_serial_position_drift" as never, {
+        p_business_id: businessId ?? null,
+      } as never);
+      if (error) throw error;
+      return (data ?? []) as unknown as SerialPositionDriftRow[];
+    },
+    staleTime: 60_000,
+  });
+}
