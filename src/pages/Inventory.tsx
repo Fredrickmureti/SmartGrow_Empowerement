@@ -684,8 +684,9 @@ export default function Inventory() {
                         {stockLevelProducts.map((product: any) => {
                           const stockQty = product.on_hand ?? 0;
                           const reorderLevel = product.reorder_level || 0;
-                          const reserved = product.on_hand_reserved ?? (reservedMap.get(product.id) || 0);
-                          const available = stockQty - reserved;
+                          const reserved = product.on_hand_reserved ?? 0;
+                          const available = product.on_hand_available ?? 0;
+
                           const incoming = incomingMap.get(product.id) || 0;
                           const isLow = reorderLevel > 0 && stockQty <= reorderLevel;
                           const trackInventory = product.track_inventory !== false && product.type !== "service";
