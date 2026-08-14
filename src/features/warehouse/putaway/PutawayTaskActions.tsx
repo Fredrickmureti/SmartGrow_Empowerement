@@ -99,13 +99,14 @@ export function PutawayTaskActions({ task, disabled, compact }: Props) {
     mutationFn: async () => {
       const { error } = await supabase.rpc("wms_reassign_putaway_task", {
         p_task_id: task.id,
+        p_row_version: task.row_version,
         p_location_id: bin,
         p_reason: reason.trim() || undefined,
       });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Destination updated"); refresh(); close(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Reassign failed"),
+    onError: (e: unknown) => toast.error(staleAware(e, "Reassign failed")),
   });
 
   const split = useMutation({
@@ -114,14 +115,16 @@ export function PutawayTaskActions({ task, disabled, compact }: Props) {
       // this offline without double-storing the portion on reconnect.
       await enqueue("wms_split_putaway_task", {
         p_task_id: task.id,
+        p_row_version: task.row_version,
         p_quantity: Number(qty),
         p_location_id: bin || null,
         p_reason: reason.trim() || null,
       });
     },
     onSuccess: () => { toast.success("Partial putaway stored"); refresh(); close(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Partial putaway failed"),
+    onError: (e: unknown) => toast.error(staleAware(e, "Partial putaway failed")),
   });
+
 
   const raise = useMutation({
     mutationFn: async () => {
