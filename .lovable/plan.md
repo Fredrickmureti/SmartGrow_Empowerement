@@ -1,137 +1,137 @@
-# Inventory Foundation Wave — audit verdict and reconstruction plan
+# Inventory Domain — Foundation Wave (execution ledger)
 
-Status document for this wave. Update after every phase.
+Scope: the Inventory application only (`/inventory-app/*`, its hooks, RPCs and
+tables). External domains are crossed only far enough to record a contract.
 
-## What I verified this session (not taken on trust)
+## Verified evidence (this session, checked against live DB + code)
 
-Checked against the live database and the code, not against previous logs.
-
-- The ledger substrate is real and mature: `stock_movements` (immutability,
-  provenance, branch-scope triggers), `stock_quants` (location + lot + package
-  grain, with `reserved_quantity`), `stock_lots`, `warehouse_stock_lots`,
-  `stock_serials`, `cost_layers`, `business_event_outbox` with
-  `tg_stock_movement_emit_event`, drift checks, and `reverse_stock_movement`
-  already exist. ADRs 0064–0079 landed for real.
-- **Two competing balance stores.** `stock_quants` (location-grain, ADR 0064)
-  and `warehouse_stock` (warehouse-grain) are both maintained by triggers, and
-  every consumer — availability functions, reservations, reports, all UI —
-  reads `warehouse_stock`. Nothing reads quants for availability. Two stores,
-  one silently unused for the decisions that matter.
+- Substrate is real and mature: `stock_movements` (immutability, provenance and
+  branch-scope triggers), `stock_quants` (product+location+lot+package grain,
+  with `reserved_quantity`), `stock_lots`, `warehouse_stock_lots`,
+  `stock_serials`, `cost_layers`, `business_event_outbox` +
+  `tg_stock_movement_emit_event`, drift checks, `reverse_stock_movement`.
+  ADRs 0064–0079 genuinely landed.
+- **Two balance stores.** `stock_quants` (location grain) and `warehouse_stock`
+  (warehouse grain) are both trigger-maintained; every consumer —
+  availability functions, reservations, reports, all UI — reads
+  `warehouse_stock`. Quants are effectively unused for decisions.
 - **Three availability formulas.** `get_available_stock`,
-  `get_available_pos_stock`, `get_available_pos_stock_for_register` each derive
-  availability differently (POS subtracts register-scoped reservation rows;
-  the general one subtracts a denormalised counter). None accounts for
-  quarantine/blocked/damaged state. This is exactly the drift the mandate
-  forbids.
-- **Four reservation engines.** `reserve_stock` (bumps a counter, writes no
+  `get_available_pos_stock`, `get_available_pos_stock_for_register` derive
+  availability differently, none accounts for quarantine/blocked/transit state
+  beyond an `is_in_transit` warehouse flag.
+- **Four reservation paths.** `reserve_stock` (bumps a counter, writes no
   reservation row), `create_stock_reservation` (counter + row),
-  `reserve_pos_stock`, and `_wms_replen_reserve`. `reserve_stock` and
-  `create_stock_reservation` are near-identical copies whose effects diverge —
-  one leaves reserved quantity with no audit row behind it.
-- **Availability is computed in the browser in ~10 surfaces**
-  (`Inventory.tsx`, `Forecast.tsx`, `ProductStockPanel`, `StockTab`,
-  `OverviewTab`, `WarehouseStockPeekSheet`, `LicensePlateView`, `readOnHand`),
-  each doing `quantity - reserved_quantity` locally. Business rule in React.
-- Costing ambiguity is already resolved on paper (ADR 0078: AVCO canonical,
-  `cost_layers` demoted to lot detail) but no guard enforces it, and
-  value-only revaluation has functions (`inventory_apply_cost_revaluation`)
-  whose relationship to the movement ledger is undocumented.
-- **The database is empty** (0 movements, 0 quants, 0 warehouse_stock rows, 0
-  reservations). There is no production data to protect, so consolidation is
-  preferred over compatibility shims.
+  `reserve_pos_stock`, `_wms_replen_reserve`. The first two are near-identical
+  copies whose effects diverge — reserved quantity can exist with no audit row.
+- **Availability arithmetic in the browser** in ~10 surfaces (`Inventory.tsx`,
+  `Forecast.tsx`, `ProductStockPanel`, `StockTab`, `OverviewTab`,
+  `WarehouseStockPeekSheet`, `LicensePlateView`, `readOnHand`), each doing
+  `quantity - reserved_quantity` locally.
+- Cost method resolved on paper (ADR 0078: AVCO canonical, `cost_layers`
+  demoted to lot detail) but no guard enforces it; value-only revaluation
+  (`inventory_apply_cost_revaluation`) has no documented tie to the ledger.
+- Database is **empty** (0 movements / quants / warehouse_stock / reservations),
+  so consolidation is preferred over compatibility shims.
 
-Verdict: **not a re-foundation, a consolidation wave.** The engine exists; it
-has three heads. The work is to collapse quantity, availability and reservation
-onto one canonical server-side owner and force every consumer through it.
+Verdict: **consolidation wave, not re-foundation.** The engine exists with three
+heads. Collapse quantity, availability and reservation onto one server-side
+owner and force every consumer through it.
 
-## Phase 0 — Engineering report (for the next engineer, not the user)
+---
 
-Write `docs/audit/inventory-domain-report.md` covering the mandated
-deliverables in condensed form: domain definition and ownership boundary,
-Product↔Inventory boundary, lifecycle, movement taxonomy, quantity model, UOM
-integration, availability and reservation models, costing/valuation, lot and
-serial, expiry/recall, integrations (Warehouse, Purchasing, Sales, POS, Landed
-Cost, Finance, Labels, Reporting), event taxonomy, idempotency and concurrency
-model, tenant/branch scope matrix, governance, RLS, audit reconstruction,
-defects, duplicates, missing capabilities, dependency graph, canonical
-source-of-truth matrix, risk. Plus an ADR for the decisions below.
+## Phase 0 — Architecture map — NOT STARTED
 
-## Phase 1 — One quantity truth
+Short implementation-oriented map in `docs/audit/inventory-domain-map.md`:
+Inventory-owned entities, ownership matrix (capability / correct owner /
+current owner / canonical source / consumers), lifecycle per business process
+(receive, sell, transfer, return, adjust), canonical engines to reuse, known
+defects, downstream contracts, missing foundations. One ADR recording the
+decisions in Phases 1–3. No long report.
 
-`stock_quants` becomes the sole maintained balance store (location + lot +
-package grain). `warehouse_stock` is rebuilt as a derived read model
-(view or trigger-fed projection with a drift check), never written directly.
-Retire the second maintenance trigger; keep the existing drift log as the
-consistency mechanism. Quantity states (on hand, reserved, blocked,
-quarantined, damaged, in transit, incoming) become explicit and derivable from
-quant location usage rather than inferred per-consumer.
+## Phase 1 — Core inventory integrity — NOT STARTED
 
-## Phase 2 — One availability engine
+Dependencies: Phase 0.
 
-New canonical `resolve_stock_availability(...)` reading quants + live
-reservation rows, honouring location usage (transit/quarantine excluded),
-branch and business scope, with an explicit documented formula. Delete or
-reduce `get_available_stock`, `get_available_pos_stock`,
-`get_available_pos_stock_for_register` to thin wrappers over it. Single client
-seam under `src/lib/inventory/`. Architecture test banning any new client-side
-`quantity - reserved` arithmetic and any direct `warehouse_stock` read for an
-availability decision.
+1. **One quantity truth.** `stock_quants` becomes the sole maintained balance
+   store; `warehouse_stock` is rebuilt as a derived projection (never written
+   directly), keeping the existing drift log as the consistency mechanism.
+   Quantity states (on hand, reserved, blocked, quarantined, in transit,
+   incoming) become explicit and derivable from location usage.
+2. **One availability engine.** `resolve_stock_availability(...)` over quants +
+   live reservation rows, branch/business scoped, documented formula; the three
+   existing functions become thin wrappers or are dropped. Single client seam
+   in `src/lib/inventory/`.
+3. **One reservation engine.** `reserve_stock_atomic` /
+   `release_stock_reservation` / `consume_stock_reservation` with a real
+   lifecycle (requested → reserved → allocated → consumed | released |
+   expired), a mandatory row per held quantity, idempotency keys, expiry sweep,
+   partial reservation, quant-grain row locking. `reserve_stock` and
+   `create_stock_reservation` deleted; POS, Sales, WMS replenishment and
+   transfers repointed (contract change only, no consumer rebuild).
+4. Guards: architecture test banning client-side `quantity - reserved` math and
+   direct `warehouse_stock` reads for availability decisions; pgTAP for
+   concurrency (parallel reserve on one quant) and idempotency.
 
-## Phase 3 — One reservation engine
+## Phase 2 — Valuation — NOT STARTED
 
-Consolidate onto `reserve_stock_atomic` / `release_stock_reservation` /
-`consume_stock_reservation` with a real lifecycle (requested → reserved →
-allocated → consumed | released | expired), a mandatory reservation row for
-every held quantity, idempotency keys, expiry sweep, partial reservation and
-concurrency-safe row locking at quant grain. `reserve_stock` and
-`create_stock_reservation` are deleted; POS, Sales, WMS replenishment and
-transfers repoint. Reserved quantity is derived from reservation rows, never
-an independently mutated counter.
+Reversal parity for every reference type through `reverse_stock_movement`;
+value-only revaluation expressed as a first-class valuation event rather than a
+zero-quantity movement, tied to `inventory_apply_cost_revaluation` and landed
+cost; AVCO guard test enforcing ADR 0078; adjustment/return/transfer/write-off
+valuation paths proven deterministic and reversible. No second valuation engine.
 
-## Phase 4 — Movement ledger completeness
+## Phase 3 — Lots, serials, traceability — NOT STARTED
 
-Prove and close: reversal parity for every reference type through
-`reverse_stock_movement`; value-only revaluation expressed as a first-class
-valuation event (not a zero-quantity movement hack), tied to
-`inventory_apply_cost_revaluation` and landed cost; reclassification and
-quarantine transitions as typed movements; an AVCO guard test enforcing
-ADR 0078 (no `cost_layers` cost read outside lot valuation).
+Prove the supplier → receipt → lot → warehouse → transfer → sale → customer
+chain is reconstructible end to end from canonical records; close any gap in
+lot/serial stamping or genealogy views. No recall feature work.
 
-## Phase 5 — Event taxonomy
+## Phase 4 — Counts and adjustments — NOT STARTED
 
-Audit `tg_stock_movement_emit_event` coverage against the business-event list
-(received, issued, transferred, adjusted, reserved, released, revalued, lot
-created/expired). Add missing publishes inside the same transaction as the
-state change via the existing outbox — no new event infrastructure. Migrate one
-downstream consumer off direct trigger coupling as proof.
+Separate observation (count) from consequence (adjustment): count → variance →
+approval through the existing governance engine → adjustment → valuation
+consequence → audit event. No inventory-specific approval engine.
 
-## Phase 6 — Downstream contract audit
+## Phase 5 — Transfers and replenishment — NOT STARTED
 
-For POS, Sales, Purchasing/GRN, Warehouse, Landed Cost, Finance, Labels and
-Reporting: record what each reads, writes, emits and consumes; repoint any
-module that computes stock, availability, reservation or valuation itself; add
-architecture guards so bypass cannot return.
+Transfers as stateful business processes with in-transit inventory, partial /
+cancelled / failed paths and reversal; Inventory keeps stock authority while
+Warehouse keeps physical execution. Replenishment audited only for the state
+Inventory owns and exposes.
 
-## Phase 7 — Inventory UI on the canonical read model
+## Phase 6 — Reporting — NOT STARTED
 
-One inventory read model serving dashboard, product stock tab, warehouse peek,
-forecast and pickers: on hand, available, reserved, incoming, blocked, value,
-lots, expiry, recent movements, exceptions — all server-resolved. No fabricated
-metrics; anything the engine cannot answer is not displayed.
+Stock on hand, availability, valuation, aging, movements, lot traceability and
+turnover become projections over canonical Inventory state. No reporting tables
+created for UI convenience.
 
-## Phase 8 — Verification sweep (must actually run, output read in full)
+## Phase 7 — Inventory UI — NOT STARTED
 
-pgTAP suites for availability, reservation lifecycle, concurrency (parallel
-reserve against the same quant), idempotency (duplicate receipt/sale/transfer),
+Repoint dashboard, Stock, product stock surfaces, forecast and pickers onto the
+canonical read model: on hand, available, reserved, incoming, blocked, value,
+lots, expiry, recent movements, exceptions — all server-resolved. Rebuild only
+surfaces that misrepresent domain state. No fabricated metrics.
+
+## Phase 8 — Integration verification — NOT STARTED
+
+For Product, Purchasing/receiving (GRN, ASN), Warehouse, Sales, POS, Labels,
+Landed Cost and Finance record: Inventory provides / consumer expects /
+mismatch / required Inventory-side correction / external wave. Contract
+verification only.
+
+## Verification sweep (runs with each phase, output read in full)
+
+pgTAP suites for availability, reservation lifecycle, concurrency, idempotency,
 reversal, tenant and branch isolation; `bunx vitest run src/test/architecture`;
-typecheck; and a browser pass covering receive → reserve → sell → return with
-reconstruction of both quantity and value from the ledger.
+typecheck; browser pass covering receive → reserve → sell → return with both
+quantity and value reconstructed from the ledger.
 
 ## Rules of engagement
 
 Migrations only through the migration tool; new functions granted to
-`authenticated` + `service_role`, `anon` revoked. Reuse only —
-`convert_uom`, `resolve_product_identity`, `publish_business_event`,
-`resolve_exchange_rate`, `post_journal_entry_atomic`, the governance engine,
-the document engine. No fallback engines, fail closed. No business logic in the
-browser. Phases run in dependency order; none is left partially landed.
+`authenticated` + `service_role`, `anon` revoked. Reuse only — `convert_uom`,
+`resolve_product_identity`, `publish_business_event`, `resolve_exchange_rate`,
+`post_journal_entry_atomic`, the governance engine, the document engine. Fail
+closed, no fallback engines, no business logic in the browser. Phases run in
+dependency order; a phase is VERIFIED only with evidence, passing tests and
+correct ownership.
