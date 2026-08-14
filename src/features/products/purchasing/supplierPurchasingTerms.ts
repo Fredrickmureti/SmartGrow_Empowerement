@@ -8,8 +8,9 @@
  *
  * All arithmetic (increment rounding, MOQ refusal) lives in
  * `validate_supplier_order_quantity` on the server. The browser never
- * recomputes purchasing policy — the deleted `useMOQValidation` hook used to,
- * and read the product defaults only.
+ * recomputes purchasing policy — the hook deleted in this phase did exactly
+ * that, and read the deprecated product defaults only.
+
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
