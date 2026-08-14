@@ -355,7 +355,7 @@ export default function Inventory() {
                 ["warehouse-stock-totals"] as const,
                 ["stock-levels-paginated"] as const,
                 ["low-stock-products"] as const,
-                ["reserved-qty"] as const,
+                
                 ["stock-adjustments"] as const,
               ]}
               tooltip="Refresh inventory"
