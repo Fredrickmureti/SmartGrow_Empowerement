@@ -109,8 +109,16 @@ export function useMaterializeExpectedLines() {
 
 export interface CaptureInput {
   sessionId: string;
-  productId: string;
+  /**
+   * The quantity the operator captured. When `packagingId` is supplied this is
+   * expressed in that packaging level and `wms_capture_receiving_line`
+   * converts it through `wms_to_base_qty`; otherwise it is already in base
+   * ledger units. The browser never multiplies.
+   */
   receivedQty: number;
+  productId: string;
+  /** `product_packaging.id` the quantity was captured in, if not base units. */
+  packagingId?: string | null;
   expectedQty?: number | null;
   lotNumber?: string | null;
   serialNumber?: string | null;
@@ -133,6 +141,8 @@ export function useCaptureReceivingLine() {
         p_session_id: input.sessionId,
         p_product_id: input.productId,
         p_received_qty: input.receivedQty,
+        p_entered_qty: input.receivedQty,
+        p_packaging_id: input.packagingId ?? null,
         p_expected_qty: input.expectedQty ?? null,
         p_lpn_id: input.lpnId ?? null,
         p_lot_number: input.lotNumber ?? null,
@@ -144,6 +154,7 @@ export function useCaptureReceivingLine() {
         p_device_id: input.deviceId ?? null,
         p_expiry_date: input.expiryDate ?? null,
         p_damaged_qty: input.damagedQty ?? 0,
+        p_entered_damaged_qty: input.damagedQty ?? 0,
         p_qc_hold: input.qcHold ?? false,
       });
       if (error) throw error;
@@ -152,6 +163,7 @@ export function useCaptureReceivingLine() {
     onSuccess: invalidate,
   });
 }
+
 
 /** Raise a warehouse exception per variant line (shortage/overage/damage/hold). */
 export function useFlagVariances() {
