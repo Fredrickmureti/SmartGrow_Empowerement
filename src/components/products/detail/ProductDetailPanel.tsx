@@ -182,6 +182,11 @@ export function ProductDetailPanel({
 
   const headerActions = product ? (
     <>
+      <ProductLifecycleAction
+        productId={product.id}
+        status={(product as { status?: string | null }).status}
+      />
+
       {onEdit && (
         <Button
           size="icon"
