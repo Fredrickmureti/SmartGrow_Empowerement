@@ -56,6 +56,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { saveProductAtomic } from "@/features/products/save/saveProductAtomic";
+import { useProductTaxLocalization } from "@/features/products/localization/productTaxLocalization";
+
 
 import { ProductImageUpload } from "@/components/products/ProductImageUpload";
 import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
