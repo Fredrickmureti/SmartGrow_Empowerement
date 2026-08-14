@@ -122,7 +122,7 @@ export default function LotDetail() {
   const { toast } = useToast();
   const { can } = usePermissions();
   const [lot, setLot] = useState<LotHeader | null>(null);
-  const [movements, setMovements] = useState<MovementRow[]>([]);
+  const [genealogy, setGenealogy] = useState<LotGenealogy | null>(null);
   const [loading, setLoading] = useState(true);
   const [recallOpen, setRecallOpen] = useState(false);
   const [recallReason, setRecallReason] = useState("");
@@ -144,7 +144,7 @@ export default function LotDetail() {
     if (lotErr || !lotRow) {
       if (lotErr) toast({ title: "Failed to load lot", description: lotErr.message, variant: "destructive" });
       setLot(null);
-      setMovements([]);
+      setGenealogy(null);
       setLoading(false);
       return;
     }
@@ -364,10 +364,11 @@ export default function LotDetail() {
             ) : (
               <div className="space-y-2">
                 {distribution.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between text-sm border-b last:border-b-0 pb-2 last:pb-0">
-                    <span>{d.warehouse}</span>
-                    <span className={`font-mono ${d.net > 0 ? "text-foreground" : d.net < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                      {d.net.toLocaleString()}
+                  <div key={d.warehouse_id ?? d.warehouse_name} className="flex items-center justify-between text-sm border-b last:border-b-0 pb-2 last:pb-0">
+                    <span>{d.warehouse_name}</span>
+                    <span className={`font-mono ${Number(d.quantity) > 0 ? "text-foreground" : Number(d.quantity) < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                      {Number(d.quantity).toLocaleString()}
+
                     </span>
                   </div>
                 ))}
@@ -402,7 +403,7 @@ export default function LotDetail() {
               </TableHeader>
               <TableBody>
                 {movements.map((m) => {
-                  const inbound = isInbound(m.movement_type);
+                  const inbound = m.direction === "in";
                   const refLabel = m.reference_type
                     ? REFERENCE_LABELS[m.reference_type] ?? m.reference_type
                     : "—";
@@ -427,10 +428,11 @@ export default function LotDetail() {
                           <div className="font-mono text-[10px] text-muted-foreground">{m.reference_id.slice(0, 8)}</div>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs">{m.warehouse?.name ?? "—"}</TableCell>
+                      <TableCell className="text-xs">{m.warehouse_name ?? "—"}</TableCell>
                       <TableCell className="font-mono text-xs">{m.serial_number ?? "—"}</TableCell>
                       <TableCell className={`text-right font-mono ${inbound ? "" : "text-orange-700"}`}>
-                        {inbound ? "+" : "−"}{m.quantity.toLocaleString()}
+                        {inbound ? "+" : "−"}{Math.abs(Number(m.signed_quantity)).toLocaleString()}
+
                       </TableCell>
                     </TableRow>
                   );
