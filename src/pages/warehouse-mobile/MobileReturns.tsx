@@ -166,9 +166,21 @@ export function MobileReturnWorkspace() {
     ? Math.max(Number(matched.expected_qty ?? 0) - Number(matched.received_qty ?? 0), 0)
     : 0;
 
+  // Returns arrive in whatever the customer shipped — often cases. The device
+  // sends the packaging level; `wms_capture_return_line` converts to base.
+  const { packsByProduct } = useProductPackagingBatch(
+    scan?.identity.productId ? [scan.identity.productId] : [],
+  );
+  const units = useMemo(
+    () => unitOptionsFor(scan?.identity.productId ? packsByProduct.get(scan.identity.productId) : []),
+    [packsByProduct, scan?.identity.productId],
+  );
+  const unit = units.find((u) => u.key === unitKey) ?? units[0];
+
   const reset = () => {
     setScan(null);
     setQty("");
+    setUnitKey(BASE_UNIT_KEY);
     setCondition("unopened");
     setResetKey((k) => k + 1);
   };
@@ -186,10 +198,12 @@ export function MobileReturnWorkspace() {
         p_return_id: id,
         p_product_id: scan.identity.productId,
         p_received_qty: amount,
+        p_entered_qty: amount,
+        p_packaging_id: unit?.packagingId ?? null,
         p_expected_qty: matched ? matched.expected_qty : null,
         p_lot_number: scan.lot,
         p_serial_number: scan.serial,
-        p_uom: null,
+        p_uom: unit && !unit.isBase ? unit.uom : null,
         p_condition_code: condition,
         p_notes: null,
       });
@@ -202,6 +216,7 @@ export function MobileReturnWorkspace() {
       setBusy(false);
     }
   };
+
 
   return (
     <MobileWarehouseLayout title={order?.code ?? "Return"} back="/wm/returns" scanLabel="Scan returned item">
