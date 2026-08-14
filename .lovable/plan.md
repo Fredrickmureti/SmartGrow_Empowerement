@@ -83,16 +83,18 @@ Known, accepted scope notes:
 
 ## Instructions for the next agent
 
-1. **Verify Phase 1 before writing new code.** Re-read the DB definitions of
-   `wms_to_base_qty`, `wms_capture_receiving_line`, `wms_capture_return_line`,
-   `record_count` and `wms_replay_guarded_call`; confirm the packaging params exist, that
-   conversion happens server-side, and that both `entered_qty` and the base quantity are
-   persisted. Run
+1. **Verify Phase 1 and Phase 2 items 1–3 before writing new code.** Re-read the DB
+   definitions of `wms_to_base_qty`, `wms_capture_receiving_line`,
+   `wms_capture_return_line`, `record_count`, `get_count_lines` and
+   `wms_replay_guarded_call`; confirm the packaging params exist, that conversion happens
+   server-side, and that both `entered_qty` and the base quantity are persisted and
+   surfaced on review screens. Run
    `bunx vitest run src/test/architecture/wms-server-authoritative-uom.test.ts` and a
    typecheck. Check the offline replay path end-to-end (enqueue → dispatcher → RPC).
-2. Only once that verification passes, start **Phase 2 item 1** and work its items in
-   order. Finish each item to a production-ready state (UI + server contract + guard test
-   + this plan updated) before starting the next.
+2. Only once that verification passes, start **Phase 2 item 4** and finish it to a
+   production-ready state (UI + server contract + guard test + this plan updated) before
+   moving to Phase 3.
 3. Do not jump phases, leave partial capture surfaces, or introduce workflows without
    their review/variance counterpart.
 4. Update this file immediately after each completed item.
+
