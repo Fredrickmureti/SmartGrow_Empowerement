@@ -42,6 +42,10 @@ import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
 import { LpnLifecycleRail } from "@/features/warehouse/lpn/LpnLifecycleRail";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import { useWarehouseQtyFormatter, WarehouseQty, AggregateQty } from "@/features/warehouse/quantity/warehouseQty";
+import {
+  unitOptionsFor, optionByKey, toBaseUnits, BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import {
   useLpn, useLpnContents, useLpnChildren, useLpnEvents, useLpnAction,
   resolveLpnByCode, useBinLooseStock,
@@ -97,9 +101,18 @@ export default function LicensePlateView() {
   const [labelOpen, setLabelOpen] = useState(false);
   const [moveDest, setMoveDest] = useState("");
   const [moveNote, setMoveNote] = useState("");
-  const [line, setLine] = useState({ productId: "", quantity: "1", lot: "", serial: "" });
+  const [line, setLine] = useState({ productId: "", quantity: "1", unitKey: BASE_UNIT_KEY, lot: "", serial: "" });
   const [splitLines, setSplitLines] = useState<Record<string, string>>({});
+  const [splitUnits, setSplitUnits] = useState<Record<string, string>>({});
   const [parentCode, setParentCode] = useState("");
+
+  // One packaging fetch for every product on screen. Quantities are rendered
+  // through the shared formatter — a warehouse screen never prints a naked
+  // base-unit number (see `warehouseQty`).
+  const qtyFmt = useWarehouseQtyFormatter([
+    ...(contents ?? []).map((c) => c.product_id),
+    ...(binStock ?? []).map((c) => c.product_id),
+  ]);
 
   // Scanning: a bin scan while the move dialog is open picks the bin; a
   // plate scan while nesting picks the parent. Otherwise a plate scan
@@ -172,6 +185,11 @@ export default function LicensePlateView() {
   const available = selected
     ? Number(selected.quantity || 0) - Number(selected.reserved_quantity || 0)
     : 0;
+  // The operator picks the unit they physically handled; the SERVER converts
+  // it through `wms_to_base_qty`. `toBaseUnits` here is preview text only.
+  const unitOptions = unitOptionsFor(qtyFmt.packsFor(selected?.product_id), qtyFmt.baseLabelFor(selected?.product_id));
+  const unit = optionByKey(unitOptions, line.unitKey);
+  const previewBase = toBaseUnits(Number(line.quantity), unit);
 
   return (
     <>
