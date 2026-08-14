@@ -32,8 +32,9 @@ export async function fetchProductTaxLocalization(
     { p_product_id: productId, p_jurisdiction: jurisdiction ?? null } as never,
   );
   if (error) throw new Error(String(error.message ?? error));
-  const row = (Array.isArray(data) ? data[0] : data) as ProductTaxLocalization | null;
+  const row = (Array.isArray(data) ? data[0] : data) as ProductTaxLocalization | null | undefined;
   return row ?? null;
+
 }
 
 export function useProductTaxLocalization(
