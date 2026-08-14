@@ -21,6 +21,8 @@ const Inventory = lazy(() => import("@/pages/Inventory"));
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
+const InventoryIntegrity = lazy(() => import("@/pages/inventory/InventoryIntegrity"));
+
 const ReplenishmentLog = lazy(() => import("@/pages/ReplenishmentLog"));
 const AutoPoLog = lazy(() => import("@/pages/inventory/AutoPoLog"));
 const ScrapRecording = lazy(() => import("@/pages/inventory/ScrapRecording"));
@@ -394,6 +396,19 @@ export function InventoryApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Ledger integrity report (ADR 0142 Phase 3) */}
+        <Route
+          path="reports/integrity"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Inventory Integrity">
+                <InventoryIntegrity />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         
         {/* Units of Measure management */}
         <Route

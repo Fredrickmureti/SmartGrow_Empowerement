@@ -15,7 +15,8 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "./useOrganization";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 export interface StockOnHandRow {
   quant_id: string;
@@ -67,21 +68,21 @@ interface UseStockQuantsOptions {
  * Per (product, location, lot) on-hand rows.
  */
 export function useStockQuants(opts: UseStockQuantsOptions = {}) {
-  const { currentOrganization } = useOrganization();
+  const { currentOrg } = useOrganization();
   const { productId, locationId, warehouseId, lotNumber, enabled = true } = opts;
 
   return useQuery({
     queryKey: [
       "stock-quants",
-      currentOrganization?.id,
+      currentOrg?.id,
       { productId, locationId, warehouseId, lotNumber },
     ],
-    enabled: enabled && Boolean(currentOrganization?.id),
+    enabled: enabled && Boolean(currentOrg?.id),
     queryFn: async (): Promise<StockOnHandRow[]> => {
       let q = supabase
         .from("v_stock_on_hand" as never)
         .select("*")
-        .eq("organization_id", currentOrganization!.id);
+        .eq("organization_id", currentOrg!.id);
 
       if (productId) q = q.eq("product_id", productId);
       if (locationId) q = q.eq("location_id", locationId);
@@ -101,16 +102,16 @@ export function useStockQuants(opts: UseStockQuantsOptions = {}) {
  * scheduling.
  */
 export function useLocationSummary(warehouseId?: string) {
-  const { currentOrganization } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
   return useQuery({
-    queryKey: ["location-summary", currentOrganization?.id, warehouseId],
-    enabled: Boolean(currentOrganization?.id),
+    queryKey: ["location-summary", currentBusiness?.id, warehouseId],
+    enabled: Boolean(currentBusiness?.id),
     queryFn: async (): Promise<LocationSummary[]> => {
       let q = supabase
         .from("v_location_summary" as never)
         .select("*")
-        .eq("business_id", currentOrganization!.id);
+        .eq("business_id", currentBusiness!.id);
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q.order("is_default", { ascending: false }).order("code");
       if (error) throw error;
@@ -140,14 +141,38 @@ export function useStockQuantDrift(businessId?: string) {
     queryKey: ["stock-quant-drift", businessId],
     enabled: Boolean(businessId),
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as never)(
-        "check_stock_quant_drift",
-        { _business_id: businessId ?? null },
-      );
+      const { data, error } = await supabase.rpc("check_stock_quant_drift", {
+        _business_id: businessId ?? null,
+      });
       if (error) throw error;
       return (data ?? []) as StockQuantDriftRow[];
     },
     staleTime: 60_000,
   });
 }
+
+/**
+ * Ops helper — reversal parity (ADR 0142 Phase 3 item 1). Reports any
+ * database routine that writes stock movements without a registered,
+ * existing reversal path. Empty result = every write can be undone.
+ */
+export type ReversalCoverageRow = {
+  issue: "unregistered_writer" | "stale_registration" | "missing_reversal";
+  function_name: string;
+  detail: string;
+};
+
+export function useMovementReversalCoverage(enabled = true) {
+  return useQuery({
+    queryKey: ["movement-reversal-coverage"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("check_movement_reversal_coverage");
+      if (error) throw error;
+      return (data ?? []) as ReversalCoverageRow[];
+    },
+    staleTime: 300_000,
+  });
+}
+
 

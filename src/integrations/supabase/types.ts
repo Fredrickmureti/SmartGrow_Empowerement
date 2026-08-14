@@ -63097,6 +63097,33 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_movement_writers: {
+        Row: {
+          created_at: string
+          function_name: string
+          notes: string
+          reversal_function: string | null
+          updated_at: string
+          writer_kind: string
+        }
+        Insert: {
+          created_at?: string
+          function_name: string
+          notes: string
+          reversal_function?: string | null
+          updated_at?: string
+          writer_kind: string
+        }
+        Update: {
+          created_at?: string
+          function_name?: string
+          notes?: string
+          reversal_function?: string | null
+          updated_at?: string
+          writer_kind?: string
+        }
+        Relationships: []
+      }
       stock_movements: {
         Row: {
           branch_id: string
@@ -89170,6 +89197,14 @@ export type Database = {
         Returns: boolean
       }
       check_low_stock_products: { Args: never; Returns: undefined }
+      check_movement_reversal_coverage: {
+        Args: never
+        Returns: {
+          detail: string
+          function_name: string
+          issue: string
+        }[]
+      }
       check_org_app_access: {
         Args: { _app_id: string; _org_id: string }
         Returns: boolean
