@@ -462,6 +462,15 @@ async function handleRfqLifecycleNoop(row: OutboxRow): Promise<void> {
 const HANDLERS: Record<string, HandlerFn> = {
   "pos.sale.committed":              handlePosSaleCommitted,
   "inventory.movement.recorded":     handleInventoryMovementRecorded,
+
+  // Inventory lot / serial / valuation lifecycle (Foundation Wave · Phase 6)
+  "inventory.lot.quarantined":                handleInventoryLifecycleRecorded,
+  "inventory.lot.released":                   handleInventoryLifecycleRecorded,
+  "inventory.lot.recall_opened":              handleInventoryLifecycleRecorded,
+  "inventory.lot.recall_closed":              handleInventoryLifecycleRecorded,
+  "inventory.serial.status_changed":          handleInventoryLifecycleRecorded,
+  "inventory.valuation.revalued":             handleInventoryLifecycleRecorded,
+  "inventory.valuation.revaluation_reversed": handleInventoryLifecycleRecorded,
   "payment.card.captured":           (r) => handleCardSettlementLine(r, "capture"),
   "payment.card.reversed":           (r) => handleCardSettlementLine(r, "reversal"),
   "settlement.card.closed":          handleSettlementCardClosed,
