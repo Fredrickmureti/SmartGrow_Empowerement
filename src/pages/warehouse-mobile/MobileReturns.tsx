@@ -269,18 +269,37 @@ export function MobileReturnWorkspace() {
                 Authorised outstanding: <span className="tabular-nums">{outstanding}</span>
               </div>
             )}
-            <div>
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                className="h-12 text-lg"
-                value={qty}
-                placeholder={outstanding ? String(outstanding) : "0"}
-                onChange={(e) => setQty(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  className="h-12 text-lg"
+                  value={qty}
+                  placeholder={outstanding ? String(outstanding) : "0"}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Select value={unitKey} onValueChange={setUnitKey} disabled={units.length < 2}>
+                  <SelectTrigger className="h-12"><SelectValue placeholder="ea" /></SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {unit && !unit.isBase && toBaseUnits(Number(qty || outstanding || 0), unit) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Books {toBaseUnits(Number(qty || outstanding || 0), unit)} base units
+              </p>
+            )}
+
             <div>
               <Label>Condition</Label>
               <Select value={condition} onValueChange={(v) => setCondition(v as ReturnCondition)}>
