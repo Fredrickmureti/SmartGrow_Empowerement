@@ -639,18 +639,28 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                         {l.products?.name ?? "—"}
                         {l.products?.sku && <span className="ml-1 text-xs text-muted-foreground font-mono">{l.products.sku}</span>}
                       </TableCell>
-                      <TableCell className="text-right">{Number(l.expected_qty ?? 0)}</TableCell>
                       <TableCell className="text-right">
-                        {Number(l.received_qty ?? 0)}
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.expected_qty} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.received_qty} />
                         {l.packaging?.name && l.entered_qty != null && (
                           <span className="block text-xs text-muted-foreground">
-                            entered {Number(l.entered_qty)} × {l.packaging.name}
+                            entered{" "}
+                            <WarehouseQty
+                              fmt={qtyFmt}
+                              productId={l.product_id}
+                              baseQty={l.received_qty}
+                              enteredQty={l.entered_qty}
+                              packagingName={l.packaging.name}
+                            />
                           </span>
                         )}
                       </TableCell>
                       <TableCell className={`text-right ${v === 0 ? "" : v < 0 ? "text-destructive" : "text-warning"}`}>
-                        {v > 0 ? `+${v}` : v}
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={v} signed />
                       </TableCell>
+
                       <TableCell className="text-xs text-muted-foreground">
                         {[l.lot_number, l.expiry_date].filter(Boolean).join(" · ") || "—"}
                       </TableCell>
