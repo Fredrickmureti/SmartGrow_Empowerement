@@ -56,6 +56,12 @@ export default function CountReview() {
 
   const { data: lines } = useCountLines(sessionId);
 
+  // Phase 2.4 — unit truth: pack rollups and the product's own base UoM label.
+  const lineProductIds = useMemo(() => (lines ?? []).map((l) => l.product_id), [lines]);
+  const qtyBaseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, qtyBaseLabels);
+
+
   const setReason = useMutation({
     mutationFn: async (v: { line_id: string; counted_qty: number; reason: VarianceReason }) => {
       await replayGuardedCall("record_count", {
