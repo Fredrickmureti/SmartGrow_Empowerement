@@ -63,17 +63,32 @@ interface LotHeader {
   goods_receipt?: { id: string; receipt_number: string | null } | null;
 }
 
-interface MovementRow {
+interface TimelineRow {
   id: string;
   movement_date: string;
   movement_type: string;
-  quantity: number;
-  warehouse_id: string;
+  signed_quantity: number;
+  direction: "in" | "out";
+  warehouse_id: string | null;
+  warehouse_name: string | null;
   reference_type: string | null;
   reference_id: string | null;
-  notes: string | null;
   serial_number: string | null;
-  warehouse?: { id: string; name: string } | null;
+  notes: string | null;
+}
+
+interface DistributionRow {
+  warehouse_id: string | null;
+  warehouse_name: string;
+  quantity: number;
+}
+
+interface LotGenealogy {
+  total_on_hand: number;
+  distribution: DistributionRow[];
+  timeline: TimelineRow[];
+  downstream_customers: unknown[];
+  quarantine: unknown[];
 }
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -85,25 +100,11 @@ const REFERENCE_LABELS: Record<string, string> = {
   stock_transfer: "Stock Transfer",
   stock_adjustment: "Stock Adjustment",
   scrap: "Scrap",
-  pos_register: "POS Sale",
+  pos_transaction: "POS Sale",
   purchase_return: "Purchase Return",
   physical_count: "Physical Count",
 };
 
-// Movement types that ADD stock (positive quantity flow).
-const INBOUND_TYPES = new Set([
-  "receipt",
-  "goods_receipt",
-  "purchase",
-  "sales_return",
-  "transfer_in",
-  "adjustment_in",
-  "opening_balance",
-]);
-
-function isInbound(mt: string) {
-  return INBOUND_TYPES.has(mt);
-}
 
 /**
  * supabase-js parses every select string literal at the type level. These two
