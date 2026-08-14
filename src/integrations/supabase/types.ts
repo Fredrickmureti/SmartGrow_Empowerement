@@ -99976,6 +99976,7 @@ export type Database = {
           p_business_id: string
           p_exclude_source_id?: string
           p_exclude_source_type?: string
+          p_location_ids?: string[]
           p_product_ids: string[]
           p_warehouse_id?: string
         }
