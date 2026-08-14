@@ -167,6 +167,22 @@ export function ProductStockPanel({
     return { activeBranchRows: active, otherBranchRows: other, transitRows: transit };
   }, [rows, branchId]);
 
+  // Canonical availability — branch-scoped headline and company-wide total.
+  const { data: availability } = useQuery({
+    queryKey: ["stock-availability", productId, businessId, branchId],
+    enabled: !!productId && !!businessId,
+    queryFn: () =>
+      resolveAvailability({ productId, businessId: businessId!, branchId }),
+  });
+  const { data: companyAvailability } = useQuery({
+    queryKey: ["stock-availability", productId, businessId, "company"],
+    enabled: !!productId && !!businessId,
+    queryFn: () =>
+      resolveAvailability({ productId, businessId: businessId!, branchId: null }),
+  });
+
+
+
   // Totals — ADR 0142: the branch headline figures come from the canonical
   // server availability engine; the per-warehouse rows below stay a read model.
   const branchOnHand = availability?.onHand ?? 0;
