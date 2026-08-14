@@ -87,8 +87,39 @@ export function InventorySettings() {
     }
   };
 
+  const handleTogglePhysical = async (next: boolean) => {
+    if (!currentBusiness?.id) return;
+    const previous = requirePhysical;
+    setRequirePhysical(next);
+    setSavingPolicy(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .update({ require_product_physical_attributes: next } as any)
+        .eq("id", currentBusiness.id);
+      if (error) throw error;
+      toast({
+        title: next ? "Physical attributes now required" : "Requirement removed",
+        description: next
+          ? "Stock-tracked products must carry weight, volume or dimensions before they can be received."
+          : "Products can be received without physical attributes; landed costs allocated by weight or volume will still refuse to allocate without them.",
+      });
+    } catch (err: unknown) {
+      setRequirePhysical(previous);
+      toast({
+        title: "Couldn't save the policy",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
   return (
+    <div className="space-y-6">
     <Card>
+
       <CardHeader>
         <CardTitle>Inventory cost model</CardTitle>
         <CardDescription>
