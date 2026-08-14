@@ -25,6 +25,14 @@ import { Input } from "@/components/ui/input";
 import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ClipboardCheck, EyeOff, RotateCcw } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import {
+  unitOptionsFor, optionByKey, toBaseUnits, BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
+
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -77,21 +85,35 @@ export default function CountSession() {
 
   const { data: lines } = useCountLines(sessionId);
 
+  // Phase 2 — counting in packaging units ("4 cases") on the desktop too.
+  // The screen only carries the packaging level; `record_count` converts it
+  // through `wms_to_base_qty` against the canonical Product foundation.
+  const countProductIds = useMemo(
+    () => Array.from(new Set((lines ?? []).map((l) => l.product_id).filter(Boolean) as string[])),
+    [lines],
+  );
+  const { packsByProduct } = useProductPackagingBatch(countProductIds);
+  const [unitByLine, setUnitByLine] = useState<Record<string, string>>({});
+
   // Blind while counting: the RPC returns NULL for system/variance, and we
   // stop rendering those columns entirely so nothing leaks through.
   const blind = !!session?.is_blind && session.state !== "review" && session.state !== "posted";
 
   const record = useMutation({
-    mutationFn: async (v: { line_id: string; counted_qty: number }) => {
+    mutationFn: async (v: { line_id: string; counted_qty: number; packaging_id: string | null }) => {
       // Phase 5.1 — replay-guarded: a double-tapped "Record" cannot post
       // the same count twice.
       const { data } = await replayGuardedCall("record_count", {
         p_line_id: v.line_id,
+        // Operator-entered quantity; the server derives the base figure.
         p_counted_qty: v.counted_qty,
+        p_entered_qty: v.counted_qty,
+        p_packaging_id: v.packaging_id,
         p_note: null,
       });
       return data as { tolerance_outcome?: ToleranceOutcome } | null;
     },
+
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["wms-count-lines", sessionId] });
       const outcome = data?.tolerance_outcome;
@@ -282,6 +304,9 @@ export default function CountSession() {
                 {(lines ?? []).map((l) => {
                   const isActive = l.id === activeLineId;
                   const outcome = l.tolerance_outcome as ToleranceOutcome | null;
+                  const units = unitOptionsFor(l.product_id ? packsByProduct.get(l.product_id) : []);
+                  const unit = optionByKey(units, unitByLine[l.id] ?? BASE_UNIT_KEY);
+
                   return (
                     <tr
                       key={l.id}
@@ -308,7 +333,7 @@ export default function CountSession() {
                         </td>
                       )}
                       <td className="p-2">
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-1">
                           <Input
                             type="number"
                             step="0.01"
@@ -316,6 +341,19 @@ export default function CountSession() {
                             value={countedByLine[l.id] ?? (l.counted_qty ?? "")}
                             onChange={(e) => setCountedByLine((s) => ({ ...s, [l.id]: e.target.value }))}
                           />
+                          {units.length > 1 && (
+                            <Select
+                              value={unitByLine[l.id] ?? BASE_UNIT_KEY}
+                              onValueChange={(v) => setUnitByLine((s) => ({ ...s, [l.id]: v }))}
+                            >
+                              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {units.map((u) => (
+                                  <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -323,13 +361,25 @@ export default function CountSession() {
                             onClick={() => {
                               const val = Number(countedByLine[l.id] ?? l.counted_qty ?? 0);
                               if (Number.isNaN(val)) { toast.error("Invalid qty"); return; }
-                              record.mutate({ line_id: l.id, counted_qty: val });
+                              // Entered quantity + packaging level only —
+                              // `record_count` derives the base figure.
+                              record.mutate({
+                                line_id: l.id,
+                                counted_qty: val,
+                                packaging_id: unit?.packagingId ?? null,
+                              });
                             }}
                           >
                             Save
                           </Button>
                         </div>
+                        {unit && !unit.isBase && Number(countedByLine[l.id] ?? 0) > 0 && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            = {toBaseUnits(Number(countedByLine[l.id]), unit)} base units
+                          </p>
+                        )}
                       </td>
+
                       {!blind && (
                         <td className={`p-2 text-right font-mono ${l.variance_qty && Number(l.variance_qty) !== 0 ? "text-destructive" : ""}`}>
                           {l.variance_qty == null ? "—" : Number(l.variance_qty).toFixed(2)}

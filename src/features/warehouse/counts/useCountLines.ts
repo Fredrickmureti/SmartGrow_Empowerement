@@ -19,7 +19,12 @@ export interface CountLineRow {
   lot_number: string | null;
   system_qty: number | null;
   counted_qty: number | null;
+  /** What the operator typed, in `packaging_name`; base qty is `counted_qty`. */
+  entered_qty: number | null;
+  packaging_id: string | null;
+  packaging_name: string | null;
   variance_qty: number | null;
+
   counted_at: string | null;
   assigned_to: string | null;
   is_blind: boolean;
@@ -69,3 +74,16 @@ export function countLineProductSubLabel(
   return sku;
 }
 
+
+/**
+ * "4 × Case (48 ea)" — what the counter actually entered, when they counted in
+ * a packaging level rather than base units. Sourced from the line's own
+ * `entered_qty` / `packaging_name`, never re-derived in the browser, so review
+ * shows the same figures the server converted.
+ */
+export function countLineEnteredLabel(
+  l: Pick<CountLineRow, "entered_qty" | "packaging_name" | "counted_qty">,
+): string | null {
+  if (!l.packaging_name || l.entered_qty == null) return null;
+  return `${Number(l.entered_qty)} × ${l.packaging_name}`;
+}

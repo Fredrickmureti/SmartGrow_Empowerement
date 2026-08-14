@@ -25,9 +25,14 @@ import {
 import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { Boxes, ClipboardCheck, ListPlus, Split } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
+import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import {
+  unitOptionsFor, optionByKey, toBaseUnits, BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import { useWarehouseLocations } from "@/features/warehouse/locations/useWarehouseLocations";
 import { ReturnPhotoStrip } from "./ReturnPhotoStrip";
 import { ReturnRuleHint } from "./ReturnRuleHint";
+
 import {
   useCaptureReturnLine,
   useDispositionReturnLine,
@@ -106,6 +111,19 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
     [locations],
   );
 
+  // Phase 2 — the clerk captures in the unit the carton actually arrives in.
+  // Only the packaging level travels to the server; `wms_to_base_qty` does the
+  // multiplication against the canonical Product foundation.
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
+  const { packsByProduct } = useProductPackagingBatch(
+    captureForm.productId ? [captureForm.productId] : [],
+  );
+  const captureUnits = useMemo(
+    () => unitOptionsFor(captureForm.productId ? packsByProduct.get(captureForm.productId) : []),
+    [packsByProduct, captureForm.productId],
+  );
+  const captureUnit = optionByKey(captureUnits, unitKey);
+
   const submitCapture = () => {
     if (!captureForm.productId) {
       toast.error("Pick a product");
@@ -120,7 +138,10 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
       {
         returnId: order.id,
         productId: captureForm.productId,
+        // Entered quantity + packaging level — never a client-converted figure.
         receivedQty: qty,
+        packagingId: captureUnit?.packagingId ?? null,
+        uom: captureUnit?.packagingId ? null : (captureUnit?.uom ?? null),
         expectedQty: captureForm.expectedQty ? Number(captureForm.expectedQty) : null,
         lotNumber: captureForm.lotNumber || null,
         serialNumber: captureForm.serialNumber || null,
@@ -133,11 +154,13 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
           toast.success(res.replayed ? "Scan already recorded" : "Line captured");
           setCaptureOpen(false);
           setCaptureForm((f) => ({ ...f, receivedQty: "1", lotNumber: "", serialNumber: "", notes: "" }));
+          setUnitKey(BASE_UNIT_KEY);
         },
         onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Capture rejected"),
       },
     );
   };
+
 
   const submitInspection = () => {
     if (!inspectLine) return;
@@ -253,6 +276,11 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                   {line.expected_qty != null && (
                     <span className="text-xs text-muted-foreground"> / {Number(line.expected_qty)}</span>
                   )}
+                  {line.packaging?.name && line.entered_qty != null && (
+                    <span className="block text-xs text-muted-foreground">
+                      entered {Number(line.entered_qty)} × {line.packaging.name}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm">{label(line.condition_code)}</TableCell>
                 <TableCell>
@@ -333,7 +361,7 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 </SelectContent>
               </Select>
             </div>
-            <div className="min-w-0 grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-3 gap-3">
               <div>
                 <Label>Received qty</Label>
                 <Input
@@ -342,6 +370,21 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                   value={captureForm.receivedQty}
                   onChange={(e) => setCaptureForm({ ...captureForm, receivedQty: e.target.value })}
                 />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Select
+                  value={unitKey}
+                  onValueChange={setUnitKey}
+                  disabled={captureUnits.length < 2}
+                >
+                  <SelectTrigger><SelectValue placeholder="ea" /></SelectTrigger>
+                  <SelectContent>
+                    {captureUnits.map((u) => (
+                      <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Expected qty</Label>
@@ -353,6 +396,14 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 />
               </div>
             </div>
+            {captureUnit && !captureUnit.isBase && Number(captureForm.receivedQty) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Books {toBaseUnits(Number(captureForm.receivedQty), captureUnit)} base unit
+                {toBaseUnits(Number(captureForm.receivedQty), captureUnit) === 1 ? "" : "s"} —
+                {" "}{captureForm.receivedQty} × {captureUnit.label} (converted server-side).
+              </p>
+            )}
+
             <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Lot</Label>

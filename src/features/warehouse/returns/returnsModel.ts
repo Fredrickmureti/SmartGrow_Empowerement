@@ -89,6 +89,10 @@ export interface ReturnLine {
   uom: string | null;
   expected_qty: number | null;
   received_qty: number | null;
+  /** What the clerk typed, in `packaging_id`'s level (audit truth). */
+  entered_qty: number | null;
+  packaging_id: string | null;
+  packaging?: { name: string | null } | null;
   condition_code: ReturnCondition | null;
   inspection_state: ReturnInspectionState;
   qc_inspection_id: string | null;
