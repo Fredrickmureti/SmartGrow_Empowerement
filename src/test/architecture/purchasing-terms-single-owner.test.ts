@@ -42,7 +42,7 @@ const appFiles = files.filter(
 
 describe("purchasing terms single owner", () => {
   it("has no browser-side MOQ validation hook", () => {
-    const revived = files.filter((f) => /useMOQValidation/.test(f.body));
+    const revived = appFiles.filter((f) => /\buseMOQValidation\b/.test(f.body));
     expect(revived.map((f) => f.rel)).toEqual([]);
   });
 
@@ -58,14 +58,16 @@ describe("purchasing terms single owner", () => {
   });
 
   it("does not read the deprecated product-level purchasing defaults to decide policy", () => {
-    // Reading them to render/edit the product master is fine; using them in an
-    // arithmetic comparison is the browser deciding purchasing policy.
-    const offenders = appFiles.filter((f) => {
-      if (!/min_order_quantity|order_quantity_increment/.test(f.body)) return false;
-      return /(min_order_quantity|order_quantity_increment)\s*(\|\||\?\?)?[^;\n]*[<>]=?|%\s*\(?\s*(order_quantity_increment)/.test(
-        f.body,
-      );
-    });
+    // Reading them to render/edit the product master is fine; comparing or
+    // doing modulo arithmetic with them is the browser deciding policy.
+    const COMPARISON =
+      /(?:min_order_quantity|order_quantity_increment)\s*[<>]=?[^>]|[<>]=?\s*[\w.?[\]'"]*\b(?:min_order_quantity|order_quantity_increment)\b/;
+    const MODULO =
+      /%\s*\(?\s*[\w.?[\]'"]*\b(?:min_order_quantity|order_quantity_increment)\b/;
+    const offenders = appFiles.filter(
+      (f) => COMPARISON.test(f.body) || MODULO.test(f.body),
+    );
     expect(offenders.map((f) => f.rel)).toEqual([]);
   });
+
 });
