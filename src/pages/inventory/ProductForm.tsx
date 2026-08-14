@@ -15,32 +15,10 @@
  */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, DollarSign, FileCheck2, ChevronDown } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-import {
-  RecordFormShell,
-  Section,
-  FieldGrid,
-  FieldCell,
-} from "@/design-system";
+import { RecordFormShell, Section } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { ToastAction } from "@/components/ui/toast";
 
 import { useToast } from "@/hooks/use-toast";
