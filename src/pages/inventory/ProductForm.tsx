@@ -171,11 +171,31 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     if (mode !== "create") return;
     setFormData((f) => ({
       ...f,
-      etims_country_origin: f.etims_country_origin || currentBusiness?.country || "",
       is_lot_tracked: f.is_lot_tracked || industryProfile.defaultLotTracking,
       is_expiry_tracked: f.is_expiry_tracked || industryProfile.defaultExpiryTracking,
     }));
+    setLocalization((l) => ({
+      ...l,
+      origin_country: l.origin_country || currentBusiness?.country || "",
+    }));
   }, [mode, currentBusiness?.country, industryProfile.defaultLotTracking, industryProfile.defaultExpiryTracking]);
+
+  // Fiscal metadata hydrates from `product_tax_localization`, not from the
+  // product row — those columns no longer exist on `products`.
+  const { data: existingLocalization } = useProductTaxLocalization(
+    mode === "edit" ? editing?.id : null,
+  );
+
+  useEffect(() => {
+    if (mode !== "edit") return;
+    setLocalization({
+      classification_code: existingLocalization?.classification_code || "",
+      unit_code: existingLocalization?.unit_code || "U",
+      packaging_unit: existingLocalization?.packaging_unit || "CT",
+      origin_country:
+        existingLocalization?.origin_country || currentBusiness?.country || "",
+    });
+  }, [mode, existingLocalization, currentBusiness?.country]);
 
   // Hydrate from existing product on edit.
   useEffect(() => {
@@ -201,11 +221,6 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
       cogs_account_id: editing.cogs_account_id || null,
       inventory_account_id: editing.inventory_account_id || null,
       tax_rate_id: (editing as any).tax_rate_id || null,
-      etims_classification_code: (editing as any).etims_classification_code || "",
-      etims_unit_code: (editing as any).etims_unit_code || "U",
-      etims_packaging_unit: (editing as any).etims_packaging_unit || "CT",
-      etims_country_origin:
-        (editing as any).etims_country_origin || currentBusiness?.country || "",
       base_uom_id: (editing as any).base_uom_id || null,
       sales_uom_id: (editing as any).sales_uom_id || null,
       purchase_uom_id: (editing as any).purchase_uom_id || null,
@@ -214,6 +229,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
       expiry_alert_days: (editing as any).expiry_alert_days ?? 30,
     });
   }, [mode, editing, currentBusiness?.country]);
+
 
   const backHref = "/inventory-app/products";
 
