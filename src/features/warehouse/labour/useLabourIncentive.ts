@@ -15,6 +15,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { labourErrorMessage } from "./labourErrors";
 import { useBusinesses } from "@/hooks/useBusinesses";
 
 export const INCENTIVE_SOURCE_KIND = "wms_labour_incentive";
@@ -114,6 +115,6 @@ export function usePostIncentiveInputs() {
         );
       }
     },
-    onError: (e: Error) => toast.error(e.message || "Incentive pay could not be staged"),
+    onError: (e: Error) => toast.error(labourErrorMessage(e) || "Incentive pay could not be staged"),
   });
 }

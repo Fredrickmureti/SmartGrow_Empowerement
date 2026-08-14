@@ -145,11 +145,12 @@ export function LiveWorkPanel({ warehouseId, taskTypes, limit = 25 }: Props) {
                   setPriority.mutate({
                     taskId: row.task_id,
                     priority: Math.min(100, row.priority + 20),
+                    rowVersion: row.row_version,
                   })
                 }
-                onRelease={() => release.mutate({ taskId: row.task_id, reason: "supervisor" })}
+                onRelease={() => release.mutate({ taskId: row.task_id, rowVersion: row.row_version, reason: "supervisor" })}
                 onAssign={(userId) =>
-                  reassign.mutate({ taskId: row.task_id, userId, reason: "supervisor" })
+                  reassign.mutate({ taskId: row.task_id, userId, rowVersion: row.row_version, reason: "supervisor" })
                 }
               />
             </li>
@@ -214,13 +215,14 @@ export function LiveWorkPanel({ warehouseId, taskTypes, limit = 25 }: Props) {
                         setPriority.mutate({
                           taskId: row.task_id,
                           priority: Math.min(100, row.priority + 20),
+                          rowVersion: row.row_version,
                         })
                       }
                       onRelease={() =>
-                        release.mutate({ taskId: row.task_id, reason: "supervisor" })
+                        release.mutate({ taskId: row.task_id, rowVersion: row.row_version, reason: "supervisor" })
                       }
                       onAssign={(userId) =>
-                        reassign.mutate({ taskId: row.task_id, userId, reason: "supervisor" })
+                        reassign.mutate({ taskId: row.task_id, userId, rowVersion: row.row_version, reason: "supervisor" })
                       }
                     />
                   </TableCell>

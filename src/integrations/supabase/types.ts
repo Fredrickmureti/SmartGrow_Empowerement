@@ -72983,6 +72983,7 @@ export type Database = {
           notes: string | null
           operator_code: string | null
           organization_id: string
+          row_version: number
           status: string
           status_changed_at: string
           updated_at: string
@@ -73002,6 +73003,7 @@ export type Database = {
           notes?: string | null
           operator_code?: string | null
           organization_id: string
+          row_version?: number
           status?: string
           status_changed_at?: string
           updated_at?: string
@@ -73021,6 +73023,7 @@ export type Database = {
           notes?: string | null
           operator_code?: string | null
           organization_id?: string
+          row_version?: number
           status?: string
           status_changed_at?: string
           updated_at?: string
@@ -85430,6 +85433,7 @@ export type Database = {
           operator_code: string | null
           operator_id: string | null
           operator_name: string | null
+          row_version: number | null
           status: string | null
           status_changed_at: string | null
           user_id: string | null
@@ -87087,6 +87091,55 @@ export type Database = {
           p_row: Database["public"]["Tables"]["wms_sscc_registry"]["Row"]
         }
         Returns: undefined
+      }
+      _wms_task_locked: {
+        Args: { p_expected_version: number; p_task_id: string }
+        Returns: {
+          actual_seconds: number | null
+          assignee_user_id: string | null
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          destination_location_id: string | null
+          device_id: string | null
+          earned_seconds: number | null
+          expires_at: string | null
+          heartbeat_at: string | null
+          id: string
+          lot_number: string | null
+          lpn_id: string | null
+          metadata: Json
+          notes: string | null
+          organization_id: string
+          payload: Json
+          priority: number
+          product_id: string | null
+          quantity: number | null
+          row_version: number
+          sla_at: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_location_id: string | null
+          started_at: string | null
+          state: Database["public"]["Enums"]["wms_task_state"]
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          updated_at: string
+          warehouse_id: string
+          wave_id: string | null
+          zone_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _wms_unwind_cancelled_wave: {
         Args: { p_reason?: string; p_wave_id: string }
@@ -103792,6 +103845,7 @@ export type Database = {
           notes: string | null
           operator_code: string | null
           organization_id: string
+          row_version: number
           status: string
           status_changed_at: string
           updated_at: string
@@ -104157,12 +104211,13 @@ export type Database = {
         Args: {
           p_assignee_user_id: string
           p_reason?: string
+          p_row_version: number
           p_task_id: string
         }
         Returns: Json
       }
       wms_release_task: {
-        Args: { p_reason?: string; p_task_id: string }
+        Args: { p_reason?: string; p_row_version: number; p_task_id: string }
         Returns: Json
       }
       wms_replay_guarded_call: {
@@ -104342,11 +104397,11 @@ export type Database = {
         Returns: undefined
       }
       wms_set_operator_status: {
-        Args: { p_operator_id: string; p_status: string }
+        Args: { p_operator_id: string; p_row_version: number; p_status: string }
         Returns: Json
       }
       wms_set_task_priority: {
-        Args: { p_priority: number; p_task_id: string }
+        Args: { p_priority: number; p_row_version: number; p_task_id: string }
         Returns: Json
       }
       wms_split_putaway_task: {

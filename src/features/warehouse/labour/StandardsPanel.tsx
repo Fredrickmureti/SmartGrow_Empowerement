@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { labourErrorMessage } from "./labourErrors";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -134,7 +135,7 @@ export function StandardsPanel({ warehouses }: Props) {
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Standard saved"); setOpen(false); invalidate(); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const toggleStandard = useMutation({
@@ -146,7 +147,7 @@ export function StandardsPanel({ warehouses }: Props) {
       if (error) throw error;
     },
     onSuccess: invalidate,
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const deleteStandard = useMutation({
@@ -155,7 +156,7 @@ export function StandardsPanel({ warehouses }: Props) {
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Standard removed"); invalidate(); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const nameOf = (list: Array<{ id: string; name: string }> | undefined, id: string | null) =>

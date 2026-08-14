@@ -127,7 +127,7 @@ export function OperatorBoard({ warehouseId, warehouses }: Props) {
                     <Select
                       value={o.status}
                       onValueChange={(v) =>
-                        setStatus.mutate({ operatorId: o.operator_id, status: v as OperatorStatus })
+                        setStatus.mutate({ operatorId: o.operator_id, status: v as OperatorStatus, rowVersion: o.row_version })
                       }
                     >
                       <SelectTrigger className="h-8 w-36">

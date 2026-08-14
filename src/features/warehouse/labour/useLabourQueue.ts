@@ -10,6 +10,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { labourErrorMessage } from "./labourErrors";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { LABOUR_KEYS, type WmsTaskType } from "./useLabourOperators";
 
@@ -18,6 +19,7 @@ export interface LabourQueueRow {
   task_type: WmsTaskType;
   state: string;
   priority: number;
+  row_version: number;
   sla_at: string | null;
   sla_breached: boolean | null;
   warehouse_id: string | null;
@@ -42,7 +44,7 @@ export function useLabourQueue(opts: {
       let q = supabase
         .from("wms_labour_queue_view")
         .select(
-          "task_id,task_type,state,priority,sla_at,sla_breached,warehouse_id,assignee_user_id,source_doc_type,quantity,created_at",
+          "task_id,task_type,state,priority,row_version,sla_at,sla_breached,warehouse_id,assignee_user_id,source_doc_type,quantity,created_at",
         )
         .eq("business_id", currentBusiness!.id)
         .order("sla_breached", { ascending: false })
@@ -67,40 +69,48 @@ export function useSupervisorActions() {
   };
 
   const reassign = useMutation({
-    mutationFn: async ({ taskId, userId, reason }: { taskId: string; userId: string; reason?: string }) => {
+    mutationFn: async ({
+      taskId,
+      userId,
+      rowVersion,
+      reason,
+    }: { taskId: string; userId: string; rowVersion: number; reason?: string }) => {
       const { error } = await supabase.rpc("wms_reassign_task", {
         p_task_id: taskId,
         p_assignee_user_id: userId,
+        p_row_version: rowVersion,
         p_reason: reason ?? null,
       });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Task reassigned"); invalidate(); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const release = useMutation({
-    mutationFn: async ({ taskId, reason }: { taskId: string; reason?: string }) => {
+    mutationFn: async ({ taskId, rowVersion, reason }: { taskId: string; rowVersion: number; reason?: string }) => {
       const { error } = await supabase.rpc("wms_release_task", {
         p_task_id: taskId,
+        p_row_version: rowVersion,
         p_reason: reason ?? null,
       });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Task returned to the pool"); invalidate(); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const setPriority = useMutation({
-    mutationFn: async ({ taskId, priority }: { taskId: string; priority: number }) => {
+    mutationFn: async ({ taskId, priority, rowVersion }: { taskId: string; priority: number; rowVersion: number }) => {
       const { error } = await supabase.rpc("wms_set_task_priority", {
         p_task_id: taskId,
         p_priority: priority,
+        p_row_version: rowVersion,
       });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Priority updated"); invalidate(); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   return { reassign, release, setPriority };

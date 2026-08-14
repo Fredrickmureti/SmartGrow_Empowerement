@@ -14,6 +14,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { labourErrorMessage } from "./labourErrors";
 import { LABOUR_KEYS, type WmsTaskType } from "./useLabourOperators";
 
 export type OperatorStatus = "off_shift" | "on_shift" | "break" | "executing";
@@ -154,7 +155,7 @@ export function useShiftActions(warehouseId: string | undefined) {
       );
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const claimNext = useMutation({
@@ -173,7 +174,7 @@ export function useShiftActions(warehouseId: string | undefined) {
       else toast.success(`Claimed ${task.task_type} ${task.id.slice(0, 8)}`);
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const logIndirect = useMutation({
@@ -199,7 +200,7 @@ export function useShiftActions(warehouseId: string | undefined) {
       toast.success("Time logged");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   return { clock, claimNext, logIndirect };
