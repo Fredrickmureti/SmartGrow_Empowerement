@@ -1,100 +1,87 @@
 # Warehouse — Product & Inventory Consumer Audit / Reconstruction
 
-Goal: the Warehouse app is the enterprise **physical execution layer**. It consumes the
-canonical Product and Inventory foundations (products, `product_packaging`, stock ledger)
-and never recreates them. All quantity, costing and ledger authority lives server-side.
+Warehouse is the **physical execution layer**. It consumes the canonical Product
+(`products`, `product_packaging`) and Inventory (`stock_movements`, `stock_quants`,
+cost layers) foundations and never recreates them. All quantity, costing and ledger
+authority is server-side.
 
 ---
 
-## Phase 1 — Server-authoritative unit-of-measure conversion — COMPLETE (verified)
+## Verification of the previous engineer's claims (this pass)
 
-Problem removed: the browser multiplied operator input by a packaging factor before
-calling quantity-mutating RPCs, so a stale factor (or an offline replay captured before a
-packaging edit) could silently book the wrong base quantity into the stock ledger.
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Phase 1 — server-side UoM conversion | **CONFIRMED** | Live DB has `wms_to_base_qty(product_id, packaging_id, qty)`; `wms_capture_receiving_line`, `wms_capture_return_line`, `record_count` all carry `p_packaging_id` / `p_entered_qty` (+ `p_entered_damaged_qty` on receiving); `wms_replay_guarded_call(p_rpc, p_args, …)` present for offline replay |
+| Phase 1 guard test | **CONFIRMED** | `src/test/architecture/wms-server-authoritative-uom.test.ts` — 8/8 passing |
+| Phase 2 items 1–3 (desktop capture parity, entered-qty on review) | **CONFIRMED** at the contract level (`get_count_lines` redefined, packaging params reach the RPCs) |
+| Phase 2 item 4 (unit labels via the Product foundation) | **NOT STARTED** | 21 warehouse `.tsx` surfaces render quantities; **0** import `@/lib/inventory/formatQty` or `@/lib/packagingRollup`. Receiving/counts render bare unitless numbers, e.g. `{Number(l.expected_qty ?? 0)}` |
+| Phase 4 precondition (no direct stock-table writes from Warehouse) | **PARTIALLY VERIFIED — favourable** | No `.insert/.update/.upsert/.delete` against `stock_movements`, `stock_quants`, `warehouse_stock*`, `cost_layers`, `stock_lots`, `stock_serials` anywhere in `src/features/warehouse`, `src/apps/warehouse`, `src/pages`. Server-side RPC bodies not yet audited |
+| Task/LPN FSM substrate exists | **CONFIRMED** | `wms_claim_next_task`, `wms_transition_task`, `wms_transition_lpn`, `wms_task_heartbeat`, `wms_task_reap_expired`, `wms_lpn_dispatch` all live |
 
-Database (migration applied and verified against the live schema):
-- `wms_to_base_qty(product_id, packaging_id, entered_qty)` — canonical converter, reads
-  `product_packaging.qty_in_base_uom`.
-- `packaging_id` + `entered_qty` columns on `wms_receiving_lines`, `wms_return_lines`,
-  `wms_count_lines` (full audit of what the operator actually typed, in which unit).
-- `wms_capture_receiving_line`, `wms_capture_return_line`, `record_count` accept
-  `p_packaging_id` / `p_entered_qty` (+ `p_entered_damaged_qty`) and convert server-side.
-- Guard: passing a packaging UoM *label* with a multiplier > 1 and no `p_packaging_id`
-  raises an exception, so no legacy caller can slip through.
-- `wms_replay_guarded_call` dispatcher forwards the new parameters (offline replay safe).
-
-Client:
-- `useProductPackagingBatch` / `PackForRollup` now carry `product_packaging.id`.
-- `receivingUnits.ts` — `ReceivingUnitOption.packagingId`; `toBaseUnits()` demoted to a
-  documented **display preview only** helper.
-- Mobile: `MobileReceiveSession`, `MobileCount`, `MobileReturns` send
-  `{ p_entered_qty, p_packaging_id }`. Count and Returns gained unit selectors, so
-  operators can record in cases for the first time.
-- Desktop: `ReceivingSessionWorkspace` + `useReceivingLines.useCaptureReceivingLine`
-  migrated to the same contract (no client multiplication anywhere on the capture path).
-
-Verification:
-- `src/test/architecture/wms-server-authoritative-uom.test.ts` — 8 passing guards
-  covering mobile + desktop surfaces and the shared mutation hook.
-- Typecheck clean.
-
-Known, accepted scope notes:
-- GS1 scan path in `ReceivingSessionWorkspace` uses `baseUnits` resolved by the
-  server-side identity gate (`resolve_product_identity`), not browser math — allowed.
+No completed work needs redoing. Resume at **Phase 2 item 4**.
 
 ---
 
-## Phase 2 — ACTIVE: Desktop capture parity + UoM display truth
+## Phase 2.4 — ACTIVE: unit truth on every warehouse quantity render
 
-1. DONE — desktop `CountSession` has a per-line unit selector and sends
-   `p_packaging_id` / `p_entered_qty` (row-level units via `useProductPackagingBatch`).
-2. DONE — desktop returns capture (`ReturnLinesPanel` + `useReturnLines`) sends packaging
-   metadata; capture dialog has a unit selector.
-3. DONE — review surfaces show entered qty + unit from the audit columns:
-   - migration redefined `get_count_lines` to return `entered_qty`, `packaging_id`,
-     `packaging_name`;
-   - `useCountLines` exposes those fields plus `countLineEnteredLabel()`;
-   - `CountReview` differences table renders "entered N × Case";
-   - receiving (`useReceivingLines` + `ReceivingSessionWorkspace`) and returns
-     (`returnsModel` / `useReturnLines` / `ReturnLinesPanel`) select `entered_qty`,
-     `packaging_id` and a joined `product_packaging(name)` and render the same line.
-   Verified: typecheck clean, 8/8 architecture guards passing.
-4. PENDING — NEXT TASK: route every warehouse quantity render through the shared
-   `formatQty` / packaging rollup so unit labels come from the Product foundation rather
-   than ad-hoc strings, and extend the architecture guard to forbid hardcoded unit labels
-   on warehouse surfaces.
+Problem: warehouse operators see base-unit integers with no unit at all. A line
+received as "10 Bags" displays as `500`. The conversion is now correct server-side
+(Phase 1) but the presentation layer lost the unit, which is exactly how operators
+mis-key the next count.
 
+Work:
+1. Add a warehouse-facing display helper that wraps the canonical
+   `formatQty` / `packagingRollup` (no new maths — pure delegation) and resolves
+   packaging rows through the existing `useProductPackagingBatch`.
+2. Migrate the quantity-rendering warehouse surfaces to it, dependency-ordered:
+   receiving (`ReceivingSessionWorkspace`, `ReceivingSessionBoard`), counts,
+   returns (`ReturnLinesPanel`, `ReturnWorkspace`), putaway, replenishment,
+   LPN/handling-unit previews, location overview.
+3. Extend the architecture guard so a warehouse `.tsx` that renders a base quantity
+   must route through the canonical formatter, and hardcoded unit strings
+   (`ea`, `pcs`, `units`) are rejected.
 
-## Phase 3 — Pending: Product foundation consumption audit
-- Prove Warehouse reads product attributes (tracking mode, shelf-life, dimensions,
-  hazmat, lifecycle status) from canonical product tables — no shadow columns on `wms_*`.
-- Remove/park any duplicated product metadata found on warehouse tables.
+Done when: every listed surface shows entered qty + unit and base qty, the guard
+test fails on a deliberate regression, and typecheck is clean.
 
-## Phase 4 — Pending: Inventory ledger consumption audit
-- Confirm every stock effect flows through sanctioned ledger functions
-  (`stock_movements` / cost layers / quants) and that Warehouse never writes stock tables
-  directly; add architecture guards pinning this.
+## Phase 3 — Product foundation consumption audit
+Prove Warehouse reads tracking mode, shelf-life, dimensions/weight, hazmat and
+lifecycle status from canonical product tables — no shadow columns on `wms_*`.
+Park/remove duplicated product metadata found on warehouse tables.
 
-## Phase 5 — Pending: Costing & valuation seam
-- Landed cost, quarantine and damage dispositions must route to the canonical costing
-  functions; no warehouse-local valuation.
+## Phase 4 — Inventory ledger consumption audit
+Client side is already clean. Audit the **server** side: read every `wms_*` function
+body that touches stock and confirm it calls the sanctioned ledger primitives
+(`wms_lpn_dispatch`-style) rather than writing `stock_movements` / `stock_quants`
+inline. Pin the result with pgTAP structural guards, as
+`supabase/tests/wms_dispatch_relieves_inventory_test.sql` already does for dispatch.
+
+## Phase 5 — Concurrency & server authority verification
+Confirm the FSM RPCs are the *only* writers of `state` (no surviving
+`.update({ state })` in page code — ADR 0101 flagged this as a Phase 1.3 sweep that
+may never have run), that `p_row_version` is threaded from every caller, and that
+task claiming uses `FOR UPDATE SKIP LOCKED` leases with heartbeat/reap wired to a
+real scheduler rather than a manual button.
+
+## Phase 6 — Handling unit vs product packaging separation
+Verify `wms_license_plates` models a physical container (Pallet PAL-001 holding
+20 bags) and does not re-encode the reusable `product_packaging` definition.
+
+## Phase 7 — Costing & valuation seam
+Landed cost, quarantine and damage dispositions route to canonical costing
+functions; no warehouse-local valuation.
+
+Out of scope this wave: Yard (no Product/Inventory dependency established),
+Workforce beyond confirming the enterprise identity is consumed, 3PL billing.
 
 ---
 
-## Instructions for the next agent
+## Technical notes
 
-1. **Verify Phase 1 and Phase 2 items 1–3 before writing new code.** Re-read the DB
-   definitions of `wms_to_base_qty`, `wms_capture_receiving_line`,
-   `wms_capture_return_line`, `record_count`, `get_count_lines` and
-   `wms_replay_guarded_call`; confirm the packaging params exist, that conversion happens
-   server-side, and that both `entered_qty` and the base quantity are persisted and
-   surfaced on review screens. Run
-   `bunx vitest run src/test/architecture/wms-server-authoritative-uom.test.ts` and a
-   typecheck. Check the offline replay path end-to-end (enqueue → dispatcher → RPC).
-2. Only once that verification passes, start **Phase 2 item 4** and finish it to a
-   production-ready state (UI + server contract + guard test + this plan updated) before
-   moving to Phase 3.
-3. Do not jump phases, leave partial capture surfaces, or introduce workflows without
-   their review/variance counterpart.
-4. Update this file immediately after each completed item.
-
+- Canonical display API: `formatQtyAsPacks` / `formatQtyWithPacks` /
+  `formatBaseQty` in `src/lib/inventory/formatQty.ts`; packaging rows via
+  `useProductPackagingBatch` (already returns `product_packaging.id`).
+- Existing guard to model the new one on:
+  `src/test/architecture/qty-display-uses-formatter.test.ts` (scoped to
+  products/inventory today — the warehouse scope is what's missing).
+- No migration is expected for Phase 2.4; it is presentation-only.
