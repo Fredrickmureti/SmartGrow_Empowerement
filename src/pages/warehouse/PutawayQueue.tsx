@@ -157,7 +157,12 @@ export default function PutawayQueue() {
           <span className="font-mono">{t.source_loc?.code ?? "?"}</span>
           <span className="mx-1">→</span>
           <span className="font-mono">{t.dest_loc?.code ?? "unassigned"}</span>
-          {t.quantity != null ? <span className="ml-2">· qty {Number(t.quantity).toFixed(2)}</span> : null}
+          {t.quantity != null ? (
+            <span className="ml-2">
+              · qty <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+            </span>
+          ) : null}
+
           {t.lot_number ? <span className="ml-2">· lot {t.lot_number}</span> : null}
         </div>
         {t.state !== "completed" && t.state !== "cancelled" && (
