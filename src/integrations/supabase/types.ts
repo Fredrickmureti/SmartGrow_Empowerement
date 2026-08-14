@@ -23713,6 +23713,30 @@ export type Database = {
           },
         ]
       }
+      inventory_valuation_writers: {
+        Row: {
+          created_at: string
+          function_name: string
+          role_description: string
+          writes_avco: boolean
+          writes_layers: boolean
+        }
+        Insert: {
+          created_at?: string
+          function_name: string
+          role_description: string
+          writes_avco?: boolean
+          writes_layers?: boolean
+        }
+        Update: {
+          created_at?: string
+          function_name?: string
+          role_description?: string
+          writes_avco?: boolean
+          writes_layers?: boolean
+        }
+        Relationships: []
+      }
       invoice_additional_costs: {
         Row: {
           amount: number
@@ -89187,6 +89211,21 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      check_inventory_valuation_drift: {
+        Args: { _business_id?: string; _tolerance?: number }
+        Returns: {
+          avco_qty: number
+          avco_unit_cost: number
+          avco_value: number
+          business_id: string
+          layer_qty: number
+          layer_value: number
+          product_id: string
+          scope: string
+          value_drift: number
+          warehouse_id: string
+        }[]
+      }
       check_leave_overlap: {
         Args: {
           p_employee_id: string
@@ -89278,6 +89317,14 @@ export type Database = {
           can_create: boolean
           current_count: number
           max_allowed: number
+        }[]
+      }
+      check_valuation_writer_coverage: {
+        Args: never
+        Returns: {
+          detail: string
+          function_name: string
+          issue: string
         }[]
       }
       check_warehouse_stock_alerts: {
