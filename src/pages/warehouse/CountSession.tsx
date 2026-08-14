@@ -95,6 +95,11 @@ export default function CountSession() {
   const { packsByProduct } = useProductPackagingBatch(countProductIds);
   const [unitByLine, setUnitByLine] = useState<Record<string, string>>({});
 
+  // Phase 2.4 — unit truth on every rendered quantity.
+  const qtyBaseLabels = useProductBaseUomLabels(countProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(countProductIds, qtyBaseLabels);
+
+
   // Blind while counting: the RPC returns NULL for system/variance, and we
   // stop rendering those columns entirely so nothing leaks through.
   const blind = !!session?.is_blind && session.state !== "review" && session.state !== "posted";
