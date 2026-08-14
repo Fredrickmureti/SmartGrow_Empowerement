@@ -161,6 +161,12 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     origin_country: currentBusiness?.country || "",
   });
 
+  // Single patch seam every extracted section writes through, so the master
+  // form stays the only owner of the payload handed to `saveProductAtomic`.
+  const patch: ProductFormPatch = (p) => setFormData((f) => ({ ...f, ...p }));
+  const patchLocalization: ProductLocalizationPatch = (p) =>
+    setLocalization((l) => ({ ...l, ...p }));
+
 
   // Category tier of the GL ladder (ADR 0122): product → category (walking
   // parents) → company default. Presentation only; posting uses the same
