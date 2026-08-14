@@ -298,27 +298,20 @@ export function OverviewTab({ data, categoryName }: Props) {
           </button>
           {showCompliance && (
             <div className="pt-1">
-              {(p as any).etims_item_code && (
-                <Row icon={Hash} label="ETIMS item code" value={<span className="font-mono text-xs">{(p as any).etims_item_code}</span>} />
+              {loc?.item_code && (
+                <Row icon={Hash} label="Fiscal item code" value={<span className="font-mono text-xs">{loc.item_code}</span>} />
               )}
-              {(p as any).etims_classification_code && (
-                <Row icon={Hash} label="Classification" value={<span className="font-mono text-xs">{(p as any).etims_classification_code}</span>} />
+              {loc?.classification_code && (
+                <Row icon={Hash} label="Classification" value={<span className="font-mono text-xs">{loc.classification_code}</span>} />
               )}
-              {(p as any).etims_unit_code && (
-                <Row icon={Tag} label="ETIMS unit" value={(p as any).etims_unit_code} />
-              )}
-              {(p as any).etims_packaging_unit && (
-                <Row icon={Tag} label="Packaging unit" value={(p as any).etims_packaging_unit} />
-              )}
-              {((p as any).etims_origin_country || (p as any).etims_country_origin) && (
-                <Row
-                  icon={Globe}
-                  label="Country of origin"
-                  value={(p as any).etims_origin_country ?? (p as any).etims_country_origin}
-                />
+              {loc?.unit_code && <Row icon={Tag} label="Fiscal unit" value={loc.unit_code} />}
+              {loc?.packaging_unit && <Row icon={Tag} label="Packaging unit" value={loc.packaging_unit} />}
+              {loc?.origin_country && (
+                <Row icon={Globe} label="Country of origin" value={loc.origin_country} />
               )}
             </div>
           )}
+
         </>
       )}
     </div>
