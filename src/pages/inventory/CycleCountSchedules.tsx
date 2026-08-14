@@ -112,20 +112,10 @@ export default function CycleCountSchedules() {
 
   const enabled = !!orgId && !!bizId;
 
-  const { data: warehouses = [] } = useQuery({
-    queryKey: ["warehouses-for-cycle", orgId, bizId],
-    enabled,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouses")
-        .select("id, name")
-        .eq("organization_id", orgId!)
-        .eq("business_id", bizId!)
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as { id: string; name: string }[];
-    },
-  });
+  // Warehouses come from the shared inventory seam so this picker inherits the
+  // platform rules for free: in-transit buckets excluded, inactive excluded,
+  // branch scoped. Never query `warehouses` directly from a page.
+  const { activeWarehouses: warehouses } = useWarehouses();
 
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ["cycle-count-schedules", orgId, bizId],
@@ -135,11 +125,13 @@ export default function CycleCountSchedules() {
         .from("cycle_count_schedules" as never)
         .select("*")
         .eq("organization_id", orgId!)
+        .eq("business_id", bizId!)
         .order("next_run_at");
       if (error) throw error;
       return (data ?? []) as unknown as Schedule[];
     },
   });
+
 
   const openCreate = () => {
     setEditing(null);
