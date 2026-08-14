@@ -136,6 +136,11 @@ export default function OperatorTasks() {
   const claim = (t: TaskRow) => transition(t, "claimed");
   const [historyTask, setHistoryTask] = useState<TaskRow | null>(null);
 
+  // Phase 2.4 — task quantities render with the product's pack/base UoM truth.
+  const taskProductIds = useMemo(() => (rows ?? []).map((t) => t.product_id), [rows]);
+  const taskBaseLabels = useProductBaseUomLabels(taskProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(taskProductIds, taskBaseLabels);
+
   const isCountTask = (t: TaskRow) =>
     t.task_type === "count" && t.source_doc_type === "wms_count_session" && !!t.source_doc_id;
   const openCount = (t: TaskRow) => {
