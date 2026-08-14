@@ -307,26 +307,27 @@ export function BusinessSagaMount({ orgId }: Props) {
       });
     });
 
-    // Stock Event Fabric (ADR 0076) — proof-of-fabric consumer.
-    // The DB trigger `trg_check_warehouse_stock_alerts` currently ALSO
-    // recomputes low-stock alerts synchronously from stock_movements.
-    // This saga handler subscribes to the outbox path for the same
-    // movement so we can observe both paths in production and cut over
-    // by dropping the DB trigger once the saga path proves durable.
-    // Dual-write is intentional; the handler is idempotent (the RPC
-    // key on stock_movements.id).
-    const stockAlertHandler = async (e: DomainEvent) => {
-      const payload = (e.payload ?? {}) as { reference_type?: string };
-      // The trigger already handles the sync path; the saga path exists
-      // as a checkpoint that the outbox → handler pipeline is alive.
-      // Real replenishment recompute lands here once the trigger is dropped.
-      console.debug('[saga stock.movement]', e.type, e.sourceDocId, payload.reference_type);
+    // Stock Event Fabric (ADR 0076 · Inventory Foundation Wave Phase 6).
+    // One emitter, one topic: `inventory.movement.recorded` is published by
+    // `tg_stock_movement_emit_event` for EVERY stock_movements INSERT and is
+    // routed server-scope, so the durable consumer is the `outbox-dispatcher`
+    // edge function (reorder recompute). This host-side registration exists
+    // only so a workstation can observe the fabric locally; it must never
+    // recompute inventory truth in the browser.
+    const stockMovementObserver = async (e: DomainEvent) => {
+      const payload = (e.payload ?? {}) as {
+        movement_class?: string;
+        reference_type?: string;
+      };
+      console.debug(
+        '[saga inventory.movement.recorded]',
+        e.sourceDocId,
+        payload.movement_class,
+        payload.reference_type,
+      );
     };
-    saga.register('stock.movement.received', stockAlertHandler);
-    saga.register('stock.movement.dispatched', stockAlertHandler);
-    saga.register('stock.movement.adjusted', stockAlertHandler);
-    saga.register('stock.movement.transferred', stockAlertHandler);
-    saga.register('stock.movement.posted', stockAlertHandler);
+    saga.register('inventory.movement.recorded', stockMovementObserver);
+
 
     // Session 8 · Priority B — non-movement stock lifecycle consumers.
     // Placeholder handlers so the outbox → saga path is exercised end-to-end.
