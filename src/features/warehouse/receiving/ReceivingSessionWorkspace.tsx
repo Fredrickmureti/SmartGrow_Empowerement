@@ -291,8 +291,13 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
       unexpected: rows.filter((l) => l.line_state === "unexpected").length,
       pending: rows.filter((l) => l.line_state === "expected").length,
       holds: rows.filter((l) => l.qc_hold).length,
+      // Line counts, not summed quantities: a session mixes products whose base
+      // UoMs differ (kg + ea), so a single quantity total is meaningless.
+      lineCount: rows.length,
+      captured: rows.filter((l) => l.line_state !== "expected").length,
     };
   }, [lines]);
+
 
   // Phase 2.4 — unit truth. Every quantity below renders through the canonical
   // Product packaging + base-UoM vocabulary, never as a naked base integer.
