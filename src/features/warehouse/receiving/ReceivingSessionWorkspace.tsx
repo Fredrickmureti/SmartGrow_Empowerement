@@ -194,19 +194,21 @@ function CaptureRow({
       </label>
       <Button
         size="sm"
-        disabled={busy || !baseQty || serialInvalid}
+        disabled={busy || !(enteredQty > 0) || serialInvalid}
         onClick={() => {
           onCapture({
-            qty: baseQty,
+            qty: enteredQty,
             lot: lot.trim() || null,
             serial: serialTracked ? serial.trim() : null,
             expiry: expiry || null,
-            damaged: baseDamaged,
+            damaged: enteredDamaged,
             hold,
-            uom: unit.uom,
+            uom: unit.packagingId ? null : unit.uom,
+            packagingId: unit.packagingId,
           });
           if (serialTracked) setSerial("");
         }}
+
       >
         <PackageCheck className="mr-1 h-3.5 w-3.5" /> Capture
       </Button>
