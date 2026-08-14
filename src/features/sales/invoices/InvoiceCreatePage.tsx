@@ -365,7 +365,8 @@ export default function InvoiceCreatePage() {
       const validItems = result.valid;
 
       // Block oversell unless explicitly confirmed.
-      // Use branch-scoped `available` (on_hand - reserved) — same source the
+      // Use the branch-scoped `available` resolved by the server availability
+      // engine — the same source the
       // line badges display, so what the user sees is what we validate against.
       const oversellNow = validItems.some((item) => {
         const p = item.product_id ? products.find((pp) => pp.id === item.product_id) : undefined;

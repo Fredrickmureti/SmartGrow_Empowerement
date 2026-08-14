@@ -8,11 +8,12 @@
  * cashier sees HQ's 200 instead of Branch A's 30. That contaminates both the
  * displayed availability AND the oversell guard.
  *
- * This hook calls the `list_products_with_branch_stock` RPC, which sums
- * `warehouse_stock` per (business, branch) and returns each product with
+ * This hook calls the `list_products_with_branch_stock` RPC, which delegates
+ * to the canonical server availability engine per (business, branch) and
+ * returns each product with
  *   - `on_hand`   — total quantity in scope
  *   - `reserved`  — already-reserved quantity in scope
- *   - `available` — `on_hand - reserved` (the number to validate sales against)
+ *   - `available` — server-resolved availability (validate sales against this)
  *
  * Query key includes `branch_id` so context switches invalidate cleanly.
  */
