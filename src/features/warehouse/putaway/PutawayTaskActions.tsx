@@ -53,7 +53,14 @@ export interface PutawayTaskLike {
   warehouse_id: string;
   quantity: number | null;
   destination_location_id: string | null;
+  /**
+   * Optimistic lock the server checks (Phase 3). Both reassign and partial
+   * putaway reject a stale version, so the board must pass the version it
+   * rendered — never omit it.
+   */
+  row_version: number;
 }
+
 
 interface Props {
   task: PutawayTaskLike;
