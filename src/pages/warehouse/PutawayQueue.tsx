@@ -136,6 +136,12 @@ export default function PutawayQueue() {
     return { pending, inProgress, doneToday };
   }, [rows]);
 
+  // Phase 2.4 — unit truth: pack rollup + the product's own base UoM label.
+  const taskProductIds = useMemo(() => (rows ?? []).map((r) => r.product_id), [rows]);
+  const qtyBaseLabels = useProductBaseUomLabels(taskProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(taskProductIds, qtyBaseLabels);
+
+
   const renderCard = (t: PutawayRow) => (
     <Card key={t.id} className="mb-2">
       <CardContent className="p-3 space-y-2">
