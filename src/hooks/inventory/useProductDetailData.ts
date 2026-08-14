@@ -234,6 +234,16 @@ export function useProductDetailData({
         recentMovements: deferred.data?.recentMovements ?? [],
         incomingPo: deferred.data?.incomingPo ?? { totalQty: 0, openOrders: 0 },
         velocityPerWeek: deferred.data?.velocityPerWeek ?? 0,
+        availability:
+          critical.data.availability ?? {
+            productId: productId ?? "",
+            onHand: 0,
+            reserved: 0,
+            blocked: 0,
+            inTransit: 0,
+            available: 0,
+          },
+
       }
     : undefined;
 
