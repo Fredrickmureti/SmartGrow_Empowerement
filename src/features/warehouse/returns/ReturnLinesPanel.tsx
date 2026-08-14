@@ -284,15 +284,19 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                   )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {Number(line.received_qty ?? 0)}
+                  <WarehouseQty fmt={qtyFmt} productId={line.product_id} baseQty={line.received_qty} />
                   {line.expected_qty != null && (
-                    <span className="text-xs text-muted-foreground"> / {Number(line.expected_qty)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {" / "}
+                      <WarehouseQty fmt={qtyFmt} productId={line.product_id} baseQty={line.expected_qty} />
+                    </span>
                   )}
                   {line.packaging?.name && line.entered_qty != null && (
                     <span className="block text-xs text-muted-foreground">
                       entered {Number(line.entered_qty)} × {line.packaging.name}
                     </span>
                   )}
+
                 </TableCell>
                 <TableCell className="text-sm">{label(line.condition_code)}</TableCell>
                 <TableCell>
