@@ -51,7 +51,10 @@ export default function ScrapNew() {
       .select("id, name")
       .eq("organization_id", currentOrg.id)
       .eq("is_active", true)
+      // In-transit buckets are bookkeeping, never a scrap source.
+      .or("is_in_transit.is.null,is_in_transit.eq.false")
       .eq("business_id", currentBusiness.id);
+
     if (currentBranch?.id) q = q.eq("branch_id", currentBranch.id);
     q.then(({ data }: any) => setWarehouses(data || []));
   }, [currentOrg?.id, currentBusiness?.id, currentBranch?.id]);

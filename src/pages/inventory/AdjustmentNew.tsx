@@ -78,7 +78,10 @@ export default function AdjustmentNew() {
       .from("warehouses")
       .select("id, name, is_default, branch_id")
       .eq("organization_id", organizationId)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      // In-transit buckets are bookkeeping, never an adjustment target.
+      .or("is_in_transit.is.null,is_in_transit.eq.false");
+
     if (businessId) q = q.eq("business_id", businessId);
     if (branchId) q = q.eq("branch_id", branchId);
     q.then(({ data }) => setWarehouses((data as Warehouse[]) || []));

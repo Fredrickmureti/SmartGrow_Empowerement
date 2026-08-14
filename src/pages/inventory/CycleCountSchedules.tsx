@@ -10,6 +10,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useWarehouses } from "@/hooks/useWarehouses";
+
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,20 +114,10 @@ export default function CycleCountSchedules() {
 
   const enabled = !!orgId && !!bizId;
 
-  const { data: warehouses = [] } = useQuery({
-    queryKey: ["warehouses-for-cycle", orgId, bizId],
-    enabled,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouses")
-        .select("id, name")
-        .eq("organization_id", orgId!)
-        .eq("business_id", bizId!)
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as { id: string; name: string }[];
-    },
-  });
+  // Warehouses come from the shared inventory seam so this picker inherits the
+  // platform rules for free: in-transit buckets excluded, inactive excluded,
+  // branch scoped. Never query `warehouses` directly from a page.
+  const { activeWarehouses: warehouses } = useWarehouses();
 
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ["cycle-count-schedules", orgId, bizId],
@@ -135,17 +127,29 @@ export default function CycleCountSchedules() {
         .from("cycle_count_schedules" as never)
         .select("*")
         .eq("organization_id", orgId!)
+        .eq("business_id", bizId!)
         .order("next_run_at");
       if (error) throw error;
       return (data ?? []) as unknown as Schedule[];
     },
   });
 
+
   const openCreate = () => {
+    if (warehouses.length === 0) {
+      toast({
+        title: "No countable warehouse",
+        description:
+          "This branch has no open warehouse to count. Set one up first, then come back and schedule the rotation.",
+        variant: "destructive",
+      });
+      return;
+    }
     setEditing(null);
     setForm({ ...EMPTY, warehouse_id: warehouses[0]?.id ?? "" });
     setSheetOpen(true);
   };
+
 
   const openEdit = (s: Schedule) => {
     setEditing(s);
@@ -309,7 +313,24 @@ export default function CycleCountSchedules() {
                         return (
                           <TableRow key={s.id}>
                             <TableCell className="font-medium">{s.name}</TableCell>
-                            <TableCell>{wh?.name ?? "—"}</TableCell>
+                            <TableCell>
+                              {wh ? (
+                                wh.name
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="destructive">Needs repointing</Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    This schedule points at a place that cannot be
+                                    counted — stock in transit, a closed location, or
+                                    one belonging to another branch. Edit it and choose
+                                    a countable warehouse.
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </TableCell>
+
                             <TableCell><Badge variant="secondary">{CADENCE_LABEL[s.cadence]}</Badge></TableCell>
                             <TableCell><span className="text-xs">{scopeSummary(s)}</span></TableCell>
                             <TableCell className="text-xs whitespace-nowrap">
