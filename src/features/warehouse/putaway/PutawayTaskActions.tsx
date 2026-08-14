@@ -48,6 +48,19 @@ const EXCEPTION_KINDS: { value: ExceptionKind; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+/**
+ * The server rejects a stale optimistic lock with `wms_task_stale`. Operators
+ * need "someone else moved this" — not a version number.
+ */
+function staleAware(e: unknown, fallback: string) {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (msg.includes("wms_task_stale") || msg.includes("row_version")) {
+    return "Someone else just updated this task. Refresh and try again.";
+  }
+  return msg || fallback;
+}
+
+
 export interface PutawayTaskLike {
   id: string;
   warehouse_id: string;
