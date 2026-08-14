@@ -47,15 +47,15 @@ describe("purchasing terms single owner", () => {
   });
 
   it("resolves purchasing terms only through the seam", () => {
+    // Only actual RPC invocations count; prose references in doc comments are fine.
+    const CALL =
+      /\.rpc\(\s*["'](?:resolve_supplier_purchasing_terms|validate_supplier_order_quantity)["']/;
     const callers = appFiles.filter(
-      (f) =>
-        f.rel !== SEAM &&
-        /resolve_supplier_purchasing_terms|validate_supplier_order_quantity/.test(
-          f.body,
-        ),
+      (f) => f.rel !== SEAM && CALL.test(f.body),
     );
     expect(callers.map((f) => f.rel)).toEqual([]);
   });
+
 
   it("does not read the deprecated product-level purchasing defaults to decide policy", () => {
     // Reading them to render/edit the product master is fine; comparing or
