@@ -98329,6 +98329,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      refresh_warehouse_stock_projection: {
+        Args: { p_product_id: string; p_warehouse_id: string }
+        Returns: undefined
+      }
       refund_customer_atomic: {
         Args: {
           _amount: number
@@ -99684,6 +99688,22 @@ export type Database = {
       resolve_statutory_country_for_employee: {
         Args: { p_employee_id: string }
         Returns: string
+      }
+      resolve_stock_availability: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_product_id: string
+          p_warehouse_id?: string
+        }
+        Returns: {
+          available: number
+          blocked: number
+          in_transit: number
+          on_hand: number
+          product_id: string
+          reserved: number
+        }[]
       }
       resolve_supplier_defaults: {
         Args: { p_business_id: string; p_contact_id: string }
