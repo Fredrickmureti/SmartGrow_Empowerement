@@ -11,9 +11,14 @@
  */
 
 export interface PackForRollup {
+  /** `product_packaging.id` — required by capture surfaces that must send
+   *  the packaging level to the server for conversion. Optional here so
+   *  display-only callers can keep building lightweight rollups. */
+  id?: string;
   name: string;
   qty_in_base_uom: number;
 }
+
 
 /** "240 ea" — base only, no pack rollup. */
 export function formatBaseQty(qty: number, baseLabel = "ea"): string {
