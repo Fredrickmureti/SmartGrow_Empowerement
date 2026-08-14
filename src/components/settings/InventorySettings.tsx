@@ -44,18 +44,20 @@ export function InventorySettings() {
     setLoading(true);
     supabase
       .from("businesses")
-      .select("cost_model")
+      .select("cost_model, require_product_physical_attributes")
       .eq("id", currentBusiness.id)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
-          console.error("Failed to load cost_model:", error);
-        } else if (data && (data as any).cost_model) {
-          setCostModel((data as any).cost_model as CostModel);
+          console.error("Failed to load inventory settings:", error);
+        } else if (data) {
+          if ((data as any).cost_model) setCostModel((data as any).cost_model as CostModel);
+          setRequirePhysical(Boolean((data as any).require_product_physical_attributes));
         }
         setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
