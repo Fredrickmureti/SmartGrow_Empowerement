@@ -29,8 +29,11 @@ export function InventorySettings() {
   const { currentBusiness } = useBusinesses();
   const { toast } = useToast();
   const [costModel, setCostModel] = useState<CostModel>("wac");
+  const [requirePhysical, setRequirePhysical] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+
 
   useEffect(() => {
     let cancelled = false;
