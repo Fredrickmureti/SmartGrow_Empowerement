@@ -35,15 +35,16 @@ export function useProductPackagingBatch(
     queryFn: async () => {
       const { data: rows, error } = await supabase
         .from("product_packaging")
-        .select("product_id, name, qty_in_base_uom")
+        .select("id, product_id, name, qty_in_base_uom")
         .in("product_id", uniqueIds);
       if (error) throw error;
       const byProduct = new Map<string, PackForRollup[]>();
       for (const r of rows ?? []) {
         const list = byProduct.get(r.product_id) ?? [];
-        list.push({ name: r.name, qty_in_base_uom: Number(r.qty_in_base_uom) });
+        list.push({ id: r.id, name: r.name, qty_in_base_uom: Number(r.qty_in_base_uom) });
         byProduct.set(r.product_id, list);
       }
+
       return byProduct;
     },
   });

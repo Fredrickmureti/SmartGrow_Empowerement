@@ -31,7 +31,14 @@ import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import {
+  unitOptionsFor,
+  toBaseUnits,
+  BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import { RETURN_CONDITIONS, type ReturnCondition } from "@/features/warehouse/returns/returnsModel";
+
 import { Undo2 } from "lucide-react";
 
 interface ReturnRow {
@@ -121,6 +128,8 @@ export function MobileReturnWorkspace() {
   const { currentBusiness } = useBusinesses();
   const [scan, setScan] = useState<GatedScan | null>(null);
   const [qty, setQty] = useState("");
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
+
   const [condition, setCondition] = useState<ReturnCondition>("unopened");
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
@@ -166,9 +175,21 @@ export function MobileReturnWorkspace() {
     ? Math.max(Number(matched.expected_qty ?? 0) - Number(matched.received_qty ?? 0), 0)
     : 0;
 
+  // Returns arrive in whatever the customer shipped — often cases. The device
+  // sends the packaging level; `wms_capture_return_line` converts to base.
+  const { packsByProduct } = useProductPackagingBatch(
+    scan?.identity.productId ? [scan.identity.productId] : [],
+  );
+  const units = useMemo(
+    () => unitOptionsFor(scan?.identity.productId ? packsByProduct.get(scan.identity.productId) : []),
+    [packsByProduct, scan?.identity.productId],
+  );
+  const unit = units.find((u) => u.key === unitKey) ?? units[0];
+
   const reset = () => {
     setScan(null);
     setQty("");
+    setUnitKey(BASE_UNIT_KEY);
     setCondition("unopened");
     setResetKey((k) => k + 1);
   };
@@ -186,10 +207,12 @@ export function MobileReturnWorkspace() {
         p_return_id: id,
         p_product_id: scan.identity.productId,
         p_received_qty: amount,
+        p_entered_qty: amount,
+        p_packaging_id: unit?.packagingId ?? null,
         p_expected_qty: matched ? matched.expected_qty : null,
         p_lot_number: scan.lot,
         p_serial_number: scan.serial,
-        p_uom: null,
+        p_uom: unit && !unit.isBase ? unit.uom : null,
         p_condition_code: condition,
         p_notes: null,
       });
@@ -202,6 +225,7 @@ export function MobileReturnWorkspace() {
       setBusy(false);
     }
   };
+
 
   return (
     <MobileWarehouseLayout title={order?.code ?? "Return"} back="/wm/returns" scanLabel="Scan returned item">
@@ -245,18 +269,37 @@ export function MobileReturnWorkspace() {
                 Authorised outstanding: <span className="tabular-nums">{outstanding}</span>
               </div>
             )}
-            <div>
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                className="h-12 text-lg"
-                value={qty}
-                placeholder={outstanding ? String(outstanding) : "0"}
-                onChange={(e) => setQty(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  className="h-12 text-lg"
+                  value={qty}
+                  placeholder={outstanding ? String(outstanding) : "0"}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Select value={unitKey} onValueChange={setUnitKey} disabled={units.length < 2}>
+                  <SelectTrigger className="h-12"><SelectValue placeholder="ea" /></SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {unit && !unit.isBase && toBaseUnits(Number(qty || outstanding || 0), unit) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Books {toBaseUnits(Number(qty || outstanding || 0), unit)} base units
+              </p>
+            )}
+
             <div>
               <Label>Condition</Label>
               <Select value={condition} onValueChange={(v) => setCondition(v as ReturnCondition)}>

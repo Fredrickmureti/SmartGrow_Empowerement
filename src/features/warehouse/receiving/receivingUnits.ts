@@ -1,29 +1,29 @@
 /**
- * receivingUnits — the single conversion seam between what an operator types
- * on a receiving surface and what the ledger stores (Receiving audit, Phase 11).
+ * receivingUnits — the unit vocabulary shared by every warehouse capture
+ * surface (receiving, counts, returns).
  *
- * The Inventory engine stores BASE units only (see the multi-unit display
- * contract). `product_packaging` rows are a presentation layer: "Case × 12" is
- * a label over 12 base units. Scanned captures already resolve the packaging
- * level through `useWmsIdentityGate` (`scanToBaseUnits`), so a GS1 case scan
- * books 12. Typed captures had no such path — an operator entering "5" while
- * holding five cases booked five each.
- *
- * Every receiving surface therefore selects a unit and converts here. Nothing
- * downstream of this module may reason in pack quantities.
+ * IMPORTANT (Phase 1 — server-authoritative units). The browser NO LONGER
+ * converts packaging quantities to base units for the ledger. A surface sends
+ * `{ p_packaging_id, p_entered_qty }` and the server derives the base quantity
+ * through `wms_to_base_qty()`, which reads the product's own
+ * `product_packaging.qty_in_base_uom`. `toBaseUnits()` below survives only as a
+ * DISPLAY PREVIEW ("= 500 kg") — never pass its result into a `wms_*` RPC as a
+ * quantity argument.
  */
 import { useMemo } from "react";
 import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
 import type { PackForRollup } from "@/lib/inventory/formatQty";
 
 export interface ReceivingUnitOption {
-  /** Stable select value. `base` for the ledger unit, else the pack name. */
+  /** Stable select value. `base` for the ledger unit, else the packaging id. */
   key: string;
   /** Operator-facing label ("ea", "Case × 12"). */
   label: string;
-  /** Value persisted on `wms_receiving_lines.uom` for audit. */
+  /** Audit label persisted alongside the line. */
   uom: string;
-  /** Base ledger units in ONE of this unit. */
+  /** `product_packaging.id`, or null for the base ledger unit. */
+  packagingId: string | null;
+  /** Base ledger units in ONE of this unit — PREVIEW ONLY. */
   qtyInBaseUom: number;
   isBase: boolean;
 }
@@ -39,6 +39,7 @@ export function unitOptionsFor(
     key: BASE_UNIT_KEY,
     label: baseLabel,
     uom: baseLabel,
+    packagingId: null,
     qtyInBaseUom: 1,
     isBase: true,
   };
@@ -48,9 +49,10 @@ export function unitOptionsFor(
     .sort((a, b) => Number(a.qty_in_base_uom) - Number(b.qty_in_base_uom))
     .filter((p) => (seen.has(p.name) ? false : (seen.add(p.name), true)))
     .map<ReceivingUnitOption>((p) => ({
-      key: p.name,
+      key: p.id ?? p.name,
       label: `${p.name} × ${Number(p.qty_in_base_uom)}`,
       uom: p.name,
+      packagingId: p.id ?? null,
       qtyInBaseUom: Number(p.qty_in_base_uom),
       isBase: false,
     }));
@@ -58,9 +60,8 @@ export function unitOptionsFor(
 }
 
 /**
- * Convert a typed quantity in the chosen unit to base ledger units.
- * Non-finite or negative input collapses to 0 — the RPC rejects negatives, and
- * a surface must never guess.
+ * PREVIEW ONLY — show the operator what their typed quantity means in base
+ * units. The authoritative conversion happens in `wms_to_base_qty()`.
  */
 export function toBaseUnits(qty: number, option: ReceivingUnitOption | undefined): number {
   const n = Number(qty);
@@ -68,6 +69,7 @@ export function toBaseUnits(qty: number, option: ReceivingUnitOption | undefined
   const factor = Number(option?.qtyInBaseUom ?? 1);
   return Number((n * (Number.isFinite(factor) && factor > 0 ? factor : 1)).toFixed(3));
 }
+
 
 /** Find an option by key, falling back to the base unit. */
 export function optionByKey(

@@ -197,10 +197,17 @@ export function MobileReceiveSession() {
   );
   const units = (scan && unitOptions.get(scan.identity.productId)) || [];
   const unit = optionByKey(units.length ? units : [
-    { key: BASE_UNIT_KEY, label: "ea", uom: "ea", qtyInBaseUom: 1, isBase: true },
+    { key: BASE_UNIT_KEY, label: "ea", uom: "ea", packagingId: null, qtyInBaseUom: 1, isBase: true },
   ], unitKey);
-  const baseQty = toBaseUnits(Number(qty), unit);
-  const baseDamaged = toBaseUnits(Number(damaged), unit);
+
+  // Entered = what the operator typed, in the unit they picked. The base
+  // quantity is derived SERVER-side (`wms_to_base_qty`); `baseQty` here is a
+  // preview for the operator only and never reaches the RPC.
+  const enteredQty = Number(qty);
+  const enteredDamaged = Number(damaged);
+  const baseQty = toBaseUnits(enteredQty, unit);
+  const baseDamaged = toBaseUnits(enteredDamaged, unit);
+
 
   const onResolved = (s: GatedScan | null) => {
     setScan(s);
@@ -229,27 +236,35 @@ export function MobileReceiveSession() {
   };
 
   const capture = async () => {
-    if (!id || !scan || !baseQty) return;
+    if (!id || !scan || !(enteredQty > 0)) return;
     setBusy(true);
     try {
+      // Quantities leave the device in the OPERATOR's unit together with the
+      // packaging level. `wms_capture_receiving_line` converts to base units.
       const r = await enqueue("wms_capture_receiving_line", {
         p_session_id: id,
         p_product_id: scan.identity.productId,
-        p_received_qty: baseQty,
+        p_received_qty: enteredQty,
+        p_entered_qty: enteredQty,
+        p_packaging_id: unit.packagingId,
         p_expected_qty: matched?.expected_qty ?? null,
         p_lpn_id: activeLpn?.id ?? null,
         p_lot_number: lot.trim() || null,
         p_serial_number: scan.serial ?? null,
-        p_uom: unit.uom,
+        p_uom: unit.packagingId ? null : unit.uom,
         p_staging_location_id: null,
         p_notes: null,
         p_expiry_date: expiry || null,
-        p_damaged_qty: baseDamaged,
+        p_damaged_qty: Number.isFinite(enteredDamaged) ? Math.max(enteredDamaged, 0) : 0,
+        p_entered_damaged_qty: Number.isFinite(enteredDamaged) ? Math.max(enteredDamaged, 0) : 0,
         p_qc_hold: hold,
       });
       toast.success(
-        r.queued ? "Queued (offline)" : `Captured ${baseQty} × ${scan.identity.productName}`,
+        r.queued
+          ? "Queued (offline)"
+          : `Captured ${enteredQty} ${unit.uom} × ${scan.identity.productName}`,
       );
+
       reset();
       qc.invalidateQueries({ queryKey: ["wm-receiving-lines", id] });
     } catch (e: unknown) {

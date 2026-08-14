@@ -70585,12 +70585,15 @@ export type Database = {
           counted_by: string | null
           counted_qty: number | null
           created_at: string
+          entered_qty: number | null
+          entered_uom: string | null
           expiry_date: string | null
           id: string
           location_id: string
           lot_number: string | null
           note: string | null
           organization_id: string
+          packaging_id: string | null
           posted_adjustment_id: string | null
           product_id: string
           recount_of_line_id: string | null
@@ -70612,12 +70615,15 @@ export type Database = {
           counted_by?: string | null
           counted_qty?: number | null
           created_at?: string
+          entered_qty?: number | null
+          entered_uom?: string | null
           expiry_date?: string | null
           id?: string
           location_id: string
           lot_number?: string | null
           note?: string | null
           organization_id: string
+          packaging_id?: string | null
           posted_adjustment_id?: string | null
           product_id: string
           recount_of_line_id?: string | null
@@ -70639,12 +70645,15 @@ export type Database = {
           counted_by?: string | null
           counted_qty?: number | null
           created_at?: string
+          entered_qty?: number | null
+          entered_uom?: string | null
           expiry_date?: string | null
           id?: string
           location_id?: string
           lot_number?: string | null
           note?: string | null
           organization_id?: string
+          packaging_id?: string | null
           posted_adjustment_id?: string | null
           product_id?: string
           recount_of_line_id?: string | null
@@ -70660,6 +70669,13 @@ export type Database = {
             | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_count_lines_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_count_lines_recount_of_line_id_fkey"
             columns: ["recount_of_line_id"]
@@ -74209,6 +74225,8 @@ export type Database = {
           created_at: string
           damaged_qty: number
           discrepancy_reason: string | null
+          entered_damaged_qty: number | null
+          entered_qty: number | null
           expected_qty: number | null
           expiry_date: string | null
           id: string
@@ -74218,6 +74236,7 @@ export type Database = {
           lpn_id: string | null
           notes: string | null
           organization_id: string
+          packaging_id: string | null
           product_id: string
           purchase_order_item_id: string | null
           qc_hold: boolean
@@ -74236,6 +74255,8 @@ export type Database = {
           created_at?: string
           damaged_qty?: number
           discrepancy_reason?: string | null
+          entered_damaged_qty?: number | null
+          entered_qty?: number | null
           expected_qty?: number | null
           expiry_date?: string | null
           id?: string
@@ -74245,6 +74266,7 @@ export type Database = {
           lpn_id?: string | null
           notes?: string | null
           organization_id: string
+          packaging_id?: string | null
           product_id: string
           purchase_order_item_id?: string | null
           qc_hold?: boolean
@@ -74263,6 +74285,8 @@ export type Database = {
           created_at?: string
           damaged_qty?: number
           discrepancy_reason?: string | null
+          entered_damaged_qty?: number | null
+          entered_qty?: number | null
           expected_qty?: number | null
           expiry_date?: string | null
           id?: string
@@ -74272,6 +74296,7 @@ export type Database = {
           lpn_id?: string | null
           notes?: string | null
           organization_id?: string
+          packaging_id?: string | null
           product_id?: string
           purchase_order_item_id?: string | null
           qc_hold?: boolean
@@ -74303,6 +74328,13 @@ export type Database = {
             columns: ["lpn_id"]
             isOneToOne: false
             referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
             referencedColumns: ["id"]
           },
           {
@@ -74883,6 +74915,7 @@ export type Database = {
             | null
           dispositioned_at: string | null
           dispositioned_by: string | null
+          entered_qty: number | null
           expected_qty: number
           id: string
           inspected_at: string | null
@@ -74893,6 +74926,7 @@ export type Database = {
           lpn_out_id: string | null
           notes: string | null
           organization_id: string
+          packaging_id: string | null
           photo_count: number
           posted_at: string | null
           product_id: string
@@ -74923,6 +74957,7 @@ export type Database = {
             | null
           dispositioned_at?: string | null
           dispositioned_by?: string | null
+          entered_qty?: number | null
           expected_qty?: number
           id?: string
           inspected_at?: string | null
@@ -74933,6 +74968,7 @@ export type Database = {
           lpn_out_id?: string | null
           notes?: string | null
           organization_id: string
+          packaging_id?: string | null
           photo_count?: number
           posted_at?: string | null
           product_id: string
@@ -74963,6 +74999,7 @@ export type Database = {
             | null
           dispositioned_at?: string | null
           dispositioned_by?: string | null
+          entered_qty?: number | null
           expected_qty?: number
           id?: string
           inspected_at?: string | null
@@ -74973,6 +75010,7 @@ export type Database = {
           lpn_out_id?: string | null
           notes?: string | null
           organization_id?: string
+          packaging_id?: string | null
           photo_count?: number
           posted_at?: string | null
           product_id?: string
@@ -75029,6 +75067,13 @@ export type Database = {
             columns: ["lpn_out_id"]
             isOneToOne: false
             referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_return_lines_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
             referencedColumns: ["id"]
           },
           {
@@ -98233,9 +98278,11 @@ export type Database = {
       record_count: {
         Args: {
           p_counted_qty: number
+          p_entered_qty?: number
           p_expiry_date?: string
           p_line_id: string
           p_note?: string
+          p_packaging_id?: string
           p_serial_numbers?: string[]
           p_variance_reason?: string
         }
@@ -102478,11 +102525,14 @@ export type Database = {
           p_client_scan_id?: string
           p_damaged_qty?: number
           p_device_id?: string
+          p_entered_damaged_qty?: number
+          p_entered_qty?: number
           p_expected_qty?: number
           p_expiry_date?: string
           p_lot_number?: string
           p_lpn_id?: string
           p_notes?: string
+          p_packaging_id?: string
           p_product_id: string
           p_qc_hold?: boolean
           p_received_qty: number
@@ -102498,10 +102548,12 @@ export type Database = {
           p_client_scan_id?: string
           p_condition_code?: Database["public"]["Enums"]["wms_return_condition"]
           p_device_id?: string
+          p_entered_qty?: number
           p_expected_qty?: number
           p_lot_number?: string
           p_lpn_id?: string
           p_notes?: string
+          p_packaging_id?: string
           p_product_id: string
           p_received_qty: number
           p_return_id: string
@@ -103834,6 +103886,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      wms_packaging_label: { Args: { p_packaging_id: string }; Returns: string }
       wms_packaging_set_availability: {
         Args: {
           p_is_stocked?: boolean
@@ -104371,6 +104424,10 @@ export type Database = {
       wms_task_telemetry: {
         Args: { p_from?: string; p_to?: string; p_warehouse_id: string }
         Returns: Json
+      }
+      wms_to_base_qty: {
+        Args: { p_packaging_id: string; p_product_id: string; p_qty: number }
+        Returns: number
       }
       wms_transition_count_session: {
         Args: {

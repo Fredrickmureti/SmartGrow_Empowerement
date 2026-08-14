@@ -27,11 +27,25 @@ import { Input } from "@/components/ui/input";
 import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import {
+  unitOptionsFor,
+  toBaseUnits,
+  BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
 import {
   useProductTracking,
   serialCaptureError,
 } from "@/features/warehouse/counts/useProductTracking";
+
 
 export default function MobileCount() {
   const { id } = useParams();
@@ -40,6 +54,8 @@ export default function MobileCount() {
   const [binLocationId, setBinLocationId] = useState<string | null>(null);
   const [productScan, setProductScan] = useState<GatedScan | null>(null);
   const [countedQty, setCountedQty] = useState("");
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
+
   const [serialEntry, setSerialEntry] = useState("");
   const [serials, setSerials] = useState<string[]>([]);
   const [expiry, setExpiry] = useState("");
@@ -71,6 +87,17 @@ export default function MobileCount() {
 
   const { data: tracking } = useProductTracking(active?.product_id);
 
+  // Counting in packaging units ("4 cases") is how a real cycle count runs.
+  // The device only carries the packaging level; `record_count` converts.
+  const { packsByProduct } = useProductPackagingBatch(
+    active?.product_id ? [active.product_id] : [],
+  );
+  const units = useMemo(
+    () => unitOptionsFor(active?.product_id ? packsByProduct.get(active.product_id) : []),
+    [packsByProduct, active?.product_id],
+  );
+  const unit = units.find((u) => u.key === unitKey) ?? units[0];
+
   const handleBinConfirmed = useCallback((confirmed: boolean) => {
     if (!confirmed) setBinLocationId(null);
   }, []);
@@ -83,17 +110,23 @@ export default function MobileCount() {
     setSerialEntry("");
   };
 
+  const enteredQty = Number(countedQty);
+  // Preview only — the ledger figure is computed by `wms_to_base_qty`.
+  const basePreview = toBaseUnits(enteredQty, unit);
+
   const submit = async () => {
     if (!active) {
       toast.error("Scan bin + SKU that match an open line");
       return;
     }
-    const n = Number(countedQty);
+    const n = enteredQty;
     if (!Number.isFinite(n) || n < 0) {
       toast.error("Enter counted qty");
       return;
     }
-    const serialProblem = serialCaptureError(tracking, n, serials);
+    // Serial capture is per physical unit, so it validates against the base
+    // preview rather than the number typed in cases.
+    const serialProblem = serialCaptureError(tracking, basePreview, serials);
     if (serialProblem) {
       toast.error(serialProblem);
       return;
@@ -107,10 +140,13 @@ export default function MobileCount() {
       const r = await enqueue<{ tolerance_outcome?: string }>("record_count", {
         p_line_id: active.id,
         p_counted_qty: n,
+        p_entered_qty: n,
+        p_packaging_id: unit?.packagingId ?? null,
         p_note: null,
         p_serial_numbers: serials.length > 0 ? serials : null,
         p_expiry_date: expiry || null,
       });
+
       const outcome = r.data?.tolerance_outcome;
       if (r.queued) {
         toast.success("Queued (offline)");
@@ -124,6 +160,8 @@ export default function MobileCount() {
       setBinLocationId(null);
       setProductScan(null);
       setCountedQty("");
+      setUnitKey(BASE_UNIT_KEY);
+
       setSerials([]);
       setSerialEntry("");
       setExpiry("");
@@ -201,16 +239,39 @@ export default function MobileCount() {
             )}
           </div>
         )}
-        <div>
-          <Label>Counted qty</Label>
-          <Input
-            type="number"
-            inputMode="decimal"
-            value={countedQty}
-            onChange={(e) => setCountedQty(e.target.value)}
-            className="h-12 text-lg"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Counted qty</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={countedQty}
+              onChange={(e) => setCountedQty(e.target.value)}
+              className="h-12 text-lg"
+            />
+          </div>
+          <div>
+            <Label>Unit</Label>
+            <Select value={unitKey} onValueChange={setUnitKey} disabled={units.length < 2}>
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="ea" />
+              </SelectTrigger>
+              <SelectContent>
+                {units.map((u) => (
+                  <SelectItem key={u.key} value={u.key}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+        {unit && !unit.isBase && basePreview > 0 && (
+          <div className="text-xs text-muted-foreground">
+            Books {basePreview} base unit{basePreview === 1 ? "" : "s"}
+          </div>
+        )}
+
 
         {tracking?.is_serial_tracked && (
           <div className="space-y-2">
