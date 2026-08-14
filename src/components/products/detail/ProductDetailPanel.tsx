@@ -41,6 +41,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { OverviewTab } from "./tabs/OverviewTab";
+import { ProductLifecycleAction } from "./ProductLifecycleAction";
+import { productLifecycleLabel } from "@/features/products/lifecycle/productLifecycle";
 import { StockTab } from "./tabs/StockTab";
 import { LotsExpiryTab } from "./tabs/LotsExpiryTab";
 import { UnitsPackagingTab } from "./tabs/UnitsPackagingTab";
@@ -309,9 +311,9 @@ export function ProductDetailPanel({
               <Badge variant="outline" className="capitalize text-xs">
                 {product.type}
               </Badge>
-              {product.is_active === false && (
+              {((product as { status?: string | null }).status ?? "active") !== "active" && (
                 <Badge variant="secondary" className="text-xs">
-                  Inactive
+                  {productLifecycleLabel((product as { status?: string | null }).status)}
                 </Badge>
               )}
               {isOutOfStock && (
