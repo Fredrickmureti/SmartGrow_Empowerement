@@ -103,7 +103,15 @@ function CaptureRow({
 }: {
   line: ReceivingLine;
   onCapture: (v: {
-    qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null;
+    qty: number;
+    lot: string | null;
+    serial: string | null;
+    expiry: string | null;
+    damaged: number;
+    hold: boolean;
+    uom: string | null;
+    /** `product_packaging.id` the operator captured in, null for base units. */
+    packagingId: string | null;
   }) => void;
   busy: boolean;
   /** ADR-0067: serial-tracked products need one serial per unit at receipt. */
@@ -122,11 +130,16 @@ function CaptureRow({
   // only sensible level; everything else may be counted in cases.
   const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
   const unit = optionByKey(units, serialTracked ? BASE_UNIT_KEY : unitKey);
-  const baseQty = serialTracked ? 1 : toBaseUnits(Number(qty), unit);
-  const baseDamaged = toBaseUnits(Number(damaged), unit);
+  // What the operator typed, in their unit. Conversion to base units happens
+  // in `wms_to_base_qty` server-side; the figures below are a preview only.
+  const enteredQty = serialTracked ? 1 : Number(qty);
+  const enteredDamaged = Number(damaged) || 0;
+  const baseQty = toBaseUnits(enteredQty, unit);
+  const baseDamaged = toBaseUnits(enteredDamaged, unit);
   // One unit per capture keeps the serial ↔ unit relationship 1:1, which the
   // `enforce_serial_on_movement` trigger requires when the receipt posts.
   const serialInvalid = serialTracked && (!serial.trim() || Number(qty) !== 1);
+
 
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/40 p-3">
