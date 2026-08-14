@@ -52,55 +52,90 @@ delegate to `@/lib/inventory/formatQty`; no hardcoded unit strings. Guard passin
 - Guard: `supabase/tests/wms_inventory_ledger_boundary_test.sql` (12 checks, each
   assertion re-evaluated against the live catalog and true).
 
-Verification run at the end of Phase 4: `no-direct-stock-aggregate-writes`,
-`stock-movement-scope`, `stock-event-fabric-and-landed-cost`, `wms-phase3`,
-`wms-phase4b`, `wms-no-direct-state-writes`, `wms-task-mutators-optimistic-lock`
-— 35/35 passing; `tsgo -p tsconfig.app.json` clean.
+**Phase 5 — event-driven integration.** COMPLETE.
+- Server audit of every `warehouse.*` topic literal emitted by a public
+  function against `wms_events_catalog` and `src/features/warehouse/events/topics.ts`.
+- Defects found and fixed:
+  1. `create_count_session_as` emitted `warehouse.count.opened` and
+     `post_count_session` emitted `warehouse.count.submitted` — both retired
+     vocabulary, unregistered in the catalog, undeclared in TS, and **duplicate
+     producers** on top of `trg_wms_counts_emit` (which already publishes
+     `warehouse.count.counting` on INSERT and `warehouse.count.review` on the
+     state change). Both in-body emits removed; the trigger is the single producer.
+  2. `_wms_count_trigger_from_event` (event-driven cycle counting) dispatched on
+     `warehouse.replenishment.completed` and `warehouse.return.dispositioned` —
+     topics no producer emits — so replenishment- and return-triggered counts had
+     silently never fired. Now keys off `warehouse.replen.completed` and
+     `warehouse.return.dispositions_posted`.
+  3. `wms_publish_labour_plan` built non-ADR idempotency keys (`topic:id`); now
+     `wms.labour:{warehouse}:{transition}[:date]`.
+  4. 13 actively emitted topics had **no catalog row** (appointment.rescheduled,
+     exception.acknowledged/assigned/escalated, manifest.tracking_allocated,
+     manifest.proof_captured, packaging.* ×6, wave.planned) and the two
+     `warehouse.labour.*` topics had no TS constant. All registered in
+     `wms_events_catalog`, declared in `WMS_TOPIC`, and documented in
+     `docs/architecture/WMS_MODULE_OWNERSHIP.md` (crossdock rows added there too).
+- Phases 3–4 emissions confirmed covered: `trg_wms_tasks_emit` is
+  `AFTER INSERT OR UPDATE OF state`, so the split-putaway child task is announced;
+  the plate relocation is announced by `trg_wms_lpn_moved`. No inline emit needed.
+- Guards: `src/test/architecture/wms-event-integration.test.ts` (4/4) and
+  `supabase/tests/wms_event_integration_test.sql` (10 checks, each re-evaluated
+  against the live catalog and true). Yard topics (`warehouse.yard.*`) are the
+  only unregistered emitters left and are an explicit, listed exemption owned by
+  the out-of-scope yard wave — any new unregistered topic fails the ratchet.
+
+Verification run at the end of Phase 5: `wms-event-integration`,
+`wms-topic-catalog-sync`, `wms-topic-vocabulary`, `wms-outbox-parity`,
+`wms-task-mutators-optimistic-lock`, `wms-phase3`, `wms-phase4b`,
+`wms-no-direct-state-writes`, `wms-server-authoritative-uom` — 47/47 passing;
+`tsgo -p tsconfig.app.json` clean.
 
 ## Currently active phase
 
-**Phase 5 — event-driven integration (not started).** Prove every physical
-transition reaches `business_event_outbox` with the ADR 0101 idempotency key
-`wms.{aggregate}:{id}:{transition}`, that no consumer depends on a client-emitted
-event, and that the topic catalog in SQL matches
-`src/features/warehouse/events/topics.ts`. Note the two new emissions introduced
-in Phases 3–4 (`wms_split_putaway_task`'s child task, its movement pair) currently
-have **no explicit outbox emit** of their own — confirm the task/LPN emit triggers
-cover them or add the emit.
+**Phase 6 — handling unit vs product packaging separation (not started).**
+Verify `wms_license_plates` models a physical container only and never
+re-encodes the reusable `product_packaging` definition. The Phase 4 defect
+(`stock_quants.package_id` stamped with an LPN id) was a symptom of exactly this
+confusion, so sweep the sibling paths: every `wms_lpn_*` function, the LPN UI,
+`wms_packaging_*` (packaging *materials* — cartons/dunnage consumed at pack
+stations — must stay distinct from `product_packaging` UoM definitions), and any
+warehouse table column that duplicates a packaging attribute (length/width/
+height/weight/qty-per-pack). Land it as: server fix (if any) + caller wiring +
+pgTAP structural guard, then update this plan.
 
-## Pending after Phase 5
-
-**Phase 6 — handling unit vs product packaging separation.** Verify
-`wms_license_plates` models a physical container only, and never re-encodes the
-reusable `product_packaging` definition (the Phase 4 defect was a symptom of this
-confusion — check `wms_lpn_*` and the LPN UI for other packaging shadowing).
+## Pending after Phase 6
 
 **Phase 7 — costing and valuation seam.** Landed cost, quarantine and damage
 dispositions must route to canonical costing functions; no warehouse-local
 valuation.
 
-Out of scope this wave: Yard, Workforce beyond enterprise-identity consumption,
-3PL billing.
+Out of scope this wave: Yard (including its unregistered `warehouse.yard.*`
+topics), Workforce beyond enterprise-identity consumption, 3PL billing.
 
 ## Instructions for the next agent
 
-1. **Verify before extending.** Re-derive Phases 3 and 4 from the live database
+1. **Verify before extending.** Re-derive Phases 3–5 from the live database
    rather than trusting this document:
-   - `wms_split_putaway_task` / `wms_reassign_putaway_task` signatures include a
+   - Phase 3/4: `wms_split_putaway_task` / `wms_reassign_putaway_task` take a
      mandatory `p_row_version`, no un-versioned overload survives, bodies contain
-     `FOR UPDATE`, the `wms_task_stale` raise and the `row_version + 1` bump.
-   - `wms_split_putaway_task` resolves quants by `lpn_id`, never `package_id`, and
-     posts the `wms_lpn`-tagged movement pair.
-   - `_maintain_stock_quants` still short-circuits on `reference_type = 'wms_lpn'`
-     (if that ever changes, every plate operation double-counts).
-   - `select count(*) from stock_quants q join wms_license_plates l on l.id = q.package_id`
-     returns 0, and `trg_stock_quants_package_id_is_packaging` exists.
+     `FOR UPDATE`, the `wms_task_stale` raise and the `row_version + 1` bump; the
+     split resolves quants by `lpn_id` (never `package_id`) and posts the
+     `wms_lpn`-tagged movement pair; `_maintain_stock_quants` still
+     short-circuits on `reference_type = 'wms_lpn'`;
+     `select count(*) from stock_quants q join wms_license_plates l on l.id = q.package_id`
+     returns 0 and `trg_stock_quants_package_id_is_packaging` exists.
+   - Phase 5: run the DO block in `supabase/tests/wms_event_integration_test.sql`
+     against the live database — every `warehouse.*` literal emitted by a public
+     function must be catalogued (yard exempted), the count RPCs must not touch
+     `business_event_outbox`, and `_wms_count_trigger_from_event` must key off the
+     live topics.
    - Run the guard suites listed above plus `tsgo -p tsconfig.app.json`. The wider
      `src/test/architecture` run has **pre-existing, unrelated** failures (product
      identifier seam, pdf preview iframe, `pos_hardware_configs`, employee
      lifecycle) — do not attribute those to this wave and do not fix them here.
-2. **Then resume at Phase 5**, in the order written above. Do not jump to Phase 6
-   or 7, and do not open unrelated areas (Yard, 3PL billing, POS).
+2. **Then resume at Phase 6**, in the order written above. Do not jump to Phase 7,
+   and do not open unrelated areas (Yard, 3PL billing, POS).
 3. Every phase lands as a coherent whole: server RPC + caller wiring + a guard
    (pgTAP for server invariants, `src/test/architecture/*` for client wiring), then
    this plan updated in the same turn.
+

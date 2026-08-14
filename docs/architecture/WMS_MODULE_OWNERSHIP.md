@@ -137,6 +137,9 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | --- | --- | --- |
 | `warehouse.exception.raised` | `wms_raise_exception` | exception inbox, supervisor alerts |
 | `warehouse.exception.resolved` | `wms_resolve_exception` | exception inbox |
+| `warehouse.exception.acknowledged` | `wms_acknowledge_exception` | exception inbox |
+| `warehouse.exception.assigned` | `wms_assign_exception` | exception inbox |
+| `warehouse.exception.escalated` | `wms_escalate_overdue_exceptions` | exception inbox, notifications |
 
 ### Pick waves — `wms_pick_waves` (trigger `_wms_emit_state_change`)
 
@@ -150,6 +153,7 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.wave.packed` | ready to stage | loading board |
 | `warehouse.wave.cancelled` | wave withdrawn | wave board |
 | `warehouse.wave.reopened` | manifest cancel released reservations — planner may re-allocate | wave planner, labour |
+| `warehouse.wave.planned` | wave planned from open demand (`wms_plan_waves`) | wave planner |
 
 ### Loading manifests — `wms_loading_manifests` (trigger)
 
@@ -160,6 +164,8 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.manifest.closed` | loading finished | shipping |
 | `warehouse.manifest.dispatched` | truck released | shipping, 3PL billing |
 | `warehouse.manifest.cancelled` | manifest voided | loading board |
+| `warehouse.manifest.tracking_allocated` | carrier tracking number allocated (`wms_allocate_tracking_number`) | dispatch board, shipping |
+| `warehouse.manifest.proof_captured` | proof of dispatch captured (`wms_capture_dispatch_proof`) | dispatch board, shipping |
 
 ### QC — `wms_qc_inspections` (trigger)
 
@@ -203,6 +209,7 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.appointment.in_progress` | `start_appointment` | yard board |
 | `warehouse.appointment.completed` | `complete_dock_appointment` | yard board |
 | `warehouse.appointment.cancelled` | `cancel_dock_appointment` | yard board |
+| `warehouse.appointment.rescheduled` | `reschedule_dock_appointment` | dock schedule board |
 
 ### Cross-dock — `wms_crossdock_opportunities` (in-body)
 
@@ -210,6 +217,14 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | --- | --- | --- |
 | `warehouse.crossdock.matched` | `evaluate_crossdock_on_grn` | cross-dock board |
 | `warehouse.crossdock.staged` | `confirm_crossdock_stage` | cross-dock board, shipping |
+| `warehouse.crossdock.qualified` | `evaluate_crossdock_on_grn` / crossdock RPCs | cross-dock board |
+| `warehouse.crossdock.rejected` | crossdock qualification RPCs | cross-dock board |
+| `warehouse.crossdock.approved` | crossdock approval RPC | cross-dock board |
+| `warehouse.crossdock.staging` | crossdock staging RPC | cross-dock board |
+| `warehouse.crossdock.loaded` | crossdock load RPC | cross-dock board, shipping |
+| `warehouse.crossdock.completed` | crossdock link fulfilled | cross-dock board |
+| `warehouse.crossdock.broken` | crossdock link broken before staging | cross-dock board, exception inbox |
+| `warehouse.crossdock.expired` | crossdock window elapsed | cross-dock board |
 | `warehouse.crossdock.cancelled` | `cancel_crossdock_opportunity` | cross-dock board |
 
 ### Replenishment — `wms_replenishment_rules` (trigger)
@@ -225,6 +240,24 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.replen.short` | `complete_replenish_task` | exception inbox, replenishment control centre |
 | `warehouse.replen.cancelled` | `wms_transition_replen_order` | replenishment control centre |
 
+
+### Labour planning — `wms_operator_shifts` (in-body, `wms_publish_labour_plan`)
+
+| Topic | Producer | Consumers |
+| --- | --- | --- |
+| `warehouse.labour.plan_published` | `wms_publish_labour_plan` | labour board, workforce |
+| `warehouse.labour.gap_detected` | `wms_publish_labour_plan` | labour board, supervisor alerts |
+
+### Packaging materials — `wms_packaging_materials` (in-body)
+
+| Topic | Producer | Consumers |
+| --- | --- | --- |
+| `warehouse.packaging.created` | `wms_packaging_upsert` | packaging master data |
+| `warehouse.packaging.updated` | `wms_packaging_upsert` | packaging master data |
+| `warehouse.packaging.archived` | `wms_packaging_archive` | packaging master data |
+| `warehouse.packaging.lifecycle_changed` | `wms_packaging_set_lifecycle` | packaging master data |
+| `warehouse.packaging.consumed` | `wms_packaging_consume` | packaging master data, 3PL billing |
+| `warehouse.packaging.reorder_needed` | `wms_packaging_consume` | packaging master data, purchasing |
 
 ## 4. Inventory consumption rules
 
