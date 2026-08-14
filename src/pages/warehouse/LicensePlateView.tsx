@@ -255,7 +255,15 @@ export default function LicensePlateView() {
       <PageBody>
         <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
           <Metric label="SKUs" value={totals.skus} />
-          <Metric label="Units" value={totals.units} hint={`${totals.reserved} reserved`} />
+          <Metric
+            label="Stock on plate"
+            value={
+              (contents ?? []).length === 1
+                ? qtyFmt.format(contents![0]!.product_id, contents![0]!.quantity)
+                : (<AggregateQty qty={totals.units} />) as unknown as string
+            }
+            hint={`${totals.reserved} reserved`}
+          />
           <Metric label="Nested plates" value={Number(lpn.child_count ?? 0)} />
           <Metric
             label="Bin"
@@ -289,7 +297,7 @@ export default function LicensePlateView() {
                   <TableHead>Product</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Lot</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
                   <TableHead className="text-right">Reserved</TableHead>
                 </TableRow>
               </TableHeader>
@@ -299,8 +307,12 @@ export default function LicensePlateView() {
                     <TableCell>{c.products?.name ?? c.product_id}</TableCell>
                     <TableCell className="font-mono text-sm">{c.products?.sku ?? "—"}</TableCell>
                     <TableCell className="font-mono text-sm">{c.lot_number ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Number(c.quantity)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Number(c.reserved_quantity ?? 0)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <WarehouseQty fmt={qtyFmt} productId={c.product_id} baseQty={c.quantity} />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <WarehouseQty fmt={qtyFmt} productId={c.product_id} baseQty={c.reserved_quantity ?? 0} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -316,7 +328,7 @@ export default function LicensePlateView() {
                   <TableHead>Plate</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">SKUs</TableHead>
-                  <TableHead className="text-right">Units</TableHead>
+                  <TableHead className="text-right">Stock</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -329,7 +341,9 @@ export default function LicensePlateView() {
                     </TableCell>
                     <TableCell className="capitalize">{c.lpn_type}</TableCell>
                     <TableCell className="text-right tabular-nums">{Number(c.sku_count ?? 0)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Number(c.total_quantity ?? 0)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <AggregateQty qty={c.total_quantity ?? 0} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -350,7 +364,9 @@ export default function LicensePlateView() {
                       {e.from_status || e.to_status
                         ? `${e.from_status ?? "—"} → ${e.to_status ?? "—"}`
                         : null}
-                      {e.quantity_delta ? ` · ${Number(e.quantity_delta)} units` : ""}
+                      {e.quantity_delta ? " · " : ""}
+                      {e.quantity_delta ? <AggregateQty qty={Math.abs(Number(e.quantity_delta))} /> : null}
+                      {e.quantity_delta ? (Number(e.quantity_delta) < 0 ? " removed" : " added") : ""}
                     </p>
                   </div>
                   <span className="whitespace-nowrap text-xs text-muted-foreground">
