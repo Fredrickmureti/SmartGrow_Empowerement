@@ -284,9 +284,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   const totals = useMemo(() => {
     const rows = lines ?? [];
     return {
-      expected: rows.reduce((s, l) => s + Number(l.expected_qty ?? 0), 0),
-      received: rows.reduce((s, l) => s + Number(l.received_qty ?? 0), 0),
       short: rows.filter((l) => l.line_state !== "expected" && variance(l) < 0).length,
+
       over: rows.filter((l) => variance(l) > 0).length,
       unexpected: rows.filter((l) => l.line_state === "unexpected").length,
       pending: rows.filter((l) => l.line_state === "expected").length,
