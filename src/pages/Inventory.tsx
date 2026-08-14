@@ -216,22 +216,23 @@ export default function Inventory() {
 
       if (error) throw error;
       const products = data || [];
-      // Branch-true on-hand from warehouse_stock — never products.stock_quantity.
-      const onHandMap = await getProductOnHand({
-        orgId: organizationId,
-        businessId,
-        branchId: branchId ?? null,
-        productIds: products.map((p: any) => p.id),
-      });
+      // ADR 0142: availability is a server decision. One batch call to the
+      // canonical engine — never `quantity - reserved_quantity` in the browser.
+      const availability = await resolveAvailabilityFor(
+        products.map((p: any) => p.id),
+        { businessId, branchId: branchId ?? null },
+      );
       const enriched = products.map((p: any) => {
-        const oh = onHandMap.get(p.id);
+        const a = availability.get(p.id);
         return {
           ...p,
-          on_hand: oh?.onHand ?? 0,
-          on_hand_reserved: oh?.reserved ?? 0,
+          on_hand: a?.onHand ?? 0,
+          on_hand_reserved: a?.reserved ?? 0,
+          on_hand_available: a?.available ?? 0,
         };
       });
       return { data: enriched, count: count || 0 };
+
     },
     enabled: !!organizationId && !!businessId,
     placeholderData: (prev) => prev,
