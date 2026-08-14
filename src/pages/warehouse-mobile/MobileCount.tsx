@@ -54,6 +54,8 @@ export default function MobileCount() {
   const [binLocationId, setBinLocationId] = useState<string | null>(null);
   const [productScan, setProductScan] = useState<GatedScan | null>(null);
   const [countedQty, setCountedQty] = useState("");
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
+
   const [serialEntry, setSerialEntry] = useState("");
   const [serials, setSerials] = useState<string[]>([]);
   const [expiry, setExpiry] = useState("");
@@ -158,6 +160,8 @@ export default function MobileCount() {
       setBinLocationId(null);
       setProductScan(null);
       setCountedQty("");
+      setUnitKey(BASE_UNIT_KEY);
+
       setSerials([]);
       setSerialEntry("");
       setExpiry("");
