@@ -2,9 +2,26 @@
 
 **Reference architecture:** `docs/adr/0142-inventory-single-balance-availability-reservation.md`
 **Domain map:** `docs/audit/inventory-domain-map.md`
-**Last updated:** 2026-08-14
+**Last updated:** 2026-08-14 13:00 UTC
+
+## Status at a glance
+
+| Phase | Scope | State |
+|---|---|---|
+| 1 | Single balance store + single availability engine | ✅ Complete, verified in live DB |
+| 2 | Single reservation engine + lifecycle | ✅ Complete, verified in live DB |
+| **3** | **Movement ledger completeness (reversal parity, revaluation, provenance, drift)** | **▶ ACTIVE — not started** |
+| 4 | Costing & valuation guard (AVCO canonical) | ⏳ Pending |
+| 5 | Lots / serials / expiry traceability closure | ⏳ Pending |
+| 6 | Business events: one emitter, complete topics | ⏳ Pending |
+| 7 | UI repoint (clear the 8 allowlisted files) | ⏳ Pending |
+| 8 | Documentation + operator guide refresh | ⏳ Pending |
+
+**Next task to pick up:** Phase 3, item 1 — reversal parity for every
+movement-producing RPC.
 
 ---
+
 
 ## Phase 1 — One balance, one availability engine — COMPLETE (verified)
 
