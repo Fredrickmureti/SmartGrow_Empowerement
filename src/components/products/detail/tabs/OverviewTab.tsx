@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
+import { useProductTaxLocalization } from "@/features/products/localization/productTaxLocalization";
+
 import {
   formatQtyWithPacks,
   type PackForRollup,
@@ -111,14 +113,17 @@ export function OverviewTab({ data, categoryName }: Props) {
 
   const fmtQty = (n: number) => formatQtyWithPacks(n, packs, baseLabel);
 
-  // Compliance fields actually present in schema
-  const hasCompliance =
-    !!(p as any).etims_item_code ||
-    !!(p as any).etims_classification_code ||
-    !!(p as any).etims_unit_code ||
-    !!(p as any).etims_packaging_unit ||
-    !!(p as any).etims_origin_country ||
-    !!(p as any).etims_country_origin;
+  // Fiscal metadata is per-jurisdiction and lives in product_tax_localization,
+  // never on the product master (ADR: localization extraction).
+  const { data: loc } = useProductTaxLocalization(p.id);
+  const hasCompliance = !!(
+    loc?.item_code ||
+    loc?.classification_code ||
+    loc?.unit_code ||
+    loc?.packaging_unit ||
+    loc?.origin_country
+  );
+
 
   return (
     <div className="space-y-4 pt-2">
@@ -298,27 +303,20 @@ export function OverviewTab({ data, categoryName }: Props) {
           </button>
           {showCompliance && (
             <div className="pt-1">
-              {(p as any).etims_item_code && (
-                <Row icon={Hash} label="ETIMS item code" value={<span className="font-mono text-xs">{(p as any).etims_item_code}</span>} />
+              {loc?.item_code && (
+                <Row icon={Hash} label="Fiscal item code" value={<span className="font-mono text-xs">{loc.item_code}</span>} />
               )}
-              {(p as any).etims_classification_code && (
-                <Row icon={Hash} label="Classification" value={<span className="font-mono text-xs">{(p as any).etims_classification_code}</span>} />
+              {loc?.classification_code && (
+                <Row icon={Hash} label="Classification" value={<span className="font-mono text-xs">{loc.classification_code}</span>} />
               )}
-              {(p as any).etims_unit_code && (
-                <Row icon={Tag} label="ETIMS unit" value={(p as any).etims_unit_code} />
-              )}
-              {(p as any).etims_packaging_unit && (
-                <Row icon={Tag} label="Packaging unit" value={(p as any).etims_packaging_unit} />
-              )}
-              {((p as any).etims_origin_country || (p as any).etims_country_origin) && (
-                <Row
-                  icon={Globe}
-                  label="Country of origin"
-                  value={(p as any).etims_origin_country ?? (p as any).etims_country_origin}
-                />
+              {loc?.unit_code && <Row icon={Tag} label="Fiscal unit" value={loc.unit_code} />}
+              {loc?.packaging_unit && <Row icon={Tag} label="Packaging unit" value={loc.packaging_unit} />}
+              {loc?.origin_country && (
+                <Row icon={Globe} label="Country of origin" value={loc.origin_country} />
               )}
             </div>
           )}
+
         </>
       )}
     </div>
