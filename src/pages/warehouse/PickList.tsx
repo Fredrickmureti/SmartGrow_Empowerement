@@ -14,6 +14,9 @@
  * matching task).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import { Link, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useQuery } from "@tanstack/react-query";
