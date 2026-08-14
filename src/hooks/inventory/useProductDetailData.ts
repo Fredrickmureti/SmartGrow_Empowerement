@@ -78,7 +78,12 @@ export function useProductDetailData({
     staleTime: 30_000,
     queryFn: async () => {
       if (!productId || !organizationId || !businessId) {
-        return { product: null, warehouseStock: [] as any[], packaging: [] as any[] };
+        return {
+          product: null,
+          warehouseStock: [] as any[],
+          packaging: [] as any[],
+          availability: null as StockAvailability | null,
+        };
       }
 
       let wsQ = (supabase as any)
@@ -89,7 +94,7 @@ export function useProductDetailData({
         .eq("business_id", businessId);
       if (branchId) wsQ = wsQ.eq("warehouses.branch_id", branchId);
 
-      const [productRes, wsRes, packagingRes] = await Promise.all([
+      const [productRes, wsRes, packagingRes, availability] = await Promise.all([
         supabase.from("products").select("*").eq("id", productId).maybeSingle(),
         wsQ,
         supabase
@@ -97,6 +102,7 @@ export function useProductDetailData({
           .select("*")
           .eq("product_id", productId)
           .order("qty_in_base_uom", { ascending: false }),
+        resolveAvailability({ productId, businessId, branchId }),
       ]);
 
       if (productRes.error) throw productRes.error;
@@ -106,8 +112,10 @@ export function useProductDetailData({
         product: productRes.data,
         warehouseStock: wsRes.data ?? [],
         packaging: packagingRes.data ?? [],
+        availability,
       };
     },
+
   });
 
   // ─── Phase 2: deferred (tabs) ────────────────────────────────────────
