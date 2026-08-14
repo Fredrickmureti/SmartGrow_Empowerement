@@ -40,6 +40,9 @@ import { useBranches } from "@/hooks/useBranches";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { useCountLines, countLineProductLabel, countLineProductSubLabel } from "@/features/warehouse/counts/useCountLines";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
 
