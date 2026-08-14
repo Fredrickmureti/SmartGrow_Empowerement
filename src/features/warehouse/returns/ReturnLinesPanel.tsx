@@ -307,7 +307,8 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 <TableCell className="text-sm">{label(line.disposition)}</TableCell>
                 <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
                   {Number(line.restock_qty ?? 0)}/{Number(line.quarantine_qty ?? 0)}/
-                  {Number(line.scrap_qty ?? 0)}
+                  {Number(line.scrap_qty ?? 0)} {qtyFmt.baseLabelFor(line.product_id)}
+
                 </TableCell>
                 <TableCell className="space-x-1 text-right">
                   {!readOnly && !line.posted_at && (
