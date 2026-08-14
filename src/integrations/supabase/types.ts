@@ -23713,6 +23713,30 @@ export type Database = {
           },
         ]
       }
+      inventory_movement_event_classes: {
+        Row: {
+          created_at: string
+          description: string | null
+          movement_class: string
+          movement_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          movement_class: string
+          movement_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          movement_class?: string
+          movement_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory_valuation_writers: {
         Row: {
           created_at: string
@@ -90881,6 +90905,21 @@ export type Database = {
           p_source_id: string
           p_source_table: string
           p_summary: string
+        }
+        Returns: string
+      }
+      emit_inventory_event: {
+        Args: {
+          p_actor_user_id?: string
+          p_branch_id: string
+          p_business_id: string
+          p_event_type: string
+          p_idempotency_key: string
+          p_org_id: string
+          p_payload: Json
+          p_source_doc_id: string
+          p_source_doc_type: string
+          p_warehouse_id: string
         }
         Returns: string
       }
