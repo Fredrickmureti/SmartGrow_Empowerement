@@ -1,15 +1,15 @@
 /**
- * ADR 0076 (Stock Event Fabric) + ADR 0077 (3-way match + landed cost) —
- * session-8 guards.
+ * ADR 0076 (Stock Event Fabric) + ADR 0077 (3-way match + landed cost),
+ * consolidated by the Inventory Foundation Wave · Phase 6.
  *
  * Enforces:
- *  1. `DomainEventType` includes the five `stock.movement.*` fabric types
- *     the DB trigger `tg_stock_movement_emit_event` publishes.
- *  2. `BusinessSagaMount` registers a saga handler for at least one
- *     `stock.movement.*` type — proves ADR 0076's outbox path is drained
- *     by an application-side consumer (Priority A).
- *  3. Session-8 migration file exists and declares both new RPCs
- *     (`allocate_landed_cost_bill`, `match_bill_to_grn`).
+ *  1. `DomainEventType` carries the canonical inventory topics and no longer
+ *     declares the retired five `stock.movement.*` types (one emitter, one
+ *     topic: `inventory.movement.recorded`).
+ *  2. `BusinessSagaMount` subscribes to `inventory.movement.recorded`.
+ *  3. The `outbox-dispatcher` registers every inventory topic the DB emits,
+ *     so no inventory event can dead-letter on the closed registry.
+ *  4. Session-8 migration file exists and declares both new RPCs.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
@@ -17,8 +17,23 @@ import { join } from "node:path";
 
 const SRC = join(__dirname, "../..");
 const MIGRATIONS = join(__dirname, "../../../supabase/migrations");
+const DISPATCHER = join(
+  __dirname,
+  "../../../supabase/functions/outbox-dispatcher/index.ts",
+);
 
-const STOCK_MOVEMENT_TYPES = [
+const INVENTORY_TOPICS = [
+  "inventory.movement.recorded",
+  "inventory.lot.quarantined",
+  "inventory.lot.released",
+  "inventory.lot.recall_opened",
+  "inventory.lot.recall_closed",
+  "inventory.serial.status_changed",
+  "inventory.valuation.revalued",
+  "inventory.valuation.revaluation_reversed",
+];
+
+const RETIRED_TOPICS = [
   "stock.movement.received",
   "stock.movement.dispatched",
   "stock.movement.transferred",
@@ -26,25 +41,36 @@ const STOCK_MOVEMENT_TYPES = [
   "stock.movement.posted",
 ];
 
-describe("ADR-0076 Stock Event Fabric — client wiring", () => {
-  it("DomainEventType includes every stock.movement.* type the DB trigger emits", () => {
+describe("ADR-0076 Stock Event Fabric — one emitter, one topic family", () => {
+  it("DomainEventType declares every canonical inventory topic", () => {
     const src = readFileSync(join(SRC, "services/events/domainEventBus.ts"), "utf8");
-    for (const t of STOCK_MOVEMENT_TYPES) {
+    for (const t of INVENTORY_TOPICS) {
       expect(src, `DomainEventType must include '${t}'`).toContain(`'${t}'`);
     }
   });
 
-  it("BusinessSagaMount registers a handler for at least one stock.movement.* type", () => {
+  it("the retired stock.movement.* topics are gone from client code", () => {
+    const bus = readFileSync(join(SRC, "services/events/domainEventBus.ts"), "utf8");
+    const mount = readFileSync(join(SRC, "components/events/BusinessSagaMount.tsx"), "utf8");
+    for (const t of RETIRED_TOPICS) {
+      expect(bus, `DomainEventType must not re-declare '${t}'`).not.toContain(`'${t}'`);
+      expect(mount, `BusinessSagaMount must not register '${t}'`).not.toContain(`'${t}'`);
+    }
+  });
+
+  it("BusinessSagaMount subscribes to inventory.movement.recorded", () => {
     const src = readFileSync(join(SRC, "components/events/BusinessSagaMount.tsx"), "utf8");
-    const registered = STOCK_MOVEMENT_TYPES.filter((t) =>
-      src.includes(`saga.register('${t}'`) || src.includes(`saga.register("${t}"`),
-    );
-    expect(
-      registered.length,
-      "BusinessSagaMount must subscribe to at least one stock.movement.* event",
-    ).toBeGreaterThan(0);
+    expect(src).toContain("saga.register('inventory.movement.recorded'");
+  });
+
+  it("the outbox dispatcher registers every inventory topic", () => {
+    const src = readFileSync(DISPATCHER, "utf8");
+    for (const t of INVENTORY_TOPICS) {
+      expect(src, `outbox-dispatcher must register '${t}'`).toContain(`"${t}"`);
+    }
   });
 });
+
 
 describe("Session 8 · Priority B — non-movement stock lifecycle fabric", () => {
   const LIFECYCLE_TYPES = [
