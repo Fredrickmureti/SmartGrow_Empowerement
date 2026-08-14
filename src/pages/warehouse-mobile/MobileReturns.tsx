@@ -128,6 +128,8 @@ export function MobileReturnWorkspace() {
   const { currentBusiness } = useBusinesses();
   const [scan, setScan] = useState<GatedScan | null>(null);
   const [qty, setQty] = useState("");
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
+
   const [condition, setCondition] = useState<ReturnCondition>("unopened");
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
