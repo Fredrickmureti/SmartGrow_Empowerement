@@ -123,6 +123,26 @@ BEGIN
                   WHERE c.relname = 'inventory_cost_revaluations' AND t.tgname = 'trg_inventory_revaluation_emit_event') THEN
     RAISE EXCEPTION 'ADR0142/P6: revaluation emitter is not installed';
   END IF;
+
+  -- 6. Phase 8 behavioural finding: EVERY stock.* / inventory.* topic literal
+  -- emitted by a public function must be registered in business_event_topics.
+  -- Unregistered topics fall back to handler_scope = 'server' in
+  -- pos_topic_handler_scope(), so a host-scoped row gets claimed by the server
+  -- dispatcher and dead-letters as unknown_event_type.
+  FOR v_topic IN
+    SELECT DISTINCT m[1]
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace,
+      LATERAL regexp_matches(p.prosrc, '''((?:stock|inventory)\.[a-z_]+\.[a-z_]+)''', 'g') m
+     WHERE n.nspname = 'public'
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM public.business_event_topics t
+       WHERE v_topic LIKE t.topic_prefix || '%'
+    ) THEN
+      RAISE EXCEPTION 'ADR0142/P6: topic % is emitted but not registered in business_event_topics', v_topic;
+    END IF;
+  END LOOP;
 END $$;
 
 ROLLBACK;

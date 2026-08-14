@@ -89,3 +89,23 @@ batch engine retires it.
 
 Ratchets: `supabase/tests/inventory_availability_single_formula_test.sql` (SQL) and
 `src/test/architecture/availability-is-server-owned.test.ts` (browser).
+
+## Addendum — Phase 8c: location (bin) grain on the availability engine (2026-08-14)
+
+`resolve_stock_availability_batch` gained a trailing
+`p_location_ids uuid[] DEFAULT NULL` parameter. When supplied, quants are
+filtered to those locations and only reservations pinned to those locations
+count as holds; the six returned columns and the formula are unchanged, and
+every existing caller (the single-product wrapper,
+`list_products_with_branch_stock`, `run_replenishment_planning`) is unaffected
+because the parameter defaults to NULL.
+
+This retires the last exemption in the Phase 7e ratchet:
+`_wms_maybe_enqueue_replen` no longer derives
+`quantity - reserved_quantity` from `stock_quants` at bin grain — it calls the
+engine with `p_location_ids`. The allowlist in
+`supabase/tests/inventory_availability_single_formula_test.sql` is now empty and
+must stay empty: extend the engine rather than adding an exemption.
+
+Grants unchanged: `SECURITY DEFINER`, business-access check,
+`authenticated` + `service_role` execute, `anon` revoked.
