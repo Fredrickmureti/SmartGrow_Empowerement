@@ -4,7 +4,7 @@
 ADR 0078 (AVCO canonical), ADR 0076 (stock event fabric), ADR 0064, ADR 0025.
 **Ledgers:** `.lovable/plan/inventory-foundation-wave-execution-ledger-2026-08-14.md`,
 `.lovable/plan/inventory-foundation-wave-authoritative-status-2026-08-14.md`
-**Last updated:** 2026-08-14 — end of Phase 7c.
+**Last updated:** 2026-08-14 — Phase 7 CLOSED (7d + 7e verified). Phase 8 is next.
 
 ---
 
