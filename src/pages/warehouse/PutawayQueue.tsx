@@ -9,6 +9,9 @@
  * atomically moves the LPN; the table triggers emit `warehouse.task.completed` + `warehouse.lpn.stored`).
  */
 import { useMemo, useState } from "react";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
