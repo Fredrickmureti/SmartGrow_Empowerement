@@ -238,7 +238,6 @@ export default function Inventory() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch reserved quantities for displayed products
   const stockLevelProducts = stockLevelsData?.data || [];
   const stockLevelsTotalPages = Math.ceil((stockLevelsData?.count || 0) / PAGE_SIZE);
   
@@ -249,27 +248,9 @@ export default function Inventory() {
   const stockQtyFormatter = useQtyFormatter({ productIds });
   // Pack-rows + multi-uom presence for listing rows.
   const { packsByProduct, hasPackagingSet } = useProductPackagingBatch(productIds);
-  const { data: reservedMap = new Map() } = useQuery({
-    queryKey: ["reserved-qty", organizationId, businessId, branchId, productIds],
-    queryFn: async () => {
-      if (productIds.length === 0 || !organizationId || !businessId) return new Map<string, number>();
-      // warehouse_stock is (business, branch)-scoped — never read it without those filters.
-      let q = supabase
-        .from("warehouse_stock")
-        .select("product_id, reserved_quantity, branch_id")
-        .eq("organization_id", organizationId)
-        .eq("business_id", businessId)
-        .in("product_id", productIds);
-      if (currentBranch?.id) q = q.eq("branch_id", currentBranch.id);
-      const { data } = await q;
-      const map = new Map<string, number>();
-      (data || []).forEach((ws: any) => {
-        map.set(ws.product_id, (map.get(ws.product_id) || 0) + (ws.reserved_quantity || 0));
-      });
-      return map;
-    },
-    enabled: productIds.length > 0 && !!organizationId && !!businessId,
-  });
+  // On-hand / reserved / available all arrive from the availability engine
+  // with the page query above — no second read model, no local arithmetic.
+
 
   // Incoming stock from open POs — MUST be company- and branch-scoped.
   // Filtering by organization_id alone leaks other companies' open POs into
