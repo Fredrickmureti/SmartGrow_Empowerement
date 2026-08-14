@@ -76,6 +76,9 @@ export const WMS_TOPIC = {
   // ---- Exception inbox ------------------------------------------------
   EXCEPTION_RAISED: "warehouse.exception.raised",
   EXCEPTION_RESOLVED: "warehouse.exception.resolved",
+  EXCEPTION_ACKNOWLEDGED: "warehouse.exception.acknowledged",
+  EXCEPTION_ASSIGNED: "warehouse.exception.assigned",
+  EXCEPTION_ESCALATED: "warehouse.exception.escalated",
 
   // ---- Pick waves (Phase 2.4 §2 — wms_transition_wave) ----------------
   WAVE_DRAFT: "warehouse.wave.draft",
@@ -86,6 +89,7 @@ export const WMS_TOPIC = {
   WAVE_PACKED: "warehouse.wave.packed",
   WAVE_CANCELLED: "warehouse.wave.cancelled",
   WAVE_REOPENED: "warehouse.wave.reopened",
+  WAVE_PLANNED: "warehouse.wave.planned",
 
   // ---- Loading manifests (wms_transition_manifest) --------------------
   MANIFEST_DRAFT: "warehouse.manifest.draft",
@@ -93,6 +97,8 @@ export const WMS_TOPIC = {
   MANIFEST_CLOSED: "warehouse.manifest.closed",
   MANIFEST_DISPATCHED: "warehouse.manifest.dispatched",
   MANIFEST_CANCELLED: "warehouse.manifest.cancelled",
+  MANIFEST_TRACKING_ALLOCATED: "warehouse.manifest.tracking_allocated",
+  MANIFEST_PROOF_CAPTURED: "warehouse.manifest.proof_captured",
 
   // ---- QC inspections (wms_transition_qc) -----------------------------
   QC_PENDING: "warehouse.qc.pending",
@@ -122,6 +128,17 @@ export const WMS_TOPIC = {
    * Payload: { trailer_visit_id, cancelled_manifests, released_load_tasks }.
    */
   LABOUR_RECLAIMED: "warehouse.labour.reclaimed",
+  /** Phase 5 — labour plan published / staffing gap detected (`wms_publish_labour_plan`). */
+  LABOUR_PLAN_PUBLISHED: "warehouse.labour.plan_published",
+  LABOUR_GAP_DETECTED: "warehouse.labour.gap_detected",
+
+  // ---- Packaging materials (Phase 5 — wms_packaging_* RPCs) -----------
+  PACKAGING_CREATED: "warehouse.packaging.created",
+  PACKAGING_UPDATED: "warehouse.packaging.updated",
+  PACKAGING_ARCHIVED: "warehouse.packaging.archived",
+  PACKAGING_LIFECYCLE_CHANGED: "warehouse.packaging.lifecycle_changed",
+  PACKAGING_CONSUMED: "warehouse.packaging.consumed",
+  PACKAGING_REORDER_NEEDED: "warehouse.packaging.reorder_needed",
 
   // ---- Dock appointments ----------------------------------------------
   APPOINTMENT_SCHEDULED: "warehouse.appointment.scheduled",
@@ -129,6 +146,7 @@ export const WMS_TOPIC = {
   APPOINTMENT_IN_PROGRESS: "warehouse.appointment.in_progress",
   APPOINTMENT_COMPLETED: "warehouse.appointment.completed",
   APPOINTMENT_CANCELLED: "warehouse.appointment.cancelled",
+  APPOINTMENT_RESCHEDULED: "warehouse.appointment.rescheduled",
 
   // ---- Cross-docking ---------------------------------------------------
   CROSSDOCK_MATCHED: "warehouse.crossdock.matched",
@@ -189,6 +207,8 @@ export const idempotencyKey = (
     | "trailer"
     | "appointment"
     | "crossdock"
+    | "labour"
+    | "packaging"
     | "replen"
     | "replen_order",
   id: string,
