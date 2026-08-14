@@ -727,6 +727,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                             busy={capture.isPending}
                             serialTracked={tracking.get(l.product_id).is_serial_tracked}
                             units={unitOptions.get(l.product_id) ?? []}
+                            baseLabel={qtyFmt.baseLabelFor(l.product_id)}
+
                             onCapture={(v2) => runCapture(l, v2)}
                           />
                         </TableCell>
