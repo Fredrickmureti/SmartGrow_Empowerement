@@ -239,7 +239,11 @@ export default function LicensePlateView() {
               <Split className="mr-2 h-4 w-4" /> Split
             </Button>
             {lpn.parent_lpn_id ? (
-              <Button variant="outline" onClick={() => action.run({ kind: "unnest" })} disabled={locked}>
+              <Button
+                variant="outline"
+                onClick={() => action.run({ kind: "unnest", expectedVersion: lpn.row_version })}
+                disabled={locked}
+              >
                 <Unlink className="mr-2 h-4 w-4" /> Detach
               </Button>
             ) : (
@@ -472,7 +476,7 @@ export default function LicensePlateView() {
                     <SelectItem key={lineKey(r)} value={lineKey(r)}>
                       {r.products?.name ?? "Product"}
                       {r.lot_number ? ` · lot ${r.lot_number}` : ""} ·{" "}
-                      {Number(r.quantity || 0) - Number(r.reserved_quantity || 0)} available
+                      {qtyFmt.format(r.product_id, Number(r.quantity || 0) - Number(r.reserved_quantity || 0))} available
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -485,31 +489,58 @@ export default function LicensePlateView() {
                 </p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Quantity</Label>
-              <Input
-                type="number" min="0" max={available || undefined} step="any"
-                value={line.quantity}
-                onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
-              />
-              {!!selected && (
-                <p className="text-xs text-muted-foreground">Max {available}</p>
-              )}
+            <div className="grid grid-cols-[1fr,auto] gap-2">
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input
+                  type="number" min="0" step="any"
+                  value={line.quantity}
+                  onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unit</Label>
+                <Select
+                  value={line.unitKey}
+                  onValueChange={(v) => setLine((l) => ({ ...l, unitKey: v }))}
+                >
+                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {unitOptions.map((o) => (
+                      <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {!!selected && (
+              <p className="text-xs text-muted-foreground">
+                {unit.isBase ? null : <>Books {previewBase} {qtyFmt.baseLabelFor(selected.product_id)} · </>}
+                Available {qtyFmt.format(selected.product_id, available)}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
             <Button
               disabled={
                 !selected || Number(line.quantity) <= 0
-                || Number(line.quantity) > available || action.isPending
+                || previewBase > available || action.isPending
               }
               onClick={() =>
                 selected && action.run(
                   dialog === "load"
-                    ? { kind: "load", productId: selected.product_id, quantity: Number(line.quantity), lotNumber: selected.lot_number || null }
-                    : { kind: "unload", productId: selected.product_id, quantity: Number(line.quantity), lotNumber: selected.lot_number || null },
-                  { onSuccess: () => { setDialog(null); setLine({ productId: "", quantity: "1", lot: "", serial: "" }); } },
+                    ? {
+                        kind: "load", productId: selected.product_id, quantity: Number(line.quantity),
+                        expectedVersion: lpn.row_version, packagingId: unit.packagingId,
+                        lotNumber: selected.lot_number || null,
+                      }
+                    : {
+                        kind: "unload", productId: selected.product_id, quantity: Number(line.quantity),
+                        expectedVersion: lpn.row_version, packagingId: unit.packagingId,
+                        lotNumber: selected.lot_number || null,
+                      },
+                  { onSuccess: () => { setDialog(null); setLine({ productId: "", quantity: "1", unitKey: BASE_UNIT_KEY, lot: "", serial: "" }); } },
                 )
               }
             >
@@ -527,22 +558,38 @@ export default function LicensePlateView() {
             Quantities entered below move onto a brand-new plate at the same bin.
           </p>
           <div className="max-h-[320px] space-y-3 overflow-y-auto">
-            {(contents ?? []).map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">{c.products?.name ?? c.product_id}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {c.lot_number ? `Lot ${c.lot_number} · ` : ""}on plate: {Number(c.quantity)}
-                  </p>
+            {(contents ?? []).map((c) => {
+              const opts = unitOptionsFor(qtyFmt.packsFor(c.product_id), qtyFmt.baseLabelFor(c.product_id));
+              const opt = optionByKey(opts, splitUnits[c.id] ?? BASE_UNIT_KEY);
+              return (
+                <div key={c.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm">{c.products?.name ?? c.product_id}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.lot_number ? `Lot ${c.lot_number} · ` : ""}on plate:{" "}
+                      {qtyFmt.format(c.product_id, c.quantity)}
+                    </p>
+                  </div>
+                  <Input
+                    className="w-24"
+                    type="number" min="0" step="any"
+                    value={splitLines[c.id] ?? ""}
+                    onChange={(e) => setSplitLines((s) => ({ ...s, [c.id]: e.target.value }))}
+                  />
+                  <Select
+                    value={opt.key}
+                    onValueChange={(v) => setSplitUnits((s) => ({ ...s, [c.id]: v }))}
+                  >
+                    <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {opts.map((o) => (
+                        <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Input
-                  className="w-28"
-                  type="number" min="0" step="any"
-                  value={splitLines[c.id] ?? ""}
-                  onChange={(e) => setSplitLines((s) => ({ ...s, [c.id]: e.target.value }))}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
@@ -553,11 +600,19 @@ export default function LicensePlateView() {
                   .map((c) => ({
                     product_id: c.product_id,
                     quantity: Number(splitLines[c.id] ?? 0),
+                    // The level the operator handled — the server converts it.
+                    packaging_id: optionByKey(
+                      unitOptionsFor(qtyFmt.packsFor(c.product_id), qtyFmt.baseLabelFor(c.product_id)),
+                      splitUnits[c.id] ?? BASE_UNIT_KEY,
+                    ).packagingId,
                     lot_number: c.lot_number,
                   }))
                   .filter((l) => l.quantity > 0);
                 if (!lines.length) return toast.error("Enter at least one quantity");
-                action.run({ kind: "split", lines }, { onSuccess: () => { setDialog(null); setSplitLines({}); } });
+                action.run(
+                  { kind: "split", lines, expectedVersion: lpn.row_version },
+                  { onSuccess: () => { setDialog(null); setSplitLines({}); setSplitUnits({}); } },
+                );
               }}
             >
               Split to new plate
@@ -589,7 +644,7 @@ export default function LicensePlateView() {
                 if (!currentBusiness?.id) return;
                 const parent = await resolveLpnByCode(currentBusiness.id, parentCode);
                 if (!parent) return toast.error(`No plate ${parentCode}`);
-                action.run({ kind: "nest", parentId: parent.id }, {
+                action.run({ kind: "nest", parentId: parent.id, expectedVersion: lpn.row_version }, {
                   onSuccess: () => { setDialog(null); setParentCode(""); },
                 });
               }}
