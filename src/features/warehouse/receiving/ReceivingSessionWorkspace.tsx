@@ -221,10 +221,11 @@ function CaptureRow({
       </Button>
       {!unit.isBase && baseQty > 0 && (
         <p className="w-full text-xs text-muted-foreground">
-          Books {baseQty} base unit{baseQty === 1 ? "" : "s"}
-          {baseDamaged > 0 ? ` · ${baseDamaged} damaged` : ""} — {qty} × {unit.label}
+          Books {baseQty} {baseLabel}
+          {baseDamaged > 0 ? ` · ${baseDamaged} ${baseLabel} damaged` : ""} — {qty} × {unit.label}
         </p>
       )}
+
       {serialInvalid && (
         <p className="w-full text-xs text-destructive">
           Serial-tracked item — capture one unit at a time with its serial number.
