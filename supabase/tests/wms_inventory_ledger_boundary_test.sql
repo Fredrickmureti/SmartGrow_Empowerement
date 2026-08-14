@@ -83,9 +83,11 @@ SELECT ok(
 -- ------------------------------------------------------------------
 -- I5. Partial putaway leaves a movement audit trail for the physical move.
 -- ------------------------------------------------------------------
+-- NOTE: Postgres regex caps repetition counts, so the ordering assertion is
+-- expressed with LIKE rather than a wide bounded quantifier.
 SELECT ok(
   pg_get_functiondef('public.wms_split_putaway_task(uuid,integer,numeric,uuid,text)'::regprocedure)
-    ~ 'INSERT INTO public\.stock_movements[\s\S]{0,1200}transfer_out[\s\S]{0,600}transfer_in',
+    LIKE '%INSERT INTO public.stock_movements%transfer_out%transfer_in%',
   'partial putaway posts paired transfer_out / transfer_in movements'
 );
 
