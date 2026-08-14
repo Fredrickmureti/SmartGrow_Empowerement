@@ -103,6 +103,7 @@ function CaptureRow({
   busy,
   serialTracked,
   units,
+  baseLabel,
 }: {
   line: ReceivingLine;
   onCapture: (v: {
@@ -121,7 +122,10 @@ function CaptureRow({
   serialTracked: boolean;
   /** Phase 11 — the packaging levels this product may be received in. */
   units: ReceivingUnitOption[];
+  /** Product's own base UoM label — never a hardcoded unit word. */
+  baseLabel: string;
 }) {
+
   const outstanding = Math.max(Number(line.expected_qty ?? 0) - Number(line.received_qty ?? 0), 0);
   const [qty, setQty] = useState<string>(serialTracked ? "1" : outstanding ? String(outstanding) : "");
   const [lot, setLot] = useState(line.lot_number ?? "");
