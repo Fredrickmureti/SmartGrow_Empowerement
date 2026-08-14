@@ -60,16 +60,12 @@ export function OverviewTab({ data, categoryName }: Props) {
     qty_in_base_uom: Number(pk.qty_in_base_uom),
   }));
 
-  // Totals
-  const onHand = (data.warehouseStock ?? []).reduce(
-    (s: number, ws: any) => s + (Number(ws.quantity) || 0),
-    0,
-  );
-  const reserved = (data.warehouseStock ?? []).reduce(
-    (s: number, ws: any) => s + (Number(ws.reserved_quantity) || 0),
-    0,
-  );
-  const available = onHand - reserved;
+  // Totals — ADR 0142: resolved by the server availability engine, never
+  // recomputed from `warehouse_stock` in the browser.
+  const onHand = data.availability.onHand;
+  const reserved = data.availability.reserved;
+  const available = data.availability.available;
+
   const incoming = data.incomingPo.totalQty;
 
   // Top warehouse
