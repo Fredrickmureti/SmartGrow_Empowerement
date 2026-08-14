@@ -375,7 +375,10 @@ export default function PickList() {
                   <StatusBadge tone="success">done</StatusBadge>
                   <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
                   <span className="flex-1">{t.product?.name ?? "—"}</span>
-                  <span className="font-mono">{Number(t.quantity ?? 0).toFixed(2)}</span>
+                  <span className="font-mono">
+                    <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+                  </span>
+
                 </li>
               ))}
             </ul>
