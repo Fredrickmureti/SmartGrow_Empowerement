@@ -80,40 +80,65 @@ Ratchet: `supabase/tests/inventory_reservation_engine_test.sql`.
 
 ---
 
-## Phase 3 — Movement ledger completeness — NEXT
+## Phase 3 — Movement ledger completeness — ACTIVE (not started)
 
-1. Reversal parity: every movement-producing RPC has a reversal that writes a
-   compensating movement (never a delete/update).
-2. Value-only revaluation movements (landed cost, WAC correction) must not move
-   quantity.
-3. Movement provenance: `source_type`/`source_id` mandatory and validated.
-4. Drift RPC comparing `stock_quants` vs `warehouse_stock` vs
-   `products.stock_quantity`, exposed as an integrity report.
+Definition of done for the phase (all four, or the phase is not done):
 
-## Phase 4 — Costing & valuation guard
+1. **Reversal parity** — every movement-producing RPC has a reversal that writes
+   a compensating `stock_movements` row. No deletes, no updates of history.
+2. **Value-only revaluation** — landed cost and WAC corrections post value
+   without moving quantity; a guard rejects a revaluation carrying quantity.
+3. **Provenance** — `source_type` / `source_id` mandatory and validated against
+   the referenced document on every movement.
+4. **Drift detection** — an integrity RPC comparing `stock_quants` vs
+   `warehouse_stock` vs `products.stock_quantity`, surfaced as a report, plus a
+   SQL ratchet in `supabase/tests/`.
+
+## Phase 4 — Costing & valuation guard — PENDING
 AVCO canonical per ADR 0078; `cost_layers` = lot detail only; guard test.
 
-## Phase 5 — Lots, serials, expiry traceability closure.
+## Phase 5 — Lots, serials, expiry traceability closure — PENDING
 
-## Phase 6 — Business events: one emitter, complete movement/reservation topics.
+## Phase 6 — Business events: one emitter, complete movement/reservation topics — PENDING
 
-## Phase 7 — UI repoint
+## Phase 7 — UI repoint — PENDING
 Clear the 8 `PENDING_MIGRATION` files in
 `src/test/architecture/availability-is-server-owned.test.ts`; all decision-making
 reads go through `resolveAvailability`.
 
-## Phase 8 — Documentation + operator guide refresh.
+## Phase 8 — Documentation + operator guide refresh — PENDING
+
+---
+
+## Known open items carried forward
+
+- 8 browser files still derive availability locally (allowlisted, Phase 7).
+- `stock_reservations` legacy column `released_at` is kept for compatibility and
+  is now derived from `status`; drop it only after Phase 6 consumers are audited.
+- Warehouse-grain holds (sales order, POS, physical count) do not set
+  `location_id`, so they do not appear in bin-level reserved figures. This is
+  intentional today; bin-level allocation is Phase 3/5 territory.
 
 ---
 
 ## Instructions for the next agent
 
-1. **Verify Phase 2 before writing anything.** Confirm in the live database:
-   `reserve_stock_atomic` is the only function containing
-   `INSERT INTO public.stock_reservations`; `reserve_stock`,
-   `create_stock_reservation`, `release_stock`, `release_reserved_stock` do not
-   exist; the three triggers above exist; and
-   `supabase/tests/inventory_reservation_engine_test.sql` passes.
-2. Only then start **Phase 3**, item 1 (reversal parity). Do not jump phases and
-   do not leave a phase half-done.
-3. Update this file at the end of every implementation step.
+1. **Verify before you write.** Confirm in the live database that Phase 1 and 2
+   still hold to enterprise standard:
+   - `reserve_stock_atomic` is the only function containing
+     `INSERT INTO public.stock_reservations`.
+   - `reserve_stock`, `create_stock_reservation`, `release_stock`,
+     `release_reserved_stock` do not exist.
+   - Triggers `trg_stock_reservations_sync_state`,
+     `trg_project_warehouse_stock_reservations`, `trg_guard_quant_reserved`,
+     `trg_project_warehouse_stock` all exist.
+   - `resolve_stock_availability` is the only availability formula and
+     `get_available_stock` / `get_available_pos_stock*` are wrappers over it.
+   - `supabase/tests/inventory_reservation_engine_test.sql` and
+     `src/test/architecture/availability-is-server-owned.test.ts` pass.
+   Record the verification verdict in this file before making changes.
+2. **Then resume at Phase 3, item 1 (reversal parity).** Do not start Phase 4
+   until all four Phase 3 items are complete, tested and ratcheted.
+3. Do not open unrelated domains, do not leave partial workflows, and update
+   this file at the end of every implementation step.
+
