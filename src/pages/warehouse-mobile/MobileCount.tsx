@@ -27,11 +27,25 @@ import { Input } from "@/components/ui/input";
 import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import {
+  unitOptionsFor,
+  toBaseUnits,
+  BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
 import {
   useProductTracking,
   serialCaptureError,
 } from "@/features/warehouse/counts/useProductTracking";
+
 
 export default function MobileCount() {
   const { id } = useParams();
