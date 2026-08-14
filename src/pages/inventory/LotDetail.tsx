@@ -150,25 +150,20 @@ export default function LotDetail() {
     const header = lotRow as unknown as LotHeader;
     setLot(header);
 
-    // Timeline: business + product + lot_number is the canonical
-    // traceability query. Never drop any of the three predicates.
-    const { data: mvRows, error: mvErr } = await supabase
-      .from("stock_movements")
-      .select(
-        sel(
-          "id, movement_date, movement_type, quantity, warehouse_id, reference_type, reference_id, notes, serial_number, warehouse:warehouses(id, name)",
-        ),
-      )
-
-      .eq("business_id", header.business_id)
-      .eq("product_id", header.product_id)
-      .eq("lot_number", header.lot_number)
-      .order("movement_date", { ascending: true });
-    if (mvErr) {
-      toast({ title: "Failed to load movements", description: mvErr.message, variant: "destructive" });
-      setMovements([]);
+    // Genealogy is a SERVER projection (ADR 0142 Phase 5). The browser never
+    // decides whether a movement adds or removes stock, and never nets a lot
+    // balance — `trace_lot_genealogy` owns direction, distribution and the
+    // downstream customer trace.
+    const { data: gen, error: genErr } = await supabase.rpc("trace_lot_genealogy" as never, {
+      p_business_id: header.business_id,
+      p_product_id: header.product_id,
+      p_lot_number: header.lot_number,
+    } as never);
+    if (genErr) {
+      toast({ title: "Failed to load lot history", description: genErr.message, variant: "destructive" });
+      setGenealogy(null);
     } else {
-      setMovements((mvRows ?? []) as unknown as MovementRow[]);
+      setGenealogy((gen ?? null) as unknown as LotGenealogy | null);
     }
     setLoading(false);
   }, [id, toast]);
@@ -177,19 +172,10 @@ export default function LotDetail() {
     void load();
   }, [load]);
 
-  const distribution = useMemo(() => {
-    const bucket = new Map<string, { warehouse: string; net: number }>();
-    for (const m of movements) {
-      const key = m.warehouse_id;
-      const name = m.warehouse?.name ?? "—";
-      const cur = bucket.get(key) ?? { warehouse: name, net: 0 };
-      cur.net += isInbound(m.movement_type) ? m.quantity : -m.quantity;
-      bucket.set(key, cur);
-    }
-    return Array.from(bucket.entries()).map(([id, v]) => ({ id, ...v }));
-  }, [movements]);
+  const distribution = genealogy?.distribution ?? [];
+  const movements = genealogy?.timeline ?? [];
+  const totalOnHand = Number(genealogy?.total_on_hand ?? 0);
 
-  const totalOnHand = distribution.reduce((s, d) => s + d.net, 0);
 
   if (loading) {
     return (
