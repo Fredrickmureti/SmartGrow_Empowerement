@@ -536,8 +536,9 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <StatusBadge tone="neutral">expected {totals.expected}</StatusBadge>
-          <StatusBadge tone="info">received {totals.received}</StatusBadge>
+          <StatusBadge tone="neutral">{totals.lineCount} lines</StatusBadge>
+          <StatusBadge tone="info">captured {totals.captured}</StatusBadge>
+
           <StatusBadge tone={totals.short ? "danger" : "neutral"}>short {totals.short}</StatusBadge>
           <StatusBadge tone={totals.over ? "warning" : "neutral"}>over {totals.over}</StatusBadge>
           <StatusBadge tone={totals.unexpected ? "warning" : "neutral"}>unexpected {totals.unexpected}</StatusBadge>
