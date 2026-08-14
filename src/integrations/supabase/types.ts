@@ -98631,25 +98631,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      release_reserved_stock: {
-        Args: {
-          p_product_id: string
-          p_quantity: number
-          p_warehouse_id: string
-        }
-        Returns: boolean
-      }
       release_sales_order_reservations_atomic: {
         Args: { p_so_id: string }
-        Returns: Json
-      }
-      release_stock: {
-        Args: {
-          p_organization_id: string
-          p_product_id: string
-          p_quantity: number
-          p_warehouse_id: string
-        }
         Returns: Json
       }
       release_stock_reservation: {
