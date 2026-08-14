@@ -37,6 +37,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
+import { useWarehouseQtyFormatter } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 import {
   useCountCommandCenter,
   useCountSessionBoard,
@@ -102,6 +104,14 @@ export default function CycleCounts() {
 
   const sessions = board.data ?? [];
   const c = centre.data;
+
+  // Phase 2.4 — variance figures carry the counted product's unit vocabulary.
+  const activityProductIds = useMemo(
+    () => (c?.activity ?? []).map((a) => a.product_id),
+    [c?.activity],
+  );
+  const activityBaseLabels = useProductBaseUomLabels(activityProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(activityProductIds, activityBaseLabels);
 
   const recountQueue = useMemo(
     () => sessions.filter((s) => s.open_recounts > 0 && s.state !== "posted" && s.state !== "cancelled"),
@@ -305,7 +315,7 @@ export default function CycleCounts() {
                             {s.open_recounts > 0 ? (
                               <span className="text-destructive">{s.open_recounts}</span>
                             ) : (
-                              <span className="text-muted-foreground">0</span>
+                              <span className="text-muted-foreground">{s.open_recounts}</span>
                             )}
                           </span>
                           <span className="text-right">
@@ -397,13 +407,17 @@ export default function CycleCounts() {
                       {a.tolerance_outcome === "recount_required" ? (
                         <StatusBadge tone="danger">recount</StatusBadge>
                       ) : null}
-                      <span className="w-20 shrink-0 text-right tabular-nums">
+                      <span className="w-32 shrink-0 text-right tabular-nums">
                         {a.variance_qty === null ? (
                           <span className="text-muted-foreground">hidden</span>
                         ) : Number(a.variance_qty) === 0 ? (
-                          <span className="text-muted-foreground">0</span>
+                          <span className="text-muted-foreground">
+                            {qtyFmt.format(a.product_id, 0)}
+                          </span>
                         ) : (
-                          <span className="text-destructive">{Number(a.variance_qty) > 0 ? "+" : ""}{a.variance_qty}</span>
+                          <span className="text-destructive">
+                            {qtyFmt.formatSigned(a.product_id, a.variance_qty)}
+                          </span>
                         )}
                       </span>
                     </li>
