@@ -577,84 +577,11 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
       {/* Lot / expiry */}
       {formData.type === "product" && formData.track_inventory && (
-        <Section
-          title="Lot & expiry tracking"
-          description="FEFO allocation and expiry dashboard."
-        >
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <Label className="text-sm font-medium">Track lot / batch numbers</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Each receipt records a lot number. Sales, deliveries and POS
-                  auto-pick lots first-expiry-first-out (FEFO), or you can override at
-                  checkout.
-                </p>
-                {!editing && businessIndustry && industryProfile.defaultLotTracking && (
-                  <p className="text-[11px] text-primary mt-1">
-                    Pre-enabled for your industry — toggle off if not needed.
-                  </p>
-                )}
-              </div>
-              <Switch
-                checked={formData.is_lot_tracked}
-                onCheckedChange={(v) =>
-                  setFormData({
-                    ...formData,
-                    is_lot_tracked: v,
-                    is_expiry_tracked: v ? formData.is_expiry_tracked : false,
-                  })
-                }
-              />
-            </div>
-            {formData.is_lot_tracked && (
-              <>
-                <div className="flex items-start justify-between gap-3 border-t pt-3">
-                  <div>
-                    <Label className="text-sm font-medium">Track expiry dates</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Surfaces lots in the "Lots expiring soon" dashboard widget once
-                      they enter the alert window.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={formData.is_expiry_tracked}
-                    onCheckedChange={(v) =>
-                      setFormData({ ...formData, is_expiry_tracked: v })
-                    }
-                  />
-                </div>
-                {formData.is_expiry_tracked && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t pt-3">
-                    <div className="space-y-1 md:col-span-1">
-                      <Label htmlFor="expiry_alert_days">Alert window (days)</Label>
-                      <Input
-                        id="expiry_alert_days"
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={formData.expiry_alert_days}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            expiry_alert_days: Math.max(
-                              1,
-                              parseInt(e.target.value, 10) || 30,
-                            ),
-                          })
-                        }
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground md:col-span-2 self-end">
-                      Lots within this many days of expiry appear on the inventory
-                      dashboard. Defaults to 30.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </Section>
+        <LotExpirySection
+          values={formData}
+          onChange={patch}
+          showIndustryHint={mode === "create" && industryProfile.defaultLotTracking}
+        />
       )}
 
       {/* Pricing */}
