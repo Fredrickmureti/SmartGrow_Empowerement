@@ -407,7 +407,7 @@ export default function CycleCounts() {
                       {a.tolerance_outcome === "recount_required" ? (
                         <StatusBadge tone="danger">recount</StatusBadge>
                       ) : null}
-                      <span className="w-20 shrink-0 text-right tabular-nums">
+                      <span className="w-32 shrink-0 text-right tabular-nums">
                         {a.variance_qty === null ? (
                           <span className="text-muted-foreground">hidden</span>
                         ) : Number(a.variance_qty) === 0 ? (
