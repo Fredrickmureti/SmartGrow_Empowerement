@@ -26,7 +26,9 @@ interface Task {
   quantity: number | null;
   lot_number: string | null;
   warehouse_id: string | null;
+  row_version: number;
   destination_location_id: string | null;
+
   source_loc: { code: string | null } | null;
   dest_loc: { code: string | null } | null;
   product: { sku: string | null; name: string | null } | null;
