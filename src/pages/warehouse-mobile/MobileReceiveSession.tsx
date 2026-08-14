@@ -199,8 +199,14 @@ export function MobileReceiveSession() {
   const unit = optionByKey(units.length ? units : [
     { key: BASE_UNIT_KEY, label: "ea", uom: "ea", qtyInBaseUom: 1, isBase: true },
   ], unitKey);
-  const baseQty = toBaseUnits(Number(qty), unit);
-  const baseDamaged = toBaseUnits(Number(damaged), unit);
+  // Entered = what the operator typed, in the unit they picked. The base
+  // quantity is derived SERVER-side (`wms_to_base_qty`); `baseQty` here is a
+  // preview for the operator only and never reaches the RPC.
+  const enteredQty = Number(qty);
+  const enteredDamaged = Number(damaged);
+  const baseQty = toBaseUnits(enteredQty, unit);
+  const baseDamaged = toBaseUnits(enteredDamaged, unit);
+
 
   const onResolved = (s: GatedScan | null) => {
     setScan(s);
