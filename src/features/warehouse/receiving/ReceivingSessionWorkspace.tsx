@@ -627,7 +627,14 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                         {l.products?.sku && <span className="ml-1 text-xs text-muted-foreground font-mono">{l.products.sku}</span>}
                       </TableCell>
                       <TableCell className="text-right">{Number(l.expected_qty ?? 0)}</TableCell>
-                      <TableCell className="text-right">{Number(l.received_qty ?? 0)}</TableCell>
+                      <TableCell className="text-right">
+                        {Number(l.received_qty ?? 0)}
+                        {l.packaging?.name && l.entered_qty != null && (
+                          <span className="block text-xs text-muted-foreground">
+                            entered {Number(l.entered_qty)} × {l.packaging.name}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className={`text-right ${v === 0 ? "" : v < 0 ? "text-destructive" : "text-warning"}`}>
                         {v > 0 ? `+${v}` : v}
                       </TableCell>

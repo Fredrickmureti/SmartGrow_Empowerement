@@ -276,6 +276,11 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                   {line.expected_qty != null && (
                     <span className="text-xs text-muted-foreground"> / {Number(line.expected_qty)}</span>
                   )}
+                  {line.packaging?.name && line.entered_qty != null && (
+                    <span className="block text-xs text-muted-foreground">
+                      entered {Number(line.entered_qty)} × {line.packaging.name}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm">{label(line.condition_code)}</TableCell>
                 <TableCell>
