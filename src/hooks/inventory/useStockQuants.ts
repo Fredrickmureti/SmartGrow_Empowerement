@@ -176,3 +176,61 @@ export function useMovementReversalCoverage(enabled = true) {
 }
 
 
+
+/**
+ * Ops helper — valuation drift (ADR 0078 Phase 4). Compares AVCO valuation
+ * (warehouse_stock.average_cost / products.cost_price) against the
+ * cost_layers roll-up. Empty result = both views of inventory value agree.
+ */
+export type ValuationDriftRow = {
+  scope: "warehouse_avco_vs_layers" | "product_avco_vs_layers";
+  business_id: string | null;
+  warehouse_id: string | null;
+  product_id: string;
+  avco_qty: number;
+  avco_unit_cost: number;
+  avco_value: number;
+  layer_qty: number;
+  layer_value: number;
+  value_drift: number;
+};
+
+export function useValuationDrift(businessId?: string, tolerance = 0.01) {
+  return useQuery({
+    queryKey: ["inventory-valuation-drift", businessId, tolerance],
+    enabled: Boolean(businessId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("check_inventory_valuation_drift", {
+        _business_id: businessId ?? null,
+        _tolerance: tolerance,
+      });
+      if (error) throw error;
+      return (data ?? []) as ValuationDriftRow[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Ops helper — valuation write authority (ADR 0078 Phase 4). Reports any
+ * database routine that mutates AVCO or cost layers without being a
+ * registered valuation writer. Empty result = one costing engine only.
+ */
+export type ValuationCoverageRow = {
+  issue: "unregistered_valuation_writer" | "stale_registration";
+  function_name: string;
+  detail: string;
+};
+
+export function useValuationWriterCoverage(enabled = true) {
+  return useQuery({
+    queryKey: ["valuation-writer-coverage"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("check_valuation_writer_coverage");
+      if (error) throw error;
+      return (data ?? []) as ValuationCoverageRow[];
+    },
+    staleTime: 300_000,
+  });
+}
