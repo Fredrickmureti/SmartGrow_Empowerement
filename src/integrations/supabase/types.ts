@@ -64705,10 +64705,12 @@ export type Database = {
           lead_time_days: number
           min_order_qty: number
           notes: string | null
+          order_increment: number | null
           organization_id: string | null
           preferred_rank: number
           price_break_tiers: Json
           product_id: string
+          purchase_uom_id: string | null
           supplier_id: string
           unit_price: number | null
           updated_at: string
@@ -64727,10 +64729,12 @@ export type Database = {
           lead_time_days?: number
           min_order_qty?: number
           notes?: string | null
+          order_increment?: number | null
           organization_id?: string | null
           preferred_rank?: number
           price_break_tiers?: Json
           product_id: string
+          purchase_uom_id?: string | null
           supplier_id: string
           unit_price?: number | null
           updated_at?: string
@@ -64749,10 +64753,12 @@ export type Database = {
           lead_time_days?: number
           min_order_qty?: number
           notes?: string | null
+          order_increment?: number | null
           organization_id?: string | null
           preferred_rank?: number
           price_break_tiers?: Json
           product_id?: string
+          purchase_uom_id?: string | null
           supplier_id?: string
           unit_price?: number | null
           updated_at?: string
@@ -64771,6 +64777,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_item_terms_purchase_uom_id_fkey"
+            columns: ["purchase_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
             referencedColumns: ["id"]
           },
           {
@@ -99676,6 +99689,30 @@ export type Database = {
         Args: { p_business_id: string; p_contact_id: string }
         Returns: Json
       }
+      resolve_supplier_purchasing_terms: {
+        Args: {
+          p_business_id: string
+          p_on_date?: string
+          p_product_id: string
+          p_supplier_id?: string
+        }
+        Returns: {
+          currency_code: string
+          effective_from: string
+          effective_to: string
+          increment_source: string
+          lead_time_days: number
+          lead_time_source: string
+          min_order_qty: number
+          min_order_source: string
+          order_increment: number
+          product_id: string
+          purchase_uom_id: string
+          supplier_id: string
+          terms_id: string
+          unit_price: number
+        }[]
+      }
       resolve_supplier_remittance: {
         Args: {
           p_business_id: string
@@ -101857,6 +101894,24 @@ export type Database = {
           is_required: boolean
           setting_key: string
           suggested_account_type: string
+        }[]
+      }
+      validate_supplier_order_quantity: {
+        Args: {
+          p_business_id: string
+          p_on_date?: string
+          p_product_id: string
+          p_quantity: number
+          p_supplier_id: string
+        }
+        Returns: {
+          adjusted_quantity: number
+          increment_source: string
+          is_valid: boolean
+          min_order_qty: number
+          min_order_source: string
+          order_increment: number
+          reason: string
         }[]
       }
       validate_task_dependency_no_cycle: {

@@ -14,3 +14,4 @@ Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 - [Journal Voucher](mem://features/journal-voucher) — finance.journal_entry printing pipeline, action parity, draft stamping
 - [Vendor statement engine](mem://features/vendor-statement-engine) — AP ledger source, atomic upsert, durable send queue, download vs print, statement template routing
 
+- [Supplier purchasing terms](mem://features/supplier-purchasing-terms) — MOQ/increment/purchase UoM owned by supplier_item_terms; server-side resolver + validator, single client seam
