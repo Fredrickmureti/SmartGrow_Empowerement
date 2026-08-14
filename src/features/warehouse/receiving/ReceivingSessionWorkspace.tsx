@@ -103,7 +103,15 @@ function CaptureRow({
 }: {
   line: ReceivingLine;
   onCapture: (v: {
-    qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null;
+    qty: number;
+    lot: string | null;
+    serial: string | null;
+    expiry: string | null;
+    damaged: number;
+    hold: boolean;
+    uom: string | null;
+    /** `product_packaging.id` the operator captured in, null for base units. */
+    packagingId: string | null;
   }) => void;
   busy: boolean;
   /** ADR-0067: serial-tracked products need one serial per unit at receipt. */
@@ -122,11 +130,16 @@ function CaptureRow({
   // only sensible level; everything else may be counted in cases.
   const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
   const unit = optionByKey(units, serialTracked ? BASE_UNIT_KEY : unitKey);
-  const baseQty = serialTracked ? 1 : toBaseUnits(Number(qty), unit);
-  const baseDamaged = toBaseUnits(Number(damaged), unit);
+  // What the operator typed, in their unit. Conversion to base units happens
+  // in `wms_to_base_qty` server-side; the figures below are a preview only.
+  const enteredQty = serialTracked ? 1 : Number(qty);
+  const enteredDamaged = Number(damaged) || 0;
+  const baseQty = toBaseUnits(enteredQty, unit);
+  const baseDamaged = toBaseUnits(enteredDamaged, unit);
   // One unit per capture keeps the serial ↔ unit relationship 1:1, which the
   // `enforce_serial_on_movement` trigger requires when the receipt posts.
   const serialInvalid = serialTracked && (!serial.trim() || Number(qty) !== 1);
+
 
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/40 p-3">
@@ -181,19 +194,21 @@ function CaptureRow({
       </label>
       <Button
         size="sm"
-        disabled={busy || !baseQty || serialInvalid}
+        disabled={busy || !(enteredQty > 0) || serialInvalid}
         onClick={() => {
           onCapture({
-            qty: baseQty,
+            qty: enteredQty,
             lot: lot.trim() || null,
             serial: serialTracked ? serial.trim() : null,
             expiry: expiry || null,
-            damaged: baseDamaged,
+            damaged: enteredDamaged,
             hold,
-            uom: unit.uom,
+            uom: unit.packagingId ? null : unit.uom,
+            packagingId: unit.packagingId,
           });
           if (serialTracked) setSerial("");
         }}
+
       >
         <PackageCheck className="mr-1 h-3.5 w-3.5" /> Capture
       </Button>
@@ -364,13 +379,21 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     },
   });
 
-  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null }) => {
+  const runCapture = (
+    line: ReceivingLine,
+    v: {
+      qty: number; lot: string | null; serial: string | null; expiry: string | null;
+      damaged: number; hold: boolean; uom: string | null; packagingId: string | null;
+    },
+  ) => {
     if (!session || !line.product_id) return;
     capture.mutate(
       {
         sessionId: session.id,
         productId: line.product_id,
+        // Operator-entered quantity + packaging level; the RPC converts.
         receivedQty: v.qty,
+        packagingId: v.packagingId,
         expectedQty: line.expected_qty,
         lotNumber: v.lot,
         serialNumber: v.serial,
@@ -380,6 +403,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         uom: v.uom,
         lpnId: activeLpn?.id ?? null,
       },
+
       {
         onSuccess: () => {
           setExpandedLine(null);
