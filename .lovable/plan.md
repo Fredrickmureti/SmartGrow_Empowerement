@@ -74,3 +74,22 @@ guard**. Phase 4 adds no new valuation engine. It enforces ADR 0078:
 
 Do not jump to Phases 5–8 before Phase 4 is coherent and ratcheted. Phase 7 (UI
 repoint) stays blocked until the server-side guards for Phases 4–6 are in place.
+
+
+============================
+Phase 4 (costing & valuation guard) is implemented and verified in the database; only the plan-file update remains.
+
+Verified first (Phase 3 re-check): reversal coverage 0 rows, quant drift 0 rows, integrity trigger present, 27 source types / 25 registered writers.
+
+Phase 4 delivered:
+
+inventory_valuation_writers registry (5 routines, flagged as AVCO and/or layer writers) — AVCO on products.cost_price / warehouse_stock.average_cost remains the sole valuation authority.
+check_valuation_writer_coverage() static scan flags unregistered costing logic or stale registrations — returns 0 rows live.
+enforce_valuation_write_authority() with triggers on warehouse_stock and cost_layers: API roles (anon/authenticated) can never move average_cost or touch cost layers; layer provenance (product_id, business_id, source_movement_id, qty_total, received_at) is immutable; negative valuation and out-of-range qty_remaining rejected. All four error codes confirmed in the deployed body, both triggers installed.
+check_inventory_valuation_drift(business, tolerance) comparing warehouse AVCO and product AVCO against the remaining cost-layer roll-up — 0 rows live.
+Frontend: useValuationDrift / useValuationWriterCoverage hooks plus two new cards ("Valuation agreement", "Costing write authority") on /inventory-app/reports/integrity. tsgo --noEmit clean.
+Ratchet: supabase/tests/inventory_valuation_guard_test.sql.
+Remaining (not done): updating .lovable/plan.md to mark Phase 4 complete/verified and set Phase 5 (lots/serials/expiry traceability closure) as next, with the standard "verify Phase 4 before continuing" handoff — re-run the three checks above (check_valuation_writer_coverage(), check_inventory_valuation_drift(NULL,0.01), both triggers present) before resuming.
+
+
+===========
