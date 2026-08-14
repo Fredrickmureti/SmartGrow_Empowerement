@@ -111,14 +111,17 @@ export function OverviewTab({ data, categoryName }: Props) {
 
   const fmtQty = (n: number) => formatQtyWithPacks(n, packs, baseLabel);
 
-  // Compliance fields actually present in schema
-  const hasCompliance =
-    !!(p as any).etims_item_code ||
-    !!(p as any).etims_classification_code ||
-    !!(p as any).etims_unit_code ||
-    !!(p as any).etims_packaging_unit ||
-    !!(p as any).etims_origin_country ||
-    !!(p as any).etims_country_origin;
+  // Fiscal metadata is per-jurisdiction and lives in product_tax_localization,
+  // never on the product master (ADR: localization extraction).
+  const { data: loc } = useProductTaxLocalization(p.id);
+  const hasCompliance = !!(
+    loc?.item_code ||
+    loc?.classification_code ||
+    loc?.unit_code ||
+    loc?.packaging_unit ||
+    loc?.origin_country
+  );
+
 
   return (
     <div className="space-y-4 pt-2">
