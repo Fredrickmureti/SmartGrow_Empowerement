@@ -15,32 +15,10 @@
  */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, DollarSign, FileCheck2, ChevronDown } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-import {
-  RecordFormShell,
-  Section,
-  FieldGrid,
-  FieldCell,
-} from "@/design-system";
+import { RecordFormShell, Section } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { ToastAction } from "@/components/ui/toast";
 
 import { useToast } from "@/hooks/use-toast";
@@ -60,12 +38,8 @@ import { useProductTaxLocalization } from "@/features/products/localization/prod
 
 
 import { ProductImageUpload } from "@/components/products/ProductImageUpload";
-import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
-import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
 import { useProductCategories } from "@/hooks/useProductCategories";
 import { resolveCategoryAccount, type CategoryAccountField } from "@/lib/productCategoryAccounts";
-import { ProductStockPanel } from "@/components/products/ProductStockPanel";
-import { UomSelect } from "@/components/products/UomSelect";
 import {
   ProductIdentifiersEditor,
   type ProductIdentifiersEditorHandle,
@@ -81,13 +55,18 @@ import {
 
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { ProductVariantsPanel } from "@/features/inventory/variants/ProductVariantsPanel";
-import {
-  EtimsUnitCodeSelect,
-  EtimsPackagingCodeSelect,
-  EtimsClassificationCodeSelect,
-  EtimsCountryOriginSelect,
-} from "@/components/etims/EtimsCodeSelectors";
 import { PurchasingDefaultsSection } from "./product-form/sections/PurchasingDefaultsSection";
+import { IdentitySection } from "./product-form/sections/IdentitySection";
+import { InventoryUnitSection } from "./product-form/sections/InventoryUnitSection";
+import { LotExpirySection } from "./product-form/sections/LotExpirySection";
+import { PricingSection } from "./product-form/sections/PricingSection";
+import { InventoryTrackingSection } from "./product-form/sections/InventoryTrackingSection";
+import { GlAccountsSection } from "./product-form/sections/GlAccountsSection";
+import { TaxComplianceSection } from "./product-form/sections/TaxComplianceSection";
+import type {
+  ProductFormPatch,
+  ProductLocalizationPatch,
+} from "./product-form/formState";
 
 interface ProductFormProps {
   mode: "create" | "edit";
@@ -160,6 +139,12 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     packaging_unit: "CT",
     origin_country: currentBusiness?.country || "",
   });
+
+  // Single patch seam every extracted section writes through, so the master
+  // form stays the only owner of the payload handed to `saveProductAtomic`.
+  const patch: ProductFormPatch = (p) => setFormData((f) => ({ ...f, ...p }));
+  const patchLocalization: ProductLocalizationPatch = (p) =>
+    setLocalization((l) => ({ ...l, ...p }));
 
 
   // Category tier of the GL ladder (ADR 0122): product → category (walking
@@ -436,62 +421,8 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
       )}
 
       {/* Identity */}
-      <Section title="Identity" description="What operators search for.">
-        <FieldGrid columns={2}>
-          <FieldCell span={2}>
-            <div className="space-y-2">
-              <Label htmlFor="p_name">Name *</Label>
-              <Input
-                id="p_name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </div>
-          </FieldCell>
-          <div className="space-y-2">
-            <Label htmlFor="p_type">Type *</Label>
-            <Select
-              value={formData.type}
-              onValueChange={(value: "product" | "service") =>
-                setFormData({ ...formData, type: value })
-              }
-            >
-              <SelectTrigger id="p_type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="product">Product</SelectItem>
-                <SelectItem value="service">Service</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <ProductCategorySelector
-            value={formData.category_id}
-            onChange={(id) => setFormData({ ...formData, category_id: id })}
-            disabled={isSubmitting}
-          />
-          <div className="space-y-2">
-            <Label htmlFor="p_sku">SKU</Label>
-            <Input
-              id="p_sku"
-              value={formData.sku}
-              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-            />
-          </div>
-          <FieldCell span={2}>
-            <div className="space-y-2">
-              <Label htmlFor="p_desc">Description</Label>
-              <Textarea
-                id="p_desc"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-              />
-            </div>
-          </FieldCell>
-        </FieldGrid>
-      </Section>
+      <IdentitySection values={formData} onChange={patch} disabled={isSubmitting} />
+
 
       {/* Identifiers */}
       {currentOrg && currentBusiness && (
@@ -537,456 +468,42 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
       {/* Inventory unit */}
       {formData.type === "product" && (
-        <Section
-          title="Inventory unit"
-          description="The unit stock and cost are stored in."
-        >
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label>Inventory unit *</Label>
-              <UomSelect
-                value={formData.base_uom_id}
-                disabled={baseUomLocked}
-                onChange={(id) =>
-                  setFormData({
-                    ...formData,
-                    base_uom_id: id,
-                    sales_uom_id: id,
-                    purchase_uom_id: id,
-                  })
-                }
-                placeholder="Pick the unit you count this product in…"
-              />
-              {baseUomLocked ? (
-                <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-2 text-xs space-y-1">
-                  <p className="font-medium text-amber-900 dark:text-amber-200">
-                    Inventory unit is locked
-                  </p>
-                  <p className="text-amber-800 dark:text-amber-300">
-                    {uomLock?.reason} Changing the inventory unit after the product has
-                    been transacted would silently rescale stock value and history. To
-                    buy or sell in a different unit (e.g. grams against a KG base), add
-                    a <strong>Packaging</strong> entry above with the right multiplier.
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Stock and cost are stored in this unit. Add packs above to buy or
-                  sell in cartons, strips, etc.
-                </p>
-              )}
-            </div>
-            <Collapsible open={showAdvancedUoM} onOpenChange={setShowAdvancedUoM}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs text-muted-foreground"
-                >
-                  <ChevronDown
-                    className={`mr-1 h-3.5 w-3.5 transition-transform ${
-                      showAdvancedUoM ? "rotate-180" : ""
-                    }`}
-                  />
-                  Advanced: different sales / purchase unit
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2">
-                <FieldGrid columns={2}>
-                  <div className="space-y-2">
-                    <Label>Sales unit</Label>
-                    <UomSelect
-                      value={formData.sales_uom_id}
-                      onChange={(id) => setFormData({ ...formData, sales_uom_id: id })}
-                      placeholder="Defaults to inventory unit"
-                      allowClear
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Purchase unit</Label>
-                    <UomSelect
-                      value={formData.purchase_uom_id}
-                      onChange={(id) => setFormData({ ...formData, purchase_uom_id: id })}
-                      placeholder="Defaults to inventory unit"
-                      allowClear
-                    />
-                  </div>
-                </FieldGrid>
-                <p className="text-xs text-muted-foreground pt-2">
-                  Most products sell and buy in the same unit. Only set these when
-                  sales/purchase use a different UoM category.
-                </p>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </Section>
+        <InventoryUnitSection
+          values={formData}
+          onChange={patch}
+          baseUomLocked={baseUomLocked}
+          lockReason={uomLock?.reason}
+        />
       )}
 
       {/* Lot / expiry */}
       {formData.type === "product" && formData.track_inventory && (
-        <Section
-          title="Lot & expiry tracking"
-          description="FEFO allocation and expiry dashboard."
-        >
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <Label className="text-sm font-medium">Track lot / batch numbers</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Each receipt records a lot number. Sales, deliveries and POS
-                  auto-pick lots first-expiry-first-out (FEFO), or you can override at
-                  checkout.
-                </p>
-                {!editing && businessIndustry && industryProfile.defaultLotTracking && (
-                  <p className="text-[11px] text-primary mt-1">
-                    Pre-enabled for your industry — toggle off if not needed.
-                  </p>
-                )}
-              </div>
-              <Switch
-                checked={formData.is_lot_tracked}
-                onCheckedChange={(v) =>
-                  setFormData({
-                    ...formData,
-                    is_lot_tracked: v,
-                    is_expiry_tracked: v ? formData.is_expiry_tracked : false,
-                  })
-                }
-              />
-            </div>
-            {formData.is_lot_tracked && (
-              <>
-                <div className="flex items-start justify-between gap-3 border-t pt-3">
-                  <div>
-                    <Label className="text-sm font-medium">Track expiry dates</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Surfaces lots in the "Lots expiring soon" dashboard widget once
-                      they enter the alert window.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={formData.is_expiry_tracked}
-                    onCheckedChange={(v) =>
-                      setFormData({ ...formData, is_expiry_tracked: v })
-                    }
-                  />
-                </div>
-                {formData.is_expiry_tracked && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t pt-3">
-                    <div className="space-y-1 md:col-span-1">
-                      <Label htmlFor="expiry_alert_days">Alert window (days)</Label>
-                      <Input
-                        id="expiry_alert_days"
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={formData.expiry_alert_days}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            expiry_alert_days: Math.max(
-                              1,
-                              parseInt(e.target.value, 10) || 30,
-                            ),
-                          })
-                        }
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground md:col-span-2 self-end">
-                      Lots within this many days of expiry appear on the inventory
-                      dashboard. Defaults to 30.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </Section>
+        <LotExpirySection
+          values={formData}
+          onChange={patch}
+          showIndustryHint={mode === "create" && industryProfile.defaultLotTracking}
+        />
       )}
 
       {/* Pricing */}
-      <Section title="Pricing" description="What you sell it for.">
-        <FieldGrid columns={3}>
-          <div className="space-y-2">
-            <Label htmlFor="unit_price">Price *</Label>
-            <Input
-              id="unit_price"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.unit_price}
-              onChange={(e) =>
-                setFormData({ ...formData, unit_price: parseFloat(e.target.value) || 0 })
-              }
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="cost_price">Cost</Label>
-            <Input
-              id="cost_price"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.cost_price}
-              onChange={(e) =>
-                setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tax_rate">Tax rate</Label>
-            <Select
-              value={formData.tax_rate_id || "custom"}
-              onValueChange={(v) => {
-                if (v === "custom") {
-                  setFormData({ ...formData, tax_rate_id: null });
-                } else if (v === "none") {
-                  setFormData({ ...formData, tax_rate_id: null, tax_rate: 0 });
-                } else {
-                  const selectedRate = taxRates.find((t) => t.id === v);
-                  setFormData({
-                    ...formData,
-                    tax_rate_id: v,
-                    tax_rate: selectedRate?.rate || 0,
-                  });
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select tax rate" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No tax (0%)</SelectItem>
-                {taxRates
-                  .filter((t) => t.is_active)
-                  .map((rate) => (
-                    <SelectItem key={rate.id} value={rate.id}>
-                      <div className="flex items-center gap-2">
-                        <span>
-                          {rate.name} ({rate.rate}%)
-                        </span>
-                        {rate.etims_tax_code && (
-                          <span className="text-xs text-muted-foreground font-mono">
-                            [{rate.etims_tax_code}]
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                <SelectItem value="custom">Custom rate...</SelectItem>
-              </SelectContent>
-            </Select>
-            {!formData.tax_rate_id && (
-              <div className="flex gap-2 items-center mt-2">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  placeholder="Enter rate %"
-                  value={formData.tax_rate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tax_rate: parseFloat(e.target.value) || 0 })
-                  }
-                  className="w-24"
-                />
-                <span className="text-sm text-muted-foreground">%</span>
-              </div>
-            )}
-          </div>
-        </FieldGrid>
-      </Section>
+      <PricingSection values={formData} onChange={patch} taxRates={taxRates} />
 
       {/* Inventory tracking + opening stock */}
       {formData.type === "product" && (
-        <Section title="Inventory tracking" description="Stock and reorder policy.">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="track_inventory" className="text-base font-medium">
-                  Track inventory
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Enable stock tracking for this product.
-                </p>
-              </div>
-              <Switch
-                id="track_inventory"
-                checked={formData.track_inventory}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, track_inventory: checked })
-                }
-              />
-            </div>
-
-            {formData.track_inventory && (
-              <>
-                {editing ? (
-                  <ProductStockPanel
-                    productId={editing.id}
-                    productName={formData.name}
-                    costPrice={Number(formData.cost_price) || 0}
-                    unitPrice={Number(formData.unit_price) || 0}
-                  />
-                ) : (
-                  <div className="rounded-md border bg-muted/20 p-4 space-y-2">
-                    <Label className="text-sm font-semibold">Stock</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Stock totals derive from movements (receipts, sales, transfers,
-                      adjustments) so valuation and the GL stay in sync. Use the{" "}
-                      <strong>Opening stock per warehouse</strong> block below to seed
-                      initial quantities — they post as a stock adjustment with{" "}
-                      <code className="mx-1 text-[10px]">reason: opening_balance</code>
-                      after the product is saved.
-                    </p>
-                  </div>
-                )}
-
-                {!editing && activeWarehouses.length > 0 && (
-                  <div className="space-y-2 rounded-md border border-dashed p-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">
-                        Opening stock per warehouse
-                      </Label>
-                      <span className="text-xs text-muted-foreground">Optional</span>
-                    </div>
-                    <div className="grid gap-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="flex-1">Warehouse</span>
-                        <span className="w-28 text-right">Quantity</span>
-                        <span className="w-28 text-right">Unit cost</span>
-                      </div>
-                      {activeWarehouses.map((wh) => {
-                        const qty = openingByWarehouse[wh.id] ?? 0;
-                        const showCostError =
-                          Number(qty) > 0 &&
-                          !(
-                            Number(openingCostByWarehouse[wh.id]) > 0 ||
-                            Number(formData.cost_price) > 0
-                          );
-                        return (
-                          <div key={wh.id} className="flex items-start gap-2">
-                            <span className="flex-1 text-sm pt-2">
-                              {wh.name}{" "}
-                              <span className="text-muted-foreground">({wh.code})</span>
-                            </span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              placeholder="0"
-                              className="w-28"
-                              value={openingByWarehouse[wh.id] ?? ""}
-                              onChange={(e) =>
-                                setOpeningByWarehouse((prev) => ({
-                                  ...prev,
-                                  [wh.id]: parseFloat(e.target.value) || 0,
-                                }))
-                              }
-                            />
-                            <div className="w-28">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="any"
-                                placeholder={String(formData.cost_price || 0)}
-                                aria-invalid={showCostError}
-                                className={
-                                  showCostError ? "w-28 border-destructive" : "w-28"
-                                }
-                                value={openingCostByWarehouse[wh.id] ?? ""}
-                                onChange={(e) =>
-                                  setOpeningCostByWarehouse((prev) => ({
-                                    ...prev,
-                                    [wh.id]: parseFloat(e.target.value) || 0,
-                                  }))
-                                }
-                              />
-                              {showCostError && (
-                                <p className="text-[10px] text-destructive mt-0.5">
-                                  Required &gt; 0
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {(() => {
-                      const openingTotal = activeWarehouses.reduce((sum, wh) => {
-                        const qty = Number(openingByWarehouse[wh.id] ?? 0);
-                        if (!(qty > 0)) return sum;
-                        const unitCost =
-                          Number(openingCostByWarehouse[wh.id]) > 0
-                            ? Number(openingCostByWarehouse[wh.id])
-                            : Number(formData.cost_price) || 0;
-                        return sum + qty * unitCost;
-                      }, 0);
-                      if (!(openingTotal > 0)) return null;
-                      const fmt = openingTotal.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      });
-                      return (
-                        <div className="rounded-md bg-muted/50 border p-2 text-xs space-y-1">
-                          <p className="font-medium">This will post a journal entry:</p>
-                          <p className="font-mono">
-                            Dr Inventory {fmt} &nbsp;/&nbsp; Cr Opening Balance Equity {fmt}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Valued at cost. Creating the product with no opening
-                            quantity posts nothing to the general ledger.
-                          </p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                <FieldGrid columns={2}>
-                  <div className="space-y-2">
-                    <Label htmlFor="reorder_level">Reorder level</Label>
-                    <Input
-                      id="reorder_level"
-                      type="number"
-                      min="0"
-                      value={formData.reorder_level}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          reorder_level: parseInt(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Alert when stock falls below this level.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reorder_quantity">Reorder quantity</Label>
-                    <Input
-                      id="reorder_quantity"
-                      type="number"
-                      min="0"
-                      value={formData.reorder_quantity}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          reorder_quantity: parseInt(e.target.value) || 0,
-                        })
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Suggested quantity to reorder.
-                    </p>
-                  </div>
-                </FieldGrid>
-              </>
-            )}
-          </div>
-        </Section>
+        <InventoryTrackingSection
+          values={formData}
+          onChange={patch}
+          productId={editing?.id ?? null}
+          warehouses={activeWarehouses}
+          openingByWarehouse={openingByWarehouse}
+          openingCostByWarehouse={openingCostByWarehouse}
+          onOpeningQuantityChange={(warehouseId, quantity) =>
+            setOpeningByWarehouse((prev) => ({ ...prev, [warehouseId]: quantity }))
+          }
+          onOpeningCostChange={(warehouseId, unitCost) =>
+            setOpeningCostByWarehouse((prev) => ({ ...prev, [warehouseId]: unitCost }))
+          }
+        />
       )}
 
       {/* Fallback purchasing defaults — supplier terms take precedence (ADR 0141) */}
@@ -1002,133 +519,24 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
       {/* Accounting defaults */}
       {formData.type === "product" && (
-        <Section
-          title={
-            <span className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" /> Default GL accounts
-            </span>
-          }
-          description="Optional per-product overrides. System defaults are used when blank."
-        >
-          <FieldGrid columns={2}>
-            <ProductAccountSelector
-              label="Sales revenue account"
-              value={formData.sales_account_id}
-              onChange={(v) => setFormData({ ...formData, sales_account_id: v })}
-              accountType="income"
-              defaultKey="sales_revenue_id"
-              categoryDefault={categoryAccount("sales_account_id")}
-              helpText="Revenue account credited on sale"
-              disabled={isSubmitting}
-            />
-            <ProductAccountSelector
-              label="Purchase / expense account"
-              value={formData.purchase_account_id}
-              onChange={(v) => setFormData({ ...formData, purchase_account_id: v })}
-              accountType="expense"
-              defaultKey="operating_expenses_id"
-              categoryDefault={categoryAccount("purchase_account_id")}
-              helpText="Expense account debited when this item appears on a bill"
-              disabled={isSubmitting}
-            />
-            {(formData.type === "product" || formData.track_inventory) && (
-              <>
-                <ProductAccountSelector
-                  label="COGS account"
-                  value={formData.cogs_account_id}
-                  onChange={(v) => setFormData({ ...formData, cogs_account_id: v })}
-                  accountType="expense"
-                  defaultKey="cost_of_goods_sold_id"
-                  categoryDefault={categoryAccount("cogs_account_id")}
-                  helpText="Cost of Goods Sold debited on sale"
-                  disabled={isSubmitting}
-                />
-                <ProductAccountSelector
-                  label="Inventory account"
-                  value={formData.inventory_account_id}
-                  onChange={(v) => setFormData({ ...formData, inventory_account_id: v })}
-                  accountType="asset"
-                  defaultKey="inventory_account_id"
-                  categoryDefault={categoryAccount("inventory_account_id")}
-                  helpText="Inventory asset account for stock valuation"
-                  disabled={isSubmitting}
-                />
-              </>
-            )}
-          </FieldGrid>
-        </Section>
+        <GlAccountsSection
+          values={formData}
+          onChange={patch}
+          categoryAccount={categoryAccount}
+          disabled={isSubmitting}
+        />
       )}
 
       {/* Tax compliance */}
       {isComplianceAvailable && formData.type === "product" && (
-        <Section
-          title={
-            <span className="flex items-center gap-2">
-              <FileCheck2 className="h-4 w-4 text-muted-foreground" /> Tax compliance —{" "}
-              {complianceInfo?.displayName}
-            </span>
-          }
-          description="Codes transmitted with invoices and receipts for fiscal reporting."
-        >
-          <FieldGrid columns={2}>
-            <div className="space-y-2">
-              <Label>Tax rate (with compliance code)</Label>
-              <Select
-                value={formData.tax_rate_id || "none"}
-                onValueChange={(v) => {
-                  const selectedRate = taxRates.find((t) => t.id === v);
-                  setFormData({
-                    ...formData,
-                    tax_rate_id: v === "none" ? null : v,
-                    tax_rate: selectedRate?.rate || 0,
-                  });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tax rate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No tax</SelectItem>
-                  {taxRates
-                    .filter((t) => t.is_active)
-                    .map((rate) => (
-                      <SelectItem key={rate.id} value={rate.id}>
-                        <div className="flex items-center gap-2">
-                          <span>
-                            {rate.name} ({rate.rate}%)
-                          </span>
-                          {rate.etims_tax_code && (
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {rate.etims_tax_code}
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <EtimsClassificationCodeSelect
-              value={localization.classification_code}
-              onChange={(v) =>
-                setLocalization({ ...localization, classification_code: v })
-              }
-            />
-            <EtimsUnitCodeSelect
-              value={localization.unit_code}
-              onChange={(v) => setLocalization({ ...localization, unit_code: v })}
-            />
-            <EtimsPackagingCodeSelect
-              value={localization.packaging_unit}
-              onChange={(v) => setLocalization({ ...localization, packaging_unit: v })}
-            />
-            <EtimsCountryOriginSelect
-              value={localization.origin_country}
-              onChange={(v) => setLocalization({ ...localization, origin_country: v })}
-            />
-
-          </FieldGrid>
-        </Section>
+        <TaxComplianceSection
+          values={formData}
+          onChange={patch}
+          localization={localization}
+          onLocalizationChange={patchLocalization}
+          taxRates={taxRates}
+          regimeName={complianceInfo?.displayName}
+        />
       )}
 
       {/* Variants (edit mode only — parent must exist before children can be attached) */}
