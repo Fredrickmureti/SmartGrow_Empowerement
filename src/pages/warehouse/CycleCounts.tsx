@@ -37,6 +37,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
+import { useWarehouseQtyFormatter } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 import {
   useCountCommandCenter,
   useCountSessionBoard,
@@ -102,6 +104,14 @@ export default function CycleCounts() {
 
   const sessions = board.data ?? [];
   const c = centre.data;
+
+  // Phase 2.4 — variance figures carry the counted product's unit vocabulary.
+  const activityProductIds = useMemo(
+    () => (c?.activity ?? []).map((a) => a.product_id),
+    [c?.activity],
+  );
+  const activityBaseLabels = useProductBaseUomLabels(activityProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(activityProductIds, activityBaseLabels);
 
   const recountQueue = useMemo(
     () => sessions.filter((s) => s.open_recounts > 0 && s.state !== "posted" && s.state !== "cancelled"),

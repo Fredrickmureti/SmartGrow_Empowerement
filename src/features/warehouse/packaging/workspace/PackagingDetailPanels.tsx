@@ -214,8 +214,8 @@ export function PackagingAvailabilityPanel({ packagingTypeId, readOnly }: PanelP
           <TableHeader>
             <TableRow>
               <TableHead>Warehouse</TableHead>
-              <TableHead className="text-right">On hand</TableHead>
-              <TableHead className="text-right">Reorder point</TableHead>
+              <TableHead className="text-right">On hand (pieces)</TableHead>
+              <TableHead className="text-right">Reorder point (pieces)</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -223,8 +223,8 @@ export function PackagingAvailabilityPanel({ packagingTypeId, readOnly }: PanelP
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">{nameOf(r.warehouse_id)}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.qty_on_hand}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.reorder_point}</TableCell>
+                <TableCell className="text-right tabular-nums">{`${Number(r.qty_on_hand ?? 0).toLocaleString()} pcs`}</TableCell>
+                <TableCell className="text-right tabular-nums">{`${Number(r.reorder_point ?? 0).toLocaleString()} pcs`}</TableCell>
                 <TableCell>
                   <StatusBadge
                     tone={!r.is_stocked ? "neutral" : r.qty_on_hand <= r.reorder_point ? "warning" : "success"}
