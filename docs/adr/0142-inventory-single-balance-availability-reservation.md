@@ -45,3 +45,22 @@ default location returned silently, dropping the quantity from the quant ledger.
   becomes a parameter of the canonical engine, not a separate formula.
 - `warehouse_stock` stays as the fast warehouse-level read model, so existing
   reads keep working while the truth moves underneath them.
+
+## Addendum — reservation engine (Phase 2, 2026-08-14)
+
+`stock_reservations` carries the lifecycle (`reserved → allocated → consumed |
+released | expired`), consumed and original quantities, optional bin location and
+lot, a per-organisation idempotency key, a release reason and metadata.
+
+`reserve_stock_atomic` is the **only** writer of reservation rows. Allocation,
+consumption, release and expiry each have exactly one function, and
+`consume_/release_stock_reservations_for_source` serve the document-level cases
+(sales order, POS register, pick wave, replenishment order, physical count).
+
+`reserve_stock`, `create_stock_reservation`, `release_stock` and
+`release_reserved_stock` are dropped. Reserved quantity is a projection at both
+grains — warehouse (`refresh_warehouse_stock_projection`) and bin
+(`refresh_quant_reserved_projection`) — and `trg_guard_quant_reserved` rejects any
+hand-written change to `stock_quants.reserved_quantity`.
+
+Ratchet: `supabase/tests/inventory_reservation_engine_test.sql`.
