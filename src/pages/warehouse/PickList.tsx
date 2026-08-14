@@ -340,7 +340,10 @@ export default function PickList() {
                       {t.lot_number ? <span className="text-muted-foreground"> · lot {t.lot_number}</span> : null}
                       {t.notes ? <span className="text-warning ml-2">· {t.notes}</span> : null}
                     </span>
-                    <div className="text-xs text-muted-foreground">req {Number(t.quantity ?? 0).toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      req <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+                    </div>
+
                     <Input
                       className="w-24"
                       type="number"
