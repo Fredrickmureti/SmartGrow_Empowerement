@@ -26,6 +26,9 @@ import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { Boxes, ClipboardCheck, ListPlus, Split } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import {
   unitOptionsFor, optionByKey, toBaseUnits, BASE_UNIT_KEY,
 } from "@/features/warehouse/receiving/receivingUnits";
