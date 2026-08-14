@@ -988,51 +988,16 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
         </Section>
       )}
 
-      {/* MOQ */}
+      {/* Fallback purchasing defaults — supplier terms take precedence (ADR 0141) */}
       {formData.type === "product" && (
-        <Section
-          title="Minimum order requirements"
-          description="MOQ and order-multiple enforcement."
-        >
-          <FieldGrid columns={2}>
-            <div className="space-y-2">
-              <Label htmlFor="min_order_quantity">Minimum order quantity</Label>
-              <Input
-                id="min_order_quantity"
-                type="number"
-                min="1"
-                step="1"
-                value={formData.min_order_quantity}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    min_order_quantity: parseInt(e.target.value) || 1,
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="order_quantity_increment">Order increment</Label>
-              <Input
-                id="order_quantity_increment"
-                type="number"
-                min="1"
-                step="1"
-                value={formData.order_quantity_increment}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    order_quantity_increment: parseInt(e.target.value) || 1,
-                  })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Must order in multiples of this value (e.g. case of 12).
-              </p>
-            </div>
-          </FieldGrid>
-        </Section>
+        <PurchasingDefaultsSection
+          minOrderQuantity={formData.min_order_quantity}
+          orderQuantityIncrement={formData.order_quantity_increment}
+          disabled={isSubmitting}
+          onChange={(patch) => setFormData({ ...formData, ...patch })}
+        />
       )}
+
 
       {/* Accounting defaults */}
       {formData.type === "product" && (
