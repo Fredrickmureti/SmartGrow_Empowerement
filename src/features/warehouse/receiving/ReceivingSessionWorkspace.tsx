@@ -379,13 +379,21 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     },
   });
 
-  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null }) => {
+  const runCapture = (
+    line: ReceivingLine,
+    v: {
+      qty: number; lot: string | null; serial: string | null; expiry: string | null;
+      damaged: number; hold: boolean; uom: string | null; packagingId: string | null;
+    },
+  ) => {
     if (!session || !line.product_id) return;
     capture.mutate(
       {
         sessionId: session.id,
         productId: line.product_id,
+        // Operator-entered quantity + packaging level; the RPC converts.
         receivedQty: v.qty,
+        packagingId: v.packagingId,
         expectedQty: line.expected_qty,
         lotNumber: v.lot,
         serialNumber: v.serial,
@@ -395,6 +403,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         uom: v.uom,
         lpnId: activeLpn?.id ?? null,
       },
+
       {
         onSuccess: () => {
           setExpandedLine(null);
