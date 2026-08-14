@@ -217,7 +217,7 @@ export default function Inventory() {
       if (error) throw error;
       const products = data || [];
       // ADR 0142: availability is a server decision. One batch call to the
-      // canonical engine — never `quantity - reserved_quantity` in the browser.
+      // canonical engine — never derived by browser arithmetic.
       const availability = await resolveAvailabilityFor(
         products.map((p: any) => p.id),
         { businessId, branchId: branchId ?? null },

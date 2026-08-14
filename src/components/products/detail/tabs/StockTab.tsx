@@ -24,7 +24,7 @@ export function StockTab({ data }: Props) {
   );
 
   // ADR 0142 — per-warehouse availability is resolved by the server engine.
-  // The browser never derives `quantity - reserved_quantity` itself.
+  // The browser never derives availability arithmetic itself.
   const { data: availabilityByWarehouse } = useQuery({
     queryKey: ["stock-availability-by-warehouse", productId, businessId, warehouseIds],
     enabled: !!productId && !!businessId && warehouseIds.length > 0,
