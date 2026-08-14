@@ -627,7 +627,9 @@ export default function BillingBoard() {
                     <TableCell className="font-mono text-xs">{r.activity}</TableCell>
                     <TableCell>{r.uom}</TableCell>
                     <TableCell className="text-right">{r.entry_count}</TableCell>
-                    <TableCell className="text-right">{Number(r.total_quantity).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {`${Number(r.total_quantity).toFixed(2)} ${r.uom}`}
+                    </TableCell>
                     <TableCell className="text-right">{Number(r.total_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{Number(r.unbilled_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{r.unpriced_count}</TableCell>
@@ -672,7 +674,9 @@ export default function BillingBoard() {
                     </TableCell>
                     <TableCell>{clientLabel(e.client_id)}</TableCell>
                     <TableCell className="font-mono text-xs">{e.activity}</TableCell>
-                    <TableCell className="text-right">{Number(e.quantity).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {`${Number(e.quantity).toFixed(2)} ${e.uom}`}
+                    </TableCell>
                     <TableCell className="text-right">
                       {e.amount === null ? "—" : `${Number(e.amount).toFixed(2)} ${e.currency ?? ""}`}
                     </TableCell>

@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/sheet";
 import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
 import { History } from "lucide-react";
+import { useWarehouseQtyFormatter } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 
 export interface TaskHistoryEvent {
   id: string;
@@ -50,12 +52,18 @@ const TONE: Record<string, "info" | "warning" | "success" | "neutral" | "danger"
 export function TaskHistorySheet({
   taskId,
   taskLabel,
+  productId,
   onOpenChange,
 }: {
   taskId: string | null;
   taskLabel?: string;
+  /** The task's product — supplies the pack/base UoM vocabulary for quantities. */
+  productId?: string | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  // Phase 2.4 — ledger quantities carry their unit, never a naked figure.
+  const baseLabels = useProductBaseUomLabels([productId]);
+  const qtyFmt = useWarehouseQtyFormatter([productId], baseLabels);
   const { data, isLoading } = useQuery({
     queryKey: ["wms-task-events", taskId],
     enabled: !!taskId,
@@ -124,9 +132,11 @@ export function TaskHistorySheet({
                     {e.scanned_barcode && <Fact label="Barcode" value={e.scanned_barcode} mono />}
                     {e.lot_number && <Fact label="Lot" value={e.lot_number} mono />}
                     {e.serial_number && <Fact label="Serial" value={e.serial_number} mono />}
-                    {e.quantity != null && <Fact label="Quantity" value={Number(e.quantity).toFixed(2)} mono />}
+                    {e.quantity != null && (
+                      <Fact label="Quantity" value={qtyFmt.format(productId, e.quantity)} mono />
+                    )}
                     {e.quantity_delta != null && (
-                      <Fact label="Qty change" value={Number(e.quantity_delta).toFixed(2)} mono />
+                      <Fact label="Qty change" value={qtyFmt.formatSigned(productId, e.quantity_delta)} mono />
                     )}
                   </dl>
 

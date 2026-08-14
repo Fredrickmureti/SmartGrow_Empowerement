@@ -41,6 +41,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import { ReplenishCompleteDialog } from "@/features/warehouse/replenishment/ReplenishCompleteDialog";
 import { TaskHistorySheet } from "@/features/warehouse/tasks/TaskHistorySheet";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 import { TASK_TYPES, TASK_OPEN_STATES, TASK_HELD_STATES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
 import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw, History } from "lucide-react";
 
@@ -133,6 +135,11 @@ export default function OperatorTasks() {
 
   const claim = (t: TaskRow) => transition(t, "claimed");
   const [historyTask, setHistoryTask] = useState<TaskRow | null>(null);
+
+  // Phase 2.4 — task quantities render with the product's pack/base UoM truth.
+  const taskProductIds = useMemo(() => (rows ?? []).map((t) => t.product_id), [rows]);
+  const taskBaseLabels = useProductBaseUomLabels(taskProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(taskProductIds, taskBaseLabels);
 
   const isCountTask = (t: TaskRow) =>
     t.task_type === "count" && t.source_doc_type === "wms_count_session" && !!t.source_doc_id;
@@ -368,7 +375,13 @@ export default function OperatorTasks() {
                         <span className="mx-1 text-muted-foreground">→</span>
                         <span className="font-mono">{t.dest_loc?.code ?? "—"}</span>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{t.quantity != null ? Number(t.quantity).toFixed(2) : "—"}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {t.quantity != null ? (
+                          <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {t.sla_at ? new Date(t.sla_at).toLocaleString() : "—"}
                       </TableCell>
@@ -416,6 +429,7 @@ export default function OperatorTasks() {
 
       <TaskHistorySheet
         taskId={historyTask?.id ?? null}
+        productId={historyTask?.product_id ?? null}
         taskLabel={historyTask ? `${historyTask.task_type} task` : undefined}
         onOpenChange={(o) => !o && setHistoryTask(null)}
       />
