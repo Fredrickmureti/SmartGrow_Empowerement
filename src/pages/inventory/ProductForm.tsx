@@ -247,12 +247,20 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
     try {
       // One payload for the whole product: master + packaging + measurements
-      // + identifiers. The database writes all of it or none of it.
+      // + identifiers + fiscal localization. The database writes all of it or
+      // none of it. The jurisdiction is resolved server-side from the business.
       const children = {
         packaging: packagingRef.current?.collect() ?? [],
         physical: physicalRef.current?.collect() ?? [],
         identifiers: identifiersRef.current?.collect() ?? [],
+        localization: {
+          classification_code: localization.classification_code || null,
+          unit_code: localization.unit_code || null,
+          packaging_unit: localization.packaging_unit || null,
+          origin_country: localization.origin_country || null,
+        },
       };
+
 
       if (editing) {
         const { productId } = await saveProductAtomic({
