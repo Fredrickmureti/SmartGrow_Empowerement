@@ -19,8 +19,8 @@ ADR 0078 (AVCO canonical), ADR 0076 (stock event fabric), ADR 0064, ADR 0025.
 | 4 | Costing & valuation guard (AVCO canonical) | VERIFIED (structural) |
 | 5 | Lots / serials / expiry traceability closure | COMPLETE (structural) |
 | 6 | Business events — one emitter, complete topics | VERIFIED (structural) |
-| 7 | Availability repoint — server batch engine + UI | **ACTIVE — 7a/7b/7c done, 7d/7e pending** |
-| 8 | Documentation + behavioural sweep | NOT STARTED |
+| 7 | Availability repoint — server batch engine + UI | **VERIFIED (structural) — 7a–7e closed** |
+| 8 | Documentation + behavioural sweep | **ACTIVE — ADR addendum done; behavioural proof BLOCKED (empty tenant DB)** |
 
 "Structural" means the schema, functions, triggers and ratchets are proven, but the
 tenant database is still empty (0 `stock_movements`, 0 `stock_quants`, 5 products),
