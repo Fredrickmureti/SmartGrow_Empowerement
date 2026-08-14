@@ -3,121 +3,105 @@
 **Reference architecture:** ADR 0142 (single balance / availability / reservation),
 ADR 0078 (AVCO canonical), ADR 0076 (stock event fabric), ADR 0064, ADR 0025.
 **Ledgers:** `.lovable/plan/inventory-foundation-wave-execution-ledger-2026-08-14.md`
-**Last updated:** 2026-08-14 (Phase 6 session)
+**Last updated:** 2026-08-14 (handover verification session #2)
 
 ## Status ledger
 
 | Phase | Scope | State |
 |---|---|---|
-| 1 | Single balance store + single availability engine | VERIFIED |
+| 1 | Single balance store + single availability engine | VERIFIED (see re-open below) |
 | 1b | `get_available_pos_stock_for_register` on the engine | VERIFIED |
 | 2 | Single reservation engine + lifecycle | VERIFIED |
 | 3 | Movement ledger completeness | VERIFIED |
 | 4 | Costing & valuation guard (AVCO canonical) | VERIFIED |
-| 5 | Lots / serials / expiry traceability closure | COMPLETE (structural pass) |
-| 6 | Business events — one emitter, complete topics | **COMPLETE this session (structural pass)** |
-| 7 | UI repoint — clear the allowlisted files computing inventory truth in the browser | **ACTIVE NEXT** |
-| 8 | Documentation + operator guide refresh | NOT STARTED |
+| 5 | Lots / serials / expiry traceability closure | COMPLETE (structural) |
+| 6 | Business events — one emitter, complete topics | VERIFIED (structural) |
+| 7 | Availability repoint — server batch engine + UI | **IN PROGRESS** |
+| 8 | Documentation + behavioural sweep | NOT STARTED |
 
-## Phase 6 — what landed (verified)
+## Verification performed this session
 
-Defects found and fixed (all real, all confirmed against the live database):
+Re-checked directly against the live database, not against the ledger:
 
-1. **Two competing emitters.** `tg_stock_movement_emit_event` (full coverage) existed
-   but was **not attached to any trigger**; the only attached emitter,
-   `trg_stock_movement_emit_event_fn`, filtered to `pos_sale` / `pos_return`.
-   Every non-POS movement — receipts, transfers, adjustments, scrap, counts,
-   landed cost, opening balances — emitted **nothing**.
-2. **Wrong routing.** `business_event_outbox.handler_scope` defaults to `'host'`
-   and neither emitter set it, so `inventory.movement.recorded` rows were never
-   claimable by the server `outbox-dispatcher` (it claims `handler_scope='server'`).
-   Reorder recompute was effectively dead.
-3. **No lot / serial / valuation events at all**, contrary to the Phase 6 contract.
+- `stock_movements` carries exactly one outbox emitter trigger
+  (`trg_stock_movement_emit_event` → `tg_stock_movement_emit_event`); the legacy
+  POS-only emitter is gone. **Phase 6 claim holds.**
+- `inventory_movement_event_classes` = 15 rows, `emit_inventory_event` exists,
+  8 server-scoped `inventory.*` topics, 4 lifecycle emitter triggers present.
+  **Phase 6 claim holds.**
+- Reservation engine, quant maintenance and valuation guards match the Phase 2/3/4
+  ratchets in `supabase/tests/`. **Claims hold.**
+- Tenant data is still empty (0 `stock_movements`, 0 `stock_quants`, 5 products),
+  so every phase above remains a *structural* pass. Behavioural proof stays in Phase 8.
 
-Implemented:
+### New defect found — Phase 1 was closed too early
 
-- `inventory_movement_event_classes` — registry mapping all 15 allowed
-  `movement_type` values to a business class (received / dispatched /
-  transferred / adjusted / posted). RLS on, `authenticated` read, `anon` revoked.
-- `emit_inventory_event(...)` — **the single seam** by which Inventory writes
-  `business_event_outbox`. Resolves `handler_scope` from `business_event_topics`
-  and fails closed (`INVENTORY_UNREGISTERED_EVENT_TOPIC`) on unregistered topics.
-- `tg_stock_movement_emit_event` rewritten: registry-driven, fails closed
-  (`INVENTORY_UNMAPPED_MOVEMENT_TOPIC`), emits one
-  `inventory.movement.recorded` per movement with `movement_class` and
-  `signed_quantity` (via the Phase 5 direction authority) in the payload.
-  Idempotency key `inventory.movement.recorded:<movement_id>`.
-- Legacy POS-only emitter trigger and function **dropped**.
-- New lifecycle emitters: `trg_lot_quarantine_emit_event`,
-  `trg_product_recall_emit_event`, `trg_stock_serial_emit_event`,
-  `trg_inventory_revaluation_emit_event` → topics
-  `inventory.lot.quarantined|released|recall_opened|recall_closed`,
-  `inventory.serial.status_changed`,
-  `inventory.valuation.revalued|revaluation_reversed`. All registered in
-  `business_event_topics` with `handler_scope='server'`.
-- `outbox-dispatcher`: all eight inventory topics registered (movement →
-  reorder recompute; lifecycle → explicit recorded-noop so the closed registry
-  cannot dead-letter them).
-- Client: `DomainEventType` retires the five `stock.movement.*` topics for the
-  canonical `inventory.*` family; `BusinessSagaMount` registers one host-side
-  observer on `inventory.movement.recorded` (observation only — no inventory
-  truth in the browser).
-- Ratchets: `supabase/tests/inventory_event_fabric_test.sql` (single emitter,
-  registry coverage of every `movement_type`, fail-closed codes, server scope,
-  four lifecycle triggers) and the rewritten
-  `src/test/architecture/stock-event-fabric-and-landed-cost.test.ts`.
+`resolve_stock_availability` is correct and canonical, but it is **single-product
+only**. Every list surface therefore avoids it:
 
-Verification run this session:
-- `npx tsgo --noEmit` → clean.
-- `bunx vitest run src/test/architecture/stock-event-fabric-and-landed-cost.test.ts`
-  → 10/10 pass.
-- Live DB assertions: direct outbox-writing triggers on `stock_movements` = 0,
-  `tg_stock_movement_emit_event` triggers = 1, legacy function = 0, registry
-  rows = 15, server-scoped `inventory.*` topics = 8, lifecycle triggers = 4.
+1. `list_products_with_branch_stock` — the RPC behind `useBranchScopedProducts`,
+   product lists, and sales line validation — computes
+   `SUM(warehouse_stock.quantity) - SUM(warehouse_stock.reserved_quantity)` itself.
+   That is a **fifth availability formula, on the server**, blind to blocked,
+   quarantine and transit locations. It contradicts ADR 0142 §3.
+2. Two overloads of that function exist (3-arg and 4-arg); the 3-arg one is dead
+   weight and will drift.
+3. `src/lib/inventory/availability.ts#resolveAvailabilityFor` fans out one RPC per
+   product — unusable for lists, which is *why* the surfaces bypass it.
+4. Eight browser files still derive `quantity - reserved` locally
+   (`availability-is-server-owned.test.ts` PENDING_MIGRATION).
+5. `src/lib/replenishment/engine.ts` computes availability and net requirement in
+   the browser — a business engine on the client (parent prompt §9).
 
-**Known limitation (carry forward):** the tenant database still holds zero
-`stock_movements`, so Phase 6 is a *structural* pass. No event has yet been
-observed end-to-end through `emit_inventory_event → outbox → dispatcher`.
-Phase 8 must include one behavioural run.
+## Phase 7 — availability repoint (execution plan)
 
-## Phase 7 — UI repoint (next)
+**7a. Batch availability engine (server).**
+Add `resolve_stock_availability_batch(p_product_ids uuid[], p_business_id,
+p_branch_id, p_warehouse_id)` returning the same six columns per product, sharing
+one implementation with the single-product function (single-product becomes a thin
+wrapper so there is still exactly one formula). `SECURITY DEFINER`, business-access
+check, `authenticated` + `service_role` grants, `anon` revoked.
 
-Clear the surfaces that still compute inventory truth in the browser
-(`quantity - reserved_quantity` and similar) and route them through the single
-availability engine from Phase 1. Known allowlisted files:
-`Inventory.tsx`, `Forecast.tsx`, `ProductStockPanel`, `StockTab`, `OverviewTab`,
-`WarehouseStockPeekSheet`, `LicensePlateView`, `readOnHand`.
-Deliverable: an architecture test forbidding local availability arithmetic, so
-the allowlist cannot regrow.
+**7b. Repoint the server list RPC.**
+Rewrite `list_products_with_branch_stock` so `on_hand / reserved / available` come
+from the batch engine instead of `warehouse_stock` arithmetic; drop the dead 3-arg
+overload. No signature change for callers.
 
-## Phase 8 — Documentation + behavioural sweep
+**7c. Repoint the browser.**
+`resolveAvailabilityFor` calls the batch RPC once. Migrate the eight allowlisted
+files to it (or to the already-correct RPC columns) and empty PENDING_MIGRATION.
+Display-only "reserved" chips may keep reading the `warehouse_stock` read model;
+any number that drives a decision goes through the engine.
 
-- ADR addendum for the expiry policy (Phase 5), the genealogy projection and
-  the Phase 6 event fabric; refresh the operator guide.
-- Run, and read in full: `supabase/tests/inventory_movement_ledger_test.sql`,
-  `inventory_valuation_guard_test.sql`,
-  `inventory_lot_serial_traceability_test.sql`,
-  `inventory_event_fabric_test.sql`, plus
-  `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
-  `check_valuation_writer_coverage()`,
-  `check_inventory_valuation_drift(NULL, 0.01)`,
+**7d. Replenishment.**
+`computeRecommendation` keeps pure rounding/urgency helpers, but the availability
+input must arrive from the engine, not be derived in the browser. If a server-side
+replenishment recommender already exists, use it; do not build a second one.
+
+**7e. Ratchet.**
+Extend `availability-is-server-owned.test.ts` (empty allowlist) and add a SQL
+ratchet asserting no `public` function other than the engine derives
+`quantity - reserved_quantity` for availability.
+
+## Phase 8 — documentation + behavioural sweep
+
+- ADR 0142 addendum for the batch engine; ADR addendum for Phase 5 expiry policy
+  and the Phase 6 event fabric; refresh the operator guide.
+- Run and read in full: `inventory_movement_ledger_test.sql`,
+  `inventory_valuation_guard_test.sql`, `inventory_lot_serial_traceability_test.sql`,
+  `inventory_event_fabric_test.sql`, `inventory_reservation_engine_test.sql`,
+  plus `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
+  `check_valuation_writer_coverage()`, `check_inventory_valuation_drift(NULL,0.01)`,
   `check_serial_position_drift(NULL)`.
-- Behavioural proof: create one real movement in the UI and confirm exactly one
-  `inventory.movement.recorded` row appears with `handler_scope='server'` and is
-  drained by `outbox-dispatcher`.
+- Behavioural proof (the outstanding gap): receive stock through the UI, then
+  confirm one movement → one quant row → one `inventory.movement.recorded` outbox
+  row with `handler_scope='server'`, drained by `outbox-dispatcher`, and one
+  cost layer with the expected AVCO.
 
-## Instructions for the next agent
+## Rules of engagement (unchanged)
 
-1. **Verify before building.** Re-check the Phase 6 claims above directly against
-   the database and the code, not against this file: confirm there is exactly one
-   emitter trigger on `stock_movements`, that no other trigger writes
-   `business_event_outbox` directly, that `handler_scope` resolves to `server`,
-   and that every `movement_type` in the check constraint has a registry row.
-   `supabase/tests/inventory_event_fabric_test.sql` does all of this in one run.
-2. **Then resume at Phase 7 (UI repoint)** — not unrelated work, not a new audit.
-3. **Rules of engagement:** migrations only through the migration tool; new
-   functions `authenticated` + `service_role`, `anon` revoked; reuse existing
-   engines (`convert_uom`, `resolve_product_identity`, `publish_business_event` /
-   `emit_inventory_event`, `resolve_exchange_rate`, `cost_layers`) — no duplicates;
-   no business logic in the browser; master data stays separate from transactional
-   state; finish a phase before starting the next.
+Migrations only through the migration tool; new functions `authenticated` +
+`service_role`, `anon` revoked; reuse canonical engines (`convert_uom`,
+`resolve_product_identity`, `emit_inventory_event`, `resolve_exchange_rate`,
+`cost_layers`) — no duplicates; no business logic in the browser; finish a phase
+before starting the next.
