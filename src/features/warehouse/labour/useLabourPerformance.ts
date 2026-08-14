@@ -15,6 +15,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { labourErrorMessage } from "./labourErrors";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import type { WmsTaskType } from "./useLabourOperators";
@@ -147,7 +148,7 @@ export function useSaveLabourTarget() {
       qc.invalidateQueries({ queryKey: PERFORMANCE_KEYS.scorecard });
       toast.success("Target saved");
     },
-    onError: (e: Error) => toast.error(e.message || "Target could not be saved"),
+    onError: (e: Error) => toast.error(labourErrorMessage(e) || "Target could not be saved"),
   });
 }
 
@@ -163,7 +164,7 @@ export function useDeleteLabourTarget() {
       qc.invalidateQueries({ queryKey: PERFORMANCE_KEYS.scorecard });
       toast.success("Target removed");
     },
-    onError: (e: Error) => toast.error(e.message || "Target could not be removed"),
+    onError: (e: Error) => toast.error(labourErrorMessage(e) || "Target could not be removed"),
   });
 }
 
@@ -183,6 +184,6 @@ export function useLogCoachingNote() {
       qc.invalidateQueries({ queryKey: PERFORMANCE_KEYS.scorecard });
       toast.success("Coaching note recorded");
     },
-    onError: (e: Error) => toast.error(e.message || "Coaching note could not be recorded"),
+    onError: (e: Error) => toast.error(labourErrorMessage(e) || "Coaching note could not be recorded"),
   });
 }

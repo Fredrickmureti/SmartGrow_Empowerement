@@ -16,6 +16,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { labourErrorMessage } from "./labourErrors";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 
@@ -49,6 +50,7 @@ export interface OperatorBoardRow {
   operator_code: string | null;
   status: OperatorStatus;
   status_changed_at: string;
+  row_version: number;
   is_active: boolean;
   home_zone_id: string | null;
   equipment_classes: string[] | null;
@@ -255,7 +257,7 @@ export function useOperatorMutations() {
       toast.success("Operator saved");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   const removeOperator = useMutation({
@@ -267,20 +269,25 @@ export function useOperatorMutations() {
       toast.success("Operator removed from the roster");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   /** Availability is operational state — RPC only, never a direct UPDATE. */
   const setStatus = useMutation({
-    mutationFn: async ({ operatorId, status }: { operatorId: string; status: OperatorStatus }) => {
+    mutationFn: async ({
+      operatorId,
+      status,
+      rowVersion,
+    }: { operatorId: string; status: OperatorStatus; rowVersion: number }) => {
       const { error } = await supabase.rpc("wms_set_operator_status", {
         p_operator_id: operatorId,
         p_status: status,
+        p_row_version: rowVersion,
       });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: LABOUR_KEYS.board }),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(labourErrorMessage(e)),
   });
 
   return { saveOperator, removeOperator, setStatus };

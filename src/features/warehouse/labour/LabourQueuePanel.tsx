@@ -124,7 +124,7 @@ export function LabourQueuePanel({ warehouseId }: Props) {
                   <div className="flex items-center gap-1">
                     <Select
                       value=""
-                      onValueChange={(userId) => reassign.mutate({ taskId: t.task_id, userId, reason: "supervisor" })}
+                      onValueChange={(userId) => reassign.mutate({ taskId: t.task_id, userId, rowVersion: t.row_version, reason: "supervisor" })}
                     >
                       <SelectTrigger className="h-8 w-full @xl/page:w-[130px]">
                         <SelectValue placeholder="Assign to…" />
@@ -142,20 +142,20 @@ export function LabourQueuePanel({ warehouseId }: Props) {
                     </Select>
                     <Button
                       size="icon" variant="ghost" title="Raise priority"
-                      onClick={() => setPriority.mutate({ taskId: t.task_id, priority: t.priority + 10 })}
+                      onClick={() => setPriority.mutate({ taskId: t.task_id, priority: t.priority + 10, rowVersion: t.row_version })}
                     >
                       <ArrowUp className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon" variant="ghost" title="Lower priority"
-                      onClick={() => setPriority.mutate({ taskId: t.task_id, priority: Math.max(0, t.priority - 10) })}
+                      onClick={() => setPriority.mutate({ taskId: t.task_id, priority: Math.max(0, t.priority - 10), rowVersion: t.row_version })}
                     >
                       <ArrowDown className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon" variant="ghost" title="Return to pool"
                       disabled={!t.assignee_user_id}
-                      onClick={() => release.mutate({ taskId: t.task_id, reason: "supervisor release" })}
+                      onClick={() => release.mutate({ taskId: t.task_id, rowVersion: t.row_version, reason: "supervisor release" })}
                     >
                       <Undo2 className="h-4 w-4" />
                     </Button>
