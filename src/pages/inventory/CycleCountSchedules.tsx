@@ -303,7 +303,24 @@ export default function CycleCountSchedules() {
                         return (
                           <TableRow key={s.id}>
                             <TableCell className="font-medium">{s.name}</TableCell>
-                            <TableCell>{wh?.name ?? "—"}</TableCell>
+                            <TableCell>
+                              {wh ? (
+                                wh.name
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="destructive">Needs repointing</Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    This schedule points at a place that cannot be
+                                    counted — stock in transit, a closed location, or
+                                    one belonging to another branch. Edit it and choose
+                                    a countable warehouse.
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </TableCell>
+
                             <TableCell><Badge variant="secondary">{CADENCE_LABEL[s.cadence]}</Badge></TableCell>
                             <TableCell><span className="text-xs">{scopeSummary(s)}</span></TableCell>
                             <TableCell className="text-xs whitespace-nowrap">
