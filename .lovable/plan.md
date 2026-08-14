@@ -71,23 +71,44 @@ single largest outstanding risk in the wave.
 
 ---
 
-## 3. Work still pending
+## 3. Session 2026-08-14b — independent verification + Phase 7 closure
 
-### Phase 7d — replenishment input (NEXT TASK)
-`computeRecommendation` may keep pure rounding/urgency helpers, but its **availability
-input must arrive from the engine**, not be derived in the browser.
-- Confirm whether `run_replenishment_planning` (server) already produces the
-  recommendation. If it does, the browser engine becomes display/preview only and its
-  callers must consume the server result — do **not** build a second recommender.
-- Any caller feeding `computeRecommendation` with locally derived on-hand/reserved
-  must be switched to `resolveAvailabilityFor` / the RPC columns.
+### Verification of the previous agent's claims (re-checked, not trusted)
+- **7a — PASS.** `resolve_stock_availability_batch`: exactly one 6-arg overload,
+  `SECURITY DEFINER`, `user_has_business_access` check, no `anon` EXECUTE. Body
+  excludes blocked/quarantine/transit and subtracts only *open* `stock_reservations`.
+- **7b — PASS.** `list_products_with_branch_stock`: one overload, sources
+  on_hand/reserved/available from the batch engine, no local arithmetic.
+- **7c — PASS.** `availability-is-server-owned.test.ts` green; `tsgo` clean.
+- `resolve_stock_availability` confirmed a 421-char wrapper over the batch engine.
 
-### Phase 7e — ratchet closure
-- Keep `availability-is-server-owned.test.ts` allowlist empty (it already only shrinks).
-- Add a **SQL ratchet** (`supabase/tests/…_test.sql`) asserting that no `public`
-  function other than `resolve_stock_availability_batch` derives availability via
-  `quantity - reserved_quantity`. This is the guard that stops Phase 1's defect
-  from recurring. Register it alongside the other inventory ratchets.
+### Phase 7d — replenishment input — DONE (defect found and fixed)
+The pending note assumed the browser was the only risk. It was wrong:
+`run_replenishment_planning` (server) was itself a **second availability formula** —
+`SUM(ws.quantity) - SUM(ws.reserved_quantity)` over `warehouse_stock`, which counted
+transit / quarantine / blocked stock as available and read a projected counter instead
+of open reservation rows. Rewritten (migration 2026-08-14) to:
+- plan at (product, branch) grain, branches derived from `stock_quants` within the
+  run's scope (rules with no stock still plan once, so stockouts stay visible);
+- take on_hand / reserved / available from `resolve_stock_availability_batch` via a
+  LATERAL call;
+- scope expected supply and 28-day velocity to that same branch;
+- stamp `explanation.availability_source`.
+Grants re-asserted: `authenticated` + `service_role`; `anon` revoked.
+`src/lib/replenishment/engine.ts` has **no production caller** (tests only), so it
+remains a pure reference spec — no second recommender was created.
+
+### Phase 7e — ratchet closure — DONE
+`supabase/tests/inventory_availability_single_formula_test.sql` asserts: one batch
+engine, `SECURITY DEFINER` + access check, no `anon` EXECUTE, single-product function
+delegates, and no other `public` function derives `quantity - reserved`. SQL comments
+are stripped before matching. Verified live: **zero offenders**. One shrink-only
+allowlist entry: `_wms_maybe_enqueue_replen` (BIN grain, not yet exposed by the
+engine — retire by adding a location grain to the batch engine).
+
+### Phase 8 — started
+ADR 0142 addendum written (batch engine + planner repoint + exemption).
+
 
 ### Phase 8 — documentation + behavioural sweep
 - ADR 0142 addendum for the batch engine; ADR addenda for the Phase 5 expiry policy
