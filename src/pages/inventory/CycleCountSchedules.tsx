@@ -136,10 +136,20 @@ export default function CycleCountSchedules() {
 
 
   const openCreate = () => {
+    if (warehouses.length === 0) {
+      toast({
+        title: "No countable warehouse",
+        description:
+          "This branch has no open warehouse to count. Set one up first, then come back and schedule the rotation.",
+        variant: "destructive",
+      });
+      return;
+    }
     setEditing(null);
     setForm({ ...EMPTY, warehouse_id: warehouses[0]?.id ?? "" });
     setSheetOpen(true);
   };
+
 
   const openEdit = (s: Schedule) => {
     setEditing(s);
