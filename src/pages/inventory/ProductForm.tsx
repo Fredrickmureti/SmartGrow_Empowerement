@@ -140,10 +140,6 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     cogs_account_id: null as string | null,
     inventory_account_id: null as string | null,
     tax_rate_id: null as string | null,
-    etims_classification_code: "",
-    etims_unit_code: "U",
-    etims_packaging_unit: "CT",
-    etims_country_origin: currentBusiness?.country || "",
     base_uom_id: null as string | null,
     sales_uom_id: null as string | null,
     purchase_uom_id: null as string | null,
@@ -151,6 +147,17 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     is_expiry_tracked: industryProfile.defaultExpiryTracking,
     expiry_alert_days: 30,
   });
+
+  // Fiscal metadata is NOT product master data — it lives per jurisdiction in
+  // `product_tax_localization`. Kept in its own state so the product payload
+  // never carries one country's tax vocabulary.
+  const [localization, setLocalization] = useState({
+    classification_code: "",
+    unit_code: "U",
+    packaging_unit: "CT",
+    origin_country: currentBusiness?.country || "",
+  });
+
 
   // Category tier of the GL ladder (ADR 0122): product → category (walking
   // parents) → company default. Presentation only; posting uses the same
