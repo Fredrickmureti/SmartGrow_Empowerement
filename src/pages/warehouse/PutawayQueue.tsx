@@ -9,6 +9,9 @@
  * atomically moves the LPN; the table triggers emit `warehouse.task.completed` + `warehouse.lpn.stored`).
  */
 import { useMemo, useState } from "react";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,6 +139,12 @@ export default function PutawayQueue() {
     return { pending, inProgress, doneToday };
   }, [rows]);
 
+  // Phase 2.4 — unit truth: pack rollup + the product's own base UoM label.
+  const taskProductIds = useMemo(() => (rows ?? []).map((r) => r.product_id), [rows]);
+  const qtyBaseLabels = useProductBaseUomLabels(taskProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(taskProductIds, qtyBaseLabels);
+
+
   const renderCard = (t: PutawayRow) => (
     <Card key={t.id} className="mb-2">
       <CardContent className="p-3 space-y-2">
@@ -151,7 +160,12 @@ export default function PutawayQueue() {
           <span className="font-mono">{t.source_loc?.code ?? "?"}</span>
           <span className="mx-1">→</span>
           <span className="font-mono">{t.dest_loc?.code ?? "unassigned"}</span>
-          {t.quantity != null ? <span className="ml-2">· qty {Number(t.quantity).toFixed(2)}</span> : null}
+          {t.quantity != null ? (
+            <span className="ml-2">
+              · qty <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+            </span>
+          ) : null}
+
           {t.lot_number ? <span className="ml-2">· lot {t.lot_number}</span> : null}
         </div>
         {t.state !== "completed" && t.state !== "cancelled" && (

@@ -14,6 +14,9 @@
  * matching task).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import { Link, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useQuery } from "@tanstack/react-query";
@@ -127,6 +130,12 @@ export default function PickList() {
     [tasks],
   );
   const done = useMemo(() => (tasks ?? []).filter((t) => t.state === "completed"), [tasks]);
+
+  // Phase 2.4 — unit truth: pack rollup + the product's own base UoM label.
+  const taskProductIds = useMemo(() => (tasks ?? []).map((t) => t.product_id), [tasks]);
+  const qtyBaseLabels = useProductBaseUomLabels(taskProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(taskProductIds, qtyBaseLabels);
+
 
   // Resolve the currently scanned bin+product to the single matching task.
   // A match requires: bin code equals task.source_loc.code (case-insensitive)
@@ -334,7 +343,10 @@ export default function PickList() {
                       {t.lot_number ? <span className="text-muted-foreground"> · lot {t.lot_number}</span> : null}
                       {t.notes ? <span className="text-warning ml-2">· {t.notes}</span> : null}
                     </span>
-                    <div className="text-xs text-muted-foreground">req {Number(t.quantity ?? 0).toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      req <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+                    </div>
+
                     <Input
                       className="w-24"
                       type="number"
@@ -366,7 +378,10 @@ export default function PickList() {
                   <StatusBadge tone="success">done</StatusBadge>
                   <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
                   <span className="flex-1">{t.product?.name ?? "—"}</span>
-                  <span className="font-mono">{Number(t.quantity ?? 0).toFixed(2)}</span>
+                  <span className="font-mono">
+                    <WarehouseQty fmt={qtyFmt} productId={t.product_id} baseQty={t.quantity} />
+                  </span>
+
                 </li>
               ))}
             </ul>

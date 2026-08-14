@@ -12,7 +12,9 @@
  * can be submitted; the server rejects submission otherwise, and this
  * screen collects the codes so operators never meet that error blind.
  */
+import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,6 +26,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
 import { useCountLines, countLineProductLabel, countLineEnteredLabel } from "@/features/warehouse/counts/useCountLines";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
 
@@ -55,6 +60,12 @@ export default function CountReview() {
   });
 
   const { data: lines } = useCountLines(sessionId);
+
+  // Phase 2.4 — unit truth: pack rollups and the product's own base UoM label.
+  const lineProductIds = useMemo(() => (lines ?? []).map((l) => l.product_id), [lines]);
+  const qtyBaseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, qtyBaseLabels);
+
 
   const setReason = useMutation({
     mutationFn: async (v: { line_id: string; counted_qty: number; reason: VarianceReason }) => {
@@ -223,9 +234,15 @@ export default function CountReview() {
                       <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
                       <td className="p-2">{countLineProductLabel(l)}</td>
                       <td className="p-2">{l.lot_number ?? "—"}</td>
-                      <td className="p-2 text-right font-mono">{l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}</td>
                       <td className="p-2 text-right font-mono">
-                        {Number(l.counted_qty ?? 0).toFixed(2)}
+                        {l.system_qty == null ? (
+                          "—"
+                        ) : (
+                          <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.system_qty} />
+                        )}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.counted_qty} />
                         {countLineEnteredLabel(l) && (
                           <span className="block text-xs text-muted-foreground">
                             entered {countLineEnteredLabel(l)}
@@ -233,7 +250,10 @@ export default function CountReview() {
                         )}
                       </td>
 
-                      <td className="p-2 text-right font-mono text-destructive">{Number(l.variance_qty ?? 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono text-destructive">
+                        <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.variance_qty} signed />
+                      </td>
+
                       <td className="p-2">
                         {outcome ? (
                           <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>

@@ -26,6 +26,9 @@ import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { Boxes, ClipboardCheck, ListPlus, Split } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { useProductPackagingBatch } from "@/hooks/inventory/useProductPackagingBatch";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
+
 import {
   unitOptionsFor, optionByKey, toBaseUnits, BASE_UNIT_KEY,
 } from "@/features/warehouse/receiving/receivingUnits";
@@ -123,6 +126,15 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
     [packsByProduct, captureForm.productId],
   );
   const captureUnit = optionByKey(captureUnits, unitKey);
+
+  // Phase 2.4 — unit truth on every rendered return quantity.
+  const lineProductIds = useMemo(
+    () => (lines ?? []).map((l) => l.product_id),
+    [lines],
+  );
+  const qtyBaseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, qtyBaseLabels);
+
 
   const submitCapture = () => {
     if (!captureForm.productId) {
@@ -272,15 +284,19 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                   )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {Number(line.received_qty ?? 0)}
+                  <WarehouseQty fmt={qtyFmt} productId={line.product_id} baseQty={line.received_qty} />
                   {line.expected_qty != null && (
-                    <span className="text-xs text-muted-foreground"> / {Number(line.expected_qty)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {" / "}
+                      <WarehouseQty fmt={qtyFmt} productId={line.product_id} baseQty={line.expected_qty} />
+                    </span>
                   )}
                   {line.packaging?.name && line.entered_qty != null && (
                     <span className="block text-xs text-muted-foreground">
                       entered {Number(line.entered_qty)} × {line.packaging.name}
                     </span>
                   )}
+
                 </TableCell>
                 <TableCell className="text-sm">{label(line.condition_code)}</TableCell>
                 <TableCell>
@@ -291,7 +307,8 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 <TableCell className="text-sm">{label(line.disposition)}</TableCell>
                 <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
                   {Number(line.restock_qty ?? 0)}/{Number(line.quarantine_qty ?? 0)}/
-                  {Number(line.scrap_qty ?? 0)}
+                  {Number(line.scrap_qty ?? 0)} {qtyFmt.baseLabelFor(line.product_id)}
+
                 </TableCell>
                 <TableCell className="space-x-1 text-right">
                   {!readOnly && !line.posted_at && (
