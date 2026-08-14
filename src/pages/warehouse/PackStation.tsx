@@ -52,6 +52,8 @@ import {
 } from "@/features/warehouse/packaging/handlingUnitPackaging";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { usePackScale } from "@/features/warehouse/packaging/usePackScale";
+import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
+import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 import { Scale, RotateCcw } from "lucide-react";
 
 
@@ -272,6 +274,15 @@ export default function PackStation() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Assign failed"),
   });
 
+  // Phase 2.4 — unit truth: every packed/picked figure renders through the
+  // canonical pack/base-UoM formatter, never a naked base integer.
+  const lineProductIds = useMemo(
+    () => (lines ?? []).map((l) => l.product_id),
+    [lines],
+  );
+  const baseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, baseLabels);
+
   const [sealDialog, setSealDialog] = useState<{ carton_id: string } | null>(null);
   const [weightKg, setWeightKg] = useState("");
   const [lenCm, setLenCm] = useState("");
@@ -459,8 +470,12 @@ export default function PackStation() {
                                 {l.product?.name ?? l.product_id}
                                 {l.lot_number ? <div className="text-xs text-muted-foreground">Lot {l.lot_number}</div> : null}
                               </td>
-                              <td className="p-2 text-right font-mono">{Number(l.quantity_picked).toFixed(2)}</td>
-                              <td className="p-2 text-right font-mono">{Number(l.quantity_packed).toFixed(2)}</td>
+                              <td className="p-2 text-right font-mono">
+                                <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.quantity_picked} />
+                              </td>
+                              <td className="p-2 text-right font-mono">
+                                <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.quantity_packed} />
+                              </td>
                               <td className="p-2">
                                 {remaining > 0 ? (
                                   <select
