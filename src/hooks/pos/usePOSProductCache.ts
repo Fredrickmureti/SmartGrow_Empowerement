@@ -29,7 +29,7 @@ export function usePOSProductCache() {
         .select("*")
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .eq("is_active", true)
+        .eq("status", "active")
         .order("name");
 
       if (error) throw error;

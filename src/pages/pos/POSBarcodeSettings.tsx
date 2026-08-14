@@ -278,7 +278,7 @@ function IdentifierForm({
         .from("products")
         .select("id, name, sku")
         .eq("business_id", currentBusiness!.id)
-        .eq("is_active", true)
+        .eq("status", "active")
         .order("name")
         .limit(20);
       if (productSearch) q = q.ilike("name", `%${productSearch}%`);

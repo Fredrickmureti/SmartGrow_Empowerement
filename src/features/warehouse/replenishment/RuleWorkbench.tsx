@@ -221,7 +221,7 @@ function CreateRuleDialog({ open, onOpenChange, defaultWarehouseId, onCreated }:
         .from("products")
         .select("id,name,sku")
         .eq("business_id", currentBusiness!.id)
-        .eq("is_active", true)
+        .eq("status", "active")
         .order("name")
         .limit(500);
       if (error) throw error;

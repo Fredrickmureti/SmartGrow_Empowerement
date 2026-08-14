@@ -290,7 +290,7 @@ class SyncManager {
           tax_rate_ref:tax_rates(id, name, rate, etims_tax_code)
         `)
         .eq("organization_id", organizationId)
-        .eq("is_active", true);
+        .eq("status", "active");
 
       if (error) throw error;
 
