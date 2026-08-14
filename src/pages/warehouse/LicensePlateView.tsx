@@ -56,7 +56,7 @@ const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "
   retired: "neutral", voided: "danger", consumed: "neutral",
 };
 
-function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function Metric({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
     <Card>
       <CardContent className="p-4">
@@ -258,9 +258,11 @@ export default function LicensePlateView() {
           <Metric
             label="Stock on plate"
             value={
-              (contents ?? []).length === 1
-                ? qtyFmt.format(contents![0]!.product_id, contents![0]!.quantity)
-                : (<AggregateQty qty={totals.units} />) as unknown as string
+              (contents ?? []).length === 1 ? (
+                <WarehouseQty fmt={qtyFmt} productId={contents![0]!.product_id} baseQty={contents![0]!.quantity} />
+              ) : (
+                <AggregateQty qty={totals.units} />
+              )
             }
             hint={`${totals.reserved} reserved`}
           />
