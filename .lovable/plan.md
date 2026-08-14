@@ -1,67 +1,75 @@
 # WMS Product & Inventory Consumer Audit — live status
 
-## Currently active phase
-**Phase 2.4 — unit truth on every warehouse quantity render: COMPLETE.**
-Next milestone: **Phase 3 — task/FSM lifecycle completeness audit** (see below).
+## Verification of the previous engineer's claims (this pass)
 
-## Fully implemented and verified
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Phase 1 — server-authoritative UoM conversion | CONFIRMED | `wms_to_base_qty` live; capture RPCs take `(entered_qty, packaging_id)`; guard `wms-server-authoritative-uom.test.ts` 8/8 green |
+| Phase 2.4 — unit truth on warehouse renders | CONFIRMED | `src/features/warehouse/quantity/warehouseQty.tsx` delegates to `@/lib/inventory/formatQty`; guard `warehouse-qty-display.test.ts` 3/3 green |
+| Phase 3 step 3 — guard on direct task state writes | ALREADY DONE (mislabelled pending) | `src/test/architecture/wms-no-direct-state-writes.test.ts` covers `wms_tasks`, `wms_license_plates`, `wms_receiving_sessions`, `wms_return_orders`, `wms_exceptions` |
+| Phase 3 step 1 — FSM guarded by state + `row_version` | MOSTLY CONFIRMED | Every `wms_transition_*` takes an expected version; `wms_claim_next_task` uses `FOR UPDATE SKIP LOCKED`; client callers thread `row_version` (OperatorTasks, PutawayQueue, WavePlanner, ReceivingSessions, CrossdockBoard, CountReview, LoadingManifests) |
+| Phase 3 step 2 — leases cannot orphan tasks | CONFIRMED (infrastructure) | `wms_task_reap_expired` runs on a real `pg_cron` job `wms-task-lease-reaper` (every minute), not a manual button |
+| Task/LPN events reach the outbox | CONFIRMED via triggers | `trg_wms_tasks_emit` / `trg_wms_lpn_emit` emit; transition RPCs need not emit inline |
 
-### Phase 1 — server-authoritative UoM conversion (verified)
-- `wms_to_base_qty` is the single conversion authority; `wms_capture_receiving_line`,
-  `record_count` and return capture all take `(entered_qty, packaging_id)` and derive base.
-- Warehouse client writes never touch `stock_quants` / `stock_movements` — all go through
-  FSM/domain RPCs.
-- Guard: `src/test/architecture/wms-server-authoritative-uom.test.ts` — 8/8 green.
+No completed work needs redoing. The plan's "Phase 3" is largely already satisfied — but verification surfaced two genuine holes that were not in the plan at all.
 
-### Phase 2.4 — unit truth on renders (verified)
-Canonical seam:
-- `src/features/warehouse/quantity/warehouseQty.tsx` — `useWarehouseQtyFormatter`,
-  `WarehouseQty`, `AggregateQty`; delegates to `@/lib/inventory/formatQty` (no local maths).
-- `src/features/warehouse/quantity/useProductBaseUomLabels.ts` — batched
-  `products.base_uom_id → units_of_measure.code` via `baseUomLabel()`.
+## Newly discovered defects (this is the work to do)
 
-Migrated surfaces (all render pack rollup + base unit, never a naked integer):
-- Receiving session workspace (expected / received / variance / capture preview; mixed-UoM
-  totals replaced with line counts).
-- Count review, Count session (system / counted / variance / base preview).
-- Return lines panel (received / expected / disposition split).
-- Pick list (requested + completed), Putaway queue (task qty).
-- Pack station (picked + packed), Operator tasks, Task history sheet (qty + qty change).
-- Billing board (tariff `uom` appended — priced in the tariff unit, exempted from the guard).
-- Handling unit preview (labelled "Base units" + SKU count, an explicit cross-product aggregate).
-- Cycle counts activity ledger — required a migration: `get_count_command_center` now returns
-  `product_id` per activity row so variances format with the product's own unit.
-- Packaging availability panel — on hand / reorder point labelled in pieces (packaging stock,
-  not product base UoM).
+### D1 — putaway split/reassign bypass optimistic concurrency (real race)
+`wms_split_putaway_task(p_task_id, p_quantity, p_location_id, p_reason)` and
+`wms_reassign_putaway_task(p_task_id, p_location_id, p_reason)` are the only
+`wms_tasks` mutators that take **no expected version** and read the task with a
+plain `SELECT * INTO` (no `FOR UPDATE`). Two supervisors splitting the same
+100-unit task concurrently each validate `p_quantity` against the same stale
+`quantity`, so a task can be split beyond its own quantity and capacity
+feasibility is checked against a value that no longer holds.
 
-Guards: `src/test/architecture/warehouse-qty-display.test.ts` (3/3) fails on any
-`Number(x.quantity).toFixed()` under `src/pages/warehouse` or `src/features/warehouse`, and
-pins the seam as delegation-only. Typecheck (`tsgo -p tsconfig.app.json`) clean.
+Fix: add `p_row_version integer` to both, lock the row with `FOR UPDATE`,
+reject on version mismatch with the same error shape the other FSM RPCs raise
+(`Row version mismatch`), bump `row_version`, and thread the version from the
+callers (`PutawayQueue`, putaway feature components) through the existing
+`useAggregateTransitions` / `useDomainOperations` seam so the existing
+mismatch-to-toast mapping keeps working.
 
-## Pending work (roadmap order)
+### D2 — the concurrency guarantee is unpinned
+No test asserts that *every* `wms_tasks`-mutating RPC takes a version
+parameter, so D1 could recur. Add an architecture guard that enumerates the
+task-mutating RPC surface and fails on any mutator without an expected-version
+parameter, plus a pgTAP structural check mirroring
+`supabase/tests/wms_dispatch_relieves_inventory_test.sql`.
 
-### Phase 3 — task/FSM lifecycle completeness (next)
-1. Enumerate every `wms_*` task RPC and confirm each transition is guarded by state +
-   `row_version` (optimistic concurrency), with no client-side state derivation.
-2. Verify claim/release/complete paths cannot orphan a task (crash mid-flow, offline replay).
-3. Add an architecture guard that fails on client code writing task `state`/`status` directly
-   instead of calling a transition RPC.
+## Phase 3 (revised) — close the task-concurrency holes
+1. Migration: version-guard + `FOR UPDATE` for `wms_split_putaway_task` and
+   `wms_reassign_putaway_task`.
+2. Thread `rowVersion` from every client caller through the typed wrapper layer.
+3. Guards: architecture test on the task-mutator RPC surface + pgTAP structural pins.
+Done when: migration applied, callers typecheck clean, both guards fail on a
+deliberate regression.
 
-### Phase 4 — inventory boundary enforcement
-- Prove every warehouse mutation lands in Inventory through domain RPCs, and add a guard for
-  direct `stock_quants` / `stock_movements` / `cost_layers` writes from `src/pages/warehouse`
-  and `src/features/warehouse`.
+## Phase 4 — inventory boundary enforcement (next)
+Client side is already clean (no direct `stock_quants` / `stock_movements`
+writes from warehouse code). Remaining work is the **server** side: read each
+`wms_*` function body that touches stock and confirm it routes through the
+sanctioned ledger primitives rather than writing `stock_movements` /
+`stock_quants` / `cost_layers` inline; pin the result with pgTAP.
 
-### Phase 5 — event-driven integration
-- Confirm each lifecycle transition emits to `business_event_outbox` with an idempotency key,
-  and that no consumer relies on client-emitted events.
+## Phase 5 — event-driven integration
+Confirm each lifecycle transition reaches `business_event_outbox` with an
+idempotency key of the ADR 0101 shape (`wms.{aggregate}:{id}:{transition}`),
+and that no consumer relies on a client-emitted event.
 
-## Instructions for the next agent
-1. **Verify before extending.** Run `bunx vitest run src/test/architecture` and
-   `bunx tsgo --noEmit -p tsconfig.app.json`; both must be green. Then spot-check three
-   Phase 2.4 surfaces (Cycle counts, Pack station, Task history sheet) for: batched hook usage
-   (one query per surface, not per row), no hardcoded unit words in JSX, and no local
-   `qty_in_base_uom` arithmetic.
-2. **Do not start unrelated work.** Resume at Phase 3 step 1 above.
-3. Bring each phase to a production-ready state (RPC + client + guard test + plan update)
-   before moving on; update this file immediately after each implementation.
+## Phase 6 — handling unit vs product packaging separation
+Verify `wms_license_plates` models a physical container and does not re-encode
+the reusable `product_packaging` definition.
+
+Out of scope this wave: Yard (no Product/Inventory dependency established),
+Workforce beyond confirming the enterprise identity is consumed, 3PL billing.
+
+## Technical notes
+- Concurrency error surface: `src/features/warehouse/aggregates/useDomainOperations.ts`
+  already maps `Row version mismatch` / `row_version` to an operator-safe toast.
+- Version-threading seam: `src/features/warehouse/aggregates/useAggregateTransitions.ts`
+  (`p_row_version`).
+- RPC ban/wrapper parity is enforced by `wms-no-direct-domain-rpc.test.ts` +
+  `wms-guard-parity.test.ts` — new RPC signatures must keep exactly one
+  wrapper-layer call site.
