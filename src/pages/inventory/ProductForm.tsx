@@ -87,6 +87,7 @@ import {
   EtimsClassificationCodeSelect,
   EtimsCountryOriginSelect,
 } from "@/components/etims/EtimsCodeSelectors";
+import { PurchasingDefaultsSection } from "./product-form/sections/PurchasingDefaultsSection";
 
 interface ProductFormProps {
   mode: "create" | "edit";
