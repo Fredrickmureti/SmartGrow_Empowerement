@@ -4,7 +4,7 @@
 ADR 0078 (AVCO canonical), ADR 0076 (stock event fabric), ADR 0064, ADR 0025.
 **Ledgers:** `.lovable/plan/inventory-foundation-wave-execution-ledger-2026-08-14.md`,
 `.lovable/plan/inventory-foundation-wave-authoritative-status-2026-08-14.md`
-**Last updated:** 2026-08-14 — end of Phase 7c.
+**Last updated:** 2026-08-14 — Phase 7 CLOSED (7d + 7e verified). Phase 8 is next.
 
 ---
 
@@ -19,8 +19,8 @@ ADR 0078 (AVCO canonical), ADR 0076 (stock event fabric), ADR 0064, ADR 0025.
 | 4 | Costing & valuation guard (AVCO canonical) | VERIFIED (structural) |
 | 5 | Lots / serials / expiry traceability closure | COMPLETE (structural) |
 | 6 | Business events — one emitter, complete topics | VERIFIED (structural) |
-| 7 | Availability repoint — server batch engine + UI | **ACTIVE — 7a/7b/7c done, 7d/7e pending** |
-| 8 | Documentation + behavioural sweep | NOT STARTED |
+| 7 | Availability repoint — server batch engine + UI | **VERIFIED (structural) — 7a–7e closed** |
+| 8 | Documentation + behavioural sweep | **ACTIVE — ADR addendum done; behavioural proof BLOCKED (empty tenant DB)** |
 
 "Structural" means the schema, functions, triggers and ratchets are proven, but the
 tenant database is still empty (0 `stock_movements`, 0 `stock_quants`, 5 products),
@@ -71,62 +71,75 @@ single largest outstanding risk in the wave.
 
 ---
 
-## 3. Work still pending
+## 3. Session 2026-08-14b — independent verification + Phase 7 closure
 
-### Phase 7d — replenishment input (NEXT TASK)
-`computeRecommendation` may keep pure rounding/urgency helpers, but its **availability
-input must arrive from the engine**, not be derived in the browser.
-- Confirm whether `run_replenishment_planning` (server) already produces the
-  recommendation. If it does, the browser engine becomes display/preview only and its
-  callers must consume the server result — do **not** build a second recommender.
-- Any caller feeding `computeRecommendation` with locally derived on-hand/reserved
-  must be switched to `resolveAvailabilityFor` / the RPC columns.
+### Verification of the previous agent's claims (re-checked, not trusted)
+- **7a — PASS.** `resolve_stock_availability_batch`: exactly one 6-arg overload,
+  `SECURITY DEFINER`, `user_has_business_access` check, no `anon` EXECUTE. Body
+  excludes blocked/quarantine/transit and subtracts only *open* `stock_reservations`.
+- **7b — PASS.** `list_products_with_branch_stock`: one overload, sources
+  on_hand/reserved/available from the batch engine, no local arithmetic.
+- **7c — PASS.** `availability-is-server-owned.test.ts` green; `tsgo` clean.
+- `resolve_stock_availability` confirmed a 421-char wrapper over the batch engine.
 
-### Phase 7e — ratchet closure
-- Keep `availability-is-server-owned.test.ts` allowlist empty (it already only shrinks).
-- Add a **SQL ratchet** (`supabase/tests/…_test.sql`) asserting that no `public`
-  function other than `resolve_stock_availability_batch` derives availability via
-  `quantity - reserved_quantity`. This is the guard that stops Phase 1's defect
-  from recurring. Register it alongside the other inventory ratchets.
+### Phase 7d — replenishment input — DONE (defect found and fixed)
+The pending note assumed the browser was the only risk. It was wrong:
+`run_replenishment_planning` (server) was itself a **second availability formula** —
+`SUM(ws.quantity) - SUM(ws.reserved_quantity)` over `warehouse_stock`, which counted
+transit / quarantine / blocked stock as available and read a projected counter instead
+of open reservation rows. Rewritten (migration 2026-08-14) to:
+- plan at (product, branch) grain, branches derived from `stock_quants` within the
+  run's scope (rules with no stock still plan once, so stockouts stay visible);
+- take on_hand / reserved / available from `resolve_stock_availability_batch` via a
+  LATERAL call;
+- scope expected supply and 28-day velocity to that same branch;
+- stamp `explanation.availability_source`.
+Grants re-asserted: `authenticated` + `service_role`; `anon` revoked.
+`src/lib/replenishment/engine.ts` has **no production caller** (tests only), so it
+remains a pure reference spec — no second recommender was created.
 
-### Phase 8 — documentation + behavioural sweep
-- ADR 0142 addendum for the batch engine; ADR addenda for the Phase 5 expiry policy
-  and the Phase 6 event fabric; refresh the operator guide.
-- Run and read in full: `inventory_movement_ledger_test.sql`,
-  `inventory_valuation_guard_test.sql`, `inventory_lot_serial_traceability_test.sql`,
-  `inventory_event_fabric_test.sql`, `inventory_reservation_engine_test.sql`, plus
-  `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
-  `check_valuation_writer_coverage()`, `check_inventory_valuation_drift(NULL,0.01)`,
-  `check_serial_position_drift(NULL)`.
-- Behavioural proof: receive stock through the UI, then confirm one movement →
-  one quant row → one `inventory.movement.recorded` outbox row with
-  `handler_scope='server'`, drained by `outbox-dispatcher`, and one cost layer with
-  the expected AVCO.
+### Phase 7e — ratchet closure — DONE
+`supabase/tests/inventory_availability_single_formula_test.sql` asserts: one batch
+engine, `SECURITY DEFINER` + access check, no `anon` EXECUTE, single-product function
+delegates, and no other `public` function derives `quantity - reserved`. SQL comments
+are stripped before matching. Verified live: **zero offenders**. One shrink-only
+allowlist entry: `_wms_maybe_enqueue_replen` (BIN grain, not yet exposed by the
+engine — retire by adding a location grain to the batch engine).
 
 ---
 
-## 4. Instructions for the next agent
+## 4. Phase 8 — remaining work (ACTIVE)
 
-**Do the verification step first. Do not start Phase 7d before it passes.**
+- [x] ADR 0142 addendum — batch engine, planner repoint, BIN-grain exemption.
+- [ ] ADR addenda for the Phase 5 expiry policy and the Phase 6 event fabric;
+      refresh the operator guide.
+- [ ] Run and read in full: `inventory_movement_ledger_test.sql`,
+      `inventory_valuation_guard_test.sql`, `inventory_lot_serial_traceability_test.sql`,
+      `inventory_event_fabric_test.sql`, `inventory_reservation_engine_test.sql`,
+      `inventory_availability_single_formula_test.sql`, plus
+      `check_movement_reversal_coverage()`, `check_stock_quant_drift(NULL)`,
+      `check_valuation_writer_coverage()`, `check_inventory_valuation_drift(NULL,0.01)`,
+      `check_serial_position_drift(NULL)`.
+- [ ] **BLOCKED — behavioural proof.** The tenant database is still empty
+      (0 `stock_movements`, 0 `stock_quants`). Receive stock through the UI, then
+      confirm one movement → one quant row → one `inventory.movement.recorded`
+      outbox row with `handler_scope='server'`, drained by `outbox-dispatcher`, and
+      one cost layer at the expected AVCO. Every phase to date is *structurally*
+      proven only; this is the wave's single largest outstanding risk.
+- [ ] Follow-up carried out of Phase 7e: add a location grain to
+      `resolve_stock_availability_batch` and delete the `_wms_maybe_enqueue_replen`
+      allowlist entry.
 
-1. **Verify Phase 7a/7b on the database, not on this document.**
-   - `resolve_stock_availability_batch` exists with the 4-arg signature, is
-     `SECURITY DEFINER`, has a business-access check, grants to `authenticated` and
-     `service_role`, and no `anon` grant.
-   - `resolve_stock_availability` is a wrapper — its body must contain no second
-     availability formula.
-   - `list_products_with_branch_stock` has exactly **one** overload and no
-     `quantity - reserved_quantity` arithmetic in its body.
-2. **Verify Phase 7c in the code.** Run
-   `bunx vitest run src/test/architecture/availability-is-server-owned.test.ts` and
-   `tsgo`. Then spot-read `Inventory.tsx`, `StockTab.tsx`, `ProductStockPanel.tsx`
-   and `useProductDetailData.ts` and confirm every *decision-driving* number comes
-   from `data.availability` / RPC columns. Display-only "reserved" chips reading the
-   `warehouse_stock` read model are acceptable.
-3. **If verification fails**, fix the defect inside Phase 7 and re-verify. Record the
-   defect in this file. Do not proceed with a partially correct phase.
-4. **If verification passes**, execute **Phase 7d**, then **Phase 7e**, then close
-   Phase 7 in the status ledger above and only then open Phase 8.
+## 5. Instructions for the next agent
+
+1. Do not re-verify Phases 1–7; they were independently re-checked against the live
+   database on 2026-08-14b (evidence in section 3). Re-run the two ratchets if in doubt:
+   `bunx vitest run src/test/architecture/availability-is-server-owned.test.ts` and the
+   SQL file `supabase/tests/inventory_availability_single_formula_test.sql`.
+2. Execute Phase 8 in the order above. Do not open new phases until the behavioural
+   sweep has real data behind it.
+3. Never mark a phase VERIFIED on the strength of code existing.
+
 
 ### Rules of engagement (unchanged)
 - Chronological execution: finish the active phase to a production-ready state before
