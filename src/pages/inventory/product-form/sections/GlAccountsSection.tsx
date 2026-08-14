@@ -6,14 +6,17 @@
 import { DollarSign } from "lucide-react";
 import { Section, FieldGrid } from "@/design-system";
 import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
-import type { CategoryAccountField } from "@/lib/productCategoryAccounts";
+import type {
+  CategoryAccountField,
+  CategoryAccountResolution,
+} from "@/lib/productCategoryAccounts";
 import type { ProductFormPatch, ProductFormValues } from "../formState";
 
 export interface GlAccountsSectionProps {
   values: ProductFormValues;
   onChange: ProductFormPatch;
   /** Category tier of the ladder, for display of the inherited default. */
-  categoryAccount: (field: CategoryAccountField) => string | null | undefined;
+  categoryAccount: (field: CategoryAccountField) => CategoryAccountResolution;
   disabled?: boolean;
 }
 
