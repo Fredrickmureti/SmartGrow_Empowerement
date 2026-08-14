@@ -29,10 +29,18 @@ Confirmed still open:
 
 ## Phase 6 close-out
 
+- **Broken build (found this session):** the decomposition left the GL accounts
+  seam mistyped. `ProductForm.tsx:525` passes a resolver returning
+  `CategoryAccountResolution` where `GlAccountsSection` declares a `string`
+  prop, and the section's four call sites then pass a string into an object
+  parameter (TS2322 + four TS2559). Fix by typing the section prop as the real
+  `CategoryAccountResolution` contract and using its `accountId` /
+  `categoryName` fields — do not cast it away.
 - Remove the unused `showAdvancedUoM` state from `ProductForm.tsx`.
 - Confirm every section still writes only through the `patch` /
   `patchLocalization` seams and that the master form keeps sole ownership of the
   single atomic save (no section may call Supabase directly).
+
 
 ## Phase 7 — Read-model consolidation
 
