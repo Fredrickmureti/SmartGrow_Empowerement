@@ -9,14 +9,11 @@
 -- SQL comments are stripped before matching, so documentation that *mentions*
 -- the forbidden formula does not trip the guard.
 --
--- ALLOWLIST — this list may only ever SHRINK:
---   `_wms_maybe_enqueue_replen`  Warehouse-owned pick-face replenishment. It
---     derives availability at BIN (location) grain from `stock_quants`, a grain
---     the canonical engine does not yet expose (it scopes to business / branch /
---     warehouse). `stock_quants.reserved_quantity` is itself a guarded
---     projection of `stock_reservations` (`trg_guard_quant_reserved`), so the
---     number is still engine-derived. Follow-up: add a location grain to
---     `resolve_stock_availability_batch` and delete this exemption.
+-- ALLOWLIST — EMPTY, and it may only ever stay empty.
+--   Phase 8c gave `resolve_stock_availability_batch` a `p_location_ids uuid[]`
+--   grain, so `_wms_maybe_enqueue_replen` (bin-grain pick-face replenishment)
+--   now calls the engine instead of deriving `quantity - reserved_quantity`
+--   from `stock_quants`. Do not re-add exemptions: extend the engine instead.
 
 BEGIN;
 
@@ -24,7 +21,7 @@ DO $$
 DECLARE
   v_count integer;
   v_offender text;
-  v_allowed text[] := ARRAY['_wms_maybe_enqueue_replen'];
+  v_allowed text[] := ARRAY[]::text[];
 BEGIN
   -- 1. the engine exists, exactly once
   SELECT count(*) INTO v_count
