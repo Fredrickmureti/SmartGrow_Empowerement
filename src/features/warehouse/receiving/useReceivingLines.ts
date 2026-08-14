@@ -32,6 +32,7 @@ export interface ReceivingLine {
   notes: string | null;
   captured_at: string | null;
   products?: { name: string | null; sku: string | null } | null;
+  packaging?: { name: string | null } | null;
 }
 
 export interface ReceivingProgress {
