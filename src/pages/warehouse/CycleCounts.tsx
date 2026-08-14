@@ -315,9 +315,7 @@ export default function CycleCounts() {
                             {s.open_recounts > 0 ? (
                               <span className="text-destructive">{s.open_recounts}</span>
                             ) : (
-                              <span className="text-muted-foreground">
-                            {qtyFmt.format(a.product_id, 0)}
-                          </span>
+                              <span className="text-muted-foreground">{s.open_recounts}</span>
                             )}
                           </span>
                           <span className="text-right">
