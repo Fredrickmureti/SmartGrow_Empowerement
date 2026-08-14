@@ -63517,49 +63517,79 @@ export type Database = {
         Row: {
           branch_id: string | null
           business_id: string
+          consumed_at: string | null
           created_at: string
           expires_at: string | null
           id: string
+          idempotency_key: string | null
+          location_id: string | null
           lot_id: string | null
+          lot_number: string | null
+          metadata: Json
           organization_id: string
+          original_quantity: number | null
           product_id: string
           quantity: number
+          quantity_consumed: number
+          release_reason: string | null
           released_at: string | null
           reserved_by: string | null
           source_id: string | null
           source_type: string
+          status: string
+          updated_at: string
           warehouse_id: string | null
         }
         Insert: {
           branch_id?: string | null
           business_id: string
+          consumed_at?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
+          idempotency_key?: string | null
+          location_id?: string | null
           lot_id?: string | null
+          lot_number?: string | null
+          metadata?: Json
           organization_id: string
+          original_quantity?: number | null
           product_id: string
           quantity: number
+          quantity_consumed?: number
+          release_reason?: string | null
           released_at?: string | null
           reserved_by?: string | null
           source_id?: string | null
           source_type: string
+          status?: string
+          updated_at?: string
           warehouse_id?: string | null
         }
         Update: {
           branch_id?: string | null
           business_id?: string
+          consumed_at?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
+          idempotency_key?: string | null
+          location_id?: string | null
           lot_id?: string | null
+          lot_number?: string | null
+          metadata?: Json
           organization_id?: string
+          original_quantity?: number | null
           product_id?: string
           quantity?: number
+          quantity_consumed?: number
+          release_reason?: string | null
           released_at?: string | null
           reserved_by?: string | null
           source_id?: string | null
           source_type?: string
+          status?: string
+          updated_at?: string
           warehouse_id?: string | null
         }
         Relationships: [
@@ -63597,6 +63627,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_location_fk"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_location_fk"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
           },
           {
             foreignKeyName: "stock_reservations_lot_id_fkey"
@@ -87028,6 +87072,10 @@ export type Database = {
         Args: { _cadence: string; _from: string }
         Returns: string
       }
+      allocate_stock_reservation: {
+        Args: { p_organization_id: string; p_reservation_id: string }
+        Returns: Json
+      }
       amend_contract: {
         Args: {
           p_changes: Json
@@ -89940,6 +89988,24 @@ export type Database = {
         }
         Returns: number
       }
+      consume_stock_reservation: {
+        Args: {
+          p_organization_id: string
+          p_quantity?: number
+          p_reservation_id: string
+        }
+        Returns: Json
+      }
+      consume_stock_reservations_for_source: {
+        Args: {
+          p_organization_id: string
+          p_product_id: string
+          p_quantity: number
+          p_source_id: string
+          p_source_type: string
+        }
+        Returns: number
+      }
       convert_app_trials_on_plan_change: {
         Args: { p_org_id?: string }
         Returns: number
@@ -90266,19 +90332,6 @@ export type Database = {
           session_id: string
           token: string
         }[]
-      }
-      create_stock_reservation: {
-        Args: {
-          p_expires_at?: string
-          p_lot_id?: string
-          p_organization_id: string
-          p_product_id: string
-          p_quantity: number
-          p_source_id?: string
-          p_source_type: string
-          p_warehouse_id: string
-        }
-        Returns: Json
       }
       create_supplier: {
         Args: {
@@ -98329,6 +98382,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      refresh_quant_reserved_projection: {
+        Args: {
+          p_location_id: string
+          p_lot_number?: string
+          p_product_id: string
+        }
+        Returns: undefined
+      }
       refresh_warehouse_stock_projection: {
         Args: { p_product_id: string; p_warehouse_id: string }
         Returns: undefined
@@ -98592,7 +98653,21 @@ export type Database = {
         Returns: Json
       }
       release_stock_reservation: {
-        Args: { p_organization_id: string; p_reservation_id: string }
+        Args: {
+          p_organization_id: string
+          p_reason?: string
+          p_reservation_id: string
+        }
+        Returns: Json
+      }
+      release_stock_reservations_for_source: {
+        Args: {
+          p_organization_id: string
+          p_product_id?: string
+          p_reason?: string
+          p_source_id: string
+          p_source_type: string
+        }
         Returns: Json
       }
       release_trailer_from_dock: {
@@ -99072,14 +99147,22 @@ export type Database = {
         }
         Returns: Json
       }
-      reserve_stock: {
+      reserve_stock_atomic: {
         Args: {
+          p_allow_partial?: boolean
+          p_expires_at?: string
+          p_idempotency_key?: string
+          p_location_id?: string
+          p_lot_id?: string
+          p_lot_number?: string
+          p_metadata?: Json
           p_organization_id: string
           p_product_id: string
           p_quantity: number
-          p_reference_id?: string
-          p_reference_type?: string
-          p_warehouse_id: string
+          p_reserved_by?: string
+          p_source_id?: string
+          p_source_type: string
+          p_warehouse_id?: string
         }
         Returns: Json
       }
@@ -100548,6 +100631,10 @@ export type Database = {
       start_appointment: {
         Args: { p_appointment_id: string }
         Returns: undefined
+      }
+      stock_reservation_is_open: {
+        Args: { p_expires_at: string; p_status: string }
+        Returns: boolean
       }
       storage_gc_resolve_objects: {
         Args: {
