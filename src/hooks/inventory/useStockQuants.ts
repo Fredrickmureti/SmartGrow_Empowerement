@@ -121,9 +121,20 @@ export function useLocationSummary(warehouseId?: string) {
 }
 
 /**
- * Ops helper — returns products whose quant total disagrees with
- * warehouse_stock. Empty result = clean.
+ * Ops helper — four-way drift check (ADR 0142 Phase 3). Compares the quant
+ * ledger against every derived projection: warehouse_stock, the per-lot
+ * balance, and the product-level cache. Empty result = clean.
  */
+export type StockQuantDriftRow = {
+  scope: "warehouse_stock" | "warehouse_stock_lots" | "products.stock_quantity";
+  warehouse_id: string | null;
+  product_id: string;
+  lot_number: string | null;
+  quant_qty: number;
+  projected_qty: number;
+  drift: number;
+};
+
 export function useStockQuantDrift(businessId?: string) {
   return useQuery({
     queryKey: ["stock-quant-drift", businessId],
@@ -134,14 +145,9 @@ export function useStockQuantDrift(businessId?: string) {
         { _business_id: businessId ?? null },
       );
       if (error) throw error;
-      return (data ?? []) as Array<{
-        warehouse_id: string;
-        product_id: string;
-        warehouse_stock_qty: number;
-        quant_qty: number;
-        drift: number;
-      }>;
+      return (data ?? []) as StockQuantDriftRow[];
     },
     staleTime: 60_000,
   });
 }
+

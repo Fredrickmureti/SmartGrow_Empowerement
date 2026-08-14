@@ -63073,6 +63073,30 @@ export type Database = {
           },
         ]
       }
+      stock_movement_source_types: {
+        Row: {
+          created_at: string
+          description: string
+          reference_type: string
+          target_table: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          reference_type: string
+          target_table?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          reference_type?: string
+          target_table?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_movements: {
         Row: {
           branch_id: string
@@ -89196,10 +89220,12 @@ export type Database = {
         Args: { _business_id?: string }
         Returns: {
           drift: number
+          lot_number: string
           product_id: string
+          projected_qty: number
           quant_qty: number
+          scope: string
           warehouse_id: string
-          warehouse_stock_qty: number
         }[]
       }
       check_storage_limit: {
@@ -99759,6 +99785,8 @@ export type Database = {
         Args: {
           p_branch_id?: string
           p_business_id: string
+          p_exclude_source_id?: string
+          p_exclude_source_type?: string
           p_product_id: string
           p_warehouse_id?: string
         }
