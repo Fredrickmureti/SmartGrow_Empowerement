@@ -78,9 +78,11 @@ export function StockTab({ data }: Props) {
         </TableHeader>
         <TableBody>
           {data.warehouseStock.map((ws: any) => {
-            const onHand = Number(ws.quantity) || 0;
-            const reserved = Number(ws.reserved_quantity) || 0;
-            const available = onHand - reserved;
+            const a = availabilityByWarehouse?.get(ws.warehouse_id);
+            const onHand = a?.onHand ?? 0;
+            const reserved = a?.reserved ?? 0;
+            const available = a?.available ?? 0;
+
             const rule = rules.get(ws.warehouse_id);
             const reorderAt = rule?.min_quantity ?? ws.reorder_level ?? null;
             const low = reorderAt != null && available <= Number(reorderAt);
