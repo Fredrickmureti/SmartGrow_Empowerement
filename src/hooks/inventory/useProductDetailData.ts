@@ -15,6 +15,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { activeIdentifiersForProduct } from "@/features/products/identity/activeIdentifiers";
+import {
+  resolveAvailability,
+  type StockAvailability,
+} from "@/lib/inventory/availability";
 
 
 export interface ProductDetailData {
@@ -27,7 +31,14 @@ export interface ProductDetailData {
   recentMovements: any[];
   incomingPo: { totalQty: number; openOrders: number };
   velocityPerWeek: number;
+  /**
+   * ADR 0142 — on-hand / reserved / available as resolved by the canonical
+   * server engine. The panel and its tabs MUST display these instead of
+   * summing `warehouse_stock` themselves.
+   */
+  availability: StockAvailability;
 }
+
 
 interface Args {
   productId: string | null;
