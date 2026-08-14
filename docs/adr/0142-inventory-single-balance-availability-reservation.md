@@ -64,3 +64,28 @@ grains — warehouse (`refresh_warehouse_stock_projection`) and bin
 hand-written change to `stock_quants.reserved_quantity`.
 
 Ratchet: `supabase/tests/inventory_reservation_engine_test.sql`.
+
+## Addendum — batch availability engine + planner repoint (Phase 7, 2026-08-14)
+
+`resolve_stock_availability_batch(p_product_ids uuid[], p_business_id, p_branch_id,
+p_warehouse_id, p_exclude_source_type, p_exclude_source_id)` is the ONE availability
+formula in the system. `resolve_stock_availability` (single product),
+`get_available_stock`, `get_available_pos_stock`,
+`get_available_pos_stock_for_register` and `list_products_with_branch_stock` are all
+thin callers over it. The browser never derives availability; it batches one RPC per
+de-duplicated product-id set via `src/lib/inventory/availability.ts`.
+
+`run_replenishment_planning` previously recomputed `SUM(quantity) - SUM(reserved_quantity)`
+over `warehouse_stock`, which ignored transit/quarantine/blocked locations and read a
+projected reserved counter rather than open reservation rows. It now plans at
+(product, branch) grain — branches derived from `stock_quants` within the run's scope —
+and takes on-hand / reserved / available from the engine via a LATERAL call. Expected
+supply and 28-day velocity are scoped to the same branch. Recommendation
+`explanation` now carries `availability_source`.
+
+Known exemption: `_wms_maybe_enqueue_replen` derives availability at BIN grain from
+`stock_quants`, which the engine does not yet expose. Adding a location grain to the
+batch engine retires it.
+
+Ratchets: `supabase/tests/inventory_availability_single_formula_test.sql` (SQL) and
+`src/test/architecture/availability-is-server-owned.test.ts` (browser).
