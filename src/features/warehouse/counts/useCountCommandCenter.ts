@@ -72,6 +72,7 @@ export interface CountActivityRow {
   counted_by: string | null;
   tolerance_outcome: string | null;
   recount_round: number | null;
+  product_id: string | null;
   product_name: string | null;
   location_code: string | null;
   variance_qty: number | null;

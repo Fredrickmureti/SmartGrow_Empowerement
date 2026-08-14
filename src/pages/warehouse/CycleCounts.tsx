@@ -305,7 +305,9 @@ export default function CycleCounts() {
                             {s.open_recounts > 0 ? (
                               <span className="text-destructive">{s.open_recounts}</span>
                             ) : (
-                              <span className="text-muted-foreground">0</span>
+                              <span className="text-muted-foreground">
+                            {qtyFmt.format(a.product_id, 0)}
+                          </span>
                             )}
                           </span>
                           <span className="text-right">
@@ -401,9 +403,13 @@ export default function CycleCounts() {
                         {a.variance_qty === null ? (
                           <span className="text-muted-foreground">hidden</span>
                         ) : Number(a.variance_qty) === 0 ? (
-                          <span className="text-muted-foreground">0</span>
+                          <span className="text-muted-foreground">
+                            {qtyFmt.format(a.product_id, 0)}
+                          </span>
                         ) : (
-                          <span className="text-destructive">{Number(a.variance_qty) > 0 ? "+" : ""}{a.variance_qty}</span>
+                          <span className="text-destructive">
+                            {qtyFmt.formatSigned(a.product_id, a.variance_qty)}
+                          </span>
                         )}
                       </span>
                     </li>
