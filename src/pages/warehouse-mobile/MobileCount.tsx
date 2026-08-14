@@ -239,16 +239,39 @@ export default function MobileCount() {
             )}
           </div>
         )}
-        <div>
-          <Label>Counted qty</Label>
-          <Input
-            type="number"
-            inputMode="decimal"
-            value={countedQty}
-            onChange={(e) => setCountedQty(e.target.value)}
-            className="h-12 text-lg"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Counted qty</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={countedQty}
+              onChange={(e) => setCountedQty(e.target.value)}
+              className="h-12 text-lg"
+            />
+          </div>
+          <div>
+            <Label>Unit</Label>
+            <Select value={unitKey} onValueChange={setUnitKey} disabled={units.length < 2}>
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="ea" />
+              </SelectTrigger>
+              <SelectContent>
+                {units.map((u) => (
+                  <SelectItem key={u.key} value={u.key}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+        {unit && !unit.isBase && basePreview > 0 && (
+          <div className="text-xs text-muted-foreground">
+            Books {basePreview} base unit{basePreview === 1 ? "" : "s"}
+          </div>
+        )}
+
 
         {tracking?.is_serial_tracked && (
           <div className="space-y-2">
