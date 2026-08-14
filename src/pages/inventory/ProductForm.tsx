@@ -954,61 +954,12 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
       {/* Accounting defaults */}
       {formData.type === "product" && (
-        <Section
-          title={
-            <span className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" /> Default GL accounts
-            </span>
-          }
-          description="Optional per-product overrides. System defaults are used when blank."
-        >
-          <FieldGrid columns={2}>
-            <ProductAccountSelector
-              label="Sales revenue account"
-              value={formData.sales_account_id}
-              onChange={(v) => setFormData({ ...formData, sales_account_id: v })}
-              accountType="income"
-              defaultKey="sales_revenue_id"
-              categoryDefault={categoryAccount("sales_account_id")}
-              helpText="Revenue account credited on sale"
-              disabled={isSubmitting}
-            />
-            <ProductAccountSelector
-              label="Purchase / expense account"
-              value={formData.purchase_account_id}
-              onChange={(v) => setFormData({ ...formData, purchase_account_id: v })}
-              accountType="expense"
-              defaultKey="operating_expenses_id"
-              categoryDefault={categoryAccount("purchase_account_id")}
-              helpText="Expense account debited when this item appears on a bill"
-              disabled={isSubmitting}
-            />
-            {(formData.type === "product" || formData.track_inventory) && (
-              <>
-                <ProductAccountSelector
-                  label="COGS account"
-                  value={formData.cogs_account_id}
-                  onChange={(v) => setFormData({ ...formData, cogs_account_id: v })}
-                  accountType="expense"
-                  defaultKey="cost_of_goods_sold_id"
-                  categoryDefault={categoryAccount("cogs_account_id")}
-                  helpText="Cost of Goods Sold debited on sale"
-                  disabled={isSubmitting}
-                />
-                <ProductAccountSelector
-                  label="Inventory account"
-                  value={formData.inventory_account_id}
-                  onChange={(v) => setFormData({ ...formData, inventory_account_id: v })}
-                  accountType="asset"
-                  defaultKey="inventory_account_id"
-                  categoryDefault={categoryAccount("inventory_account_id")}
-                  helpText="Inventory asset account for stock valuation"
-                  disabled={isSubmitting}
-                />
-              </>
-            )}
-          </FieldGrid>
-        </Section>
+        <GlAccountsSection
+          values={formData}
+          onChange={patch}
+          categoryAccount={categoryAccount}
+          disabled={isSubmitting}
+        />
       )}
 
       {/* Tax compliance */}
