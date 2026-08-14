@@ -337,7 +337,12 @@ export default function CountSession() {
                       <td className="p-2">{l.lot_number ?? "—"}</td>
                       {!blind && (
                         <td className="p-2 text-right font-mono">
-                          {l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}
+                          {l.system_qty == null ? (
+                            "—"
+                          ) : (
+                            <WarehouseQty fmt={qtyFmt} productId={l.product_id} baseQty={l.system_qty} />
+                          )}
+
                         </td>
                       )}
                       <td className="p-2">
