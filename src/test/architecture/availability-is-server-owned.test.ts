@@ -15,22 +15,16 @@ import { globSync } from "glob";
 
 /** Files still doing client-side availability arithmetic (Phase 7 backlog). */
 const PENDING_MIGRATION: string[] = [
-  "src/components/inventory/WarehouseStockPeekSheet.tsx",
   "src/components/products/ProductStockPanel.tsx",
   "src/components/products/detail/ProductDetailPanel.tsx",
   "src/components/products/detail/tabs/OverviewTab.tsx",
   "src/components/products/detail/tabs/StockTab.tsx",
-  "src/apps/pos/terminal/sale/ProductPeekDialog.tsx",
-  "src/apps/pos/terminal/tender/TenderWorkspace.tsx",
-  "src/hooks/inventory/useStockQuants.ts",
-  "src/hooks/pos/usePOSStockSync.ts",
-  "src/hooks/useInventory.ts",
-  "src/hooks/useWarehouses.ts",
+  "src/features/sales/invoices/InvoiceCreatePage.tsx",
+  "src/hooks/useBranchScopedProducts.ts",
+  "src/lib/replenishment/engine.ts",
   "src/pages/Inventory.tsx",
-  "src/pages/inventory/Forecast.tsx",
-  "src/pages/warehouse/LicensePlateView.tsx",
-  "src/features/warehouse/lpn/useLpnOps.ts",
 ];
+
 
 /** `x.quantity - x.reserved_quantity`, in either naming convention. */
 const DERIVATION =
