@@ -1007,74 +1007,14 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
 
       {/* Tax compliance */}
       {isComplianceAvailable && formData.type === "product" && (
-        <Section
-          title={
-            <span className="flex items-center gap-2">
-              <FileCheck2 className="h-4 w-4 text-muted-foreground" /> Tax compliance —{" "}
-              {complianceInfo?.displayName}
-            </span>
-          }
-          description="Codes transmitted with invoices and receipts for fiscal reporting."
-        >
-          <FieldGrid columns={2}>
-            <div className="space-y-2">
-              <Label>Tax rate (with compliance code)</Label>
-              <Select
-                value={formData.tax_rate_id || "none"}
-                onValueChange={(v) => {
-                  const selectedRate = taxRates.find((t) => t.id === v);
-                  setFormData({
-                    ...formData,
-                    tax_rate_id: v === "none" ? null : v,
-                    tax_rate: selectedRate?.rate || 0,
-                  });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tax rate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No tax</SelectItem>
-                  {taxRates
-                    .filter((t) => t.is_active)
-                    .map((rate) => (
-                      <SelectItem key={rate.id} value={rate.id}>
-                        <div className="flex items-center gap-2">
-                          <span>
-                            {rate.name} ({rate.rate}%)
-                          </span>
-                          {rate.etims_tax_code && (
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {rate.etims_tax_code}
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <EtimsClassificationCodeSelect
-              value={localization.classification_code}
-              onChange={(v) =>
-                setLocalization({ ...localization, classification_code: v })
-              }
-            />
-            <EtimsUnitCodeSelect
-              value={localization.unit_code}
-              onChange={(v) => setLocalization({ ...localization, unit_code: v })}
-            />
-            <EtimsPackagingCodeSelect
-              value={localization.packaging_unit}
-              onChange={(v) => setLocalization({ ...localization, packaging_unit: v })}
-            />
-            <EtimsCountryOriginSelect
-              value={localization.origin_country}
-              onChange={(v) => setLocalization({ ...localization, origin_country: v })}
-            />
-
-          </FieldGrid>
-        </Section>
+        <TaxComplianceSection
+          values={formData}
+          onChange={patch}
+          localization={localization}
+          onLocalizationChange={patchLocalization}
+          taxRates={taxRates}
+          regimeName={complianceInfo?.displayName}
+        />
       )}
 
       {/* Variants (edit mode only — parent must exist before children can be attached) */}
