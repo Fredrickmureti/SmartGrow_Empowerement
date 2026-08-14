@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
@@ -29,8 +30,11 @@ export function InventorySettings() {
   const { currentBusiness } = useBusinesses();
   const { toast } = useToast();
   const [costModel, setCostModel] = useState<CostModel>("wac");
+  const [requirePhysical, setRequirePhysical] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -41,18 +45,20 @@ export function InventorySettings() {
     setLoading(true);
     supabase
       .from("businesses")
-      .select("cost_model")
+      .select("cost_model, require_product_physical_attributes")
       .eq("id", currentBusiness.id)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
-          console.error("Failed to load cost_model:", error);
-        } else if (data && (data as any).cost_model) {
-          setCostModel((data as any).cost_model as CostModel);
+          console.error("Failed to load inventory settings:", error);
+        } else if (data) {
+          if ((data as any).cost_model) setCostModel((data as any).cost_model as CostModel);
+          setRequirePhysical(Boolean((data as any).require_product_physical_attributes));
         }
         setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
@@ -82,8 +88,39 @@ export function InventorySettings() {
     }
   };
 
+  const handleTogglePhysical = async (next: boolean) => {
+    if (!currentBusiness?.id) return;
+    const previous = requirePhysical;
+    setRequirePhysical(next);
+    setSavingPolicy(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .update({ require_product_physical_attributes: next } as any)
+        .eq("id", currentBusiness.id);
+      if (error) throw error;
+      toast({
+        title: next ? "Physical attributes now required" : "Requirement removed",
+        description: next
+          ? "Stock-tracked products must carry weight, volume or dimensions before they can be received."
+          : "Products can be received without physical attributes; landed costs allocated by weight or volume will still refuse to allocate without them.",
+      });
+    } catch (err: unknown) {
+      setRequirePhysical(previous);
+      toast({
+        title: "Couldn't save the policy",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
   return (
+    <div className="space-y-6">
     <Card>
+
       <CardHeader>
         <CardTitle>Inventory cost model</CardTitle>
         <CardDescription>
@@ -140,5 +177,36 @@ export function InventorySettings() {
         )}
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Product physical attributes</CardTitle>
+        <CardDescription>
+          Landed costs allocated by weight or volume need a measured product.
+          Requiring the measurement up front turns a late allocation failure
+          into a clear message at receipt time.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+          <div className="space-y-1">
+            <Label htmlFor="require-physical" className="font-medium">
+              Require physical attributes before receiving
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Applies to stock-tracked products only. Off by default.
+            </p>
+          </div>
+          <Switch
+            id="require-physical"
+            checked={requirePhysical}
+            disabled={loading || savingPolicy}
+            onCheckedChange={handleTogglePhysical}
+          />
+        </div>
+      </CardContent>
+    </Card>
+    </div>
   );
 }
+
