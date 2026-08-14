@@ -61,12 +61,13 @@ export function cartonScanFailureMessage(reason?: string | null): string {
 export async function setLpnPackaging(input: {
   lpnId: string;
   packagingTypeId: string;
-  expectedVersion?: number | null;
+  /** Required: `wms_lpn_set_packaging` rejects a missing revision (Phase 6). */
+  expectedVersion: number;
 }): Promise<void> {
   await replayGuardedCall("wms_lpn_set_packaging", {
     _lpn_id: input.lpnId,
     _packaging_type_id: input.packagingTypeId,
-    _expected_version: input.expectedVersion ?? null,
+    _expected_version: input.expectedVersion,
   });
 }
 
