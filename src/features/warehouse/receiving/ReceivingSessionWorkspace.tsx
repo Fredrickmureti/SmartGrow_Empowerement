@@ -286,6 +286,16 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     };
   }, [lines]);
 
+  // Phase 2.4 — unit truth. Every quantity below renders through the canonical
+  // Product packaging + base-UoM vocabulary, never as a naked base integer.
+  const lineProductIds = useMemo(
+    () => (lines ?? []).map((l) => l.product_id),
+    [lines],
+  );
+  const qtyBaseLabels = useProductBaseUomLabels(lineProductIds);
+  const qtyFmt = useWarehouseQtyFormatter(lineProductIds, qtyBaseLabels);
+
+
   // Trailer context for the session on screen — resolved through the dock
   // appointment from the yard's visit record. Read-only.
   const trailerVisits = useReceivingTrailerVisits(
