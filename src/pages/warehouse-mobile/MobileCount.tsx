@@ -85,6 +85,17 @@ export default function MobileCount() {
 
   const { data: tracking } = useProductTracking(active?.product_id);
 
+  // Counting in packaging units ("4 cases") is how a real cycle count runs.
+  // The device only carries the packaging level; `record_count` converts.
+  const { packsByProduct } = useProductPackagingBatch(
+    active?.product_id ? [active.product_id] : [],
+  );
+  const units = useMemo(
+    () => unitOptionsFor(active?.product_id ? packsByProduct.get(active.product_id) : []),
+    [packsByProduct, active?.product_id],
+  );
+  const unit = units.find((u) => u.key === unitKey) ?? units[0];
+
   const handleBinConfirmed = useCallback((confirmed: boolean) => {
     if (!confirmed) setBinLocationId(null);
   }, []);
@@ -97,17 +108,23 @@ export default function MobileCount() {
     setSerialEntry("");
   };
 
+  const enteredQty = Number(countedQty);
+  // Preview only — the ledger figure is computed by `wms_to_base_qty`.
+  const basePreview = toBaseUnits(enteredQty, unit);
+
   const submit = async () => {
     if (!active) {
       toast.error("Scan bin + SKU that match an open line");
       return;
     }
-    const n = Number(countedQty);
+    const n = enteredQty;
     if (!Number.isFinite(n) || n < 0) {
       toast.error("Enter counted qty");
       return;
     }
-    const serialProblem = serialCaptureError(tracking, n, serials);
+    // Serial capture is per physical unit, so it validates against the base
+    // preview rather than the number typed in cases.
+    const serialProblem = serialCaptureError(tracking, basePreview, serials);
     if (serialProblem) {
       toast.error(serialProblem);
       return;
@@ -121,10 +138,13 @@ export default function MobileCount() {
       const r = await enqueue<{ tolerance_outcome?: string }>("record_count", {
         p_line_id: active.id,
         p_counted_qty: n,
+        p_entered_qty: n,
+        p_packaging_id: unit?.packagingId ?? null,
         p_note: null,
         p_serial_numbers: serials.length > 0 ? serials : null,
         p_expiry_date: expiry || null,
       });
+
       const outcome = r.data?.tolerance_outcome;
       if (r.queued) {
         toast.success("Queued (offline)");
