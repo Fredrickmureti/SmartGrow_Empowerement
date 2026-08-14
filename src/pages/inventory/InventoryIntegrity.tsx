@@ -13,7 +13,10 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import {
   useStockQuantDrift,
   useMovementReversalCoverage,
+  useValuationDrift,
+  useValuationWriterCoverage,
   type StockQuantDriftRow,
+  type ValuationDriftRow,
 } from "@/hooks/inventory/useStockQuants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +30,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { CheckCircle2, AlertTriangle, Scale, Undo2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Scale, Undo2, Coins, ShieldCheck } from "lucide-react";
+
+const VALUATION_SCOPE_LABEL: Record<ValuationDriftRow["scope"], string> = {
+  warehouse_avco_vs_layers: "Warehouse AVCO vs layers",
+  product_avco_vs_layers: "Product AVCO vs layers",
+};
 
 const SCOPE_LABEL: Record<StockQuantDriftRow["scope"], string> = {
   warehouse_stock: "Warehouse rollup",
@@ -51,14 +59,22 @@ export default function InventoryIntegrity() {
 
   const drift = useStockQuantDrift(businessId);
   const coverage = useMovementReversalCoverage(Boolean(currentOrg?.id));
+  const valuation = useValuationDrift(businessId);
+  const valuationCoverage = useValuationWriterCoverage(Boolean(currentOrg?.id));
 
   const driftRows = drift.data ?? [];
   const coverageRows = coverage.data ?? [];
+  const valuationRows = valuation.data ?? [];
+  const valuationCoverageRows = valuationCoverage.data ?? [];
   const isClean =
     !drift.isLoading &&
     !coverage.isLoading &&
+    !valuation.isLoading &&
+    !valuationCoverage.isLoading &&
     driftRows.length === 0 &&
-    coverageRows.length === 0;
+    coverageRows.length === 0 &&
+    valuationRows.length === 0 &&
+    valuationCoverageRows.length === 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -78,7 +94,12 @@ export default function InventoryIntegrity() {
           )}
           <RefreshButton
             onRefresh={async () => {
-              await Promise.all([drift.refetch(), coverage.refetch()]);
+              await Promise.all([
+                drift.refetch(),
+                coverage.refetch(),
+                valuation.refetch(),
+                valuationCoverage.refetch(),
+              ]);
             }}
           />
         </div>
@@ -160,6 +181,99 @@ export default function InventoryIntegrity() {
           ) : (
             <ul className="space-y-2">
               {coverageRows.map((row) => (
+                <li
+                  key={`${row.issue}-${row.function_name}`}
+                  className="flex items-start gap-2 rounded-md border border-destructive/40 p-3 text-sm"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive" aria-hidden />
+                  <span>
+                    <span className="font-mono">{row.function_name}</span> — {row.detail}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Coins className="h-4 w-4" aria-hidden />
+            Valuation agreement
+            {!valuation.isLoading && valuationRows.length > 0 && (
+              <Badge variant="destructive">{valuationRows.length}</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Compares average-cost valuation on warehouse stock and products against the
+            remaining cost-layer roll-up.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {valuation.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : !businessId ? (
+            <p className="text-sm text-muted-foreground">
+              Select a company to run the valuation check.
+            </p>
+          ) : valuationRows.length === 0 ? (
+            <CleanState message="Average-cost valuation matches the cost-layer roll-up." />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Comparison</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Unit cost</TableHead>
+                  <TableHead className="text-right">AVCO value</TableHead>
+                  <TableHead className="text-right">Layer value</TableHead>
+                  <TableHead className="text-right">Drift</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {valuationRows.map((row, i) => (
+                  <TableRow key={`${row.scope}-${row.product_id}-${row.warehouse_id ?? ""}-${i}`}>
+                    <TableCell>{VALUATION_SCOPE_LABEL[row.scope] ?? row.scope}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.product_id}</TableCell>
+                    <TableCell className="text-right tabular-nums">{row.avco_qty}</TableCell>
+                    <TableCell className="text-right tabular-nums">{row.avco_unit_cost}</TableCell>
+                    <TableCell className="text-right tabular-nums">{row.avco_value}</TableCell>
+                    <TableCell className="text-right tabular-nums">{row.layer_value}</TableCell>
+                    <TableCell className="text-right tabular-nums text-destructive">
+                      {row.value_drift}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="h-4 w-4" aria-hidden />
+            Costing write authority
+            {!valuationCoverage.isLoading && valuationCoverageRows.length > 0 && (
+              <Badge variant="destructive">{valuationCoverageRows.length}</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Only registered costing routines may change average cost or cost layers —
+            there is one valuation engine, not several.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {valuationCoverage.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : valuationCoverageRows.length === 0 ? (
+            <CleanState message="No unregistered costing logic found." />
+          ) : (
+            <ul className="space-y-2">
+              {valuationCoverageRows.map((row) => (
                 <li
                   key={`${row.issue}-${row.function_name}`}
                   className="flex items-start gap-2 rounded-md border border-destructive/40 p-3 text-sm"
