@@ -64,6 +64,21 @@ describe("WMS capture surfaces delegate UoM conversion to the server", () => {
     }
   });
 
+  it("desktop receiving capture forwards the packaging level, not a converted qty", () => {
+    const workspace = read("src/features/warehouse/receiving/ReceivingSessionWorkspace.tsx");
+    // The inline capture form hands the packaging id up to `runCapture`.
+    expect(workspace).toContain("packagingId: unit.packagingId");
+    expect(workspace).toContain("qty: enteredQty");
+    // ...which forwards it to the shared mutation.
+    expect(workspace).toContain("packagingId: v.packagingId");
+
+    const hook = read("src/features/warehouse/receiving/useReceivingLines.ts");
+    const args = rpcArgs(hook, "wms_capture_receiving_line");
+    expect(args).toContain("p_packaging_id");
+    expect(args).toContain("p_entered_qty");
+    expect(args).not.toMatch(/toBaseUnits\s*\(/);
+  });
+
   it("receivingUnits documents that conversion is server-authoritative", () => {
     const src = read("src/features/warehouse/receiving/receivingUnits.ts");
     expect(src).toContain("wms_to_base_qty");
@@ -72,3 +87,4 @@ describe("WMS capture surfaces delegate UoM conversion to the server", () => {
     expect(src).toContain("packagingId");
   });
 });
+
