@@ -197,8 +197,9 @@ export function MobileReceiveSession() {
   );
   const units = (scan && unitOptions.get(scan.identity.productId)) || [];
   const unit = optionByKey(units.length ? units : [
-    { key: BASE_UNIT_KEY, label: "ea", uom: "ea", qtyInBaseUom: 1, isBase: true },
+    { key: BASE_UNIT_KEY, label: "ea", uom: "ea", packagingId: null, qtyInBaseUom: 1, isBase: true },
   ], unitKey);
+
   // Entered = what the operator typed, in the unit they picked. The base
   // quantity is derived SERVER-side (`wms_to_base_qty`); `baseQty` here is a
   // preview for the operator only and never reaches the RPC.
