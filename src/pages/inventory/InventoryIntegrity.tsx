@@ -15,8 +15,10 @@ import {
   useMovementReversalCoverage,
   useValuationDrift,
   useValuationWriterCoverage,
+  useSerialPositionDrift,
   type StockQuantDriftRow,
   type ValuationDriftRow,
+  type SerialPositionDriftRow,
 } from "@/hooks/inventory/useStockQuants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { CheckCircle2, AlertTriangle, Scale, Undo2, Coins, ShieldCheck } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Scale, Undo2, Coins, ShieldCheck, Fingerprint } from "lucide-react";
 
 const VALUATION_SCOPE_LABEL: Record<ValuationDriftRow["scope"], string> = {
   warehouse_avco_vs_layers: "Warehouse AVCO vs layers",
@@ -41,6 +43,12 @@ const SCOPE_LABEL: Record<StockQuantDriftRow["scope"], string> = {
   warehouse_stock: "Warehouse rollup",
   warehouse_stock_lots: "Per-lot balance",
   "products.stock_quantity": "Product cache",
+};
+
+const SERIAL_SCOPE_LABEL: Record<SerialPositionDriftRow["scope"], string> = {
+  status_vs_position: "State vs history",
+  warehouse_mismatch: "Warehouse mismatch",
+  orphan_serial: "No movements",
 };
 
 function CleanState({ message }: { message: string }) {
@@ -61,11 +69,13 @@ export default function InventoryIntegrity() {
   const coverage = useMovementReversalCoverage(Boolean(currentOrg?.id));
   const valuation = useValuationDrift(businessId);
   const valuationCoverage = useValuationWriterCoverage(Boolean(currentOrg?.id));
+  const serialDrift = useSerialPositionDrift(businessId);
 
   const driftRows = drift.data ?? [];
   const coverageRows = coverage.data ?? [];
   const valuationRows = valuation.data ?? [];
   const valuationCoverageRows = valuationCoverage.data ?? [];
+  const serialDriftRows = serialDrift.data ?? [];
   const isClean =
     !drift.isLoading &&
     !coverage.isLoading &&
@@ -74,7 +84,9 @@ export default function InventoryIntegrity() {
     driftRows.length === 0 &&
     coverageRows.length === 0 &&
     valuationRows.length === 0 &&
-    valuationCoverageRows.length === 0;
+    !serialDrift.isLoading &&
+    valuationCoverageRows.length === 0 &&
+    serialDriftRows.length === 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -99,6 +111,7 @@ export default function InventoryIntegrity() {
                 coverage.refetch(),
                 valuation.refetch(),
                 valuationCoverage.refetch(),
+                serialDrift.refetch(),
               ]);
             }}
           />
