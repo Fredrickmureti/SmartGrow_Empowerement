@@ -37,3 +37,21 @@ Client code (import handlers, ad-hoc workflows) MUST route through `public.emit_
 ## Follow-up
 
 Migrate one existing consumer (Finance COGS JE, or replenishment) to subscribe to `stock.movement.dispatched` instead of a direct trigger, as proof of the fabric. Tracked in the next session.
+## Addendum — topic registration is mandatory (2026-08-14, Phase 8 behavioural sweep)
+
+A real stock adjustment run against live data surfaced a routing defect: six
+`stock.*` / `inventory.*` topics were emitted by triggers but had no row in
+`business_event_topics`. `pos_topic_handler_scope()` falls back to `'server'`
+for unknown topics, so rows emitted with `handler_scope = 'host'` (the column
+default) were claimed by the server `outbox-dispatcher` and dead-lettered as
+`posting.contract_violation: unknown_event_type`.
+
+Rules, now ratcheted in `supabase/tests/inventory_event_fabric_test.sql` §6:
+
+- Every topic literal an emitter uses MUST have a `business_event_topics` row.
+- The registered `handler_scope` MUST match where the handler actually lives:
+  `host` for topics handled by the in-app saga (`stock.adjustment.posted`,
+  `stock.transfer.approved|completed`, `stock.count.completed|cancelled`),
+  `server` for topics handled by `outbox-dispatcher`
+  (`inventory.*`, including the record-only
+  `inventory.physical_count.posted` and `inventory.reorder.recompute`).
