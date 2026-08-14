@@ -288,6 +288,57 @@ export default function InventoryIntegrity() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Fingerprint className="h-4 w-4" aria-hidden />
+            Serial position
+            {!serialDrift.isLoading && serialDriftRows.length > 0 && (
+              <Badge variant="destructive">{serialDriftRows.length}</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Each serial's recorded state and warehouse must agree with its movement
+            history.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {serialDrift.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : !businessId ? (
+            <p className="text-sm text-muted-foreground">
+              Select a company to run the serial check.
+            </p>
+          ) : serialDriftRows.length === 0 ? (
+            <CleanState message="Every serial agrees with the movement ledger." />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Check</TableHead>
+                  <TableHead>Serial</TableHead>
+                  <TableHead>Recorded state</TableHead>
+                  <TableHead className="text-right">Net movements</TableHead>
+                  <TableHead>Detail</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {serialDriftRows.map((row) => (
+                  <TableRow key={`${row.scope}-${row.serial_id}`}>
+                    <TableCell>{SERIAL_SCOPE_LABEL[row.scope] ?? row.scope}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.serial_number}</TableCell>
+                    <TableCell>{row.recorded_status}</TableCell>
+                    <TableCell className="text-right tabular-nums">{row.net_quantity}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.detail}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
+
   );
 }
