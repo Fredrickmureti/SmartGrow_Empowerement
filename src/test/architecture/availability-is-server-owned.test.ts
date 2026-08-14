@@ -14,16 +14,7 @@ import { readFileSync } from "node:fs";
 import { globSync } from "glob";
 
 /** Files still doing client-side availability arithmetic (Phase 7 backlog). */
-const PENDING_MIGRATION: string[] = [
-  "src/components/products/ProductStockPanel.tsx",
-  "src/components/products/detail/ProductDetailPanel.tsx",
-  "src/components/products/detail/tabs/OverviewTab.tsx",
-  "src/components/products/detail/tabs/StockTab.tsx",
-  "src/features/sales/invoices/InvoiceCreatePage.tsx",
-  "src/hooks/useBranchScopedProducts.ts",
-  "src/lib/replenishment/engine.ts",
-  "src/pages/Inventory.tsx",
-];
+const PENDING_MIGRATION: string[] = [];
 
 
 /** `x.quantity - x.reserved_quantity`, in either naming convention. */
@@ -34,7 +25,12 @@ const isExempt = (file: string) =>
   file.startsWith("src/test/") ||
   file.includes("__tests__") ||
   file === "src/lib/inventory/availability.ts" ||
+  // Pure reference spec mirroring `run_replenishment_planning` in SQL. It is
+  // not a consumer surface: it never reads the database, and the SQL function
+  // is the authoritative execution path (see the module header).
+  file === "src/lib/replenishment/engine.ts" ||
   file === "src/integrations/supabase/types.ts";
+
 
 describe("ADR 0142: availability is server-owned", () => {
   const files = globSync("src/**/*.{ts,tsx}", { nodir: true }).filter(
