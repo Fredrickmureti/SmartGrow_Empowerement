@@ -1141,23 +1141,24 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
               </Select>
             </div>
             <EtimsClassificationCodeSelect
-              value={formData.etims_classification_code}
+              value={localization.classification_code}
               onChange={(v) =>
-                setFormData({ ...formData, etims_classification_code: v })
+                setLocalization({ ...localization, classification_code: v })
               }
             />
             <EtimsUnitCodeSelect
-              value={formData.etims_unit_code}
-              onChange={(v) => setFormData({ ...formData, etims_unit_code: v })}
+              value={localization.unit_code}
+              onChange={(v) => setLocalization({ ...localization, unit_code: v })}
             />
             <EtimsPackagingCodeSelect
-              value={formData.etims_packaging_unit}
-              onChange={(v) => setFormData({ ...formData, etims_packaging_unit: v })}
+              value={localization.packaging_unit}
+              onChange={(v) => setLocalization({ ...localization, packaging_unit: v })}
             />
             <EtimsCountryOriginSelect
-              value={formData.etims_country_origin}
-              onChange={(v) => setFormData({ ...formData, etims_country_origin: v })}
+              value={localization.origin_country}
+              onChange={(v) => setLocalization({ ...localization, origin_country: v })}
             />
+
           </FieldGrid>
         </Section>
       )}
