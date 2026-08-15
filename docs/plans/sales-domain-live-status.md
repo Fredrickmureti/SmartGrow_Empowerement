@@ -342,3 +342,16 @@ None.
    RPCs.
 5. Phase 2 follow-up — route the manual product picker through the ADR 0114
    identity read seam.
+
+## Phase 6.1 — server-side invoice GL resolution (done, 2026-08-15)
+
+- `build_invoice_je_lines(uuid)` resolves AR (customer override → canonical
+  default), per-line revenue (`resolve_product_gl_account`), `output_tax` and
+  `discount_given`; raises actionable errors on missing mappings.
+- `_confirm_invoice_core` builds the lines itself and rejects client-supplied
+  `p_main_lines` (42501); the two atomic wrappers keep the argument only as a
+  refused legacy parameter.
+- `src/hooks/invoices/confirmInvoiceGL.ts` reduced to a thin RPC seam.
+- Evidence: `confirmInvoiceGL.test.ts` (7 passing),
+  `compensation-writer-monopoly.test.ts` (17 passing), `tsgo` clean.
+- Next: 6.2 atomic invoice creation with idempotency.
