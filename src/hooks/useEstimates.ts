@@ -13,6 +13,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { computeEstimateTotals, type EstimateStatus } from "@/lib/estimateLifecycle";
 import { captureBillToSnapshot } from "@/lib/contactAddresses";
+import { createEstimateAtomic, updateEstimateAtomic } from "@/hooks/estimates/estimateWriter";
 
 export interface EstimateItem {
   id?: string;
