@@ -6124,6 +6124,9 @@ export type Database = {
           tax_rate: number | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           account_id?: string | null
@@ -6146,6 +6149,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           account_id?: string | null
@@ -6168,6 +6174,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -10508,6 +10517,9 @@ export type Database = {
           tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           created_at?: string
@@ -10537,6 +10549,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           created_at?: string
@@ -10566,6 +10581,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -13018,6 +13036,9 @@ export type Database = {
           tax_rate: number | null
           unit_price: number | null
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           cost_at_shipment?: number | null
@@ -13045,6 +13066,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price?: number | null
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           cost_at_shipment?: number | null
@@ -13072,6 +13096,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price?: number | null
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -19456,6 +19483,9 @@ export type Database = {
           tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           created_at?: string
@@ -19481,6 +19511,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           created_at?: string
@@ -19506,6 +19539,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -22356,6 +22392,9 @@ export type Database = {
           sort_order: number
           unit_cost_basis: string
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -22377,6 +22416,9 @@ export type Database = {
           sort_order?: number
           unit_cost_basis?: string
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -22398,6 +22440,9 @@ export type Database = {
           sort_order?: number
           unit_cost_basis?: string
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -23872,6 +23917,9 @@ export type Database = {
           tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           business_id?: string | null
@@ -23903,6 +23951,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           business_id?: string | null
@@ -23934,6 +23985,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -49268,6 +49322,9 @@ export type Database = {
           transaction_id: string
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -49299,6 +49356,9 @@ export type Database = {
           transaction_id: string
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -49330,6 +49390,9 @@ export type Database = {
           transaction_id?: string
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -53011,6 +53074,9 @@ export type Database = {
           tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           created_at?: string
@@ -53032,6 +53098,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           created_at?: string
@@ -53053,6 +53122,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -54845,6 +54917,9 @@ export type Database = {
           tax_rate: number | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           contract_line_id?: string | null
@@ -54873,6 +54948,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           contract_line_id?: string | null
@@ -54901,6 +54979,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -55665,6 +55746,9 @@ export type Database = {
           unit_cost_basis: number | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           bill_item_id?: string | null
@@ -55690,6 +55774,9 @@ export type Database = {
           unit_cost_basis?: number | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           bill_item_id?: string | null
@@ -55715,6 +55802,9 @@ export type Database = {
           unit_cost_basis?: number | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -59560,6 +59650,9 @@ export type Database = {
           tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           backorder_eta?: string | null
@@ -59590,6 +59683,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           backorder_eta?: string | null
@@ -59620,6 +59716,9 @@ export type Database = {
           tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -60073,6 +60172,9 @@ export type Database = {
           tax_rate: number | null
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           condition?: string | null
@@ -60103,6 +60205,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           condition?: string | null
@@ -60133,6 +60238,9 @@ export type Database = {
           tax_rate?: number | null
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -62734,6 +62842,9 @@ export type Database = {
           serial_number: string | null
           unit_cost: number | null
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
           warehouse_id: string | null
         }
         Insert: {
@@ -62755,6 +62866,9 @@ export type Database = {
           serial_number?: string | null
           unit_cost?: number | null
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           warehouse_id?: string | null
         }
         Update: {
@@ -62776,6 +62890,9 @@ export type Database = {
           serial_number?: string | null
           unit_cost?: number | null
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           warehouse_id?: string | null
         }
         Relationships: [
@@ -64109,6 +64226,9 @@ export type Database = {
           quantity_sent: number | null
           transfer_id: string
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -64125,6 +64245,9 @@ export type Database = {
           quantity_sent?: number | null
           transfer_id: string
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -64141,6 +64264,9 @@ export type Database = {
           quantity_sent?: number | null
           transfer_id?: string
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {
@@ -69025,6 +69151,9 @@ export type Database = {
           tax_rate: number
           unit_price: number
           uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           account_id?: string | null
@@ -69047,6 +69176,9 @@ export type Database = {
           tax_rate?: number
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           account_id?: string | null
@@ -69069,6 +69201,9 @@ export type Database = {
           tax_rate?: number
           unit_price?: number
           uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
           {

@@ -34,11 +34,68 @@ export interface LineWithProvenance {
   display_quantity?: number | null;
   /** Frozen label e.g. "Box × 10 ea". Optional. */
   uom_snapshot?: string | null;
+  /**
+   * Structured frozen snapshot (Phase 2). These three columns exist on all
+   * 15 document-line tables and are stamped once, at write time, by
+   * `enforce_line_uom_consistency`. They are the AUTHORITATIVE source for
+   * rendering a historical line: a later pack rename or factor change
+   * mutates `product_packaging`, but never these.
+   */
+  uom_snapshot_pack_name?: string | null;
+  uom_snapshot_factor?: number | string | null;
+  uom_snapshot_base_code?: string | null;
   /** Resolved packaging row (joined). Optional. */
   packaging?: PackagingRef | null;
   /** Convenience: short display label when the packaging row was not joined. */
   packaging_label?: string | null;
 }
+
+/** Structured snapshot resolved from a line, with live data as fallback. */
+export interface ResolvedLineSnapshot {
+  /** Pack name frozen at posting time, or the live/joined name. */
+  packName: string | null;
+  /** Base units per display unit frozen at posting time. Null when unknown. */
+  factor: number | null;
+  /** Base UoM code frozen at posting time. Null when unknown. */
+  baseCode: string | null;
+  /** True when the values came from the frozen snapshot, not live joins. */
+  frozen: boolean;
+}
+
+/**
+ * Resolve a line's pack/factor/base-unit meaning, preferring the frozen
+ * structured snapshot. Falls back to joined `product_packaging` and finally
+ * to parsing the legacy free-text `uom_snapshot` for pre-Phase-2 rows.
+ */
+export function resolveLineSnapshot(line: LineWithProvenance): ResolvedLineSnapshot {
+  const snapFactor = Number(line.uom_snapshot_factor);
+  const hasSnapFactor = Number.isFinite(snapFactor) && snapFactor > 0;
+  const snapName = line.uom_snapshot_pack_name?.trim() || null;
+  const snapBase = line.uom_snapshot_base_code?.trim() || null;
+
+  if (hasSnapFactor || snapName || snapBase) {
+    return {
+      packName: snapName,
+      factor: hasSnapFactor ? snapFactor : null,
+      baseCode: snapBase,
+      frozen: true,
+    };
+  }
+
+  const liveFactor = Number(line.packaging?.qty_in_base_uom);
+  const legacyName =
+    line.packaging?.name?.trim() ||
+    line.packaging_label?.trim() ||
+    (line.uom_snapshot ? line.uom_snapshot.split("×")[0]?.trim() : "") ||
+    null;
+  return {
+    packName: legacyName || null,
+    factor: Number.isFinite(liveFactor) && liveFactor > 0 ? liveFactor : null,
+    baseCode: null,
+    frozen: false,
+  };
+}
+
 
 export interface BaseUomRef {
   /** Short symbol/code ("ea", "tab"). */
@@ -157,26 +214,25 @@ export function formatLineQty(
   line: LineWithProvenance,
   opts: FormatLineQtyOptions = {},
 ): FormattedLineQty {
-  const baseLabel = (opts.baseLabel || "ea").trim() || "ea";
+  const snap = resolveLineSnapshot(line);
+  // A frozen base-unit code outranks the caller's hint: the document must
+  // read the way it read on the day it was issued.
+  const baseLabel =
+    (snap.baseCode || opts.baseLabel || "ea").trim() || "ea";
   const showBreakdown = opts.showBaseBreakdown !== false;
 
   const base = Number(line.quantity ?? 0);
   const display = Number(line.display_quantity ?? NaN);
-  const packLabel =
-    line.packaging?.name?.trim() ||
-    line.packaging_label?.trim() ||
-    (line.uom_snapshot ? line.uom_snapshot.split("×")[0]?.trim() : "") ||
-    "";
+  const packLabel = snap.packName || "";
 
   if (line.packaging_id !== undefined || line.packaging || packLabel) {
     // Pack provenance present.
     const dq = Number.isFinite(display) && display > 0
       ? display
-      : fromBase(base, line.packaging ?? undefined);
+      : fromBase(base, { qty_in_base_uom: snap.factor });
     const dqStr = formatNumber(dq);
     const primary = packLabel ? `${dqStr} ${packLabel}` : `${dqStr} ${baseLabel}`;
-    const factor = Number(line.packaging?.qty_in_base_uom);
-    const hasFactor = Number.isFinite(factor) && factor > 1;
+    const hasFactor = snap.factor !== null && snap.factor > 1;
     const secondary =
       showBreakdown && hasFactor
         ? `${formatNumber(base)} ${baseLabel}`
@@ -189,6 +245,7 @@ export function formatLineQty(
       unitLabel: packLabel || baseLabel,
     };
   }
+
 
   return {
     primary: `${formatNumber(base)} ${baseLabel}`,
