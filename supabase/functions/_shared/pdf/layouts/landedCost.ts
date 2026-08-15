@@ -98,9 +98,44 @@ function drawFactsGrid(
   const { state, fontRegular, fontBold } = builder;
   const { margin, contentWidth } = state;
   const colWidth = contentWidth / 2;
-  const rowCount = Math.ceil(present.length / 2);
+  const LABEL_W = 118;
+  const VALUE_W = colWidth - LABEL_W - 12;
+  const LINE_H = 13;
 
-  builder.ensureSpace(18 + rowCount * 13 + 8);
+  // A fact value is free text (a control verdict, a reversal reason) and
+  // can be far wider than its half-column. Unwrapped it ran past the
+  // right margin and off the sheet, so wrap it and let the row grow.
+  const wrap = (text: string): string[] => {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w;
+      if (fontRegular.widthOfTextAtSize(next, 8.5) <= VALUE_W || !cur) {
+        cur = next;
+      } else {
+        lines.push(cur);
+        cur = w;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [""];
+  };
+
+  const wrapped = present.map(([label, value]) => [label, wrap(value)] as const);
+  const rowCount = Math.ceil(wrapped.length / 2);
+  // Height of each grid row = tallest of its two cells.
+  const rowLines: number[] = [];
+  for (let r = 0; r < rowCount; r++) {
+    rowLines.push(
+      Math.max(wrapped[r * 2]?.[1].length ?? 1, wrapped[r * 2 + 1]?.[1].length ?? 1),
+    );
+  }
+  const rowTopOffset = (r: number) =>
+    rowLines.slice(0, r).reduce((s, n) => s + n * LINE_H, 0);
+  const gridHeight = rowLines.reduce((s, n) => s + n * LINE_H, 0);
+
+  builder.ensureSpace(18 + gridHeight + 8);
   const page = builder.page;
 
   page.drawText(title, {
@@ -113,11 +148,11 @@ function drawFactsGrid(
   builder.y -= 15;
 
   const top = builder.y;
-  present.forEach(([label, value], i) => {
+  wrapped.forEach(([label, valueLines], i) => {
     const col = i % 2;
     const row = Math.floor(i / 2);
     const x = margin + col * colWidth;
-    const y = top - row * 13;
+    const y = top - rowTopOffset(row);
     page.drawText(`${label}:`, {
       x,
       y,
@@ -125,16 +160,18 @@ function drawFactsGrid(
       font: fontBold,
       color: theme.color.medGray,
     });
-    page.drawText(value, {
-      x: x + 118,
-      y,
-      size: 8.5,
-      font: fontRegular,
-      color: theme.color.text,
+    valueLines.forEach((line, li) => {
+      page.drawText(line, {
+        x: x + LABEL_W,
+        y: y - li * LINE_H,
+        size: 8.5,
+        font: fontRegular,
+        color: theme.color.text,
+      });
     });
   });
 
-  builder.y = top - rowCount * 13 - 10;
+  builder.y = top - gridHeight - 10;
 }
 
 function drawSectionLabel(builder: PdfBuilder, label: string): void {
