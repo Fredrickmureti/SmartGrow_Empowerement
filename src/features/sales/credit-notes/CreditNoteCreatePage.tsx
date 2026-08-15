@@ -157,6 +157,14 @@ export default function CreditNoteCreatePage() {
 
   const unitsFor = useUnitsForProducts(products);
 
+  // Scan-to-line parity — the Sales workspace scan transport is live on every
+  // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
+  const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
+
   const calculateLineTotal = (item: LineItem) => {
     const { line_total, tax_amount } = computeLine({
       quantity: item.quantity,
@@ -182,14 +190,6 @@ export default function CreditNoteCreatePage() {
     });
   }, [applyServerPrice]);
 
-
-  // Scan-to-line parity — the Sales workspace scan transport is live on every
-  // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
-  const { currentBusiness } = useBusinesses();
-
-  /** Server-authoritative price for a line, previewed in the editor. */
-  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
-  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
 
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
