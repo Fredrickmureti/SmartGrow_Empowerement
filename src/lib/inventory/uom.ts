@@ -214,26 +214,25 @@ export function formatLineQty(
   line: LineWithProvenance,
   opts: FormatLineQtyOptions = {},
 ): FormattedLineQty {
-  const baseLabel = (opts.baseLabel || "ea").trim() || "ea";
+  const snap = resolveLineSnapshot(line);
+  // A frozen base-unit code outranks the caller's hint: the document must
+  // read the way it read on the day it was issued.
+  const baseLabel =
+    (snap.baseCode || opts.baseLabel || "ea").trim() || "ea";
   const showBreakdown = opts.showBaseBreakdown !== false;
 
   const base = Number(line.quantity ?? 0);
   const display = Number(line.display_quantity ?? NaN);
-  const packLabel =
-    line.packaging?.name?.trim() ||
-    line.packaging_label?.trim() ||
-    (line.uom_snapshot ? line.uom_snapshot.split("×")[0]?.trim() : "") ||
-    "";
+  const packLabel = snap.packName || "";
 
   if (line.packaging_id !== undefined || line.packaging || packLabel) {
     // Pack provenance present.
     const dq = Number.isFinite(display) && display > 0
       ? display
-      : fromBase(base, line.packaging ?? undefined);
+      : fromBase(base, { qty_in_base_uom: snap.factor });
     const dqStr = formatNumber(dq);
     const primary = packLabel ? `${dqStr} ${packLabel}` : `${dqStr} ${baseLabel}`;
-    const factor = Number(line.packaging?.qty_in_base_uom);
-    const hasFactor = Number.isFinite(factor) && factor > 1;
+    const hasFactor = snap.factor !== null && snap.factor > 1;
     const secondary =
       showBreakdown && hasFactor
         ? `${formatNumber(base)} ${baseLabel}`
@@ -246,6 +245,7 @@ export function formatLineQty(
       unitLabel: packLabel || baseLabel,
     };
   }
+
 
   return {
     primary: `${formatNumber(base)} ${baseLabel}`,
