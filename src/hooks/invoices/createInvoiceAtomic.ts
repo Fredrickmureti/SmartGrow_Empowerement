@@ -19,6 +19,11 @@ export interface AtomicInvoiceHeader {
   organization_id: string;
   business_id: string;
   branch_id?: string | null;
+  /**
+   * Phase 6b — the warehouse this invoice draws stock from. Validated by
+   * `resolve_sales_warehouse`; null lets the server take the branch default.
+   */
+  warehouse_id?: string | null;
   contact_id?: string | null;
   issue_date?: string | null;
   due_date?: string | null;
