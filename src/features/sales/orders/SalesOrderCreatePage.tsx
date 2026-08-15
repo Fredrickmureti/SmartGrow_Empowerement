@@ -13,7 +13,7 @@ import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useSalesOrders } from "@/hooks/useSalesOrders";
+import { useSalesOrders, newSalesOrderIdempotencyKey } from "@/hooks/useSalesOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { SalesWarehouseField, useSalesWarehouse } from "@/features/sales/warehouse";
@@ -116,6 +116,12 @@ export default function SalesOrderCreatePage() {
   const unitsFor = useUnitsForProducts(products);
   const { paymentTerms } = usePaymentTerms();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * Phase 10: one key per form instance. A double click, a retry after a
+   * timeout or a refresh mid-submit replays the first order instead of
+   * creating a second one.
+   */
+  const [idempotencyKey] = useState(() => newSalesOrderIdempotencyKey());
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 },
   ]);
