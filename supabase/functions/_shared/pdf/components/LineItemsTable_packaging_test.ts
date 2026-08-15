@@ -22,7 +22,7 @@ interface Item {
   packaging_label?: string | null;
   base_uom_label?: string | null;
   unit_price?: number;
-  line_total?: number | null;
+  line_total: number;
 }
 function formatQtyCell(item: Item, opts: { showBase?: boolean } = {}): string {
   const showBase = opts.showBase !== false;
@@ -92,6 +92,7 @@ Deno.test("PDF — 1 Box of Paracentamols (50 tablets, 7/tab, 350 total)", () =>
     packaging_label: "Box",
     base_uom_label: "PCE",
     unit_price: 7,
+    line_total: 350,
   };
   assertEquals(formatQtyCell(item), "1 Box (50 PCE)");
   assertEquals(formatPriceCell(item), 350);
@@ -105,6 +106,7 @@ Deno.test("PDF — 2 Boxes of Paracentamols (100 tablets, 7/tab, 700 total)", ()
     packaging_label: "Box",
     base_uom_label: "PCE",
     unit_price: 7,
+    line_total: 700,
   };
   assertEquals(formatQtyCell(item), "2 Box (100 PCE)");
   assertEquals(formatPriceCell(item), 350);
@@ -118,6 +120,7 @@ Deno.test("PDF — loose tablets (no packaging) keep base qty/price", () => {
     packaging_label: null,
     base_uom_label: "PCE",
     unit_price: 7,
+    line_total: 21,
   };
   assertEquals(formatQtyCell(item), "3 PCE");
   assertEquals(formatPriceCell(item), 7);
