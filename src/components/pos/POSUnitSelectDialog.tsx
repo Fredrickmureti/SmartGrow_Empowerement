@@ -161,9 +161,16 @@ export function POSUnitSelectDialog({
     [options, selectedKey],
   );
 
-  const numericQty = Math.max(1, Math.floor(Number(qty) || 0));
+  // Packs are always whole (you cannot sell 0.5 of a sealed box); the base
+  // unit is fractional whenever its dimension is not `count`.
+  const fractionalAllowed = allowFractional && selected?.packagingId == null;
+  const rawQty = Number(qty);
+  const numericQty = fractionalAllowed
+    ? Math.max(0.001, Number.isFinite(rawQty) ? Number(rawQty.toFixed(3)) : 0)
+    : Math.max(1, Math.floor(rawQty || 0));
   const baseQuantity = selected ? numericQty * selected.qtyInBaseUom : numericQty;
   const lineTotal = selected ? numericQty * selected.unitPrice : 0;
+
 
   const confirm = () => {
     if (!selected) return;
