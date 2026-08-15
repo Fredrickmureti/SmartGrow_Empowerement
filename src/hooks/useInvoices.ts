@@ -127,7 +127,12 @@ export function useInvoices() {
 
   /**
    * Create an invoice in DRAFT status.
-   * No GL posting happens here — GL is only posted on confirmation.
+   *
+   * Phase 6.2: header + lines are written by `create_invoice_atomic` in a
+   * single server transaction. Totals, the document number, the exchange rate
+   * and the base quantities are server-resolved; the browser only states what
+   * the customer bought. No GL posting happens here — GL is only posted on
+   * confirmation.
    */
   const createInvoice = async (
     invoice: { contact_id?: string; due_date: string; notes?: string; terms?: string; discount_amount?: number; currency?: string; salesperson_id?: string; payment_term_id?: string | null; branch_id?: string | null },
@@ -136,105 +141,80 @@ export function useInvoices() {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to create invoices", variant: "destructive" }); throw new Error("Permission denied"); }
     if (!currentOrg || !currentBusiness || !user) throw new Error("No business selected");
 
-    const invoiceNumber = await getNextInvoiceNumber();
-
-    // Calculate totals.
-    // Sales audit Phase B: line_total is tax-EXCLUSIVE (matches Odoo and the
-    // estimates hook). Total = subtotal + tax - discount.
-    let subtotal = 0;
-    let taxAmount = 0;
-    items.forEach((item) => {
-      subtotal += item.line_total;
-      taxAmount += item.tax_amount;
-    });
+    const created = await createInvoiceAtomic(
+      {
+        organization_id: currentOrg.id,
+        business_id: currentBusiness.id,
+        // Stage 3 (audit Phase D): stamp the active branch so per-branch P&L /
+        // sales reports can attribute revenue. Caller may override; falls back
+        // to the user's current branch (NULL = "Unassigned").
+        branch_id: invoice.branch_id ?? currentBranch?.id ?? null,
+        contact_id: invoice.contact_id ?? null,
+        due_date: invoice.due_date,
+        notes: invoice.notes ?? null,
+        terms: invoice.terms ?? null,
+        discount_amount: invoice.discount_amount || 0,
+        currency: invoice.currency || currentBusiness.base_currency,
+        salesperson_id: invoice.salesperson_id ?? null,
+        payment_term_id: invoice.payment_term_id ?? null,
+      },
+      items.map((item, index) => ({
+        product_id: item.product_id ?? null,
+        description: item.description,
+        quantity: item.quantity,
+        display_quantity: (item as any).display_quantity ?? null,
+        display_uom_id: (item as any).display_uom_id ?? null,
+        packaging_id: (item as any).packaging_id ?? null,
+        unit_price: item.unit_price,
+        discount_percent: item.discount_percent,
+        tax_rate: item.tax_rate,
+        sort_order: index,
+        project_id: item.project_id ?? null,
+        task_id: item.task_id ?? null,
+        // Phase A.4 — persist picker output for lot/serial-tracked lines.
+        lot_number: (item as any).lot_number ?? null,
+        serial_number: (item as any).serial_number ?? null,
+      })),
+    );
 
     // Freeze the bill-to address on the document (Phase 5): the printed
     // address must not follow later edits to the customer's address book.
-    const billTo = await captureBillToSnapshot(invoice.contact_id);
+    // Best-effort — the invoice already exists.
+    await freezeBillToSnapshot("invoices", created.invoice_id, invoice.contact_id);
 
-    const insertData = {
-      contact_id: invoice.contact_id,
-      ...billTo,
-      due_date: invoice.due_date,
-      notes: invoice.notes,
-      terms: invoice.terms,
-      discount_amount: invoice.discount_amount || 0,
-      currency: invoice.currency || currentBusiness.base_currency,
-      organization_id: currentOrg.id,
-      business_id: currentBusiness.id,
-      // Stage 3 (audit Phase D): stamp the active branch so per-branch P&L /
-      // sales reports can attribute revenue. Caller may override; falls back
-      // to the user's current branch (NULL = "Unassigned").
-      branch_id: invoice.branch_id ?? currentBranch?.id ?? null,
-      invoice_number: invoiceNumber,
-      subtotal,
-      tax_amount: taxAmount,
-      total: subtotal + taxAmount - (invoice.discount_amount || 0),
-      created_by: user.id,
-      salesperson_id: invoice.salesperson_id || user.id,
-      payment_term_id: invoice.payment_term_id || null,
-    };
-
-    const { data: newInvoice, error: invoiceError } = await supabase
+    const { data: newInvoice } = await supabase
       .from("invoices")
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (invoiceError) throw invoiceError;
-
-    // Insert line items
-    const lineItemsToInsert = items.map((item, index) => ({
-      invoice_id: newInvoice.id,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_rate: item.tax_rate,
-      tax_amount: item.tax_amount,
-      discount_percent: item.discount_percent,
-      line_total: item.line_total,
-      sort_order: index,
-      product_id: item.product_id,
-      project_id: item.project_id ?? null,
-      task_id: item.task_id ?? null,
-      // Phase A.4 — persist picker output for lot/serial-tracked lines.
-      lot_number: (item as any).lot_number ?? null,
-      serial_number: (item as any).serial_number ?? null,
-    }));
-
-    if (items.length > 0) {
-      const { error: itemsError } = await supabase
-        .from("invoice_items")
-        .insert(lineItemsToInsert);
-
-      if (itemsError) throw itemsError;
-    }
+      .select("*, invoice_items(*)")
+      .eq("id", created.invoice_id)
+      .maybeSingle();
 
     // Log audit action
     logAction({
       action: "created",
       entityType: "invoice",
-      entityId: newInvoice.id,
-      entityName: invoiceNumber,
-      changesSummary: `Created invoice ${invoiceNumber} for ${insertData.total}`,
+      entityId: created.invoice_id,
+      entityName: created.invoice_number,
+      changesSummary: `Created invoice ${created.invoice_number} for ${created.total}`,
     });
 
     // NOTE: GL posting is NOT done here. It happens in confirmInvoice().
 
-    // Optimistic update - add to local state immediately
-    setInvoices((prev) => [{ ...newInvoice, invoice_items: lineItemsToInsert } as Invoice, ...prev]);
+    if (newInvoice) {
+      setInvoices((prev) => [newInvoice as unknown as Invoice, ...prev]);
+    }
 
     // Trigger automations (fire-and-forget)
     triggerAutomation({
       event_type: "on_create",
       target_model: "invoice",
-      record_id: newInvoice.id,
+      record_id: created.invoice_id,
       record_data: newInvoice,
       organization_id: currentOrg.id,
     });
-    
-    return newInvoice;
+
+    return (newInvoice ?? { id: created.invoice_id, invoice_number: created.invoice_number }) as Invoice;
   };
+
 
   /**
    * Confirm an invoice and post to the General Ledger.
