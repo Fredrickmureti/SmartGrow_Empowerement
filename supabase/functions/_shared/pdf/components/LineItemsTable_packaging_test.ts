@@ -16,6 +16,7 @@ function trimNum(n: number): string {
   return String(Number(n.toFixed(3)));
 }
 interface Item {
+  description: string;
   quantity?: number;
   display_quantity?: number | null;
   packaging_label?: string | null;
@@ -41,6 +42,7 @@ import { formatPriceCell } from "./LineItemsTable.ts";
 Deno.test("PDF — pack-unit price is not multiplied again (50 kg Bag @ 7,500)", () => {
   assertEquals(
     formatPriceCell({
+      description: "Sugar",
       quantity: 50,
       display_quantity: 1,
       packaging_label: "50 kg Bag",
@@ -84,6 +86,7 @@ Deno.test("PDF — Cooking Oil 2 × 20 L Drum keeps the per-drum price", () => {
 
 Deno.test("PDF — 1 Box of Paracentamols (50 tablets, 7/tab, 350 total)", () => {
   const item: Item = {
+    description: "Paracentamols",
     quantity: 50,
     display_quantity: 1,
     packaging_label: "Box",
@@ -96,6 +99,7 @@ Deno.test("PDF — 1 Box of Paracentamols (50 tablets, 7/tab, 350 total)", () =>
 
 Deno.test("PDF — 2 Boxes of Paracentamols (100 tablets, 7/tab, 700 total)", () => {
   const item: Item = {
+    description: "Paracentamols",
     quantity: 100,
     display_quantity: 2,
     packaging_label: "Box",
@@ -108,6 +112,7 @@ Deno.test("PDF — 2 Boxes of Paracentamols (100 tablets, 7/tab, 700 total)", ()
 
 Deno.test("PDF — loose tablets (no packaging) keep base qty/price", () => {
   const item: Item = {
+    description: "Paracentamols",
     quantity: 3,
     display_quantity: null,
     packaging_label: null,
