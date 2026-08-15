@@ -10494,6 +10494,7 @@ export type Database = {
           line_total: number
           lot_number: string | null
           packaging_id: string | null
+          price_source: string | null
           product_id: string | null
           quantity: number
           serial_number: string | null
@@ -10521,6 +10522,7 @@ export type Database = {
           line_total: number
           lot_number?: string | null
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           quantity?: number
           serial_number?: string | null
@@ -10548,6 +10550,7 @@ export type Database = {
           line_total?: number
           lot_number?: string | null
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           quantity?: number
           serial_number?: string | null
@@ -19423,6 +19426,7 @@ export type Database = {
           is_sample_data: boolean
           line_total: number
           packaging_id: string | null
+          price_source: string | null
           product_id: string | null
           quantity: number
           scope_of_work: string | null
@@ -19446,6 +19450,7 @@ export type Database = {
           is_sample_data?: boolean
           line_total: number
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           quantity?: number
           scope_of_work?: string | null
@@ -19469,6 +19474,7 @@ export type Database = {
           is_sample_data?: boolean
           line_total?: number
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           quantity?: number
           scope_of_work?: string | null
@@ -23823,6 +23829,7 @@ export type Database = {
           lot_number: string | null
           milestone_id: string | null
           packaging_id: string | null
+          price_source: string | null
           product_id: string | null
           project_id: string | null
           quantity: number
@@ -23852,6 +23859,7 @@ export type Database = {
           lot_number?: string | null
           milestone_id?: string | null
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           project_id?: string | null
           quantity?: number
@@ -23881,6 +23889,7 @@ export type Database = {
           lot_number?: string | null
           milestone_id?: string | null
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           project_id?: string | null
           quantity?: number
@@ -52942,6 +52951,7 @@ export type Database = {
           is_sample_data: boolean
           line_total: number
           packaging_id: string | null
+          price_source: string | null
           product_id: string | null
           proforma_invoice_id: string
           quantity: number
@@ -52961,6 +52971,7 @@ export type Database = {
           is_sample_data?: boolean
           line_total: number
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           proforma_invoice_id: string
           quantity?: number
@@ -52980,6 +52991,7 @@ export type Database = {
           is_sample_data?: boolean
           line_total?: number
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           proforma_invoice_id?: string
           quantity?: number
@@ -59432,6 +59444,7 @@ export type Database = {
           line_total: number
           lot_number: string | null
           packaging_id: string | null
+          price_source: string | null
           product_id: string | null
           project_id: string | null
           quantity: number
@@ -59460,6 +59473,7 @@ export type Database = {
           line_total: number
           lot_number?: string | null
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           project_id?: string | null
           quantity?: number
@@ -59488,6 +59502,7 @@ export type Database = {
           line_total?: number
           lot_number?: string | null
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           project_id?: string | null
           quantity?: number
@@ -99783,6 +99798,17 @@ export type Database = {
         Args: {
           p_business_id: string
           p_display_quantity: number
+          p_display_uom_id?: string
+          p_packaging_id?: string
+          p_product_id: string
+        }
+        Returns: Json
+      }
+      resolve_line_unit_price: {
+        Args: {
+          p_business_id: string
+          p_contact_id?: string
+          p_display_quantity?: number
           p_display_uom_id?: string
           p_packaging_id?: string
           p_product_id: string
