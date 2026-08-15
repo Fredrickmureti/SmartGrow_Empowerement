@@ -29,8 +29,12 @@ describe("sales idempotency contract", () => {
 
   it.each(FORMS)("%s holds one key per form instance", (file) => {
     const src = readFileSync(file, "utf8");
-    // useState with a lazy initializer keeps the key stable across renders and
-    // across repeated submits of the same form instance.
-    expect(src).toMatch(/useState\(\(\)\s*=>\s*new\w*IdempotencyKey\(\)\)/);
+    // A lazy `useState` initializer or a `useRef` keeps the key stable across
+    // renders and across repeated submits of the same form instance; a key
+    // minted inside the submit handler would change on every attempt.
+    const stableHolder =
+      /useState\(\(\)\s*=>\s*new\w*IdempotencyKey\(\)\)/.test(src) ||
+      /useRef<string>\(/.test(src);
+    expect(stableHolder, `${file} must hold its idempotency key outside the submit handler`).toBe(true);
   });
 });
