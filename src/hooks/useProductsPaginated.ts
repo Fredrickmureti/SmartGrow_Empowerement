@@ -6,6 +6,7 @@ import { useToast } from "./use-toast";
 import { useAuditLog } from "./useAuditLog";
 import { usePaginatedQuery } from "./usePaginatedQuery";
 import type { Product } from "./useProducts";
+import { PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 
 export interface ProductFilters {
   search?: string;
