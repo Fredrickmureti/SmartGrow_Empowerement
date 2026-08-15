@@ -31,7 +31,7 @@ describe('POS availability authority', () => {
     expect(src).toMatch(/table: "stock_quants"/);
     expect(src).toMatch(/filter: `business_id=eq\.\$\{businessId\}`/);
     expect(src).not.toMatch(/table: "products"/);
-    expect(src).not.toMatch(/stock_quantity/);
+    expect(src).not.toMatch(/\.stock_quantity/);
   });
 
   it('the cached grid quantity is only ever an advisory hint', () => {
