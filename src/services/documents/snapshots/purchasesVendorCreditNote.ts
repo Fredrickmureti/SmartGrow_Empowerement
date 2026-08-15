@@ -32,6 +32,12 @@ export interface VendorCreditNoteItemRow {
   pack_quantity?: number | null;
   pack_size?: number | null;
   unit_of_measure?: string | null;
+  /** Pack provenance forwarded to the renderers (see lineItemUom.ts). */
+  display_quantity?: number | null;
+  packaging_label?: string | null;
+  base_uom_label?: string | null;
+  uom_snapshot?: string | null;
+
 }
 
 export interface VendorCreditNoteHeaderRow {
