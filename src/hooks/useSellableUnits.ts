@@ -79,3 +79,24 @@ export function useSellableUnits() {
 
   return { unitsForBase, unitById: byId };
 }
+
+/**
+ * useUnitsForProducts — the `unitsFor` callback every document line editor
+ * takes. Pass whichever product list the form already loaded (branch-scoped
+ * or plain); rows only need `id` and `base_uom_id`.
+ */
+export function useUnitsForProducts(
+  products: ReadonlyArray<{ id: string; base_uom_id?: string | null }>,
+) {
+  const { unitsForBase } = useSellableUnits();
+  return useMemo(
+    () =>
+      (productId: string | null | undefined) => {
+        if (!productId) return null;
+        const p = products.find((x) => x.id === productId);
+        if (!p?.base_uom_id) return null;
+        return { baseUomId: p.base_uom_id, options: unitsForBase(p.base_uom_id) };
+      },
+    [products, unitsForBase],
+  );
+}
