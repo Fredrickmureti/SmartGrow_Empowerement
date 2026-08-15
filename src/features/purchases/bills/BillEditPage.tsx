@@ -70,6 +70,7 @@ export default function BillEditPage() {
   const { toast } = useToast();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const { isDateLocked } = useFiscalPeriods();
@@ -525,6 +526,7 @@ export default function BillEditPage() {
                 layout={layout}
                 disabled={isSubmitting}
                 formatCurrency={formatCurrency}
+                unitsFor={unitsFor}
                 onPatch={patchLineItem}
                 onProductSelect={selectProduct}
                 productPlaceholder="Product"
