@@ -109,6 +109,14 @@ export default function SalesOrderEditPage() {
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
+  /** Fulfilment check — same seam and same policy as the create surface. */
+  const availability = useSalesLineAvailability({
+    kind: "sales_order",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
+
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
 
   useEffect(() => {
@@ -259,6 +267,7 @@ export default function SalesOrderEditPage() {
     try {
       const result = validateLineItems(lineItems);
       if (!result.ok) throw new Error(result.error);
+      availability.assertSellable();
       const validItems = result.valid;
 
       // Phase 5.5: the edit is DB-owned. `update_sales_order_atomic` updates
@@ -438,6 +447,7 @@ export default function SalesOrderEditPage() {
                   formatCurrency={formatLineCurrency}
                   onPatch={updateLineItem}
                   onProductSelect={handleProductSelect}
+                  stockEval={availability.evals[index] ?? null}
                   extra={
                     <LineAnalyticsCell
                       projectId={item.project_id ?? null}
@@ -459,6 +469,12 @@ export default function SalesOrderEditPage() {
                 <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Total</span><span>{formatCurrency(grandTotal, currency)}</span></div>
               </div>
             </div>
+
+            <OversellConfirmation
+              kind="sales_order"
+              availability={availability}
+              disabled={isSubmitting}
+            />
           </FieldGroup>
 
           <FieldGroup label="Additional Info">
