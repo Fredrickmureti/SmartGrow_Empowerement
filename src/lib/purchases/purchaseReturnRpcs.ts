@@ -66,6 +66,11 @@ export interface PurchaseReturnLineInput {
   product_id?: string | null;
   bill_item_id?: string | null;
   description?: string | null;
+  /**
+   * Preview only. The server recomputes the canonical base quantity from
+   * `display_quantity` + `packaging_id`/`display_uom_id` through
+   * `resolve_line_base_quantity` (`_uom_normalize_line` trigger).
+   */
   quantity: number;
   /** Only honoured for `financial` returns; goods lines use receipt cost. */
   unit_price?: number | null;
