@@ -97,6 +97,15 @@ export function assembleItems(input: AssembleItemsInput): AssembleItemsResult {
     const qtyCell = packLabel
       ? `${fmt.fmtQty(displayQty)} ${packLabel}`
       : fmt.fmtQty(qty);
+    // Same single rule as the server renderers: the Price cell is the price
+    // of ONE display unit, reconciled against the authoritative line total.
+    const price = resolveDisplayUnitPrice({
+      quantity: qty,
+      display_quantity: displayQty,
+      packaging_label: packLabel,
+      unit_price: baseUnitPrice,
+      line_total: it.line_total as number | null | undefined,
+    });
 
     const values: Record<string, string> = {
       sku: String(it.sku ?? ""),
