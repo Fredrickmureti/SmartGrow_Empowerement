@@ -155,6 +155,9 @@ export function useInvoices() {
         // sales reports can attribute revenue. Caller may override; falls back
         // to the user's current branch (NULL = "Unassigned").
         branch_id: invoice.branch_id ?? currentBranch?.id ?? null,
+        // Phase 6b: the fulfilment warehouse is a recorded decision, not a
+        // guess made later at goods issue. NULL = server resolves the default.
+        warehouse_id: invoice.warehouse_id ?? null,
         contact_id: invoice.contact_id ?? null,
         due_date: invoice.due_date,
         notes: invoice.notes ?? null,
