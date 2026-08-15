@@ -17,7 +17,7 @@ import { useSalesOrders } from "@/hooks/useSalesOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
-import { useLinePriceResolver } from "@/hooks/useLinePriceResolver";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
