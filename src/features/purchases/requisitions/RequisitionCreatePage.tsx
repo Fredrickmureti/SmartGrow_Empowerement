@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import {
@@ -56,6 +57,9 @@ export default function RequisitionCreatePage() {
   const { currentBusiness } = useBusinesses();
   const { rows: suppliers, loading: suppliersLoading } = useSuppliers();
   const { products } = useProducts();
+  // Requesters may type demand in a pack or alternate unit; the server
+  // normalizer re-derives the base quantity.
+  const unitsFor = useUnitsForProducts(products);
   const { accounts: analyticAccounts } = useAnalyticAccounts();
   const { warehouses } = useWarehouses();
 
@@ -177,7 +181,8 @@ export default function RequisitionCreatePage() {
           index,
           productId: l.product_id,
           supplierId: l.suggested_supplier_id ?? null,
-          quantity: Number(l.quantity),
+          // Supplier terms apply to the supplier-facing quantity.
+          quantity: Number(l.display_quantity ?? l.quantity),
           productName: l.description,
         })),
       });
@@ -334,6 +339,7 @@ export default function RequisitionCreatePage() {
                 suppliersLoading={suppliersLoading}
                 layout={layout}
                 disabled={busy}
+                unitsFor={unitsFor}
                 onPatch={updateLine}
               />
             )}
