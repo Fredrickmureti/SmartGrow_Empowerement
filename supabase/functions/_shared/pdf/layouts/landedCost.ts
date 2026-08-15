@@ -175,7 +175,9 @@ function drawFactsGrid(
 }
 
 function drawSectionLabel(builder: PdfBuilder, label: string): void {
-  builder.ensureSpace(30);
+  // Reserve the label, the table header rule and at least one data row so a
+  // section never leaves its heading stranded at the foot of a page.
+  builder.ensureSpace(64);
   builder.page.drawText(label, {
     x: builder.state.margin,
     y: builder.y,
