@@ -6,8 +6,9 @@
 | 0 | Topology | — | recorded in archived plan |
 | 1 | Product consumption / read seam | ✅ fixed | done (this loop) |
 | 2 | UoM & packaging contract | ✅ grid parity | done (this loop) |
-| 3 | Inventory availability | — | next |
-| 4-15 | (unchanged) | — | not started |
+| 3 | Inventory availability | ✅ fixed | done (this loop) |
+| 4 | Pricing & tax authority | — | **ACTIVE NEXT** |
+| 5-15 | (unchanged) | — | not started |
 
 ## Phase 1 — closed
 - Root cause confirmed: `list_products_with_branch_stock` had two overloads
@@ -40,7 +41,59 @@
 `inventoryAuditCorrections` and ~100 other architecture suites were already
 red before these edits; they belong to later phases / other waves.
 
-## Next
-Phase 3 — inventory availability: verify POS reads availability only from
-`resolve_stock_availability_batch` / canonical stock RPCs (note
-`usePOSStockSync` still touches `products.stock_quantity`).
+## Phase 3 — closed (inventory availability)
+Symptom addressed: POS availability decisions and the live stock signal were
+both derived from the company-wide `products.stock_quantity` cache, so one
+branch reacted to (and could check out against) another branch's stock.
+
+Server (migration applied):
+- `pos_register_stock_scope(register)` — ONE place resolving a register's
+  (business, branch, warehouse); open shift's warehouse first, else the
+  branch default. Both POS availability wrappers now delegate to it.
+- `get_available_pos_stock_for_register_batch(product_ids, register,
+  exclude_self)` — thin wrapper over `resolve_stock_availability_batch`;
+  no availability math re-implemented (ADR 0142). Returns
+  `(product_id, available)`, clamped at 0, excludes the register's own holds.
+- Both functions: SECURITY DEFINER, `search_path=public`, EXECUTE revoked
+  from PUBLIC/anon, granted to `authenticated`/`service_role`.
+- `stock_quants` added to the `supabase_realtime` publication with
+  `REPLICA IDENTITY FULL` (idempotent guard), so the till can subscribe to
+  branch-grained stock instead of the cached aggregate.
+
+Client:
+- `usePOSStockSync` realtime now subscribes to `stock_quants` filtered by
+  `business_id` (was `products` filtered by `organization_id`). The payload
+  is used ONLY for cache invalidation — no wire quantity is a decision input,
+  and the misleading cross-branch low/out-of-stock toasts are gone.
+- `verifyCartStock` is one batched RPC for the whole cart (was N sequential
+  calls, one per line, i.e. an inconsistent snapshot). Duplicate lines of the
+  same product are summed before checking, and the call FAILS CLOSED: an
+  unreachable authority blocks every line rather than green-lighting a sale.
+- `usePOSProducts.hasStock` renamed `hasStockHint` and documented as advisory
+  display-only (it reads the cached grid figure).
+
+Guard: `src/test/architecture/pos-availability-authority.test.ts` (4 tests,
+passing) — batched register-scoped verification, fail-closed behaviour,
+`stock_quants` realtime scope, advisory-only cached hint.
+
+## Currently active
+Phase 4 — pricing & tax authority.
+
+## Next agent — start here
+1. VERIFY Phases 1-3 before writing anything new:
+   - `npx vitest run src/test/architecture/pos-product-read-seam.test.ts
+     src/test/architecture/pos-availability-authority.test.ts
+     src/hooks/pos/__tests__/inventoryAuditCorrections.test.ts`
+     (the only expected failure is the PRE-EXISTING
+     `process_pos_transaction` / void-reversal `stock_movements` assertion —
+     it is not part of this wave's edits).
+   - Confirm exactly one `list_products_with_branch_stock` overload exists and
+     that no POS file selects from `products` or from `product_packaging`.
+   - Confirm `get_available_pos_stock_for_register[_batch]` both delegate to
+     `pos_register_stock_scope` and that neither re-implements availability.
+2. THEN resume at Phase 4 (pricing & tax authority): prove POS never computes
+   a sellable price or tax client-side — price lists, promotions, happy hour,
+   customer-group pricing and eTIMS tax codes must all resolve server-side
+   (`pos_resolve_scan` / pricing RPCs), with the cart carrying resolved values
+   only. Do not start Phase 5+ or unrelated areas before Phase 4 is closed and
+   recorded here.
