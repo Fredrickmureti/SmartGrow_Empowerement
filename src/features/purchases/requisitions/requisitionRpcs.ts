@@ -24,7 +24,16 @@ export interface RequisitionLineInput {
   product_id?: string | null;
   description: string;
   uom_id?: string | null;
+  /**
+   * Preview only. When `display_quantity` (+ `packaging_id`/`display_uom_id`)
+   * is supplied the server re-derives the canonical base quantity through
+   * `resolve_line_base_quantity`; anything sent here is overwritten.
+   */
   quantity: number;
+  /** Purchasing unit provenance — what the requester actually typed. */
+  packaging_id?: string | null;
+  display_quantity?: number | null;
+  display_uom_id?: string | null;
   estimated_unit_price: number;
   need_by_date?: string | null;
   suggested_supplier_id?: string | null;
@@ -33,6 +42,7 @@ export interface RequisitionLineInput {
   destination_warehouse_id?: string | null;
   notes?: string | null;
 }
+
 
 export async function createPurchaseRequisition(input: {
   businessId: string;
