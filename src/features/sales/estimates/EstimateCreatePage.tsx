@@ -198,7 +198,7 @@ export default function EstimateCreatePage() {
       const defaults = await fetchContactDefaults(v);
       // Phase 7: server-resolved rate, preview only.
       if (currentBusiness?.id) {
-        const rate = await previewCustomerTaxRate(currentBusiness.id, v, formData.issue_date);
+        const rate = await previewCustomerTaxRate(currentBusiness.id, v, new Date().toISOString().slice(0, 10));
         setLineItems((prev) =>
           prev.map((item) => {
             const updated = { ...item, tax_rate: rate };
