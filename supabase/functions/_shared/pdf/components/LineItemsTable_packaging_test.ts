@@ -21,6 +21,7 @@ interface Item {
   packaging_label?: string | null;
   base_uom_label?: string | null;
   unit_price?: number;
+  line_total?: number | null;
 }
 function formatQtyCell(item: Item, opts: { showBase?: boolean } = {}): string {
   const showBase = opts.showBase !== false;
