@@ -585,7 +585,7 @@ export default function InvoiceEditPage() {
             kind="invoice"
             availability={availability}
             disabled={isSubmitting}
-            id="confirmOversellEdit"
+            id="oversell-confirm-edit"
           />
         </div>
       )}
