@@ -39,7 +39,7 @@ export interface POSProduct {
   /** Category display name (for the grid filter chips). */
   category: string | null;
   /** Canonical category id (what the cart/line contract stores). */
-  category_id: string | null;
+  category_id?: string | null;
   image_url: string | null;
   is_active: boolean;
   track_inventory: boolean;

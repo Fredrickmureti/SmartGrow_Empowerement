@@ -186,6 +186,7 @@ function POSTerminalInner() {
   }, [currentRegister]);
 
   const { 
+    products,
     filteredProducts, 
     categories, 
     isLoading: productsLoading,
