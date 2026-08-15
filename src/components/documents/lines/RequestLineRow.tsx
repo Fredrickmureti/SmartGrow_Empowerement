@@ -163,7 +163,6 @@ function RequestLineRowInner<T extends RequestLineShape>({
             />
           );
         }
-        );
 
       case "target_price":
         return (
