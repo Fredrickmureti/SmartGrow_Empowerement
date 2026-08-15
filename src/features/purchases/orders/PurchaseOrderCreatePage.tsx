@@ -51,6 +51,11 @@ import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { normalizeError } from "@/services/resilience";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 import {
+  resolvePurchaseLineDefaults,
+  summarisePurchaseLineRefusals,
+  validatePurchaseLinesAgainstTerms,
+} from "@/features/purchases/purchasingTerms/purchaseLineTerms";
+import {
   useSupplierContracts,
   contractRemaining,
   findContractLine,
@@ -209,8 +214,40 @@ export default function PurchaseOrderCreatePage() {
             }
           : {}),
       } as Partial<LineItem>);
+
+      // Supplier purchasing terms (ADR 0141) seed the line: minimum order
+      // quantity and the supplier's purchase unit. Resolved server-side — the
+      // browser never reads the deprecated product-level defaults.
+      void (async () => {
+        try {
+          const defaults = await resolvePurchaseLineDefaults({
+            businessId: currentBusiness?.id,
+            productId,
+            supplierId: formData.vendor_id || null,
+            onDate: formData.order_date || null,
+          });
+          if (!defaults) return;
+          patchLineItem(index, {
+            quantity: defaults.quantity,
+            display_uom_id: defaults.displayUomId,
+            ...(defaults.unitPrice != null && !contractLine
+              ? { unit_price: defaults.unitPrice }
+              : {}),
+          } as Partial<LineItem>);
+        } catch {
+          // Terms are advisory at entry time; the server refuses on submit.
+        }
+      })();
     },
-    [products, priceLists, patchLineItem, selectedContract],
+    [
+      products,
+      priceLists,
+      patchLineItem,
+      selectedContract,
+      currentBusiness?.id,
+      formData.vendor_id,
+      formData.order_date,
+    ],
   );
 
   // Re-map coverage whenever the cited contract changes.
@@ -288,6 +325,26 @@ export default function PurchaseOrderCreatePage() {
     }
     setIsSubmitting(true);
     try {
+      // Supplier purchasing terms are policy, not a suggestion: refuse a
+      // below-MOQ / off-increment line before a PO exists.
+      const refusals = await validatePurchaseLinesAgainstTerms({
+        businessId: currentBusiness?.id,
+        supplierId: formData.vendor_id,
+        onDate: formData.order_date || null,
+        lines: lineItems
+          .filter((item) => item.description)
+          .map((item, index) => ({
+            index,
+            productId: item.product_id,
+            quantity: Number(item.quantity),
+            productName: item.description,
+          })),
+      });
+      if (refusals.length > 0) {
+        toast.error(summarisePurchaseLineRefusals(refusals));
+        setIsSubmitting(false);
+        return;
+      }
       const poNumber = await getNextPONumber();
       const created = await createPurchaseOrder(
         {

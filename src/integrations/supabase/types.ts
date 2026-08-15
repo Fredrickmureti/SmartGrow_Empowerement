@@ -86731,6 +86731,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _resolve_supplier_role_id: {
+        Args: { p_business_id: string; p_party_or_role_id: string }
+        Returns: string
+      }
       _resolve_vendor_credit_note_line: {
         Args: { _bill_id: string; _exclude_vcn_id: string; _line: Json }
         Returns: Json

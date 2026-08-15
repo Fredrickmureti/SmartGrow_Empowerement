@@ -53,6 +53,11 @@ import {
   scanTaxRate,
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import {
+  resolvePurchaseLineDefaults,
+  summarisePurchaseLineRefusals,
+  validatePurchaseLinesAgainstTerms,
+} from "@/features/purchases/purchasingTerms/purchaseLineTerms";
 import { DeliverToPicker } from "@/components/addresses/DeliverToPicker";
 import { useBranches } from "@/hooks/useBranches";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
@@ -77,6 +82,8 @@ export default function PurchaseOrderEditPage() {
   const { toast } = useToast();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const { currentBusiness } = useBusinesses();
+  const currentBusinessId = currentBusiness?.id ?? null;
   const { formatCurrency } = useCurrency();
   const {
     purchaseOrders,
@@ -231,12 +238,38 @@ export default function PurchaseOrderEditPage() {
             }
           : {}),
       } as Partial<LineItem>);
+
+      // Supplier purchasing terms (ADR 0141) seed the line server-side.
+      void (async () => {
+        try {
+          const defaults = await resolvePurchaseLineDefaults({
+            businessId: currentBusinessId,
+            productId,
+            supplierId: formData.vendor_id || null,
+            onDate: formData.order_date || null,
+          });
+          if (!defaults) return;
+          patchLineItem(index, {
+            quantity: defaults.quantity,
+            display_uom_id: defaults.displayUomId,
+          } as Partial<LineItem>);
+        } catch {
+          // Advisory at entry time; the submit gate below is authoritative.
+        }
+      })();
     },
-    [products, priceLists, patchLineItem, selectedContract],
+    [
+      products,
+      priceLists,
+      patchLineItem,
+      selectedContract,
+      currentBusinessId,
+      formData.vendor_id,
+      formData.order_date,
+    ],
   );
 
   // Scan-to-line — shared workspace transport, cost-priced seed.
-  const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
     setLineItems,
@@ -290,6 +323,27 @@ export default function PurchaseOrderEditPage() {
     setIsSubmitting(true);
     try {
       const validItems = lineItems.filter((item) => item.description);
+      // Purchasing policy is enforced before the order is rewritten.
+      const refusals = await validatePurchaseLinesAgainstTerms({
+        businessId: currentBusinessId,
+        supplierId: formData.vendor_id,
+        onDate: formData.order_date || null,
+        lines: validItems.map((item, index) => ({
+          index,
+          productId: item.product_id,
+          quantity: Number(item.quantity),
+          productName: item.description,
+        })),
+      });
+      if (refusals.length > 0) {
+        toast({
+          title: "Supplier purchasing terms",
+          description: summarisePurchaseLineRefusals(refusals),
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
       await updatePurchaseOrder(
         po.id,
         {

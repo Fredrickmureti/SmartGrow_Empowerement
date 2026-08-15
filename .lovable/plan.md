@@ -6,13 +6,12 @@
 
 ## Current active phase
 
-**Phase 3 — supplier-specific purchasing terms consumption.** (Phases 0–2 landed and verified.)
+**Phase 4 — requisition → RFQ → PO fidelity (incl. pack entry UI).** (Phases 0–3 landed and verified.)
 
 ### Instructions for the next agent
 
-1. **Verify Phase 2 before extending it.** Re-read `_pret_write_lines`, `create_goods_receipt`, `create_purchase_requisition`, `requisition_create_rfq` and `convert_po_to_bill_atomic` in the live database (`pg_get_functiondef`). Confirm: the return writer resolves the base quantity *before* the returnable guard; no purchasing RPC divides by a pack factor; `packaging_id` / `display_uom_id` are carried at every document hop; all six purchasing line tables still hold a `_uom_normalize_line` trigger. `supabase/tests/purchases_server_authority_test.sql` asserts exactly this — run it if psql access is available.
-2. Only then start Phase 3. Do not open unrelated areas, and do not leave a phase half-shipped.
-
+1. **Verify Phase 3 before extending it.** Confirm in the live database that `resolve_supplier_purchasing_terms` calls `_resolve_supplier_role_id` (party `contacts.id` → `suppliers.id`), that both purchasing-terms functions are still `SECURITY DEFINER`, tenant-gated and revoked from `anon`, and that `validate_supplier_order_quantity` still reads terms only through the resolver. Run `supabase/tests/supplier_purchasing_terms_test.sql` (sections 1–7) if psql access is available, and `bunx vitest run src/test/architecture/purchasing-terms-single-owner.test.ts` (5 tests, must be green).
+2. Then start Phase 4. Do not open unrelated areas, and do not leave a phase half-shipped.
 
 ---
 
@@ -52,19 +51,24 @@ Carried into later phases:
 - **F2.7 → Phase 9.** `rfq_convert_awards_to_po` writes `unit_price` from `rfq_award_items` while `awarded_quantity` is in the awarded UoM; whether price is per base unit or per awarded unit is still ambiguous and must be settled with pricing ownership.
 - **F2.8 → Phase 5.** `inbound_shipment_items` (`expected_packaging_id`, no normalizer) still outside the contract.
 
-## Phase 3 — Supplier-specific purchasing terms (NEXT, not started)
+## Phase 3 — Supplier-specific purchasing terms — ✅ COMPLETE (2026-08-15)
 
-Objective: purchasing surfaces consume `resolve_supplier_purchasing_terms` / `validate_supplier_order_quantity` (ADR 0141) instead of re-deriving MOQ, increment, lead time or purchase UoM.
+Objective met: Purchases surfaces consume `resolve_supplier_purchasing_terms` / `validate_supplier_order_quantity` (ADR 0141) instead of re-deriving MOQ, increment, lead time or purchase UoM, and no Purchases surface reads the deprecated product-level defaults.
 
-Work items:
-1. Inventory every Purchases surface that decides a quantity or a supplier default (PO line entry, requisition line, RFQ line, reorder/replenishment recommendation) and record what it reads today.
-2. Route each through the single client seam `src/features/products/purchasing/supplierPurchasingTerms.ts`; no surface may read `products.min_order_quantity` / `order_quantity_increment` directly.
-3. Make the PO/requisition line entry refuse a below-MOQ / off-increment quantity using `describeOrderQuantityVerdict` copy, and default the line's `packaging_id` / `display_uom_id` from the resolved `purchase_uom_id`.
-4. Extend `src/test/architecture/purchasing-terms-single-owner.test.ts` to cover the Purchases surfaces.
+Findings and fixes:
+
+- **F3.1 (blocking, fixed in a migration).** The resolver keyed `p_supplier_id` on `suppliers.id` (role) while every purchasing document carries `vendor_id → contacts.id` (party, ADR-0079). Purchases literally could not consult terms without inventing a party→role hop in the browser. Added `public._resolve_supplier_role_id(business, party_or_role_id)` (SECURITY DEFINER, `authenticated`/`service_role` only) and made `resolve_supplier_purchasing_terms` accept either identifier. `validate_supplier_order_quantity` inherits this because it reads terms only through the resolver.
+- **F3.2 (fixed).** No Purchases surface consulted terms at all. New Purchases adapter over the single client seam: `src/features/purchases/purchasingTerms/purchaseLineTerms.ts` — `validatePurchaseLinesAgainstTerms`, `validatePurchaseLineQuantity`, `resolvePurchaseLineDefaults`, `summarisePurchaseLineRefusals`. It contains no arithmetic; every verdict and every default comes from the server, and refusal copy comes from `describeOrderQuantityVerdict`.
+- **F3.3 (fixed).** `PurchaseOrderCreatePage`, `PurchaseOrderEditPage` and `RequisitionCreatePage` now (a) seed a newly picked line with the resolved minimum order quantity, purchase UoM (`display_uom_id`) and supplier unit price, and (b) **refuse submission** with per-line copy when any line is below MOQ or off-increment. The requisition validates per line against that line's `suggested_supplier_id`.
+- **F3.4 (verified, no change).** `products.min_order_quantity` / `order_quantity_increment` are read only by the product master form; the guard test still asserts no comparison or modulo anywhere in app code.
+
+Guards: `supabase/tests/supplier_purchasing_terms_test.sql` gained section 7 (party→role hop exists, helper not executable by `anon`, resolver uses it); `src/test/architecture/purchasing-terms-single-owner.test.ts` gained two cases (the three Purchases surfaces call the validator; Purchases code reaches terms only through the Purchases adapter, never the products seam directly). Both green, `tsgo -p tsconfig.app.json` clean.
+
+Deliberately not done in Phase 3: RFQ line entry has no quantity/MOQ gate yet — RFQ quantities are a *request for pricing*, not a commitment, and the pack-entry UI for RFQ/requisition lines is the Phase 4 work item; award → PO conversion is where the commitment (and therefore the MOQ gate) belongs. Reorder / replenishment recommendation surfaces sit in Inventory, outside this wave's scope boundary.
 
 ## Phase roadmap
 
-4 requisition→RFQ→PO fidelity (incl. pack entry UI) · 5 PO→receiving (+F2.8) · 6 packaging vs handling unit · 7 returns · 8 landed cost · 9 pricing ownership (+F2.7) · 10 bills/3-way match/Finance boundary · 11 contracts vs supplier_item_terms · 12 multi-branch · 13 concurrency/idempotency · 14 events · 15 projections · 16 scenarios A–H.
+**4 (active)** requisition→RFQ→PO fidelity (incl. pack entry UI, MOQ gate at award→PO) · 5 PO→receiving (+F2.8) · 6 packaging vs handling unit · 7 returns · 8 landed cost · 9 pricing ownership (+F2.7) · 10 bills/3-way match/Finance boundary · 11 contracts vs supplier_item_terms · 12 multi-branch · 13 concurrency/idempotency · 14 events · 15 projections · 16 scenarios A–H.
 
 
 ---

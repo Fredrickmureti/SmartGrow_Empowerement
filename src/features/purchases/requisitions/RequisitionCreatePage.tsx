@@ -42,6 +42,11 @@ import {
   createPurchaseRequisition,
   type RequisitionLineInput,
 } from "./requisitionRpcs";
+import {
+  resolvePurchaseLineDefaults,
+  summarisePurchaseLineRefusals,
+  validatePurchaseLinesAgainstTerms,
+} from "@/features/purchases/purchasingTerms/purchaseLineTerms";
 
 const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
@@ -77,9 +82,42 @@ export default function RequisitionCreatePage() {
   );
 
   const updateLine = useCallback(
-    (idx: number, patch: Partial<RequisitionLineInput>) =>
-      setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l))),
-    [],
+    (idx: number, patch: Partial<RequisitionLineInput>) => {
+      setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+
+      // Picking a product (or naming a supplier) seeds the line from supplier
+      // purchasing terms — MOQ and purchase unit, resolved server-side.
+      const productId = patch.product_id;
+      if (!productId || !currentBusiness) return;
+      void (async () => {
+        try {
+          const defaults = await resolvePurchaseLineDefaults({
+            businessId: currentBusiness.id,
+            productId,
+            supplierId: patch.suggested_supplier_id ?? null,
+            onDate: needByDate || null,
+          });
+          if (!defaults) return;
+          setLines((ls) =>
+            ls.map((l, i) =>
+              i === idx
+                ? {
+                    ...l,
+                    quantity: defaults.quantity,
+                    display_uom_id: defaults.displayUomId,
+                    ...(defaults.unitPrice != null
+                      ? { estimated_unit_price: defaults.unitPrice }
+                      : {}),
+                  }
+                : l,
+            ),
+          );
+        } catch {
+          // Advisory at entry time; submit re-validates against the server.
+        }
+      })();
+    },
+    [currentBusiness, needByDate],
   );
 
   const removeLine = useCallback(
@@ -132,6 +170,26 @@ export default function RequisitionCreatePage() {
     }
     setBusy(true);
     try {
+      const refusals = await validatePurchaseLinesAgainstTerms({
+        businessId: currentBusiness.id,
+        onDate: needByDate || null,
+        lines: cleanLines.map((l, index) => ({
+          index,
+          productId: l.product_id,
+          supplierId: l.suggested_supplier_id ?? null,
+          quantity: Number(l.quantity),
+          productName: l.description,
+        })),
+      });
+      if (refusals.length > 0) {
+        toast({
+          title: "Supplier purchasing terms",
+          description: summarisePurchaseLineRefusals(refusals),
+          variant: "destructive",
+        });
+        setBusy(false);
+        return;
+      }
       const id = await createPurchaseRequisition({
         businessId: currentBusiness.id,
         needByDate: needByDate || null,
