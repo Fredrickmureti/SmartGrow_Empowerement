@@ -72,32 +72,76 @@ in a TypeScript `if`, and any client could write `status`, `invoice_number`,
 Totals are deliberately outside the reject list — Phase 4's totals guard
 already rewrites them from the lines, which is stronger than rejection.
 
-### Remaining Phase 6 work
+### 6.2 — atomic, idempotent invoice creation — done
 
-1. **6.2 — atomic invoice creation (NEXT, active milestone).** Invoice creation is a two-step browser
-   insert (header, then lines) with no idempotency key. Replace with
-   `create_invoice_atomic(p_idempotency_key ...)`.
+Creation was a two-step browser insert (header, then lines) with
+client-computed totals and no retry protection: a failure between the writes
+left a headless invoice, and a double submit minted two numbered invoices.
+
+- `create_invoice_atomic(p_header, p_items, p_user_id, p_idempotency_key)` —
+  SECURITY DEFINER, business-access checked, always writes a `draft`, and
+  writes header + lines in one transaction. The server owns the invoice
+  number (`get_next_invoice_number`), the base quantity
+  (`resolve_line_base_quantity`, rejecting a disagreeing client base
+  quantity), all line money, the header totals and the exchange rate
+  (`resolve_sales_exchange_rate`). Mirrors `create_sales_order_atomic`.
+- `public.sales_document_idempotency` — unique on
+  `(organization_id, document_type, idempotency_key)`, RLS-readable within the
+  business. A replayed key returns the original response with
+  `idempotent_replay: true` instead of creating a second invoice. Deliberately
+  generic so Phase 10 can reuse it for the other Sales RPCs.
+- Client seam `src/hooks/invoices/createInvoiceAtomic.ts` mints the key;
+  `useInvoices.createInvoice` and `useInvoicesPaginated.createInvoice` both go
+  through it and no longer insert rows or compute totals. The bill-to snapshot
+  is frozen post-create through `freezeBillToSnapshot("invoices", ...)`.
+- Pinned by `src/test/architecture/invoice-creation-atomic.test.ts` (6). Full
+  run of the Phase 6 guards: 54 tests passing; `tsgo` clean.
+- Documented exception: `MigrationStepOpenBalance` still bulk-inserts historic
+  opening-balance invoices — importer path, not the Sales editor path.
+
+**Phase 6 (Invoice ↔ Receivables) is complete: 6.0, 6.1, 6.2, 6.3.**
+
+### Pending work (in roadmap order)
+
+1. **Phase 6b — warehouse selection on Sales documents (NEXT, active
+   milestone).**
+2. Phase 7 — sale-time tax resolver ownership in the Tax domain.
+3. Phase 9/10 — governed write path for estimates; idempotency across the
+   remaining Sales RPCs, reusing `sales_document_idempotency`.
+4. Phase 2 follow-up — manual product picker through the ADR 0114 identity
+   read seam.
 
 ### Known pre-existing failure (not caused by Phase 6)
 
 `src/test/architecture/recurring-invoicing-single-engine.test.ts` fails: the
 `process-recurring-invoices` worker still writes `next_run_date` itself. This
-predates this wave and belongs to the recurring-invoicing engine, not Sales
-Phase 6 — record it, do not fold it into 6.2.
+predates this wave and belongs to the recurring-invoicing engine — record it,
+do not fold it into a Sales phase.
 
 ## Instructions for the next agent
 
-1. **Verify 6.1 before writing code.** Confirm in the live database that
-   `build_invoice_je_lines` exists and that `_confirm_invoice_core` raises on
-   non-empty `p_main_lines`; confirm no client file constructs invoice journal
-   lines (`rg -n "p_main_lines" src/` should only match generated types and
-   guard tests). Then run the confirmInvoiceGL and
-   compensation-writer-monopoly suites.
-2. **Then resume at 6.2**, the next milestone in the roadmap — do not pick up
-   unrelated work, and finish 6.2 (RPC + all client call sites + guard test +
-   ledger update) before touching Phase 6b/7.
+1. **Verify Phase 6 before writing code.**
+   - `create_invoice_atomic` and `sales_document_idempotency` exist in the
+     live database; the function is SECURITY DEFINER with
+     `search_path = public` and checks `user_can_access_business`.
+   - No Sales editor inserts invoice headers/lines:
+     `rg -n 'from\("invoice' src/hooks src/features/sales` should show reads
+     and the migration importer only.
+   - `build_invoice_je_lines` exists and `_confirm_invoice_core` raises 42501
+     on non-empty `p_main_lines`.
+   - Run: `npx vitest run src/test/architecture/invoice-creation-atomic.test.ts
+     src/hooks/invoices/__tests__/confirmInvoiceGL.test.ts
+     src/test/architecture/compensation-writer-monopoly.test.ts
+     src/test/architecture/sales-availability-coverage.test.ts` (54 expected)
+     and `npx tsgo --noEmit`.
+   - Behavioural proof still owed once transactional data exists: create an
+     invoice twice with the same idempotency key and assert one row.
+2. **Then resume at Phase 6b** (warehouse selection) — the next milestone in
+   the roadmap. Do not pick up unrelated work; finish 6b end to end (server
+   authority + every editor + guard test + ledger entry) before Phase 7.
 3. Every function-defining migration must end with `NOTIFY pgrst,
    'reload schema';` or the compensation-writer-monopoly guard fails.
+
 
 ## Verification standard
 
