@@ -34,7 +34,9 @@ describe("invoice totals contract", () => {
     expect(CREATE_PAGE).toContain('from "@/lib/invoiceLineMath"');
     expect(EDIT_PAGE).toContain('from "@/lib/invoiceLineMath"');
     expect(INVOICES_PAGE).toContain('from "@/lib/invoiceLineMath"');
-    expect(USE_INVOICES_PAGINATED).toContain('from "@/lib/invoiceLineMath"');
+    // Phase 6.2: the paginated save path no longer computes money at all —
+    // `create_invoice_atomic` owns line money and header totals server-side.
+    expect(USE_INVOICES_PAGINATED).toContain("createInvoiceAtomic");
   });
 
   it("never persists tax-inclusive line_total in invoice/estimate creation paths", () => {

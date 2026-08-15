@@ -17,3 +17,4 @@ Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 - [Supplier purchasing terms](mem://features/supplier-purchasing-terms) — MOQ/increment/purchase UoM owned by supplier_item_terms; server-side resolver + validator, single client seam
 - [WMS handling units](mem://features/wms-handling-units) — plate vs product packaging, mandatory row_version on every plate RPC, server-side UoM conversion, container capacity policy, quantity display seam
 - [Sales fulfilment warehouse](mem://features/sales-fulfilment-warehouse) — warehouse_id recorded on SO/invoice/DN, resolve_sales_warehouse authority, warehouse-scoped availability seam
+- [Sale-time tax](mem://features/sales-sale-time-tax) — resolve_sales_line_tax single authority, document-dated rates, validated line/free-text rates, tax_rate_id audit snapshot, preview-only client seam

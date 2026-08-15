@@ -10505,6 +10505,7 @@ export type Database = {
           source_unit_price: number | null
           tax_amount: number | null
           tax_rate: number | null
+          tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
         }
@@ -10533,6 +10534,7 @@ export type Database = {
           source_unit_price?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
         }
@@ -10561,6 +10563,7 @@ export type Database = {
           source_unit_price?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
         }
@@ -10626,6 +10629,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_note_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
         ]
@@ -19443,6 +19453,7 @@ export type Database = {
           sort_order: number | null
           tax_amount: number | null
           tax_rate: number | null
+          tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
         }
@@ -19467,6 +19478,7 @@ export type Database = {
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
         }
@@ -19491,6 +19503,7 @@ export type Database = {
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
         }
@@ -19528,6 +19541,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
         ]
@@ -23849,6 +23869,7 @@ export type Database = {
           task_id: string | null
           tax_amount: number | null
           tax_rate: number | null
+          tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
         }
@@ -23879,6 +23900,7 @@ export type Database = {
           task_id?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
         }
@@ -23909,6 +23931,7 @@ export type Database = {
           task_id?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
         }
@@ -24023,6 +24046,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
         ]
@@ -52978,6 +53008,7 @@ export type Database = {
           sort_order: number | null
           tax_amount: number | null
           tax_rate: number | null
+          tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
         }
@@ -52998,6 +53029,7 @@ export type Database = {
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
         }
@@ -53018,6 +53050,7 @@ export type Database = {
           sort_order?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
         }
@@ -53055,6 +53088,13 @@ export type Database = {
             columns: ["proforma_invoice_id"]
             isOneToOne: false
             referencedRelation: "proforma_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proforma_invoice_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
         ]
@@ -59517,6 +59557,7 @@ export type Database = {
           task_id: string | null
           tax_amount: number | null
           tax_rate: number | null
+          tax_rate_id: string | null
           unit_price: number
           uom_snapshot: string | null
         }
@@ -59546,6 +59587,7 @@ export type Database = {
           task_id?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price: number
           uom_snapshot?: string | null
         }
@@ -59575,6 +59617,7 @@ export type Database = {
           task_id?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
+          tax_rate_id?: string | null
           unit_price?: number
           uom_snapshot?: string | null
         }
@@ -59626,6 +59669,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
         ]
@@ -100325,6 +100375,17 @@ export type Database = {
           p_org_id: string
         }
         Returns: number
+      }
+      resolve_sales_line_tax: {
+        Args: {
+          p_business_id: string
+          p_contact_id: string
+          p_date?: string
+          p_product_id: string
+          p_requested_rate?: number
+          p_tax_rate_id?: string
+        }
+        Returns: Json
       }
       resolve_sales_return_cogs_lines: {
         Args: {

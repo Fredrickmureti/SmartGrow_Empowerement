@@ -313,40 +313,93 @@ Performance as projections vs transactional surfaces.
   p_idempotency_key)` writes header + lines in one transaction; replays return
   the first invoice via `public.sales_document_idempotency`.
 
+## Phase 6b — fulfilment warehouse on Sales documents ✅ COMPLETE (2026-08-15)
+
+- `sales_orders`, `invoices`, `delivery_notes` carry `warehouse_id`, recorded at
+  creation, never inferred later.
+- `public.resolve_sales_warehouse(org, business, branch, requested)` is the one
+  authority; `create_invoice_atomic`, `create_sales_order_atomic`,
+  `create_delivery_note_atomic`, `confirm_sales_order_atomic`,
+  `complete_delivery_atomic` and `list_products_with_branch_stock` all use it.
+- `_invoices_governed_write` locks `invoices.warehouse_id` once the invoice
+  leaves draft.
+- Client seam `useSalesWarehouse()` + `<SalesWarehouseField />`; availability is
+  read from the SAME warehouse the document reserves against
+  (`useBranchScopedProducts({ warehouseId })`).
+- Evidence: `src/test/architecture/sales-warehouse-selection.test.ts` (5), tsgo
+  clean. Memory: `mem/features/sales-fulfilment-warehouse.md`.
+
+## Phase 7 — sale-time tax ✅ COMPLETE (2026-08-15)
+
+- `public.resolve_sales_line_tax(business, product, contact, date, tax_rate_id,
+  requested_rate)` is the ONE sale-time tax authority (Tax domain, not Sales):
+  - taxes as at the **document's own date** (`invoices.issue_date`,
+    `sales_orders.order_date`, …) — a back-dated document no longer picks up
+    today's rate, which `CURRENT_DATE` previously caused;
+  - validates an explicit line `tax_rate_id` against company + active +
+    effective window and rejects an invalid one (22023);
+  - refuses a free-text (non-product) line whose typed rate is not a configured
+    live rate for the company — the browser can no longer invent tax;
+  - applies per-unit `fixed_amount` levies on top of the percentage component;
+  - keeps the tax-inclusive unwind (`gross / (1 + rate/100)`);
+  - rejects compound rates explicitly (0A000) instead of mis-taxing them;
+  - delegates the product cascade to `resolve_line_tax_rate` (exemption >
+    customer default > product > company default).
+- `_totals_normalize_line()` (trigger on `invoice_items`, `sales_order_items`,
+  `estimate_items`, `credit_note_items`, `proforma_invoice_items`) now routes
+  through it and stamps the applied `tax_rate_id` on the line as an audit
+  snapshot (new nullable FK column on all five line tables).
+- Client is preview-only: `src/features/sales/tax/salesLineTaxPreview.ts`
+  (`previewSalesLineTax` / `previewCustomerTaxRate`) calls the same RPC.
+  `InvoiceCreatePage`, `SalesOrderCreatePage`, `ProformaCreatePage` and
+  `EstimateCreatePage` no longer query `tax_rates` to decide a rate.
+- eTIMS audit: no `etims_*` reference exists in generic Sales client code; the
+  columns stay as localization payload on the line tables. No leakage.
+- Evidence: `src/test/architecture/sales-tax-authority.test.ts` (3),
+  `invoice-totals-contract.test.ts` (6, stale Phase-6.2 assertion corrected),
+  `sales-warehouse-selection.test.ts` (5),
+  `sales-availability-coverage.test.ts` (24),
+  `invoice-creation-atomic.test.ts` (6) — 44 passing; `tsgo` clean.
+  Live resolver probes: valid free-text rate accepted, 99.5% rejected, exempt
+  path returns 0.
+
 ## Current active phase
 
-**Phase 6 — Invoice ↔ Receivables boundary — complete (6.0, 6.1, 6.2, 6.3).**
-Next action: Phase 6b (warehouse selection on Sales documents), the next
-milestone in the roadmap.
+**Phase 7 — sale-time tax — COMPLETE.** Next active phase: **Phase 9/10**
+(governed write path for `estimate_items` / `estimate_additional_costs`, then
+idempotency across the remaining Sales create/convert RPCs reusing
+`public.sales_document_idempotency`).
 
 ## Verified complete
 
 - Phase 0 — upstream contract verification.
-- Phase 1 — lifecycle reconstruction (document graph, classification,
-  immutability/reversal map).
+- Phase 1 — lifecycle reconstruction.
 - Phase 2 — Product consumption (single server read seam).
-- Phase 3 — the line quantity contract (`resolve_line_base_quantity`).
-- Phase 4 — pricing / tax / totals resolvers with header totals rewritten
-  from the lines.
-- Phase 5 — availability policy consumed by every line-capturing editor.
-- Phase 6 — Invoice ↔ Receivables boundary (shared stock type, server GL
-  resolution, atomic idempotent creation, governed writes).
+- Phase 3 — line quantity contract (`resolve_line_base_quantity`).
+- Phase 4 — pricing / tax / totals resolvers, header totals from lines.
+- Phase 5 — availability policy in every line-capturing editor.
+- Phase 6 — Invoice ↔ Receivables boundary.
+- Phase 6b — fulfilment warehouse recorded on Sales documents.
+- Phase 7 — sale-time tax resolver owned by the Tax domain.
 
 ## Blocked phases
 
 None.
 
-## Remaining actionable work
+## Remaining actionable work (in roadmap order)
 
-1. Phase 6b — warehouse selection on Sales documents.
-2. Phase 7 — sale-time tax resolver ownership in the Tax domain.
-3. Phase 9/10 — governed write path for estimates; idempotency across Sales
-   RPCs (reuse `sales_document_idempotency`).
-4. Phase 2 follow-up — route the manual product picker through the ADR 0114
+1. **Phase 9** — per-document state machines; bring `estimate_items` /
+   `estimate_additional_costs` (still inserted/deleted straight from the
+   browser) under a governed write path like their siblings.
+2. **Phase 10** — idempotency + server authority on the remaining Sales
+   create/convert RPCs (`create_sales_order_atomic` and the converters take no
+   idempotency key); double-submit / retry / two-user tests.
+3. **Phase 11** — multi-tenant / branch scope audit incl. numbering.
+4. **Phase 12–14** — events, failure semantics, reporting boundaries.
+5. Phase 2 follow-up — route the manual product picker through the ADR 0114
    identity read seam.
-5. Recurring invoicing — `process-recurring-invoices` still writes
-   `next_run_date` itself (pre-existing, outside Sales Phase 6).
-
+6. Recurring invoicing — `process-recurring-invoices` still writes
+   `next_run_date` itself (pre-existing, outside the Sales wave).
 
 ## Phase 6.1 — server-side invoice GL resolution (done, 2026-08-15)
 
