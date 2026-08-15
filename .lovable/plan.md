@@ -33,19 +33,39 @@ Open note carried forward (F1.5): `inbound_shipment_items` names its pack column
 
 ---
 
-## Phase 2 — Server authority sweep (ACTIVE, not started)
+## Phase 2 — Server authority over quantities — ✅ COMPLETE (2026-08-15)
 
-Objective: no Purchases RPC or table write may accept a base quantity the server did not derive.
+Objective met: no Purchases write path validates policy against, or persists, a base quantity the browser authored.
+
+Findings and fixes (one migration):
+
+- **F2.1 (security-relevant, fixed).** `_pret_write_lines` validated the client's `quantity` against `quantity_returnable`, while the newly attached normalizer re-derived the stored quantity from `display_quantity × pack factor`. A return could pass the guard at 1 and persist 50. The writer now resolves the base quantity through `resolve_line_base_quantity` *first*, validates the returnable guard and prices the line off that number — the guard and the stored row cannot disagree.
+- **F2.2 (fixed).** `create_goods_receipt` re-implemented `base / pack factor` in SQL. Removed; the normalizer derives whichever of `quantity_received` / `display_quantity` the caller omitted.
+- **F2.3 (fixed).** `create_purchase_requisition` ignored the Phase-1 columns. It now maps `packaging_id`, `display_quantity`, `display_uom_id` (falling back to `uom_id`). `RequisitionLineInput` in `src/features/purchases/requisitions/requisitionRpcs.ts` exposes the same optional fields.
+- **F2.4 (fixed).** `requisition_create_rfq` dropped the purchasing unit. It now carries `packaging_id` + `display_uom_id`; `display_quantity` is deliberately left NULL so the normalizer derives it from remaining base demand.
+- **F2.5 (fixed).** `convert_po_to_bill_atomic` billed in loose base units. `packaging_id` / `display_uom_id` now travel from the PO line onto the bill line.
+- **F2.6 (verified, no change).** `update_po_items_atomic` already passes pack provenance and writes through the normalized table.
+
+Guard: `supabase/tests/purchases_server_authority_test.sql` (resolver precedes the returnable guard; no RPC divides by a pack factor; provenance survives every hop; all six line tables keep the normalizer). `src/test/architecture/purchases-quantity-server-owned.test.ts` green.
+
+Carried into later phases:
+- **F2.7 → Phase 9.** `rfq_convert_awards_to_po` writes `unit_price` from `rfq_award_items` while `awarded_quantity` is in the awarded UoM; whether price is per base unit or per awarded unit is still ambiguous and must be settled with pricing ownership.
+- **F2.8 → Phase 5.** `inbound_shipment_items` (`expected_packaging_id`, no normalizer) still outside the contract.
+
+## Phase 3 — Supplier-specific purchasing terms (NEXT, not started)
+
+Objective: purchasing surfaces consume `resolve_supplier_purchasing_terms` / `validate_supplier_order_quantity` (ADR 0141) instead of re-deriving MOQ, increment, lead time or purchase UoM.
 
 Work items:
-1. Enumerate every Purchases write path (`usePurchaseOrders`, `useBills`, `purchaseReturnRpcs`, `requisitionRpcs`, RFQ writers, `dispatchGoodsReceipt`, `landedCostRpcs`) and record, per path, whether it sends `display_quantity` + provenance or only a base `quantity`.
-2. For RPCs that take `quantity` arguments (`record_goods_receipt_line`, `create_goods_receipt`, `convert_rfq_to_po_atomic`, purchase-return creator), confirm the RPC either re-derives through `resolve_line_base_quantity` or writes through the normalized line tables. Fix at the RPC boundary, not with more client validation.
-3. Confirm no Purchases client file computes a persisted total/base quantity (guard already in place; extend it to `display_quantity * factor` patterns if offenders appear).
-4. Verify `unit_price` semantics per line: price is per **base** unit vs per **pack** must be unambiguous and server-stamped (flag as Phase 9 dependency if unresolved).
+1. Inventory every Purchases surface that decides a quantity or a supplier default (PO line entry, requisition line, RFQ line, reorder/replenishment recommendation) and record what it reads today.
+2. Route each through the single client seam `src/features/products/purchasing/supplierPurchasingTerms.ts`; no surface may read `products.min_order_quantity` / `order_quantity_increment` directly.
+3. Make the PO/requisition line entry refuse a below-MOQ / off-increment quantity using `describeOrderQuantityVerdict` copy, and default the line's `packaging_id` / `display_uom_id` from the resolved `purchase_uom_id`.
+4. Extend `src/test/architecture/purchasing-terms-single-owner.test.ts` to cover the Purchases surfaces.
 
 ## Phase roadmap
 
-3 supplier terms consumption · 4 requisition→RFQ→PO fidelity (incl. pack entry UI) · 5 PO→receiving · 6 packaging vs handling unit · 7 returns · 8 landed cost · 9 pricing ownership · 10 bills/3-way match/Finance boundary · 11 contracts vs supplier_item_terms · 12 multi-branch · 13 concurrency/idempotency · 14 events · 15 projections · 16 scenarios A–H.
+4 requisition→RFQ→PO fidelity (incl. pack entry UI) · 5 PO→receiving (+F2.8) · 6 packaging vs handling unit · 7 returns · 8 landed cost · 9 pricing ownership (+F2.7) · 10 bills/3-way match/Finance boundary · 11 contracts vs supplier_item_terms · 12 multi-branch · 13 concurrency/idempotency · 14 events · 15 projections · 16 scenarios A–H.
+
 
 ---
 
