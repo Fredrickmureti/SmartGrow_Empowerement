@@ -272,3 +272,29 @@ function formatNumber(n: number): string {
   // Drop trailing zeros; keep up to 3 decimals (matches formatQty.ts).
   return String(Number(n.toFixed(3)));
 }
+
+/**
+ * ── Single entry point ────────────────────────────────────────────────────
+ *
+ * `@/lib/inventory/formatQty` is the internal implementation of the
+ * warehouse pack-rollup primitives ("2 Box + 2 ea"). It is re-exported here
+ * so that every consumer can import quantity formatting from ONE module and
+ * the two families cannot drift apart in rounding or unit-label policy.
+ *
+ * Prefer, in order:
+ *   1. `formatLineQty` / `formatLineQtyString` — a transaction line with
+ *      persisted pack provenance (frozen snapshot aware).
+ *   2. `formatQtyWithPacks` / `formatQtyAsPacks` — an on-hand balance that
+ *      has no line provenance, only the product's pack ladder.
+ *   3. `formatBaseQty` — a raw base-unit figure.
+ */
+export {
+  formatBaseQty,
+  formatQtyAsPacks,
+  formatQtyWithPacks,
+  decomposeQty,
+  /** @deprecated Use {@link formatLineQty}; kept for pre-Phase-4 callers. */
+  formatTransactionQty,
+} from "./formatQty";
+export type { PackForRollup } from "./formatQty";
+
