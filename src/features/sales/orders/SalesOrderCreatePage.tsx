@@ -16,6 +16,7 @@ import { z } from "zod";
 import { useSalesOrders } from "@/hooks/useSalesOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { SalesWarehouseField, useSalesWarehouse } from "@/features/sales/warehouse";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
@@ -270,6 +271,7 @@ export default function SalesOrderCreatePage() {
       const created = await createSalesOrder(
         {
           ...values,
+          warehouse_id: warehouse.warehouseId,
           subtotal,
           tax_amount: taxAmount,
           total,

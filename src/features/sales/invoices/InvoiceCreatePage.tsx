@@ -20,6 +20,7 @@ import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItems
 import { InvoiceItem, useInvoicesPaginated } from "@/hooks/useInvoicesPaginated";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { SalesWarehouseField, useSalesWarehouse } from "@/features/sales/warehouse";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -110,7 +111,11 @@ export default function InvoiceCreatePage() {
   };
 
 
-  const { products, branchScopeLabel } = useBranchScopedProducts();
+  // Phase 6b: the invoice records the warehouse it will issue stock from.
+  const warehouse = useSalesWarehouse();
+  const { products, branchScopeLabel } = useBranchScopedProducts({
+    warehouseId: warehouse.warehouseId,
+  });
 
 
   /** Sell units per product; the server re-derives the base quantity. */

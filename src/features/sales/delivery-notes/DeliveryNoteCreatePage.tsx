@@ -15,6 +15,7 @@ import { z } from "zod";
 import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { SalesWarehouseField, useSalesWarehouse } from "@/features/sales/warehouse";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import {
   lotNumberFromAllocations,
@@ -103,7 +104,11 @@ export default function DeliveryNoteCreatePage() {
 
   const { createDeliveryNote } = useDeliveryNotes();
   const { contacts } = useContacts();
-  const { products, branchScopeLabel } = useBranchScopedProducts();
+  // Phase 6b: goods issue consumes ONE warehouse — show its numbers.
+  const warehouse = useSalesWarehouse();
+  const { products, branchScopeLabel } = useBranchScopedProducts({
+    warehouseId: warehouse.warehouseId,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { product_id: null, description: "", quantity_ordered: 1, quantity_delivered: 1, unit_price: 0, tax_rate: 0, discount_percent: 0 },
@@ -293,6 +298,7 @@ export default function DeliveryNoteCreatePage() {
       const created = await createDeliveryNote(
         {
           ...values,
+          warehouse_id: warehouse.warehouseId,
           status: "pending",
         } as any,
         items as any,
