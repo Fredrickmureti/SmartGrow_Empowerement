@@ -105,8 +105,14 @@ export default function EstimateCreatePage() {
   };
 
   const applyLinePatch = (index: number, patch: Record<string, any>) => {
-    // Re-price whenever what the customer buys changes (unit or pack).
-    if ((patch as Record<string, unknown>).packaging_id !== undefined || (patch as Record<string, unknown>).display_uom_id !== undefined) {
+    // Re-price whenever what the customer buys changes (product, unit or pack).
+    // The product scalar applied below is only an optimistic placeholder; the
+    // server resolver decides and the database stamps it on insert.
+    if (
+      patch.product_id ||
+      (patch as Record<string, unknown>).packaging_id !== undefined ||
+      (patch as Record<string, unknown>).display_uom_id !== undefined
+    ) {
       void applyServerPrice(index, patch as never);
     }
     const updated = [...lineItems];
