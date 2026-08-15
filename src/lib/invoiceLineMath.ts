@@ -1,8 +1,15 @@
 /**
  * PREVIEW-ONLY invoice/credit-note/estimate line math.
  *
- * Phase 4 milestone 3: the DATABASE is authoritative for line tax and totals.
- * `_totals_normalize_line()` (trigger `trg_zzz_totals_*` on every Sales line
+ * Phase 4 milestone 3 / Phase 7: the DATABASE is authoritative for line tax and
+ * totals. `_totals_normalize_line()` (trigger `trg_zzz_totals_*` on every Sales
+ * line table) resolves tax through `resolve_sales_line_tax(...)` — the single
+ * sale-time tax authority, which taxes as at the DOCUMENT's own date, validates
+ * any line-level `tax_rate_id`, refuses a free-text rate that is not configured
+ * for the company, applies per-unit `fixed_amount` levies, unwinds tax-inclusive
+ * prices, rejects compound rates, and stamps `tax_rate_id` on the line as an
+ * audit snapshot. That resolver delegates the product cascade to
+ * `resolve_line_tax_rate(...)`. The trigger then stamps
  * table) stamps `tax_rate`, `tax_amount` and `line_total` from the
  * server-stamped `unit_price`, the canonical base quantity and
  * `resolve_line_tax_rate(...)`; `_recalc_document_totals()` derives header
