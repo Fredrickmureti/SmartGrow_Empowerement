@@ -112,6 +112,7 @@ export default function EstimateCreatePage() {
     // CONTRACT: line_total is tax-EXCLUSIVE — see src/lib/invoiceLineMath.ts.
     const { line_total, tax_amount } = computeLine({
       quantity: item.quantity,
+      display_quantity: item.display_quantity,
       unit_price: item.unit_price,
       discount_percent: item.discount_percent,
       tax_rate: item.tax_rate,
