@@ -94752,6 +94752,9 @@ export type Database = {
         }
         Returns: {
           available: number
+          base_uom_code: string
+          base_uom_id: string
+          base_uom_name: string
           branch_scope_label: string
           business_id: string
           category_id: string
@@ -94767,10 +94770,14 @@ export type Database = {
           on_hand: number
           order_quantity_increment: number
           organization_id: string
+          packaging: Json
           purchase_account_id: string
           reorder_level: number
           reserved: number
           sales_account_id: string
+          sales_uom_code: string
+          sales_uom_id: string
+          sales_uom_name: string
           sku: string
           tax_rate: number
           tax_rate_id: string
@@ -99745,6 +99752,16 @@ export type Database = {
           p_rule_code: string
         }
         Returns: string
+      }
+      resolve_line_base_quantity: {
+        Args: {
+          p_business_id: string
+          p_display_quantity: number
+          p_display_uom_id?: string
+          p_packaging_id?: string
+          p_product_id: string
+        }
+        Returns: Json
       }
       resolve_location_identity: {
         Args: { p_business_id: string; p_code: string; p_warehouse_id?: string }
