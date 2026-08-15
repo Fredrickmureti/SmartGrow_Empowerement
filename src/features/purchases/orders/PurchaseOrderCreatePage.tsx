@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders, type PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useSupplierDocumentCurrency } from "@/features/purchases/suppliers/useSupplierDocumentCurrency";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
@@ -91,6 +92,9 @@ export default function PurchaseOrderCreatePage() {
   const { getNextPONumber, createPurchaseOrder } = usePurchaseOrders();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  // Purchasing lines may be typed in a pack or an alternate unit; `quantity`
+  // stays base units and the server normalizer is the authority.
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -336,7 +340,9 @@ export default function PurchaseOrderCreatePage() {
           .map((item, index) => ({
             index,
             productId: item.product_id,
-            quantity: Number(item.quantity),
+            // MOQ / increment are supplier-facing terms: validate the
+            // quantity as ordered from the supplier, not the stocked base.
+            quantity: Number(item.display_quantity ?? item.quantity),
             productName: item.description,
           })),
       });
@@ -507,6 +513,7 @@ export default function PurchaseOrderCreatePage() {
               products={products}
               layout={layout}
               formatCurrency={formatCurrency}
+              unitsFor={unitsFor}
               onPatch={patchLineItem}
               onProductSelect={selectProduct}
               productPlaceholder="Product"

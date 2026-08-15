@@ -35,6 +35,7 @@ import {
 import { useRFQs, type RFQItem } from "@/hooks/useRFQs";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRFQRecord } from "./useRFQRecord";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
@@ -56,6 +57,7 @@ export default function RFQEditPage() {
   const { updateRFQAsync, isUpdating } = useRFQs();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [deadline, setDeadline] = useState("");
@@ -87,6 +89,9 @@ export default function RFQEditPage() {
             product_id: i.product_id,
             description: i.description ?? "",
             quantity: i.quantity ?? 1,
+            packaging_id: i.packaging_id ?? null,
+            display_quantity: i.display_quantity ?? null,
+            display_uom_id: i.display_uom_id ?? null,
             target_price: i.target_price ?? null,
             sort_order: idx,
           }))
@@ -272,6 +277,7 @@ export default function RFQEditPage() {
               layout={layout}
               disabled={isUpdating}
               formatCurrency={formatLineCurrency}
+              unitsFor={unitsFor}
               onPatch={patchLineItem}
               onProductSelect={selectProduct}
             />
