@@ -172,12 +172,12 @@ export default function ProformaCreatePage() {
             : line,
         ),
       );
-    // Product scalar is an optimistic placeholder; the server resolver
-    // (price list > price book > product) is the authority and is what the
-    // database stamps on insert.
-    void applyServerPrice(index, { product_id: productId });
+      // Product scalar is an optimistic placeholder; the server resolver
+      // (price list > price book > product) is the authority and is what the
+      // database stamps on insert.
+      void applyServerPrice(index, { product_id: productId });
     },
-    [products],
+    [products, applyServerPrice],
   );
 
   const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
