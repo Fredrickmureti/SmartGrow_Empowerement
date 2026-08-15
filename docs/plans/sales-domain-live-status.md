@@ -297,34 +297,48 @@ Performance as projections vs transactional surfaces.
 
 ---
 
+## Phase 6 — Invoice ↔ Receivables boundary — 🚧 in progress
+
+- **6.0 done** — `InvoiceLineRow` consumes the shared `LineStockEval`; the
+  availability coverage test now fails on any re-declared `StockEval`.
+- **6.3 done** — `invoices` is a governed document. Trigger
+  `trg_00_invoices_governed_write` rejects direct writes to `status`,
+  `invoice_number`, `journal_entry_id`, `amount_paid`;
+  `set_invoice_status_atomic` owns the legal non-financial transitions and
+  `link_invoice_journal_entry_atomic` is the importer's link-once door.
+  Client call sites migrated (`useInvoices`, `useInvoicesPaginated`,
+  `MigrationStepOpenBalance`).
+- **6.1 open** — `confirm_invoice_atomic` still trusts browser-built journal
+  lines (`src/hooks/invoices/confirmInvoiceGL.ts`). Resolve accounts server-side.
+- **6.2 open** — invoice creation is a non-atomic two-step browser insert with
+  no idempotency key.
+
 ## Current active phase
 
-**Phase 3 — UoM & packaging** (the line quantity contract). First required
-action is upstream-shaped: widen the `list_products_with_branch_stock`
-projection to carry `base_uom_id`, `sales_uom_id` and the product's packaging
-levels, so a Sales line can express a customer unit at all.
+**Phase 6 — Invoice ↔ Receivables boundary.** Next action: 6.1, move GL
+account resolution and journal-line construction into `_confirm_invoice_core`.
 
 ## Verified complete
 
 - Phase 0 — upstream contract verification.
 - Phase 1 — lifecycle reconstruction (document graph, classification,
   immutability/reversal map).
-- Phase 2 — Product consumption (no Sales-local product tables; single server
-  read seam; projection too narrow; picker bypasses the identity seam).
+- Phase 2 — Product consumption (single server read seam).
+- Phase 3 — the line quantity contract (`resolve_line_base_quantity`).
+- Phase 4 — pricing / tax / totals resolvers with header totals rewritten
+  from the lines.
+- Phase 5 — availability policy consumed by every line-capturing editor.
 
 ## Blocked phases
 
-None. Phases 4 and 7 depend on an ownership decision, not on an upstream
-defect.
+None.
 
 ## Remaining actionable work
 
-1. Phase 3 — the line quantity contract (highest business risk: quantities are
-   ambiguous between customer units and inventory units).
-2. Phase 4 — collapse three pricing sources to one server-side resolver.
-3. Phase 7 — create a sale-time tax resolver in the Tax domain.
-4. Phase 9/10 — governed write path for **invoices** (currently unguarded) and
-   estimates; idempotency + server-side line money validation.
+1. Phase 6.1 — server-side GL resolution for invoice confirmation.
+2. Phase 6.2 — `create_invoice_atomic` with idempotency.
+3. Phase 7 — sale-time tax resolver ownership in the Tax domain.
+4. Phase 9/10 — governed write path for estimates; idempotency across Sales
+   RPCs.
 5. Phase 2 follow-up — route the manual product picker through the ADR 0114
    identity read seam.
-
