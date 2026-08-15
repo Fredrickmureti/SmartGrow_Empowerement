@@ -370,8 +370,8 @@ export default function InvoiceCreatePage() {
       if (currentBusiness?.id) {
         const rate = await previewCustomerTaxRate(
           currentBusiness.id,
-          v,
-          formData.issue_date || todayIso(),
+          value,
+          todayIso(),
         );
         setLineItems((prev) =>
           prev.map((item) => {
