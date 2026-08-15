@@ -99,7 +99,9 @@ export function StockCell({
       </span>
       {showRollup && (
         <span className="text-[10px] font-normal text-muted-foreground">
-          {packLabel}
+          {/* "= 8 × 50 kg Bag" reads as a rollup of the base figure above,
+              not as a second, unrelated quantity. */}
+          {`= ${packLabel.replace(/^(\d+(?:\.\d+)?)\s/, "$1 × ")}`}
         </span>
       )}
     </span>

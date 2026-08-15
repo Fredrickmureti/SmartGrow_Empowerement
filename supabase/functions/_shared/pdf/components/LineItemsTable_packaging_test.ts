@@ -21,6 +21,7 @@ interface Item {
   packaging_label?: string | null;
   base_uom_label?: string | null;
   unit_price?: number;
+  line_total?: number | null;
 }
 function formatQtyCell(item: Item, opts: { showBase?: boolean } = {}): string {
   const showBase = opts.showBase !== false;
@@ -35,19 +36,24 @@ function formatQtyCell(item: Item, opts: { showBase?: boolean } = {}): string {
   }
   return `${trimNum(base)} ${baseLabel}`;
 }
+import { resolveDisplayUnitPrice } from "../../documents/lineItemPrice.ts";
 function formatPriceCell(item: Item): number {
-  const base = Number(item.quantity ?? 0);
-  const unit = Number(item.unit_price ?? 0);
-  if (item.packaging_label && item.packaging_label.trim().length > 0) {
-    const dq = item.display_quantity != null && Number.isFinite(item.display_quantity)
-      ? Number(item.display_quantity)
-      : base;
-    if (dq > 0 && base > 0 && dq !== base) {
-      return unit * (base / dq);
-    }
-  }
-  return unit;
+  return resolveDisplayUnitPrice(item);
 }
+
+Deno.test("PDF — pack-unit price is not multiplied again (50 kg Bag @ 7,500)", () => {
+  assertEquals(
+    formatPriceCell({
+      quantity: 50,
+      display_quantity: 1,
+      packaging_label: "50 kg Bag",
+      base_uom_label: "KG",
+      unit_price: 7500,
+      line_total: 7500,
+    } as Item),
+    7500,
+  );
+});
 
 Deno.test("PDF — 1 Box of Paracentamols (50 tablets, 7/tab, 350 total)", () => {
   const item: Item = {

@@ -20,6 +20,7 @@ import {
   type LineItemColumn,
   type LineItemProfileContext,
 } from "../../documents/lineItemProfiles.ts";
+import { resolveDisplayUnitPrice } from "../../documents/lineItemPrice.ts";
 
 
 export interface LineItem {
@@ -59,23 +60,11 @@ function formatQtyCell(item: LineItem, opts: { showBase?: boolean } = {}): strin
   return `${trimNum(base)} ${baseLabel}`;
 }
 /**
- * Render the Price cell respecting multi-unit pack provenance.
- * When packaging is present, show price per pack (pack_price = base_unit_price * factor),
- * matching the industry-standard "displayQty × packPrice = total" receipt line.
+ * Price cell = price of ONE display unit, reconciled against the line total
+ * so that Qty × Price = Amount always holds. See resolveDisplayUnitPrice.
  */
 function formatPriceCell(item: LineItem): number {
-  const base = Number(item.quantity ?? 0);
-  const unit = Number(item.unit_price ?? 0);
-  if (item.packaging_label && item.packaging_label.trim().length > 0) {
-    const dq = item.display_quantity != null && Number.isFinite(item.display_quantity)
-      ? Number(item.display_quantity)
-      : base;
-    if (dq > 0 && base > 0 && dq !== base) {
-      // Pack price = unit_price × (base_qty / display_qty)
-      return unit * (base / dq);
-    }
-  }
-  return unit;
+  return resolveDisplayUnitPrice(item);
 }
 function trimNum(n: number): string {
   if (!Number.isFinite(n)) return "0";

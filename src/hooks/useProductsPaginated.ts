@@ -6,6 +6,7 @@ import { useToast } from "./use-toast";
 import { useAuditLog } from "./useAuditLog";
 import { usePaginatedQuery } from "./usePaginatedQuery";
 import type { Product } from "./useProducts";
+import { PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 
 export interface ProductFilters {
   search?: string;
@@ -45,7 +46,8 @@ export function useProductsPaginated(filters?: ProductFilters) {
 
       let query = supabase
         .from("products")
-        .select("*", { count: "exact" })
+        // Base UoM must ride along — quantity cells render "(no UoM)" without it.
+        .select(`*, ${PRODUCT_BASE_UOM_SELECT}`, { count: "exact" })
         .eq("organization_id", organizationId)
         .eq("business_id", businessId)
         .order("name");

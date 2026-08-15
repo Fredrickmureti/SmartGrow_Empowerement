@@ -17,6 +17,7 @@ import {
   type SolvedColumn,
 } from "./engine/ColumnLayout.ts";
 import { LAYOUT_REGISTRY, type LayoutId, type LayoutContext } from "./layouts/index.ts";
+import { resolveDisplayUnitPrice } from "../documents/lineItemPrice.ts";
 
 export type ItemRowKind = "heading" | "header" | "item" | "subrow";
 
@@ -105,9 +106,13 @@ export function assembleItems(input: AssembleItemsInput): AssembleItemsResult {
     // Pack price = base_unit_price × (base_qty / display_qty). Shown when
     // packaging is present so the receipt reads "2 Box x 350.00 = 700.00"
     // instead of "100 x 7.00 = 700.00".
-    const price = (packLabel && displayQty > 0 && qty > 0 && qty !== displayQty)
-      ? baseUnitPrice * (qty / displayQty)
-      : baseUnitPrice;
+    const price = resolveDisplayUnitPrice({
+      quantity: qty,
+      display_quantity: displayQty,
+      packaging_label: packLabel,
+      unit_price: baseUnitPrice,
+      line_total: it.line_total as number | null | undefined,
+    });
 
     const values: Record<string, string> = {
       sku: String(it.sku ?? ""),
