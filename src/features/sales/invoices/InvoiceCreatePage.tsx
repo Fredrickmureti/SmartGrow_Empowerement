@@ -56,9 +56,12 @@ import { format, addDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import {
+  OversellConfirmation,
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
@@ -122,7 +125,6 @@ export default function InvoiceCreatePage() {
   const { members } = useOrgMembers();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [confirmOversell, setConfirmOversell] = useState(false);
 
   const [formData, setFormData] = useState({
     contact_id: "",
@@ -145,6 +147,17 @@ export default function InvoiceCreatePage() {
   const [lineItems, setLineItems] = useState<Omit<InvoiceItem, "id" | "invoice_id">[]>([
     { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
   ]);
+
+  /**
+   * Fulfilment check. Invoices carry a `commit` stock policy: a short line is
+   * allowed but must be a deliberate, acknowledged oversell.
+   */
+  const availability = useSalesLineAvailability({
+    kind: "invoice",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
 
   /** Server-authoritative price for a line, previewed in the editor. */
   const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
@@ -384,20 +397,10 @@ export default function InvoiceCreatePage() {
       }
       const validItems = result.valid;
 
-      // Block oversell unless explicitly confirmed.
-      // Use the branch-scoped `available` resolved by the server availability
-      // engine — the same source the
-      // line badges display, so what the user sees is what we validate against.
-      const oversellNow = validItems.some((item) => {
-        const p = item.product_id ? products.find((pp) => pp.id === item.product_id) : undefined;
-        if (!p || !p.track_inventory || p.type === "service") return false;
-        return item.quantity > Number(p.available ?? 0);
-      });
-      if (oversellNow && !confirmOversell) {
-        throw new Error(
-          `One or more lines exceed available stock in ${branchScopeLabel}. Tick the oversell confirmation below to proceed.`,
-        );
-      }
+      // Block oversell unless explicitly confirmed. The guard, the line badges
+      // and the confirmation list all read the SAME evaluation, so what the
+      // operator sees is exactly what we validate against.
+      availability.assertSellable();
 
       if (formData.contact_id && creditInfo) {
         const totalAmount = validItems.reduce((sum, item) => {
@@ -439,26 +442,11 @@ export default function InvoiceCreatePage() {
   );
 
   // Stock evaluation per line — drives badges, inline messages, and the
-  // oversell submit guard. Untracked / service products are ignored.
-  // SOURCE: branch-scoped `available` so what we display === what we validate.
-  const lineStockEvals = lineItems.map((item) => {
-    const product = item.product_id ? products.find((p) => p.id === item.product_id) : undefined;
-    if (!product) return null;
-    return {
-      product,
-      result: evaluateStock({
-        trackInventory: product.track_inventory,
-        productType: product.type,
-        onHand: product.available,
-        reorderLevel: product.reorder_level,
-        requestedQty: item.quantity,
-      }),
-    };
-  });
-  const oversoldLines = lineStockEvals
-    .map((e, i) => (e && (e.result.status === "exceeded" || e.result.status === "out") ? { i, ...e } : null))
-    .filter(Boolean) as Array<{ i: number; product: typeof products[0]; result: ReturnType<typeof evaluateStock> }>;
-  const hasOversell = oversoldLines.length > 0;
+  // oversell submit guard. Shared with every other Sales editor via the
+  // `commit` policy in `@/features/sales/availability`; untracked / service
+  // products are ignored, and `available` is the branch-scoped figure the
+  // server resolved.
+  const lineStockEvals = availability.evals;
 
   return (
     <RecordFormShell
@@ -634,36 +622,11 @@ export default function InvoiceCreatePage() {
         <CustomFieldsSection entityType="invoice" entityId={null} formValues={formData} disabled={isSubmitting} />
 
         {/* Oversell confirmation — required when any line exceeds available stock */}
-        {hasOversell && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="space-y-2">
-              <div className="font-semibold">
-                {oversoldLines.length === 1
-                  ? "1 line exceeds available stock"
-                  : `${oversoldLines.length} lines exceed available stock`}
-              </div>
-              <ul className="text-sm list-disc pl-5 space-y-0.5">
-                {oversoldLines.map((o) => (
-                  <li key={o.i}>
-                    <strong>{o.product.name}</strong>: {o.result.message}
-                  </li>
-                ))}
-              </ul>
-              <div className="flex items-start gap-2 pt-2">
-                <Checkbox
-                  id="confirmOversell"
-                  checked={confirmOversell}
-                  onCheckedChange={(c) => setConfirmOversell(c === true)}
-                  disabled={isSubmitting}
-                />
-                <Label htmlFor="confirmOversell" className="text-sm font-normal cursor-pointer leading-snug">
-                  I confirm overselling — proceed with this invoice even though stock is insufficient. Backorder may be required.
-                </Label>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+        <OversellConfirmation
+          kind="invoice"
+          availability={availability}
+          disabled={isSubmitting}
+        />
 
         {/* Mark as sent checkbox — stays in body */}
         <div className="flex items-center space-x-2">

@@ -35,9 +35,12 @@ import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import {
+  OversellConfirmation,
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
@@ -72,7 +75,7 @@ export default function InvoiceEditPage() {
   const open = true;
 
   const { contacts } = useContacts();
-  const { products } = useProducts();
+  const { products, branchScopeLabel } = useProducts();
   /** Sell units per product; the server re-derives the base quantity. */
   const unitsFor = useUnitsForProducts(products);
   const { currentBusiness } = useBusinesses();
@@ -80,7 +83,6 @@ export default function InvoiceEditPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [confirmOversell, setConfirmOversell] = useState(false);
 
   const [formData, setFormData] = useState({
     contact_id: "",
@@ -92,6 +94,18 @@ export default function InvoiceEditPage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  /**
+   * Fulfilment check — same `commit` policy and same shared evaluation the
+   * create surface uses, so editing an invoice cannot quietly bypass a guard
+   * that creating one enforces.
+   */
+  const availability = useSalesLineAvailability({
+    kind: "invoice",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
 
   /** Server-authoritative price for a line, previewed in the editor. */
   const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
@@ -294,16 +308,7 @@ export default function InvoiceEditPage() {
       }
       const validItems = result.valid;
 
-      const oversellNow = validItems.some((item) => {
-        const p = item.product_id ? products.find((pp) => pp.id === item.product_id) : undefined;
-        if (!p || !p.track_inventory || p.type === "service") return false;
-        return item.quantity > Number((p as any).available ?? p.stock_quantity ?? 0);
-      });
-      if (oversellNow && !confirmOversell) {
-        throw new Error(
-          "One or more lines exceed available stock. Tick the oversell confirmation below to proceed.",
-        );
-      }
+      availability.assertSellable();
 
       const { subtotal, tax_total: taxAmount, total } = computeTotals(
         validItems,
@@ -385,24 +390,7 @@ export default function InvoiceEditPage() {
 
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
 
-  const lineStockEvals = lineItems.map((item) => {
-    const product = item.product_id ? products.find((p) => p.id === item.product_id) : undefined;
-    if (!product) return null;
-    return {
-      product,
-      result: evaluateStock({
-        trackInventory: product.track_inventory,
-        productType: product.type,
-        onHand: (product as any).available ?? product.stock_quantity,
-        reorderLevel: product.reorder_level,
-        requestedQty: item.quantity,
-      }),
-    };
-  });
-  const oversoldLines = lineStockEvals
-    .map((e, i) => (e && (e.result.status === "exceeded" || e.result.status === "out") ? { i, ...e } : null))
-    .filter(Boolean);
-  const hasOversell = oversoldLines.length > 0;
+  const lineStockEvals = availability.evals;
 
   return (
     <RecordFormShell
@@ -593,27 +581,12 @@ export default function InvoiceEditPage() {
           <CustomFieldsSection entityType="invoice" entityId={invoice?.id || null} formValues={formData} disabled={isSubmitting} documentSection="notes" showHeader={false} />
           <CustomFieldsSection entityType="invoice" entityId={invoice?.id || null} formValues={formData} disabled={isSubmitting} documentSection={["footer", "additional"]} />
 
-          {hasOversell && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="space-y-2">
-                <div className="font-semibold">
-                  {oversoldLines.length === 1 ? "1 line exceeds available stock" : `${oversoldLines.length} lines exceed available stock`}
-                </div>
-                <ul className="text-sm list-disc pl-5 space-y-0.5">
-                  {oversoldLines.map((o: any) => (
-                    <li key={o.i}><strong>{o.product.name}</strong>: {o.result.message}</li>
-                  ))}
-                </ul>
-                <div className="flex items-start gap-2 pt-2">
-                  <Checkbox id="confirmOversellEdit" checked={confirmOversell} onCheckedChange={(c) => setConfirmOversell(c === true)} disabled={isSubmitting} />
-                  <Label htmlFor="confirmOversellEdit" className="text-sm font-normal cursor-pointer leading-snug">
-                    I confirm overselling — proceed with this invoice even though stock is insufficient.
-                  </Label>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
+          <OversellConfirmation
+            kind="invoice"
+            availability={availability}
+            disabled={isSubmitting}
+            id="oversell-confirm-edit"
+          />
         </div>
       )}
     </RecordFormShell>

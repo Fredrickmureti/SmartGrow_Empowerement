@@ -11,7 +11,8 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Estimate, EstimateItem } from "@/hooks/useEstimates";
 import { useContacts } from "@/hooks/useContacts";
-import { useProducts } from "@/hooks/useProducts";
+import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { useSalesLineAvailability } from "@/features/sales/availability";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { computeLine } from "@/lib/invoiceLineMath";
@@ -55,7 +56,9 @@ export default function EstimateEditPage() {
   const { id: estimateId } = useParams<{ id: string }>();
 
   const { contacts } = useContacts();
-  const { products } = useProducts();
+  // Branch-scoped so the edit surface reports the same server-resolved
+  // availability the create surface does.
+  const { products, branchScopeLabel } = useBranchScopedProducts();
   /** Sell units per product; the server re-derives the base quantity. */
   const unitsFor = useUnitsForProducts(products);
   const { toast } = useToast();
@@ -73,6 +76,14 @@ export default function EstimateEditPage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  /** Advisory only — estimates never block on stock. */
+  const availability = useSalesLineAvailability({
+    kind: "estimate",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
   const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>([]);
 
   useEffect(() => {
@@ -470,6 +481,7 @@ export default function EstimateEditPage() {
                 formatCurrency={formatCurrency}
                 onPatch={updateLineItem}
                 onProductSelect={handleProductSelect}
+                stockEval={availability.evals[index] ?? null}
               />
             )}
           />

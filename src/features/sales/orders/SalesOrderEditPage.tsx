@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useContacts } from "@/hooks/useContacts";
-import { useProducts } from "@/hooks/useProducts";
+import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,10 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import {
+  OversellConfirmation,
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { ShipToPicker } from "@/components/addresses/ShipToPicker";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
@@ -80,7 +84,10 @@ export default function SalesOrderEditPage() {
   const navigate = useNavigate();
   const { id: orderId } = useParams<{ id: string }>();
   const { contacts } = useContacts();
-  const { products } = useProducts();
+  // Branch-scoped catalogue: the edit surface must see the SAME server-resolved
+  // availability the create surface does, or the two disagree about whether an
+  // order can be fulfilled.
+  const { products, branchScopeLabel } = useBranchScopedProducts();
   /** Sell units per product; the server re-derives the base quantity. */
   const unitsFor = useUnitsForProducts(products);
   const { formatCurrency } = useCurrency();
@@ -101,6 +108,14 @@ export default function SalesOrderEditPage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  /** Fulfilment check — same seam and same policy as the create surface. */
+  const availability = useSalesLineAvailability({
+    kind: "sales_order",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
 
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
 
@@ -252,6 +267,7 @@ export default function SalesOrderEditPage() {
     try {
       const result = validateLineItems(lineItems);
       if (!result.ok) throw new Error(result.error);
+      availability.assertSellable();
       const validItems = result.valid;
 
       // Phase 5.5: the edit is DB-owned. `update_sales_order_atomic` updates
@@ -431,6 +447,7 @@ export default function SalesOrderEditPage() {
                   formatCurrency={formatLineCurrency}
                   onPatch={updateLineItem}
                   onProductSelect={handleProductSelect}
+                  stockEval={availability.evals[index] ?? null}
                   extra={
                     <LineAnalyticsCell
                       projectId={item.project_id ?? null}
@@ -452,6 +469,12 @@ export default function SalesOrderEditPage() {
                 <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Total</span><span>{formatCurrency(grandTotal, currency)}</span></div>
               </div>
             </div>
+
+            <OversellConfirmation
+              kind="sales_order"
+              availability={availability}
+              disabled={isSubmitting}
+            />
           </FieldGroup>
 
           <FieldGroup label="Additional Info">

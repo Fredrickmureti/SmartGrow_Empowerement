@@ -43,6 +43,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import {
+  OversellConfirmation,
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
@@ -110,6 +114,18 @@ export default function SalesOrderCreatePage() {
   ]);
 
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
+
+  /**
+   * Fulfilment check. Confirming this order reserves stock
+   * (`confirm_sales_order_atomic`), so a short line must be a deliberate,
+   * acknowledged oversell rather than a silently skipped reservation.
+   */
+  const availability = useSalesLineAvailability({
+    kind: "sales_order",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -207,6 +223,11 @@ export default function SalesOrderCreatePage() {
     const validation = validateLineItems(lineItems);
     if (!validation.ok) {
       toast.error(validation.error);
+      return;
+    }
+    const stockBlock = availability.blockingReason();
+    if (stockBlock) {
+      toast.error(stockBlock);
       return;
     }
     const validatedLines = validation.valid;
@@ -418,6 +439,7 @@ export default function SalesOrderCreatePage() {
                   formatCurrency={formatLineCurrency}
                   onPatch={patchLineItem}
                   unitsFor={unitsFor}
+                  stockEval={availability.evals[index] ?? null}
                 />
               )}
             />
@@ -429,6 +451,12 @@ export default function SalesOrderCreatePage() {
                 <div className="flex justify-between font-medium border-t pt-2"><span>Total:</span><span>{totals.total.toFixed(2)}</span></div>
               </div>
             </div>
+
+            <OversellConfirmation
+              kind="sales_order"
+              availability={availability}
+              disabled={isSubmitting}
+            />
           </FieldGroup>
 
           <FieldGroup label="Additional Info">

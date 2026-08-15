@@ -42,6 +42,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import { StockLineStatus } from "@/components/inventory/StockAvailabilityIndicator";
+import {
+  OversellConfirmation,
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { DeliveryNoteLineRow, DELIVERY_LINE_COLUMNS } from "@/components/documents/lines/DeliveryNoteLineRow";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -105,6 +110,21 @@ export default function DeliveryNoteCreatePage() {
   ]);
 
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
+
+  /**
+   * Strictest surface in Sales: goods physically leave the building, so the
+   * check runs against `quantity_delivered` (what actually ships), not the
+   * ordered quantity, and a shortfall must be explicitly acknowledged.
+   */
+  const availability = useSalesLineAvailability({
+    kind: "delivery_note",
+    lines: lineItems.map((l) => ({
+      product_id: l.product_id,
+      quantity: l.quantity_delivered,
+    })),
+    products,
+    scopeLabel: branchScopeLabel,
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -235,6 +255,12 @@ export default function DeliveryNoteCreatePage() {
       return;
     }
     const validatedLines = validation.valid;
+
+    const stockBlock = availability.blockingReason();
+    if (stockBlock) {
+      toast.error(stockBlock);
+      return;
+    }
 
     if (values.auto_invoice_on_complete) {
       const missing = validatedLines.find((l) => !l.unit_price || l.unit_price <= 0);
@@ -406,6 +432,20 @@ export default function DeliveryNoteCreatePage() {
                   onPatch={patchLineItem}
                   onDeliveredChange={applyDeliveredPatch}
                   extra={
+                    <>
+                    {availability.evals[index] && (
+                      <StockLineStatus
+                        trackInventory={availability.evals[index]!.product.track_inventory ?? undefined}
+                        productType={availability.evals[index]!.product.type ?? undefined}
+                        onHand={
+                          availability.evals[index]!.product.available ??
+                          availability.evals[index]!.product.stock_quantity ??
+                          undefined
+                        }
+                        reorderLevel={availability.evals[index]!.product.reorder_level ?? undefined}
+                        requestedQty={item.quantity_delivered}
+                      />
+                    )}
                     <OutboundLineTracking
                       productId={item.product_id ?? null}
                       quantity={item.quantity_delivered}
@@ -421,9 +461,16 @@ export default function DeliveryNoteCreatePage() {
                         } as any)
                       }
                     />
+                    </>
                   }
                 />
               )}
+            />
+
+            <OversellConfirmation
+              kind="delivery_note"
+              availability={availability}
+              disabled={isSubmitting}
             />
           </FieldGroup>
 
