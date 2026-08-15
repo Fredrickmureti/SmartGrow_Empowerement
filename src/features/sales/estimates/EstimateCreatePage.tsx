@@ -16,6 +16,9 @@ import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useEstimates, EstimateItem } from "@/hooks/useEstimates";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import {
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";

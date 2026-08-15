@@ -15,6 +15,9 @@ import { z } from "zod";
 import { useProformaInvoices } from "@/hooks/useProformaInvoices";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import {
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { CreditCheckAlert } from "@/components/shared/CreditCheckAlert";
