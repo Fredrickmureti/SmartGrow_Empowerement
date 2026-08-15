@@ -86455,6 +86455,10 @@ export type Database = {
         Args: { _detail?: string; _name: string; _passed: boolean }
         Returns: Json
       }
+      _sales_doc_is_mutable: {
+        Args: { p_status: string; p_table: string }
+        Returns: boolean
+      }
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
       _seed_default_printer_roles: {
         Args: { p_organization_id: string }
@@ -99800,6 +99804,15 @@ export type Database = {
           p_display_quantity: number
           p_display_uom_id?: string
           p_packaging_id?: string
+          p_product_id: string
+        }
+        Returns: Json
+      }
+      resolve_line_tax_rate: {
+        Args: {
+          p_business_id: string
+          p_contact_id: string
+          p_date?: string
           p_product_id: string
         }
         Returns: Json
