@@ -23,7 +23,8 @@
  *
  * CONTRACT (mirrored exactly by the SQL trigger, and by
  * `confirm_invoice_atomic`):
- *   invoice_items.line_total  = tax-EXCLUSIVE  (= quantity × unit_price − line discount)
+ *   invoice_items.line_total  = tax-EXCLUSIVE
+ *     (= priced/display quantity × unit_price − line discount)
  *   invoice_items.tax_amount  = per-line tax on the discounted, tax-exclusive amount
  *   invoices.subtotal         = SUM(line_total)
  *   invoices.tax_amount       = SUM(tax_amount)
