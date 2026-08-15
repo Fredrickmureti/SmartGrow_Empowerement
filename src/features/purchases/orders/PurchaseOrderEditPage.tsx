@@ -82,6 +82,8 @@ export default function PurchaseOrderEditPage() {
   const { toast } = useToast();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const { currentBusiness } = useBusinesses();
+  const currentBusinessId = currentBusiness?.id ?? null;
   const { formatCurrency } = useCurrency();
   const {
     purchaseOrders,
@@ -268,7 +270,6 @@ export default function PurchaseOrderEditPage() {
   );
 
   // Scan-to-line — shared workspace transport, cost-priced seed.
-  const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
     setLineItems,
