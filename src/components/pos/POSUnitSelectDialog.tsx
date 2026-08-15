@@ -71,11 +71,37 @@ export function POSUnitSelectDialog({
   const [selectedKey, setSelectedKey] = useState<string>("__base__");
   const [qty, setQty] = useState<string>("1");
 
+  /**
+   * A product stocked in kilograms or litres MUST be sellable as 0.75 of a
+   * base unit. Only a `count`-dimension base unit is genuinely indivisible,
+   * so the integer clamp is driven by the UoM category, never assumed.
+   */
+  const { data: baseUom } = useQuery({
+    queryKey: ["pos-base-uom", baseUomId],
+    enabled: open && !!baseUomId,
+    staleTime: 300_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("units_of_measure")
+        .select("id, code, name, category:uom_categories!category_id(dimension)")
+        .eq("id", baseUomId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const baseLabel =
+    (baseUom?.code || baseUom?.name || "").trim() || "base unit";
+  const allowFractional =
+    !!baseUom?.category?.dimension && baseUom.category.dimension !== "count";
+
   const { data: options = [], isLoading } = useQuery<PackOption[]>({
     queryKey: ["pos-unit-options", productId],
     enabled: open && !!productId,
     staleTime: 60_000,
     queryFn: async () => {
+
       const [{ data: packs, error: packErr }, { data: pricing, error: priceErr }] =
         await Promise.all([
           supabase
