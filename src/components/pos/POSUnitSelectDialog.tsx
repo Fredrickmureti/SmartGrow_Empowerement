@@ -234,12 +234,16 @@ export function POSUnitSelectDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="pos-unit-qty">Quantity</Label>
+              <Label htmlFor="pos-unit-qty">
+                Quantity{fractionalAllowed ? ` (${baseLabel})` : ""}
+              </Label>
               <Input
                 id="pos-unit-qty"
                 type="number"
-                min={1}
-                step={1}
+                inputMode="decimal"
+                min={fractionalAllowed ? 0.001 : 1}
+                step={fractionalAllowed ? 0.001 : 1}
+
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
                 onKeyDown={(e) => {
