@@ -43,6 +43,7 @@ import { normalizeError } from "@/services/resilience";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { previewCustomerTaxRate } from "@/features/sales/tax";
 import { useBranches } from "@/hooks/useBranches";
 import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
 import {
