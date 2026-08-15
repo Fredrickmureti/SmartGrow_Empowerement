@@ -70,4 +70,33 @@ describe("purchasing terms single owner", () => {
     expect(offenders.map((f) => f.rel)).toEqual([]);
   });
 
+
+  // Phase 3 — the Purchases write surfaces must actually consult the terms.
+  it("gates purchasing quantity entry on the server verdict", () => {
+    const SURFACES = [
+      "src/features/purchases/orders/PurchaseOrderCreatePage.tsx",
+      "src/features/purchases/orders/PurchaseOrderEditPage.tsx",
+      "src/features/purchases/requisitions/RequisitionCreatePage.tsx",
+    ];
+    const missing = SURFACES.filter((rel) => {
+      const file = appFiles.find((f) => f.rel === rel);
+      return (
+        !file || !/validatePurchaseLinesAgainstTerms/.test(file.body)
+      );
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it("routes Purchases terms reads through the Purchases adapter", () => {
+    const ADAPTER = "src/features/purchases/purchasingTerms/purchaseLineTerms.ts";
+    const direct = appFiles.filter(
+      (f) =>
+        f.rel !== ADAPTER &&
+        f.rel.startsWith("src/features/purchases/") &&
+        /from "@\/features\/products\/purchasing\/supplierPurchasingTerms"/.test(
+          f.body,
+        ),
+    );
+    expect(direct.map((f) => f.rel)).toEqual([]);
+  });
 });
