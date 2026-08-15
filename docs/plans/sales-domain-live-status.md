@@ -308,15 +308,16 @@ Performance as projections vs transactional surfaces.
   `link_invoice_journal_entry_atomic` is the importer's link-once door.
   Client call sites migrated (`useInvoices`, `useInvoicesPaginated`,
   `MigrationStepOpenBalance`).
-- **6.1 open** — `confirm_invoice_atomic` still trusts browser-built journal
-  lines (`src/hooks/invoices/confirmInvoiceGL.ts`). Resolve accounts server-side.
-- **6.2 open** — invoice creation is a non-atomic two-step browser insert with
-  no idempotency key.
+- **6.1 done** — see the dated section below.
+- **6.2 done** — `create_invoice_atomic(p_header, p_items, p_user_id,
+  p_idempotency_key)` writes header + lines in one transaction; replays return
+  the first invoice via `public.sales_document_idempotency`.
 
 ## Current active phase
 
-**Phase 6 — Invoice ↔ Receivables boundary.** Next action: 6.1, move GL
-account resolution and journal-line construction into `_confirm_invoice_core`.
+**Phase 6 — Invoice ↔ Receivables boundary — complete (6.0, 6.1, 6.2, 6.3).**
+Next action: Phase 6b (warehouse selection on Sales documents), the next
+milestone in the roadmap.
 
 ## Verified complete
 
@@ -328,6 +329,8 @@ account resolution and journal-line construction into `_confirm_invoice_core`.
 - Phase 4 — pricing / tax / totals resolvers with header totals rewritten
   from the lines.
 - Phase 5 — availability policy consumed by every line-capturing editor.
+- Phase 6 — Invoice ↔ Receivables boundary (shared stock type, server GL
+  resolution, atomic idempotent creation, governed writes).
 
 ## Blocked phases
 
@@ -335,13 +338,15 @@ None.
 
 ## Remaining actionable work
 
-1. Phase 6.1 — server-side GL resolution for invoice confirmation.
-2. Phase 6.2 — `create_invoice_atomic` with idempotency.
-3. Phase 7 — sale-time tax resolver ownership in the Tax domain.
-4. Phase 9/10 — governed write path for estimates; idempotency across Sales
-   RPCs.
-5. Phase 2 follow-up — route the manual product picker through the ADR 0114
+1. Phase 6b — warehouse selection on Sales documents.
+2. Phase 7 — sale-time tax resolver ownership in the Tax domain.
+3. Phase 9/10 — governed write path for estimates; idempotency across Sales
+   RPCs (reuse `sales_document_idempotency`).
+4. Phase 2 follow-up — route the manual product picker through the ADR 0114
    identity read seam.
+5. Recurring invoicing — `process-recurring-invoices` still writes
+   `next_run_date` itself (pre-existing, outside Sales Phase 6).
+
 
 ## Phase 6.1 — server-side invoice GL resolution (done, 2026-08-15)
 
