@@ -86679,6 +86679,17 @@ export type Database = {
         Returns: Json
       }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _purchase_assert_order_quantity: {
+        Args: {
+          p_business_id: string
+          p_label?: string
+          p_on_date?: string
+          p_product_id: string
+          p_quantity: number
+          p_supplier_id: string
+        }
+        Returns: undefined
+      }
       _recalc_so_item_invoiced: {
         Args: { p_so_item_ids: string[] }
         Returns: undefined
