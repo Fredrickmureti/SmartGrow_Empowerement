@@ -13,7 +13,9 @@ import { confirmInvoiceAndPostGL } from "./invoices/confirmInvoiceGL";
 import { triggerAutomation, getChangedFields } from "@/lib/automations/triggerAutomation";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
-import { captureBillToSnapshot } from "@/lib/contactAddresses";
+import { freezeBillToSnapshot } from "@/lib/contactAddresses";
+import { createInvoiceAtomic } from "./invoices/createInvoiceAtomic";
+
 
 export interface InvoiceItem {
   id?: string;
