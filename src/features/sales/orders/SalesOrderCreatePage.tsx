@@ -17,6 +17,7 @@ import { useSalesOrders } from "@/hooks/useSalesOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver } from "@/hooks/useLinePriceResolver";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
@@ -174,8 +175,14 @@ export default function SalesOrderCreatePage() {
           return next;
         }),
       );
+      // The product scalar above is only an optimistic placeholder; the server
+      // resolver (price list > price book > product) has the final word and is
+      // what the database will stamp on insert.
+      if (patch.product_id || patch.packaging_id !== undefined || patch.display_uom_id !== undefined) {
+        void applyServerPrice(index, patch);
+      }
     },
-    [products],
+    [products, applyServerPrice],
   );
 
   const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
