@@ -303,12 +303,14 @@ export function useInvoices() {
     );
 
     try {
-      const updateData: any = { status };
-
-      const { error } = await supabase
-        .from("invoices")
-        .update(updateData)
-        .eq("id", id);
+      // Phase 6.3: `invoices.status` is a governed column. The trigger
+      // `trg_00_invoices_governed_write` rejects a direct table update, so the
+      // transition goes through the sanctioned engine, which re-checks the
+      // legal transition table server-side (a client `if` is not a control).
+      const { error } = await supabase.rpc("set_invoice_status_atomic" as never, {
+        p_invoice_id: id,
+        p_status: status,
+      } as never);
 
       if (error) throw error;
 
