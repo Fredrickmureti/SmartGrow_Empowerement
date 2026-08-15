@@ -71,11 +71,37 @@ export function POSUnitSelectDialog({
   const [selectedKey, setSelectedKey] = useState<string>("__base__");
   const [qty, setQty] = useState<string>("1");
 
+  /**
+   * A product stocked in kilograms or litres MUST be sellable as 0.75 of a
+   * base unit. Only a `count`-dimension base unit is genuinely indivisible,
+   * so the integer clamp is driven by the UoM category, never assumed.
+   */
+  const { data: baseUom } = useQuery({
+    queryKey: ["pos-base-uom", baseUomId],
+    enabled: open && !!baseUomId,
+    staleTime: 300_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("units_of_measure")
+        .select("id, code, name, category:uom_categories!category_id(dimension)")
+        .eq("id", baseUomId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const baseLabel =
+    (baseUom?.code || baseUom?.name || "").trim() || "base unit";
+  const allowFractional =
+    !!baseUom?.category?.dimension && baseUom.category.dimension !== "count";
+
   const { data: options = [], isLoading } = useQuery<PackOption[]>({
-    queryKey: ["pos-unit-options", productId],
+    queryKey: ["pos-unit-options", productId, baseLabel],
     enabled: open && !!productId,
     staleTime: 60_000,
     queryFn: async () => {
+
       const [{ data: packs, error: packErr }, { data: pricing, error: priceErr }] =
         await Promise.all([
           supabase
@@ -101,7 +127,7 @@ export function POSUnitSelectDialog({
 
       const base: PackOption = {
         packagingId: null,
-        name: "Each (base unit)",
+        name: baseLabel === "base unit" ? "Each (base unit)" : `${baseLabel} (base unit)`,
         qtyInBaseUom: 1,
         unitPrice: basePrice,
       };
@@ -135,9 +161,16 @@ export function POSUnitSelectDialog({
     [options, selectedKey],
   );
 
-  const numericQty = Math.max(1, Math.floor(Number(qty) || 0));
+  // Packs are always whole (you cannot sell 0.5 of a sealed box); the base
+  // unit is fractional whenever its dimension is not `count`.
+  const fractionalAllowed = allowFractional && selected?.packagingId == null;
+  const rawQty = Number(qty);
+  const numericQty = fractionalAllowed
+    ? Math.max(0.001, Number.isFinite(rawQty) ? Number(rawQty.toFixed(3)) : 0)
+    : Math.max(1, Math.floor(rawQty || 0));
   const baseQuantity = selected ? numericQty * selected.qtyInBaseUom : numericQty;
   const lineTotal = selected ? numericQty * selected.unitPrice : 0;
+
 
   const confirm = () => {
     if (!selected) return;
@@ -147,7 +180,11 @@ export function POSUnitSelectDialog({
       displayQuantity: numericQty,
       baseQuantity,
       unitPrice: selected.unitPrice,
-      packagingLabel: selected.packagingId ? selected.name : "Each",
+      packagingLabel: selected.packagingId
+        ? selected.name
+        : baseLabel === "base unit"
+          ? "Each"
+          : baseLabel,
     });
     onOpenChange(false);
   };
@@ -201,12 +238,16 @@ export function POSUnitSelectDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="pos-unit-qty">Quantity</Label>
+              <Label htmlFor="pos-unit-qty">
+                Quantity{fractionalAllowed ? ` (${baseLabel})` : ""}
+              </Label>
               <Input
                 id="pos-unit-qty"
                 type="number"
-                min={1}
-                step={1}
+                inputMode="decimal"
+                min={fractionalAllowed ? 0.001 : 1}
+                step={fractionalAllowed ? 0.001 : 1}
+
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
                 onKeyDown={(e) => {

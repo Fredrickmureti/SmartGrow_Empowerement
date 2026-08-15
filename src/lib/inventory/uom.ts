@@ -48,7 +48,12 @@ export interface LineWithProvenance {
   packaging?: PackagingRef | null;
   /** Convenience: short display label when the packaging row was not joined. */
   packaging_label?: string | null;
+  /** Joined product, used only to recover the base unit of a pre-Phase-2 row. */
+  product?: { base_uom?: { code?: string | null; name?: string | null } | null } | null;
+  /** Flat base-unit label supplied by a snapshot/normalizer. */
+  base_uom_label?: string | null;
 }
+
 
 /** Structured snapshot resolved from a line, with live data as fallback. */
 export interface ResolvedLineSnapshot {
@@ -215,10 +220,20 @@ export function formatLineQty(
   opts: FormatLineQtyOptions = {},
 ): FormattedLineQty {
   const snap = resolveLineSnapshot(line);
-  // A frozen base-unit code outranks the caller's hint: the document must
-  // read the way it read on the day it was issued.
+  // A frozen base-unit code outranks everything: the document must read the
+  // way it read on the day it was issued. Failing that, use the line's own
+  // joined/flat product unit before falling back to the caller's hint — an
+  // "ea" default must never override a real unit like KG.
   const baseLabel =
-    (snap.baseCode || opts.baseLabel || "ea").trim() || "ea";
+    (
+      snap.baseCode ||
+      line.base_uom_label ||
+      line.product?.base_uom?.code ||
+      line.product?.base_uom?.name ||
+      opts.baseLabel ||
+      "ea"
+    ).trim() || "ea";
+
   const showBreakdown = opts.showBaseBreakdown !== false;
 
   const base = Number(line.quantity ?? 0);
@@ -272,3 +287,29 @@ function formatNumber(n: number): string {
   // Drop trailing zeros; keep up to 3 decimals (matches formatQty.ts).
   return String(Number(n.toFixed(3)));
 }
+
+/**
+ * ── Single entry point ────────────────────────────────────────────────────
+ *
+ * `@/lib/inventory/formatQty` is the internal implementation of the
+ * warehouse pack-rollup primitives ("2 Box + 2 ea"). It is re-exported here
+ * so that every consumer can import quantity formatting from ONE module and
+ * the two families cannot drift apart in rounding or unit-label policy.
+ *
+ * Prefer, in order:
+ *   1. `formatLineQty` / `formatLineQtyString` — a transaction line with
+ *      persisted pack provenance (frozen snapshot aware).
+ *   2. `formatQtyWithPacks` / `formatQtyAsPacks` — an on-hand balance that
+ *      has no line provenance, only the product's pack ladder.
+ *   3. `formatBaseQty` — a raw base-unit figure.
+ */
+export {
+  formatBaseQty,
+  formatQtyAsPacks,
+  formatQtyWithPacks,
+  decomposeQty,
+  /** @deprecated Use {@link formatLineQty}; kept for pre-Phase-4 callers. */
+  formatTransactionQty,
+} from "./formatQty";
+export type { PackForRollup } from "./formatQty";
+
