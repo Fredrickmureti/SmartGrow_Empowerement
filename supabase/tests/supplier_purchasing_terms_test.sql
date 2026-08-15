@@ -151,4 +151,31 @@ BEGIN
   END IF;
 END $$;
 
+-- 7. Phase 3: the resolver accepts a purchasing party (contacts.id) as well as
+--    the supplier role, so Purchases documents (vendor_id -> contacts.id,
+--    ADR-0079) never map party -> role in the browser.
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO v_def
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.proname='_resolve_supplier_role_id';
+  IF v_def IS NULL THEN
+    RAISE EXCEPTION '_resolve_supplier_role_id is missing';
+  END IF;
+  IF v_def !~ 'contact_id' THEN
+    RAISE EXCEPTION '_resolve_supplier_role_id must accept a party contact id';
+  END IF;
+  IF has_function_privilege('anon', 'public._resolve_supplier_role_id(uuid, uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION '_resolve_supplier_role_id must not be executable by anon';
+  END IF;
+
+  SELECT pg_get_functiondef(p.oid) INTO v_def
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.proname='resolve_supplier_purchasing_terms';
+  IF v_def !~ '_resolve_supplier_role_id' THEN
+    RAISE EXCEPTION 'resolver must translate a supplier party into the supplier role';
+  END IF;
+END $$;
+
 ROLLBACK;
