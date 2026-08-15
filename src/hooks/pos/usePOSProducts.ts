@@ -209,7 +209,7 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
     selectedCategory,
     setSelectedCategory,
     findByBarcode,
-    hasStock,
+    hasStockHint,
     // pagination (the canonical seam returns the branch-scoped catalog in one
     // call; these are kept so existing consumers keep compiling)
     totalCount,
