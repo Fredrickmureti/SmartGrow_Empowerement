@@ -90618,6 +90618,16 @@ export type Database = {
         Args: { p_employee: Json; p_identifiers?: Json }
         Returns: string
       }
+      create_estimate_atomic: {
+        Args: {
+          p_costs?: Json
+          p_header: Json
+          p_idempotency_key?: string
+          p_items?: Json
+          p_user_id?: string
+        }
+        Returns: Json
+      }
       create_goods_receipt: {
         Args: {
           _actor: string
@@ -102233,6 +102243,16 @@ export type Database = {
       update_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
       update_delivery_logistics_atomic: {
         Args: { p_dn_id: string; p_payload: Json; p_user_id: string }
+        Returns: Json
+      }
+      update_estimate_atomic: {
+        Args: {
+          p_costs?: Json
+          p_estimate_id: string
+          p_header?: Json
+          p_items?: Json
+          p_user_id?: string
+        }
         Returns: Json
       }
       update_inbound_shipment_eta: {
