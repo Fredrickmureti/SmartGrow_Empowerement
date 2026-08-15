@@ -90799,7 +90799,12 @@ export type Database = {
         Returns: Json
       }
       create_sales_order_atomic: {
-        Args: { p_header: Json; p_items: Json; p_user_id?: string }
+        Args: {
+          p_header: Json
+          p_idempotency_key?: string
+          p_items: Json
+          p_user_id?: string
+        }
         Returns: Json
       }
       create_sales_return_atomic: { Args: { _payload: Json }; Returns: Json }
