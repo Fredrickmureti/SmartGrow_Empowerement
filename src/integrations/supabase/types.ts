@@ -93643,6 +93643,17 @@ export type Database = {
         }
         Returns: number
       }
+      get_available_pos_stock_for_register_batch: {
+        Args: {
+          p_exclude_self?: boolean
+          p_product_ids: string[]
+          p_register_id: string
+        }
+        Returns: {
+          available: number
+          product_id: string
+        }[]
+      }
       get_available_stock: {
         Args: {
           p_branch_id?: string
@@ -95253,94 +95264,55 @@ export type Database = {
           user_id: string
         }[]
       }
-      list_products_with_branch_stock:
-        | {
-            Args: {
-              p_branch_id?: string
-              p_business_id: string
-              p_include_variant_parents?: boolean
-              p_org_id: string
-            }
-            Returns: {
-              available: number
-              base_uom_code: string
-              base_uom_id: string
-              base_uom_name: string
-              branch_scope_label: string
-              business_id: string
-              category_id: string
-              cogs_account_id: string
-              cost_price: number
-              description: string
-              id: string
-              image_url: string
-              inventory_account_id: string
-              is_active: boolean
-              min_order_quantity: number
-              name: string
-              on_hand: number
-              order_quantity_increment: number
-              organization_id: string
-              packaging: Json
-              purchase_account_id: string
-              reorder_level: number
-              reserved: number
-              sales_account_id: string
-              sales_uom_code: string
-              sales_uom_id: string
-              sales_uom_name: string
-              sku: string
-              tax_rate: number
-              tax_rate_id: string
-              track_inventory: boolean
-              type: string
-              unit_price: number
-            }[]
-          }
-        | {
-            Args: {
-              p_branch_id?: string
-              p_business_id: string
-              p_include_variant_parents?: boolean
-              p_org_id: string
-              p_warehouse_id?: string
-            }
-            Returns: {
-              available: number
-              base_uom_code: string
-              base_uom_id: string
-              base_uom_name: string
-              branch_scope_label: string
-              business_id: string
-              category_id: string
-              cogs_account_id: string
-              cost_price: number
-              description: string
-              id: string
-              image_url: string
-              inventory_account_id: string
-              is_active: boolean
-              min_order_quantity: number
-              name: string
-              on_hand: number
-              order_quantity_increment: number
-              organization_id: string
-              packaging: Json
-              purchase_account_id: string
-              reorder_level: number
-              reserved: number
-              sales_account_id: string
-              sales_uom_code: string
-              sales_uom_id: string
-              sales_uom_name: string
-              sku: string
-              tax_rate: number
-              tax_rate_id: string
-              track_inventory: boolean
-              type: string
-              unit_price: number
-            }[]
-          }
+      list_products_with_branch_stock: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_include_variant_parents?: boolean
+          p_org_id: string
+          p_warehouse_id?: string
+        }
+        Returns: {
+          available: number
+          base_uom_code: string
+          base_uom_id: string
+          base_uom_name: string
+          branch_scope_label: string
+          business_id: string
+          category_id: string
+          category_name: string
+          cogs_account_id: string
+          cost_price: number
+          description: string
+          etims_tax_code: string
+          id: string
+          image_url: string
+          inventory_account_id: string
+          is_active: boolean
+          is_weighted: boolean
+          min_order_quantity: number
+          name: string
+          on_hand: number
+          order_quantity_increment: number
+          organization_id: string
+          packaging: Json
+          plu_code: string
+          purchase_account_id: string
+          reorder_level: number
+          reserved: number
+          sales_account_id: string
+          sales_uom_code: string
+          sales_uom_id: string
+          sales_uom_name: string
+          sku: string
+          tax_rate: number
+          tax_rate_id: string
+          tax_rate_name: string
+          track_inventory: boolean
+          type: string
+          unit_price: number
+        }[]
+      }
       list_scan_events: {
         Args: { p_limit?: number; p_register?: string; p_verdict?: string }
         Returns: {
@@ -98090,6 +98062,14 @@ export type Database = {
       pos_reconcile_register_period: {
         Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
         Returns: string
+      }
+      pos_register_stock_scope: {
+        Args: { p_register_id: string }
+        Returns: {
+          branch_id: string
+          business_id: string
+          warehouse_id: string
+        }[]
       }
       pos_rename_scanner_device: {
         Args: { p_device_id: string; p_label: string; p_session: string }
