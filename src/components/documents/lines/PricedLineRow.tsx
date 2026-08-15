@@ -75,6 +75,12 @@ export const PRICED_LINE_COLUMNS_NO_TAX = PRICED_LINE_COLUMNS.filter(
 
 export type PricedLineRowProduct = ProductOption & { tax_rate?: number | null };
 
+/** Sell-unit options for a product, resolved by the parent form. */
+export interface PricedLineUnits {
+  baseUomId: string | null;
+  options: import("@/hooks/useSellableUnits").SellUnitOption[];
+}
+
 interface Props<T extends PricedLineShape> {
   index: number;
   item: T;
@@ -103,6 +109,11 @@ interface Props<T extends PricedLineShape> {
   /** Rendered full width beneath the row (analytics, tracking, reasons). */
   extra?: ReactNode;
   productPlaceholder?: string;
+  /**
+   * Supplies the units a product may be sold in. Omit for documents that
+   * only ever transact in the stocking unit. MUST be `useCallback`-stable.
+   */
+  unitsFor?: (productId: string | null | undefined) => PricedLineUnits | null;
 }
 
 function PricedLineRowInner<T extends PricedLineShape>({
@@ -119,6 +130,7 @@ function PricedLineRowInner<T extends PricedLineShape>({
   onProductSelect,
   extra,
   productPlaceholder,
+  unitsFor,
 }: Props<T>) {
   const isLocked = (columnId: string) => lockedCells?.includes(columnId) ?? false;
 
@@ -173,14 +185,19 @@ function PricedLineRowInner<T extends PricedLineShape>({
         );
 
       case "quantity":
+        {
+        const units = unitsFor?.(item.product_id) ?? null;
         return (
           <PackagedQtyCell
             productId={item.product_id ?? null}
             value={item}
             onChange={(patch) => onPatch(index, patch as Partial<T>)}
             disabled={disabled}
+            baseUomId={units?.baseUomId ?? null}
+            uomOptions={units?.options}
           />
         );
+        }
 
       case "unit_price":
         if (isLocked("unit_price")) {
