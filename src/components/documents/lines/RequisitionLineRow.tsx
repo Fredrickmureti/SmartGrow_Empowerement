@@ -19,6 +19,8 @@ import { memo } from "react";
 import { Input } from "@/components/ui/input";
 import { ProductCombobox, type ProductOption } from "@/components/common/ProductCombobox";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import type { SellUnitOption } from "@/hooks/useSellableUnits";
 import {
   Select,
   SelectContent,
@@ -39,6 +41,11 @@ export interface RequisitionLineShape {
   estimated_unit_price: number;
   suggested_supplier_id?: string | null;
   need_by_date?: string | null;
+  // UoM provenance — `quantity` is ALWAYS base units; the server normalizer
+  // (`_uom_normalize_line`) recomputes it from the entered pack / unit.
+  packaging_id?: string | null;
+  display_uom_id?: string | null;
+  display_quantity?: number | null;
 }
 
 export interface RequisitionSupplierOption {
@@ -77,6 +84,13 @@ interface Props<T extends RequisitionLineShape> {
   layout: EditableRowLayout;
   disabled?: boolean;
   onPatch: (index: number, patch: Partial<T>) => void;
+  /**
+   * Units a product may be requested in (pack or alternate UoM). Omit for
+   * forms that only ever request in the stocking unit. MUST be stable.
+   */
+  unitsFor?: (
+    productId: string | null | undefined,
+  ) => { baseUomId: string | null; options: SellUnitOption[] } | null;
 }
 
 function RequisitionLineRowInner<T extends RequisitionLineShape>({
@@ -88,6 +102,7 @@ function RequisitionLineRowInner<T extends RequisitionLineShape>({
   layout,
   disabled,
   onPatch,
+  unitsFor,
 }: Props<T>) {
   const cell = (columnId: string) => {
     switch (columnId) {
@@ -125,14 +140,19 @@ function RequisitionLineRowInner<T extends RequisitionLineShape>({
         );
 
       case "quantity":
-        return (
-          <NumericInput
-            value={item.quantity}
-            disabled={disabled}
-            onValueChange={(v) => onPatch(index, { quantity: v ?? 0 } as Partial<T>)}
-            className="h-8"
-          />
-        );
+        {
+          const units = unitsFor?.(item.product_id) ?? null;
+          return (
+            <PackagedQtyCell
+              productId={item.product_id ?? null}
+              value={item}
+              onChange={(patch) => onPatch(index, patch as Partial<T>)}
+              disabled={disabled}
+              baseUomId={units?.baseUomId ?? null}
+              uomOptions={units?.options}
+            />
+          );
+        }
 
       case "estimated_unit_price":
         return (
