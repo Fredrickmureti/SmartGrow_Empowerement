@@ -534,6 +534,8 @@ export default function InvoiceCreatePage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <SalesWarehouseField selection={warehouse} label="Issue stock from" />
           </FieldGrid>
         </FieldGroup>
 
