@@ -24,6 +24,8 @@ import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { ProductCombobox, type ProductOption } from "@/components/common/ProductCombobox";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { StockLineStatus } from "@/components/inventory/StockAvailabilityIndicator";
+import type { LineStockEval } from "@/features/sales/availability";
 import {
   EditableLineRowCells,
   type EditableLineColumn,
@@ -114,6 +116,12 @@ interface Props<T extends PricedLineShape> {
    * only ever transact in the stocking unit. MUST be `useCallback`-stable.
    */
   unitsFor?: (productId: string | null | undefined) => PricedLineUnits | null;
+  /**
+   * Per-line stock evaluation from `useSalesLineAvailability`. Renders the
+   * inline availability status beneath the row. Omit for documents whose
+   * stock policy is `none` (credit notes, returns).
+   */
+  stockEval?: LineStockEval | null;
 }
 
 function PricedLineRowInner<T extends PricedLineShape>({
