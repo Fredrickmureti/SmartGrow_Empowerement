@@ -325,6 +325,26 @@ export default function PurchaseOrderCreatePage() {
     }
     setIsSubmitting(true);
     try {
+      // Supplier purchasing terms are policy, not a suggestion: refuse a
+      // below-MOQ / off-increment line before a PO exists.
+      const refusals = await validatePurchaseLinesAgainstTerms({
+        businessId: currentBusiness?.id,
+        supplierId: formData.vendor_id,
+        onDate: formData.order_date || null,
+        lines: lineItems
+          .filter((item) => item.description)
+          .map((item, index) => ({
+            index,
+            productId: item.product_id,
+            quantity: Number(item.quantity),
+            productName: item.description,
+          })),
+      });
+      if (refusals.length > 0) {
+        toast.error(summarisePurchaseLineRefusals(refusals));
+        setIsSubmitting(false);
+        return;
+      }
       const poNumber = await getNextPONumber();
       const created = await createPurchaseOrder(
         {
