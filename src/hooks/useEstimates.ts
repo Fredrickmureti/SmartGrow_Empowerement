@@ -154,68 +154,60 @@ export function useEstimates() {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to create estimates", variant: "destructive" }); throw new Error("Permission denied"); }
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
-    const { subtotal, tax_amount: taxAmount, total } = computeEstimateTotals(
-      items,
-      additionalCosts || [],
-      estimate.discount_amount || 0,
-    );
-
-
     // Freeze the bill-to address on the document (Phase 5).
     const billTo = await captureBillToSnapshot(estimate.contact_id);
 
-    const { data: created, error: estimateError } = await supabase
-      .from("estimates")
-      .insert({
-        ...estimate,
-        ...billTo,
+    // Phase 9: header + lines + additional costs are written by
+    // `create_estimate_atomic` in one transaction. Totals, the exchange rate,
+    // the document number and every line's base quantity are server-resolved;
+    // the client totals below are preview only.
+    const result = await createEstimateAtomic(
+      {
         organization_id: currentOrg.id,
         business_id: currentBusiness.id,
         branch_id: currentBranch?.id ?? null,
-        created_by: user.id,
-        subtotal,
-        tax_amount: taxAmount,
-        total,
-      })
-      .select()
-      .single();
-
-    if (estimateError) throw estimateError;
-
-    if (items.length > 0) {
-      const itemsToInsert = items.map((item, index) => ({
-        ...item,
-        estimate_id: created.id,
+        contact_id: estimate.contact_id ?? null,
+        issue_date: estimate.issue_date ?? null,
+        expiry_date: estimate.expiry_date ?? null,
+        notes: estimate.notes ?? null,
+        terms: estimate.terms ?? null,
+        discount_amount: estimate.discount_amount ?? 0,
+        currency: estimate.currency ?? null,
+        template_id: (estimate as { template_id?: string | null }).template_id ?? null,
+        source_lead_id: (estimate as { source_lead_id?: string | null }).source_lead_id ?? null,
+        ...billTo,
+      },
+      items.map((item, index) => ({
+        product_id: item.product_id ?? null,
+        description: item.description,
+        quantity: item.quantity,
+        display_quantity: item.display_quantity ?? null,
+        display_uom_id: item.display_uom_id ?? null,
+        packaging_id: item.packaging_id ?? null,
+        unit_price: item.unit_price,
+        discount_percent: item.discount_percent,
+        tax_rate: item.tax_rate,
         sort_order: index,
-      }));
-      const { error: itemsError } = await supabase.from("estimate_items").insert(itemsToInsert);
-      if (itemsError) throw itemsError;
-    }
-
-    if (additionalCosts && additionalCosts.length > 0) {
-      const costsToInsert = additionalCosts.map((cost, index) => ({
-        estimate_id: created.id,
+      })),
+      (additionalCosts ?? []).map((cost, index) => ({
         name: cost.name,
         amount: cost.amount,
         is_taxable: cost.is_taxable,
         tax_rate: cost.tax_rate,
-        tax_amount: cost.tax_amount,
         sort_order: index,
-      }));
-      const { error: costsError } = await supabase.from("estimate_additional_costs").insert(costsToInsert);
-      if (costsError) throw costsError;
-    }
+      })),
+    );
 
     logAction({
       action: "created",
       entityType: "estimate",
-      entityId: created.id,
-      entityName: estimate.estimate_number,
-      changesSummary: `Created estimate ${estimate.estimate_number} for ${total}`,
+      entityId: result.estimate_id,
+      entityName: result.estimate_number,
+      changesSummary: `Created estimate ${result.estimate_number} for ${result.total}`,
     });
 
     invalidate();
-    return created;
+    return { id: result.estimate_id, estimate_number: result.estimate_number, total: result.total };
   };
 
   /**
