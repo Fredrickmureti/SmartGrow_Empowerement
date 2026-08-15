@@ -141,7 +141,7 @@ export function useInvoices() {
    * confirmation.
    */
   const createInvoice = async (
-    invoice: { contact_id?: string; due_date: string; notes?: string; terms?: string; discount_amount?: number; currency?: string; salesperson_id?: string; payment_term_id?: string | null; branch_id?: string | null },
+    invoice: { contact_id?: string; due_date: string; notes?: string; terms?: string; discount_amount?: number; currency?: string; salesperson_id?: string; payment_term_id?: string | null; branch_id?: string | null; warehouse_id?: string | null },
     items: Omit<InvoiceItem, "id" | "invoice_id">[]
   ) => {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to create invoices", variant: "destructive" }); throw new Error("Permission denied"); }
