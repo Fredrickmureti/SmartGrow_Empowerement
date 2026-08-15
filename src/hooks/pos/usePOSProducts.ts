@@ -187,7 +187,12 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
     return products.find((p) => p.sku?.toLowerCase() === barcode.toLowerCase());
   };
 
-  const hasStock = (productId: string, quantity: number = 1) => {
+  /**
+   * ADVISORY ONLY — cached grid hint for badges/greying.
+   * Never a checkout decision: authority is
+   * `get_available_pos_stock_for_register[_batch]` (see usePOSStockSync).
+   */
+  const hasStockHint = (productId: string, quantity: number = 1) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return false;
     if (!product.track_inventory) return true;
