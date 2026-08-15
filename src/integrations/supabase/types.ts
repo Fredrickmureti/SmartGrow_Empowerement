@@ -13168,6 +13168,7 @@ export type Database = {
           tracking_number: string | null
           updated_at: string
           vehicle_number: string | null
+          warehouse_id: string | null
         }
         Insert: {
           accounts_resolved?: Json | null
@@ -13214,6 +13215,7 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string
           vehicle_number?: string | null
+          warehouse_id?: string | null
         }
         Update: {
           accounts_resolved?: Json | null
@@ -13260,6 +13262,7 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string
           vehicle_number?: string | null
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -13407,6 +13410,13 @@ export type Database = {
             columns: ["spawned_invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -24156,6 +24166,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         Insert: {
           amount_paid?: number | null
@@ -24222,6 +24233,7 @@ export type Database = {
           void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
+          warehouse_id?: string | null
         }
         Update: {
           amount_paid?: number | null
@@ -24288,6 +24300,7 @@ export type Database = {
           void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -24562,6 +24575,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "reversal_reason_codes"
             referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "invoices_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -59643,6 +59663,7 @@ export type Database = {
           tax_amount: number
           total: number
           updated_at: string
+          warehouse_id: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -59676,6 +59697,7 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          warehouse_id?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -59709,6 +59731,7 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -59828,6 +59851,13 @@ export type Database = {
             columns: ["source_lead_id"]
             isOneToOne: false
             referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -93085,6 +93115,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -94807,6 +94838,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -100272,6 +100304,15 @@ export type Database = {
         Args: { _invoice_item_id: string; _qty: number }
         Returns: Json
       }
+      resolve_sales_warehouse: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_organization_id: string
+          p_requested_warehouse_id?: string
+        }
+        Returns: string
+      }
       resolve_statutory_country_for_employee: {
         Args: { p_employee_id: string }
         Returns: string
@@ -100989,6 +101030,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         SetofOptions: {
           from: "*"
