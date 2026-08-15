@@ -33,6 +33,7 @@ import {
 import { useRFQs, type RFQItem } from "@/hooks/useRFQs";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
@@ -56,6 +57,7 @@ export default function RFQCreatePage() {
   const { createRFQAsync, isCreating } = useRFQs();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [deadline, setDeadline] = useState("");
@@ -231,6 +233,7 @@ export default function RFQCreatePage() {
               layout={layout}
               disabled={isCreating}
               formatCurrency={formatLineCurrency}
+              unitsFor={unitsFor}
               onPatch={patchLineItem}
               onProductSelect={selectProduct}
             />
