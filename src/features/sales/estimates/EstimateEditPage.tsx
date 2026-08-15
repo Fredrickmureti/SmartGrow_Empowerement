@@ -190,6 +190,10 @@ export default function EstimateEditPage() {
   };
 
   const updateLineItem = (index: number, updates: Partial<LineItem>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((updates as Record<string, unknown>).packaging_id !== undefined || (updates as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, updates as never);
+    }
     setLineItems((prev) => {
       const next = [...prev];
       const updatedItem = { ...next[index], ...updates };
@@ -246,6 +250,10 @@ export default function EstimateEditPage() {
   };
 
   const handleProductSelect = (index: number, productId: string) => {
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
     const product = products.find((p) => p.id === productId);
     if (product) {
       updateLineItem(index, {

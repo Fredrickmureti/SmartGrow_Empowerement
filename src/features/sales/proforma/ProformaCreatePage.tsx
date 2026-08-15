@@ -147,6 +147,10 @@ export default function ProformaCreatePage() {
   }, []);
 
   const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((patch as Record<string, unknown>).packaging_id !== undefined || (patch as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, patch as never);
+    }
     setLineItems((prev) =>
       prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
     );
@@ -154,6 +158,10 @@ export default function ProformaCreatePage() {
 
   const selectProduct = useCallback(
     (index: number, productId: string) => {
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
       const product = products.find((p) => p.id === productId);
       setLineItems((prev) =>
         prev.map((line, i) =>

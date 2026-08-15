@@ -168,6 +168,10 @@ export default function CreditNoteCreatePage() {
 
   /** Applies a partial line update and recomputes the line's derived money. */
   const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((patch as Record<string, unknown>).packaging_id !== undefined || (patch as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, patch as never);
+    }
     setLineItems((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ...patch };
@@ -211,6 +215,10 @@ export default function CreditNoteCreatePage() {
 
   /** Off-invoice lines only — an invoice-sourced line keeps the invoiced price. */
   const handleProductSelect = (index: number, productId: string) => {
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
     const product = products.find((p) => p.id === productId);
     if (!product) return;
     patchLineItem(index, {
