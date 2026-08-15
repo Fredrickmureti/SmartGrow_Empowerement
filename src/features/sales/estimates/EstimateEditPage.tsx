@@ -48,6 +48,7 @@ import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
+import { updateEstimateAtomic } from "@/hooks/estimates/estimateWriter";
 
 type LineItem = Omit<EstimateItem, "id" | "estimate_id"> & { id?: string };
 
