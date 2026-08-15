@@ -218,7 +218,15 @@ export async function generateLandedCostVoucherPdf(
 
   const typography = resolveTypography("ledger");
   const builder = await PdfBuilder.create({
-    orientation: options.orientation ?? "portrait",
+    // A landed cost voucher is a ledger artefact, not a one-page
+    // transactional document: the charges table is 7 columns and the
+    // allocation table is 9. Measured on A4 portrait (515pt of content
+    // width) the allocation columns alone declare 109% of the page, and
+    // the charges table overflowed the right margin by ~104pt — the ink
+    // was printed off the sheet. Landscape A4 gives 762pt of content
+    // width, which the ledger typography profile is tuned for. An
+    // explicit caller override still wins.
+    orientation: options.orientation ?? "landscape",
     paperFormat: options.paperFormat ?? "a4",
     margin: typography.pageMargin,
     bottomMargin: typography.pageMargin,
