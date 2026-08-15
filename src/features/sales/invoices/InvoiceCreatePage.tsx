@@ -126,7 +126,6 @@ export default function InvoiceCreatePage() {
   const { members } = useOrgMembers();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [confirmOversell, setConfirmOversell] = useState(false);
 
   const [formData, setFormData] = useState({
     contact_id: "",
@@ -149,6 +148,17 @@ export default function InvoiceCreatePage() {
   const [lineItems, setLineItems] = useState<Omit<InvoiceItem, "id" | "invoice_id">[]>([
     { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
   ]);
+
+  /**
+   * Fulfilment check. Invoices carry a `commit` stock policy: a short line is
+   * allowed but must be a deliberate, acknowledged oversell.
+   */
+  const availability = useSalesLineAvailability({
+    kind: "invoice",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
 
   /** Server-authoritative price for a line, previewed in the editor. */
   const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
