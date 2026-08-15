@@ -220,10 +220,20 @@ export function formatLineQty(
   opts: FormatLineQtyOptions = {},
 ): FormattedLineQty {
   const snap = resolveLineSnapshot(line);
-  // A frozen base-unit code outranks the caller's hint: the document must
-  // read the way it read on the day it was issued.
+  // A frozen base-unit code outranks everything: the document must read the
+  // way it read on the day it was issued. Failing that, use the line's own
+  // joined/flat product unit before falling back to the caller's hint — an
+  // "ea" default must never override a real unit like KG.
   const baseLabel =
-    (snap.baseCode || opts.baseLabel || "ea").trim() || "ea";
+    (
+      snap.baseCode ||
+      line.base_uom_label ||
+      line.product?.base_uom?.code ||
+      line.product?.base_uom?.name ||
+      opts.baseLabel ||
+      "ea"
+    ).trim() || "ea";
+
   const showBreakdown = opts.showBaseBreakdown !== false;
 
   const base = Number(line.quantity ?? 0);
