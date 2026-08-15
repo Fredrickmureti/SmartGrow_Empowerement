@@ -22,7 +22,12 @@ export interface InvoiceItem {
   invoice_id?: string;
   product_id?: string | null;
   description: string;
+  /** Canonical BASE quantity (kg, pieces) — never the priced quantity. */
   quantity: number;
+  /** What the customer buys ("3" bags). This is the quantity `unit_price` is quoted against. */
+  display_quantity?: number | null;
+  display_uom_id?: string | null;
+  packaging_id?: string | null;
   unit_price: number;
   tax_rate: number;
   tax_amount: number;
