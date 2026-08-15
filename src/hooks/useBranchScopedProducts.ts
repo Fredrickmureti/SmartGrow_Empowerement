@@ -76,12 +76,22 @@ export interface UseBranchScopedProductsOptions {
    * The RPC now filters server-side via `p_include_variant_parents`.
    */
   includeVariantParents?: boolean;
+  /**
+   * Phase 6b — narrow the figures to ONE warehouse.
+   *
+   * A Sales document reserves and issues stock from a single warehouse, so an
+   * editor that has recorded that decision must read the same warehouse's
+   * availability rather than the branch aggregate. `null`/omitted keeps the
+   * branch-wide behaviour. The server validates the id
+   * (`resolve_sales_warehouse`) and falls back to the branch default.
+   */
+  warehouseId?: string | null;
 }
 
 export function useBranchScopedProducts(
   options: UseBranchScopedProductsOptions = {},
 ) {
-  const { includeVariantParents = false } = options;
+  const { includeVariantParents = false, warehouseId = null } = options;
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
@@ -97,6 +107,7 @@ export function useBranchScopedProducts(
       businessId,
       branchId,
       includeVariantParents,
+      warehouseId,
     ],
     queryFn: async (): Promise<BranchScopedProduct[]> => {
       if (!orgId || !businessId) return [];
@@ -107,6 +118,7 @@ export function useBranchScopedProducts(
           p_business_id: businessId,
           p_branch_id: branchId,
           p_include_variant_parents: includeVariantParents,
+          p_warehouse_id: warehouseId,
         } as any,
       );
       if (rpcRes.error) throw rpcRes.error;
