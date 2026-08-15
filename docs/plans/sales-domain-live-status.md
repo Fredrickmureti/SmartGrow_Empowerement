@@ -360,3 +360,25 @@ None.
 - Evidence: `confirmInvoiceGL.test.ts` (7 passing),
   `compensation-writer-monopoly.test.ts` (17 passing), `tsgo` clean.
 - Next: 6.2 atomic invoice creation with idempotency.
+
+## Phase 6.2 — atomic, idempotent invoice creation (done, 2026-08-15)
+
+- `public.create_invoice_atomic(p_header jsonb, p_items jsonb, p_user_id uuid,
+  p_idempotency_key text)` — SECURITY DEFINER, business-access checked, always
+  creates a `draft`. Server resolves: document number
+  (`get_next_invoice_number`), base quantity (`resolve_line_base_quantity`,
+  rejecting a disagreeing client base quantity), per-line money, header
+  totals, and `resolve_sales_exchange_rate`.
+- `public.sales_document_idempotency` — `(organization_id, document_type,
+  idempotency_key)` unique; a replay returns the original response with
+  `idempotent_replay: true`. Reusable for Phase 10.
+- Client seam `src/hooks/invoices/createInvoiceAtomic.ts`; both
+  `useInvoices.createInvoice` and `useInvoicesPaginated.createInvoice` now go
+  through it — no header/line inserts, no client totals. Bill-to snapshot is
+  frozen post-create via `freezeBillToSnapshot("invoices", ...)`.
+- Evidence: `src/test/architecture/invoice-creation-atomic.test.ts` (6),
+  `confirmInvoiceGL.test.ts` (7), `compensation-writer-monopoly.test.ts` (17),
+  `sales-availability-coverage.test.ts` (24) — all passing; `tsgo` clean.
+- Known exception: `MigrationStepOpenBalance` still bulk-inserts historic
+  opening-balance invoices directly. That is the migration importer, not the
+  Sales editor path; it is a deliberate, documented exception.
