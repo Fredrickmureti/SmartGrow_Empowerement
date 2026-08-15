@@ -25,6 +25,7 @@ import {
 import { getReplenishmentSignal } from "@/lib/inventory/replenishmentSignal";
 import { getProductBadges, PRODUCT_BADGE_META } from "@/hooks/inventory/useProductBadges";
 import {
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
   Hash,
   FolderTree,
   Tag,
@@ -54,7 +55,7 @@ export function OverviewTab({ data, categoryName }: Props) {
 
   const trackInventory: boolean = !!p.track_inventory;
   const isService = p.type && p.type !== "product";
-  const baseLabel = (p as any).unit_of_measure ?? "ea";
+  const baseLabel = productBaseLabelOrUnset(p);
   const packs: PackForRollup[] = (data.packaging ?? []).map((pk: any) => ({
     name: pk.name,
     qty_in_base_uom: Number(pk.qty_in_base_uom),

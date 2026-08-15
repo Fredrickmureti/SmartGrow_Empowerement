@@ -51,6 +51,7 @@ import { MovementsTab } from "./tabs/MovementsTab";
 import { AccountingTab } from "./tabs/AccountingTab";
 import { SuppliersTab } from "./tabs/SuppliersTab";
 import { getReplenishmentSignal } from "@/lib/inventory/replenishmentSignal";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   open: boolean;
@@ -356,7 +357,7 @@ export function ProductDetailPanel({
           {trackInventory &&
             !isService &&
             (() => {
-              const baseLabel = (product as any).unit_of_measure ?? "ea";
+              const baseLabel = productBaseLabelOrUnset(product);
               const packs: PackForRollup[] = (data.packaging ?? []).map(
                 (pk: any) => ({
                   name: pk.name,
@@ -481,7 +482,7 @@ export function ProductDetailPanel({
             <TabsContent value="suppliers">
               <SuppliersTab
                 productId={product.id}
-                baseLabel={(product as any).unit_of_measure ?? "ea"}
+                baseLabel={productBaseLabelOrUnset(product)}
                 packs={(data.packaging ?? []).map((pk: any) => ({
                   name: pk.name,
                   qty_in_base_uom: Number(pk.qty_in_base_uom),

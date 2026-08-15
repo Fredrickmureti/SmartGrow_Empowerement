@@ -9,13 +9,14 @@ import { format } from "date-fns";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
 import { formatBaseQtyAsPacks, type PackForRollup } from "@/lib/packagingRollup";
 import { SourceDocumentBadge } from "@/components/inventory/SourceDocumentBadge";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   data: ProductDetailData;
 }
 
 export function MovementsTab({ data }: Props) {
-  const baseLabel = (data.product as any)?.unit_of_measure ?? "ea";
+  const baseLabel = productBaseLabelOrUnset(data.product);
   const packs: PackForRollup[] = (data.packaging ?? []).map((p: any) => ({
     name: p.name,
     qty_in_base_uom: Number(p.qty_in_base_uom),
