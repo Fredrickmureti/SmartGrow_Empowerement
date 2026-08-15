@@ -227,6 +227,11 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
     return data || "INV-0001";
   };
 
+  /**
+   * Phase 6.2: creation goes through `create_invoice_atomic` — one server
+   * transaction for header + lines, server-resolved totals/number/quantities,
+   * and an idempotency key so a retry cannot mint a second invoice.
+   */
   const createInvoice = async (
     invoice: {
       contact_id?: string;
@@ -242,84 +247,53 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
     items: Omit<InvoiceItem, "id" | "invoice_id">[]
   ) => {
     if (!currentOrg || !user) throw new Error("No organization selected");
+    if (!currentBusiness?.id) throw new Error("No business selected");
 
-    const invoiceNumber = await getNextInvoiceNumber();
+    const requestedStatus = invoice.status || "draft";
 
-    // Calculate totals.
-    // CONTRACT: invoice_items.line_total is tax-EXCLUSIVE (= qty * price * (1 - disc%)),
-    // tax_amount is per-line tax. Header subtotal = SUM(line_total) directly.
-    // See src/lib/invoiceLineMath.ts and confirm_invoice_atomic validator.
-    const { subtotal, tax_total: taxAmount, total } = computeTotals(
-      items,
-      invoice.discount_amount || 0,
-    );
-
-    const insertData = {
-      contact_id: invoice.contact_id,
-      due_date: invoice.due_date,
-      notes: invoice.notes,
-      terms: invoice.terms,
-      discount_amount: round2(invoice.discount_amount || 0),
-      currency: invoice.currency || currentBusiness?.base_currency,
-      organization_id: currentOrg.id,
-      business_id: currentBusiness?.id || null,
-      // Stage 3: stamp the active branch for per-branch sales reporting.
-      branch_id: (invoice as any).branch_id ?? currentBranch?.id ?? null,
-      invoice_number: invoiceNumber,
-      subtotal,
-      tax_amount: taxAmount,
-      total,
-      created_by: user.id,
-      salesperson_id: invoice.salesperson_id || user.id,
-      status: invoice.status || "draft",
-      project_id: invoice.project_id ?? null,
-    };
-
-    // Always insert as draft first, then confirm if needed
-    const requestedStatus = insertData.status;
-    const actualInsertData = { ...insertData, status: "draft" as const };
-
-    const { data: newInvoice, error: invoiceError } = await supabase
-      .from("invoices")
-      .insert(actualInsertData)
-      .select()
-      .single();
-
-    if (invoiceError) throw invoiceError;
-
-    // Insert line items
-    if (items.length > 0) {
-      const lineItems = items.map((item, index) => ({
-        invoice_id: newInvoice.id,
+    const created = await createInvoiceAtomic(
+      {
+        organization_id: currentOrg.id,
+        business_id: currentBusiness.id,
+        // Stage 3: stamp the active branch for per-branch sales reporting.
+        branch_id: (invoice as any).branch_id ?? currentBranch?.id ?? null,
+        contact_id: invoice.contact_id ?? null,
+        due_date: invoice.due_date,
+        notes: invoice.notes ?? null,
+        terms: invoice.terms ?? null,
+        discount_amount: invoice.discount_amount || 0,
+        currency: invoice.currency || currentBusiness.base_currency,
+        salesperson_id: invoice.salesperson_id ?? null,
+        project_id: invoice.project_id ?? null,
+      },
+      items.map((item, index) => ({
+        product_id: item.product_id ?? null,
         description: item.description,
         quantity: item.quantity,
-        unit_price: item.unit_price,
-        tax_rate: item.tax_rate,
-        tax_amount: item.tax_amount,
-        discount_percent: item.discount_percent,
-        line_total: item.line_total,
-        sort_order: index,
-        product_id: item.product_id,
-        // Phase B UoM provenance (DB trigger re-normalizes `quantity`)
-        packaging_id: (item as any).packaging_id ?? null,
-        display_uom_id: (item as any).display_uom_id ?? null,
         display_quantity: (item as any).display_quantity ?? null,
-      }));
+        display_uom_id: (item as any).display_uom_id ?? null,
+        packaging_id: (item as any).packaging_id ?? null,
+        unit_price: item.unit_price,
+        discount_percent: item.discount_percent,
+        tax_rate: item.tax_rate,
+        sort_order: index,
+        project_id: item.project_id ?? null,
+        task_id: item.task_id ?? null,
+        lot_number: (item as any).lot_number ?? null,
+        serial_number: (item as any).serial_number ?? null,
+      })),
+    );
 
-      const { error: itemsError } = await supabase
-        .from("invoice_items")
-        .insert(lineItems);
-
-      if (itemsError) throw itemsError;
-    }
+    // Freeze the printed bill-to address (best-effort; the invoice exists).
+    await freezeBillToSnapshot("invoices", created.invoice_id, invoice.contact_id);
 
     // Log audit action
     logAction({
       action: "created",
       entityType: "invoice",
-      entityId: newInvoice.id,
-      entityName: invoiceNumber,
-      changesSummary: `Created invoice ${invoiceNumber} for ${insertData.total}`,
+      entityId: created.invoice_id,
+      entityName: created.invoice_number,
+      changesSummary: `Created invoice ${created.invoice_number} for ${created.total}`,
     });
 
     // If "Mark as Sent" was requested, confirm + post to GL, then set to sent
@@ -327,13 +301,25 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
       // Refetch so confirmInvoice can find the new invoice in the list
       await refetch();
       // Use updateInvoiceStatus which handles confirmation + GL posting
-      await updateInvoiceStatus(newInvoice.id, "sent");
+      await updateInvoiceStatus(created.invoice_id, "sent");
     }
 
     refetch();
     fetchStats();
-    return newInvoice;
+
+    const { data: newInvoice } = await supabase
+      .from("invoices")
+      .select("*, invoice_items(*)")
+      .eq("id", created.invoice_id)
+      .maybeSingle();
+
+    return (newInvoice ?? {
+      id: created.invoice_id,
+      invoice_number: created.invoice_number,
+      total: created.total,
+    }) as Invoice;
   };
+
 
   const updateInvoiceStatus = async (id: string, status: Invoice["status"]) => {
     // Look up in local state first, fall back to DB fetch
