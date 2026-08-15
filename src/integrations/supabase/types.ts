@@ -59431,6 +59431,45 @@ export type Database = {
           },
         ]
       }
+      sales_document_idempotency: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          document_id: string | null
+          document_type: string
+          id: string
+          idempotency_key: string
+          organization_id: string
+          response: Json
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          document_type: string
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          response?: Json
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          document_type?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          response?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sales_order_items: {
         Row: {
           backorder_eta: string | null
@@ -90524,6 +90563,15 @@ export type Database = {
           p_warehouse_id?: string
         }
         Returns: string
+      }
+      create_invoice_atomic: {
+        Args: {
+          p_header: Json
+          p_idempotency_key?: string
+          p_items: Json
+          p_user_id?: string
+        }
+        Returns: Json
       }
       create_invoice_from_delivery_atomic: {
         Args: { p_dn_id: string; p_user_id: string }
