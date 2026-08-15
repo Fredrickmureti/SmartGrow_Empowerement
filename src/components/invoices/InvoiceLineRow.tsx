@@ -23,7 +23,8 @@ import {
   StockLineStatus,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
-import { PackagingSelect } from "@/components/products/PackagingSelect";
+import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import type { PricedLineUnits } from "@/components/documents/lines/PricedLineRow";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import {
   lotNumberFromAllocations,
@@ -101,6 +102,10 @@ interface Props {
   formatCurrency: (n: number) => string;
   onProductSelect: (index: number, productId: string) => void;
   onUpdate: (index: number, patch: Partial<InvoiceLineItemShape>) => void;
+  /**
+   * Supplies the units the product may be sold in. MUST be `useCallback`-stable.
+   */
+  unitsFor?: (productId: string | null | undefined) => PricedLineUnits | null;
 }
 
 function InvoiceLineRowInner({
@@ -116,6 +121,7 @@ function InvoiceLineRowInner({
   formatCurrency,
   onProductSelect,
   onUpdate,
+  unitsFor,
 }: Props) {
   const cell = (columnId: string) => {
     switch (columnId) {
