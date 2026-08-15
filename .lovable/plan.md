@@ -26,10 +26,15 @@ Done this turn:
 - MOQ validation on these surfaces now validates the supplier-facing quantity
   (`display_quantity ?? quantity`), matching what MOQ means.
 
-Open / next:
+- **F4.2 Price basis resolved** — no second basis was introduced. Unit price is
+  per BASE unit on every document in the system (Sales included); purchasing
+  now *says so*: `PricedLineRow` renders a `per <base unit>` hint on the price
+  cell whenever the quantity is denominated in a pack or an alternate unit.
+- **Guard** — `supabase/tests/purchase_conversion_fidelity_test.sql` asserts both
+  conversion RPCs carry `packaging_id` / `display_uom_id` and route through
+  `_purchase_assert_order_quantity` (SECURITY DEFINER, not anon-executable), and
+  that `a_uom_normalize_po_items` is still the first BEFORE trigger on
+  `purchase_order_items`.
 
-- **F4.2 Price basis** — unit price is still per base unit while quantity may be
-  entered per pack; decide and enforce one basis end-to-end (PO, RFQ award,
-  bill match).
-- Functional SQL guard for the conversion RPCs (packaging carried, MOQ refused).
+Open / next:
 - Goods receipt / bill line surfaces re-verified against the same contract.
