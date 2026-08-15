@@ -12,6 +12,8 @@ import { usePaginatedQuery } from "./usePaginatedQuery";
 import { confirmInvoiceAndPostGL } from "./invoices/confirmInvoiceGL";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { computeTotals, round2 } from "@/lib/invoiceLineMath";
+import { freezeBillToSnapshot } from "@/lib/contactAddresses";
+import { createInvoiceAtomic } from "./invoices/createInvoiceAtomic";
 import type { Invoice, InvoiceItem } from "./useInvoices";
 
 export type { Invoice, InvoiceItem };
