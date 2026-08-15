@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils";
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 
 type LineItem = Omit<InvoiceItem, "id" | "invoice_id"> & { id?: string };
 
@@ -71,6 +72,8 @@ export default function InvoiceEditPage() {
 
   const { contacts } = useContacts();
   const { products } = useProducts();
+  /** Sell units per product; the server re-derives the base quantity. */
+  const unitsFor = useUnitsForProducts(products);
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
   const { toast } = useToast();
@@ -488,6 +491,7 @@ export default function InvoiceEditPage() {
               }
               renderRow={(item, index, layout) => (
                 <InvoiceLineRow
+                  unitsFor={unitsFor}
                   index={index}
                   item={item}
                   products={products}

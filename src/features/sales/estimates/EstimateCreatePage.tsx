@@ -49,6 +49,7 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 
 export default function EstimateCreatePage() {
   const navigate = useNavigate();
@@ -63,6 +64,8 @@ export default function EstimateCreatePage() {
   const { getNextEstimateNumber, createEstimate } = useEstimates();
   const { contacts } = useContacts();
   const { products, branchScopeLabel } = useBranchScopedProducts();
+  /** Sell units per product; the server re-derives the base quantity. */
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency, baseCurrency } = useCurrency();
   const { toast } = useToast();
 
@@ -322,6 +325,7 @@ export default function EstimateCreatePage() {
             onRemoveRow={removeLineItem}
             renderRow={(item, index, layout) => (
               <PricedLineRow
+                  unitsFor={unitsFor}
                 index={index}
                 item={item}
                 flashed={flashIndex === index}

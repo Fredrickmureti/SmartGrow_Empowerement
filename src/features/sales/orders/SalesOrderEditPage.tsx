@@ -42,6 +42,7 @@ import {
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 
 interface LineItem {
   id?: string;
@@ -79,6 +80,8 @@ export default function SalesOrderEditPage() {
   const { id: orderId } = useParams<{ id: string }>();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  /** Sell units per product; the server re-derives the base quantity. */
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -405,6 +408,7 @@ export default function SalesOrderEditPage() {
               onRemoveRow={removeLineItem}
               renderRow={(item, index, layout) => (
                 <PricedLineRow
+                  unitsFor={unitsFor}
                   index={index}
                   item={item}
                   flashed={flashIndex === index}

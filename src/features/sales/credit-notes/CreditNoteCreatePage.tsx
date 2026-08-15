@@ -55,6 +55,7 @@ import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useInvoiceCreditableLines } from "./useInvoiceCreditableLines";
 import { InvoiceLineCreditPicker, type PickedCreditLine } from "./InvoiceLineCreditPicker";
 import { CreditReasonField } from "./CreditReasonField";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 
 /**
  * `source_invoice_item_id` is durable provenance: it marks a line as picked
@@ -150,6 +151,10 @@ export default function CreditNoteCreatePage() {
   } = useInvoiceCreditableLines(formData.invoice_id || null);
 
   const { products } = useBranchScopedProducts();
+
+  /** Sell units per product; the server re-derives the base quantity. */
+
+  const unitsFor = useUnitsForProducts(products);
 
   const calculateLineTotal = (item: LineItem) => {
     const { line_total, tax_amount } = computeLine({
@@ -459,6 +464,7 @@ export default function CreditNoteCreatePage() {
               const fromInvoice = Boolean(item.source_invoice_item_id);
               return (
                 <PricedLineRow
+                  unitsFor={unitsFor}
                   index={index}
                   item={item}
                   products={fromInvoice ? undefined : products}
