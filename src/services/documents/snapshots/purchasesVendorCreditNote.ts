@@ -138,6 +138,13 @@ export function buildVendorCreditNoteSnapshot(
     pack_size: item.pack_size ?? null,
     unit_of_measure:
       item.unit_of_measure ?? item.packaging?.name ?? item.product?.base_uom?.code ?? null,
+    // Pack provenance — the renderers branch on these; omitting them prints
+    // the base quantity with an invented "ea" unit.
+    display_quantity: item.display_quantity ?? null,
+    packaging_label: item.packaging_label ?? null,
+    base_uom_label: item.base_uom_label ?? null,
+    uom_snapshot: item.uom_snapshot ?? null,
+
   }));
 
   const currency = cn.currency || cn.business?.base_currency || "USD";
