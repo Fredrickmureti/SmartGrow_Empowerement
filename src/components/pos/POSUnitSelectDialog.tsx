@@ -97,7 +97,7 @@ export function POSUnitSelectDialog({
     !!baseUom?.category?.dimension && baseUom.category.dimension !== "count";
 
   const { data: options = [], isLoading } = useQuery<PackOption[]>({
-    queryKey: ["pos-unit-options", productId],
+    queryKey: ["pos-unit-options", productId, baseLabel],
     enabled: open && !!productId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -127,7 +127,7 @@ export function POSUnitSelectDialog({
 
       const base: PackOption = {
         packagingId: null,
-        name: "Each (base unit)",
+        name: baseLabel === "base unit" ? "Each (base unit)" : `${baseLabel} (base unit)`,
         qtyInBaseUom: 1,
         unitPrice: basePrice,
       };
@@ -180,7 +180,11 @@ export function POSUnitSelectDialog({
       displayQuantity: numericQty,
       baseQuantity,
       unitPrice: selected.unitPrice,
-      packagingLabel: selected.packagingId ? selected.name : "Each",
+      packagingLabel: selected.packagingId
+        ? selected.name
+        : baseLabel === "base unit"
+          ? "Each"
+          : baseLabel,
     });
     onOpenChange(false);
   };
