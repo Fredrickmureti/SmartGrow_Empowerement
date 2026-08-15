@@ -76,16 +76,19 @@ interface Props<T extends RequestLineShape> {
   flashed?: boolean;
   formatCurrency: (n: number) => string;
   /** Applies a partial update to the line. */
-  /**
-   * Units the product may be requested in (alternate UoM). Packs are offered
-   * from the product master regardless. MUST be `useCallback`-stable.
-   */
   onPatch: (index: number, patch: Partial<T>) => void;
   /** Product selection — defaults to a plain `product_id` patch. */
   onProductSelect?: (index: number, productId: string) => void;
   /** Rendered full width beneath the row. */
   extra?: ReactNode;
   productPlaceholder?: string;
+  /**
+   * Alternate units the product may be requested in. Packs are offered from
+   * the product master regardless. MUST be `useCallback`-stable.
+   */
+  unitsFor?: (
+    productId: string | null | undefined,
+  ) => { baseUomId: string | null; options: SellUnitOption[] } | null;
 }
 
 function RequestLineRowInner<T extends RequestLineShape>({
@@ -101,6 +104,7 @@ function RequestLineRowInner<T extends RequestLineShape>({
   onProductSelect,
   extra,
   productPlaceholder,
+  unitsFor,
 }: Props<T>) {
   const cell = (columnId: string) => {
     switch (columnId) {
@@ -146,13 +150,19 @@ function RequestLineRowInner<T extends RequestLineShape>({
         );
 
       case "quantity":
-        return (
-          <PackagedQtyCell
-            productId={item.product_id ?? null}
-            value={item}
-            onChange={(patch) => onPatch(index, patch as Partial<T>)}
-            disabled={disabled}
-          />
+        {
+          const units = unitsFor?.(item.product_id) ?? null;
+          return (
+            <PackagedQtyCell
+              productId={item.product_id ?? null}
+              value={item}
+              onChange={(patch) => onPatch(index, patch as Partial<T>)}
+              disabled={disabled}
+              baseUomId={units?.baseUomId ?? null}
+              uomOptions={units?.options}
+            />
+          );
+        }
         );
 
       case "target_price":
