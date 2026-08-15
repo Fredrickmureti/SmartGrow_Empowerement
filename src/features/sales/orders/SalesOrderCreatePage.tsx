@@ -285,6 +285,7 @@ export default function SalesOrderCreatePage() {
           status: "draft",
         } as any,
         items as any,
+        idempotencyKey,
       );
       toast.success("Sales order created");
       navigate(created?.id ? `/sales/orders/${created.id}` : "/sales/orders");
