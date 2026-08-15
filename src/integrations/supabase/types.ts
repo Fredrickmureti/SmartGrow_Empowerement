@@ -94691,6 +94691,81 @@ export type Database = {
           was_changed: boolean
         }[]
       }
+      link_invoice_journal_entry_atomic: {
+        Args: { p_invoice_id: string; p_journal_entry_id: string }
+        Returns: {
+          amount_paid: number | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
+          billing_period_end: string | null
+          billing_period_start: string | null
+          branch_id: string | null
+          business_id: string
+          confirmed_by: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          customer_signature_url: string | null
+          discount_amount: number | null
+          due_date: string
+          etims_cu_number: string | null
+          etims_error_message: string | null
+          etims_internal_data: string | null
+          etims_mrc_number: string | null
+          etims_qr_code_data: string | null
+          etims_qr_code_url: string | null
+          etims_receipt_number: number | null
+          etims_receipt_signature: string | null
+          etims_sdc_id: string | null
+          etims_signature: string | null
+          etims_transmission_status: string | null
+          etims_transmitted_at: string | null
+          etims_verification_url: string | null
+          exchange_rate: number | null
+          id: string
+          invoice_number: string
+          is_sample_data: boolean
+          issue_date: string
+          journal_entry_id: string | null
+          last_reminder_at: string | null
+          migration_session_id: string | null
+          notes: string | null
+          organization_id: string
+          payment_link: string | null
+          payment_link_expires_at: string | null
+          payment_term_id: string | null
+          project_id: string | null
+          reversal_journal_entry_id: string | null
+          salesperson_id: string | null
+          sent_at: string | null
+          signed_at: string | null
+          source: string | null
+          source_delivery_note_id: string | null
+          source_estimate_id: string | null
+          source_pos_transaction_id: string | null
+          source_proforma_invoice_id: string | null
+          source_recurring_id: string | null
+          source_sales_order_id: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          template_id: string | null
+          terms: string | null
+          total: number
+          updated_at: string
+          void_reason: string | null
+          void_reason_code: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       link_self_as_employee: { Args: never; Returns: string }
       list_adjustments_missing_journals:
         | {
@@ -100797,6 +100872,81 @@ export type Database = {
           p_to_currency: string
         }
         Returns: string
+      }
+      set_invoice_status_atomic: {
+        Args: { p_invoice_id: string; p_status: string; p_user_id?: string }
+        Returns: {
+          amount_paid: number | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
+          billing_period_end: string | null
+          billing_period_start: string | null
+          branch_id: string | null
+          business_id: string
+          confirmed_by: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          customer_signature_url: string | null
+          discount_amount: number | null
+          due_date: string
+          etims_cu_number: string | null
+          etims_error_message: string | null
+          etims_internal_data: string | null
+          etims_mrc_number: string | null
+          etims_qr_code_data: string | null
+          etims_qr_code_url: string | null
+          etims_receipt_number: number | null
+          etims_receipt_signature: string | null
+          etims_sdc_id: string | null
+          etims_signature: string | null
+          etims_transmission_status: string | null
+          etims_transmitted_at: string | null
+          etims_verification_url: string | null
+          exchange_rate: number | null
+          id: string
+          invoice_number: string
+          is_sample_data: boolean
+          issue_date: string
+          journal_entry_id: string | null
+          last_reminder_at: string | null
+          migration_session_id: string | null
+          notes: string | null
+          organization_id: string
+          payment_link: string | null
+          payment_link_expires_at: string | null
+          payment_term_id: string | null
+          project_id: string | null
+          reversal_journal_entry_id: string | null
+          salesperson_id: string | null
+          sent_at: string | null
+          signed_at: string | null
+          source: string | null
+          source_delivery_note_id: string | null
+          source_estimate_id: string | null
+          source_pos_transaction_id: string | null
+          source_proforma_invoice_id: string | null
+          source_recurring_id: string | null
+          source_sales_order_id: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          template_id: string | null
+          terms: string | null
+          total: number
+          updated_at: string
+          void_reason: string | null
+          void_reason_code: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_label_run_status: {
         Args: {

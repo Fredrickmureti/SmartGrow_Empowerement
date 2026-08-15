@@ -367,10 +367,11 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
       // Otherwise continue to update to the target status (e.g. "paid")
     }
 
-    const { error } = await supabase
-      .from("invoices")
-      .update({ status: targetStatus as any })
-      .eq("id", id);
+    // Phase 6.3: governed column — the engine owns the transition table.
+    const { error } = await supabase.rpc("set_invoice_status_atomic" as never, {
+      p_invoice_id: id,
+      p_status: targetStatus as string,
+    } as never);
 
     if (error) throw error;
 
