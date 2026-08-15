@@ -88,14 +88,45 @@ Deliberately **not** done in this phase (server-side, deferred with reasons):
 - Seed `product_packaging` and `price_list_items` rows and re-confirm packaging-specific and tiered price precedence end to end.
 - Sales editors still send `tax_amount` / `line_total` in their payloads. Harmless (the server overwrites them) and deliberately kept so NOT NULL holds on the immutable-document path, but the editors should re-read the saved document rather than trusting their local preview.
 
-## Instructions for the next agent
+## Phase 6 entry verification (2026-08-15) — independent re-check of Phases 3–5
 
-**First, verify Phase 5 — do not take it on trust.** Specifically:
-1. Run `npx vitest run src/test/architecture/sales-availability-coverage.test.ts src/test/architecture/availability-is-server-owned.test.ts` and `npx tsgo --noEmit`. Both must be clean.
-2. Open one `commit` editor and one `advisory` editor and confirm behaviour matches the declared policy: a short line must block the save until acknowledged on a sales order or delivery note, and must never block an estimate.
-3. Confirm no Sales editor reintroduced a local oversell flag or a direct `evaluateStock` call — the coverage test enforces this, so a passing run is sufficient evidence.
-4. Confirm `useSalesLineAvailability` still reads `product.available` (server-resolved) and never derives from on-hand less reservations.
+Claims were re-tested against the live database and the working tree, not read from this file.
 
-**Then start Phase 6 — invoice ↔ receivables boundary.** Do not jump to Phase 9a (backorders); it is deliberately sequenced after Phase 6. Phases 1–5 are closed and verified — do not re-audit them beyond the checks above.
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Quantity/pricing/tax/totals engines exist server-side | TRUE | `pg_proc`: `resolve_line_base_quantity`, `resolve_line_unit_price`, `resolve_line_tax_rate`, `_pricing_normalize_line`, `_totals_normalize_line`, `_recalc_document_totals`, `_sales_header_totals_guard`, `_sales_doc_is_mutable` all present; `invoice_items` carries the full trigger stack in the declared order (`trg_uom_normalize_*` → `trg_zz_pricing_*` → `trg_zzz_totals_*` → `trg_recalc_totals_*`) |
+| Phase 5 availability contract holds | TRUE | `sales-availability-coverage` (22), `availability-is-server-owned` (2), `invoice-totals-contract` (6) — 30 tests green |
+| "Phase 5 left the tree type-clean" | **FALSE (defect 6.0)** | `InvoiceCreatePage:577` / `InvoiceEditPage:502` pass the shared `LineStockEval` into `InvoiceLineRow`'s **locally re-declared** `StockEval`, whose `product` is the wider `InvoiceLineRowProduct` (requires `unit_price`). The build reports TS2322 on both. Phase 5 removed the duplicated *logic* but left a duplicated *type* |
+| Header totals guard covers invoices | TRUE (partial) | `trg_zzz_header_totals_invoices` exists — but it guards money only. `invoices` still has **no governed-write guard on `status`**, unlike `sales_orders` (`trg_00_sales_order_governed_write`) |
 
-**Known pre-existing failures unrelated to this phase:** a full `vitest run` currently reports failures in areas outside Sales (for example `src/test/architecture/wms-rpc-grants.test.ts` flags three `wms_*` functions missing `GRANT EXECUTE TO authenticated`). These predate Phase 5 and belong to the WMS domain wave, not this roadmap — do not fold them into Sales work, but do not let them mask a genuine Sales regression either.
+## Phase 6 — invoice ↔ receivables boundary (ACTIVE)
+
+Investigation findings (evidence in code and `pg_proc`, this session):
+
+**6.0 Type duplication regression (blocking, small).** `src/components/invoices/InvoiceLineRow.tsx` declares its own `StockEval`. It must consume `LineStockEval` / `AvailabilityProduct` from `src/features/sales/availability` so one declaration serves both. Add the single-declaration rule to `sales-availability-coverage.test.ts`.
+
+**6.1 The browser is authoritative for the AR journal entry. ❌**
+`src/hooks/invoices/confirmInvoiceGL.ts` fetches lines and products, resolves receivable / revenue / tax-liability / COGS accounts **in React** (`resolveLineAccounts`, `getInvoiceAccountMappings`, heuristic fallbacks), builds the debit/credit array and posts it via `confirm_invoice_atomic(p_invoice_id, p_user_id, p_main_lines jsonb, …)`. The RPC trusts `p_main_lines` verbatim. Canonical server resolvers already exist and are bypassed: `resolve_product_gl_account(org, business, product, purpose)`, `resolve_product_account_override`, `resolve_posting_account(business, key, branch)`, `resolve_default_account`, `_resolve_canonical_default_account`. This is exactly the "no browser-authoritative accounting" prohibition, and it also means two invoices confirmed from two clients with different cached defaults can post to different accounts.
+**Action:** move account resolution and JE construction inside `confirm_invoice_atomic` (derive from the invoice's own lines + the canonical resolvers), keep `p_main_lines` accepted only as an optional *assertion* that must match the server-derived entry or the call fails. Then delete the client resolution path. No new engine — compose existing resolvers + `post_journal_entry_atomic` (ADR 0123).
+
+**6.2 Invoice creation is a browser-orchestrated multi-write. ❌**
+`useInvoices.createInvoice` / `useInvoicesPaginated` insert the header, then insert `invoice_items` in a second statement. A failure between them leaves a header with no lines (and, with the Phase 4 recalc, a zero-total invoice consuming a number from `get_next_invoice_number`). There is **no `create_invoice_atomic`** and no idempotency key, while `create_sales_order_atomic` exists for the sibling document.
+**Action:** add `create_invoice_atomic(header jsonb, lines jsonb, p_request_id text)` — numbering, header, lines, audit in one transaction, idempotent on `p_request_id` (the pattern `record_multi_invoice_payment(_request_id)` already uses). Both hooks call it; the two-step path is deleted, not left as a fallback.
+
+**6.3 Invoice status is client-written and ungoverned. ❌**
+`updateInvoiceStatus` does `supabase.from("invoices").update({ status })`. The draft→posted guard is a **TypeScript `if`**; the database accepts the write. `sales_orders`, `estimates` and `proforma_invoices` all reject the equivalent write at the trigger.
+**Action:** `_invoices_governed_write()` BEFORE UPDATE rejecting direct changes to `status`, `journal_entry_id`, `invoice_number`, `total`, `amount_paid` outside the sanctioned RPCs (transaction-local flag, same mechanism as `sales.totals_recalc`), plus a legal state-transition table. Benign fields (notes, due date on draft) stay editable.
+
+**6.4 Settlement is already Finance-owned. ✅ — do not touch.**
+`record_multi_invoice_payment(… _allocations jsonb, _request_id)` and `record_advance_payment(… _request_id)` are atomic and idempotent; `payment_allocations` carries `trg_payment_alloc_consistency` + `trg_payment_alloc_sum_invariant`; `trg_cascade_voided_invoice_allocations` and `trg_invoices_block_void_with_allocations` close the void path. Remaining check only: confirm the optional `_deposit_account_id` / `_receivable_account_id` arguments fall back to the canonical resolvers when the client omits them, and stop sending them from the client if so.
+
+### Order of work
+6.0 (type) → 6.3 (governed write, cheap and protects everything after) → 6.1 (server-owned JE) → 6.2 (atomic + idempotent create) → 6.4 (verify-only).
+
+### Verification standard for this phase
+Live-database proof per item: a raw `update invoices set status='paid'` must be rejected; a `confirm_invoice_atomic` call with forged `p_main_lines` must fail rather than post; a duplicated `create_invoice_atomic` call with the same `p_request_id` must return the first invoice and consume no second number. Add `supabase/tests/sales_invoice_ar_boundary_test.sql` and extend the architecture suite to forbid client-side GL account resolution for invoices.
+
+### Deliberately out of scope
+Phase 9a backorders, warehouse selection on the commercial document, reporting surfaces (Overview / Statements / Ledger / Collections / Salesperson Performance — read models, classified in the ledger).
+
+**Known unrelated failures:** `src/test/architecture/wms-rpc-grants.test.ts` (three `wms_*` functions missing `GRANT EXECUTE`) belongs to the WMS wave. Do not fold it into Sales; do not let it mask a Sales regression.
