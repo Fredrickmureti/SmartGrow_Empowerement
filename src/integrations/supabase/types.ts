@@ -55425,12 +55425,15 @@ export type Database = {
           description: string
           destination_branch_id: string | null
           destination_warehouse_id: string | null
+          display_quantity: number | null
+          display_uom_id: string | null
           estimated_line_total: number | null
           estimated_unit_price: number
           id: string
           is_non_catalog: boolean | null
           need_by_date: string | null
           notes: string | null
+          packaging_id: string | null
           product_id: string | null
           purchase_order_item_id: string | null
           quantity: number
@@ -55442,6 +55445,10 @@ export type Database = {
           status: string
           suggested_supplier_id: string | null
           uom_id: string | null
+          uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
           updated_at: string
         }
         Insert: {
@@ -55450,12 +55457,15 @@ export type Database = {
           description: string
           destination_branch_id?: string | null
           destination_warehouse_id?: string | null
+          display_quantity?: number | null
+          display_uom_id?: string | null
           estimated_line_total?: number | null
           estimated_unit_price?: number
           id?: string
           is_non_catalog?: boolean | null
           need_by_date?: string | null
           notes?: string | null
+          packaging_id?: string | null
           product_id?: string | null
           purchase_order_item_id?: string | null
           quantity?: number
@@ -55467,6 +55477,10 @@ export type Database = {
           status?: string
           suggested_supplier_id?: string | null
           uom_id?: string | null
+          uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           updated_at?: string
         }
         Update: {
@@ -55475,12 +55489,15 @@ export type Database = {
           description?: string
           destination_branch_id?: string | null
           destination_warehouse_id?: string | null
+          display_quantity?: number | null
+          display_uom_id?: string | null
           estimated_line_total?: number | null
           estimated_unit_price?: number
           id?: string
           is_non_catalog?: boolean | null
           need_by_date?: string | null
           notes?: string | null
+          packaging_id?: string | null
           product_id?: string | null
           purchase_order_item_id?: string | null
           quantity?: number
@@ -55492,6 +55509,10 @@ export type Database = {
           status?: string
           suggested_supplier_id?: string | null
           uom_id?: string | null
+          uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -55500,6 +55521,20 @@ export type Database = {
             columns: ["contract_line_id"]
             isOneToOne: false
             referencedRelation: "procurement_contract_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_display_uom_id_fkey"
+            columns: ["display_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requisition_items_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
             referencedColumns: ["id"]
           },
           {
@@ -58562,8 +58597,11 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          display_quantity: number | null
+          display_uom_id: string | null
           id: string
           need_by_date: string | null
+          packaging_id: string | null
           product_id: string | null
           quantity: number
           requisition_item_id: string | null
@@ -58572,12 +58610,19 @@ export type Database = {
           specification: string | null
           target_price: number | null
           uom_id: string | null
+          uom_snapshot: string | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
         }
         Insert: {
           created_at?: string
           description: string
+          display_quantity?: number | null
+          display_uom_id?: string | null
           id?: string
           need_by_date?: string | null
+          packaging_id?: string | null
           product_id?: string | null
           quantity?: number
           requisition_item_id?: string | null
@@ -58586,12 +58631,19 @@ export type Database = {
           specification?: string | null
           target_price?: number | null
           uom_id?: string | null
+          uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Update: {
           created_at?: string
           description?: string
+          display_quantity?: number | null
+          display_uom_id?: string | null
           id?: string
           need_by_date?: string | null
+          packaging_id?: string | null
           product_id?: string | null
           quantity?: number
           requisition_item_id?: string | null
@@ -58600,8 +58652,26 @@ export type Database = {
           specification?: string | null
           target_price?: number | null
           uom_id?: string | null
+          uom_snapshot?: string | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rfq_items_display_uom_id_fkey"
+            columns: ["display_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_items_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rfq_items_product_id_fkey"
             columns: ["product_id"]

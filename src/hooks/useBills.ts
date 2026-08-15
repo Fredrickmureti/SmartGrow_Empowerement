@@ -38,7 +38,10 @@ export interface BillItem {
   tax_amount: number;
   line_total: number;
   sort_order: number;
-  // UoM provenance — `quantity` stays in base units (DB trigger normalizes).
+  // UoM provenance. Send `display_quantity` + `packaging_id`/`display_uom_id`;
+  // the `_uom_normalize_line` trigger recomputes `quantity` in base units
+  // through `resolve_line_base_quantity`. Any `quantity` sent here is a
+  // preview and will be overwritten server-side.
   packaging_id?: string | null;
   display_quantity?: number | null;
   display_uom_id?: string | null;
