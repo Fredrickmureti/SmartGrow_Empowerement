@@ -10,6 +10,18 @@ import { triggerAutomation, getChangedFields } from "@/lib/automations/triggerAu
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
 
+/**
+ * A stable per-submission key (Phase 10). Hold one per form instance so a
+ * double click, a retry or a refresh replays the first order rather than
+ * creating a duplicate.
+ */
+export function newSalesOrderIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `so-${crypto.randomUUID()}`;
+  }
+  return `so-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export interface SalesOrder {
   id: string;
   organization_id: string;
@@ -171,7 +183,7 @@ export function useSalesOrders() {
     tax_rate?: number | null;
     tax_amount?: number | null;
     discount_percent?: number | null;
-  }>) => {
+  }>, idempotencyKey?: string) => {
     if (!currentOrg || !currentBusiness) return null;
 
     try {
@@ -213,6 +225,10 @@ export function useSalesOrders() {
           task_id: (item as { task_id?: string | null }).task_id ?? null,
         })),
         p_user_id: user.id,
+        // Phase 10: a retry, refresh or double click replays the first order
+        // instead of minting a second one. Callers that own a form instance
+        // pass a stable key; ad-hoc callers get a fresh one per attempt.
+        p_idempotency_key: idempotencyKey ?? newSalesOrderIdempotencyKey(),
       });
       if (error) throw error;
 

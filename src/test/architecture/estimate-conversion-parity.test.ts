@@ -71,11 +71,14 @@ describe("estimate conversion parity", () => {
     expect(soFn.length).toBeGreaterThan(500);
   });
 
-  it("rejects a second conversion", () => {
+  it("never converts twice — a repeat replays the existing document", () => {
+    // Phase 10: a second conversion must not create a second document. It now
+    // returns the one already pointed at by the estimate (idempotent replay)
+    // instead of raising, so a double click or retry is harmless.
     expect(invoiceFn).toMatch(/converted_invoice_id\s+IS NOT NULL/i);
-    expect(invoiceFn).toMatch(/already converted/i);
+    expect(invoiceFn).toMatch(/idempotent_replay/i);
     expect(soFn).toMatch(/converted_sales_order_id\s+IS NOT NULL/i);
-    expect(soFn).toMatch(/already converted/i);
+    expect(soFn).toMatch(/idempotent_replay/i);
   });
 
   it("rejects conversion from terminal / illegal statuses", () => {
