@@ -85765,7 +85765,7 @@ export type Database = {
         Args: {
           p_final_status?: string
           p_invoice_id: string
-          p_main_lines: Json
+          p_main_lines?: Json
           p_user_id: string
         }
         Returns: Json
@@ -88978,6 +88978,7 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
+      build_invoice_je_lines: { Args: { p_invoice_id: string }; Returns: Json }
       calculate_leave_days: {
         Args: {
           p_end_date: string
@@ -90290,7 +90291,7 @@ export type Database = {
         Args: {
           p_final_status?: string
           p_invoice_id: string
-          p_main_lines: Json
+          p_main_lines?: Json
           p_release_stock?: boolean
           p_user_id: string
           p_warehouse_id?: string
@@ -90301,7 +90302,7 @@ export type Database = {
         Args: {
           p_final_status?: string
           p_invoice_id: string
-          p_main_lines: Json
+          p_main_lines?: Json
           p_user_id: string
         }
         Returns: Json
