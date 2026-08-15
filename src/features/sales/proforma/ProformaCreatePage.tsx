@@ -54,6 +54,7 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 const formSchema = z.object({
   contact_id: z.string().min(1, "Customer is required"),
@@ -117,6 +118,10 @@ export default function ProformaCreatePage() {
   // Scan-to-line parity — the Sales workspace scan transport is live on every
   // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, watchedContactId || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
 
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
@@ -142,10 +147,14 @@ export default function ProformaCreatePage() {
   }, []);
 
   const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((patch as Record<string, unknown>).packaging_id !== undefined || (patch as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, patch as never);
+    }
     setLineItems((prev) =>
       prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
     );
-  }, []);
+  }, [applyServerPrice]);
 
   const selectProduct = useCallback(
     (index: number, productId: string) => {
@@ -163,8 +172,12 @@ export default function ProformaCreatePage() {
             : line,
         ),
       );
+      // Product scalar is an optimistic placeholder; the server resolver
+      // (price list > price book > product) is the authority and is what the
+      // database stamps on insert.
+      void applyServerPrice(index, { product_id: productId });
     },
-    [products],
+    [products, applyServerPrice],
   );
 
   const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);

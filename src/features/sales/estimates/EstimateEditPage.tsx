@@ -46,6 +46,7 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 type LineItem = Omit<EstimateItem, "id" | "estimate_id"> & { id?: string };
 
@@ -189,6 +190,10 @@ export default function EstimateEditPage() {
   };
 
   const updateLineItem = (index: number, updates: Partial<LineItem>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((updates as Record<string, unknown>).packaging_id !== undefined || (updates as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, updates as never);
+    }
     setLineItems((prev) => {
       const next = [...prev];
       const updatedItem = { ...next[index], ...updates };
@@ -200,6 +205,10 @@ export default function EstimateEditPage() {
 
   // Scan-to-line parity — same workspace scanner as every other Sales document.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
     setLineItems,
@@ -250,6 +259,10 @@ export default function EstimateEditPage() {
         tax_rate: product.tax_rate || 0,
       });
     }
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -50,6 +50,7 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 export default function EstimateCreatePage() {
   const navigate = useNavigate();
@@ -104,6 +105,16 @@ export default function EstimateCreatePage() {
   };
 
   const applyLinePatch = (index: number, patch: Record<string, any>) => {
+    // Re-price whenever what the customer buys changes (product, unit or pack).
+    // The product scalar applied below is only an optimistic placeholder; the
+    // server resolver decides and the database stamps it on insert.
+    if (
+      patch.product_id ||
+      (patch as Record<string, unknown>).packaging_id !== undefined ||
+      (patch as Record<string, unknown>).display_uom_id !== undefined
+    ) {
+      void applyServerPrice(index, patch as never);
+    }
     const updated = [...lineItems];
     updated[index] = { ...updated[index], ...patch };
 
@@ -130,6 +141,10 @@ export default function EstimateCreatePage() {
   // Scan-to-line parity — the Sales workspace scan transport is live on every
   // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
 
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(

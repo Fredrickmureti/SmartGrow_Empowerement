@@ -72,6 +72,7 @@ import { cn } from "@/lib/utils";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 export default function InvoiceCreatePage() {
   const navigate = useNavigate();
@@ -144,6 +145,10 @@ export default function InvoiceCreatePage() {
   const [lineItems, setLineItems] = useState<Omit<InvoiceItem, "id" | "invoice_id">[]>([
     { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
   ]);
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
 
   const linesTableRef = useRef<HTMLDivElement | null>(null);
   const initialScanKeyRef = useRef<string | null>(null);
@@ -245,6 +250,10 @@ export default function InvoiceCreatePage() {
   };
 
   const updateLineItem = useCallback((index: number, updates: Partial<typeof lineItems[0]>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((updates as Record<string, unknown>).packaging_id !== undefined || (updates as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, updates as never);
+    }
     setLineItems((prev) => {
       const newItems = [...prev];
       const updatedItem = { ...newItems[index], ...updates };
@@ -257,7 +266,7 @@ export default function InvoiceCreatePage() {
       newItems[index] = { ...updatedItem, line_total, tax_amount };
       return newItems;
     });
-  }, []);
+  }, [applyServerPrice]);
 
   const addLineItem = useCallback(() => {
     setLineItems((prev) => [
@@ -280,7 +289,11 @@ export default function InvoiceCreatePage() {
         tax_rate: product.tax_rate || 0,
       });
     }
-  }, [products, updateLineItem]);
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
+  }, [products, updateLineItem, applyServerPrice]);
 
   /**
    * Scan-first line entry — `doc_author` semantics, now shared with every

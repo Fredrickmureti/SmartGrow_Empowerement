@@ -56,6 +56,7 @@ import { useInvoiceCreditableLines } from "./useInvoiceCreditableLines";
 import { InvoiceLineCreditPicker, type PickedCreditLine } from "./InvoiceLineCreditPicker";
 import { CreditReasonField } from "./CreditReasonField";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 /**
  * `source_invoice_item_id` is durable provenance: it marks a line as picked
@@ -167,6 +168,10 @@ export default function CreditNoteCreatePage() {
 
   /** Applies a partial line update and recomputes the line's derived money. */
   const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    // Re-price whenever what the customer buys changes (unit or pack).
+    if ((patch as Record<string, unknown>).packaging_id !== undefined || (patch as Record<string, unknown>).display_uom_id !== undefined) {
+      void applyServerPrice(index, patch as never);
+    }
     setLineItems((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ...patch };
@@ -175,12 +180,16 @@ export default function CreditNoteCreatePage() {
       updated[index].tax_amount = totals.tax_amount;
       return updated;
     });
-  }, []);
+  }, [applyServerPrice]);
 
 
   // Scan-to-line parity — the Sales workspace scan transport is live on every
   // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
 
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
@@ -213,6 +222,10 @@ export default function CreditNoteCreatePage() {
       description: product.name,
       unit_price: product.unit_price,
     });
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
   };
 
   const handleInvoiceSelect = (invoiceId: string) => {
