@@ -449,10 +449,18 @@ export default function ReceivingSessions() {
         // Line grain: the scan is recorded as received quantity against the
         // session's expected line. The session state is untouched — capture is
         // completed explicitly once the operator is done unloading.
+        //
+        // UoM authority: ONE scan of the matched packaging level is sent as the
+        // entered quantity together with `packagingId`. The server multiplies
+        // through `wms_to_base_qty` (canonical `product_packaging`); `baseUnits`
+        // is operator PREVIEW text only and must never be the posted quantity —
+        // a handheld with a stale packaging factor would otherwise book the
+        // wrong base quantity into the ledger.
         const res = await captureLine.mutateAsync({
           sessionId: target.id,
           productId: identity.productId,
-          receivedQty: baseUnits,
+          receivedQty: 1,
+          packagingId: identity.packagingId,
           lotNumber: lot,
           serialNumber: serial,
           expiryDate: expiry ? expiry.toISOString().slice(0, 10) : null,
@@ -465,6 +473,7 @@ export default function ReceivingSessions() {
             res?.unexpected ? "not on the source document" : null,
           ].filter(Boolean).join(" · "),
         });
+
       } catch (e) {
         scanFeedbackBus.emit({
           kind: "error",

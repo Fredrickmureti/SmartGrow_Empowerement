@@ -79,6 +79,21 @@ describe("WMS capture surfaces delegate UoM conversion to the server", () => {
     expect(args).not.toMatch(/toBaseUnits\s*\(/);
   });
 
+  it("the desktop receiving SCAN path posts the scanned level, not baseUnits", () => {
+    // Regression: `receivedQty: baseUnits` shipped the browser's own
+    // packaging multiplication into `wms_receiving_lines`. One scan of a level
+    // is qty 1 of `identity.packagingId`; the server does the arithmetic.
+    const src = read("src/pages/warehouse/ReceivingSessions.tsx");
+    const call = src.slice(src.indexOf("captureLine.mutateAsync"));
+    const args = call.slice(call.indexOf("{"), call.indexOf("});") + 1);
+    expect(args).toContain("packagingId: identity.packagingId");
+    expect(args).toContain("receivedQty: 1");
+    expect(args, "desktop scan capture passes a client-converted quantity").not.toMatch(
+      /receivedQty:\s*baseUnits/,
+    );
+  });
+
+
   it("receivingUnits documents that conversion is server-authoritative", () => {
     const src = read("src/features/warehouse/receiving/receivingUnits.ts");
     expect(src).toContain("wms_to_base_qty");

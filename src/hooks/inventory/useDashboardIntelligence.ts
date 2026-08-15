@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
+import { productBaseLabelOrUnset, PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 
 export interface DashboardIntelligence {
   expiringSoon: { count: number; sample: Array<{ id: string; name: string; days: number | null }> };
@@ -75,7 +76,7 @@ export function useDashboardIntelligence() {
       const since = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
       let mvQ = supabase
         .from("stock_movements")
-        .select("product_id, quantity, products(name, unit_of_measure)")
+        .select(`product_id, quantity, products(name, ${PRODUCT_BASE_UOM_SELECT})`)
         .eq("business_id", businessId)
         .gte("movement_date", since)
         .lt("quantity", 0);
@@ -85,7 +86,7 @@ export function useDashboardIntelligence() {
       for (const r of (mvRows ?? []) as any[]) {
         const id = r.product_id;
         if (!id) continue;
-        const cur = agg.get(id) ?? { name: r.products?.name ?? "Unknown", uom: r.products?.unit_of_measure ?? "ea", qty: 0 };
+        const cur = agg.get(id) ?? { name: r.products?.name ?? "Unknown", uom: productBaseLabelOrUnset(r.products as any), qty: 0 };
         cur.qty += Math.abs(Number(r.quantity) || 0);
         agg.set(id, cur);
       }

@@ -38,6 +38,7 @@ import {
 import { Plus, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RecordFormShell, Section, FieldGrid } from "@/design-system";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 type Item = {
   product_id: string;
@@ -329,7 +330,7 @@ export default function AdjustmentNew() {
             const selProd = inventoryProducts.find(
               (p: any) => p.id === item.product_id,
             ) as any;
-            const baseLabel = selProd?.unit_of_measure ?? "ea";
+            const baseLabel = productBaseLabelOrUnset(selProd);
             return (
               <div
                 key={index}

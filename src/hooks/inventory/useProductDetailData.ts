@@ -15,6 +15,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { activeIdentifiersForProduct } from "@/features/products/identity/activeIdentifiers";
+import { PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 import {
   resolveAvailability,
   type StockAvailability,
@@ -95,7 +96,13 @@ export function useProductDetailData({
       if (branchId) wsQ = wsQ.eq("warehouses.branch_id", branchId);
 
       const [productRes, wsRes, packagingRes, availability] = await Promise.all([
-        supabase.from("products").select("*").eq("id", productId).maybeSingle(),
+        supabase
+          .from("products")
+          // `base_uom` is the canonical unit label source — see
+          // PRODUCT_BASE_UOM_SELECT. `products.unit_of_measure` does not exist.
+          .select(`*, ${PRODUCT_BASE_UOM_SELECT}`)
+          .eq("id", productId)
+          .maybeSingle(),
         wsQ,
         supabase
           .from("product_packaging")

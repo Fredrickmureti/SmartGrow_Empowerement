@@ -7,6 +7,7 @@ import { useAuditLog } from "./useAuditLog";
 import { usePermissions } from "./usePermissions";
 import { triggerAutomation, getChangedFields } from "@/lib/automations/triggerAutomation";
 import { normalizeError } from "@/services/resilience";
+import { PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 
 export interface Product {
   id: string;
@@ -66,7 +67,8 @@ export function useProducts(options: UseProductsOptions = {}) {
     try {
       let query = supabase
         .from("products")
-        .select("*")
+        // canonical unit label source; `unit_of_measure` is not a column
+        .select(`*, ${PRODUCT_BASE_UOM_SELECT}`)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .order("name");

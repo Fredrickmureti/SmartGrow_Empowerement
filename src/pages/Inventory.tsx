@@ -48,6 +48,7 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { productBaseLabelOrUnset, PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 
 const PAGE_SIZE = 50;
 
@@ -209,7 +210,10 @@ export default function Inventory() {
 
       const { data, error, count } = await supabase
         .from("products")
-        .select("id, name, sku, reorder_level, cost_price, type, track_inventory, status", { count: "exact" })
+        .select(
+          `id, name, sku, reorder_level, cost_price, type, track_inventory, status, ${PRODUCT_BASE_UOM_SELECT}`,
+          { count: "exact" },
+        )
         .eq("organization_id", organizationId)
         .eq("business_id", businessId)
         .eq("type", "product")
@@ -694,7 +698,7 @@ export default function Inventory() {
                           const isLow = reorderLevel > 0 && stockQty <= reorderLevel;
                           const trackInventory = product.track_inventory !== false && product.type !== "service";
                           const packs = packsByProduct.get(product.id);
-                          const baseLabel = product.unit_of_measure ?? "ea";
+                          const baseLabel = productBaseLabelOrUnset(product as any);
 
                           return (
                             <TableRow key={product.id}>

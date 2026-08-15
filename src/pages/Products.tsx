@@ -106,6 +106,7 @@ import { useBranches } from "@/hooks/useBranches";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { ExternalLink } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 
 export default function Products() {
@@ -809,7 +810,7 @@ export default function Products() {
                                     reorderLevel={reorderLevel}
                                     trackInventory={trackInventory !== false}
                                     packs={packsByProduct.get(product.id)}
-                                    baseLabel={(product as any).unit_of_measure ?? "ea"}
+                                    baseLabel={productBaseLabelOrUnset(product as any)}
                                     isLoading={stockPending}
                                   />
                                 </TableCell>

@@ -9,6 +9,7 @@ import {
   decomposeQty,
   type PackForRollup,
 } from "@/lib/inventory/formatQty";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   data: ProductDetailData;
@@ -20,7 +21,7 @@ export function UnitsPackagingTab({ data }: Props) {
   const p = data.product;
   if (!p) return null;
 
-  const baseLabel = (p as any).unit_of_measure ?? "ea";
+  const baseLabel = productBaseLabelOrUnset(p);
   const unitPrice = Number((p as any).unit_price ?? 0);
   const costPrice = Number(p.cost_price ?? 0);
   const onHand = (data.warehouseStock ?? []).reduce(

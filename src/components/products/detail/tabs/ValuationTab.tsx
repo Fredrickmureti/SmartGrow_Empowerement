@@ -5,6 +5,7 @@ import {
   formatQtyWithPacks,
   type PackForRollup,
 } from "@/lib/inventory/formatQty";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   data: ProductDetailData;
@@ -18,7 +19,7 @@ export function ValuationTab({ data, onHand }: Props) {
   const cost = Number(p.cost_price ?? 0);
   const price = Number((p as any).unit_price ?? 0);
 
-  const baseLabel = (p as any).unit_of_measure ?? "ea";
+  const baseLabel = productBaseLabelOrUnset(p);
   const packs: PackForRollup[] = (data.packaging ?? []).map((pk: any) => ({
     name: pk.name,
     qty_in_base_uom: Number(pk.qty_in_base_uom),
