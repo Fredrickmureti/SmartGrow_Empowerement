@@ -10,6 +10,18 @@ import { triggerAutomation, getChangedFields } from "@/lib/automations/triggerAu
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
 
+/**
+ * A stable per-submission key (Phase 10). Hold one per form instance so a
+ * double click, a retry or a refresh replays the first order rather than
+ * creating a duplicate.
+ */
+export function newSalesOrderIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `so-${crypto.randomUUID()}`;
+  }
+  return `so-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export interface SalesOrder {
   id: string;
   organization_id: string;
