@@ -209,21 +209,43 @@ function PricedLineRowInner<T extends PricedLineShape>({
         }
 
       case "unit_price":
+        {
+        // Price basis is per BASE unit on every document in the system, while
+        // the quantity cell may be denominated in a pack or an alternate unit.
+        // Say so, rather than inventing a second basis.
+        const priceUnits = unitsFor?.(item.product_id) ?? null;
+        const baseCode =
+          priceUnits?.options?.find((u) => u.id === priceUnits.baseUomId)?.code ??
+          null;
+        const denominated =
+          !!item.packaging_id ||
+          (!!item.display_uom_id && item.display_uom_id !== priceUnits?.baseUomId);
+        const basisHint =
+          denominated && baseCode ? (
+            <div className="text-[10px] leading-tight text-muted-foreground">
+              per {baseCode}
+            </div>
+          ) : null;
         if (isLocked("unit_price")) {
           return (
             <div className="pt-2 text-right tabular-nums">
               {formatCurrency(item.unit_price)}
+              {basisHint}
             </div>
           );
         }
         return (
+          <div className="space-y-1">
           <NumericInput
             value={item.unit_price}
             disabled={disabled}
             onValueChange={(v) => onPatch(index, { unit_price: v ?? 0 } as Partial<T>)}
             className="h-8"
           />
+          {basisHint}
+          </div>
         );
+        }
 
       case "tax_rate":
         if (isLocked("tax_rate")) {
