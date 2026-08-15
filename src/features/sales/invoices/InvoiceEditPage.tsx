@@ -35,7 +35,6 @@ import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import {

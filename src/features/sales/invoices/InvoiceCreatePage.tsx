@@ -56,7 +56,6 @@ import { format, addDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import {
