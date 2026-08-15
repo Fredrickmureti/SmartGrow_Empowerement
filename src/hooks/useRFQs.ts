@@ -82,6 +82,10 @@ export interface RFQItem {
   description: string;
   quantity: number;
   uom_id?: string | null;
+  /** Purchasing unit provenance — what the buyer actually typed. */
+  packaging_id?: string | null;
+  display_quantity?: number | null;
+  display_uom_id?: string | null;
   target_price: number | null;
   need_by_date?: string | null;
   requisition_item_id?: string | null;
@@ -275,6 +279,9 @@ export function useRFQs() {
           description: item.description,
           quantity: item.quantity,
           uom_id: item.uom_id ?? null,
+          packaging_id: item.packaging_id ?? null,
+          display_quantity: item.display_quantity ?? null,
+          display_uom_id: item.display_uom_id ?? null,
           target_price: item.target_price,
           need_by_date: item.need_by_date ?? null,
           requisition_item_id: item.requisition_item_id ?? null,
