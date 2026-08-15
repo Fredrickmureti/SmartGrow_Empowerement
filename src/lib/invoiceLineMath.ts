@@ -43,7 +43,15 @@ export function round2(n: number): number {
 }
 
 export interface LineMathInput {
+  /** Canonical BASE quantity (kg, pieces). Never the priced quantity when a pack is used. */
   quantity: number | null | undefined;
+  /**
+   * The customer-facing quantity ("3" bags). This — not the base quantity — is
+   * what `unit_price` is quoted against, exactly as `_totals_normalize_line()`
+   * does server-side: gross = display_quantity × unit_price. Pricing on the
+   * base quantity is what produced "3 × 50 kg Bag @ 7,500 = 1,125,000".
+   */
+  display_quantity?: number | null;
   unit_price: number | null | undefined;
   discount_percent?: number | null;
   tax_rate?: number | null;
@@ -54,14 +62,17 @@ export interface LineMathResult {
   line_total: number;
   /** Per-line tax. Persisted as `invoice_items.tax_amount`. */
   tax_amount: number;
-  /** quantity × unit_price (pre-discount, pre-tax). For UI display only. */
+  /** priced quantity × unit_price (pre-discount, pre-tax). For UI display only. */
   gross: number;
   /** Line discount amount (before tax). For UI display only. */
   discount: number;
 }
 
 export function computeLine(input: LineMathInput): LineMathResult {
-  const qty = Number(input.quantity ?? 0);
+  const baseQty = Number(input.quantity ?? 0);
+  const dq = input.display_quantity;
+  const qty =
+    dq != null && Number.isFinite(Number(dq)) ? Number(dq) : baseQty;
   const price = Number(input.unit_price ?? 0);
   const discountPct = Number(input.discount_percent ?? 0);
   const taxRate = Number(input.tax_rate ?? 0);
