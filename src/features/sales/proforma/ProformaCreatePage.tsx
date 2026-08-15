@@ -158,10 +158,6 @@ export default function ProformaCreatePage() {
 
   const selectProduct = useCallback(
     (index: number, productId: string) => {
-    // Product scalar is an optimistic placeholder; the server resolver
-    // (price list > price book > product) is the authority and is what the
-    // database stamps on insert.
-    void applyServerPrice(index, { product_id: productId });
       const product = products.find((p) => p.id === productId);
       setLineItems((prev) =>
         prev.map((line, i) =>
@@ -176,6 +172,10 @@ export default function ProformaCreatePage() {
             : line,
         ),
       );
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
     },
     [products],
   );

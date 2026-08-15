@@ -215,10 +215,6 @@ export default function CreditNoteCreatePage() {
 
   /** Off-invoice lines only — an invoice-sourced line keeps the invoiced price. */
   const handleProductSelect = (index: number, productId: string) => {
-    // Product scalar is an optimistic placeholder; the server resolver
-    // (price list > price book > product) is the authority and is what the
-    // database stamps on insert.
-    void applyServerPrice(index, { product_id: productId });
     const product = products.find((p) => p.id === productId);
     if (!product) return;
     patchLineItem(index, {
@@ -226,6 +222,10 @@ export default function CreditNoteCreatePage() {
       description: product.name,
       unit_price: product.unit_price,
     });
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
   };
 
   const handleInvoiceSelect = (invoiceId: string) => {

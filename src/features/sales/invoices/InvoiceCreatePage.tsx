@@ -280,10 +280,6 @@ export default function InvoiceCreatePage() {
   }, []);
 
   const handleProductSelect = useCallback((index: number, productId: string) => {
-    // Product scalar is an optimistic placeholder; the server resolver
-    // (price list > price book > product) is the authority and is what the
-    // database stamps on insert.
-    void applyServerPrice(index, { product_id: productId });
     const product = products.find((p) => p.id === productId);
     if (product) {
       updateLineItem(index, {
@@ -293,6 +289,10 @@ export default function InvoiceCreatePage() {
         tax_rate: product.tax_rate || 0,
       });
     }
+    // Product scalar is an optimistic placeholder; the server resolver
+    // (price list > price book > product) is the authority and is what the
+    // database stamps on insert.
+    void applyServerPrice(index, { product_id: productId });
   }, [products, updateLineItem]);
 
   /**
