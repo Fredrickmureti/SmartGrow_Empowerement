@@ -427,6 +427,8 @@ export default function InvoiceCreatePage() {
           status: formData.markAsSent ? "sent" : "draft",
           salesperson_id: formData.salesperson_id || undefined,
           project_id: formData.project_id,
+          // Phase 6b — recorded, not inferred later at goods issue.
+          warehouse_id: warehouse.warehouseId,
         },
         validItems
       );
