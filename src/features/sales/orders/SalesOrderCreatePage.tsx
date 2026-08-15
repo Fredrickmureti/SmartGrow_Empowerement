@@ -395,6 +395,10 @@ export default function SalesOrderCreatePage() {
                   }}
                 />
               </FieldCell>
+
+              <FieldCell>
+                <SalesWarehouseField selection={warehouse} label="Reserve stock from" />
+              </FieldCell>
             </FieldGrid>
           </FieldGroup>
 

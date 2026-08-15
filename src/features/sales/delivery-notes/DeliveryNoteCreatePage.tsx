@@ -405,6 +405,8 @@ export default function DeliveryNoteCreatePage() {
                   </FormItem>
                 )}
               />
+
+              <SalesWarehouseField selection={warehouse} label="Ship from warehouse" />
             </FieldGrid>
           </FieldGroup>
 
