@@ -35,6 +35,7 @@ import {
   type EditableLineColumn,
   type EditableRowLayout,
 } from "@/design-system/records/EditableLineItemsGrid";
+import type { LineStockEval } from "@/features/sales/availability";
 
 export interface InvoiceLineItemShape {
   product_id?: string;
@@ -82,9 +83,12 @@ export const INVOICE_LINE_COLUMNS: EditableLineColumn[] = [
   { id: "line_total", header: "Total", priority: 1, minWidth: 110, numeric: true },
 ];
 
-interface StockEval {
-  product: InvoiceLineRowProduct;
-}
+/**
+ * Stock status is described by ONE declaration, `LineStockEval` from
+ * `@/features/sales/availability` (Phase 5 contract). This row must not
+ * re-declare a narrower/wider shape: doing so is what let the invoice pages
+ * and the row disagree about which product fields a stock badge needs.
+ */
 
 interface Props {
   index: number;
@@ -95,7 +99,7 @@ interface Props {
   flashed: boolean;
   isSubmitting?: boolean;
   /** Optional — when present the row renders stock status. */
-  stockEval?: StockEval | null;
+  stockEval?: LineStockEval | null;
   /** Optional — when present the row renders the analytics cell. */
   headerProjectId?: string | null;
   customerId?: string | null;
