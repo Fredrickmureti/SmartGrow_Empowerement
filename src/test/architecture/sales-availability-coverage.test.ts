@@ -107,4 +107,28 @@ describe("Sales availability coverage", () => {
       ).toBe(false);
     },
   );
+
+  // Phase 6.0 — one declaration of the stock-evaluation shape.
+  //
+  // Phase 5 removed the duplicated oversell *logic* but left a duplicated
+  // *type*: `InvoiceLineRow` re-declared a local `StockEval` whose `product`
+  // was the wider row product, so passing the shared `LineStockEval` into it
+  // failed to compile. Any row component that renders stock status must
+  // consume `LineStockEval` from the availability module.
+  it.each([
+    "src/components/invoices/InvoiceLineRow.tsx",
+    "src/components/documents/lines/PricedLineRow.tsx",
+  ])("%s consumes the shared LineStockEval instead of re-declaring it", (file) => {
+    const source = read(file);
+    if (!source.includes("stockEval")) return;
+    expect(
+      /interface\s+StockEval\b|type\s+StockEval\s*=/.test(source),
+      `${file} re-declares a local StockEval. Import LineStockEval from ` +
+        `@/features/sales/availability so the row and the hook cannot drift.`,
+    ).toBe(false);
+    expect(
+      source,
+      `${file} renders stock status but never references LineStockEval.`,
+    ).toContain("LineStockEval");
+  });
 });
