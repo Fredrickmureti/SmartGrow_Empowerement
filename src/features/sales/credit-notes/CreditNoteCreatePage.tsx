@@ -168,6 +168,7 @@ export default function CreditNoteCreatePage() {
   const calculateLineTotal = (item: LineItem) => {
     const { line_total, tax_amount } = computeLine({
       quantity: item.quantity,
+      display_quantity: item.display_quantity,
       unit_price: item.unit_price,
       tax_rate: item.tax_rate,
     });

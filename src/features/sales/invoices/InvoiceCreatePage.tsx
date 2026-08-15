@@ -261,6 +261,7 @@ export default function InvoiceCreatePage() {
     // See src/lib/invoiceLineMath.ts for the canonical rule and rationale.
     const { line_total, tax_amount } = computeLine({
       quantity: item.quantity,
+      display_quantity: item.display_quantity,
       unit_price: item.unit_price,
       discount_percent: item.discount_percent,
       tax_rate: item.tax_rate,
@@ -278,6 +279,7 @@ export default function InvoiceCreatePage() {
       const updatedItem = { ...newItems[index], ...updates };
       const { line_total, tax_amount } = computeLine({
         quantity: updatedItem.quantity,
+        display_quantity: updatedItem.display_quantity,
         unit_price: updatedItem.unit_price,
         discount_percent: updatedItem.discount_percent,
         tax_rate: updatedItem.tax_rate,
