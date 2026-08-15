@@ -1,1 +1,3 @@
 project_id = "jkszmrroyjfdwokbkzis"
+[functions.uom-sim]
+verify_jwt = false
