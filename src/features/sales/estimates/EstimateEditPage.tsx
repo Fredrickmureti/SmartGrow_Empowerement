@@ -298,57 +298,41 @@ export default function EstimateEditPage() {
       const additionalCostsTax = additionalCosts.reduce((sum, c) => sum + c.tax_amount, 0);
       const total = totals.total;
 
-      const { error: estimateError } = await supabase
-        .from("estimates")
-        .update({
+      // Phase 9: one governed server transaction owns the header, the lines
+      // and the additional costs. Client totals above are preview only — the
+      // server resolves base quantities and rewrites every total.
+      await updateEstimateAtomic(
+        estimate.id,
+        {
           contact_id: formData.contact_id || null,
           expiry_date: formData.expiry_date,
           notes: formData.notes || null,
           terms: formData.terms || null,
           discount_amount: formData.discount_amount,
-          subtotal,
-          tax_amount: totals.tax_amount,
-          total,
-        })
-        .eq("id", estimate.id);
-      if (estimateError) throw estimateError;
-
-      await supabase.from("estimate_items").delete().eq("estimate_id", estimate.id);
-      if (validItems.length > 0) {
-        const newItems = validItems.map((item, index) => ({
-          estimate_id: estimate.id,
+        },
+        validItems.map((item, index) => ({
           product_id: item.product_id || null,
           description: item.description,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          tax_rate: item.tax_rate,
-          tax_amount: item.tax_amount,
-          discount_percent: item.discount_percent,
-          line_total: item.line_total,
-          sort_order: index,
-          packaging_id: (item as LineItem).packaging_id ?? null,
           display_quantity: (item as LineItem).display_quantity ?? null,
           display_uom_id: (item as LineItem).display_uom_id ?? null,
-        }));
-        const { error: insertError } = await supabase.from("estimate_items").insert(newItems);
-        if (insertError) throw insertError;
-      }
-
-      await supabase.from("estimate_additional_costs").delete().eq("estimate_id", estimate.id);
-      const validCosts = additionalCosts.filter((cost) => cost.name && cost.amount > 0);
-      if (validCosts.length > 0) {
-        const newCosts = validCosts.map((cost, index) => ({
-          estimate_id: estimate.id,
-          name: cost.name,
-          amount: cost.amount,
-          is_taxable: cost.is_taxable,
-          tax_rate: cost.tax_rate,
-          tax_amount: cost.tax_amount,
+          packaging_id: (item as LineItem).packaging_id ?? null,
+          unit_price: item.unit_price,
+          discount_percent: item.discount_percent,
+          tax_rate: item.tax_rate,
           sort_order: index,
-        }));
-        const { error: costsError } = await supabase.from("estimate_additional_costs").insert(newCosts);
-        if (costsError) throw costsError;
-      }
+        })),
+        additionalCosts
+          .filter((cost) => cost.name && cost.amount > 0)
+          .map((cost, index) => ({
+            name: cost.name,
+            amount: cost.amount,
+            is_taxable: cost.is_taxable,
+            tax_rate: cost.tax_rate,
+            sort_order: index,
+          })),
+      );
+
 
       toast({ title: "Estimate updated successfully" });
       navigate(`/sales/estimates/${estimate.id}`);
