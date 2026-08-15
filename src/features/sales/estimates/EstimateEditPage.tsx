@@ -46,6 +46,7 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 type LineItem = Omit<EstimateItem, "id" | "estimate_id"> & { id?: string };
 
@@ -200,6 +201,10 @@ export default function EstimateEditPage() {
 
   // Scan-to-line parity — same workspace scanner as every other Sales document.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
     setLineItems,

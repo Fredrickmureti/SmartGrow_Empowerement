@@ -50,6 +50,7 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 export default function EstimateCreatePage() {
   const navigate = useNavigate();
@@ -130,6 +131,10 @@ export default function EstimateCreatePage() {
   // Scan-to-line parity — the Sales workspace scan transport is live on every
   // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
 
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(

@@ -54,6 +54,7 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 const formSchema = z.object({
   contact_id: z.string().min(1, "Customer is required"),
@@ -117,6 +118,10 @@ export default function ProformaCreatePage() {
   // Scan-to-line parity — the Sales workspace scan transport is live on every
   // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, watchedContactId || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
 
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(

@@ -72,6 +72,7 @@ import { cn } from "@/lib/utils";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 export default function InvoiceCreatePage() {
   const navigate = useNavigate();
@@ -144,6 +145,10 @@ export default function InvoiceCreatePage() {
   const [lineItems, setLineItems] = useState<Omit<InvoiceItem, "id" | "invoice_id">[]>([
     { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
   ]);
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
 
   const linesTableRef = useRef<HTMLDivElement | null>(null);
   const initialScanKeyRef = useRef<string | null>(null);

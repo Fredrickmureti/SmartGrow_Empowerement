@@ -43,6 +43,7 @@ import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 interface LineItem {
   id?: string;
@@ -189,6 +190,10 @@ export default function SalesOrderEditPage() {
 
   // Scan-to-line parity — same workspace scanner as every other Sales document.
   const { currentBusiness } = useBusinesses();
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const { currentBranch } = useBranches();
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
     setLineItems,

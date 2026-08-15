@@ -53,6 +53,7 @@ import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
+import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 
 type LineItem = Omit<InvoiceItem, "id" | "invoice_id"> & { id?: string };
 
@@ -91,6 +92,10 @@ export default function InvoiceEditPage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, formData.contact_id || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
   const linesTableRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch the invoice by :id from the URL. Only drafts are editable —
