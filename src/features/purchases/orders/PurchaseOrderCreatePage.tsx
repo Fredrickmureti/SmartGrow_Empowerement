@@ -51,6 +51,11 @@ import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { normalizeError } from "@/services/resilience";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 import {
+  resolvePurchaseLineDefaults,
+  summarisePurchaseLineRefusals,
+  validatePurchaseLinesAgainstTerms,
+} from "@/features/purchases/purchasingTerms/purchaseLineTerms";
+import {
   useSupplierContracts,
   contractRemaining,
   findContractLine,
