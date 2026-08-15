@@ -485,6 +485,19 @@ function POSTerminalInner() {
   const { state: terminalState, dispatch: terminalDispatch, openSheet } = useTerminalContext();
   const showPayment = terminalState.phase === "tender";
   const openTender = useCallback(() => {
+    // Phase 4 — pricing authority. Tender is only allowed against a
+    // server-quoted basket (`pos_quote_cart`). If the pricing authority is
+    // unreachable or the quote does not yet describe the current cart we
+    // FAIL CLOSED rather than taking money against locally computed money.
+    if (cart.items.length > 0 && !cart.isPricingAuthoritative) {
+      if (cart.pricingStatus === "pending" || cart.isQuoting) {
+        toast.info("Confirming prices with the server…");
+      } else {
+        toast.error("Prices could not be confirmed with the server. Payment is blocked.");
+        cart.refetchQuote?.();
+      }
+      return;
+    }
     terminalDispatch({
       kind: "op",
       op: "openTender",
@@ -493,7 +506,17 @@ function POSTerminalInner() {
           ? cart.transactionId
           : paymentSessionIdempotencyKey,
     });
-  }, [terminalDispatch, cart.isRestaurantMode, cart.transactionId, paymentSessionIdempotencyKey]);
+  }, [
+    terminalDispatch,
+    cart.isRestaurantMode,
+    cart.transactionId,
+    cart.items.length,
+    cart.isPricingAuthoritative,
+    cart.pricingStatus,
+    cart.isQuoting,
+    cart.refetchQuote,
+    paymentSessionIdempotencyKey,
+  ]);
   const setShowPayment = useCallback(
     (next: boolean) => {
       if (next) openTender();
