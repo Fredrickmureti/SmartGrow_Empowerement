@@ -172,6 +172,9 @@ export function useEstimates() {
         notes: estimate.notes ?? null,
         terms: estimate.terms ?? null,
         discount_amount: estimate.discount_amount ?? 0,
+        // Callers that already allocated a number keep it, so
+        // `get_next_estimate_number` never leaves a gap in the series.
+        estimate_number: estimate.estimate_number ?? null,
         currency: estimate.currency ?? null,
         template_id: (estimate as { template_id?: string | null }).template_id ?? null,
         source_lead_id: (estimate as { source_lead_id?: string | null }).source_lead_id ?? null,
