@@ -59,6 +59,10 @@ import {
   evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import {
+  OversellConfirmation,
+  useSalesLineAvailability,
+} from "@/features/sales/availability";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
@@ -609,36 +613,11 @@ export default function InvoiceCreatePage() {
         <CustomFieldsSection entityType="invoice" entityId={null} formValues={formData} disabled={isSubmitting} />
 
         {/* Oversell confirmation — required when any line exceeds available stock */}
-        {false && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="space-y-2">
-              <div className="font-semibold">
-                {oversoldLines.length === 1
-                  ? "1 line exceeds available stock"
-                  : `${oversoldLines.length} lines exceed available stock`}
-              </div>
-              <ul className="text-sm list-disc pl-5 space-y-0.5">
-                {oversoldLines.map((o) => (
-                  <li key={o.i}>
-                    <strong>{o.product.name}</strong>: {o.result.message}
-                  </li>
-                ))}
-              </ul>
-              <div className="flex items-start gap-2 pt-2">
-                <Checkbox
-                  id="confirmOversell"
-                  checked={confirmOversell}
-                  onCheckedChange={(c) => setConfirmOversell(c === true)}
-                  disabled={isSubmitting}
-                />
-                <Label htmlFor="confirmOversell" className="text-sm font-normal cursor-pointer leading-snug">
-                  I confirm overselling — proceed with this invoice even though stock is insufficient. Backorder may be required.
-                </Label>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+        <OversellConfirmation
+          kind="invoice"
+          availability={availability}
+          disabled={isSubmitting}
+        />
 
         {/* Mark as sent checkbox — stays in body */}
         <div className="flex items-center space-x-2">
