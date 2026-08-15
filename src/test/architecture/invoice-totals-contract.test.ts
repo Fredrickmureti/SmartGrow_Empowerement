@@ -16,6 +16,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { computeLine, computeTotals } from "@/lib/invoiceLineMath";
 
 // Phase-3: CreateInvoiceDialog / EditInvoiceDialog retired. The create + edit
 // surfaces now live as routes on RecordFormShell.
