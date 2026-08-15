@@ -16,51 +16,89 @@ active, and what the next agent does first.
 | 5 | Availability policy (`salesStockPolicy`) consumed by every line-capturing editor. |
 | 6 | Invoice ↔ Receivables: governed writes, server GL resolution, atomic idempotent creation. |
 | 6b | Fulfilment warehouse recorded on invoice / sales order / delivery note; availability read from that same warehouse. |
-| 7 | **Sale-time tax** — `resolve_sales_line_tax` is the single authority; document-dated, validates line-level rates, refuses invented free-text rates, handles fixed-amount and inclusive rates, rejects compound, stamps `tax_rate_id` for audit. Client is preview-only. |
+| 7 | Sale-time tax — `resolve_sales_line_tax` is the single authority; client is preview-only. |
 
-Verification for the current phase: `tsgo` clean; 44 architecture guard tests
-passing (`sales-tax-authority`, `invoice-totals-contract`,
-`sales-warehouse-selection`, `sales-availability-coverage`,
-`invoice-creation-atomic`); live resolver probes for accepted, rejected and
-exempt tax paths.
+## Independent verification of the previous agent's claims (this session)
+
+Read from the live database (`pg_proc`, `pg_trigger`, `information_schema`),
+not from migration files.
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Phase 7 tax resolver exists | ✅ confirmed | `resolve_sales_line_tax(p_business_id, p_product_id, p_contact_id, p_date, p_tax_rate_id, p_requested_rate)` present; `_totals_normalize_line()` present and wired via `trg_zz_pricing_normalize_*` on invoice / SO / estimate lines. |
+| Invoice creation is atomic + idempotent | ✅ confirmed | `create_invoice_atomic(p_header, p_items, p_user_id, p_idempotency_key)`; `public.sales_document_idempotency` exists with `(business_id, document_type, idempotency_key) → document_id, response`. |
+| Invoices and sales orders are governed writes | ✅ confirmed | `trg_00_invoices_governed_write`, `trg_00_sales_order_governed_write`. |
+| Phase 9 (estimates) still open | ✅ confirmed pending | **No** `trg_00_estimates_governed_write`; no `create_estimate_atomic` / `update_estimate_atomic`. `EstimateEditPage.tsx` (lines 316–333) and `useEstimates.ts` (191, 269–277) delete-then-insert `estimate_items` straight from the browser. |
+| Phase 10 (idempotency) still open | ✅ confirmed pending | `create_sales_order_atomic(p_header, p_items, p_user_id)` takes **no** idempotency key; `convert_estimate_to_invoice_atomic` and `convert_estimate_to_so_atomic` likewise. Only invoice creation is protected. |
+
+No previously-claimed phase was found to be falsely marked complete.
+Two additional defects surfaced during verification and are folded into the
+phases below:
+
+- **D1 — estimate lines are not transactional.** Browser edit does
+  `delete … where estimate_id` then `insert`; a failure between the two leaves
+  an estimate with zero lines while the header still shows totals.
+- **D2 — conversion paths bypass idempotency.** Estimate → invoice and
+  estimate → sales order are one-click server RPCs with no key, so a
+  double-click or retry can create two downstream documents from one estimate.
 
 ## Currently active phase
 
-None in flight — Phase 7 closed cleanly. The next phase has not been started.
+**Phase 9 — governed writes and atomic lifecycle for estimates.**
 
 ## Pending work, in roadmap order
 
-1. **Phase 9 — document lifecycles.** `estimate_items` and
-   `estimate_additional_costs` are still inserted and deleted directly from the
-   browser. Bring them under a governed write path like their siblings
-   (`trg_00_*_governed_write` + an atomic writer RPC).
-2. **Phase 10 — server authority & concurrency.** `create_sales_order_atomic`
-   and the converters accept no idempotency key; reuse
-   `public.sales_document_idempotency`. Prove double-submit, retry, refresh and
-   two-user edit behaviour.
-3. **Phase 11** — multi-tenant / branch scope audit, including document
-   numbering.
-4. **Phases 12–14** — events on `business_event_outbox`, failure semantics,
-   reporting-vs-transactional boundaries.
+1. **Phase 9 — estimate lifecycle (active).**
+   - `trg_00_estimates_governed_write` + a matching guard on `estimate_items`
+     and `estimate_additional_costs`, mirroring the invoice/SO pattern: direct
+     browser DML is refused; only the writer RPCs may mutate.
+   - `create_estimate_atomic(p_header, p_items, p_costs, p_user_id, p_idempotency_key)`
+     and `update_estimate_atomic(...)` performing header + lines + additional
+     costs in one transaction, reusing `resolve_line_base_quantity`,
+     `_totals_normalize_line` and `resolve_sales_line_tax` (no new engines).
+   - Rewrite `useEstimates.ts` and `EstimateEditPage.tsx` to call the RPCs;
+     delete the direct `estimate_items` insert/delete paths (fixes D1).
+   - Immutability: once an estimate is accepted/converted, lines are frozen —
+     enforced by the governed-write trigger, not by the UI.
+   - Guard test `estimate-governed-write.test.ts`: no `from("estimate_items")`
+     / `estimate_additional_costs` mutation outside the writer seam.
+
+2. **Phase 10 — server authority & concurrency.**
+   - Add `p_idempotency_key` to `create_sales_order_atomic`,
+     `convert_estimate_to_invoice_atomic`, `convert_estimate_to_so_atomic` and
+     the delivery-note creator, all recording through
+     `public.sales_document_idempotency` (same insert-on-conflict-return-cached
+     shape `create_invoice_atomic` already uses) — fixes D2.
+   - Client generates the key once per form instance (not per click), so
+     double-click, refresh-and-resubmit and network retry return the first
+     document rather than creating a second.
+   - Row-level locking on conversion sources (`select … for update` on the
+     estimate/SO) so two users converting the same document serialise.
+   - Guard test + live probes: double-submit, retry, refresh, two-user edit.
+
+3. **Phase 11 — multi-tenant / branch scope audit**, including document
+   numbering: confirm every Sales writer stamps `organization_id`,
+   `business_id`, `branch_id` server-side from the session resolver (never from
+   the client payload), and that number allocation is unique per
+   business+branch+series under concurrency.
+
+4. **Phases 12–14** — business events on `business_event_outbox` for the Sales
+   lifecycle (order confirmed, delivery confirmed, invoice issued, credit note
+   issued), failure semantics for outbox consumers, and the
+   reporting-vs-transactional read-model boundary.
+
 5. Carry-overs: route the manual product picker through the ADR 0114 identity
    seam; `process-recurring-invoices` still writes `next_run_date` itself.
 
-## Instructions for the next agent
+## Working rules for this wave
 
-1. **Verify before you build.** Confirm Phase 7 actually holds in the live
-   database, not in migration files:
-   - `resolve_sales_line_tax` exists and `_totals_normalize_line` calls it;
-   - a line-level `tax_rate_id` from another company, an inactive rate, an
-     expired rate and an unconfigured free-text rate are each rejected;
-   - a back-dated invoice picks up the rate in force on its `issue_date`;
-   - the applied `tax_rate_id` is stamped on the saved line;
-   - `bunx vitest run src/test/architecture` and `bunx tsgo --noEmit -p
-     tsconfig.app.json` are clean.
-   Record the verdict in `docs/plans/sales-domain-live-status.md`.
-2. **Then start Phase 9** (governed writes for estimates) — not any other area
-   of the system. Finish it to a production-ready state, with a guard test and
-   a ledger entry, before touching Phase 10.
+1. Verify against the live database, never against `supabase/migrations/**`
+   (known stale).
+2. Consume canonical engines (`convert_uom`, `resolve_product_identity`,
+   `resolve_product_price`, `resolve_sales_line_tax`, `reserve_stock_atomic`,
+   accounting posting). Never add a Sales-local duplicate.
 3. Never work around an upstream defect inside Sales: fix it in its owning
    domain, or mark the phase blocked with evidence.
 4. Update `docs/plans/sales-domain-live-status.md` **and** this file at the end
-   of every phase.
+   of every phase, with evidence and the verification commands run
+   (`bunx vitest run src/test/architecture`, `bunx tsgo --noEmit -p tsconfig.app.json`).
