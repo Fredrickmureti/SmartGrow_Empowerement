@@ -7,8 +7,9 @@
 | 1 | Product consumption / read seam | ✅ fixed | done (this loop) |
 | 2 | UoM & packaging contract | ✅ grid parity | done (this loop) |
 | 3 | Inventory availability | ✅ fixed | done (this loop) |
-| 4 | Pricing & tax authority | — | **ACTIVE NEXT** |
-| 5-15 | (unchanged) | — | not started |
+| 4 | Pricing & tax authority | ✅ fixed | done (this loop) |
+| 5 | Transaction/commit integrity & saga | — | **ACTIVE NEXT** |
+| 6-15 | (unchanged) | — | not started |
 
 ## Phase 1 — closed
 - Root cause confirmed: `list_products_with_branch_stock` had two overloads
