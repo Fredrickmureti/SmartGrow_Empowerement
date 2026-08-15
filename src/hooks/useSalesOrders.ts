@@ -373,8 +373,33 @@ export function useSalesOrders() {
       toast.success(
         `Sales order confirmed${
           created > 0 ? ` — ${created} stock reservation(s) created` : ""
-        }${skipped > 0 ? `, ${skipped} skipped (insufficient stock)` : ""}`
+        }`
       );
+
+      // A skipped reservation is a real fulfilment gap: the order is confirmed
+      // and the customer is promised goods the warehouse has not set aside.
+      // Burying that in the tail of a success toast let it go unnoticed, so
+      // raise it separately, name the products, and keep it on screen long
+      // enough to act on.
+      if (skipped > 0) {
+        const reasons = Array.isArray(result.skip_reasons) ? result.skip_reasons : [];
+        const detail = reasons
+          .slice(0, 4)
+          .map((r: any) =>
+            [r?.product_name ?? r?.product_id, r?.reason].filter(Boolean).join(": "),
+          )
+          .filter(Boolean)
+          .join("\n");
+        toast.warning(
+          `${skipped} line(s) could not be reserved — insufficient stock`,
+          {
+            description:
+              (detail || "Review stock levels and backorder or restock these lines.") +
+              (reasons.length > 4 ? `\n…and ${reasons.length - 4} more` : ""),
+            duration: 12000,
+          },
+        );
+      }
       invalidate();
       return true;
     } catch (err: any) {
