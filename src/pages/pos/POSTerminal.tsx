@@ -941,6 +941,11 @@ function POSTerminalInner() {
 
   const handlePaymentComplete = async (payments: Array<{ method: string; amount: number; tendered_amount?: number; change_given?: number; reference?: string; card_last_four?: string | null; card_type?: string | null; auth_state?: string | null; auth_id?: string | null; vendor_txn_id?: string | null; authorized_amount?: number | null }>) => {
     if (!activeShift || !registerId) return;
+    // Defense in depth (Phase 4): never commit against unquoted money.
+    if (cart.items.length > 0 && !cart.isPricingAuthoritative) {
+      toast.error("Prices could not be confirmed with the server. Payment is blocked.");
+      return;
+    }
 
     // Capture cart state before clearing (needed for post-transaction integrations)
     const capturedCartState = { ...cart.cartState };
