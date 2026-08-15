@@ -16,6 +16,7 @@ import { z } from "zod";
 import { useSalesOrders } from "@/hooks/useSalesOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { useSellableUnits } from "@/hooks/useSellableUnits";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
@@ -99,6 +100,7 @@ export default function SalesOrderCreatePage() {
   const { createSalesOrder } = useSalesOrders();
   const { contacts } = useContacts();
   const { products, branchScopeLabel } = useBranchScopedProducts();
+  const { unitsForBase } = useSellableUnits();
   const { paymentTerms } = usePaymentTerms();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -106,6 +108,17 @@ export default function SalesOrderCreatePage() {
   ]);
 
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
+
+  /** Units each product may be sold in; the server re-derives base quantity. */
+  const unitsFor = useCallback(
+    (productId: string | null | undefined) => {
+      if (!productId) return null;
+      const p = products.find((x) => x.id === productId);
+      if (!p?.base_uom_id) return null;
+      return { baseUomId: p.base_uom_id, options: unitsForBase(p.base_uom_id) };
+    },
+    [products, unitsForBase],
+  );
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -403,6 +416,7 @@ export default function SalesOrderCreatePage() {
                   layout={layout}
                   formatCurrency={formatLineCurrency}
                   onPatch={patchLineItem}
+                  unitsFor={unitsFor}
                 />
               )}
             />
