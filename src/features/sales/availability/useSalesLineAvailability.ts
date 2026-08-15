@@ -13,7 +13,7 @@
  *  - The number is server-owned (ADR 0142). This hook only *reads*
  *    `product.available`, which `useBranchScopedProducts` fetches from
  *    `list_products_with_branch_stock` → `resolve_stock_availability_batch`.
- *    It never derives availability from `quantity - reserved`.
+ *    It never derives availability client-side from on-hand less reservations.
  *  - `line.quantity` is ALWAYS base units (Phase 3 quantity contract), and
  *    `available` is base units too, so the comparison is unit-correct for
  *    packaged and alternate-UoM lines.
