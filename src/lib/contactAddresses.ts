@@ -290,7 +290,7 @@ export async function captureRemitToSnapshot(
  * rows without a snapshot, which is exactly the legacy behaviour.
  */
 export async function freezeBillToSnapshot(
-  table: "credit_notes" | "proforma_invoices",
+  table: "credit_notes" | "proforma_invoices" | "invoices",
   documentId: string,
   contactId: string | null | undefined,
 ): Promise<void> {
