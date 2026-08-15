@@ -15,6 +15,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { activeIdentifiersForProduct } from "@/features/products/identity/activeIdentifiers";
+import { PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 import {
   resolveAvailability,
   type StockAvailability,
