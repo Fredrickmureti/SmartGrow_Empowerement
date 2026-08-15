@@ -10,7 +10,8 @@
  *
  * A price the user types is never overwritten — it is recorded as `manual`.
  */
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface LinePriceRequest {
@@ -51,5 +52,53 @@ export function useLinePriceResolver(
       return (data as unknown as ResolvedLinePrice) ?? null;
     },
     [businessId, contactId],
+  );
+}
+
+/**
+ * Applies the server-resolved price to a line in a `useState` line array.
+ * Call it whenever the product, packaging or selling unit changes — the price
+ * of "one unit" only means something once those are known.
+ */
+export function useServerPriceApplier<
+  T extends {
+    product_id?: string | null;
+    packaging_id?: string | null;
+    display_uom_id?: string | null;
+    display_quantity?: number | null;
+    quantity?: number | null;
+    unit_price?: number;
+  },
+>(
+  lines: T[],
+  setLines: Dispatch<SetStateAction<T[]>>,
+  resolvePrice: ReturnType<typeof useLinePriceResolver>,
+) {
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+
+  return useCallback(
+    async (index: number, patch: Partial<T>) => {
+      const row = { ...(linesRef.current[index] ?? ({} as T)), ...patch } as T;
+      if (!row.product_id) return;
+      const res = await resolvePrice({
+        productId: row.product_id,
+        packagingId: row.packaging_id ?? null,
+        displayUomId: row.display_uom_id ?? null,
+        displayQuantity: row.display_quantity ?? row.quantity ?? 1,
+      });
+      if (!res) return;
+      setLines((prev) =>
+        prev.map((it, i) => {
+          if (i !== index) return it;
+          const nextLine: Record<string, unknown> = { ...it, unit_price: res.unit_price };
+          if ("discount_percent" in it && res.discount_percent > 0 && !Number((it as Record<string, unknown>).discount_percent)) {
+            nextLine.discount_percent = res.discount_percent;
+          }
+          return nextLine as T;
+        }),
+      );
+    },
+    [resolvePrice, setLines],
   );
 }
