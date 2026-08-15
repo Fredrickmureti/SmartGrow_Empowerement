@@ -37,6 +37,11 @@ export interface SalesCreditNoteItemRow {
   pack_quantity?: number | null;
   pack_size?: number | null;
   unit_of_measure?: string | null;
+  /** Pack provenance forwarded to the renderers (see lineItemUom.ts). */
+  display_quantity?: number | null;
+  packaging_label?: string | null;
+  base_uom_label?: string | null;
+  uom_snapshot?: string | null;
 }
 
 export interface SalesCreditNoteContactRow {
@@ -126,6 +131,13 @@ export function buildSalesCreditNoteSnapshot(
       item.packaging?.name ??
       item.product?.base_uom?.code ??
       null,
+    // Pack provenance — the renderers (PDF LineItemsTable, receipt)
+    // branch on these; omitting them prints base qty with an
+    // invented "ea" unit.
+    display_quantity: item.display_quantity ?? null,
+    packaging_label: item.packaging_label ?? null,
+    base_uom_label: item.base_uom_label ?? null,
+    uom_snapshot: item.uom_snapshot ?? null,
   }));
 
   const currency = cn.currency || "USD";
