@@ -48,7 +48,12 @@ export interface LineWithProvenance {
   packaging?: PackagingRef | null;
   /** Convenience: short display label when the packaging row was not joined. */
   packaging_label?: string | null;
+  /** Joined product, used only to recover the base unit of a pre-Phase-2 row. */
+  product?: { base_uom?: { code?: string | null; name?: string | null } | null } | null;
+  /** Flat base-unit label supplied by a snapshot/normalizer. */
+  base_uom_label?: string | null;
 }
+
 
 /** Structured snapshot resolved from a line, with live data as fallback. */
 export interface ResolvedLineSnapshot {
