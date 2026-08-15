@@ -98059,6 +98059,16 @@ export type Database = {
         Args: { p_older_than_minutes?: number }
         Returns: number
       }
+      pos_quote_cart: {
+        Args: {
+          p_cart_discount_type?: string
+          p_cart_discount_value?: number
+          p_contact_id?: string
+          p_lines: Json
+          p_register_id: string
+        }
+        Returns: Json
+      }
       pos_reconcile_register_period: {
         Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
         Returns: string
@@ -98100,9 +98110,13 @@ export type Database = {
       }
       pos_resolve_line: {
         Args: {
+          p_at?: string
           p_business_id: string
+          p_contact_id?: string
           p_discount_type: string
           p_discount_value: number
+          p_display_uom_id?: string
+          p_packaging_id?: string
           p_product_id: string
           p_quantity: number
           p_requested_unit_price: number
