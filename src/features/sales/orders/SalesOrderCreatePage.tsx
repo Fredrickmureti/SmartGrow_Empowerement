@@ -104,7 +104,12 @@ export default function SalesOrderCreatePage() {
 
   const { createSalesOrder } = useSalesOrders();
   const { contacts } = useContacts();
-  const { products, branchScopeLabel } = useBranchScopedProducts();
+  // Phase 6b: availability must be read from the same warehouse that
+  // confirmation will reserve against.
+  const warehouse = useSalesWarehouse();
+  const { products, branchScopeLabel } = useBranchScopedProducts({
+    warehouseId: warehouse.warehouseId,
+  });
   /** Sell units per product; the server re-derives the base quantity. */
   const unitsFor = useUnitsForProducts(products);
   const { paymentTerms } = usePaymentTerms();
