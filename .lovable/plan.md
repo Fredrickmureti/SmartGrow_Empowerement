@@ -20,7 +20,14 @@ Out of scope by design: `CreditNoteEditPage` (lines locked, no product picker).
 - `price_source` column present on all five line tables.
 - `src/hooks/useLinePriceResolver.ts` exists and is consumed by Sales Order create/edit, Estimate create/edit, Invoice create/edit, Proforma create and Credit Note create.
 
-No rework required on milestones 1, 2 or 4. Residual note: no `product_packaging` / `price_list_items` rows exist in the current dataset, so packaging-specific and tiered precedence remain logic-verified only.
+**Defect found in milestone 4 (contradicts the previous engineer's "tsgo clean" claim):**
+`src/features/sales/credit-notes/CreditNoteCreatePage.tsx(183)` — TS2448: block-scoped
+variable `applyServerPrice` used before its declaration. The Credit Note create editor's
+server-price wiring does not compile. Fix first, before Milestone 3: move the
+`useServerPriceApplier` call above its first use (or wrap the consumer in a callback that
+reads it lazily), and re-run `tsgo --noEmit`.
+
+Otherwise no rework required on milestones 1, 2 or 4. Residual note: no `product_packaging` / `price_list_items` rows exist in the current dataset, so packaging-specific and tiered precedence remain logic-verified only.
 
 ### Milestone 3 — server-side tax and document totals (ACTIVE)
 
