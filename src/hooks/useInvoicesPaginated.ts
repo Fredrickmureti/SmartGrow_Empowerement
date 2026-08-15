@@ -244,6 +244,8 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
       status?: "draft" | "sent";
       salesperson_id?: string;
       project_id?: string | null;
+      /** Phase 6b — warehouse this invoice issues stock from. */
+      warehouse_id?: string | null;
     },
     items: Omit<InvoiceItem, "id" | "invoice_id">[]
   ) => {
@@ -258,6 +260,7 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
         business_id: currentBusiness.id,
         // Stage 3: stamp the active branch for per-branch sales reporting.
         branch_id: (invoice as any).branch_id ?? currentBranch?.id ?? null,
+        warehouse_id: invoice.warehouse_id ?? null,
         contact_id: invoice.contact_id ?? null,
         due_date: invoice.due_date,
         notes: invoice.notes ?? null,
