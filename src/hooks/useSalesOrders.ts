@@ -39,6 +39,8 @@ export interface SalesOrder {
   is_locked?: boolean;
   branch_id?: string | null;
   business_id?: string | null;
+  /** Phase 6b — the warehouse confirmation reserves stock against. */
+  warehouse_id?: string | null;
   contact?: { name: string; email: string | null } | null;
   items?: SalesOrderItem[];
 }
