@@ -63,10 +63,53 @@ export function fromBase(baseQty: number, packaging?: PackagingRef | null): numb
   return baseQty / f;
 }
 
-/** Short label for the base unit (falls back to "ea"). */
+/**
+ * Short label for the base unit of a *transaction line*, where a missing
+ * reference legitimately means "counted piece" ("ea").
+ *
+ * Do NOT use this for a product master surface — a product whose
+ * `base_uom_id` is unset is a configuration defect, and calling it "ea"
+ * silently mislabels sugar as a countable item. Use
+ * {@link productBaseLabel} there.
+ */
 export function baseUomLabel(uom?: BaseUomRef | null): string {
   return (uom?.code || uom?.name || "ea").trim() || "ea";
 }
+
+/**
+ * PostgREST embed that every product query feeding a quantity display MUST
+ * include. `products` has NO `unit_of_measure` column — the canonical base
+ * unit is `base_uom_id → units_of_measure`. Selecting a flat
+ * `unit_of_measure` yields `undefined`, which is how "383 ea" reached the
+ * inventory grid for a product stocked in kilograms.
+ */
+export const PRODUCT_BASE_UOM_SELECT = "base_uom:units_of_measure!base_uom_id(code, name)";
+
+/** Rendered in place of a unit when the product has no base UoM configured. */
+export const UOM_UNSET_LABEL = "(no UoM)";
+
+export interface ProductUomRef {
+  base_uom?: BaseUomRef | null;
+}
+
+/**
+ * Canonical base-unit label for a PRODUCT. Returns `null` when the product
+ * has no base UoM configured, so the caller can surface a data-integrity
+ * state instead of inventing a unit.
+ */
+export function productBaseLabel(product?: ProductUomRef | null): string | null {
+  const label = (product?.base_uom?.code || product?.base_uom?.name || "").trim();
+  return label || null;
+}
+
+/**
+ * Display-safe variant: the product's real base unit, or a visible
+ * "(no UoM)" marker. Never "ea" by default.
+ */
+export function productBaseLabelOrUnset(product?: ProductUomRef | null): string {
+  return productBaseLabel(product) ?? UOM_UNSET_LABEL;
+}
+
 
 /** Snapshot string written at transaction time so renames don't drift receipts. */
 export function buildUomSnapshot(
