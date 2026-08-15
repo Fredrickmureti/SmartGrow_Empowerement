@@ -11,6 +11,12 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+/** Strips comment lines so prose about the old behaviour can't trip the guard. */
+const code = (p: string) =>
+  read(p)
+    .split('\n')
+    .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l))
+    .join('\n');
 const SYNC = 'src/hooks/pos/usePOSStockSync.ts';
 
 describe('POS availability authority', () => {
@@ -31,7 +37,7 @@ describe('POS availability authority', () => {
     expect(src).toMatch(/table: "stock_quants"/);
     expect(src).toMatch(/filter: `business_id=eq\.\$\{businessId\}`/);
     expect(src).not.toMatch(/table: "products"/);
-    expect(src).not.toMatch(/\.stock_quantity/);
+    expect(code(SYNC)).not.toMatch(/stock_quantity/);
   });
 
   it('the cached grid quantity is only ever an advisory hint', () => {
