@@ -36,7 +36,10 @@ export interface POSProduct {
   cost_price: number | null;
   tax_rate: number | null;
   stock_quantity: number | null;
+  /** Category display name (for the grid filter chips). */
   category: string | null;
+  /** Canonical category id (what the cart/line contract stores). */
+  category_id: string | null;
   image_url: string | null;
   is_active: boolean;
   track_inventory: boolean;
@@ -78,6 +81,7 @@ export function mapCanonicalProductRow(r: any): POSProduct {
     tax_rate: r.tax_rate === null || r.tax_rate === undefined ? null : Number(r.tax_rate),
     stock_quantity: Number(r.available ?? r.on_hand) || 0,
     category: r.category_name ?? null,
+    category_id: r.category_id ?? null,
     image_url: r.image_url ?? null,
     is_active: r.is_active !== false,
     track_inventory: r.track_inventory !== false,
