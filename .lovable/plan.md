@@ -21,6 +21,28 @@ This file tracks the wave-level state and the active phase only.
 
 ## Phase 6 — Invoice ↔ Receivables boundary (in progress)
 
+### 6.1 — server-side GL resolution — done
+
+`build_invoice_je_lines(invoice_id)` is the single authority for the invoice
+journal entry: receivable account (customer `default_receivable_account_id`
+override, postable-checked, else `_resolve_canonical_default_account
+('accounts_receivable')`), per-line revenue via `resolve_product_gl_account
+(..., 'sales_revenue')` grouped by resolved account, `output_tax` for the tax
+credit, and `discount_given` for a header discount (previously unposted, which
+would have unbalanced any discounted invoice). Missing mappings raise
+actionable errors instead of producing a lopsided entry.
+
+`_confirm_invoice_core` now builds its own lines and *rejects* any
+client-supplied `p_main_lines` (42501). `confirm_invoice_atomic` and
+`confirm_invoice_and_release_stock_atomic` keep the parameter only as a
+now-defaulted, refused legacy argument.
+
+`src/hooks/invoices/confirmInvoiceGL.ts` is a thin RPC seam: no account
+lookups, no journal-line assembly, no `p_main_lines`. Pinned by
+`src/hooks/invoices/__tests__/confirmInvoiceGL.test.ts` (7 passing), whose
+Supabase mock throws if the client reads a table for GL purposes.
+`tsgo` is clean.
+
 ### 6.0 — one stock-evaluation type — done
 
 `InvoiceLineRow` re-declared a local `StockEval`, so the shared
@@ -52,15 +74,30 @@ already rewrites them from the lines, which is stronger than rejection.
 
 ### Remaining Phase 6 work
 
-1. **6.1 — server-side GL resolution.** `confirm_invoice_atomic` still accepts
-   `p_main_lines jsonb`: the browser (`src/hooks/invoices/confirmInvoiceGL.ts`)
-   resolves AR / revenue / tax accounts and builds the journal lines, and the
-   server trusts them. Move resolution into `_confirm_invoice_core` using
-   `resolve_product_gl_account` / `_resolve_canonical_default_account`, then
-   reject client-supplied lines.
-2. **6.2 — atomic invoice creation.** Invoice creation is a two-step browser
+1. **6.2 — atomic invoice creation (NEXT, active milestone).** Invoice creation is a two-step browser
    insert (header, then lines) with no idempotency key. Replace with
    `create_invoice_atomic(p_idempotency_key ...)`.
+
+### Known pre-existing failure (not caused by Phase 6)
+
+`src/test/architecture/recurring-invoicing-single-engine.test.ts` fails: the
+`process-recurring-invoices` worker still writes `next_run_date` itself. This
+predates this wave and belongs to the recurring-invoicing engine, not Sales
+Phase 6 — record it, do not fold it into 6.2.
+
+## Instructions for the next agent
+
+1. **Verify 6.1 before writing code.** Confirm in the live database that
+   `build_invoice_je_lines` exists and that `_confirm_invoice_core` raises on
+   non-empty `p_main_lines`; confirm no client file constructs invoice journal
+   lines (`rg -n "p_main_lines" src/` should only match generated types and
+   guard tests). Then run the confirmInvoiceGL and
+   compensation-writer-monopoly suites.
+2. **Then resume at 6.2**, the next milestone in the roadmap — do not pick up
+   unrelated work, and finish 6.2 (RPC + all client call sites + guard test +
+   ledger update) before touching Phase 6b/7.
+3. Every function-defining migration must end with `NOTIFY pgrst,
+   'reload schema';` or the compensation-writer-monopoly guard fails.
 
 ## Verification standard
 
