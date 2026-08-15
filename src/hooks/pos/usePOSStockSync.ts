@@ -1,14 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/hooks/useOrganization";
+import { BusinessContext } from "@/contexts/BusinessContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 interface StockUpdate {
   product_id: string;
-  product_name: string;
-  old_quantity: number;
-  new_quantity: number;
   timestamp: string;
 }
 
@@ -21,56 +17,53 @@ interface StockReservation {
 
 const RESERVATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * POS stock synchronisation.
+ *
+ * Phase 3 (availability): the browser is never authoritative for stock.
+ *   - The realtime signal is the branch-grained `stock_quants` table, NOT the
+ *     company-wide `products.stock_quantity` cache. The old subscription
+ *     fired on a cached aggregate that mixes every branch together, so
+ *     Branch A saw "out of stock" toasts for Branch B's movements.
+ *   - The signal is used ONLY to invalidate caches. No quantity that arrives
+ *     over the wire is ever used as a checkout decision input; every decision
+ *     re-asks the server through the register-scoped availability RPCs.
+ */
 export function usePOSStockSync() {
-  const { currentOrg } = useOrganization();
+  const businessCtx = useContext(BusinessContext);
+  const businessId = businessCtx?.currentBusiness?.id ?? null;
   const queryClient = useQueryClient();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [recentUpdates, setRecentUpdates] = useState<StockUpdate[]>([]);
   const reservationsRef = useRef<Map<string, StockReservation>>(new Map());
 
-  // Subscribe to real-time product stock changes
+  // Subscribe to branch-grained stock changes for this business.
   useEffect(() => {
-    if (!currentOrg?.id) return;
+    if (!businessId) return;
 
     const channel = supabase
-      .channel(`stock-updates-${currentOrg.id}`)
+      .channel(`pos-stock-quants-${businessId}`)
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
-          table: "products",
-          filter: `organization_id=eq.${currentOrg.id}`,
+          table: "stock_quants",
+          filter: `business_id=eq.${businessId}`,
         },
         (payload) => {
-          const oldStock = (payload.old as { stock_quantity?: number })?.stock_quantity ?? 0;
-          const newStock = (payload.new as { stock_quantity?: number; id: string; name: string })?.stock_quantity ?? 0;
-          const productId = (payload.new as { id: string }).id;
-          const productName = (payload.new as { name: string }).name;
+          const row = (payload.new ?? payload.old) as { product_id?: string } | null;
+          const productId = row?.product_id;
+          if (!productId) return;
 
-          // Only notify if stock actually changed
-          if (oldStock !== newStock) {
-            const update: StockUpdate = {
-              product_id: productId,
-              product_name: productName,
-              old_quantity: oldStock,
-              new_quantity: newStock,
-              timestamp: new Date().toISOString(),
-            };
+          setRecentUpdates((prev) => [
+            { product_id: productId, timestamp: new Date().toISOString() },
+            ...prev.slice(0, 19),
+          ]);
 
-            setRecentUpdates((prev) => [update, ...prev.slice(0, 19)]);
-
-            // Invalidate product queries to refresh data
-            queryClient.invalidateQueries({ queryKey: ["pos-products"] });
-            queryClient.invalidateQueries({ queryKey: ["products"] });
-
-            // Show low stock warning
-            if (newStock <= 5 && newStock > 0) {
-              toast.warning(`Low stock: ${productName} (${newStock} left)`);
-            } else if (newStock <= 0) {
-              toast.error(`Out of stock: ${productName}`);
-            }
-          }
+          // Cache invalidation only — availability is re-read from the server.
+          queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+          queryClient.invalidateQueries({ queryKey: ["products"] });
         }
       )
       .subscribe((status) => {
@@ -81,7 +74,7 @@ export function usePOSStockSync() {
       supabase.removeChannel(channel);
       setIsSubscribed(false);
     };
-  }, [currentOrg?.id, queryClient]);
+  }, [businessId, queryClient]);
 
   /**
    * Reserve stock for items in cart (optimistic locking)
@@ -173,27 +166,57 @@ export function usePOSStockSync() {
 
   /**
    * Verify all cart items have sufficient stock before checkout (per register/branch).
+   *
+   * One round trip for the whole cart via
+   * `get_available_pos_stock_for_register_batch`, so the availability snapshot
+   * is consistent across lines instead of drifting between N sequential calls.
    */
   const verifyCartStock = useCallback(
     async (
       registerId: string,
       items: Array<{ product_id: string; quantity: number; name: string }>
     ): Promise<{ valid: boolean; outOfStock: string[] }> => {
-      const outOfStock: string[] = [];
+      if (items.length === 0) return { valid: true, outOfStock: [] };
 
+      // Same product can appear on several lines — the cart needs the sum.
+      const required = new Map<string, number>();
       for (const item of items) {
-        const ok = await checkAvailability(item.product_id, registerId, item.quantity);
-        if (!ok) {
-          outOfStock.push(item.name);
-        }
+        required.set(item.product_id, (required.get(item.product_id) ?? 0) + item.quantity);
       }
 
-      return {
-        valid: outOfStock.length === 0,
-        outOfStock,
-      };
+      const { data, error } = await supabase.rpc(
+        "get_available_pos_stock_for_register_batch" as any,
+        {
+          p_product_ids: Array.from(required.keys()),
+          p_register_id: registerId,
+          p_exclude_self: true,
+        }
+      );
+
+      // Fail closed: an unreachable authority must never green-light a sale.
+      if (error) {
+        return { valid: false, outOfStock: Array.from(new Set(items.map((i) => i.name))) };
+      }
+
+      const availability = new Map<string, number>(
+        ((data ?? []) as Array<{ product_id: string; available: number | string }>).map((r) => [
+          r.product_id,
+          Number(r.available ?? 0),
+        ])
+      );
+
+      const shortIds = new Set<string>();
+      required.forEach((qty, productId) => {
+        if ((availability.get(productId) ?? 0) < qty) shortIds.add(productId);
+      });
+
+      const outOfStock = Array.from(
+        new Set(items.filter((i) => shortIds.has(i.product_id)).map((i) => i.name))
+      );
+
+      return { valid: outOfStock.length === 0, outOfStock };
     },
-    [checkAvailability]
+    []
   );
 
   /**
