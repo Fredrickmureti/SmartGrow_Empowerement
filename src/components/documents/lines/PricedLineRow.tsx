@@ -139,6 +139,7 @@ function PricedLineRowInner<T extends PricedLineShape>({
   extra,
   productPlaceholder,
   unitsFor,
+  stockEval,
 }: Props<T>) {
   const isLocked = (columnId: string) => lockedCells?.includes(columnId) ?? false;
 
@@ -259,7 +260,26 @@ function PricedLineRowInner<T extends PricedLineShape>({
       layout={layout}
       flashed={flashed}
       cell={cell}
-      extra={extra}
+      extra={
+        stockEval || extra ? (
+          <>
+            {stockEval && (
+              <StockLineStatus
+                trackInventory={stockEval.product.track_inventory ?? undefined}
+                productType={stockEval.product.type ?? undefined}
+                onHand={
+                  stockEval.product.available ??
+                  stockEval.product.stock_quantity ??
+                  undefined
+                }
+                reorderLevel={stockEval.product.reorder_level ?? undefined}
+                requestedQty={item.quantity}
+              />
+            )}
+            {extra}
+          </>
+        ) : undefined
+      }
     />
   );
 }
