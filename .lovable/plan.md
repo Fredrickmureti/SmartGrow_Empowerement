@@ -6,7 +6,13 @@
 
 ## Current active phase
 
-**Phase 2 — Server authority sweep across all Purchases write paths.** (Phase 1 landed.)
+**Phase 3 — supplier-specific purchasing terms consumption.** (Phases 0–2 landed and verified.)
+
+### Instructions for the next agent
+
+1. **Verify Phase 2 before extending it.** Re-read `_pret_write_lines`, `create_goods_receipt`, `create_purchase_requisition`, `requisition_create_rfq` and `convert_po_to_bill_atomic` in the live database (`pg_get_functiondef`). Confirm: the return writer resolves the base quantity *before* the returnable guard; no purchasing RPC divides by a pack factor; `packaging_id` / `display_uom_id` are carried at every document hop; all six purchasing line tables still hold a `_uom_normalize_line` trigger. `supabase/tests/purchases_server_authority_test.sql` asserts exactly this — run it if psql access is available.
+2. Only then start Phase 3. Do not open unrelated areas, and do not leave a phase half-shipped.
+
 
 ---
 
