@@ -82,9 +82,12 @@ export const INVOICE_LINE_COLUMNS: EditableLineColumn[] = [
   { id: "line_total", header: "Total", priority: 1, minWidth: 110, numeric: true },
 ];
 
-interface StockEval {
-  product: InvoiceLineRowProduct;
-}
+/**
+ * Stock status is described by ONE declaration, `LineStockEval` from
+ * `@/features/sales/availability` (Phase 5 contract). This row must not
+ * re-declare a narrower/wider shape: doing so is what let the invoice pages
+ * and the row disagree about which product fields a stock badge needs.
+ */
 
 interface Props {
   index: number;
