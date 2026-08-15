@@ -35,6 +35,7 @@ import {
   type EditableLineColumn,
   type EditableRowLayout,
 } from "@/design-system/records/EditableLineItemsGrid";
+import type { LineStockEval } from "@/features/sales/availability";
 
 export interface InvoiceLineItemShape {
   product_id?: string;
@@ -98,7 +99,7 @@ interface Props {
   flashed: boolean;
   isSubmitting?: boolean;
   /** Optional — when present the row renders stock status. */
-  stockEval?: StockEval | null;
+  stockEval?: LineStockEval | null;
   /** Optional — when present the row renders the analytics cell. */
   headerProjectId?: string | null;
   customerId?: string | null;
