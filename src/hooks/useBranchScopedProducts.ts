@@ -46,6 +46,20 @@ export interface BranchScopedProduct {
   cogs_account_id: string | null;
   inventory_account_id: string | null;
   purchase_account_id: string | null;
+  // Unit-of-measure seam — sales lines quote a customer unit and the server
+  // converts it to base units (see useSellableUnits / PackagedQtyCell).
+  base_uom_id: string | null;
+  base_uom_code: string | null;
+  base_uom_name: string | null;
+  sales_uom_id: string | null;
+  sales_uom_code: string | null;
+  sales_uom_name: string | null;
+  packaging: Array<{
+    id: string;
+    name: string;
+    qty_in_base_uom: number;
+    is_sales_default?: boolean | null;
+  }> | null;
   // Branch-aware stock figures
   on_hand: number;
   reserved: number;
