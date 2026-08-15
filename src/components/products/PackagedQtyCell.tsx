@@ -34,6 +34,13 @@ export interface PackagedQtyValue {
   display_uom_id?: string | null;
 }
 
+/** Convert canonical base quantity into the quantity shown for a denomination. */
+export function quantityForDenomination(baseQuantity: number, factor: number): number {
+  const safeQuantity = Number.isFinite(baseQuantity) ? baseQuantity : 0;
+  const safeFactor = Number.isFinite(factor) && factor > 0 ? factor : 1;
+  return safeQuantity / safeFactor;
+}
+
 interface Props {
   productId: string | null | undefined;
   value: PackagedQtyValue;
@@ -99,20 +106,20 @@ export function PackagedQtyCell({
           onValueChange={(uomId) => {
             const opt = alternates.find((u) => u.id === uomId);
             const factor = opt?.factor ?? 1;
-            const qty = displayQty;
+            const baseQty = value.quantity;
             if (uomId === baseUomId) {
               onChange({
                 display_uom_id: null,
                 display_quantity: null,
-                quantity: qty,
+                quantity: baseQty,
               });
               return;
             }
             onChange({
               packaging_id: null,
               display_uom_id: uomId,
-              display_quantity: qty,
-              quantity: qty * factor,
+              display_quantity: quantityForDenomination(baseQty, factor),
+              quantity: baseQty,
             });
           }}
         >
@@ -136,25 +143,24 @@ export function PackagedQtyCell({
         hideWhenEmpty={hideEmptyPackSelect}
         onChange={(pkgId, packQty) => {
           if (!pkgId) {
-            // A unit switch reinterprets the number the operator can see. Do
-            // not leak the previous pack's hidden base quantity into Qty
-            // (1 bag → base must show 1, not 50).
+            // Preserve the canonical stock quantity and expose it when moving
+            // back to base: 2 × 50 kg bags becomes 100 kg immediately.
             onChange({
               packaging_id: null,
               display_uom_id: null,
               display_quantity: null,
-              quantity: displayQty,
+              quantity: value.quantity,
             });
             return;
           }
-          // Keep the visible Qty stable while changing its denomination:
-          // 100 base units → select Bag means 100 bags, not silently 1 bag.
-          const dq = displayQty;
+          // Denomination changes convert the visible quantity while preserving
+          // its canonical stock meaning: 100 kg becomes 2 × 50 kg bags.
+          const factor = packQty ?? 1;
           onChange({
             packaging_id: pkgId,
             display_uom_id: null,
-            display_quantity: dq,
-            quantity: dq * (packQty ?? 1),
+            display_quantity: quantityForDenomination(value.quantity, factor),
+            quantity: value.quantity,
           });
         }}
         className="h-7 text-xs"
