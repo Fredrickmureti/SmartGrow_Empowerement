@@ -19,7 +19,7 @@ This file tracks the wave-level state and the active phase only.
   commit/advisory/none policy), guarded by
   `src/test/architecture/sales-availability-coverage.test.ts`.
 
-## Phase 6 — Invoice ↔ Receivables boundary (in progress)
+## Phase 6 — Invoice ↔ Receivables boundary (complete)
 
 ### 6.1 — server-side GL resolution — done
 
