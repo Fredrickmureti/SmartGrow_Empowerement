@@ -1,109 +1,90 @@
 # Purchases Domain — Product / UoM / Packaging / Inventory Consumer Audit
 
-**This file is the authoritative engineering record for this wave.** Future agents: read it, continue from "Current active phase", do not repeat completed investigation, do not reopen verified items without contradicting evidence.
+**Authoritative engineering record for this wave.** Continue from "Current active phase". Do not repeat completed investigation. Phase 0 findings and the locked scope boundary live in `.lovable/plan/purchases-domain-product-uom-packaging-inventory-consumer-au-2026-08-15.md` — read it before doing anything.
 
-Wave: Purchases as a *consumer* of the canonical Product → UoM → Packaging → Inventory → Warehouse → Valuation contracts. Not a Finance/WMS/Product redesign.
+---
 
-Related records (do not duplicate): `.lovable/procurement-domain-audit.md` (P0–P3 procurement build log), ADR 0141 (supplier-owned purchasing terms), ADR 0102 (PO lifecycle & commitment), `docs/audit/purchases-verdict.md` (branch isolation).
+## Verification verdict on Phases 1–3 (2026-08-15, incoming engineer)
+
+Claims were re-checked directly against the live database and the codebase, not against the previous notes.
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| One conversion engine, `_uom_normalize_line`, jsonb-driven | ✅ | single `_uom_normalize_line` proc, `SECURITY DEFINER`; no `_uom_normalize_line_grn` remains |
+| Normalizer attached to GRN / bill / return / RFQ / requisition lines with `a_` prefix | ✅ | `pg_trigger`: `a_uom_normalize_{grn,bill,purchase_return,rfq,requisition}_items` all present and ordered before `enforce_line_uom_consistency` |
+| `purchase_order_items` "keeps its existing trigger" — therefore fine | ❌ **wrong** | trigger is `trg_uom_normalize_po_items`; Postgres fires triggers in name order, so on PO lines `enforce_line_uom_consistency` runs **before** normalization (see F4.0) |
+| Party→role hop for supplier terms | ✅ | `_resolve_supplier_role_id(uuid,uuid)` `SECURITY DEFINER`; `resolve_supplier_purchasing_terms` calls it and falls back product_default → system_default with source labels |
+| Terms functions tenant-gated | ✅ | resolver raises `SUPPLIER_TERMS_FORBIDDEN` via `user_has_business_access`; `validate_supplier_order_quantity` reads terms only through the resolver |
+| Purchases adapter is the only client seam | ✅ | `src/features/purchases/purchasingTerms/purchaseLineTerms.ts` present; guard tests present |
+| Phase 1/2/3 guard tests exist | ✅ | `supabase/tests/purchases_quantity_contract_test.sql`, `purchases_server_authority_test.sql`, `supplier_purchasing_terms_test.sql`, `src/test/architecture/purchases-quantity-server-owned.test.ts`, `purchasing-terms-single-owner.test.ts` |
+
+**Net:** Phases 1 and 3 stand. Phase 2's headline ("no Purchases write path persists a browser-authored base quantity") is **not true for the PO line table** — the highest-volume purchasing line in the system. Reopened as F4.0 inside the active phase rather than re-running Phase 2.
 
 ---
 
 ## Current active phase
 
-**Phase 1 — The purchase quantity contract** (Phase 0 complete, findings below).
+**Phase 4 — requisition → RFQ → PO fidelity, including the trigger-order defect and pack entry UI.**
+
+### Work items (in order)
+
+**F4.0 — ❌ PO lines: validator runs before normalizer.** `enforce_line_uom_consistency` sorts alphabetically before `trg_uom_normalize_po_items`, so a PO line that sends `display_quantity = 10` + a 50 kg pack and lets the server derive base units is **rejected** with a UoM-mismatch error before the normalizer can derive it — the client must pre-compute `quantity = 500` for the write to succeed. That is browser-authoritative arithmetic on the central purchasing document.
+*Action:* rename the PO normalizer to `a_uom_normalize_po_items` (drop + recreate; same function) so PO lines match every other line table. Extend `purchases_quantity_contract_test.sql` with a case that inserts a PO line supplying only `display_quantity` + `packaging_id` and asserts the stored base quantity.
+*Owner:* Purchases (trigger ordering) · *Blocks:* the pack entry UI below.
+
+**F4.1 — ❌ award → PO drops packaging and double-states quantity.** `rfq_convert_awards_to_po` inserts `quantity := ai.awarded_quantity` **and** `display_quantity := ai.awarded_quantity` with `display_uom_id := ai.awarded_uom_id`, and never carries `packaging_id` from the RFQ line. When the award is in a non-base unit the two columns disagree until the normalizer rewrites `quantity` — and with F4.0 unfixed the validator refuses the row outright.
+*Action:* carry `packaging_id` from `rfq_items`, pass `display_quantity` + `display_uom_id`/`packaging_id` only and leave `quantity` to the normalizer (fix after F4.0). Header `subtotal`/`tax_amount` must be recomputed from the persisted lines, not from `rfq_award_items.line_total`, once the unit meaning is settled.
+
+**F4.2 — ⏸ awarded unit price meaning (was F2.7).** `ai.unit_price` may be per base unit or per awarded unit; nothing in the schema says which. Do not guess. Settle with pricing ownership in Phase 9 and keep the current behaviour until then; record the resolution here.
+
+**F4.3 — ❌ no pack/unit entry anywhere in Purchases line UI.** `PurchaseOrderCreatePage` / `PurchaseOrderEditPage` render `PricedLineRow` **without** `unitsFor`, so `PackagedQtyCell` never offers a pack or alternate unit; `RequisitionLineRow` has a bare `quantity` `NumericInput` and no pack cell; the RFQ editor uses `RequestLineRow`, whose shape declares `packaging_id` / `display_uom_id` but renders no control for them. Scenarios B and C from the brief are unreachable from the UI: a buyer cannot order "10 bags".
+*Action:* introduce a purchasing twin of `useSellableUnits` — a `usePurchasableUnits` seam that returns the same `SellUnitOption[]` shape but seeds the default unit from `resolve_supplier_purchasing_terms.purchase_uom_id` (already surfaced by `resolvePurchaseLineDefaults`). No new arithmetic: the cell stays a preview, the trigger stays authoritative. Wire it into PO create/edit (`unitsFor`), add a `PackagedQtyCell` quantity cell to `RequisitionLineRow`, and add the same cell to `RequestLineRow` for RFQ lines. MOQ/increment validation keeps flowing through the existing Purchases adapter.
+
+**F4.4 — ⚠ MOQ gate missing at the point of commitment.** Phase 3 deliberately left RFQ quantities ungated (a request for pricing is not a commitment) and put the gate on PO create/edit. `rfq_convert_awards_to_po` and requisition→PO conversion bypass both, so a commitment can still be created below MOQ or off-increment.
+*Action:* call `validate_supplier_order_quantity` server-side inside the conversion RPCs, refusing with the existing reason codes; the browser must not be the only gate.
+
+**Exit criteria for Phase 4:** entered quantity, entered unit / packaging and canonical base quantity survive requisition → RFQ → award → PO with the supplier-facing quantity still readable on each document; PO lines accept pack-denominated input without client arithmetic; guards green (`purchases_quantity_contract_test.sql`, `purchases_server_authority_test.sql`, `purchases-quantity-server-owned.test.ts`, `purchasing-terms-single-owner.test.ts`).
 
 ---
 
-## Scope boundary decision (locked)
+## Phase 1 — Purchase quantity contract — ✅ COMPLETE (2026-08-15, re-verified)
 
-| Area | In this wave | Rationale |
-|---|---|---|
-| Requisitions, RFQs, Purchase Orders, Goods Receipt interaction, Returns, Supplier terms, Price Lists, Landed Cost orchestration, Contracts (terms only) | **Yes** | They carry the purchase quantity/terms contract. |
-| Bills, Credit Notes | **Boundary only** — verify that quantity provenance reaching AP is canonical; three-way match state is procurement-owned (`bill_match_results`, `bill_grn_matches`), AP posting/payment stays Finance-owned. |
-| Statements, Aged Payables, AP Reconciliation, Insights, Overview | **No** (Phase 15 re-check only) | Finance-owned projections; only revisit if fed wrong purchasing facts. |
-| Expenses | **No** | Employee/finance expense workflow, no product line quantity contract. |
+1. **One conversion engine.** `_uom_normalize_line()` — generic jsonb-driven BEFORE INSERT/UPDATE trigger; maps the base-quantity column per table (`quantity_received`, `quantity_delivered`, `quantity_sent`, else `quantity`) and delegates arithmetic to `resolve_line_base_quantity`. Derives `display_quantity` when only base units arrive; stamps `display_uom_id` + `uom_snapshot`.
+2. **Duplicate engine deleted** (`_uom_normalize_line_grn`).
+3. **Attached** to `goods_receipt_items`, `bill_items`, `purchase_return_items`, `rfq_items`, `purchase_requisition_items` as `a_uom_normalize_*`. PO lines are the exception — see F4.0.
+4. **Demand/sourcing lines carry the purchasing unit**: `rfq_items` and `purchase_requisition_items` gained `packaging_id`, `display_quantity`, `display_uom_id`, `uom_snapshot*`; backfilled; consistency validator attached.
+5. Guards as listed above.
 
----
+Deliberately deferred: legacy `rfq_items.uom_id` / `purchase_requisition_items.uom_id` retained, superseded by `display_uom_id`; drop only after Phase 4 proves nothing reads them.
 
-## Phase 0 — Upstream contract verification (COMPLETE)
+Carried forward (**F1.5 / F2.8 → Phase 5**): `inbound_shipment_items` names its pack column `expected_packaging_id` and has no normalizer — reconcile against the expected-supply view.
 
-Evidence gathered from live `information_schema`, `pg_trigger`, `pg_proc` and source reads.
+## Phase 2 — Server authority over quantities — ⚠ MOSTLY COMPLETE (2026-08-15; PO gap reopened as F4.0)
 
-| Contract | Canonical owner | Purchases consumer | Verdict | Evidence |
-|---|---|---|---|---|
-| Product identity / base UoM | `products.base_uom_id`, `units_of_measure` | read inside server triggers | ✅ | `_uom_normalize_line`, `enforce_line_uom_consistency` both resolve `products.base_uom_id` |
-| UoM conversion | `convert_uom()` + category coherence check | server-side only | ✅ | `enforce_line_uom_consistency` rejects cross-category `display_uom_id` (errcode 23514) |
-| Packaging + `qty_in_base_uom` | `product_packaging` | PO/GRN lines | ✅ for PO/GRN | `trg_uom_normalize_po_items`, `trg_uom_normalize_grn_items` |
-| Canonical base resolver | `resolve_line_base_quantity(...)` | PO lines only | ⚠ partial | PO trigger calls it; GRN trigger re-implements the arithmetic inline; bill/return/RFQ/requisition lines never call it |
-| Frozen UoM snapshot (`uom_snapshot_pack_name/factor/base_code`) | `enforce_line_uom_consistency` | PO, GRN, bill, return lines | ✅ where columns exist | columns present on those 4 line tables; absent on `rfq_items`, `purchase_requisition_items` |
-| Supplier purchasing terms | `supplier_item_terms` + `resolve_supplier_purchasing_terms` / `validate_supplier_order_quantity` (ADR 0141) | **no Purchases caller found yet** | ⚠ | `supplier_item_terms` has `purchase_uom_id`, `min_order_qty`, `price_break_tiers`, `currency_code`; single client seam is `src/features/products/purchasing/supplierPurchasingTerms.ts` — Phase 3 must confirm PO/RFQ entry consumes it |
-| Inventory / receiving | `create_goods_receipt` → outbox → `wms_apply_gr_stock` | Purchases calls the wrapper | ✅ (re-verify in Phase 5) | procurement audit P0 "Great Split" |
-| Valuation / landed cost | `landed_cost_*` engine, cost layers | orchestration in `src/features/purchases/landed-costs` | ⏸ Phase 8 |
+- **F2.1 (fixed).** `_pret_write_lines` validated the client `quantity` against `quantity_returnable` while the normalizer re-derived the stored quantity — a return could pass the guard at 1 and persist 50. The writer now resolves base quantity through `resolve_line_base_quantity` first, then validates and prices off that number.
+- **F2.2 (fixed).** `create_goods_receipt` no longer re-implements `base / pack factor`.
+- **F2.3 (fixed).** `create_purchase_requisition` maps `packaging_id`, `display_quantity`, `display_uom_id`.
+- **F2.4 (fixed).** `requisition_create_rfq` carries `packaging_id` + `display_uom_id`; `display_quantity` left NULL so the normalizer derives it.
+- **F2.5 (fixed).** `convert_po_to_bill_atomic` carries pack provenance onto bill lines.
+- **F2.6 (verified).** `update_po_items_atomic` passes pack provenance.
+- **F2.7 → F4.2.** Awarded unit-price meaning unresolved.
 
-**No new Product/UoM/Inventory engine may be created in this wave.**
+## Phase 3 — Supplier-specific purchasing terms — ✅ COMPLETE (2026-08-15, re-verified)
 
----
+- **F3.1 (fixed).** Resolver keyed on `suppliers.id` while documents carry `vendor_id → contacts.id` (ADR-0079). `_resolve_supplier_role_id` added; the resolver accepts either identifier.
+- **F3.2 (fixed).** Purchases adapter `src/features/purchases/purchasingTerms/purchaseLineTerms.ts` over the single client seam — no arithmetic, refusal copy from `describeOrderQuantityVerdict`.
+- **F3.3 (fixed).** PO create/edit and requisition create seed MOQ / purchase UoM / supplier price and refuse submission per line. Gap at conversion RPCs → F4.4.
+- **F3.4 (verified).** Deprecated product-level defaults read only by the product master form.
 
-## Phase 1 — Purchase quantity contract (ACTIVE)
+## Phase roadmap
 
-### Findings
-
-**F1.1 — Purchase Order lines: ✅ correct.**
-`purchase_order_items` carries `display_quantity`, `display_uom_id`, `packaging_id`, base `quantity`, plus the three frozen snapshot columns. `trg_uom_normalize_po_items` (SECURITY DEFINER) recomputes `quantity` from `display_quantity × packaging/UoM` via `resolve_line_base_quantity` on INSERT and on any change to the display triple. A browser-supplied `quantity` is therefore overwritten, not trusted. `enforce_line_uom_consistency` additionally rejects packaging that belongs to another product and cross-category UoM.
-*Required action:* none.
-
-**F1.2 — Goods receipt lines: ⚠ second conversion implementation.**
-`_uom_normalize_line_grn` does the same job for `quantity_received` but re-derives the arithmetic inline (`display_quantity × qty_in_base_uom`, else `convert_uom`) instead of calling `resolve_line_base_quantity`. Result is currently equivalent, but it is a duplicate engine and will drift (e.g. it does not honour resolver-side rounding/precision rules).
-*Required action:* rewrite `_uom_normalize_line_grn` as a thin wrapper over `resolve_line_base_quantity`, keeping the `quantity_received` column mapping. Add SQL test asserting PO line and GRN line produce identical base quantities for the same display triple.
-*Canonical owner:* Inventory UoM engine. *Implement now:* yes (Phase 1).
-
-**F1.3 — Bill lines and purchase return lines: ⚠ browser is the arithmetic author.**
-`bill_items` and `purchase_return_items` have the full column set but **only** `enforce_line_uom_consistency` — a *validator*, not a normalizer. It raises when `quantity ≠ display_quantity × factor`, so a wrong value is refused, but the base quantity is still computed in the browser and merely checked; when `display_quantity` is NULL nothing is checked at all, and there is no server path that derives base from display. `src/hooks/useBills.ts` comments claim "DB trigger normalizes" — that comment is wrong.
-*Why it matters:* returns move inventory; a NULL-display bill/return line bypasses the check entirely.
-*Required action:* attach a normalize trigger (same wrapper as F1.2) to `bill_items.quantity` and `purchase_return_items.quantity`; correct the misleading comment in `useBills.ts`/`purchaseReturnRpcs.ts`.
-*Implement now:* yes (Phase 1).
-
-**F1.4 — RFQ lines and requisition lines: ⚠ no packaging, no snapshot.**
-`rfq_items` and `purchase_requisition_items` carry only `quantity` + `uom_id`. They cannot represent "10 bags of 50 kg" — the demand and the sourcing request lose the purchasing unit, so the PO conversion (F1.1) starts from a re-entered unit rather than from what was requested/quoted. Enterprise practice (SAP PR/RFQ, Oracle, Odoo) keeps order-unit + conversion on the requisition and RFQ line.
-*Required action:* add `packaging_id`, `display_quantity`, `display_uom_id` and the three snapshot columns to both tables; attach the normalize + consistency triggers; carry them through `convert_rfq_to_po_atomic` and the requisition→PO path (Phase 4 verifies the carry-through).
-*Implement now:* yes, schema + triggers in Phase 1; transition fidelity in Phase 4.
-
-**F1.5 — Inbound shipment lines: note only.**
-`inbound_shipment_items` has `expected_packaging_id` + `display_quantity`/`display_uom_id` but a differently named packaging column. Verify in Phase 5 that the expected-supply view and receiving read it consistently; no action in Phase 1.
-
-### Phase 1 exit criteria
-1. One conversion implementation (`resolve_line_base_quantity`) behind every purchasing line table.
-2. No purchasing line table can persist a base quantity authored by the browser.
-3. RFQ and requisition lines can express packaged purchasing units.
-4. SQL test `supabase/tests/purchases_quantity_contract_test.sql` proves Scenarios A/B/C at line level.
-5. Architecture test asserting no Purchases client file multiplies by `qty_in_base_uom` to produce a persisted quantity.
-
----
-
-## Phase roadmap (not yet started)
-
-| Phase | Subject | State |
-|---|---|---|
-| 2 | Server authority sweep across all Purchases write paths (RPC signatures accepting base quantities) | ⏸ after 1 |
-| 3 | Supplier terms consumption (`resolve_supplier_purchasing_terms` at PO/RFQ entry; kill reads of `products.cost_price` / `min_order_quantity` in Purchases) | ⏸ |
-| 4 | Requisition → RFQ → Quote → PO fidelity (qty, pack, UoM, price, currency, terms) | ⏸ |
-| 5 | PO → receiving: partial/over/under receipt, outstanding in supplier unit, idempotency | ⏸ |
-| 6 | Product packaging vs warehouse handling unit boundary | ⏸ |
-| 7 | Returns reuse the receiving quantity contract | ⏸ |
-| 8 | Landed cost boundary (consume, never duplicate valuation/GL) | ⏸ |
-| 9 | Purchase pricing ownership (`vendor_pricelists` vs `supplier_item_terms` vs contracts) | ⏸ |
-| 10 | Bills / three-way match / Finance boundary | ⏸ |
-| 11 | Supplier contracts vs supplier_item_terms duplication | ⏸ |
-| 12 | Multi-branch / multi-tenant scope (build on `docs/audit/purchases-verdict.md`) | ⏸ |
-| 13 | Concurrency & idempotency | ⏸ |
-| 14 | Events on the existing outbox only | ⏸ |
-| 15 | Reporting/projections re-check | ⏸ |
-| 16 | Scenarios A–H end to end | ⏸ |
+**4 (active)** requisition→RFQ→PO fidelity (F4.0–F4.4) · 5 PO→receiving (+F1.5/F2.8) · 6 packaging vs handling unit · 7 returns · 8 landed cost · 9 pricing ownership (+F4.2) · 10 bills / 3-way match / Finance boundary · 11 contracts vs `supplier_item_terms` · 12 multi-branch · 13 concurrency / idempotency · 14 events · 15 projections · 16 scenarios A–H.
 
 ---
 
 ## Technical notes
 
-- Migrations: one per phase, `CREATE TABLE`→`GRANT`→`RLS`→`POLICY` order; triggers are `SECURITY DEFINER` with `SET search_path = public`.
-- New guards land under `supabase/tests/` and `src/test/architecture/`.
-- Deprecated fallbacks (`products.min_order_quantity`, `order_quantity_increment`, `cost_price`) stay in place; Purchases must stop reading them directly (Phase 3), not drop them.
+- Triggers are `SECURITY DEFINER`, `SET search_path = public`; normalizers must be named `a_*` so they precede `enforce_line_uom_consistency` — the validator raises on a base/display mismatch and therefore cannot run first.
+- Guards land in `supabase/tests/` + `src/test/architecture/`.
+- Deprecated fallbacks (`products.min_order_quantity`, `order_quantity_increment`, `cost_price`) stay as resolver fallbacks; Purchases must not read them.
+- `src/test/inventory/enrollment-workflow.test.tsx` is slow/flaky in this sandbox and unrelated to this wave.
