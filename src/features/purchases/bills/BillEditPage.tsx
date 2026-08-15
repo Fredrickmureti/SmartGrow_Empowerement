@@ -35,6 +35,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
