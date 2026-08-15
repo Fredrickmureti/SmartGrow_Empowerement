@@ -16,6 +16,7 @@ import { z } from "zod";
 import { useSalesOrders } from "@/hooks/useSalesOrders";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { SalesWarehouseField, useSalesWarehouse } from "@/features/sales/warehouse";
 import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useLinePriceResolver, useServerPriceApplier } from "@/hooks/useLinePriceResolver";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
@@ -104,7 +105,12 @@ export default function SalesOrderCreatePage() {
 
   const { createSalesOrder } = useSalesOrders();
   const { contacts } = useContacts();
-  const { products, branchScopeLabel } = useBranchScopedProducts();
+  // Phase 6b: availability must be read from the same warehouse that
+  // confirmation will reserve against.
+  const warehouse = useSalesWarehouse();
+  const { products, branchScopeLabel } = useBranchScopedProducts({
+    warehouseId: warehouse.warehouseId,
+  });
   /** Sell units per product; the server re-derives the base quantity. */
   const unitsFor = useUnitsForProducts(products);
   const { paymentTerms } = usePaymentTerms();
@@ -265,6 +271,7 @@ export default function SalesOrderCreatePage() {
       const created = await createSalesOrder(
         {
           ...values,
+          warehouse_id: warehouse.warehouseId,
           subtotal,
           tax_amount: taxAmount,
           total,
@@ -387,6 +394,10 @@ export default function SalesOrderCreatePage() {
                     });
                   }}
                 />
+              </FieldCell>
+
+              <FieldCell>
+                <SalesWarehouseField selection={warehouse} label="Reserve stock from" />
               </FieldCell>
             </FieldGrid>
           </FieldGroup>

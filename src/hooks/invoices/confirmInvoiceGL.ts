@@ -60,7 +60,9 @@ export async function confirmInvoiceAndPostGL(
         p_invoice_id: invoice.id,
         p_user_id: deps.userId || null,
         p_release_stock: true,
-        p_warehouse_id: null,
+        // Phase 6b: issue from the warehouse recorded on the invoice, so the
+        // stock that leaves is the stock the operator was shown.
+        p_warehouse_id: invoice.warehouse_id ?? null,
         p_final_status: "sent",
       })
     : await supabase.rpc("confirm_invoice_atomic" as any, {

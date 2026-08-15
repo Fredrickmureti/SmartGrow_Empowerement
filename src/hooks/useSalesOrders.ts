@@ -39,6 +39,8 @@ export interface SalesOrder {
   is_locked?: boolean;
   branch_id?: string | null;
   business_id?: string | null;
+  /** Phase 6b — the warehouse confirmation reserves stock against. */
+  warehouse_id?: string | null;
   contact?: { name: string; email: string | null } | null;
   items?: SalesOrderItem[];
 }
@@ -181,6 +183,8 @@ export function useSalesOrders() {
           organization_id: currentOrg.id,
           business_id: currentBusiness.id,
           branch_id: branchId,
+          // Phase 6b: reservations at confirmation hit this warehouse.
+          warehouse_id: order.warehouse_id ?? null,
           contact_id: order.contact_id ?? null,
           order_date: order.order_date || new Date().toISOString().split("T")[0],
           expected_date: order.expected_date ?? null,

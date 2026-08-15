@@ -140,6 +140,8 @@ export function useDeliveryNotes() {
           organization_id: currentOrg.id,
           business_id: currentBusiness.id,
           branch_id: currentBranch?.id ?? null,
+          // Phase 6b: goods issue consumes the warehouse recorded here.
+          warehouse_id: (note as { warehouse_id?: string | null }).warehouse_id ?? null,
           contact_id: note.contact_id ?? null,
           delivery_date: note.delivery_date || new Date().toISOString().split("T")[0],
           sales_order_id: note.sales_order_id ?? null,

@@ -57,6 +57,10 @@ export interface Invoice {
   updated_at: string;
   voided_by?: string | null;
   source?: string | null;
+  business_id?: string | null;
+  branch_id?: string | null;
+  /** Phase 6b — the warehouse this invoice reserves and issues stock from. */
+  warehouse_id?: string | null;
   contact?: { name: string; email: string | null; phone: string | null } | null;
   invoice_items?: InvoiceItem[];
 }
@@ -137,7 +141,7 @@ export function useInvoices() {
    * confirmation.
    */
   const createInvoice = async (
-    invoice: { contact_id?: string; due_date: string; notes?: string; terms?: string; discount_amount?: number; currency?: string; salesperson_id?: string; payment_term_id?: string | null; branch_id?: string | null },
+    invoice: { contact_id?: string; due_date: string; notes?: string; terms?: string; discount_amount?: number; currency?: string; salesperson_id?: string; payment_term_id?: string | null; branch_id?: string | null; warehouse_id?: string | null },
     items: Omit<InvoiceItem, "id" | "invoice_id">[]
   ) => {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to create invoices", variant: "destructive" }); throw new Error("Permission denied"); }
@@ -151,6 +155,9 @@ export function useInvoices() {
         // sales reports can attribute revenue. Caller may override; falls back
         // to the user's current branch (NULL = "Unassigned").
         branch_id: invoice.branch_id ?? currentBranch?.id ?? null,
+        // Phase 6b: the fulfilment warehouse is a recorded decision, not a
+        // guess made later at goods issue. NULL = server resolves the default.
+        warehouse_id: invoice.warehouse_id ?? null,
         contact_id: invoice.contact_id ?? null,
         due_date: invoice.due_date,
         notes: invoice.notes ?? null,

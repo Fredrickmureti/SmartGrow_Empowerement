@@ -13168,6 +13168,7 @@ export type Database = {
           tracking_number: string | null
           updated_at: string
           vehicle_number: string | null
+          warehouse_id: string | null
         }
         Insert: {
           accounts_resolved?: Json | null
@@ -13214,6 +13215,7 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string
           vehicle_number?: string | null
+          warehouse_id?: string | null
         }
         Update: {
           accounts_resolved?: Json | null
@@ -13260,6 +13262,7 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string
           vehicle_number?: string | null
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -13407,6 +13410,13 @@ export type Database = {
             columns: ["spawned_invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -24156,6 +24166,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         Insert: {
           amount_paid?: number | null
@@ -24222,6 +24233,7 @@ export type Database = {
           void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
+          warehouse_id?: string | null
         }
         Update: {
           amount_paid?: number | null
@@ -24288,6 +24300,7 @@ export type Database = {
           void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -24562,6 +24575,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "reversal_reason_codes"
             referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "invoices_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -59643,6 +59663,7 @@ export type Database = {
           tax_amount: number
           total: number
           updated_at: string
+          warehouse_id: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -59676,6 +59697,7 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          warehouse_id?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -59709,6 +59731,7 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -59828,6 +59851,13 @@ export type Database = {
             columns: ["source_lead_id"]
             isOneToOne: false
             referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -93085,6 +93115,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -94807,6 +94838,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -94912,49 +94944,94 @@ export type Database = {
           user_id: string
         }[]
       }
-      list_products_with_branch_stock: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_include_variant_parents?: boolean
-          p_org_id: string
-        }
-        Returns: {
-          available: number
-          base_uom_code: string
-          base_uom_id: string
-          base_uom_name: string
-          branch_scope_label: string
-          business_id: string
-          category_id: string
-          cogs_account_id: string
-          cost_price: number
-          description: string
-          id: string
-          image_url: string
-          inventory_account_id: string
-          is_active: boolean
-          min_order_quantity: number
-          name: string
-          on_hand: number
-          order_quantity_increment: number
-          organization_id: string
-          packaging: Json
-          purchase_account_id: string
-          reorder_level: number
-          reserved: number
-          sales_account_id: string
-          sales_uom_code: string
-          sales_uom_id: string
-          sales_uom_name: string
-          sku: string
-          tax_rate: number
-          tax_rate_id: string
-          track_inventory: boolean
-          type: string
-          unit_price: number
-        }[]
-      }
+      list_products_with_branch_stock:
+        | {
+            Args: {
+              p_branch_id?: string
+              p_business_id: string
+              p_include_variant_parents?: boolean
+              p_org_id: string
+            }
+            Returns: {
+              available: number
+              base_uom_code: string
+              base_uom_id: string
+              base_uom_name: string
+              branch_scope_label: string
+              business_id: string
+              category_id: string
+              cogs_account_id: string
+              cost_price: number
+              description: string
+              id: string
+              image_url: string
+              inventory_account_id: string
+              is_active: boolean
+              min_order_quantity: number
+              name: string
+              on_hand: number
+              order_quantity_increment: number
+              organization_id: string
+              packaging: Json
+              purchase_account_id: string
+              reorder_level: number
+              reserved: number
+              sales_account_id: string
+              sales_uom_code: string
+              sales_uom_id: string
+              sales_uom_name: string
+              sku: string
+              tax_rate: number
+              tax_rate_id: string
+              track_inventory: boolean
+              type: string
+              unit_price: number
+            }[]
+          }
+        | {
+            Args: {
+              p_branch_id?: string
+              p_business_id: string
+              p_include_variant_parents?: boolean
+              p_org_id: string
+              p_warehouse_id?: string
+            }
+            Returns: {
+              available: number
+              base_uom_code: string
+              base_uom_id: string
+              base_uom_name: string
+              branch_scope_label: string
+              business_id: string
+              category_id: string
+              cogs_account_id: string
+              cost_price: number
+              description: string
+              id: string
+              image_url: string
+              inventory_account_id: string
+              is_active: boolean
+              min_order_quantity: number
+              name: string
+              on_hand: number
+              order_quantity_increment: number
+              organization_id: string
+              packaging: Json
+              purchase_account_id: string
+              reorder_level: number
+              reserved: number
+              sales_account_id: string
+              sales_uom_code: string
+              sales_uom_id: string
+              sales_uom_name: string
+              sku: string
+              tax_rate: number
+              tax_rate_id: string
+              track_inventory: boolean
+              type: string
+              unit_price: number
+            }[]
+          }
       list_scan_events: {
         Args: { p_limit?: number; p_register?: string; p_verdict?: string }
         Returns: {
@@ -100272,6 +100349,15 @@ export type Database = {
         Args: { _invoice_item_id: string; _qty: number }
         Returns: Json
       }
+      resolve_sales_warehouse: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_organization_id: string
+          p_requested_warehouse_id?: string
+        }
+        Returns: string
+      }
       resolve_statutory_country_for_employee: {
         Args: { p_employee_id: string }
         Returns: string
@@ -100989,6 +101075,7 @@ export type Database = {
           void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
+          warehouse_id: string | null
         }
         SetofOptions: {
           from: "*"
