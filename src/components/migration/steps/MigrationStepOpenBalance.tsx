@@ -379,7 +379,13 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
             entries,
           });
           if (jeId) {
-            await supabase.from("invoices").update({ journal_entry_id: jeId }).eq("id", invoice.id);
+            // Phase 6.3: `journal_entry_id` is governed; the importer uses the
+            // link-once engine instead of a direct table write.
+            const { error: linkError } = await supabase.rpc(
+              "link_invoice_journal_entry_atomic" as never,
+              { p_invoice_id: invoice.id, p_journal_entry_id: jeId } as never,
+            );
+            if (linkError) throw linkError;
           }
         }
       }
