@@ -22,6 +22,8 @@ export interface AtomicEstimateHeader {
   organization_id: string;
   business_id: string;
   branch_id?: string | null;
+  /** Pre-allocated number; omit to let the server allocate one. */
+  estimate_number?: string | null;
   contact_id?: string | null;
   issue_date?: string | null;
   expiry_date?: string | null;

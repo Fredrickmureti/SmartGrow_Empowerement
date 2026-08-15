@@ -254,49 +254,45 @@ export function useEstimates() {
 
     const costs = additionalCosts ?? (updates.additional_costs as AdditionalCost[] | undefined);
 
-    if (items) {
-      // Same formula as create — additional costs are part of the price.
-      const totals = computeEstimateTotals(items, costs ?? [], updates.discount_amount || 0);
-      updates.subtotal = totals.subtotal;
-      updates.tax_amount = totals.tax_amount;
-      updates.total = totals.total;
-
-      await supabase.from("estimate_items").delete().eq("estimate_id", id);
-
-      if (items.length > 0) {
-        const itemsToInsert = items.map((item, index) => ({
-          ...item,
-          estimate_id: id,
-          sort_order: index,
-        }));
-        const { error: itemsError } = await supabase.from("estimate_items").insert(itemsToInsert);
-        if (itemsError) throw itemsError;
-      }
-    }
-
-    if (costs) {
-      await supabase.from("estimate_additional_costs").delete().eq("estimate_id", id);
-      if (costs.length > 0) {
-        const costsToInsert = costs.map((cost, index) => ({
-          estimate_id: id,
-          name: cost.name,
-          amount: cost.amount,
-          is_taxable: cost.is_taxable,
-          tax_rate: cost.tax_rate,
-          tax_amount: cost.tax_amount,
-          sort_order: index,
-        }));
-        const { error: costsError } = await supabase.from("estimate_additional_costs").insert(costsToInsert);
-        if (costsError) throw costsError;
-      }
-    }
-
     const { additional_costs: _ac, contact: _c, items: _i, status: nextStatus, ...dbUpdates } = updates as any;
 
-    if (Object.keys(dbUpdates).length > 0) {
-      const { error } = await supabase.from("estimates").update(dbUpdates).eq("id", id);
-      if (error) throw error;
-    }
+    // Phase 9: one server transaction owns header + lines + costs. The
+    // governed-write triggers reject any direct DML on estimate lines, and the
+    // server recomputes every total from the resolved lines.
+    await updateEstimateAtomic(
+      id,
+      {
+        contact_id: dbUpdates.contact_id ?? null,
+        issue_date: dbUpdates.issue_date ?? null,
+        expiry_date: dbUpdates.expiry_date ?? null,
+        notes: dbUpdates.notes ?? null,
+        terms: dbUpdates.terms ?? null,
+        discount_amount: dbUpdates.discount_amount ?? null,
+        template_id: dbUpdates.template_id ?? null,
+        bill_to_contact_id: dbUpdates.bill_to_contact_id ?? null,
+        billing_address: dbUpdates.billing_address ?? null,
+      },
+      items?.map((item, index) => ({
+        product_id: item.product_id ?? null,
+        description: item.description,
+        quantity: item.quantity,
+        display_quantity: item.display_quantity ?? null,
+        display_uom_id: item.display_uom_id ?? null,
+        packaging_id: item.packaging_id ?? null,
+        unit_price: item.unit_price,
+        discount_percent: item.discount_percent,
+        tax_rate: item.tax_rate,
+        sort_order: index,
+      })),
+      costs?.map((cost, index) => ({
+        name: cost.name,
+        amount: cost.amount,
+        is_taxable: cost.is_taxable,
+        tax_rate: cost.tax_rate,
+        sort_order: index,
+      })),
+    );
+
 
     // Status changes never travel with a plain update — route them through the
     // state machine so illegal transitions are rejected server-side.
