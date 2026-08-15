@@ -3,155 +3,146 @@
 Live per-phase ledger: `docs/plans/sales-domain-live-status.md`.
 This file tracks the wave-level state and the active phase only.
 
+## Verification verdict (this agent, 2026-08-15)
+
+Independent re-verification of the previous agent's Phase 0–6 claims against
+the **live database** (`pg_proc`, `information_schema`) and the codebase:
+
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| `resolve_line_base_quantity` is the server quantity authority | ✅ exists, SECURITY DEFINER | `pg_proc` (business, product, display_qty, display_uom, packaging) |
+| `resolve_line_unit_price` / `resolve_line_tax_rate` are the price/tax authorities | ✅ exist, SECURITY DEFINER | `pg_proc` |
+| `_sales_header_totals_guard` rewrites header totals from lines | ✅ exists | `pg_proc` |
+| `build_invoice_je_lines` owns the invoice JE | ✅ exists | `pg_proc` |
+| `_confirm_invoice_core` refuses client `p_main_lines` | ✅ signature keeps the legacy arg only | `pg_proc` |
+| `create_invoice_atomic(p_header,p_items,p_user_id,p_idempotency_key)` | ✅ exists, SECURITY DEFINER | `pg_proc` |
+| `set_invoice_status_atomic`, `link_invoice_journal_entry_atomic`, `_invoices_governed_write` | ✅ all exist | `pg_proc` |
+| No Sales editor inserts invoice headers/lines | ⚠ **false for the edit path** | `InvoiceEditPage.tsx:320–365` |
+| `create_sales_order_atomic` idempotency | ❌ no `p_idempotency_key` argument (Phase 10 as recorded) | `pg_proc` |
+
+Phase 6 is therefore accepted as substantially complete, with **one
+uncorrected defect the plan did not record** (6.4 below) and the Phase 6b
+thesis now evidenced rather than assumed.
+
+### New defect 6.4 — invoice *edit* is still a browser transaction
+
+`InvoiceEditPage.handleSubmit` updates the header with **client-computed**
+`subtotal/tax_amount/total`, then `DELETE`s all `invoice_items`, then inserts
+new ones — three separate browser round-trips. A failure or a closed tab
+between the delete and the insert leaves a **numbered invoice with zero
+lines**; there is no row-version check, so two concurrent editors silently
+last-write-win. The Phase 4 totals guard repairs the totals afterwards, which
+masks the money defect but not the lost-lines or concurrency defect.
+Creation was made atomic in 6.2; the edit path was not.
+
+### Phase 6b thesis — Sales never chooses a warehouse (evidenced)
+
+- **No Sales document carries a warehouse.** `information_schema.columns`:
+  `invoices`, `sales_orders`, `delivery_notes`, `estimates`, `credit_notes`,
+  `proforma_invoices`, `sales_returns` all have `branch_id` and **no
+  `warehouse_id`**.
+- **`confirm_sales_order_atomic` guesses one**: first active, non-in-transit
+  warehouse in the branch `ORDER BY is_default DESC LIMIT 1`. If none matches
+  it **skips reservation entirely and still returns `success: true`** with
+  `warehouse_resolved: false` — a customer is promised goods nothing was set
+  aside for.
+- **The invoice path passes nothing**: `confirmInvoiceGL.ts:63` sends
+  `p_warehouse_id: null` to `confirm_invoice_and_release_stock_atomic`.
+- **Availability and reservation disagree by construction**: the editor badge
+  comes from `list_products_with_branch_stock` → branch-aggregate stock, while
+  the reservation is taken from one guessed warehouse. In a two-warehouse
+  branch a line can read "in stock" and reserve nothing.
+- The canonical resolvers already accept the missing argument —
+  `resolve_stock_availability(_batch)(… p_warehouse_id …)` and
+  `reserve_stock_atomic(… p_warehouse_id …)` — so this is a **wiring and
+  persistence gap in Sales, not a missing Inventory engine**.
+
 ## Verified complete
 
 - **Phase 0–2** — upstream contract verification, lifecycle reconstruction,
   Product consumption (no Sales-local product tables; single server read seam).
-- **Phase 3 — UoM & packaging.** `resolve_line_base_quantity` is the server
-  authority; triggers on all five Sales line tables derive the base quantity
-  from the customer-facing input and stamp the provenance columns.
-- **Phase 4 — pricing / tax / totals.** `resolve_line_unit_price` and
-  `resolve_line_tax_rate` are the active authorities; header totals are
-  rewritten from the lines by `_sales_header_totals_guard`, so a disagreeing
-  client value is corrected rather than trusted.
-- **Phase 5 — availability.** Every line-capturing Sales editor consumes
-  `useSalesLineAvailability` (server-resolved branch stock, per-document
-  commit/advisory/none policy), guarded by
+- **Phase 3 — UoM & packaging.** `resolve_line_base_quantity` + triggers on all
+  five Sales line tables.
+- **Phase 4 — pricing / tax / totals.** `resolve_line_unit_price`,
+  `resolve_line_tax_rate`, `_sales_header_totals_guard`.
+- **Phase 5 — availability.** Every line-capturing editor consumes
+  `useSalesLineAvailability`, guarded by
   `src/test/architecture/sales-availability-coverage.test.ts`.
+- **Phase 6 — invoice ↔ receivables.** 6.0 shared stock-eval type, 6.1
+  server-side GL resolution, 6.2 atomic idempotent creation, 6.3 governed
+  invoice writes. Re-verified above.
 
-## Phase 6 — Invoice ↔ Receivables boundary (complete)
+## Active milestone — Phase 6b: warehouse is a first-class Sales decision
 
-### 6.1 — server-side GL resolution — done
+Principle: Sales does not compute stock and does not own warehouses, but it
+**must record which stock location it committed against**. The warehouse is a
+document fact, resolved and validated server-side, never guessed at confirm
+time and never chosen in the browser.
 
-`build_invoice_je_lines(invoice_id)` is the single authority for the invoice
-journal entry: receivable account (customer `default_receivable_account_id`
-override, postable-checked, else `_resolve_canonical_default_account
-('accounts_receivable')`), per-line revenue via `resolve_product_gl_account
-(..., 'sales_revenue')` grouped by resolved account, `output_tax` for the tax
-credit, and `discount_given` for a header discount (previously unposted, which
-would have unbalanced any discounted invoice). Missing mappings raise
-actionable errors instead of producing a lopsided entry.
+**6b.1 — persistence.** Migration adds `warehouse_id uuid REFERENCES
+public.warehouses(id)` to `sales_orders`, `invoices` and `delivery_notes`
+(the three `commit`-policy documents in `salesStockPolicy.ts`). Estimates,
+proformas, credit notes and returns are untouched — advisory/none policy.
 
-`_confirm_invoice_core` now builds its own lines and *rejects* any
-client-supplied `p_main_lines` (42501). `confirm_invoice_atomic` and
-`confirm_invoice_and_release_stock_atomic` keep the parameter only as a
-now-defaulted, refused legacy argument.
+**6b.2 — one resolver.** `resolve_sales_warehouse(p_organization_id,
+p_business_id, p_branch_id, p_requested_warehouse_id)`: returns the requested
+warehouse when it is active, non-in-transit and belongs to that
+business/branch; otherwise the branch default; **raises** when the branch has
+no usable warehouse. Fail-closed, tenant-checked, `SECURITY DEFINER`,
+`search_path = public`. This is the only place a Sales warehouse is chosen.
 
-`src/hooks/invoices/confirmInvoiceGL.ts` is a thin RPC seam: no account
-lookups, no journal-line assembly, no `p_main_lines`. Pinned by
-`src/hooks/invoices/__tests__/confirmInvoiceGL.test.ts` (7 passing), whose
-Supabase mock throws if the client reads a table for GL purposes.
-`tsgo` is clean.
+**6b.3 — creation stamps it.** `create_invoice_atomic` and
+`create_sales_order_atomic` read `warehouse_id` from `p_header` and stamp the
+resolver's answer. A caller that supplies an out-of-branch warehouse is
+rejected, not silently corrected.
 
-### 6.0 — one stock-evaluation type — done
+**6b.4 — confirmation consumes it, and stops lying.**
+`confirm_sales_order_atomic` reserves against the stamped warehouse
+(re-resolving only when the column is null, for pre-existing rows) and
+**returns `success: false` when no warehouse can be resolved** instead of
+confirming with zero reservations. `confirmInvoiceGL.ts` passes the invoice's
+`warehouse_id` instead of `null`. Governed-write guards add `warehouse_id`
+to the reject list once the document leaves draft.
 
-`InvoiceLineRow` re-declared a local `StockEval`, so the shared
-`LineStockEval` could not be passed into it. The row now imports
-`LineStockEval` from `@/features/sales/availability`, and the coverage test
-fails if any stock-rendering row re-declares the shape.
+**6b.5 — availability is asked the same question that is answered.**
+`useBranchScopedProducts` gains an optional `warehouseId` forwarded to the
+server resolver, and `useSalesLineAvailability` consumers pass the document's
+warehouse. Still one server number; no client aggregation.
 
-### 6.3 — invoices become a governed document — done
+**6b.6 — UI.** A warehouse field in the Sales Order, Invoice and Delivery Note
+editors: defaulted from the branch default, hidden when the branch has exactly
+one warehouse, read-only once the document is confirmed/posted. Presentation
+only — no fallback selection logic in React.
 
-`invoices` was the least protected Sales document: the draft→posted rule lived
-in a TypeScript `if`, and any client could write `status`, `invoice_number`,
-`journal_entry_id` or `amount_paid` directly.
+**6b.7 — guard.** `src/test/architecture/sales-warehouse-selection.test.ts`:
+every `commit`-policy editor supplies a warehouse; no Sales file passes
+`p_warehouse_id: null`; no Sales file queries `warehouses` to pick one.
 
-- `trg_00_invoices_governed_write` (mirrors
-  `trg_00_sales_order_governed_write`, same PG_CONTEXT ownership mechanism)
-  rejects a direct write to those four columns.
-- `set_invoice_status_atomic` is the only sanctioned non-financial transition
-  (sent / viewed / overdue / cancelled). It enforces server-side that a draft
-  must be confirmed first, that a paid/voided invoice cannot be moved
-  backwards, that settlement statuses are derived from payments, and that
-  voiding goes through `void_invoice_atomic`.
-- `link_invoice_journal_entry_atomic` gives the opening-balance importer a
-  narrow link-once door instead of widening the guard.
-- Callers migrated: `useInvoices.updateInvoiceStatus`,
-  `useInvoicesPaginated.updateInvoiceStatus`, `MigrationStepOpenBalance`.
+Every function-defining migration ends with `NOTIFY pgrst, 'reload schema';`
+(the compensation-writer-monopoly guard depends on it).
 
-Totals are deliberately outside the reject list — Phase 4's totals guard
-already rewrites them from the lines, which is stronger than rejection.
+## Then, in roadmap order
 
-### 6.2 — atomic, idempotent invoice creation — done
-
-Creation was a two-step browser insert (header, then lines) with
-client-computed totals and no retry protection: a failure between the writes
-left a headless invoice, and a double submit minted two numbered invoices.
-
-- `create_invoice_atomic(p_header, p_items, p_user_id, p_idempotency_key)` —
-  SECURITY DEFINER, business-access checked, always writes a `draft`, and
-  writes header + lines in one transaction. The server owns the invoice
-  number (`get_next_invoice_number`), the base quantity
-  (`resolve_line_base_quantity`, rejecting a disagreeing client base
-  quantity), all line money, the header totals and the exchange rate
-  (`resolve_sales_exchange_rate`). Mirrors `create_sales_order_atomic`.
-- `public.sales_document_idempotency` — unique on
-  `(organization_id, document_type, idempotency_key)`, RLS-readable within the
-  business. A replayed key returns the original response with
-  `idempotent_replay: true` instead of creating a second invoice. Deliberately
-  generic so Phase 10 can reuse it for the other Sales RPCs.
-- Client seam `src/hooks/invoices/createInvoiceAtomic.ts` mints the key;
-  `useInvoices.createInvoice` and `useInvoicesPaginated.createInvoice` both go
-  through it and no longer insert rows or compute totals. The bill-to snapshot
-  is frozen post-create through `freezeBillToSnapshot("invoices", ...)`.
-- Pinned by `src/test/architecture/invoice-creation-atomic.test.ts` (6). Full
-  run of the Phase 6 guards: 54 tests passing; `tsgo` clean.
-- Documented exception: `MigrationStepOpenBalance` still bulk-inserts historic
-  opening-balance invoices — importer path, not the Sales editor path.
-
-**Phase 6 (Invoice ↔ Receivables) is complete: 6.0, 6.1, 6.2, 6.3.**
-
-### Pending work (in roadmap order)
-
-1. **Phase 6b — warehouse selection on Sales documents (NEXT, active
-   milestone).**
+1. **Phase 6.4 — `update_invoice_atomic`** (newly added, see defect above):
+   header + line replacement in one server transaction, draft-only,
+   optimistic-concurrency checked, reusing `sales_document_idempotency`;
+   `InvoiceEditPage` becomes a thin caller. Same treatment audited for the
+   Sales Order and Estimate edit pages.
 2. Phase 7 — sale-time tax resolver ownership in the Tax domain.
 3. Phase 9/10 — governed write path for estimates; idempotency across the
-   remaining Sales RPCs, reusing `sales_document_idempotency`.
+   remaining Sales RPCs (`create_sales_order_atomic` first).
 4. Phase 2 follow-up — manual product picker through the ADR 0114 identity
    read seam.
 
-### Known pre-existing failure (not caused by Phase 6)
+## Known pre-existing failure (not caused by this wave)
 
 `src/test/architecture/recurring-invoicing-single-engine.test.ts` fails: the
-`process-recurring-invoices` worker still writes `next_run_date` itself. This
-predates this wave and belongs to the recurring-invoicing engine — record it,
-do not fold it into a Sales phase.
-
-## Instructions for the next agent
-
-1. **Verify Phase 6 before writing code.**
-   - `create_invoice_atomic` and `sales_document_idempotency` exist in the
-     live database; the function is SECURITY DEFINER with
-     `search_path = public` and checks `user_can_access_business`.
-   - No Sales editor inserts invoice headers/lines:
-     `rg -n 'from\("invoice' src/hooks src/features/sales` should show reads
-     and the migration importer only.
-   - `build_invoice_je_lines` exists and `_confirm_invoice_core` raises 42501
-     on non-empty `p_main_lines`.
-   - Run: `npx vitest run src/test/architecture/invoice-creation-atomic.test.ts
-     src/hooks/invoices/__tests__/confirmInvoiceGL.test.ts
-     src/test/architecture/compensation-writer-monopoly.test.ts
-     src/test/architecture/sales-availability-coverage.test.ts` (54 expected)
-     and `npx tsgo --noEmit`.
-   - Behavioural proof still owed once transactional data exists: create an
-     invoice twice with the same idempotency key and assert one row.
-2. **Then resume at Phase 6b** (warehouse selection) — the next milestone in
-   the roadmap. Do not pick up unrelated work; finish 6b end to end (server
-   authority + every editor + guard test + ledger entry) before Phase 7.
-3. Every function-defining migration must end with `NOTIFY pgrst,
-   'reload schema';` or the compensation-writer-monopoly guard fails.
-
+`process-recurring-invoices` worker still writes `next_run_date` itself.
+Belongs to the recurring-invoicing engine (Phase 8).
 
 ## Verification standard
 
-No claim enters this file or the ledger without evidence from the live
-database or a passing guard test. The database currently holds zero invoices,
-so 6.3 is evidenced by the trigger/function definitions and the migrated call
-sites; behavioural proof (reject a direct status write, accept the engine
-path) is recorded when transactional data exists.
-
-## Out of scope until their phase
-
-Warehouse selection (Phase 6b), sale-time tax resolver ownership (Phase 7),
-idempotency across all Sales RPCs (Phase 10), reporting surfaces (Phase 14).
+No claim enters this file without evidence from the live database or a passing
+guard test. The database holds zero invoices, so trigger-level claims are
+evidenced by definitions plus migrated call sites; behavioural proof is
+recorded when transactional data exists.
