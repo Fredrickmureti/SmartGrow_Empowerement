@@ -25,7 +25,6 @@ import {
 import { getReplenishmentSignal } from "@/lib/inventory/replenishmentSignal";
 import { getProductBadges, PRODUCT_BADGE_META } from "@/hooks/inventory/useProductBadges";
 import {
-import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
   Hash,
   FolderTree,
   Tag,
@@ -41,6 +40,7 @@ import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
   Globe,
   Barcode,
 } from "lucide-react";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   data: ProductDetailData;

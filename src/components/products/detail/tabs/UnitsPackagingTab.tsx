@@ -5,11 +5,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
 import {
-import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
   formatQtyWithPacks,
   decomposeQty,
   type PackForRollup,
 } from "@/lib/inventory/formatQty";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   data: ProductDetailData;

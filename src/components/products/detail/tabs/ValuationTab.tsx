@@ -2,10 +2,10 @@ import { Badge } from "@/components/ui/badge";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProductDetailData } from "@/hooks/inventory/useProductDetailData";
 import {
-import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
   formatQtyWithPacks,
   type PackForRollup,
 } from "@/lib/inventory/formatQty";
+import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 interface Props {
   data: ProductDetailData;
