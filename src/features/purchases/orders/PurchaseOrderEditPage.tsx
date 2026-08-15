@@ -33,6 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
 import {
@@ -82,6 +83,7 @@ export default function PurchaseOrderEditPage() {
   const { toast } = useToast();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const unitsFor = useUnitsForProducts(products);
   const { currentBusiness } = useBusinesses();
   const currentBusinessId = currentBusiness?.id ?? null;
   const { formatCurrency } = useCurrency();
@@ -331,7 +333,8 @@ export default function PurchaseOrderEditPage() {
         lines: validItems.map((item, index) => ({
           index,
           productId: item.product_id,
-          quantity: Number(item.quantity),
+          // Supplier terms apply to the ordered (supplier-facing) quantity.
+          quantity: Number(item.display_quantity ?? item.quantity),
           productName: item.description,
         })),
       });
@@ -605,6 +608,7 @@ export default function PurchaseOrderEditPage() {
                 layout={layout}
                 disabled={isSubmitting}
                 formatCurrency={formatCurrency}
+                unitsFor={unitsFor}
                 onPatch={patchLineItem}
                 onProductSelect={selectProduct}
                 productPlaceholder="Product"
