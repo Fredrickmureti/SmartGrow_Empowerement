@@ -86,6 +86,10 @@ export default function BillCreatePage() {
   const prefillProjectId = searchParams.get("project_id");
   const { contacts } = useContacts();
   const { products } = useProducts();
+  // Vendor bills are typed in the unit the supplier invoiced (pack or
+  // alternate UoM); `quantity` stays base units and the server normalizer is
+  // the authority.
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const {
@@ -459,6 +463,7 @@ export default function BillCreatePage() {
               layout={layout}
               disabled={isSubmitting}
               formatCurrency={formatCurrency}
+              unitsFor={unitsFor}
               onPatch={patchLineItem}
               onProductSelect={selectProduct}
               productPlaceholder="Product (optional)"
