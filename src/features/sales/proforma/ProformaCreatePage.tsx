@@ -97,6 +97,14 @@ export default function ProformaCreatePage() {
 
   const customers = contacts.filter((c) => c.type === "customer" || c.type === "both");
 
+  /** Advisory only — a proforma is an offer, so stock informs but never blocks. */
+  const availability = useSalesLineAvailability({
+    kind: "proforma",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
+
   const defaultValidUntil = new Date();
   defaultValidUntil.setDate(defaultValidUntil.getDate() + 30);
 
@@ -373,6 +381,7 @@ export default function ProformaCreatePage() {
                   formatCurrency={formatLineCurrency}
                   onPatch={patchLineItem}
                   onProductSelect={selectProduct}
+                  stockEval={availability.evals[index] ?? null}
                 />
               )}
               footer={

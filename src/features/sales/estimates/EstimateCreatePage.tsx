@@ -88,6 +88,17 @@ export default function EstimateCreatePage() {
 
   const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>([]);
 
+  /**
+   * Advisory only: an estimate is an offer, not a commitment, so stock is
+   * shown to help the operator quote honestly but never blocks the save.
+   */
+  const availability = useSalesLineAvailability({
+    kind: "estimate",
+    lines: lineItems,
+    products,
+    scopeLabel: branchScopeLabel,
+  });
+
   const customers = contacts.filter((c) => (c.type === "customer" || c.type === "both") && c.is_active);
 
   useEffect(() => {
@@ -352,6 +363,7 @@ export default function EstimateCreatePage() {
                 formatCurrency={formatLineCurrency}
                 onPatch={applyLinePatch}
                 productPlaceholder="Product (optional)"
+                stockEval={availability.evals[index] ?? null}
               />
             )}
           />
