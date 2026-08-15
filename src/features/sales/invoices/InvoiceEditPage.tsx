@@ -192,6 +192,9 @@ export default function InvoiceEditPage() {
           discount_percent: item.discount_percent || 0,
           line_total: item.line_total,
           sort_order: item.sort_order || 0,
+          packaging_id: item.packaging_id ?? null,
+          display_uom_id: item.display_uom_id ?? null,
+          display_quantity: item.display_quantity ?? null,
           project_id: (item as { project_id?: string | null }).project_id ?? null,
           task_id: (item as { task_id?: string | null }).task_id ?? null,
         }))

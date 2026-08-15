@@ -13,6 +13,7 @@
 import { useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { computeLine } from "@/lib/invoiceLineMath";
 
 export interface LinePriceRequest {
   productId: string | null | undefined;
@@ -68,6 +69,10 @@ export function useServerPriceApplier<
     display_quantity?: number | null;
     quantity?: number | null;
     unit_price?: number;
+    discount_percent?: number | null;
+    tax_rate?: number | null;
+    tax_amount?: number;
+    line_total?: number;
   },
 >(
   lines: T[],
@@ -75,10 +80,13 @@ export function useServerPriceApplier<
   resolvePrice: ReturnType<typeof useLinePriceResolver>,
 ) {
   const linesRef = useRef(lines);
+  const requestSequenceRef = useRef(new Map<number, number>());
   linesRef.current = lines;
 
   return useCallback(
     async (index: number, patch: Partial<T>) => {
+      const requestSequence = (requestSequenceRef.current.get(index) ?? 0) + 1;
+      requestSequenceRef.current.set(index, requestSequence);
       const row = { ...(linesRef.current[index] ?? ({} as T)), ...patch } as T;
       if (!row.product_id) return;
       const res = await resolvePrice({
@@ -88,14 +96,34 @@ export function useServerPriceApplier<
         displayQuantity: row.display_quantity ?? row.quantity ?? 1,
       });
       if (!res) return;
+      // A rapid pack → base → pack switch can resolve out of order. Only the
+      // newest request for this row may update its price.
+      if (requestSequenceRef.current.get(index) !== requestSequence) return;
       setLines((prev) =>
         prev.map((it, i) => {
           if (i !== index) return it;
-          const nextLine: Record<string, unknown> = { ...it, unit_price: res.unit_price };
+          const nextLine: T = { ...it, unit_price: res.unit_price };
           if ("discount_percent" in it && res.discount_percent > 0 && !Number((it as Record<string, unknown>).discount_percent)) {
-            nextLine.discount_percent = res.discount_percent;
+            nextLine.discount_percent = res.discount_percent as T["discount_percent"];
           }
-          return nextLine as T;
+          // Unit switching changes price asynchronously. Recalculate against
+          // the latest quantity state in this updater so the amount changes in
+          // the same render as the resolved price (rather than waiting for the
+          // operator to touch Qty again).
+          if ("line_total" in it) {
+            const calculated = computeLine({
+              quantity: nextLine.quantity,
+              display_quantity: nextLine.display_quantity,
+              unit_price: nextLine.unit_price,
+              discount_percent: nextLine.discount_percent,
+              tax_rate: nextLine.tax_rate,
+            });
+            nextLine.line_total = calculated.line_total as T["line_total"];
+            if ("tax_amount" in it) {
+              nextLine.tax_amount = calculated.tax_amount as T["tax_amount"];
+            }
+          }
+          return nextLine;
         }),
       );
     },
