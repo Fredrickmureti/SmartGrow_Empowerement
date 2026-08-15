@@ -214,8 +214,40 @@ export default function PurchaseOrderCreatePage() {
             }
           : {}),
       } as Partial<LineItem>);
+
+      // Supplier purchasing terms (ADR 0141) seed the line: minimum order
+      // quantity and the supplier's purchase unit. Resolved server-side — the
+      // browser never reads the deprecated product-level defaults.
+      void (async () => {
+        try {
+          const defaults = await resolvePurchaseLineDefaults({
+            businessId: currentBusiness?.id,
+            productId,
+            supplierId: formData.vendor_id || null,
+            onDate: formData.order_date || null,
+          });
+          if (!defaults) return;
+          patchLineItem(index, {
+            quantity: defaults.quantity,
+            display_uom_id: defaults.displayUomId,
+            ...(defaults.unitPrice != null && !contractLine
+              ? { unit_price: defaults.unitPrice }
+              : {}),
+          } as Partial<LineItem>);
+        } catch {
+          // Terms are advisory at entry time; the server refuses on submit.
+        }
+      })();
     },
-    [products, priceLists, patchLineItem, selectedContract],
+    [
+      products,
+      priceLists,
+      patchLineItem,
+      selectedContract,
+      currentBusiness?.id,
+      formData.vendor_id,
+      formData.order_date,
+    ],
   );
 
   // Re-map coverage whenever the cited contract changes.
