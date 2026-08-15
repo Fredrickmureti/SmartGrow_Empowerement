@@ -180,7 +180,7 @@ export default function CreditNoteCreatePage() {
       updated[index].tax_amount = totals.tax_amount;
       return updated;
     });
-  }, []);
+  }, [applyServerPrice]);
 
 
   // Scan-to-line parity — the Sales workspace scan transport is live on every

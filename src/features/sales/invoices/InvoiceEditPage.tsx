@@ -216,7 +216,7 @@ export default function InvoiceEditPage() {
       newItems[index] = { ...updatedItem, line_total, tax_amount };
       return newItems;
     });
-  }, []);
+  }, [applyServerPrice]);
 
   const addLineItem = useCallback(() => {
     setLineItems((prev) => [
@@ -252,7 +252,7 @@ export default function InvoiceEditPage() {
     // (price list > price book > product) is the authority and is what the
     // database stamps on insert.
     void applyServerPrice(index, { product_id: productId });
-  }, [products, updateLineItem]);
+  }, [products, updateLineItem, applyServerPrice]);
 
   /**
    * Scan-first line entry — shared with every other Sales document via

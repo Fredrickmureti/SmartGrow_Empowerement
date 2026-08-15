@@ -154,7 +154,7 @@ export default function ProformaCreatePage() {
     setLineItems((prev) =>
       prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
     );
-  }, []);
+  }, [applyServerPrice]);
 
   const selectProduct = useCallback(
     (index: number, productId: string) => {
