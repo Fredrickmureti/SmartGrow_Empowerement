@@ -215,7 +215,7 @@ function drawOperationalHeader(
 ): DrawnHeader {
   const { state, fontRegular, fontBold } = builder;
   const { pageWidth, pageHeight, margin } = state;
-  const { title, dateRange, organization, companyName, logo } = config;
+  const { title, dateRange, asOf, scope, subtitle, organization, companyName, logo } = config;
   const t = config.typography ?? DOCUMENT_TYPOGRAPHY;
   const stamp = config.generatedStamp ?? state.generatedStamp;
 
@@ -268,25 +268,47 @@ function drawOperationalHeader(
     size: titleSize, font: fontBold, color: theme.color.text,
   });
 
-  if (dateRange) {
-    const safeDateRange = winansiSafe(dateRange);
-    const drWidth = fontRegular.widthOfTextAtSize(safeDateRange, t.size.dateRange);
-    page.drawText(safeDateRange, {
-      x: pageWidth - margin - drWidth,
-      y: topY - 20,
-      size: t.size.dateRange, font: fontRegular, color: theme.color.medGray,
+  // Statement identity block, right-aligned under the title. A statement
+  // must be self-identifying (IAS 1): period covered, basis of preparation
+  // and reporting scope — the same lines the on-screen ReportSurface shows.
+  // Previously `asOf`, `subtitle` and `scope` were resolved by renderReport
+  // and then silently dropped here, so the download said less than the
+  // screen.
+  const periodLine = asOf
+    ? (/^as of/i.test(asOf) ? asOf : `As of ${asOf}`)
+    : dateRange
+      ? (/^(as of|for the period)/i.test(dateRange)
+          ? dateRange
+          : `For the period ${dateRange}`)
+      : "";
+
+  const metaLines: { text: string; size: number; color: typeof theme.color.medGray }[] = [];
+  if (periodLine) {
+    metaLines.push({ text: periodLine, size: t.size.dateRange, color: theme.color.medGray });
+  }
+  if (subtitle) {
+    metaLines.push({ text: subtitle, size: t.size.orgDetail, color: theme.color.medGray });
+  }
+  if (scope) {
+    metaLines.push({ text: scope, size: t.size.orgDetail, color: theme.color.medGray });
+  }
+  metaLines.push({ text: stamp, size: t.size.timestamp, color: theme.color.lightGray });
+
+  let metaY = topY - 20;
+  for (const line of metaLines) {
+    const safeLine = winansiSafe(line.text);
+    const w = fontRegular.widthOfTextAtSize(safeLine, line.size);
+    page.drawText(safeLine, {
+      x: pageWidth - margin - w,
+      y: metaY,
+      size: line.size, font: fontRegular, color: line.color,
     });
+    metaY -= line.size + 4;
   }
 
-  const safeStamp = winansiSafe(stamp);
-  const stampWidth = fontRegular.widthOfTextAtSize(safeStamp, t.size.timestamp);
-  page.drawText(safeStamp, {
-    x: pageWidth - margin - stampWidth,
-    y: topY - (dateRange ? 33 : 20),
-    size: t.size.timestamp, font: fontRegular, color: theme.color.lightGray,
-  });
-
-  const separatorY = Math.min(infoY, topY - 48) - 8;
+  // Separator clears BOTH columns: the entity block on the left and the
+  // (now variable-height) identity block on the right.
+  const separatorY = Math.min(infoY, metaY + 2, topY - 48) - 8;
   page.drawLine({
     start: { x: margin, y: separatorY },
     end: { x: pageWidth - margin, y: separatorY },
