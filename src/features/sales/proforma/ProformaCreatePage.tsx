@@ -295,17 +295,14 @@ export default function ProformaCreatePage() {
                         field.onChange(v);
                         try {
                           const defaults = await fetchContactDefaults(v);
-                          if (defaults.tax_exemption_number) {
-                            setLineItems((prev) => prev.map((item) => ({ ...item, tax_rate: 0 })));
-                          } else if (defaults.default_tax_rate_id) {
-                            const { data: taxRate } = await supabase
-                              .from("tax_rates")
-                              .select("rate")
-                              .eq("id", defaults.default_tax_rate_id)
-                              .maybeSingle();
-                            if (taxRate?.rate != null) {
-                              setLineItems((prev) => prev.map((item) => ({ ...item, tax_rate: taxRate.rate })));
-                            }
+                          // Phase 7: server-resolved rate, preview only.
+                          if (currentBusiness?.id) {
+                            const rate = await previewCustomerTaxRate(
+                              currentBusiness.id,
+                              v,
+                              form.getValues("issue_date"),
+                            );
+                            setLineItems((prev) => prev.map((item) => ({ ...item, tax_rate: rate })));
                           }
                         } catch (e) {
                           console.error("Failed to fetch contact defaults:", e);
