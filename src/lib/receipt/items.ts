@@ -16,6 +16,7 @@ import {
   type LayoutId,
   type LayoutContext,
 } from "@/lib/receipt/layouts";
+import { resolveDisplayUnitPrice } from "@/lib/documents/lineItemPrice";
 
 export type ItemRowKind = "heading" | "header" | "item" | "subrow";
 
@@ -84,8 +85,8 @@ export function assembleItems(input: AssembleItemsInput): AssembleItemsResult {
   for (let idx = 0; idx < items.length; idx++) {
     const it = items[idx];
     const qty = Number(it.quantity ?? 0);
-    const price = Number(it.unit_price ?? 0);
-    const total = Number(it.line_total ?? qty * price);
+    const baseUnitPrice = Number(it.unit_price ?? 0);
+    const total = Number(it.line_total ?? qty * baseUnitPrice);
     const baseName = String(it.product_name ?? it.description ?? "Item");
     const nameStr = ctx.truncateLongNames ? fmt.truncate(baseName, ctx.maxNameLen) : baseName;
 
@@ -96,6 +97,15 @@ export function assembleItems(input: AssembleItemsInput): AssembleItemsResult {
     const qtyCell = packLabel
       ? `${fmt.fmtQty(displayQty)} ${packLabel}`
       : fmt.fmtQty(qty);
+    // Same single rule as the server renderers: the Price cell is the price
+    // of ONE display unit, reconciled against the authoritative line total.
+    const price = resolveDisplayUnitPrice({
+      quantity: qty,
+      display_quantity: displayQty,
+      packaging_label: packLabel,
+      unit_price: baseUnitPrice,
+      line_total: it.line_total as number | null | undefined,
+    });
 
     const values: Record<string, string> = {
       sku: String(it.sku ?? ""),
