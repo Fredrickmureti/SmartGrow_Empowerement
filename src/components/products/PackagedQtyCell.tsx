@@ -136,14 +136,20 @@ export function PackagedQtyCell({
         hideWhenEmpty={hideEmptyPackSelect}
         onChange={(pkgId, packQty) => {
           if (!pkgId) {
+            // A unit switch reinterprets the number the operator can see. Do
+            // not leak the previous pack's hidden base quantity into Qty
+            // (1 bag → base must show 1, not 50).
             onChange({
               packaging_id: null,
               display_uom_id: null,
               display_quantity: null,
+              quantity: displayQty,
             });
             return;
           }
-          const dq = value.display_quantity ?? 1;
+          // Keep the visible Qty stable while changing its denomination:
+          // 100 base units → select Bag means 100 bags, not silently 1 bag.
+          const dq = displayQty;
           onChange({
             packaging_id: pkgId,
             display_uom_id: null,
