@@ -439,6 +439,7 @@ export default function SalesOrderCreatePage() {
                   formatCurrency={formatLineCurrency}
                   onPatch={patchLineItem}
                   unitsFor={unitsFor}
+                  stockEval={availability.evals[index] ?? null}
                 />
               )}
             />
@@ -450,6 +451,12 @@ export default function SalesOrderCreatePage() {
                 <div className="flex justify-between font-medium border-t pt-2"><span>Total:</span><span>{totals.total.toFixed(2)}</span></div>
               </div>
             </div>
+
+            <OversellConfirmation
+              kind="sales_order"
+              availability={availability}
+              disabled={isSubmitting}
+            />
           </FieldGroup>
 
           <FieldGroup label="Additional Info">
