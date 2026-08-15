@@ -405,9 +405,8 @@ export default function InvoiceCreatePage() {
 
       if (formData.contact_id && creditInfo) {
         const totalAmount = validItems.reduce((sum, item) => {
-          const lineTotal = item.quantity * item.unit_price;
-          const tax = lineTotal * ((item.tax_rate || 0) / 100);
-          return sum + lineTotal + tax;
+          const { line_total, tax_amount } = computeLine(item);
+          return sum + line_total + tax_amount;
         }, 0);
         const creditResult = checkCreditAvailability(totalAmount);
         if (!creditResult.allowed) throw new Error(creditResult.reason || "Credit check failed");
@@ -471,7 +470,10 @@ export default function InvoiceCreatePage() {
 
         <CreditCheckAlert
           customerId={formData.contact_id || undefined}
-          orderAmount={lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price * (1 + (item.tax_rate || 0) / 100), 0)}
+          orderAmount={lineItems.reduce((sum, item) => {
+            const { line_total, tax_amount } = computeLine(item);
+            return sum + line_total + tax_amount;
+          }, 0)}
         />
 
         {/* Available Credit Alert */}
