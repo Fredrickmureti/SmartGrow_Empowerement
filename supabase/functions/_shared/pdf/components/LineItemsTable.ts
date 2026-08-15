@@ -63,7 +63,7 @@ function formatQtyCell(item: LineItem, opts: { showBase?: boolean } = {}): strin
  * Price cell = price of ONE display unit, reconciled against the line total
  * so that Qty × Price = Amount always holds. See resolveDisplayUnitPrice.
  */
-function formatPriceCell(item: LineItem): number {
+export function formatPriceCell(item: LineItem): number {
   return resolveDisplayUnitPrice(item);
 }
 function trimNum(n: number): string {

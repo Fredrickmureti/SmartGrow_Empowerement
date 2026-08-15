@@ -8,9 +8,9 @@
  */
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-// Re-implementations exposed for unit testing — kept in sync with
-// LineItemsTable.ts (formatQtyCell / formatPriceCell). Drift here means
-// drift in the PDF.
+// Qty remains a small formatting contract. Price is imported from the actual
+// PDF component below: duplicating that calculation here previously let the
+// test pass while the deployed renderer remained stale.
 function trimNum(n: number): string {
   if (!Number.isFinite(n)) return "0";
   return String(Number(n.toFixed(3)));
@@ -36,10 +36,7 @@ function formatQtyCell(item: Item, opts: { showBase?: boolean } = {}): string {
   }
   return `${trimNum(base)} ${baseLabel}`;
 }
-import { resolveDisplayUnitPrice } from "../../documents/lineItemPrice.ts";
-function formatPriceCell(item: Item): number {
-  return resolveDisplayUnitPrice(item);
-}
+import { formatPriceCell } from "./LineItemsTable.ts";
 
 Deno.test("PDF — pack-unit price is not multiplied again (50 kg Bag @ 7,500)", () => {
   assertEquals(
@@ -52,6 +49,36 @@ Deno.test("PDF — pack-unit price is not multiplied again (50 kg Bag @ 7,500)",
       line_total: 7500,
     } as Item),
     7500,
+  );
+});
+
+Deno.test("PDF — Cooking Oil 1 × 20 L Drum keeps the commercial drum price", () => {
+  assertEquals(
+    formatPriceCell({
+      quantity: 20,
+      display_quantity: 1,
+      packaging_label: "20 L Drum",
+      base_uom_label: "L",
+      unit_price: 6000,
+      line_total: 6000,
+      description: "Cooking Oil",
+    }),
+    6000,
+  );
+});
+
+Deno.test("PDF — Cooking Oil 2 × 20 L Drum keeps the per-drum price", () => {
+  assertEquals(
+    formatPriceCell({
+      quantity: 40,
+      display_quantity: 2,
+      packaging_label: "20 L Drum",
+      base_uom_label: "L",
+      unit_price: 6000,
+      line_total: 12000,
+      description: "Cooking Oil",
+    }),
+    6000,
   );
 });
 
