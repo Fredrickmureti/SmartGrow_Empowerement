@@ -364,27 +364,20 @@ export default function InvoiceCreatePage() {
         payment_term_id: resolved?.payment_term_id ?? null,
         due_date: dueDateFromTerm(todayIso(), resolved?.days ?? 0),
       }));
-      if (defaults.tax_exemption_number) {
+      // Phase 7: the server decides the rate (exemption > customer > product >
+      // company default, effective-dated). We only preview it.
+      if (currentBusiness?.id) {
+        const rate = await previewCustomerTaxRate(
+          currentBusiness.id,
+          v,
+          formData.issue_date || todayIso(),
+        );
         setLineItems((prev) =>
           prev.map((item) => {
-            const updated = { ...item, tax_rate: 0 };
+            const updated = { ...item, tax_rate: rate };
             return { ...updated, ...calculateLineTotal(updated) };
           })
         );
-      } else if (defaults.default_tax_rate_id) {
-        const { data: taxRate } = await supabase
-          .from("tax_rates")
-          .select("rate")
-          .eq("id", defaults.default_tax_rate_id)
-          .maybeSingle();
-        if (taxRate?.rate != null) {
-          setLineItems((prev) =>
-            prev.map((item) => {
-              const updated = { ...item, tax_rate: taxRate.rate };
-              return { ...updated, ...calculateLineTotal(updated) };
-            })
-          );
-        }
       }
     } catch (e) {
       console.error("Failed to fetch contact defaults:", e);
