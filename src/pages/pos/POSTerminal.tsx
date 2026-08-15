@@ -186,6 +186,7 @@ function POSTerminalInner() {
   }, [currentRegister]);
 
   const { 
+    products,
     filteredProducts, 
     categories, 
     isLoading: productsLoading,
@@ -265,19 +266,13 @@ function POSTerminalInner() {
   // Set of product IDs that have at least one packaging level defined. Used to
   // decide whether tapping a tile opens the unit picker (Box/Strip/Each) or
   // adds the base unit directly. One lightweight query per business.
-  const { data: packagedProductIds } = useQuery<Set<string>>({
-    queryKey: ["pos-packaged-product-ids", currentBusiness?.id],
-    enabled: !!currentBusiness?.id,
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("product_packaging")
-        .select("product_id")
-        .eq("business_id", currentBusiness!.id);
-      if (error) throw error;
-      return new Set<string>((data ?? []).map((r) => r.product_id));
-    },
-  });
+  // Products with at least one packaging level, derived from the canonical
+  // product read seam (the RPC already returns packaging levels) — POS does
+  // not issue its own product_packaging query.
+  const packagedProductIds = useMemo(
+    () => new Set(products.filter((p) => (p.packaging?.length ?? 0) > 0).map((p) => p.id)),
+    [products],
+  );
   const { settings: securitySettings } = usePOSSecuritySettings();
   const queryClient = useQueryClient();
   
@@ -841,10 +836,11 @@ function POSTerminalInner() {
       price: effectivePrice,
       tax_rate: product.tax_rate || 0,
       cost_price: product.cost_price || undefined,
-      category_id: product.category || undefined,
+      category_id: product.category_id || undefined,
       tax_rate_id: product.tax_rate_id || undefined,
       tax_rate_name: product.tax_rate_name || undefined,
       etims_tax_code: product.etims_tax_code || undefined,
+      base_uom_id: product.base_uom_id || undefined,
     });
     sound.play("product_click");
   };
@@ -869,7 +865,7 @@ function POSTerminalInner() {
         price: perBaseUnitPrice,
         tax_rate: product.tax_rate || 0,
         cost_price: product.cost_price || undefined,
-        category_id: product.category || undefined,
+        category_id: product.category_id || undefined,
         tax_rate_id: product.tax_rate_id || undefined,
         tax_rate_name: product.tax_rate_name || undefined,
         etims_tax_code: product.etims_tax_code || undefined,
@@ -898,7 +894,8 @@ function POSTerminalInner() {
       price: effectivePrice,
       tax_rate: pendingProduct.tax_rate || 0,
       cost_price: pendingProduct.cost_price || undefined,
-      category_id: pendingProduct.category || undefined,
+      category_id: pendingProduct.category_id || undefined,
+      base_uom_id: pendingProduct.base_uom_id || undefined,
       tax_rate_id: pendingProduct.tax_rate_id || undefined,
       tax_rate_name: pendingProduct.tax_rate_name || undefined,
       etims_tax_code: pendingProduct.etims_tax_code || undefined,

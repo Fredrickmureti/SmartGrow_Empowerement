@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Info, Search, PackagePlus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
+import { usePOSProducts } from "@/hooks/pos/usePOSProducts";
 
 interface PeekProduct {
   id: string;
@@ -52,6 +53,8 @@ export function ProductPeekDialog({
   onAddToCart,
 }: ProductPeekDialogProps) {
   const { formatCurrency } = useCurrency();
+  // Canonical product read seam — peek never queries the products table.
+  const { products: catalog, isLoading: catalogLoading } = usePOSProducts();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PeekProduct[]>([]);
   const [selected, setSelected] = useState<PeekProduct | null>(null);
@@ -81,67 +84,55 @@ export function ProductPeekDialog({
       setResults([]);
       return;
     }
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, sku, description, unit_price, image_url, track_inventory")
-        .in("id", cartProductIds);
-      if (!cancelled) {
-        setLoading(false);
-        if (!error && data) {
-          setResults(
-            (data as Array<Record<string, unknown>>).map((row) => ({
-              id: row.id as string,
-              name: row.name as string,
-              sku: (row.sku as string) ?? null,
-              barcode: null,
-              description: (row.description as string) ?? null,
-              price: (row.unit_price as number) ?? null,
-              image_url: (row.image_url as string) ?? null,
-              track_inventory: (row.track_inventory as boolean) ?? null,
-            })),
-          );
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setLoading(catalogLoading);
+    const ids = new Set(cartProductIds);
+    setResults(
+      catalog
+        .filter((p) => ids.has(p.id))
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: null,
+          description: p.description,
+          price: p.selling_price,
+          image_url: p.image_url,
+          track_inventory: p.track_inventory,
+        })),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, query, cartIdsKey]);
+  }, [open, query, cartIdsKey, catalog, catalogLoading]);
 
   // Debounced product search.
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
     if (q.length < 2) return;
-    const t = setTimeout(async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, sku, description, unit_price, image_url, track_inventory")
-        .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
-        .limit(15);
-      setLoading(false);
-      if (!error && data) {
-        setResults(
-          (data as Array<Record<string, unknown>>).map((row) => ({
-            id: row.id as string,
-            name: row.name as string,
-            sku: (row.sku as string) ?? null,
+    const t = setTimeout(() => {
+      setLoading(catalogLoading);
+      const needle = q.toLowerCase();
+      setResults(
+        catalog
+          .filter(
+            (p) =>
+              p.name.toLowerCase().includes(needle) ||
+              (p.sku ?? "").toLowerCase().includes(needle),
+          )
+          .slice(0, 15)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
             barcode: null,
-            description: (row.description as string) ?? null,
-            price: (row.unit_price as number) ?? null,
-            image_url: (row.image_url as string) ?? null,
-            track_inventory: (row.track_inventory as boolean) ?? null,
+            description: p.description,
+            price: p.selling_price,
+            image_url: p.image_url,
+            track_inventory: p.track_inventory,
           })),
-        );
-      }
+      );
     }, 220);
     return () => clearTimeout(t);
-  }, [query, open]);
+  }, [query, open, catalog, catalogLoading]);
 
   // Live stock for selected product.
   useEffect(() => {

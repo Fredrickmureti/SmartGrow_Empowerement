@@ -3,55 +3,50 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
 import { syncManager } from "@/services/offline";
 import { queryKeys } from "@/lib/queryKeys";
-import type { POSProduct } from "./usePOSProducts";
+import { mapCanonicalProductRow, type POSProduct } from "./usePOSProducts";
 
 /**
  * Hook for managing cached products with offline support
  * Now includes real-time subscription for instant updates
+ *
+ * Reads through the canonical seam (`list_products_with_branch_stock`) so the
+ * offline cache holds exactly the same product contract as the online grid.
  */
 export function usePOSProductCache() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
   const queryClient = useQueryClient();
   const [cachedProducts, setCachedProducts] = useState<POSProduct[]>([]);
   const [isCacheReady, setIsCacheReady] = useState(false);
 
   // Fetch products from server (when online)
   const { data: serverProducts = [], isLoading, refetch } = useQuery({
-    queryKey: [...queryKeys.products.posCache(currentOrg?.id || ''), currentBusiness?.id],
+    queryKey: [
+      ...queryKeys.products.posCache(currentOrg?.id || ''),
+      currentBusiness?.id,
+      currentBranch?.id ?? null,
+    ],
     queryFn: async () => {
       if (!currentOrg?.id || !currentBusiness?.id) return [];
 
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
-        .eq("status", "active")
-        .order("name");
+      const { data, error } = await supabase.rpc(
+        "list_products_with_branch_stock" as any,
+        {
+          p_org_id: currentOrg.id,
+          p_business_id: currentBusiness.id,
+          p_branch_id: currentBranch?.id ?? null,
+          p_include_variant_parents: false,
+          p_warehouse_id: null,
+        } as any,
+      );
 
       if (error) throw error;
 
-      return data.map((p) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        description: p.description,
-        selling_price: p.unit_price || 0,
-        cost_price: p.cost_price,
-        tax_rate: p.tax_rate,
-        stock_quantity: p.stock_quantity,
-        category: p.type,
-        image_url: p.image_url,
-        is_active: p.is_active,
-        track_inventory: p.track_inventory,
-        reorder_level: p.reorder_level,
-        tax_rate_id: p.tax_rate_id,
-        tax_rate_name: null,
-        etims_tax_code: null,
-      })) as POSProduct[];
+      return ((data as any[]) || []).map(mapCanonicalProductRow);
     },
     enabled: !!currentOrg?.id && !!currentBusiness?.id && navigator.onLine,
     staleTime: 30000, // 30 seconds
