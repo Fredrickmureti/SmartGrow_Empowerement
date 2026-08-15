@@ -34,11 +34,68 @@ export interface LineWithProvenance {
   display_quantity?: number | null;
   /** Frozen label e.g. "Box × 10 ea". Optional. */
   uom_snapshot?: string | null;
+  /**
+   * Structured frozen snapshot (Phase 2). These three columns exist on all
+   * 15 document-line tables and are stamped once, at write time, by
+   * `enforce_line_uom_consistency`. They are the AUTHORITATIVE source for
+   * rendering a historical line: a later pack rename or factor change
+   * mutates `product_packaging`, but never these.
+   */
+  uom_snapshot_pack_name?: string | null;
+  uom_snapshot_factor?: number | string | null;
+  uom_snapshot_base_code?: string | null;
   /** Resolved packaging row (joined). Optional. */
   packaging?: PackagingRef | null;
   /** Convenience: short display label when the packaging row was not joined. */
   packaging_label?: string | null;
 }
+
+/** Structured snapshot resolved from a line, with live data as fallback. */
+export interface ResolvedLineSnapshot {
+  /** Pack name frozen at posting time, or the live/joined name. */
+  packName: string | null;
+  /** Base units per display unit frozen at posting time. Null when unknown. */
+  factor: number | null;
+  /** Base UoM code frozen at posting time. Null when unknown. */
+  baseCode: string | null;
+  /** True when the values came from the frozen snapshot, not live joins. */
+  frozen: boolean;
+}
+
+/**
+ * Resolve a line's pack/factor/base-unit meaning, preferring the frozen
+ * structured snapshot. Falls back to joined `product_packaging` and finally
+ * to parsing the legacy free-text `uom_snapshot` for pre-Phase-2 rows.
+ */
+export function resolveLineSnapshot(line: LineWithProvenance): ResolvedLineSnapshot {
+  const snapFactor = Number(line.uom_snapshot_factor);
+  const hasSnapFactor = Number.isFinite(snapFactor) && snapFactor > 0;
+  const snapName = line.uom_snapshot_pack_name?.trim() || null;
+  const snapBase = line.uom_snapshot_base_code?.trim() || null;
+
+  if (hasSnapFactor || snapName || snapBase) {
+    return {
+      packName: snapName,
+      factor: hasSnapFactor ? snapFactor : null,
+      baseCode: snapBase,
+      frozen: true,
+    };
+  }
+
+  const liveFactor = Number(line.packaging?.qty_in_base_uom);
+  const legacyName =
+    line.packaging?.name?.trim() ||
+    line.packaging_label?.trim() ||
+    (line.uom_snapshot ? line.uom_snapshot.split("×")[0]?.trim() : "") ||
+    null;
+  return {
+    packName: legacyName || null,
+    factor: Number.isFinite(liveFactor) && liveFactor > 0 ? liveFactor : null,
+    baseCode: null,
+    frozen: false,
+  };
+}
+
 
 export interface BaseUomRef {
   /** Short symbol/code ("ea", "tab"). */
