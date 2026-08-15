@@ -330,16 +330,25 @@ function computeColWidths(
     void leftover;
   } else {
     // Step 3: text minimums + numeric reservations overflow the page.
-    // Shrink numerics proportionally to fit the budget left after we
-    // honour the text minimums. The legacy fallback (an 80pt total for
-    // ALL text columns) was the original root cause of the per-character
-    // wrap — it could give a single name column 12pt.
-    if (textMinTotal > 0) {
-      for (let i = 0; i < columns.length; i++) {
-        if (!isNumericColumn(columns[i])) widths[i] = textMins[i];
-      }
+    // Honour the text minimums where they fit, but they are only capped
+    // PER COLUMN (40% of contentWidth); with five or more text columns
+    // their sum can exceed the whole page. The previous code wrote those
+    // unscaled minimums out and then floored the numeric budget at 30%
+    // of contentWidth, so the row could total >100% and the right-hand
+    // columns were drawn past the right margin — off the paper. Scale
+    // the text side down so text + numeric always sums to contentWidth.
+    const numericFloor = Math.min(numericReserved, contentWidth * 0.3);
+    const textBudget = Math.max(contentWidth - numericFloor, 0);
+    const textScale = textMinTotal > textBudget && textMinTotal > 0
+      ? textBudget / textMinTotal
+      : 1;
+    let textUsed = 0;
+    for (let i = 0; i < columns.length; i++) {
+      if (isNumericColumn(columns[i])) continue;
+      widths[i] = textMins[i] * textScale;
+      textUsed += widths[i];
     }
-    const numericBudget = Math.max(contentWidth - textMinTotal, contentWidth * 0.3);
+    const numericBudget = Math.max(contentWidth - textUsed, 0);
     const scale = numericReserved > 0 ? numericBudget / numericReserved : 1;
     for (let i = 0; i < columns.length; i++) {
       if (isNumericColumn(columns[i])) widths[i] *= scale;
