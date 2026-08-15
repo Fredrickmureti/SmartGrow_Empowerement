@@ -1,10 +1,31 @@
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+/**
+ * POS product read seam (Phase 1 — canonical product consumption).
+ *
+ * POS reads products through ONE server seam: the canonical
+ * `list_products_with_branch_stock` RPC. It returns identity, price, tax,
+ * UoM, packaging levels and branch/warehouse-scoped stock in one shape.
+ *
+ * POS must NOT query the `products` table directly and must NOT maintain a
+ * competing product representation — the grid path and the scan path
+ * (`pos_resolve_scan` → `resolve_product_identity`) resolve the same
+ * canonical product contract. Guarded by
+ * `src/test/architecture/pos-product-read-seam.test.ts`.
+ */
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useState, useMemo } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedCallback";
+
+export interface POSPackagingLevel {
+  id: string;
+  name: string;
+  qty_in_base_uom: number;
+  is_sales_default: boolean;
+  is_shipping_unit: boolean;
+}
 
 export interface POSProduct {
   id: string;
@@ -24,128 +45,101 @@ export interface POSProduct {
   tax_rate_name: string | null;
   etims_tax_code: string | null;
   base_uom_id: string | null;
+  /** Canonical UoM / packaging contract (server-resolved). */
+  base_uom_code?: string | null;
+  base_uom_name?: string | null;
+  sales_uom_id?: string | null;
+  sales_uom_code?: string | null;
+  sales_uom_name?: string | null;
+  packaging?: POSPackagingLevel[];
+  is_weighted?: boolean;
+  plu_code?: string | null;
+  /** Branch/warehouse-scoped availability from the canonical stock resolver. */
+  on_hand?: number;
+  reserved?: number;
+  available?: number;
 }
+
 export interface RegisterProductScope {
   product_scope?: "all" | "by_category" | "specific";
   product_scope_categories?: string[];
   product_scope_ids?: string[];
 }
 
-const PAGE_SIZE = 200;
+/** Maps one canonical RPC row onto the POS view shape. Field renames only. */
+export function mapCanonicalProductRow(r: any): POSProduct {
+  return {
+    id: r.id,
+    name: r.name,
+    sku: r.sku ?? null,
+    description: r.description ?? null,
+    selling_price: Number(r.unit_price) || 0,
+    cost_price: r.cost_price === null || r.cost_price === undefined ? null : Number(r.cost_price),
+    tax_rate: r.tax_rate === null || r.tax_rate === undefined ? null : Number(r.tax_rate),
+    stock_quantity: Number(r.available ?? r.on_hand) || 0,
+    category: r.category_name ?? null,
+    image_url: r.image_url ?? null,
+    is_active: r.is_active !== false,
+    track_inventory: r.track_inventory !== false,
+    reorder_level: r.reorder_level === null || r.reorder_level === undefined ? null : Number(r.reorder_level),
+    tax_rate_id: r.tax_rate_id ?? null,
+    tax_rate_name: r.tax_rate_name ?? null,
+    etims_tax_code: r.etims_tax_code ?? null,
+    base_uom_id: r.base_uom_id ?? null,
+    base_uom_code: r.base_uom_code ?? null,
+    base_uom_name: r.base_uom_name ?? null,
+    sales_uom_id: r.sales_uom_id ?? null,
+    sales_uom_code: r.sales_uom_code ?? null,
+    sales_uom_name: r.sales_uom_name ?? null,
+    packaging: Array.isArray(r.packaging)
+      ? (r.packaging as any[]).map((p) => ({
+          id: p.id,
+          name: p.name,
+          qty_in_base_uom: Number(p.qty_in_base_uom) || 0,
+          is_sales_default: !!p.is_sales_default,
+          is_shipping_unit: !!p.is_shipping_unit,
+        }))
+      : [],
+    is_weighted: !!r.is_weighted,
+    plu_code: r.plu_code ?? null,
+    on_hand: Number(r.on_hand) || 0,
+    reserved: Number(r.reserved) || 0,
+    available: Number(r.available) || 0,
+  };
+}
 
 export function usePOSProducts(registerScope?: RegisterProductScope) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const branchId = currentBranch?.id ?? null;
 
-  // Branch stock map is a small payload (id + qty) so it's fetched once per
-  // context and reused across all product pages.
-  const stockCacheKey = ["pos-products-stock", currentOrg?.id, currentBusiness?.id, branchId] as const;
-
-  type Page = { rows: POSProduct[]; nextOffset: number; totalCount: number | null };
-
-  const {
-    data,
-    isLoading,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery<Page>({
-    queryKey: ["pos-products", currentOrg?.id, currentBusiness?.id, branchId, debouncedSearch],
+  const { data, isLoading } = useQuery<POSProduct[]>({
+    queryKey: ["pos-products", currentOrg?.id, currentBusiness?.id, branchId],
     enabled: !!currentOrg?.id && !!currentBusiness?.id,
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) =>
-      lastPage.rows.length === PAGE_SIZE ? lastPage.nextOffset : undefined,
-    queryFn: async ({ pageParam }) => {
-      const offset = pageParam as number;
-
-      // Fetch branch stock once, cache across pages.
-      let stockMap = queryClient.getQueryData<Map<string, number>>(stockCacheKey as any);
-      if (!stockMap) {
-        const { data: scoped, error: scopedErr } = await supabase.rpc(
-          "list_products_with_branch_stock" as any,
-          {
-            p_org_id: currentOrg!.id,
-            p_business_id: currentBusiness!.id,
-            p_branch_id: branchId,
-            p_include_variant_parents: false,
-          } as any,
-        );
-        if (scopedErr) throw scopedErr;
-        stockMap = new Map<string, number>();
-        ((scoped as any[]) || []).forEach((r) => {
-          stockMap!.set(r.id, Number(r.available ?? r.on_hand) || 0);
-        });
-        queryClient.setQueryData(stockCacheKey as any, stockMap);
-      }
-
-      let query = supabase
-        .from("products")
-        .select(
-          `*,
-          tax_rate_ref:tax_rates(id, name, rate, etims_tax_code),
-          product_category:product_categories(id, name)`,
-          { count: "exact" },
-        )
-        .eq("organization_id", currentOrg!.id)
-        .eq("status", "active")
-        .eq("business_id", currentBusiness!.id)
-        .or("is_variant_parent.is.null,is_variant_parent.eq.false");
-
-      if (debouncedSearch) {
-        const q = `%${debouncedSearch}%`;
-        query = query.or(`name.ilike.${q},sku.ilike.${q},description.ilike.${q}`);
-      }
-
-      const { data: rows, error, count } = await query
-        .order("name")
-        .order("id")
-        .range(offset, offset + PAGE_SIZE - 1);
-
+    staleTime: 15_000,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase.rpc(
+        "list_products_with_branch_stock" as any,
+        {
+          p_org_id: currentOrg!.id,
+          p_business_id: currentBusiness!.id,
+          p_branch_id: branchId,
+          p_include_variant_parents: false,
+          p_warehouse_id: null,
+        } as any,
+      );
       if (error) throw error;
-
-      const mapped = (rows || []).map((p: any) => {
-        const taxRef = p.tax_rate_ref as
-          | { id: string; name: string; rate: number; etims_tax_code: string | null }
-          | null;
-        const categoryRef = p.product_category as { id: string; name: string } | null;
-        const branchStock = stockMap!.has(p.id) ? stockMap!.get(p.id)! : 0;
-        return {
-          id: p.id,
-          name: p.name,
-          sku: p.sku,
-          description: p.description,
-          selling_price: p.unit_price || 0,
-          cost_price: p.cost_price,
-          tax_rate: taxRef?.rate ?? p.tax_rate,
-          stock_quantity: branchStock,
-          category: categoryRef?.name || p.type,
-          image_url: p.image_url,
-          is_active: p.is_active,
-          track_inventory: p.track_inventory,
-          reorder_level: p.reorder_level,
-          tax_rate_id: taxRef?.id ?? p.tax_rate_id,
-          tax_rate_name: taxRef?.name ?? null,
-          etims_tax_code: taxRef?.etims_tax_code ?? null,
-          base_uom_id: p.base_uom_id ?? null,
-        } as POSProduct;
-      });
-
-      return { rows: mapped, nextOffset: offset + PAGE_SIZE, totalCount: count ?? null };
+      return ((rows as any[]) || []).map(mapCanonicalProductRow);
     },
   });
 
-  const products = useMemo(
-    () => (data?.pages ?? []).flatMap((p) => p.rows),
-    [data],
-  );
-  const totalCount = data?.pages?.[0]?.totalCount ?? null;
+  const products = useMemo(() => data ?? [], [data]);
+  const totalCount = products.length;
 
   // Real-time updates are handled centrally by useProductRealtimeSync.
 
@@ -169,13 +163,21 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
     if (selectedCategory) {
       result = result.filter((p) => p.category === selectedCategory);
     }
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.sku ?? "").toLowerCase().includes(q) ||
+          (p.description ?? "").toLowerCase().includes(q),
+      );
+    }
     return result;
-  }, [products, selectedCategory, registerScope]);
+  }, [products, selectedCategory, registerScope, debouncedSearch]);
 
   /**
-   * Local-only barcode/SKU lookup. Authoritative scan resolution lives in
-   * useResolveBarcode (server RPC); this helper is kept for the in-grid
-   * search-Enter fast path against already-loaded rows.
+   * Local-only SKU fast path for the in-grid search box. Authoritative scan
+   * resolution lives in useResolveBarcode (server RPC).
    */
   const findByBarcode = (barcode: string) => {
     return products.find((p) => p.sku?.toLowerCase() === barcode.toLowerCase());
@@ -199,11 +201,12 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
     setSelectedCategory,
     findByBarcode,
     hasStock,
-    // pagination
+    // pagination (the canonical seam returns the branch-scoped catalog in one
+    // call; these are kept so existing consumers keep compiling)
     totalCount,
     loadedCount: products.length,
-    hasMore: !!hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
+    hasMore: false,
+    fetchNextPage: () => {},
+    isFetchingNextPage: false,
   };
 }
