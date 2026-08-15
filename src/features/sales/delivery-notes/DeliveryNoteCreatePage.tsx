@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import { StockLineStatus } from "@/components/inventory/StockAvailabilityIndicator";
 import {
   OversellConfirmation,
   useSalesLineAvailability,
