@@ -87,3 +87,46 @@ special casing. The failures are localised omissions in two movement writers,
 one wrong function call, and a missing count-integrality rule — not a design
 flaw. Remediation would be four small, independent changes, each with a guard
 test; none require reshaping the UoM model.
+
+---
+
+## Closure — 2026-08-15
+
+Diagnostic run (steps A–F) complete; remediation (step G) shipped.
+
+Final ledger state for Sugar: 500 received − 100 sold (17 + 50 + 2 + 1 + 5 + 25)
+− 52 POS (2 loose + 1 × 50 kg Bag) = **348 kg**, consistent across
+`products.stock_quantity`, `warehouse_stock` and `stock_quants`.
+
+### Verdict
+The quantity model is sound and dimension-agnostic: product → base UoM →
+packaging → line (`display_quantity` + `packaging_id`, canonical base quantity)
+→ ledger snapshot. Weight (KG), volume (L), length (M) and count (PCE) all ran
+through the same path with no `kg → ea` substitution anywhere. The failures were
+localised, not architectural.
+
+### Defects fixed
+1. **`set_invoice_status_atomic`** called `user_has_business_access/1` against a
+   `/2` signature — every status change failed with 42883. Now passes the acting
+   user.
+2. **Pack provenance lost on the ledger.** Root cause: `_backfill_movement_packaging`
+   ran AFTER INSERT, so `_stamp_ledger_uom_snapshot` had already frozen
+   pack_name NULL / factor 1 / display = base quantity. A 1-bag delivery read as
+   "−50", a 10-bag receipt as "500". It is now a BEFORE INSERT trigger that
+   assigns `NEW.source_packaging_id` / `NEW.source_uom_id`, so every writer
+   (delivery, goods receipt, adjustment, transfer, returns, credit note, bill,
+   POS) freezes the correct commercial snapshot from one place.
+3. **No integrality guard on countable units** — 2.5 chairs posted. New
+   `trg_enforce_movement_uom_granularity` derives the step from
+   `units_of_measure.rounding`, so PCE/EA reject fractions while KG/L/M keep
+   accepting 2.5.
+4. **Opening stock silently ignored mis-keyed lines** (`quantity` instead of
+   `quantity_adjustment`) and created the product with zero stock. Now raises
+   `OPENING_STOCK_BAD_PAYLOAD`.
+
+Guard test: `supabase/tests/uom_packaging_ledger_guards_test.sql` (all
+assertions verified green against the live database).
+
+### Known, deliberately not changed
+Historical movements written before the fix keep their original (loose)
+snapshots — the ledger is immutable by design and is not rewritten.
