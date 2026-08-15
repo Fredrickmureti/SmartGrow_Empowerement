@@ -35,6 +35,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
@@ -70,6 +71,7 @@ export default function BillEditPage() {
   const { toast } = useToast();
   const { contacts } = useContacts();
   const { products } = useProducts();
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const { isDateLocked } = useFiscalPeriods();
@@ -525,6 +527,7 @@ export default function BillEditPage() {
                 layout={layout}
                 disabled={isSubmitting}
                 formatCurrency={formatCurrency}
+                unitsFor={unitsFor}
                 onPatch={patchLineItem}
                 onProductSelect={selectProduct}
                 productPlaceholder="Product"
