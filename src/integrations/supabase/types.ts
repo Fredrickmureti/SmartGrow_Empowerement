@@ -63504,6 +63504,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           destination_location_id: string | null
+          display_quantity: number | null
           id: string
           is_sample_data: boolean
           lot_number: string | null
@@ -63523,6 +63524,9 @@ export type Database = {
           source_packaging_id: string | null
           source_uom_id: string | null
           unit_cost: number | null
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
           warehouse_id: string
         }
         Insert: {
@@ -63531,6 +63535,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destination_location_id?: string | null
+          display_quantity?: number | null
           id?: string
           is_sample_data?: boolean
           lot_number?: string | null
@@ -63550,6 +63555,9 @@ export type Database = {
           source_packaging_id?: string | null
           source_uom_id?: string | null
           unit_cost?: number | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           warehouse_id: string
         }
         Update: {
@@ -63558,6 +63566,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destination_location_id?: string | null
+          display_quantity?: number | null
           id?: string
           is_sample_data?: boolean
           lot_number?: string | null
@@ -63577,6 +63586,9 @@ export type Database = {
           source_packaging_id?: string | null
           source_uom_id?: string | null
           unit_cost?: number | null
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           warehouse_id?: string
         }
         Relationships: [
@@ -63841,6 +63853,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           created_at: string
+          display_quantity: number | null
           id: string
           location_id: string
           lot_number: string | null
@@ -63851,12 +63864,16 @@ export type Database = {
           product_id: string
           quantity: number
           reserved_quantity: number
+          uom_snapshot_base_code: string | null
+          uom_snapshot_factor: number | null
+          uom_snapshot_pack_name: string | null
           updated_at: string
         }
         Insert: {
           branch_id?: string | null
           business_id: string
           created_at?: string
+          display_quantity?: number | null
           id?: string
           location_id: string
           lot_number?: string | null
@@ -63867,12 +63884,16 @@ export type Database = {
           product_id: string
           quantity?: number
           reserved_quantity?: number
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           updated_at?: string
         }
         Update: {
           branch_id?: string | null
           business_id?: string
           created_at?: string
+          display_quantity?: number | null
           id?: string
           location_id?: string
           lot_number?: string | null
@@ -63883,6 +63904,9 @@ export type Database = {
           product_id?: string
           quantity?: number
           reserved_quantity?: number
+          uom_snapshot_base_code?: string | null
+          uom_snapshot_factor?: number | null
+          uom_snapshot_pack_name?: string | null
           updated_at?: string
         }
         Relationships: [
