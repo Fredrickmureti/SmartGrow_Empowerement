@@ -1,6 +1,6 @@
 # Sales Domain Architecture Wave — Authoritative Status
 
-_Active phase: **Phase 5 COMPLETE** (client fulfilment contract unified across Sales). Next: **Phase 6 — invoice ↔ receivables boundary**._
+_Active phase: **Phase 6 — invoice ↔ receivables boundary** (IN PROGRESS). Phases 0–5 independently re-verified 2026-08-15 (see "Phase 6 entry verification")._
 
 ## Verification verdict on the previous engineer's work (this session)
 
