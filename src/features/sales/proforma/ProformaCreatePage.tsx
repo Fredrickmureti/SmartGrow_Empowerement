@@ -53,6 +53,7 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 
 const formSchema = z.object({
   contact_id: z.string().min(1, "Customer is required"),
@@ -83,6 +84,8 @@ export default function ProformaCreatePage() {
   const { createProformaInvoice } = useProformaInvoices();
   const { contacts } = useContacts();
   const { products, branchScopeLabel } = useBranchScopedProducts();
+  /** Sell units per product; the server re-derives the base quantity. */
+  const unitsFor = useUnitsForProducts(products);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 },
@@ -344,6 +347,7 @@ export default function ProformaCreatePage() {
               addLabel="Add Item"
               renderRow={(item, index, layout) => (
                 <PricedLineRow
+                  unitsFor={unitsFor}
                   key={index}
                   index={index}
                   item={item}

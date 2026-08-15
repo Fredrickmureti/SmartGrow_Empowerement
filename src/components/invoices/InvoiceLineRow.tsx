@@ -23,7 +23,8 @@ import {
   StockLineStatus,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
-import { PackagingSelect } from "@/components/products/PackagingSelect";
+import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import type { PricedLineUnits } from "@/components/documents/lines/PricedLineRow";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
 import {
   lotNumberFromAllocations,
@@ -101,6 +102,10 @@ interface Props {
   formatCurrency: (n: number) => string;
   onProductSelect: (index: number, productId: string) => void;
   onUpdate: (index: number, patch: Partial<InvoiceLineItemShape>) => void;
+  /**
+   * Supplies the units the product may be sold in. MUST be `useCallback`-stable.
+   */
+  unitsFor?: (productId: string | null | undefined) => PricedLineUnits | null;
 }
 
 function InvoiceLineRowInner({
@@ -116,6 +121,7 @@ function InvoiceLineRowInner({
   formatCurrency,
   onProductSelect,
   onUpdate,
+  unitsFor,
 }: Props) {
   const cell = (columnId: string) => {
     switch (columnId) {
@@ -149,53 +155,22 @@ function InvoiceLineRowInner({
         );
 
       case "quantity":
+        {
+        const units = unitsFor?.(item.product_id) ?? null;
         return (
-          <div className="space-y-1">
-            <NumericInput
-              value={item.display_quantity ?? item.quantity}
-              disabled={isSubmitting}
-              onValueChange={(v) => {
-                const qty = v ?? 0;
-                // When sold in packs, `quantity` (base units) = pack qty × pack
-                // size. The DB trigger also normalizes server-side; we mirror
-                // here for accurate live totals.
-                onUpdate(index, {
-                  display_quantity: item.packaging_id ? qty : null,
-                  quantity:
-                    item.packaging_id && item.display_quantity != null
-                      ? qty * (item.quantity / Math.max(item.display_quantity, 1))
-                      : qty,
-                });
-              }}
-              className="h-8"
-            />
-            <PackagingSelect
-              productId={item.product_id ?? null}
-              value={item.packaging_id ?? null}
-              onChange={(pkgId, packQty) => {
-                if (!pkgId) {
-                  onUpdate(index, {
-                    packaging_id: null,
-                    display_uom_id: null,
-                    display_quantity: null,
-                  });
-                  return;
-                }
-                const dq = item.display_quantity ?? 1;
-                // `display_uom_id` is left null on purpose — the server trigger
-                // defaults it to the product's base UoM. Packaging carries no
-                // UoM column of its own; the pack multiplier IS the conversion.
-                onUpdate(index, {
-                  packaging_id: pkgId,
-                  display_uom_id: null,
-                  display_quantity: dq,
-                  quantity: dq * (packQty ?? 1),
-                });
-              }}
-              className="h-7 text-xs"
-            />
-          </div>
+          // ONE quantity cell across every document. `quantity` stays base
+          // units; the server trigger (_uom_normalize_line →
+          // resolve_line_base_quantity) is the authority, this is a preview.
+          <PackagedQtyCell
+            productId={item.product_id ?? null}
+            value={item}
+            onChange={(patch) => onUpdate(index, patch)}
+            disabled={isSubmitting}
+            baseUomId={units?.baseUomId ?? null}
+            uomOptions={units?.options}
+          />
         );
+        }
 
       case "unit_price":
         return (

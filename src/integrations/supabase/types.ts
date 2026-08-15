@@ -52936,9 +52936,12 @@ export type Database = {
           created_at: string
           description: string
           discount_percent: number | null
+          display_quantity: number | null
+          display_uom_id: string | null
           id: string
           is_sample_data: boolean
           line_total: number
+          packaging_id: string | null
           product_id: string | null
           proforma_invoice_id: string
           quantity: number
@@ -52946,14 +52949,18 @@ export type Database = {
           tax_amount: number | null
           tax_rate: number | null
           unit_price: number
+          uom_snapshot: string | null
         }
         Insert: {
           created_at?: string
           description: string
           discount_percent?: number | null
+          display_quantity?: number | null
+          display_uom_id?: string | null
           id?: string
           is_sample_data?: boolean
           line_total: number
+          packaging_id?: string | null
           product_id?: string | null
           proforma_invoice_id: string
           quantity?: number
@@ -52961,14 +52968,18 @@ export type Database = {
           tax_amount?: number | null
           tax_rate?: number | null
           unit_price: number
+          uom_snapshot?: string | null
         }
         Update: {
           created_at?: string
           description?: string
           discount_percent?: number | null
+          display_quantity?: number | null
+          display_uom_id?: string | null
           id?: string
           is_sample_data?: boolean
           line_total?: number
+          packaging_id?: string | null
           product_id?: string | null
           proforma_invoice_id?: string
           quantity?: number
@@ -52976,8 +52987,23 @@ export type Database = {
           tax_amount?: number | null
           tax_rate?: number | null
           unit_price?: number
+          uom_snapshot?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "proforma_invoice_items_display_uom_id_fkey"
+            columns: ["display_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proforma_invoice_items_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "proforma_invoice_items_product_id_fkey"
             columns: ["product_id"]

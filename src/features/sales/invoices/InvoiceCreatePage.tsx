@@ -71,6 +71,7 @@ import type { ResolvedScan } from "@/hooks/scanner";
 import { cn } from "@/lib/utils";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 
 export default function InvoiceCreatePage() {
   const navigate = useNavigate();
@@ -106,6 +107,12 @@ export default function InvoiceCreatePage() {
 
 
   const { products, branchScopeLabel } = useBranchScopedProducts();
+
+
+  /** Sell units per product; the server re-derives the base quantity. */
+
+
+  const unitsFor = useUnitsForProducts(products);
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
   const { formatCurrency, baseCurrency } = useCurrency();
@@ -559,6 +566,7 @@ export default function InvoiceCreatePage() {
             }
             renderRow={(item, index, layout) => (
               <InvoiceLineRow
+                  unitsFor={unitsFor}
                 index={index}
                 item={item}
                 products={products}
