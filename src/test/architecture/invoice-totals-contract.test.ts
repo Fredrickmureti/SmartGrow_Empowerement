@@ -53,3 +53,46 @@ describe("invoice totals contract", () => {
     expect(ESTIMATE_EDIT_PAGE).not.toMatch(/subtotal\s*\+=\s*item\.line_total\s*-\s*item\.tax_amount/);
   });
 });
+
+/**
+ * Phase 4 milestone 3 — the database owns line tax and document totals.
+ * These guards stop a future change from quietly re-promoting the browser to
+ * authority over money.
+ */
+describe("client line math is preview only", () => {
+  const LINE_MATH = readFileSync("src/lib/invoiceLineMath.ts", "utf8");
+
+  it("declares itself preview-only and names the server authority", () => {
+    expect(LINE_MATH).toMatch(/PREVIEW-ONLY/);
+    expect(LINE_MATH).toContain("_totals_normalize_line");
+    expect(LINE_MATH).toContain("_recalc_document_totals");
+    expect(LINE_MATH).toContain("resolve_line_tax_rate");
+  });
+
+  it("mirrors the SQL trigger formula exactly (tax-exclusive, 2dp)", () => {
+    // Same arithmetic as _totals_normalize_line(): gross -> discount ->
+    // taxable -> tax, each rounded to 2dp.
+    const qty = 3, price = 19.99, discountPct = 10, taxRate = 16;
+    const gross = Math.round(qty * price * 100) / 100;
+    const discount = Math.round((gross * discountPct) / 100 * 100) / 100;
+    const taxable = Math.round((gross - discount) * 100) / 100;
+    const tax = Math.round((taxable * taxRate) / 100 * 100) / 100;
+
+    const res = computeLine({ quantity: qty, unit_price: price, discount_percent: discountPct, tax_rate: taxRate });
+    expect(res.line_total).toBe(taxable);
+    expect(res.tax_amount).toBe(tax);
+  });
+
+  it("rolls header totals up the same way the recalc trigger does", () => {
+    const totals = computeTotals(
+      [
+        { line_total: 100, tax_amount: 16 },
+        { line_total: 53.99, tax_amount: 8.64 },
+      ],
+      10,
+    );
+    expect(totals.subtotal).toBe(153.99);
+    expect(totals.tax_total).toBe(24.64);
+    expect(totals.total).toBe(168.63);
+  });
+});

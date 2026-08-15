@@ -1,7 +1,21 @@
 /**
- * Canonical invoice/credit-note/estimate line math.
+ * PREVIEW-ONLY invoice/credit-note/estimate line math.
  *
- * CONTRACT (enforced by `confirm_invoice_atomic` in the database):
+ * Phase 4 milestone 3: the DATABASE is authoritative for line tax and totals.
+ * `_totals_normalize_line()` (trigger `trg_zzz_totals_*` on every Sales line
+ * table) stamps `tax_rate`, `tax_amount` and `line_total` from the
+ * server-stamped `unit_price`, the canonical base quantity and
+ * `resolve_line_tax_rate(...)`; `_recalc_document_totals()` derives header
+ * `subtotal / tax_amount / total` from the lines, and
+ * `_sales_header_totals_guard()` rewrites any header total a client sends that
+ * disagrees with the lines.
+ *
+ * These helpers exist so the editor can SHOW the same number before saving.
+ * Anything they return is a preview: never treat it as the persisted truth,
+ * and re-read the document after a write.
+ *
+ * CONTRACT (mirrored exactly by the SQL trigger, and by
+ * `confirm_invoice_atomic`):
  *   invoice_items.line_total  = tax-EXCLUSIVE  (= quantity × unit_price − line discount)
  *   invoice_items.tax_amount  = per-line tax on the discounted, tax-exclusive amount
  *   invoices.subtotal         = SUM(line_total)
