@@ -37,6 +37,8 @@ import {
 } from "@/hooks/useVendorCreditNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useBills } from "@/hooks/useBills";
+import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
 import { VendorCreditNoteLineageFields } from "./VendorCreditNoteLineageFields";
@@ -72,6 +74,9 @@ export default function VendorCreditNoteEditPage() {
   const { creditNotes, isLoading, updateVendorCreditNote } = useVendorCreditNotes();
   const { contacts } = useContacts();
   const { bills } = useBills();
+  const { products } = useProducts();
+  // Same pack/alternate-UoM fidelity as the create page.
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const cn = useMemo(
@@ -356,6 +361,7 @@ export default function VendorCreditNoteEditPage() {
               hideProductPicker
               layout={layout}
               disabled={isSubmitting}
+              unitsFor={unitsFor}
               formatCurrency={formatLineCurrency}
               onPatch={patchLineItem}
             />

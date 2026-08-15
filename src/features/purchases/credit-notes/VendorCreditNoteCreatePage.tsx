@@ -34,6 +34,8 @@ import {
 } from "@/hooks/useVendorCreditNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useBills } from "@/hooks/useBills";
+import { useProducts } from "@/hooks/useProducts";
+import { useUnitsForProducts } from "@/hooks/useSellableUnits";
 import { useCurrency } from "@/hooks/useCurrency";
 import { normalizeError } from "@/services/resilience";
 import { VendorCreditNoteLineageFields } from "./VendorCreditNoteLineageFields";
@@ -68,6 +70,10 @@ export default function VendorCreditNoteCreatePage() {
   const { createVendorCreditNote } = useVendorCreditNotes();
   const { contacts } = useContacts();
   const { bills } = useBills();
+  const { products } = useProducts();
+  // Vendor credit notes mirror the supplier's paper: quantities may be typed
+  // in packs or an alternate UoM, with the server normalizer as authority.
+  const unitsFor = useUnitsForProducts(products);
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -268,6 +274,7 @@ export default function VendorCreditNoteCreatePage() {
               hideProductPicker
               layout={layout}
               disabled={isSubmitting}
+              unitsFor={unitsFor}
               formatCurrency={formatLineCurrency}
               onPatch={patchLineItem}
             />

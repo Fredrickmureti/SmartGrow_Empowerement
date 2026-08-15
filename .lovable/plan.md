@@ -38,3 +38,26 @@ Done this turn:
 
 Open / next:
 - Goods receipt / bill line surfaces re-verified against the same contract.
+
+## Phase 5 — Follow-ups (closed)
+
+- **Vendor credit notes** — `VendorCreditNoteCreatePage` / `VendorCreditNoteEditPage`
+  now build `unitsFor` from products and pass it to `PricedLineRow`, so a
+  supplier credit can be typed in the same pack / alternate unit as the bill it
+  reverses. Server normalizer stays the authority for base quantity.
+- **Purchase returns** — audited, intentionally left in base units:
+  `PurchaseReturnCreatePage` derives every line from
+  `purchase_return_returnable_lines` (received / returned / returnable, unit
+  cost, lot, packaging provenance already carried by the receipt) and the
+  server refuses a quantity above the remaining returnable. Introducing a
+  second, pack-denominated entry basis here would let the operator type a
+  quantity that cannot be compared with the returnable ceiling. No change.
+- **Guard executed** — `supabase/tests/purchase_conversion_fidelity_test.sql`
+  checks run against the live database: both conversion RPCs still reference
+  `packaging_id` / `display_uom_id` / `_purchase_assert_order_quantity`, the
+  gate is SECURITY DEFINER with no `anon` EXECUTE, and
+  `a_uom_normalize_po_items` is the first BEFORE trigger on
+  `purchase_order_items`. (The repo has no CI workflow directory, so the guard
+  lives with the other `supabase/tests/*.sql` files and is run the same way.)
+
+Purchases audit closed.
