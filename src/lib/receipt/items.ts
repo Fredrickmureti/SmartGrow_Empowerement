@@ -16,6 +16,7 @@ import {
   type LayoutId,
   type LayoutContext,
 } from "@/lib/receipt/layouts";
+import { resolveDisplayUnitPrice } from "@/lib/documents/lineItemPrice";
 
 export type ItemRowKind = "heading" | "header" | "item" | "subrow";
 
