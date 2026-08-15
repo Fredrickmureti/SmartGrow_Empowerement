@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { ProductCombobox, type ProductOption } from "@/components/common/ProductCombobox";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import type { SellUnitOption } from "@/hooks/useSellableUnits";
 import {
   EditableLineRowCells,
   type EditableLineColumn,
@@ -75,6 +76,10 @@ interface Props<T extends RequestLineShape> {
   flashed?: boolean;
   formatCurrency: (n: number) => string;
   /** Applies a partial update to the line. */
+  /**
+   * Units the product may be requested in (alternate UoM). Packs are offered
+   * from the product master regardless. MUST be `useCallback`-stable.
+   */
   onPatch: (index: number, patch: Partial<T>) => void;
   /** Product selection — defaults to a plain `product_id` patch. */
   onProductSelect?: (index: number, productId: string) => void;
