@@ -270,23 +270,15 @@ function IdentifierForm({
 }) {
   const { currentBusiness } = useBusinesses();
   const [productSearch, setProductSearch] = useState("");
-  const { data: products = [] } = useQuery({
-    queryKey: ["pos-id-product-picker", currentBusiness?.id, productSearch],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      let q = supabase
-        .from("products")
-        .select("id, name, sku")
-        .eq("business_id", currentBusiness!.id)
-        .eq("status", "active")
-        .order("name")
-        .limit(20);
-      if (productSearch) q = q.ilike("name", `%${productSearch}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  // Canonical product read seam — POS never queries the products table.
+  const { products: catalog } = usePOSProducts();
+  const products = useMemo(() => {
+    const needle = productSearch.trim().toLowerCase();
+    return catalog
+      .filter((p) => (needle ? p.name.toLowerCase().includes(needle) : true))
+      .slice(0, 20)
+      .map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
+  }, [catalog, productSearch]);
 
   return (
     <div className="space-y-3">
