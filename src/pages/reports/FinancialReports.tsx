@@ -448,6 +448,8 @@ function FinancialReportsInner() {
   const getPnlExportConfig = useCallback((): ExportConfig => ({
     title: "Profit & Loss Statement",
     reportType: "profit_and_loss",
+    // Basis of preparation travels with the export, exactly as shown on screen.
+    subtitle: "Accrual Basis",
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(pnlColumns),
     rows: toExportRows(pnlRows, pnlColumns),
@@ -458,6 +460,7 @@ function FinancialReportsInner() {
   const getBsExportConfig = useCallback((): ExportConfig => ({
     title: "Balance Sheet",
     reportType: "balance_sheet",
+    subtitle: "Accrual Basis",
     // Point-in-time statement: the masthead states "As of …".
     asOf: format(new Date(dateTo), "MMMM d, yyyy"),
     columns: toExportColumns(bsColumns),
