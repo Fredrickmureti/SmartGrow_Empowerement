@@ -359,6 +359,8 @@ export function usePOSCart() {
     items,
     customer,
     notes,
+    /** Cart-level discount input — priced by the server, not by the till. */
+    cartDiscount,
     itemCount: items.length,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
     ...totals,
