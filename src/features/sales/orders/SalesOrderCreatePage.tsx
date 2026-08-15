@@ -138,6 +138,10 @@ export default function SalesOrderCreatePage() {
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
 
+  /** Server-authoritative price for a line, previewed in the editor. */
+  const resolvePrice = useLinePriceResolver(currentBusiness?.id, watchedContactId || null);
+  const applyServerPrice = useServerPriceApplier(lineItems, setLineItems, resolvePrice);
+
   const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
     setLineItems,
     (resolved, quantity) => ({
