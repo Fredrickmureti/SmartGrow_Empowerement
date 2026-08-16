@@ -63,7 +63,64 @@ export interface OfflineTransactionData {
 }
 
 const MAX_RETRY_ATTEMPTS = 5;
+/** Base unit of the exponential backoff schedule (attempt 1 waits this long). */
 const RETRY_DELAY_MS = 5000;
+/** Cap so a long-offline queue still drains promptly once connectivity returns. */
+const MAX_RETRY_DELAY_MS = 5 * 60_000;
+/** Politeness gap between two rows in the same drain. */
+const INTER_SYNC_GAP_MS = 100;
+
+/**
+ * Phase 9 — exponential backoff with jitter.
+ *
+ * attempt 1 → ~5s, 2 → ~10s, 3 → ~20s, 4 → ~40s, capped at 5 min.
+ * Jitter (±20%) prevents a whole store's terminals from re-drumming the
+ * server in lockstep after a shared outage.
+ */
+export function backoffDelayMs(attempt: number, random: () => number = Math.random): number {
+  const base = Math.min(RETRY_DELAY_MS * 2 ** Math.max(0, attempt - 1), MAX_RETRY_DELAY_MS);
+  const jitter = base * 0.2 * (random() * 2 - 1);
+  return Math.max(0, Math.round(base + jitter));
+}
+
+/**
+ * Phase 9 — error classification.
+ *
+ * A *permanent* error is one the server will reject identically on every
+ * replay: a closed till (`shift_closed`), a violated business invariant
+ * (check/unique constraint), an access denial, or a malformed envelope.
+ * Retrying those only delays the operator seeing the truth and burns the
+ * retry budget. Everything else (network, timeout, 5xx, unknown) is treated
+ * as transient — the safest default, because replay is idempotent: the
+ * session apply-log collapses a duplicate commit onto the same transaction.
+ */
+const PERMANENT_ERROR_PATTERNS: RegExp[] = [
+  /shift_closed/i,
+  /till_closed/i,
+  /check_violation/i,
+  /violates check constraint/i,
+  /foreign key constraint/i,
+  /not-null constraint/i,
+  /invalid input syntax/i,
+  /permission denied/i,
+  /access denied/i,
+  /override_required/i,
+  /session_not_open/i,
+  /total mismatch/i,
+];
+
+const PERMANENT_SQLSTATES = new Set(["23514", "23502", "23503", "22P02", "42501", "42883"]);
+
+export function isPermanentError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  if (typeof code === "string" && PERMANENT_SQLSTATES.has(code)) return true;
+  const message = [
+    error instanceof Error ? error.message : String(error ?? ""),
+    (error as { details?: string } | null)?.details ?? "",
+    (error as { hint?: string } | null)?.hint ?? "",
+  ].join(" ");
+  return PERMANENT_ERROR_PATTERNS.some((re) => re.test(message));
+}
 
 export interface FailedTransactionInfo {
   id: string;
