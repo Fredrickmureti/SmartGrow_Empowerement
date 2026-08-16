@@ -89551,6 +89551,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_no_receipt_cost_basis_as_money: { Args: never; Returns: undefined }
       assert_org_not_locked: { Args: { _org_id: string }; Returns: undefined }
       assert_payroll_ready: {
         Args: {
