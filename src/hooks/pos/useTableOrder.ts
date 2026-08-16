@@ -66,8 +66,6 @@ interface TransactionItemRow {
   etims_tax_code: string | null;
 }
 
-};
-
 export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber }: UseTableOrderOptions) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
