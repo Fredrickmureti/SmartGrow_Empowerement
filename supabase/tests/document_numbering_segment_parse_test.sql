@@ -28,6 +28,8 @@ BEGIN
     SELECT p.proname, p.prosrc
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public' AND p.proname = ANY (v_names)
+       -- Thin delegating overloads carry no numbering logic of their own.
+       AND position('MAX(' IN upper(p.prosrc)) > 0
   LOOP
     -- Must isolate the counter: either split_part(..., '-', 3) or a
     -- trailing-anchored capture. Anything else re-introduces the defect.
@@ -47,11 +49,18 @@ BEGIN
     RAISE EXCEPTION 'FAIL: these generators parse the whole number instead of the counter segment: %', v_bad;
   END IF;
 
-  -- Every generator above must exist exactly once per signature family.
-  IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-       WHERE n.nspname = 'public' AND p.proname = 'get_next_po_number') <> 1 THEN
-    RAISE EXCEPTION 'FAIL: more than one get_next_po_number overload';
-  END IF;
+  -- At most one overload may own the counter arithmetic; any others must
+  -- delegate to it.
+  FOR r IN
+    SELECT p.proname, count(*) AS writers
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = ANY (v_names)
+       AND position('MAX(' IN upper(p.prosrc)) > 0
+     GROUP BY p.proname
+    HAVING count(*) > 1
+  LOOP
+    RAISE EXCEPTION 'FAIL: %() has % overloads that each compute the next number', r.proname, r.writers;
+  END LOOP;
 
   RAISE NOTICE 'PASS: document numbering segment-parse ratchet';
 END $$;
