@@ -3,6 +3,7 @@ import { User, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeldOrdersBar } from "@/components/pos/HeldOrdersBar";
 import { ScanRecoveryBanner } from "@/components/pos/ScanRecoveryBanner";
+import { PaymentResumeBanner } from "@/components/pos/PaymentResumeBanner";
 import { ProductDiscoveryPanel } from "@/apps/pos/terminal/sale/components/ProductDiscoveryPanel";
 import { BasketPanel } from "@/apps/pos/terminal/sale/components/BasketPanel";
 import { TransactionSummaryRail } from "@/apps/pos/terminal/sale/components/TransactionSummaryRail";
@@ -179,6 +180,9 @@ export function SaleWorkspace({
           onCreateProduct={onScanRecoveryCreateProduct}
           onDismiss={onScanRecoveryDismiss}
         />
+        {/* Phase 9: in-flight payment sessions left behind by a crash/timeout */}
+        <PaymentResumeBanner registerId={registerId} />
+
         {/* Stage D: persistent held-orders strip */}
         {registerId && activeShiftId && (
           <HeldOrdersBar
