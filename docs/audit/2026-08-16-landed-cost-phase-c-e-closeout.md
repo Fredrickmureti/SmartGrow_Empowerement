@@ -67,13 +67,56 @@ left available. The cards now speak operator language — "Capturing charges",
 cross-checked against a hand-written equivalent query (1 voucher, reversed →
 `closed: 1`, all money zero).
 
+## Correction — Phase D is NOT blocked (verified 2026-08-16)
+
+An earlier note in this file claimed weight / volume allocation was blocked
+because the product model held no net weight or volume. **That was wrong.** It
+read only the legacy POS columns on `products` (`tare_weight`, `weight_unit`,
+`is_weighted`) and missed the canonical physical-attribute model. Verified
+against the live database and the running code:
+
+- `public.product_physical_attributes` holds `net_weight`, `tare_weight`,
+  server-derived `gross_weight`, `volume`, `length`/`width`/`height`, each with
+  its own UoM reference (`*_uom_id`, `dimension_uom_id`), keyed by
+  `(product_id, packaging_id)` — so a base unit and every pack level can carry
+  their own measurements. 4 RLS policies, grants present for
+  `anon`/`authenticated`/`service_role`, and integrity is enforced by
+  `trg_enforce_physical_attribute_integrity` (dimension validity, tenant match,
+  packaging ownership, gross = net + tare).
+- `resolve_product_measure(business, product, packaging, measure, target_uom)`
+  normalises a measure to the business's reference unit for that dimension,
+  falls back from a pack level to base × pack size, returns NULL when the fact
+  is simply absent, and **fails closed** when no reference unit is configured
+  rather than summing mixed units.
+- `landed_cost_allocate_voucher` already allocates by both physical bases: it
+  resolves mass and volume reference units, measures each receipt line at the
+  packaging level it was actually received in (`gross_weight` preferred, falling
+  back to `net_weight`), sums the basis across scope, and refuses with a
+  per-product message only when a line in that specific voucher has no measure.
+  `landed_cost_allocation_basis` exposes `value | quantity | weight | volume |
+  manual` and the enum values are live.
+- Capture exists in the UI: `ProductForm` renders a "Physical attributes"
+  section (`ProductPhysicalAttributesEditor`) with Net weight, Packaging (tare)
+  weight, Volume + unit, and Length/Width/Height for the base unit and each
+  packaging level; `InventorySettings` can make physical attributes mandatory
+  before receiving via `require_product_physical_attributes`.
+
+So the refusal seen in testing is **data absence, not a modelling gap** —
+`product_physical_attributes` currently has 0 rows in this database. Nothing to
+build in the product domain and nothing to patch inside landed cost.
+
+Only change made from this finding: the basis picker hints in
+`LandedCostComponentTypesPage` said "Requires net weight on the product master",
+which pointed operators at the wrong screen. They now name the product's
+physical attributes and state that the measure is taken at the packaging level
+received.
+
 ## Still open
 
-- **Phase D — weight / volume allocation bases.** Correctly still refused by
-  `landed_cost_allocate_voucher`: the product master carries `tare_weight`,
-  `weight_unit` and `is_weighted` but no net weight and no volume. This is a
-  product-domain change (net weight and volume with UoM, normalised through the
-  canonical UoM engine), not something to patch inside landed cost.
+- Nothing for Phase D. To exercise weight/volume end to end, capture physical
+  attributes on the products in a receipt and allocate a component on that
+  basis; the engine handles the rest.
 - Authenticated end-to-end browser verification of the workspace is unavailable
   in this environment (external, unmanaged Supabase — the app redirects to
   sign-in and no session can be minted here).
+
