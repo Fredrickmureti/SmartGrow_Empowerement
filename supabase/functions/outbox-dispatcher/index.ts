@@ -519,7 +519,37 @@ const HANDLERS: Record<string, HandlerFn> = {
   "procurement.landed_cost.allocated": handleInventoryLifecycleRecorded,
   "procurement.landed_cost.posted":    handleInventoryLifecycleRecorded,
   "procurement.landed_cost.reversed":  handleInventoryLifecycleRecorded,
+
+  // P0-4 (milk simulation, 2026-08-16). These purchasing / warehouse /
+  // inventory lifecycle topics were emitted by database triggers but had no
+  // dispatcher entry, so every one of them dead-lettered as
+  // `posting.contract_violation: unknown_event_type`. The underlying state
+  // (PO status, ASN, GRN, stock movements, journals) is already durable and
+  // written in-transaction, so these are record-only: they exist for lineage,
+  // subscribers and analytics, not to drive the write.
+  "procurement.po.submitted":          handleInventoryLifecycleRecorded,
+  "procurement.po.approved":           handleInventoryLifecycleRecorded,
+  "procurement.asn.created":           handleInventoryLifecycleRecorded,
+  "procurement.asn.dispatched":        handleInventoryLifecycleRecorded,
+  "procurement.asn.in_transit":        handleInventoryLifecycleRecorded,
+  "procurement.asn.arrived":           handleInventoryLifecycleRecorded,
+  "procurement.gr.posted":             handleInventoryLifecycleRecorded,
+  "goods_receipt.posted":              handleInventoryLifecycleRecorded,
+  "product.created":                   handleInventoryLifecycleRecorded,
+  "payment.received":                  handleInventoryLifecycleRecorded,
+  "delivery_note.dispatched":          handleInventoryLifecycleRecorded,
+  "delivery_note.completed":           handleInventoryLifecycleRecorded,
+  "stock_transfer.dispatched":         handleInventoryLifecycleRecorded,
+  "stock_transfer.received":           handleInventoryLifecycleRecorded,
+  "warehouse.receipt.staged":          handleInventoryLifecycleRecorded,
+  "warehouse.receiving.unloading":     handleInventoryLifecycleRecorded,
+  "warehouse.receiving.captured":      handleInventoryLifecycleRecorded,
+  "warehouse.receiving.line_captured": handleInventoryLifecycleRecorded,
+  "warehouse.receiving.posted":        handleInventoryLifecycleRecorded,
+  "warehouse.exception.raised":        handleInventoryLifecycleRecorded,
+  "warehouse.exception.escalated":     handleInventoryLifecycleRecorded,
 };
+
 
 async function dispatch(row: OutboxRow): Promise<void> {
   const handler = HANDLERS[row.event_type];
