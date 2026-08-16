@@ -65359,6 +65359,7 @@ export type Database = {
           unit_price: number | null
           updated_at: string
           updated_by: string | null
+          effective_status: string | null
         }
         Insert: {
           approval_request_id?: string | null
@@ -91558,6 +91559,12 @@ export type Database = {
       edit_procurement_recommendation_qty: {
         Args: { p_qty: number; p_reason: string; p_rec_id: string }
         Returns: undefined
+      }
+      effective_status: {
+        Args: { "": Database["public"]["Tables"]["supplier_item_terms"]["Row"] }
+        Returns: {
+          error: true
+        } & "the function public.effective_status with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
       }
       email_outbox_recover_stuck: {
         Args: { p_older_than_minutes?: number }
