@@ -32,6 +32,9 @@ export interface VendorPriceListEntry {
   unit_price: number;
   currency: string | null;
   min_order_qty: number;
+  order_increment?: number | null;
+  price_break_tiers?: { min_qty: number; unit_price: number }[];
+  approval_status?: "draft" | "pending_approval" | "approved" | "rejected";
   lead_time_days: number;
   is_preferred: boolean;
   is_active: boolean;
@@ -60,12 +63,18 @@ function statusInfo(entry: VendorPriceListEntry) {
 
   if (!entry.is_active)
     return { label: "Inactive", tone: "neutral" as const, icon: XCircle };
+  // Governance state outranks the calendar: an unapproved condition prices nothing.
+  if (entry.approval_status === "pending_approval")
+    return { label: "Awaiting approval", tone: "warning" as const, icon: AlertTriangle };
+  if (entry.approval_status === "rejected")
+    return { label: "Rejected", tone: "danger" as const, icon: XCircle };
   if (entry.valid_until && entry.valid_until < today)
     return { label: "Expired", tone: "danger" as const, icon: XCircle };
   if (entry.valid_until && entry.valid_until >= today && entry.valid_until <= soonStr)
     return { label: "Expiring soon", tone: "warning" as const, icon: AlertTriangle };
   return { label: "Active", tone: "success" as const, icon: CheckCircle2 };
 }
+
 
 interface Options {
   onOpenChange: (open: boolean) => void;
