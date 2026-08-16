@@ -180,7 +180,7 @@ export const PURCHASES_APP: AppDefinition = {
     { id: "expenses", name: "Expenses", path: "/expenses", icon: Receipt, permission: "viewPurchases" },
     { id: "returns", name: "Purchase Returns", path: "/returns", icon: RotateCcw, permission: "viewPurchases" },
     { id: "credit-notes", name: "Vendor Credits", path: "/credit-notes", icon: FileText, permission: "viewPurchases", description: "Vendor credit notes and debit notes" },
-    { id: "price-lists", name: "Price Lists", path: "/price-lists", icon: Tags, permission: "viewPurchases", description: "Vendor pricing, lead times, and minimum order quantities" },
+    { id: "price-lists", name: "Supplier Conditions", path: "/supplier-conditions", icon: Tags, permission: "viewPurchases", description: "Supplier prices, price breaks, purchase unit, minimum order quantity and lead times" },
     { id: "statements", name: "Vendor Statements", path: "/statements", icon: FileText, permission: "viewPurchases", description: "Generate and send AP statements to vendors" },
     { id: "aged-payables", name: "Aged Payables", path: "/aged-payables", icon: BarChart3, permission: "viewPurchases", description: "Outstanding payables aging report by vendor" },
     { id: "vendors", name: "Suppliers", path: "/vendors", icon: Users, permission: "viewContacts" },
