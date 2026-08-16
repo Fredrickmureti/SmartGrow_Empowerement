@@ -170,11 +170,23 @@ class TransactionQueueService {
   }
 
   /**
-   * Get all pending transactions
+   * Get all pending transactions.
+   *
+   * `failed` rows are terminal: a permanent server rejection (or an exhausted
+   * retry budget) must be resolved by an operator through `retryTransaction`,
+   * not silently re-driven by the next drain.
    */
   async getPendingTransactions(): Promise<QueuedTransaction[]> {
     const all = await offlineStorage.getAll<QueuedTransaction>(STORES.TRANSACTIONS_QUEUE);
-    return all.filter((t) => t.status === "pending" || t.status === "failed");
+    return all.filter((t) => t.status === "pending");
+  }
+
+  /** Rows eligible right now — respects the exponential backoff schedule. */
+  async getDueTransactions(now = Date.now()): Promise<QueuedTransaction[]> {
+    const pending = await this.getPendingTransactions();
+    return pending.filter(
+      (t) => !t.nextAttemptAt || new Date(t.nextAttemptAt).getTime() <= now,
+    );
   }
 
   /**
