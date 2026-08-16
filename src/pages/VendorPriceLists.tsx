@@ -43,6 +43,11 @@ import {
 } from "@/features/purchases/price-lists/VendorPriceListFormSheet";
 
 export default function VendorPriceLists() {
+  const COVERAGE_LABEL: Record<string, string> = {
+    uncovered: "Uncovered",
+    single_source: "Single source",
+    multi_source: "Multi source",
+  };
   // The workspace is the one surface that must also show retired conditions —
   // pricing consumers stay on the default (active only).
   const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } =
