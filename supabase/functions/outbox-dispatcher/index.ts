@@ -511,6 +511,14 @@ const HANDLERS: Record<string, HandlerFn> = {
   "rfq.converted_to_purchase_order":   handleRfqLifecycleNoop,
   "rfq.cancelled":                     handleRfqLifecycleNoop,
   "rfq.expired":                       handleRfqLifecycleNoop,
+
+  // Landed cost (ADR 0077 / Phase 6). Emitted by `_emit_landed_cost_outbox`;
+  // the voucher, its inventory revaluation and its journal are already
+  // durable, so these are record-only lifecycle topics.
+  "procurement.landed_cost.submitted": handleInventoryLifecycleRecorded,
+  "procurement.landed_cost.allocated": handleInventoryLifecycleRecorded,
+  "procurement.landed_cost.posted":    handleInventoryLifecycleRecorded,
+  "procurement.landed_cost.reversed":  handleInventoryLifecycleRecorded,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
