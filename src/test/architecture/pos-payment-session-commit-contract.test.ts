@@ -211,9 +211,10 @@ describe("pos_payment_session_open — snapshot immutability (Wave 3 Phase 4.d)"
 });
 
 describe("pos_payment_session_sweep_abandoned — FSM-safe cancel (Wave 3 Phase 4.e)", () => {
-  const sweepSql = readMigrationsMatching(
+  const sweepMigrations = readMigrationsMatching(
     /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.pos_payment_session_sweep_abandoned/i,
   );
+  const sweepSql = extractFunctionBody(sweepMigrations, "pos_payment_session_sweep_abandoned");
 
   it("cancels via pos_payment_session_cancel — never a raw UPDATE against pos_payment_sessions.status", () => {
     expect(sweepSql, "must exist").not.toEqual("");
@@ -229,9 +230,13 @@ describe("pos_payment_session_sweep_abandoned — FSM-safe cancel (Wave 3 Phase 
     ).toBe(false);
   });
 
+  it("only closes sessions with nothing allocated (Phase 7)", () => {
+    expect(sweepSql).toMatch(/pos_payment_session_allocated\s*\(\s*s\.id\s*\)\s*=\s*0/i);
+  });
+
   it("is restricted to service_role", () => {
-    expect(sweepSql).toMatch(/REVOKE\s+ALL\s+ON\s+FUNCTION\s+public\.pos_payment_session_sweep_abandoned/i);
-    expect(sweepSql).toMatch(
+    expect(sweepMigrations).toMatch(/REVOKE\s+ALL\s+ON\s+FUNCTION\s+public\.pos_payment_session_sweep_abandoned/i);
+    expect(sweepMigrations).toMatch(
       /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.pos_payment_session_sweep_abandoned[\s\S]{0,80}TO\s+service_role/i,
     );
   });
