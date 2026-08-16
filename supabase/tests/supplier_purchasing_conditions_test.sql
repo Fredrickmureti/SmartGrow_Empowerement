@@ -132,4 +132,22 @@ BEGIN
   END IF;
 END $$;
 
+-- 7. Effective status is derived on the server and closed to anon.
+DO $$
+DECLARE v_acl text; v_kind char;
+BEGIN
+  SELECT COALESCE(array_to_string(p.proacl, ','), ''), p.prokind
+    INTO v_acl, v_kind
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'effective_status'
+     AND p.proargtypes::regtype[] = ARRAY['public.supplier_item_terms'::regtype];
+
+  IF v_kind IS NULL THEN
+    RAISE EXCEPTION 'public.effective_status(supplier_item_terms) is missing — the browser would recompute validity';
+  END IF;
+  IF v_acl LIKE '%anon=%' THEN
+    RAISE EXCEPTION 'effective_status is executable by anon';
+  END IF;
+END $$;
+
 ROLLBACK;
