@@ -108,7 +108,10 @@ reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
    `supabase/tests/landed_cost_reversal_split_test.sql` and
    `supabase/tests/landed_cost_hardening_test.sql`, and confirm
    `check_inventory_valuation_drift()` returns no rows.
-2. Rehearse destructively without persisting: a `DO $$ ... $$` migration that
+2. `supabase--read_query` runs as a role without EXECUTE on the new
+   `landed_cost_receipt_*` helpers, so exercise them from a migration, not a
+   query.
+3. Rehearse destructively without persisting: a `DO $$ ... $$` migration that
    clones the voucher, exercises the lifecycle and ends in `RAISE EXCEPTION` so
    everything rolls back while results come back in the error text. Clone the
    voucher (`post_journal_entry_atomic` deduplicates by
@@ -117,9 +120,9 @@ reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
    `landed_cost_reverse_voucher` needs an authenticated caller (`auth.uid()`),
    so reversal cannot be rehearsed from a migration — use `_landed_cost_post_apply`
    for the posting half.
-3. Then resume at Phase B item 1 above (supplier credit note against a
+4. Then resume at Phase B item 1 above (supplier credit note against a
    landed-cost bill): decide between adjusting the voucher in place and
    reverse-and-re-post, and make sure Landed Cost Clearing is not double
    counted. `vendor_credit_note` already has its own reversal intent resolver —
    annotate it the same way rather than forking it.
-4. Keep this file current after every completed implementation.
+5. Keep this file current after every completed implementation.
