@@ -5,6 +5,8 @@ Currency is stored as an ISO code `text` everywhere; `resolve_exchange_rate` / `
 One client FX lookup: `@/services/fx/rateBook` — display only, missing rate is `null` and renders `—`; never 1:1, never a rate literal (ADR 0136).
 Every purchasing document keys `vendor_id → contacts.id` (party), never `suppliers.id` (role) — ADR-0079.
 `post_journal_entry_atomic` is the only writer of journal rows (ADR 0123).
+Cost layers are the single valuation truth; AVCO is always derived from them, never computed independently.
+Year-segmented document numbers parse the trailing counter segment only, under a per-org advisory lock.
 Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 
 ## Memories
@@ -18,3 +20,5 @@ Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 - [WMS handling units](mem://features/wms-handling-units) — plate vs product packaging, mandatory row_version on every plate RPC, server-side UoM conversion, container capacity policy, quantity display seam
 - [Sales fulfilment warehouse](mem://features/sales-fulfilment-warehouse) — warehouse_id recorded on SO/invoice/DN, resolve_sales_warehouse authority, warehouse-scoped availability seam
 - [Sale-time tax](mem://features/sales-sale-time-tax) — resolve_sales_line_tax single authority, document-dated rates, validated line/free-text rates, tax_rate_id audit snapshot, preview-only client seam
+- [Document numbering](mem://features/document-numbering) — trailing-counter parse, advisory locks, immutable numbers on posted documents
+- [Landed cost across warehouses](mem://features/landed-cost-warehouse-behaviour) — warehouse-scoped layers, lineage tracing, reversal inventory/COGS split, merged-layer spread
