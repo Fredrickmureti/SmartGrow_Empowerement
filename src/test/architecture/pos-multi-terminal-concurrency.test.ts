@@ -80,7 +80,7 @@ describe("POS Phase 8 — multi-terminal concurrency", () => {
 
   it("merge/transfer/move are version-guarded and business+branch checked", () => {
     for (const fn of ["merge_table_orders", "transfer_table_items", "move_pos_table_session"]) {
-      const body = sql.slice(sql.lastIndexOf(`FUNCTION public.${fn}(`)).slice(0, 9000);
+      const body = sql.slice(sql.lastIndexOf(`CREATE OR REPLACE FUNCTION public.${fn}(`)).slice(0, 9000);
       expect(body, `${fn} must expose an expected-version guard`).toMatch(/p_expected_\w*version/);
       expect(body, `${fn} must return a conflict`).toContain("'conflict', true");
       expect(body, `${fn} must check business access`).toContain("user_can_access_business");
