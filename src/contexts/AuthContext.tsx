@@ -36,6 +36,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Token refresh for same user - just update session silently without triggering re-renders
       return;
     }
+
+    // Same user, new session object (supabase-js re-emits SIGNED_IN when the
+    // tab regains visibility and it recovers/refreshes the stored session).
+    // Emitting a NEW `user` object reference here is what made every
+    // downstream context that depends on `user` (BranchContext, POS shells,
+    // workspace gates) re-run its fetch effect and flip back to a loading
+    // state — the "switching tabs reloads the app" symptom. Keep the same
+    // `user` identity and only swap the session.
+    if (newUserId && currentUserIdRef.current === newUserId) {
+      setSession(newSession);
+      return;
+    }
     
     // Update the ref
     currentUserIdRef.current = newUserId;
@@ -43,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Update state
     setSession(newSession);
     setUser(newSession?.user ?? null);
+    
     
     // Update Sentry user context
     if (newSession?.user) {
