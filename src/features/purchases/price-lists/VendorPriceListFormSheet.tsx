@@ -225,6 +225,28 @@ export function VendorPriceListFormSheet({
               />
             </div>
             <div className="space-y-2">
+              <Label>Currency</Label>
+              <Input
+                value={values.currency}
+                onChange={(e) =>
+                  setValues({ ...values, currency: e.target.value.toUpperCase().slice(0, 3) })
+                }
+                placeholder={baseCurrency}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Order increment</Label>
+              <Input
+                type="number"
+                min={0}
+                value={values.order_increment}
+                onChange={(e) =>
+                  setValues({ ...values, order_increment: parseFloat(e.target.value) || 0 })
+                }
+                placeholder="Any quantity"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Lead Time (days)</Label>
               <Input
                 type="number"
@@ -236,6 +258,78 @@ export function VendorPriceListFormSheet({
             </div>
           </FieldGrid>
         </FieldGroup>
+
+        <FieldGroup label="Price breaks">
+          <p className="text-sm text-muted-foreground">
+            Quantity tiers in the purchase unit. The highest tier at or below the
+            ordered quantity sets the price; below the first tier the unit price
+            above applies.
+          </p>
+          <div className="space-y-2">
+            {values.price_break_tiers.map((tier, index) => (
+              <div key={index} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">From qty</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={tier.min_qty}
+                    onChange={(e) => {
+                      const next = [...values.price_break_tiers];
+                      next[index] = { ...tier, min_qty: parseFloat(e.target.value) || 0 };
+                      setValues({ ...values, price_break_tiers: next });
+                    }}
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">Unit price</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={tier.unit_price}
+                    onChange={(e) => {
+                      const next = [...values.price_break_tiers];
+                      next[index] = { ...tier, unit_price: parseFloat(e.target.value) || 0 };
+                      setValues({ ...values, price_break_tiers: next });
+                    }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Remove tier ${index + 1}`}
+                  onClick={() =>
+                    setValues({
+                      ...values,
+                      price_break_tiers: values.price_break_tiers.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setValues({
+                  ...values,
+                  price_break_tiers: [
+                    ...values.price_break_tiers,
+                    { min_qty: 0, unit_price: values.unit_price },
+                  ],
+                })
+              }
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add tier
+            </Button>
+          </div>
+        </FieldGroup>
+
 
         <FieldGroup label="Validity">
           <FieldGrid columns={2}>
