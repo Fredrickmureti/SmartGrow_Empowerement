@@ -14,11 +14,19 @@
  */
 import {
   describeOrderQuantityVerdict,
+  describePriceSource,
+  fetchPurchaseLinePrice,
   fetchSupplierPurchasingTerms,
   validateSupplierOrderQuantity,
   type OrderQuantityVerdict,
+  type PurchaseLinePrice,
+  type PurchasePriceSource,
   type SupplierPurchasingTerms,
 } from "@/features/products/purchasing/supplierPurchasingTerms";
+
+export { describePriceSource };
+export type { PurchaseLinePrice, PurchasePriceSource };
+
 
 export interface PurchaseLineForTerms {
   /** Index in the caller's line array — used to report the refusal back. */
@@ -109,19 +117,28 @@ export interface PurchaseLineTermDefaults {
   leadTimeDays: number | null;
   unitPrice: number | null;
   currencyCode: string | null;
+  /** Which authority produced the price, for the operator and the PO snapshot. */
+  priceSource: PurchasePriceSource;
+  priceSourceLabel: string;
+  supplierTermsId: string | null;
+  contractLineId: string | null;
   terms: SupplierPurchasingTerms;
 }
 
 /**
  * Defaults for a freshly picked product on a purchasing line: the supplier's
- * minimum order quantity and purchase unit. Nothing is computed here — the
- * resolver already applied supplier -> product -> system precedence.
+ * minimum order quantity, purchase unit and agreed price. Nothing is computed
+ * here — the terms resolver applies supplier -> product -> system precedence,
+ * and the price authority applies contract -> tier -> flat -> product default.
  */
 export async function resolvePurchaseLineDefaults(args: {
   businessId?: string | null;
   productId?: string | null;
   supplierId?: string | null;
   onDate?: string | null;
+  /** Quantity already on the line, if any — drives price-break selection. */
+  quantity?: number | null;
+  branchId?: string | null;
 }): Promise<PurchaseLineTermDefaults | null> {
   if (!args.businessId || !args.productId) return null;
   const terms = await fetchSupplierPurchasingTerms({
@@ -129,17 +146,36 @@ export async function resolvePurchaseLineDefaults(args: {
     productId: args.productId,
     supplierId: args.supplierId ?? null,
     onDate: args.onDate ?? null,
+    quantity: args.quantity ?? null,
+    branchId: args.branchId ?? null,
   });
   if (!terms) return null;
+
+  const quantity = Number(args.quantity ?? terms.min_order_qty ?? 1);
+  const price = await fetchPurchaseLinePrice({
+    businessId: args.businessId,
+    productId: args.productId,
+    supplierId: args.supplierId ?? null,
+    quantity,
+    onDate: args.onDate ?? null,
+    branchId: args.branchId ?? null,
+  });
+
+  const priceSource = (price?.price_source ?? "manual") as PurchasePriceSource;
   return {
-    quantity: Number(terms.min_order_qty ?? 1),
-    displayUomId: terms.purchase_uom_id ?? null,
+    quantity,
+    displayUomId: price?.purchase_uom_id ?? terms.purchase_uom_id ?? null,
     leadTimeDays: terms.lead_time_days ?? null,
-    unitPrice: terms.unit_price ?? null,
-    currencyCode: terms.currency_code ?? null,
+    unitPrice: price?.unit_price ?? terms.unit_price ?? null,
+    currencyCode: price?.currency_code ?? terms.currency_code ?? null,
+    priceSource,
+    priceSourceLabel: describePriceSource(priceSource),
+    supplierTermsId: price?.supplier_terms_id ?? terms.terms_id ?? null,
+    contractLineId: price?.contract_line_id ?? null,
     terms,
   };
 }
+
 
 /** One place authors the blocking toast copy for a batch of refusals. */
 export function summarisePurchaseLineRefusals(

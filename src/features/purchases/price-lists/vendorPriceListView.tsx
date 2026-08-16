@@ -32,6 +32,9 @@ export interface VendorPriceListEntry {
   unit_price: number;
   currency: string | null;
   min_order_qty: number;
+  order_increment?: number | null;
+  price_break_tiers?: { min_qty: number; unit_price: number }[];
+  approval_status?: "draft" | "pending_approval" | "approved" | "rejected";
   lead_time_days: number;
   is_preferred: boolean;
   is_active: boolean;
@@ -60,12 +63,18 @@ function statusInfo(entry: VendorPriceListEntry) {
 
   if (!entry.is_active)
     return { label: "Inactive", tone: "neutral" as const, icon: XCircle };
+  // Governance state outranks the calendar: an unapproved condition prices nothing.
+  if (entry.approval_status === "pending_approval")
+    return { label: "Awaiting approval", tone: "warning" as const, icon: AlertTriangle };
+  if (entry.approval_status === "rejected")
+    return { label: "Rejected", tone: "danger" as const, icon: XCircle };
   if (entry.valid_until && entry.valid_until < today)
     return { label: "Expired", tone: "danger" as const, icon: XCircle };
   if (entry.valid_until && entry.valid_until >= today && entry.valid_until <= soonStr)
     return { label: "Expiring soon", tone: "warning" as const, icon: AlertTriangle };
   return { label: "Active", tone: "success" as const, icon: CheckCircle2 };
 }
+
 
 interface Options {
   onOpenChange: (open: boolean) => void;
@@ -243,7 +252,12 @@ export function useVendorPriceListView(
         { label: "Product", value: entry.product?.name || "—" },
         { label: "SKU", value: entry.product?.sku || "—" },
         { label: "Unit price", value: formatCurrency(entry.unit_price, cur) },
+        { label: "Currency", value: cur || "—" },
         { label: "Min order qty", value: entry.min_order_qty },
+        {
+          label: "Order increment",
+          value: entry.order_increment ? entry.order_increment : "Any quantity",
+        },
         {
           label: "Lead time",
           value: entry.lead_time_days > 0 ? `${entry.lead_time_days} days` : "Not specified",
@@ -255,6 +269,23 @@ export function useVendorPriceListView(
       ],
       extraSections: (
         <>
+          {(entry.price_break_tiers?.length ?? 0) > 0 && (
+            <Section title="Price breaks">
+              <ul className="space-y-1 text-sm">
+                {entry.price_break_tiers!.map((tier) => (
+                  <li
+                    key={`${tier.min_qty}-${tier.unit_price}`}
+                    className="flex justify-between tabular-nums"
+                  >
+                    <span className="text-muted-foreground">
+                      From {tier.min_qty}
+                    </span>
+                    <span>{formatCurrency(tier.unit_price, cur)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
           {entry.notes && (
             <Section title="Notes">
               <p className="whitespace-pre-wrap text-sm">{entry.notes}</p>
@@ -264,6 +295,7 @@ export function useVendorPriceListView(
             <DocumentHistoryTab entityType="vendor_price_list" entityId={entry.id} />
           </Section>
         </>
+
       ),
     };
 

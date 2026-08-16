@@ -1,11 +1,14 @@
 ---
 name: supplier-owned-purchasing-terms
-description: Purchasing policy (MOQ, order increment, purchase UoM, lead time) is owned by supplier_item_terms and resolved/enforced server-side, never in the browser.
+description: Supplier purchasing conditions (price, price breaks, MOQ, increment, purchase UoM, lead time) are owned by supplier_item_terms, resolved and enforced server-side, governed by the approval engine, and snapshotted onto PO lines.
 type: constraint
 ---
-- Purchasing terms live on the supplier↔product relationship: `supplier_item_terms` (+ `order_increment`, `purchase_uom_id` FK `units_of_measure`). Effective-dated rows win over product-level defaults (ADR 0141).
-- ONE resolver: `resolve_supplier_purchasing_terms(business, product, supplier, on_date)`; ONE enforcer: `validate_supplier_order_quantity(...)` returning `BELOW_MIN_ORDER_QTY` / `NOT_ON_ORDER_INCREMENT` / `QUANTITY_NOT_POSITIVE`. Both SECURITY DEFINER, `authenticated`-only (`anon` revoked).
-- Single client seam: `src/features/products/purchasing/supplierPurchasingTerms.ts`. No other file may `.rpc()` these functions, and no browser file may compare/modulo `min_order_quantity` / `order_quantity_increment`. Guard: `src/test/architecture/purchasing-terms-single-owner.test.ts`; SQL: `supabase/tests/supplier_purchasing_terms_test.sql`.
-- The supplier argument accepts either the purchasing party (`contacts.id`, what documents carry as `vendor_id`) or the supplier role (`suppliers.id`); the server does the hop via `_resolve_supplier_role_id`. The browser never maps party→role.
-- Purchases reaches terms only through its adapter `src/features/purchases/purchasingTerms/purchaseLineTerms.ts` (defaults on product pick + MOQ/increment refusal on submit for PO create/edit and requisition create).
-- `products.min_order_quantity` / `order_quantity_increment` are deprecated FALLBACK defaults only; the product master renders them via `PurchasingDefaultsSection` (edit-only, no arithmetic). `useMOQValidation` is deleted and must never return.
+- Purchasing conditions live on the supplier↔product relationship: `supplier_item_terms` (price, `price_break_tiers`, `order_increment`, `purchase_uom_id`, lead time). Effective-dated rows win over product-level defaults (ADR 0141/0142).
+- ONE terms resolver: `resolve_supplier_purchasing_terms(business, product, supplier, on_date, quantity, branch)` — it applies price breaks (tier `min_qty` is in the purchase UoM, same basis as `min_order_qty`) and returns `price_source`.
+- ONE purchase price authority: `resolve_purchase_line_price(...)` with fixed precedence contract → supplier tier → supplier flat → product default → manual. No browser file may rank these.
+- ONE quantity enforcer: `validate_supplier_order_quantity(...)` → `BELOW_MIN_ORDER_QTY` / `NOT_ON_ORDER_INCREMENT` / `QUANTITY_NOT_POSITIVE`. All three functions SECURITY DEFINER, `authenticated` only.
+- ONE write path: `upsert_supplier_item_terms` (single overload) — routes price/currency/tier changes through `approval_route('supplier_terms.amend')`, writes `audit_logs`, emits `procurement.supplier_terms.*` on the outbox. `approval_status` mirrors the request; only `approved` rows resolve into a price.
+- Branch is part of the condition's identity: overlap is checked within a branch scope, and a branch row overrides the company-wide (NULL) row for that branch.
+- `purchase_order_items.supplier_terms_id` + `price_source` snapshot which authority priced the line; an overridden price records as `manual`.
+- Single client seam: `src/features/products/purchasing/supplierPurchasingTerms.ts`; Purchases reaches it only via `src/features/purchases/purchasingTerms/purchaseLineTerms.ts`. Guards: `src/test/architecture/purchasing-terms-single-owner.test.ts`, `supabase/tests/supplier_purchasing_conditions_test.sql`.
+- The supplier argument accepts the purchasing party (`contacts.id`) or the supplier role (`suppliers.id`); the server does the hop. `useMOQValidation` is deleted and must never return.

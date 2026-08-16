@@ -15,6 +15,11 @@ import { normalizeError } from "@/services/resilience";
  * RPCs, which resolve the party (contact) to its supplier record server-side.
  * The exposed shape stays party-keyed (`vendor_id`) for existing callers.
  */
+export interface PriceBreakTier {
+  min_qty: number;
+  unit_price: number;
+}
+
 export interface VendorPriceList {
   id: string;
   organization_id: string;
@@ -25,8 +30,14 @@ export interface VendorPriceList {
   unit_price: number;
   currency: string;
   min_order_qty: number;
+  order_increment: number | null;
+  purchase_uom_id: string | null;
+  price_break_tiers: PriceBreakTier[];
   lead_time_days: number;
   is_preferred: boolean;
+  preferred_rank: number;
+  /** Governance state of the condition — only 'approved' rows price a PO. */
+  approval_status: "draft" | "pending_approval" | "approved" | "rejected";
   valid_from: string | null;
   valid_until: string | null;
   notes: string | null;
@@ -39,6 +50,7 @@ export type VendorPriceListWithRelations = VendorPriceList & {
   vendor: { id: string; name: string } | null;
   product: { id: string; name: string; sku: string | null } | null;
 };
+
 
 export function useVendorPriceLists(vendorId?: string, productId?: string) {
   const { currentOrg } = useOrganization();
@@ -85,8 +97,21 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         unit_price: Number(row.unit_price ?? 0),
         currency: row.currency_code,
         min_order_qty: Number(row.min_order_qty ?? 1),
+        order_increment:
+          row.order_increment === null || row.order_increment === undefined
+            ? null
+            : Number(row.order_increment),
+        purchase_uom_id: row.purchase_uom_id ?? null,
+        price_break_tiers: Array.isArray(row.price_break_tiers)
+          ? (row.price_break_tiers as any[]).map((t) => ({
+              min_qty: Number(t?.min_qty ?? 0),
+              unit_price: Number(t?.unit_price ?? 0),
+            }))
+          : [],
         lead_time_days: Number(row.lead_time_days ?? 0),
         is_preferred: Number(row.preferred_rank ?? 10) <= 1,
+        preferred_rank: Number(row.preferred_rank ?? 10),
+        approval_status: (row.approval_status ?? "approved") as VendorPriceList["approval_status"],
         valid_from: row.effective_from,
         valid_until: row.effective_to,
         notes: row.notes,
@@ -96,13 +121,16 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         vendor: row.supplier?.contact ?? null,
         product: row.product ?? null,
       }));
+
     },
     enabled: !!organizationId && !!businessId,
   });
 
   const createMutation = useMutation({
     mutationFn: async (
-      input: Omit<VendorPriceList, "id" | "created_at" | "updated_at" | "organization_id" | "business_id" | "branch_id"> & {
+      input: Partial<Omit<VendorPriceList, "id" | "created_at" | "updated_at" | "organization_id" | "business_id">> & {
+        vendor_id: string;
+        product_id: string;
         branch_id?: string | null;
       },
     ) => {
@@ -118,14 +146,18 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         p_branch_id: effectiveBranchId,
         p_vendor_id: input.vendor_id,
         p_product_id: input.product_id,
-        p_unit_price: input.unit_price,
-        p_currency_code: input.currency,
-        p_min_order_qty: input.min_order_qty,
-        p_lead_time_days: input.lead_time_days,
-        p_is_preferred: input.is_preferred,
-        p_effective_from: input.valid_from,
-        p_effective_to: input.valid_until,
-        p_notes: input.notes,
+        p_unit_price: input.unit_price ?? null,
+        p_currency_code: input.currency ?? null,
+        p_min_order_qty: input.min_order_qty ?? null,
+        p_order_increment: input.order_increment ?? null,
+        p_purchase_uom_id: input.purchase_uom_id ?? null,
+        p_price_break_tiers: input.price_break_tiers ?? null,
+        p_lead_time_days: input.lead_time_days ?? null,
+        p_is_preferred: input.is_preferred ?? false,
+        p_preferred_rank: input.preferred_rank ?? null,
+        p_effective_from: input.valid_from ?? null,
+        p_effective_to: input.valid_until ?? null,
+        p_notes: input.notes ?? null,
       });
 
       if (error) throw error;
@@ -158,8 +190,12 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         p_unit_price: updates.unit_price ?? entry?.unit_price ?? null,
         p_currency_code: updates.currency ?? entry?.currency ?? null,
         p_min_order_qty: updates.min_order_qty ?? entry?.min_order_qty ?? null,
+        p_order_increment: updates.order_increment ?? entry?.order_increment ?? null,
+        p_purchase_uom_id: updates.purchase_uom_id ?? entry?.purchase_uom_id ?? null,
+        p_price_break_tiers: updates.price_break_tiers ?? entry?.price_break_tiers ?? null,
         p_lead_time_days: updates.lead_time_days ?? entry?.lead_time_days ?? null,
         p_is_preferred: updates.is_preferred ?? entry?.is_preferred ?? false,
+        p_preferred_rank: updates.preferred_rank ?? null,
         p_effective_from: updates.valid_from ?? entry?.valid_from ?? null,
         p_effective_to: updates.valid_until ?? entry?.valid_until ?? null,
         p_notes: updates.notes ?? entry?.notes ?? null,
@@ -167,6 +203,7 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
 
       if (error) throw error;
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendor-pricelists"] });
       toast.success("Price list entry updated");
