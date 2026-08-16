@@ -151,6 +151,14 @@ export interface CommitSessionEnvelope {
   subtotal?: number;
   tax_amount?: number;
   discount_amount?: number;
+  /**
+   * Phase 7 — cart-level discount intent. `pos_payment_session_commit`
+   * re-prices `items` with `pos_quote_cart` and refuses the commit when the
+   * re-quoted total disagrees with the session's grand total, so the cart
+   * discount must travel with the envelope.
+   */
+  cart_discount_type?: "percent" | "fixed" | null;
+  cart_discount_value?: number;
   transaction_type?: "sale" | "refund" | "return" | "void";
   customer_id?: string | null;
   customer_tin?: string | null;

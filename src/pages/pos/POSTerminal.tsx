@@ -1069,6 +1069,7 @@ function POSTerminalInner() {
           cashier_id: activeShift.cashier_id ?? null,
           business_id: currentBusiness?.id,
           cart: cart.cartState,
+          cart_discount: cart.cartDiscount ?? null,
           payments: payments.map(p => {
             const method = (p.method === "mpesa" ? "mobile_money" : p.method) as "cash" | "card" | "mobile_money" | "voucher" | "credit" | "bank_transfer" | "other";
             const tendered = p.tendered_amount ?? p.amount;
