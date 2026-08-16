@@ -14,7 +14,7 @@ All steps went through the canonical engines — no direct ledger or layer write
 | # | Step | Engine |
 | --- | --- | --- |
 | 1 | Created `WH-NKR` (Nakuru Depot) + default location | table writes only |
-| 2 | PO-2026-0005, 100 Cable @ 50 KES | `submit_purchase_order` → `approve_purchase_order` |
+| 2 | PO-2026-2026, 100 Cable @ 50 KES | `submit_purchase_order` → `approve_purchase_order` |
 | 3 | GRN-2026-00004 into `WH-HQ` | `create_goods_receipt` |
 | 4 | Transfer 40, then 96.5 HQ → NKR | `approve_stock_transfer_atomic` → `complete_stock_transfer_atomic` |
 | 5 | Write off 10, then 40 at NKR | `apply_or_request_stock_adjustment` |
@@ -74,5 +74,26 @@ warehouse's AVCO diverges from its own layers, or if valuation drift returns.
 
 ## Domain status
 
-Phases A through F2 are complete and proven on live data. The remaining open
-item is Phase H — document numbering completion for the landed cost surfaces.
+Phases A through F2 are complete and proven on live data.
+
+## Phase H — the numbering defect this exercise surfaced
+
+The purchase order raised for this test came out as **PO-2026-2026**, not
+PO-2026-0004. Root cause: `get_next_po_number` derived the counter by
+stripping every non-digit from the previous number, which folds the year into
+the counter. The sales-side generators had already been corrected for exactly
+this (their source even carries the warning comment); purchasing had not.
+
+Fixed: `get_next_po_number` now parses only the trailing counter segment and
+takes a per-org advisory lock, matching `get_next_grn_number`. The same audit
+found `get_next_requisition_number` generating numbers with no lock at all —
+two concurrent requisitions could be handed the same number — now serialised
+the same way.
+
+`PO-2026-2026` itself was left as-is: the PO is received, and
+`_po_commercial_fields_immutable()` correctly refused to rewrite the number of
+a received document. The corrected parser simply continues from it.
+
+`supabase/tests/document_numbering_segment_parse_test.sql` fails if any
+year-segmented generator goes back to whole-string digit stripping, drops its
+advisory lock, or grows a second overload that computes the counter itself.
