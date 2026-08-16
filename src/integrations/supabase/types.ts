@@ -95766,6 +95766,15 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
+      move_pos_table_session: {
+        Args: {
+          p_expected_version?: number
+          p_new_table_id: string
+          p_notes?: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
       next_supplier_code: { Args: { p_business_id: string }; Returns: string }
       normalize_currency_code: { Args: { p_code: string }; Returns: string }
       normalize_display_to_base: {
