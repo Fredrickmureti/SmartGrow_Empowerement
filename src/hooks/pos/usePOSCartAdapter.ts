@@ -118,6 +118,10 @@ export function usePOSCartAdapter({ tableSessionId, registerId, shiftId, tableNu
       items,
       ...totals,
       cartState: { ...tableOrder.cartState, items, ...totals },
+      // Restaurant bills carry no cart-level discount today; the key is present
+      // so consumers (e.g. the Phase 7 commit envelope) can read it off either
+      // branch of the union without narrowing.
+      cartDiscount: null as { type: "percent" | "fixed"; value: number } | null,
       isRestaurantMode: true as const,
       transactionId: tableOrder.transactionId,
       draftTransactionNumber: tableOrder.draftTransactionNumber,
