@@ -86348,6 +86348,10 @@ export type Database = {
       }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
+      _landed_cost_annotate_reversal_intent: {
+        Args: { _intent: Json }
+        Returns: Json
+      }
       _landed_cost_post_apply: {
         Args: { p_actor: string; p_voucher_id: string }
         Returns: Json
@@ -94981,12 +94985,24 @@ export type Database = {
         Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
       }
+      landed_cost_assert_receipt_unencumbered: {
+        Args: { _goods_receipt_id: string; _operation?: string }
+        Returns: undefined
+      }
       landed_cost_clearing_exposure: {
         Args: { p_business_id: string }
         Returns: Json
       }
       landed_cost_post_voucher: {
         Args: { p_actor?: string; p_voucher_id: string }
+        Returns: Json
+      }
+      landed_cost_receipt_block_reason: {
+        Args: { _goods_receipt_id: string }
+        Returns: string
+      }
+      landed_cost_receipt_encumbrance: {
+        Args: { _goods_receipt_id: string }
         Returns: Json
       }
       landed_cost_receipt_summary: {
