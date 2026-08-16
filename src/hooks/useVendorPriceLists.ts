@@ -128,7 +128,9 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
 
   const createMutation = useMutation({
     mutationFn: async (
-      input: Omit<VendorPriceList, "id" | "created_at" | "updated_at" | "organization_id" | "business_id" | "branch_id"> & {
+      input: Partial<Omit<VendorPriceList, "id" | "created_at" | "updated_at" | "organization_id" | "business_id">> & {
+        vendor_id: string;
+        product_id: string;
         branch_id?: string | null;
       },
     ) => {
@@ -144,14 +146,18 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         p_branch_id: effectiveBranchId,
         p_vendor_id: input.vendor_id,
         p_product_id: input.product_id,
-        p_unit_price: input.unit_price,
-        p_currency_code: input.currency,
-        p_min_order_qty: input.min_order_qty,
-        p_lead_time_days: input.lead_time_days,
-        p_is_preferred: input.is_preferred,
-        p_effective_from: input.valid_from,
-        p_effective_to: input.valid_until,
-        p_notes: input.notes,
+        p_unit_price: input.unit_price ?? null,
+        p_currency_code: input.currency ?? null,
+        p_min_order_qty: input.min_order_qty ?? null,
+        p_order_increment: input.order_increment ?? null,
+        p_purchase_uom_id: input.purchase_uom_id ?? null,
+        p_price_break_tiers: input.price_break_tiers ?? null,
+        p_lead_time_days: input.lead_time_days ?? null,
+        p_is_preferred: input.is_preferred ?? false,
+        p_preferred_rank: input.preferred_rank ?? null,
+        p_effective_from: input.valid_from ?? null,
+        p_effective_to: input.valid_until ?? null,
+        p_notes: input.notes ?? null,
       });
 
       if (error) throw error;
@@ -184,8 +190,12 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         p_unit_price: updates.unit_price ?? entry?.unit_price ?? null,
         p_currency_code: updates.currency ?? entry?.currency ?? null,
         p_min_order_qty: updates.min_order_qty ?? entry?.min_order_qty ?? null,
+        p_order_increment: updates.order_increment ?? entry?.order_increment ?? null,
+        p_purchase_uom_id: updates.purchase_uom_id ?? entry?.purchase_uom_id ?? null,
+        p_price_break_tiers: updates.price_break_tiers ?? entry?.price_break_tiers ?? null,
         p_lead_time_days: updates.lead_time_days ?? entry?.lead_time_days ?? null,
         p_is_preferred: updates.is_preferred ?? entry?.is_preferred ?? false,
+        p_preferred_rank: updates.preferred_rank ?? null,
         p_effective_from: updates.valid_from ?? entry?.valid_from ?? null,
         p_effective_to: updates.valid_until ?? entry?.valid_until ?? null,
         p_notes: updates.notes ?? entry?.notes ?? null,
@@ -193,6 +203,7 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
 
       if (error) throw error;
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vendor-pricelists"] });
       toast.success("Price list entry updated");
