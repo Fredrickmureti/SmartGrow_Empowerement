@@ -321,6 +321,11 @@ async function processOnlineTransaction(
       subtotal: data.cart.subtotal,
       tax_amount: data.cart.tax_amount,
       discount_amount: data.cart.discount_amount,
+      // Phase 7: the server re-prices these items and refuses the commit if the
+      // re-quoted total disagrees with the session's grand total. The cart-level
+      // discount must therefore travel with the intent.
+      cart_discount_type: data.cart_discount?.type ?? null,
+      cart_discount_value: data.cart_discount?.value ?? 0,
       transaction_type: data.transaction_type === "return" ? "return" : "sale",
       customer_id: data.cart.customer?.id ?? null,
       customer_name: data.cart.customer?.name ?? null,
