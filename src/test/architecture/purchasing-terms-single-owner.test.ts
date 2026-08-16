@@ -49,12 +49,24 @@ describe("purchasing terms single owner", () => {
   it("resolves purchasing terms only through the seam", () => {
     // Only actual RPC invocations count; prose references in doc comments are fine.
     const CALL =
-      /\.rpc\(\s*["'](?:resolve_supplier_purchasing_terms|validate_supplier_order_quantity)["']/;
+      /\.rpc\(\s*["'](?:resolve_supplier_purchasing_terms|validate_supplier_order_quantity|resolve_purchase_line_price)["']/;
     const callers = appFiles.filter(
       (f) => f.rel !== SEAM && CALL.test(f.body),
     );
     expect(callers.map((f) => f.rel)).toEqual([]);
   });
+
+  it("keeps purchase price precedence on the server", () => {
+    // No browser file may rank contract vs supplier price itself; the one
+    // authority is `resolve_purchase_line_price`.
+    const offenders = appFiles.filter(
+      (f) =>
+        f.rel !== SEAM &&
+        /contract_unit_price\s*\?\?|contract_unit_price\s*\|\|/.test(f.body),
+    );
+    expect(offenders.map((f) => f.rel)).toEqual([]);
+  });
+
 
 
   it("does not read the deprecated product-level purchasing defaults to decide policy", () => {
