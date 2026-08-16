@@ -291,7 +291,7 @@ function POSTerminalInner() {
   const { etimsSettings, transmitToEtims, isEtimsEnabled } = usePOSEtims(registerId);
   
   // Bill splitting (restaurant mode)
-  const { splitBill, createSplitBill, markPortionPaid, getUnpaidPortions, calculateEqualSplit } = useBillSplitting(tableSessionId || undefined);
+  const { splitBill, createSplitBill, markPortionPaid, getUnpaidPortions } = useBillSplitting(tableSessionId || undefined);
   
   // Table sessions & floor plan data for transfer dialog (restaurant mode)
   const { sessions: allActiveSessions } = useTableSessions(activeShift?.id);
