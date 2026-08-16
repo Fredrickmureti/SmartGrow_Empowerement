@@ -265,7 +265,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, currentBusiness, user, orgLoading, businessLoading]);
+  }, [currentOrg, currentBusiness, userId, orgLoading, businessLoading]);
 
   useEffect(() => {
     fetchBranches();
