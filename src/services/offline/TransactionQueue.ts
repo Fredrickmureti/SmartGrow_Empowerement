@@ -358,8 +358,9 @@ class TransactionQueueService {
         await this.recoverStuckSyncing();
       }
 
-      const pending = await this.getPendingTransactions();
-      
+      // Only rows whose backoff window has elapsed.
+      const pending = await this.getDueTransactions();
+
       // Sort by creation time to maintain order
       pending.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
@@ -371,8 +372,10 @@ class TransactionQueueService {
           failed++;
         }
 
-        // Small delay between syncs to avoid overwhelming the server
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Small delay between syncs to avoid overwhelming the server.
+        // Per-row retry pacing is handled by `nextAttemptAt` (exponential
+        // backoff), not by this inter-row gap.
+        await new Promise((resolve) => setTimeout(resolve, INTER_SYNC_GAP_MS));
       }
     })();
 
