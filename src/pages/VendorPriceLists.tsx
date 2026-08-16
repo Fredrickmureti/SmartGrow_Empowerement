@@ -43,13 +43,10 @@ export default function VendorPriceLists() {
   const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } = useVendorPriceLists();
   const { contacts } = useContacts();
   const { products } = useProducts();
-  const currencyApi = useCurrency() as any;
-  const { formatCurrency, baseCurrency } = currencyApi;
-  const activeCurrencies: string[] = Array.isArray(currencyApi.activeCurrencies)
-    ? currencyApi.activeCurrencies
-        .map((c: any) => (typeof c === "string" ? c : c?.currency_code))
-        .filter(Boolean)
-    : [];
+  const { formatCurrency, baseCurrency, currencies } = useCurrency();
+  // Currency options come from the business's enabled currencies (ADR 0135/0136);
+  // the form never accepts a free-text code.
+  const activeCurrencies = currencies.filter((c) => c.is_active).map((c) => c.code);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMode, setSheetMode] = useState<"create" | "edit">("create");
