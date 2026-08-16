@@ -1,6 +1,8 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
+import { useSupplierCoverage } from "@/hooks/useSupplierCoverage";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -29,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, MoreHorizontal, Trash2, Star, Edit, ListChecks, AlertTriangle, Clock, Eye, ShieldCheck } from "lucide-react";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -40,7 +43,17 @@ import {
 } from "@/features/purchases/price-lists/VendorPriceListFormSheet";
 
 export default function VendorPriceLists() {
-  const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } = useVendorPriceLists();
+  const COVERAGE_LABEL: Record<string, string> = {
+    uncovered: "Uncovered",
+    single_source: "Single source",
+    multi_source: "Multi source",
+  };
+  // The workspace is the one surface that must also show retired conditions —
+  // pricing consumers stay on the default (active only).
+  const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } =
+    useVendorPriceLists(undefined, undefined, { includeInactive: true });
+  const [tab, setTab] = useState<"conditions" | "coverage">("conditions");
+  const { coverage, isLoading: coverageLoading } = useSupplierCoverage(tab === "coverage");
   const { contacts } = useContacts();
   const { products } = useProducts();
   const { formatCurrency, baseCurrency, currencies } = useCurrency();
@@ -56,6 +69,29 @@ export default function VendorPriceLists() {
   const [vendorFilter, setVendorFilter] = useState("all");
   const [validityFilter, setValidityFilter] = useState("all");
   const [viewingEntry, setViewingEntry] = useState<any | null>(null);
+
+  // Context carry-in: /purchases/supplier-conditions?product=…&supplier=…
+  // opens the create sheet pre-filled from wherever the operator came from.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const carryProductId = searchParams.get("product");
+  const carrySupplierId = searchParams.get("supplier");
+  const [carriedIn, setCarriedIn] = useState(false);
+
+  useEffect(() => {
+    if (carriedIn || (!carryProductId && !carrySupplierId)) return;
+    setCarriedIn(true);
+    setSheetMode("create");
+    setEditingId(null);
+    setInitialValues({
+      ...(carryProductId ? { product_id: carryProductId } : {}),
+      ...(carrySupplierId ? { vendor_id: carrySupplierId } : {}),
+    });
+    setSheetOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("product");
+    next.delete("supplier");
+    setSearchParams(next, { replace: true });
+  }, [carriedIn, carryProductId, carrySupplierId, searchParams, setSearchParams]);
 
   const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
 
@@ -141,6 +177,7 @@ export default function VendorPriceLists() {
     else if (validityFilter === "pending")
       matchesValidity =
         entry.effective_status === "pending_approval" || entry.effective_status === "draft";
+    else if (validityFilter === "inactive") matchesValidity = !entry.is_active;
     else if (validityFilter === "preferred") matchesValidity = entry.is_preferred;
     return matchesSearch && matchesVendor && matchesValidity;
   });
@@ -285,6 +322,13 @@ export default function VendorPriceLists() {
           </Card>
         </div>
 
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "conditions" | "coverage")}>
+          <TabsList>
+            <TabsTrigger value="conditions">Conditions</TabsTrigger>
+            <TabsTrigger value="coverage">Coverage</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="conditions" className="space-y-4">
         <div className="filter-bar">
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -318,6 +362,7 @@ export default function VendorPriceLists() {
               <SelectItem value="expiring">Expiring Soon</SelectItem>
               <SelectItem value="expired">Expired</SelectItem>
               <SelectItem value="pending">Pending approval</SelectItem>
+              <SelectItem value="inactive">Suspended</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -434,6 +479,83 @@ export default function VendorPriceLists() {
             </TableBody>
           </Table>
         </div>
+          </TabsContent>
+
+          <TabsContent value="coverage" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Which active products can actually be bought under an approved, in-window
+              supplier condition today. Uncovered items have no price authority — a buyer
+              would have to type a price by hand.
+            </p>
+            <div className="table-container rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Suppliers</TableHead>
+                    <TableHead className="text-right">Conditions</TableHead>
+                    <TableHead className="text-right">Price range</TableHead>
+                    <TableHead>Next expiry</TableHead>
+                    <TableHead>Coverage</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {coverageLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">Loading...</TableCell>
+                    </TableRow>
+                  ) : coverage.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No active products to report on.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    coverage.map((row) => (
+                      <TableRow
+                        key={row.product_id}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setSheetMode("create");
+                          setEditingId(null);
+                          setInitialValues({ product_id: row.product_id });
+                          setSheetOpen(true);
+                        }}
+                      >
+                        <TableCell className="font-medium">{row.product_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.sku || "—"}</TableCell>
+                        <TableCell className="text-right">{row.supplier_count}</TableCell>
+                        <TableCell className="text-right">{row.active_conditions}</TableCell>
+                        <TableCell className="text-right">
+                          {row.min_unit_price == null
+                            ? "—"
+                            : row.min_unit_price === row.max_unit_price
+                              ? formatCurrency(row.min_unit_price)
+                              : `${formatCurrency(row.min_unit_price)} – ${formatCurrency(row.max_unit_price ?? row.min_unit_price)}`}
+                        </TableCell>
+                        <TableCell>{row.next_expiry || "—"}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              row.coverage_status === "uncovered"
+                                ? "destructive"
+                                : row.coverage_status === "single_source"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                          >
+                            {COVERAGE_LABEL[row.coverage_status] ?? row.coverage_status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <VendorPriceListFormSheet

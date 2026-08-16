@@ -402,16 +402,21 @@ export function PurchasesApp() {
         />
 
         
-        {/* Vendor Price Lists */}
+        {/* Supplier conditions (formerly "Vendor price lists") */}
         <Route
-          path="price-lists"
+          path="supplier-conditions"
           element={
             <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Price Lists">
+              <LazyRoute module="Supplier Conditions">
                 <VendorPriceLists />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
+        />
+        {/* Legacy slug — kept so bookmarks and deep links keep working. */}
+        <Route
+          path="price-lists"
+          element={<Navigate to="/purchases/supplier-conditions" replace />}
         />
         
         {/* Vendor Credit Notes */}

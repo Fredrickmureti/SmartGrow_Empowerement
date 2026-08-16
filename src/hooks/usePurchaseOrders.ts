@@ -27,6 +27,14 @@ export interface PurchaseOrderItem {
   /** Contract line this PO line draws from (enforced server-side on approval). */
   contract_line_id?: string | null;
   contract_unit_price?: number | null;
+  /**
+   * Price provenance (ADR 0142). `resolved_unit_price` and `price_source` are
+   * stamped by the server trigger from `_resolve_purchase_line_price`; the
+   * browser only carries them so an operator can see and justify a deviation.
+   */
+  resolved_unit_price?: number | null;
+  price_source?: string | null;
+  price_override_reason?: string | null;
   // UoM provenance — `quantity` stays in base units (DB trigger normalizes).
   packaging_id?: string | null;
   display_quantity?: number | null;
