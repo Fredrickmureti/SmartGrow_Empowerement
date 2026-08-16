@@ -53,7 +53,7 @@ export const PURCHASES_NAV: WorkspaceNav = {
     {
       label: "Setup",
       items: [
-        { to: "/purchases/price-lists", label: "Price lists", icon: Tags },
+        { to: "/purchases/price-lists", label: "Supplier conditions", icon: Tags },
       ],
     },
   ],
