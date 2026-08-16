@@ -66,18 +66,40 @@ export type VendorPriceListWithRelations = VendorPriceList & {
 };
 
 
-export function useVendorPriceLists(vendorId?: string, productId?: string) {
+export interface VendorPriceListOptions {
+  /**
+   * Include suspended / withdrawn conditions (`is_active = false`). Pricing
+   * consumers must stay on the default (false); only the conditions workspace
+   * needs to see what has been retired so it can be reinstated.
+   */
+  includeInactive?: boolean;
+}
+
+export function useVendorPriceLists(
+  vendorId?: string,
+  productId?: string,
+  options: VendorPriceListOptions = {},
+) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
   const queryClient = useQueryClient();
+  const includeInactive = options.includeInactive === true;
 
   const organizationId = currentOrg?.id;
   const businessId = currentBusiness?.id;
   const branchId = currentBranch?.id ?? null;
 
   const { data: priceLists = [], isLoading } = useQuery({
-    queryKey: ["vendor-pricelists", organizationId, businessId, branchId, vendorId, productId],
+    queryKey: [
+      "vendor-pricelists",
+      organizationId,
+      businessId,
+      branchId,
+      vendorId,
+      productId,
+      includeInactive,
+    ],
     queryFn: async () => {
       if (!organizationId || !businessId) return [];
 
@@ -89,8 +111,9 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
           supplier:suppliers!inner(id, contact_id, contact:contacts!contact_id(id, name)),
           product:products!product_id(id, name, sku)
         `)
-        .eq("business_id", businessId)
-        .eq("is_active", true);
+        .eq("business_id", businessId);
+
+      if (!includeInactive) query = query.eq("is_active", true);
 
       // Branch-scoped: match this branch OR company-wide (NULL).
       query = applyBranchFilter(query, branchId);
