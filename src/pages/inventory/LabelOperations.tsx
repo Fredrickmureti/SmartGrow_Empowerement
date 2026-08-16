@@ -292,9 +292,10 @@ export default function LabelOperations() {
                   )}
                   {demand.map((d) => {
                     const copy = REASON_COPY[d.reason] ?? REASON_COPY.manual;
+                    const sku = d.detail?.["sku"] as string | undefined;
                     const name = (d.detail?.["name"] as string | undefined)
-                      ?? (d.detail?.["sku"] as string | undefined)
-                      ?? d.entity_id.slice(0, 8);
+                      ?? sku
+                      ?? `Unnamed ${d.entity_type}`;
                     return (
                       <TableRow key={d.id}>
                         <TableCell>
@@ -306,7 +307,15 @@ export default function LabelOperations() {
                             aria-label={`Select ${name}`}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex flex-col">
+                            <span>{name}</span>
+                            {sku && name !== sku && (
+                              <span className="text-xs font-normal text-muted-foreground">{sku}</span>
+                            )}
+                          </div>
+                        </TableCell>
+
                         <TableCell>
                           <div className="flex flex-col">
                             <Badge variant="secondary" className="w-fit">{copy.label}</Badge>
