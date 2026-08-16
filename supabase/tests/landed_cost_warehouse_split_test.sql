@@ -84,7 +84,8 @@ BEGIN
   END IF;
 
   -- Every reversal must debit the clearing account for the full original
-  -- amount, and relieve it across inventory + COGS only.
+  -- amount, and relieve it across inventory + COGS only. (Reversal resets
+  -- capitalized/expensed to zero, so the voucher total is the yardstick.)
   SELECT string_agg(v.voucher_number, ', ') INTO v_bad
     FROM public.landed_cost_vouchers v
     JOIN LATERAL (
@@ -94,7 +95,7 @@ BEGIN
     ) j ON true
    WHERE v.status = 'reversed'
      AND v.reversal_journal_entry_id IS NOT NULL
-     AND ROUND(j.relieved - v.capitalized_amount, 2) <> 0;
+     AND ROUND(j.relieved - v.total_amount, 2) <> 0;
 
   IF v_bad IS NOT NULL THEN
     RAISE EXCEPTION 'FAIL: reversal does not relieve the capitalised amount for %', v_bad;
