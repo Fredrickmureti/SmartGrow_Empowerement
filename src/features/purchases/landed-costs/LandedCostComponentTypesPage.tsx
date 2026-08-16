@@ -58,8 +58,16 @@ import type { LandedCostBasis, LandedCostComponentType } from "./useLandedCosts"
 const BASES: { value: LandedCostBasis; label: string; hint: string }[] = [
   { value: "value", label: "Receipt value", hint: "Spread in proportion to line value." },
   { value: "quantity", label: "Quantity", hint: "Spread per unit received." },
-  { value: "weight", label: "Weight", hint: "Requires net weight on the product master." },
-  { value: "volume", label: "Volume", hint: "Requires volume on the product master." },
+  {
+    value: "weight",
+    label: "Weight",
+    hint: "Uses the weight captured under the product's physical attributes, at the packaging level received.",
+  },
+  {
+    value: "volume",
+    label: "Volume",
+    hint: "Uses the volume captured under the product's physical attributes, at the packaging level received.",
+  },
   { value: "manual", label: "Manual", hint: "Operator enters each line amount." },
 ];
 
