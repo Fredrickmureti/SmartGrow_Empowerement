@@ -163,6 +163,13 @@ export function useLabelRunLines(runId?: string | null, status?: LabelRunLine["s
   });
 }
 
+/**
+ * Demand rows carry only the raw `entity_id` plus whatever the emitting
+ * trigger stashed in `detail` (usually a source tag or a barcode). Showing
+ * a truncated uuid to an operator is useless — they pick items by name.
+ * So the hook resolves product identities in one batched follow-up read
+ * and folds `name`/`sku` into `detail` for the table to render.
+ */
 export function useLabelDemand(businessId?: string | null, reason?: LabelDemandReason | "all") {
   return useQuery({
     queryKey: [DEMAND_KEY, businessId, reason ?? "all"],
@@ -178,10 +185,38 @@ export function useLabelDemand(businessId?: string | null, reason?: LabelDemandR
       if (reason && reason !== "all") q = q.eq("reason", reason);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as unknown as LabelDemandRow[];
+      const rows = (data ?? []) as unknown as LabelDemandRow[];
+
+      const productIds = Array.from(
+        new Set(rows.filter((r) => r.entity_type === "product").map((r) => r.entity_id)),
+      );
+      if (!productIds.length) return rows;
+
+      const { data: products, error: prodError } = await supabase
+        .from("products")
+        .select("id, name, sku")
+        .in("id", productIds);
+      // A failed name lookup must not blank the demand queue; fall back to
+      // whatever `detail` already had.
+      if (prodError) return rows;
+
+      const byId = new Map((products ?? []).map((p) => [p.id, p]));
+      return rows.map((r) => {
+        const p = r.entity_type === "product" ? byId.get(r.entity_id) : undefined;
+        if (!p) return r;
+        return {
+          ...r,
+          detail: {
+            ...r.detail,
+            name: (r.detail?.["name"] as string | undefined) ?? p.name,
+            sku: (r.detail?.["sku"] as string | undefined) ?? p.sku ?? undefined,
+          },
+        };
+      });
     },
   });
 }
+
 
 export function useLabelRunActions(businessId?: string | null) {
   const qc = useQueryClient();
