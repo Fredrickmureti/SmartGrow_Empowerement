@@ -75,6 +75,10 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const { currentOrg, isLoading: orgLoading } = useOrganization();
   const { currentBusiness, isLoading: businessLoading } = useBusinesses();
   const { user } = useAuth();
+  // Depend on the stable identity, never the session-bound `user` object —
+  // a re-emitted auth event must not re-trigger the branch fetch (and its
+  // isLoading=true flash) for the same signed-in user.
+  const userId = user?.id ?? null;
   const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [currentBranch, setCurrentBranch] = useState<Branch | null>(null);
