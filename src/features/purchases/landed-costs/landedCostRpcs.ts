@@ -88,3 +88,11 @@ export async function fetchLandedCostClearingExposure(businessId: string) {
   if (error) throw new Error(error.message);
   return (data ?? {}) as Record<string, unknown>;
 }
+
+export async function fetchLandedCostWorkspaceSummary(businessId: string) {
+  const { data, error } = await supabase.rpc("landed_cost_workspace_summary", {
+    p_business_id: businessId,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? {}) as Record<string, unknown>;
+}

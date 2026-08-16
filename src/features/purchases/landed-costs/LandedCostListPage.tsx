@@ -31,13 +31,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCurrency } from "@/hooks/useCurrency";
-import {
-  landedCostKpis,
-  useLandedCostVouchers,
-  type LandedCostVoucherRow,
-} from "./useLandedCosts";
+import { useLandedCostVouchers, type LandedCostVoucherRow } from "./useLandedCosts";
 import { LandedCostPeekSheet } from "./LandedCostPeekSheet";
-import { useLandedCostClearingExposure } from "./useLandedCostReporting";
+import {
+  useLandedCostClearingExposure,
+  useLandedCostWorkspaceSummary,
+} from "./useLandedCostReporting";
 
 type BucketId = "capture" | "allocated" | "posted" | "closed" | "all";
 
@@ -82,14 +81,17 @@ export default function LandedCostListPage() {
   const [bucket, setBucket] = useState<BucketId>("capture");
   const [peekId, setPeekId] = useState<string | null>(null);
   const { exposure } = useLandedCostClearingExposure();
+  const { summary } = useLandedCostWorkspaceSummary();
 
-  const kpis = useMemo(() => landedCostKpis(rows), [rows]);
-
-  const counts = useMemo(() => {
-    const map = {} as Record<BucketId, number>;
-    for (const b of BUCKETS) map[b.id] = rows.filter(b.match).length;
-    return map;
-  }, [rows]);
+  // Counts and money come from the server-side aggregate over every voucher in
+  // the business — never from the page of rows this table happens to hold.
+  const counts: Record<BucketId, number | null> = {
+    capture: summary?.captureCount ?? null,
+    allocated: summary?.allocatedCount ?? null,
+    posted: summary?.postedCount ?? null,
+    closed: summary?.closedCount ?? null,
+    all: summary?.totalCount ?? null,
+  };
 
   const active = BUCKETS.find((b) => b.id === bucket) ?? BUCKETS[0];
 
@@ -133,12 +135,15 @@ export default function LandedCostListPage() {
       <PageBody>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Drafts", value: String(kpis.drafts) },
-            { label: "Awaiting posting", value: String(kpis.awaitingPosting) },
-            { label: "Unposted charge value", value: formatCurrency(kpis.unpostedValue) },
+            { label: "Capturing charges", value: summary ? String(summary.captureCount) : "—" },
+            { label: "Awaiting posting", value: summary ? String(summary.allocatedCount) : "—" },
             {
-              label: "Capitalised (posted)",
-              value: formatCurrency(kpis.capitalizedValue),
+              label: "Charge value not yet in the ledger",
+              value: summary ? formatCurrency(summary.unpostedAmount) : "—",
+            },
+            {
+              label: "Added to stock value",
+              value: summary ? formatCurrency(summary.capitalizedAmount) : "—",
             },
           ].map((k) => (
             <div key={k.label} className="rounded-lg border bg-card p-4">
@@ -183,7 +188,7 @@ export default function LandedCostListPage() {
                   (bucket === b.id ? "opacity-80" : "text-muted-foreground")
                 }
               >
-                {counts[b.id] ?? 0}
+                {counts[b.id] ?? "—"}
               </span>
             </button>
           ))}

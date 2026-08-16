@@ -95034,14 +95034,6 @@ export type Database = {
         Args: { p_actor?: string; p_reason: string; p_voucher_id: string }
         Returns: Json
       }
-      landed_cost_selftest: {
-        Args: { p_actor: string; p_business: string }
-        Returns: Json
-      }
-      landed_cost_selftest_run: {
-        Args: { p_actor: string; p_business: string }
-        Returns: Json
-      }
       landed_cost_valuation_attribution: {
         Args: { p_business_id: string; p_product_ids?: string[] }
         Returns: {
@@ -95053,6 +95045,10 @@ export type Database = {
           unit_cost_before: number
           uplift_amount: number
         }[]
+      }
+      landed_cost_workspace_summary: {
+        Args: { p_business_id: string }
+        Returns: Json
       }
       leave_to_attendance_stamp: {
         Args: { _leave_id: string }
