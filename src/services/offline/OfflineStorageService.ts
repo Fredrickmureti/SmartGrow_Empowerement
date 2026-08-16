@@ -27,6 +27,12 @@ export interface QueuedTransaction {
   createdAt: string;
   attempts: number;
   lastAttemptAt?: string;
+  /**
+   * Phase 9 — earliest ISO timestamp at which this row may be retried.
+   * Set by `TransactionQueue` from an exponential backoff schedule so a
+   * transient failure does not hot-loop the server.
+   */
+  nextAttemptAt?: string;
   error?: string;
   status: "pending" | "syncing" | "failed" | "completed";
 }
