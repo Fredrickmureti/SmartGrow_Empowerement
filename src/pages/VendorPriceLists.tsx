@@ -1,6 +1,8 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useVendorPriceLists } from "@/hooks/useVendorPriceLists";
+import { useSupplierCoverage } from "@/hooks/useSupplierCoverage";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -29,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, MoreHorizontal, Trash2, Star, Edit, ListChecks, AlertTriangle, Clock, Eye, ShieldCheck } from "lucide-react";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -40,7 +43,12 @@ import {
 } from "@/features/purchases/price-lists/VendorPriceListFormSheet";
 
 export default function VendorPriceLists() {
-  const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } = useVendorPriceLists();
+  // The workspace is the one surface that must also show retired conditions —
+  // pricing consumers stay on the default (active only).
+  const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } =
+    useVendorPriceLists(undefined, undefined, { includeInactive: true });
+  const [tab, setTab] = useState<"conditions" | "coverage">("conditions");
+  const { coverage, isLoading: coverageLoading } = useSupplierCoverage(tab === "coverage");
   const { contacts } = useContacts();
   const { products } = useProducts();
   const { formatCurrency, baseCurrency, currencies } = useCurrency();
@@ -56,6 +64,29 @@ export default function VendorPriceLists() {
   const [vendorFilter, setVendorFilter] = useState("all");
   const [validityFilter, setValidityFilter] = useState("all");
   const [viewingEntry, setViewingEntry] = useState<any | null>(null);
+
+  // Context carry-in: /purchases/supplier-conditions?product=…&supplier=…
+  // opens the create sheet pre-filled from wherever the operator came from.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const carryProductId = searchParams.get("product");
+  const carrySupplierId = searchParams.get("supplier");
+  const [carriedIn, setCarriedIn] = useState(false);
+
+  useEffect(() => {
+    if (carriedIn || (!carryProductId && !carrySupplierId)) return;
+    setCarriedIn(true);
+    setSheetMode("create");
+    setEditingId(null);
+    setInitialValues({
+      ...(carryProductId ? { product_id: carryProductId } : {}),
+      ...(carrySupplierId ? { vendor_id: carrySupplierId } : {}),
+    });
+    setSheetOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("product");
+    next.delete("supplier");
+    setSearchParams(next, { replace: true });
+  }, [carriedIn, carryProductId, carrySupplierId, searchParams, setSearchParams]);
 
   const vendors = contacts.filter((c) => (c.type === "supplier" || c.type === "both") && c.is_active);
 
@@ -141,6 +172,7 @@ export default function VendorPriceLists() {
     else if (validityFilter === "pending")
       matchesValidity =
         entry.effective_status === "pending_approval" || entry.effective_status === "draft";
+    else if (validityFilter === "inactive") matchesValidity = !entry.is_active;
     else if (validityFilter === "preferred") matchesValidity = entry.is_preferred;
     return matchesSearch && matchesVendor && matchesValidity;
   });
