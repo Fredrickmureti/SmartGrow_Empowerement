@@ -14,11 +14,19 @@
  */
 import {
   describeOrderQuantityVerdict,
+  describePriceSource,
+  fetchPurchaseLinePrice,
   fetchSupplierPurchasingTerms,
   validateSupplierOrderQuantity,
   type OrderQuantityVerdict,
+  type PurchaseLinePrice,
+  type PurchasePriceSource,
   type SupplierPurchasingTerms,
 } from "@/features/products/purchasing/supplierPurchasingTerms";
+
+export { describePriceSource };
+export type { PurchaseLinePrice, PurchasePriceSource };
+
 
 export interface PurchaseLineForTerms {
   /** Index in the caller's line array — used to report the refusal back. */
