@@ -36,12 +36,20 @@ interface ProductOption {
   is_active?: boolean;
 }
 
+export interface PriceBreakTierInput {
+  min_qty: number;
+  unit_price: number;
+}
+
 export interface VendorPriceListFormValues {
   vendor_id: string;
   product_id: string;
   unit_price: number;
   currency: string;
   min_order_qty: number;
+  /** Orderable step above the minimum. 0 / empty means any quantity. */
+  order_increment: number;
+  price_break_tiers: PriceBreakTierInput[];
   lead_time_days: number;
   is_preferred: boolean;
   valid_from: string;
@@ -56,6 +64,8 @@ const defaults = (baseCurrency: string): VendorPriceListFormValues => ({
   unit_price: 0,
   currency: baseCurrency,
   min_order_qty: 1,
+  order_increment: 0,
+  price_break_tiers: [],
   lead_time_days: 0,
   is_preferred: false,
   valid_from: "",
@@ -63,6 +73,7 @@ const defaults = (baseCurrency: string): VendorPriceListFormValues => ({
   notes: "",
   is_active: true,
 });
+
 
 interface Props {
   open: boolean;
