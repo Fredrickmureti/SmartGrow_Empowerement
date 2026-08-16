@@ -94985,9 +94985,21 @@ export type Database = {
         Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
       }
+      landed_cost_assert_bill_unencumbered: {
+        Args: { _bill_id: string; _operation?: string }
+        Returns: undefined
+      }
       landed_cost_assert_receipt_unencumbered: {
         Args: { _goods_receipt_id: string; _operation?: string }
         Returns: undefined
+      }
+      landed_cost_bill_block_reason: {
+        Args: { _bill_id: string }
+        Returns: string
+      }
+      landed_cost_bill_encumbrance: {
+        Args: { _bill_id: string }
+        Returns: Json
       }
       landed_cost_clearing_exposure: {
         Args: { p_business_id: string }
