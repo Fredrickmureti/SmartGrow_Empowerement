@@ -89478,6 +89478,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_approval_action_keys_registered: {
+        Args: never
+        Returns: undefined
+      }
       assert_can_manage_assets: {
         Args: { _business_id: string }
         Returns: undefined
