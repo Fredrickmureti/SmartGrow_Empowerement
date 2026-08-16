@@ -561,8 +561,21 @@ const HANDLERS: Record<string, HandlerFn> = {
 
 
 
+// Lineage-only domains: the write is already durable in-transaction, so any
+// topic under these prefixes without an explicit handler is recorded rather
+// than dead-lettered. Keeps the WMS/procurement lifecycle observable without
+// having to enumerate every state-machine transition here.
+const RECORD_ONLY_PREFIXES = [
+  "warehouse.",
+  "procurement.",
+  "goods_receipt.",
+];
+
 async function dispatch(row: OutboxRow): Promise<void> {
-  const handler = HANDLERS[row.event_type];
+  const handler = HANDLERS[row.event_type] ??
+    (RECORD_ONLY_PREFIXES.some((p) => row.event_type.startsWith(p))
+      ? handleInventoryLifecycleRecorded
+      : undefined);
   if (!handler) {
     throw new Error(
       `posting.contract_violation: unknown_event_type ${row.event_type} (row ${row.id})`,
