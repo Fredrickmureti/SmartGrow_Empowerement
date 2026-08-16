@@ -103170,49 +103170,29 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      upsert_supplier_item_terms:
-        | {
-            Args: {
-              p_branch_id?: string
-              p_business_id: string
-              p_currency_code?: string
-              p_effective_from?: string
-              p_effective_to?: string
-              p_id?: string
-              p_is_preferred?: boolean
-              p_lead_time_days?: number
-              p_min_order_qty?: number
-              p_notes?: string
-              p_organization_id?: string
-              p_product_id: string
-              p_unit_price: number
-              p_vendor_id: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_branch_id?: string
-              p_business_id: string
-              p_currency_code: string
-              p_effective_from: string
-              p_effective_to: string
-              p_id?: string
-              p_is_preferred: boolean
-              p_lead_time_days: number
-              p_min_order_qty: number
-              p_notes: string
-              p_order_increment?: number
-              p_organization_id?: string
-              p_preferred_rank?: number
-              p_price_break_tiers?: Json
-              p_product_id: string
-              p_purchase_uom_id?: string
-              p_unit_price: number
-              p_vendor_id: string
-            }
-            Returns: string
-          }
+      upsert_supplier_item_terms: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_currency_code: string
+          p_effective_from: string
+          p_effective_to: string
+          p_id?: string
+          p_is_preferred: boolean
+          p_lead_time_days: number
+          p_min_order_qty: number
+          p_notes: string
+          p_order_increment?: number
+          p_organization_id?: string
+          p_preferred_rank?: number
+          p_price_break_tiers?: Json
+          p_product_id: string
+          p_purchase_uom_id?: string
+          p_unit_price: number
+          p_vendor_id: string
+        }
+        Returns: string
+      }
       upsert_system_account: {
         Args: {
           _account_type: string
