@@ -62,6 +62,32 @@ function readLatestMigrationMatching(pattern: RegExp): string {
   return "";
 }
 
+/**
+ * Extract just the body of `CREATE OR REPLACE FUNCTION public.<name>` from a
+ * blob of migration SQL (up to its `$function$;` / `$$;` terminator). Phase 7
+ * ships the sweeper and `pos_payment_session_cancel` in the same migration, so
+ * a file-level regex would see cancel's (legitimate) `status = 'cancelled'`
+ * UPDATE and mis-attribute it to the sweeper.
+ */
+function extractFunctionBody(sql: string, name: string): string {
+  const start = new RegExp(
+    String.raw`CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.` + name + String.raw`\b`,
+    "i",
+  );
+  const bodies: string[] = [];
+  let rest = sql;
+  for (;;) {
+    const m = rest.match(start);
+    if (!m || m.index === undefined) break;
+    const from = rest.slice(m.index);
+    const end = from.search(/\$function\$\s*;|\$\$\s*;/);
+    bodies.push(end === -1 ? from : from.slice(0, end));
+    rest = from.slice(end === -1 ? from.length : end + 1);
+    if (!rest) break;
+  }
+  return bodies.join("\n");
+}
+
 describe("pos_payment_session_commit — SQL contract (Wave 3 Phase 4)", () => {
   const commitSql = readLatestMigrationMatching(
     /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.pos_payment_session_commit/i,
