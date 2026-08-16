@@ -95235,6 +95235,10 @@ export type Database = {
         Returns: string
       }
       get_vendor_contact_id: { Args: { _user_id: string }; Returns: string }
+      goods_receipt_line_base_unit_cost: {
+        Args: { _gri_id: string }
+        Returns: number
+      }
       governance_assert_not_self: {
         Args: {
           p_action: string
