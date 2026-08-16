@@ -474,6 +474,83 @@ export default function VendorPriceLists() {
             </TableBody>
           </Table>
         </div>
+          </TabsContent>
+
+          <TabsContent value="coverage" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Which active products can actually be bought under an approved, in-window
+              supplier condition today. Uncovered items have no price authority — a buyer
+              would have to type a price by hand.
+            </p>
+            <div className="table-container rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Suppliers</TableHead>
+                    <TableHead className="text-right">Conditions</TableHead>
+                    <TableHead className="text-right">Price range</TableHead>
+                    <TableHead>Next expiry</TableHead>
+                    <TableHead>Coverage</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {coverageLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">Loading...</TableCell>
+                    </TableRow>
+                  ) : coverage.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No active products to report on.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    coverage.map((row) => (
+                      <TableRow
+                        key={row.product_id}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setSheetMode("create");
+                          setEditingId(null);
+                          setInitialValues({ product_id: row.product_id });
+                          setSheetOpen(true);
+                        }}
+                      >
+                        <TableCell className="font-medium">{row.product_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.sku || "—"}</TableCell>
+                        <TableCell className="text-right">{row.supplier_count}</TableCell>
+                        <TableCell className="text-right">{row.active_conditions}</TableCell>
+                        <TableCell className="text-right">
+                          {row.min_unit_price == null
+                            ? "—"
+                            : row.min_unit_price === row.max_unit_price
+                              ? formatCurrency(row.min_unit_price)
+                              : `${formatCurrency(row.min_unit_price)} – ${formatCurrency(row.max_unit_price ?? row.min_unit_price)}`}
+                        </TableCell>
+                        <TableCell>{row.next_expiry || "—"}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              row.coverage_status === "uncovered"
+                                ? "destructive"
+                                : row.coverage_status === "single_source"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                          >
+                            {COVERAGE_LABEL[row.coverage_status] ?? row.coverage_status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <VendorPriceListFormSheet
