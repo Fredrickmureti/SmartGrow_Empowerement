@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      _pret_sim_log: {
+        Row: {
+          at: string
+          detail: Json | null
+          id: number
+          ok: boolean
+          step: string
+        }
+        Insert: {
+          at?: string
+          detail?: Json | null
+          id?: number
+          ok: boolean
+          step: string
+        }
+        Update: {
+          at?: string
+          detail?: Json | null
+          id?: number
+          ok?: boolean
+          step?: string
+        }
+        Relationships: []
+      }
       account_change_audit_log: {
         Row: {
           account_id: string | null
