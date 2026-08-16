@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      _pret_sim_log: {
+        Row: {
+          at: string
+          detail: Json | null
+          id: number
+          ok: boolean
+          step: string
+        }
+        Insert: {
+          at?: string
+          detail?: Json | null
+          id?: number
+          ok: boolean
+          step: string
+        }
+        Update: {
+          at?: string
+          detail?: Json | null
+          id?: number
+          ok?: boolean
+          step?: string
+        }
+        Relationships: []
+      }
       account_change_audit_log: {
         Row: {
           account_id: string | null
@@ -89454,6 +89478,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_approval_action_keys_registered: {
+        Args: never
+        Returns: undefined
+      }
       assert_can_manage_assets: {
         Args: { _business_id: string }
         Returns: undefined
@@ -89551,6 +89579,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_no_receipt_cost_basis_as_money: { Args: never; Returns: undefined }
       assert_org_not_locked: { Args: { _org_id: string }; Returns: undefined }
       assert_payroll_ready: {
         Args: {
@@ -95235,6 +95264,10 @@ export type Database = {
         Returns: string
       }
       get_vendor_contact_id: { Args: { _user_id: string }; Returns: string }
+      goods_receipt_line_base_unit_cost: {
+        Args: { _gri_id: string }
+        Returns: number
+      }
       governance_assert_not_self: {
         Args: {
           p_action: string
