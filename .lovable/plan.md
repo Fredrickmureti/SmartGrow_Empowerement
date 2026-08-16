@@ -1,60 +1,80 @@
-# Supplier Conditions (ex "Vendor Price Lists") — implementation status
+# Supplier Conditions — verification result and next phases
 
-Authoritative status for the procurement supplier-conditions wave.
-Source audit + phase definitions: `.lovable/plan/supplier-purchasing-conditions-audit-findings-and-reconstruc-2026-08-16.md`.
-Decisions: ADR 0141, ADR 0142. Memory: `mem://features/supplier-purchasing-terms`.
+## Phase 1 verification (done this turn, evidence-backed)
 
-## Currently active phase
+Every Phase 1–8 claim in the previous status file was checked directly against
+the database and the codebase. All of them hold:
 
-None — Phases 1-8 are implemented. The wave is at a coherent, production-ready
-state. The next agent starts with verification (below), not new construction.
+| Claim | Evidence |
+|---|---|
+| Price-complete resolver | `resolve_supplier_purchasing_terms(p_business_id, p_product_id, p_supplier_id, p_on_date, p_quantity, p_branch_id)` exists, SECURITY DEFINER, `authenticated`/`service_role` only |
+| One price authority | `resolve_purchase_line_price` + internal `_resolve_purchase_line_price`, both branch- and quantity-aware, no `anon` grant |
+| Quantity enforcer | `validate_supplier_order_quantity` present, SECURITY DEFINER |
+| Governed single write path | one `upsert_supplier_item_terms` overload carrying `preferred_rank`, `order_increment`, `purchase_uom_id`, `price_break_tiers`; `supplier_terms.amend` registered and active in `governance_action_registry` |
+| Server-computed status | `public.effective_status(supplier_item_terms)` exists, `authenticated` only, and the workspace hook selects it rather than computing dates in the browser |
+| PO provenance | `purchase_order_items.supplier_terms_id` + `price_source` present with the stamping trigger |
+| Ratchets | `purchasing-terms-single-owner.test.ts` — 8 tests, all passing |
 
-## Fully implemented and verified
+Conclusion: the wave is genuinely at the state claimed. No closed phase is
+reopened. Two real gaps surfaced during verification and are folded in below.
 
-| Phase | Outcome | Verified by |
-|---|---|---|
-| 1 — Price-complete resolver | `resolve_supplier_purchasing_terms(business, product, supplier, on_date, quantity, branch)` selects the highest `price_break_tiers` row at or below the ordered quantity and returns `price_source` | `supabase/tests/supplier_purchasing_conditions_test.sql` |
-| 2 — One purchase price authority | `resolve_purchase_line_price` — precedence contract line → supplier tier → supplier flat → product default → manual, resolved server-side only | SQL guard + architecture test |
-| 3 — Branch scope & validity | Overlap guard keys `branch_id` (branch row coexists with company-wide NULL); `public.effective_status(supplier_item_terms)` is a server-computed status (`active / expiring_soon / expired / scheduled / inactive / draft / pending_approval / rejected`), `authenticated`-only, `anon` revoked; `lead_time_days` column comment records the calendar-day definition | SQL guard #6, #7 |
-| 4 — Governance, audit, events | `upsert_supplier_item_terms` routes `supplier_terms.amend` through `approval_route`, writes `audit_logs`, emits `procurement.supplier_terms.*` to `business_event_outbox` in the same transaction | SQL guard |
-| 5 — PO line provenance | `purchase_order_items.supplier_terms_id` + `price_source`, stamped by `_po_item_stamp_price_provenance` from the Phase 2 authority | SQL guard #5 |
-| 6 — Purchases consumption | `purchaseLineTerms.ts` (single adapter) returns the resolved price, unit and provenance; PO create/edit and requisition create default from it and refuse MOQ/increment violations server-side | architecture test |
-| 7 — Workspace UI | Renamed to **Supplier Conditions** (page + nav + exports); server `effective_status` drives badges, filters and stats; new "Pending approval" summary; form has canonical currency select (business-enabled currencies), purchase-unit select (compatible UoMs), order increment, price-break tier editor, and ranked sourcing (`preferred_rank`, 1 = primary) replacing the boolean | typecheck + architecture tests |
-| 8 — Ratchets | `src/test/architecture/purchasing-terms-single-owner.test.ts` (8 tests, passing): single RPC seam, no browser precedence, no browser MOQ/tier arithmetic, no browser validity-window arithmetic, adapter-only reads. `supabase/tests/supplier_purchasing_conditions_test.sql` (7 checks) | `bunx vitest run src/test/architecture/purchasing-terms-single-owner.test.ts` |
+## Phase 9 — Purchase-price override governance
 
-## Pending / deliberately out of scope
+Today a PO line may carry any manual price above the resolved one and it is
+recorded only as `price_source = 'manual'`, with no reason and no approval.
+That is the largest remaining hole in "why did this PO use this price?".
 
-- **Operator price override policy.** PO lines still accept a manual price above
-  the resolved one (recorded as `price_source = 'manual'`). Whether a manual
-  override must be approved is a governance decision, not a defect.
-- **Context carry-in preselects** (open a condition pre-filled from a product,
-  supplier or requisition) — nice-to-have from Phase 7, not wired.
-- **Route slug** is still `/purchases/price-lists`; only the label changed. A
-  slug change needs a legacy redirect entry.
-- **`notes`** stays free text with no lifecycle, by design. No engine reads it.
+- Add `price_override_reason text` and `price_override_approval_id uuid` to
+  `purchase_order_items`; the stamping trigger requires a reason whenever the
+  agreed price differs from the resolved price beyond a tolerance.
+- Tolerance is business configuration (a percentage plus absolute floor) read
+  from the existing settings layer, not a hardcoded constant.
+- Breaching the tolerance routes through the existing `approval_route` engine
+  under a new registered action key `purchase_order.price_override`; no new
+  approval mechanism.
+- PO entry surfaces the resolved price, the delta and the reason field; the
+  refusal wording comes from the existing verdict describer.
 
-## Instructions for the next agent
+## Phase 10 — Suspended and expired conditions are visible
 
-1. **Verify before building.** Run, in order:
-   - `bunx vitest run src/test/architecture/purchasing-terms-single-owner.test.ts`
-   - `supabase/tests/supplier_purchasing_conditions_test.sql` and
-     `supabase/tests/supplier_purchasing_terms_test.sql` against the database
-   - `bunx tsgo --noEmit -p tsconfig.app.json`
-   Then open `/purchases/price-lists` signed in and confirm: statuses come from
-   `effective_status` (never `new Date()`), the tier editor round-trips, and a
-   condition edit produces an `audit_logs` row plus a
-   `procurement.supplier_terms.amended` outbox row.
-2. **Do not re-open a closed phase** unless a guard fails. If one fails, fix the
-   engine, not the guard.
-3. **Next logical milestone** (in order, only after verification passes):
-   a. Purchase-price *ceiling* policy — decide and enforce whether a manual
-      override above the resolved price requires approval, reusing
-      `approval_route`; stamp the override reason on the line.
-   b. Context carry-in preselects for the conditions workspace.
-   c. Supplier coverage view — products with no active approved condition —
-      built on the existing resolver, no new engine.
-4. **Boundaries that must hold:** one price authority
-   (`resolve_purchase_line_price`), one client seam
-   (`src/features/products/purchasing/supplierPurchasingTerms.ts`) reached from
-   Purchases only via `purchaseLineTerms.ts`, no browser arithmetic on price,
-   quantity or validity, conditions create no accounting.
+The workspace hook filters `is_active = true`, so a suspended or superseded
+condition disappears instead of appearing under "needs attention". Widen the
+read to include inactive rows, gate them behind an explicit filter chip, and
+add them to the summary counts. Status still comes from `effective_status`.
+
+## Phase 11 — Context carry-in
+
+Opening a condition from a product, a supplier record or a requisition line
+preselects that party/product and, from a requisition, the branch and quantity
+used to preview the resolved tier. Pure UI plumbing over the existing seam.
+
+## Phase 12 — Supplier coverage view
+
+A read-only view answering "which purchasable products have no active approved
+condition, and which have only one supplier". Built as a projection over the
+existing resolver and `supplier_item_terms`; no new tables, no second
+reporting store.
+
+## Phase 13 — Route slug and screen consolidation
+
+`/purchases/price-lists` becomes `/purchases/supplier-conditions` with a legacy
+redirect entry; `src/pages/VendorPriceLists.tsx` and the `price-lists` feature
+folder are renamed to match the domain vocabulary so the code and the ADRs use
+one name.
+
+## Boundaries that must hold
+
+One price authority (`resolve_purchase_line_price`), one client seam
+(`supplierPurchasingTerms.ts`, reached from Purchases only via
+`purchaseLineTerms.ts`), no browser arithmetic on price, quantity or validity,
+and conditions create no accounting.
+
+## Technical notes
+
+- All SQL ships through migrations; every new function is SECURITY DEFINER,
+  gated on `user_has_business_access`, `authenticated` + `service_role` only.
+- Each phase adds its guard: a SQL assertion in
+  `supabase/tests/supplier_purchasing_conditions_test.sql` and, where a browser
+  regression is possible, an assertion in
+  `src/test/architecture/purchasing-terms-single-owner.test.ts`.
+- ADR 0142 gets a "purchase price override" amendment once Phase 9 lands.
