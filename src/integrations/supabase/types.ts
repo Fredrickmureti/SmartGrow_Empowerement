@@ -98192,6 +98192,18 @@ export type Database = {
         Args: { p_register_id: string }
         Returns: number
       }
+      pos_sync_table_order: {
+        Args: {
+          p_cart_discount_type?: string
+          p_cart_discount_value?: number
+          p_contact_id?: string
+          p_expected_version: number
+          p_lines: Json
+          p_notes?: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       pos_topic_handler_scope: {
         Args: { p_event_type: string }
         Returns: string
