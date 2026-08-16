@@ -56,6 +56,7 @@ import {
   summarisePurchaseLineRefusals,
   validatePurchaseLinesAgainstTerms,
 } from "@/features/purchases/purchasingTerms/purchaseLineTerms";
+import { PriceOverrideReasons } from "@/features/purchases/purchasingTerms/PriceOverrideReasons";
 import {
   useSupplierContracts,
   contractRemaining,
@@ -234,6 +235,7 @@ export default function PurchaseOrderCreatePage() {
           patchLineItem(index, {
             quantity: defaults.quantity,
             display_uom_id: defaults.displayUomId,
+            resolved_unit_price: defaults.unitPrice ?? null,
             ...(defaults.unitPrice != null && !contractLine
               ? { unit_price: defaults.unitPrice }
               : {}),
@@ -521,6 +523,13 @@ export default function PurchaseOrderCreatePage() {
           )}
           footer={
             <div className="flex justify-end">
+              <div className="flex-1 pr-6">
+                <PriceOverrideReasons
+                  lines={lineItems}
+                  formatCurrency={formatCurrency}
+                  onPatch={(index, patch) => patchLineItem(index, patch as Partial<LineItem>)}
+                />
+              </div>
               <div className="w-64 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
