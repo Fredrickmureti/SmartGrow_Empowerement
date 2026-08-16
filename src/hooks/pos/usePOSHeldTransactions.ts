@@ -1,12 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useBranch } from "@/contexts/BranchContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { CartState } from "./usePOSCart";
-import { Json } from "@/integrations/supabase/types";
 import { normalizeError } from "@/services/resilience";
 
 export interface HeldTransaction {
@@ -21,8 +19,19 @@ export interface HeldTransaction {
   status: "held" | "resumed" | "cancelled";
 }
 
+/**
+ * Held (parked) orders — Phase 8 (concurrency & idempotency).
+ *
+ * Every mutation goes through a SECURITY DEFINER RPC:
+ *  - `hold_pos_transaction`    — server re-prices the basket with
+ *    `pos_quote_cart`; the browser's subtotal is never stored.
+ *  - `recall_pos_held_transaction` — status/shift guarded; the losing
+ *    terminal in a double-recall gets `held_order_already_resumed`.
+ *  - `cancel_pos_held_transaction` — refuses to cancel an order that a
+ *    second terminal already recalled.
+ * The client keeps read access only; it performs no money math here.
+ */
 export function usePOSHeldTransactions(registerId?: string) {
-  const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   // Stage R7 — register_id implies a branch, but we add an explicit
   // branch filter so the query cache key is invalidated on branch switch
@@ -63,42 +72,24 @@ export function usePOSHeldTransactions(registerId?: string) {
     mutationFn: async (data: {
       register_id: string;
       shift_id: string;
-      organization_id: string;
+      /** Accepted for call-site compatibility; the server derives scope. */
+      organization_id?: string;
       cart: CartState;
       notes?: string;
     }) => {
       if (!user?.id) throw new Error("Not authenticated");
-      if (!businessId) throw new Error("No company selected");
 
-      // Look up register's branch so held transaction inherits it correctly.
-      const { data: register, error: regErr } = await supabase
-        .from("pos_registers")
-        .select("branch_id, business_id")
-        .eq("id", data.register_id)
-        .eq("business_id", businessId)
-        .single();
-      if (regErr) throw regErr;
-
-      const { data: result, error } = await supabase
-        .from("pos_held_transactions")
-        .insert({
-          organization_id: data.organization_id,
-          business_id: businessId,
-          branch_id: register.branch_id,
-          register_id: data.register_id,
-          shift_id: data.shift_id,
-          customer_name: data.cart.customer?.name || null,
-          subtotal: data.cart.subtotal,
-          items: data.cart as unknown as Json,
-          held_by: user.id,
-          notes: data.notes || null,
-          status: "held",
-        })
-        .select()
-        .single();
-
+      const { data: result, error } = await supabase.rpc(
+        "hold_pos_transaction" as never,
+        {
+          p_register_id: data.register_id,
+          p_shift_id: data.shift_id,
+          p_cart: data.cart as never,
+          p_notes: data.notes ?? null,
+        } as never,
+      );
       if (error) throw error;
-      return result;
+      return result as unknown as HeldTransaction;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pos-held-transactions"] });
@@ -111,34 +102,28 @@ export function usePOSHeldTransactions(registerId?: string) {
 
   const resumeTransaction = useMutation({
     mutationFn: async (input: string | { id: string; shiftId: string }) => {
-      if (!businessId) throw new Error("No company selected");
-      // Stage D: recall via RPC so server enforces same-shift, open-shift rule.
-      // Backwards-compat: callers that pass a bare id fall back to the legacy
-      // direct-update path (still RLS-guarded by business scope).
-      if (typeof input === "object" && input.id && input.shiftId) {
-        const { data, error } = await supabase.rpc(
-          "recall_pos_held_transaction" as any,
-          { p_held_id: input.id, p_shift_id: input.shiftId }
-        );
-        if (error) throw error;
-        const row = data as any;
-        return { ...row, items: row.items as unknown as CartState };
+      const heldId = typeof input === "string" ? input : input.id;
+      let shiftId = typeof input === "string" ? undefined : input.shiftId;
+
+      // Callers that only know the held id (older dialogs) resolve the shift
+      // from the row itself — the RPC still enforces open-shift / same-shift.
+      if (!shiftId) {
+        const { data: row, error: rowErr } = await supabase
+          .from("pos_held_transactions")
+          .select("shift_id")
+          .eq("id", heldId)
+          .single();
+        if (rowErr) throw rowErr;
+        shiftId = row.shift_id as string;
       }
 
-      const id = typeof input === "string" ? input : input.id;
-      const { data, error } = await supabase
-        .from("pos_held_transactions")
-        .update({ status: "resumed" })
-        .eq("id", id)
-        .eq("business_id", businessId)
-        .select()
-        .single();
-
+      const { data, error } = await supabase.rpc(
+        "recall_pos_held_transaction" as never,
+        { p_held_id: heldId, p_shift_id: shiftId } as never,
+      );
       if (error) throw error;
-      return {
-        ...data,
-        items: data.items as unknown as CartState,
-      };
+      const row = data as any;
+      return { ...row, items: row.items as unknown as CartState };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pos-held-transactions"] });
@@ -151,14 +136,12 @@ export function usePOSHeldTransactions(registerId?: string) {
 
   const cancelHeldTransaction = useMutation({
     mutationFn: async (id: string) => {
-      if (!businessId) throw new Error("No company selected");
-      const { error } = await supabase
-        .from("pos_held_transactions")
-        .update({ status: "cancelled" })
-        .eq("id", id)
-        .eq("business_id", businessId);
-
+      const { data, error } = await supabase.rpc(
+        "cancel_pos_held_transaction" as never,
+        { p_held_id: id } as never,
+      );
       if (error) throw error;
+      return data as unknown as HeldTransaction;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pos-held-transactions"] });
