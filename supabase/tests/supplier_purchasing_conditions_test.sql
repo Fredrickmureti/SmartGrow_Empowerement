@@ -140,7 +140,7 @@ BEGIN
     INTO v_acl, v_kind
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
    WHERE n.nspname = 'public' AND p.proname = 'effective_status'
-     AND p.proargtypes::regtype[] = ARRAY['public.supplier_item_terms'::regtype];
+     AND pg_get_function_identity_arguments(p.oid) = 'supplier_item_terms';
 
   IF v_kind IS NULL THEN
     RAISE EXCEPTION 'public.effective_status(supplier_item_terms) is missing — the browser would recompute validity';
