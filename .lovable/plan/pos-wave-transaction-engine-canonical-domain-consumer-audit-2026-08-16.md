@@ -12,7 +12,7 @@ Do not repeat completed investigation. Prior wave record:
 | 1 | Product consumption / read seam | ✅ | **closed this pass — F10 fixed (catalogue RPC executes again)** |
 | 2 | UoM & packaging contract | ✅ | packaging/display UoM on the line, server converts |
 | 3 | Inventory availability | ✅ | `pos_register_stock_scope` + branch-grained `stock_quants` |
-| 4 | Pricing / tax authority | ✅ | `pos_resolve_line` + `pos_quote_cart` |
+| 4 | Pricing / tax authority | ✅ | `pos_resolve_line` + `pos_quote_cart` — **live defect F11 found & fixed (see below)** |
 | 4a | POS RPC exposure | ✅ | anon/PUBLIC EXECUTE revoked wave-wide |
 | 4b | Commit idempotency race | ✅ | duplicate submit collapses to replay |
 | 5 | Transaction state machine | ✅ | table orders server-priced |
@@ -21,6 +21,58 @@ Do not repeat completed investigation. Prior wave record:
 | 8 | Concurrency & idempotency (multi-terminal) | ✅ | **closed this pass — F6 fixed** (hold/recall/cancel, split bills, merge/transfer/move) |
 | 9 | Offline / retry behaviour | ✅ | **closed this pass — DB seam + all four client items landed** |
 | 10 | Returns / void / reversal | — | **next** |
+
+## F11 — the till could not price anything: untyped NULLs in the tax call ❌ → fixed
+
+**Symptom.** Add a product, press Pay → "Prices could not be confirmed with the server.
+Payment is blocked." Console shows `POST .../rpc/pos_quote_cart 404`.
+
+**Trace (no assumption — the response body named it).**
+The 404 was not a missing route or a stale PostgREST schema cache. An anonymous probe of
+`pos_quote_cart` returned `42501 permission denied`, proving the function was in the cache
+and correctly locked down. The authenticated browser call's response body was:
+
+```
+42883  function public.resolve_sales_line_tax(uuid, uuid, uuid, date, unknown, text)
+       does not exist
+```
+
+`pos_quote_cart` → `pos_resolve_line` → `resolve_sales_line_tax`. The resolver call read:
+
+```sql
+public.resolve_sales_line_tax(
+  p_business_id, p_product_id, p_contact_id, COALESCE(p_at, CURRENT_DATE),
+  NULL, CASE WHEN p_product_id IS NULL THEN NULL ELSE NULL END);
+```
+
+Argument 5 is a bare `NULL` → type `unknown`; argument 6 is an all-NULL `CASE` → Postgres
+types it `text`. The real signature is `(uuid,uuid,uuid,date,uuid,numeric)` and there is no
+implicit `text → numeric` cast, so overload resolution failed. PostgREST maps 42883 to
+HTTP 404, which is why it looked like a missing endpoint.
+
+**Why it shipped silently.** PL/pgSQL resolves callee signatures at *first execution*, not
+at `CREATE FUNCTION` time. The Phase 4 migration applied cleanly and every structural
+guard (function exists, SECURITY DEFINER, anon revoked) passed. Nothing executed the
+pricing chain, so the till went to production unable to quote a basket.
+
+**Fix.** Recreated `pos_resolve_line` with `NULL::uuid, NULL::numeric` and removed the dead
+CASE. POS has no tax-override parameter, so "no override" is the correct and only intent —
+tax comes from the canonical cascade. No pricing, tax, discount or rounding change.
+
+**Verified.** `resolve_sales_line_tax(business, product, NULL::uuid, CURRENT_DATE,
+NULL::uuid, NULL::numeric)` now returns `{rate: 16, source: business_default,
+tax_rate_id: 8111037e-…}` for the exact product in the failing cart.
+
+**Note on the fail-closed behaviour.** The terminal blocking payment was *correct* — it
+must never take money against locally computed prices. The bug was upstream of that guard,
+not in it.
+
+**Guard added.** `supabase/tests/pos_pricing_callee_resolution_test.sql` — *executes* the
+pricing chain (existence checks cannot catch this class), and fails any POS routine that
+passes an untyped NULL or an all-NULL CASE to `resolve_sales_line_tax`.
+
+**Wave lesson.** Every phase that lands a PL/pgSQL routine must include at least one test
+that CALLS it. Catalog-shape assertions prove deployment, not executability.
 
 ## Phase 9 — offline / retry behaviour ✅ (closed)
 
