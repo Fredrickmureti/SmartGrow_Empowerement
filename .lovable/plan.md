@@ -18,8 +18,8 @@ Verdicts below are re-verified against the live database and codebase
 | 4b | Commit idempotency race | ✅ | **fixed this pass** — duplicate submit collapses to replay |
 | 5 | Transaction state machine | ✅ | **fixed this pass** — table orders now server-priced |
 | 6 | Server-side money authority | ✅ | retail + restaurant both quote server-side |
-| 7 | Payment integrity | — | **active — next to implement** |
-| 8 | Concurrency & idempotency (multi-terminal) | ⚠ | commit path done; held/split/merge paths unaudited |
+| 7 | Payment integrity | ✅ | **fixed this pass** — server re-derives the payable total at commit; tender hygiene; safe abandon |
+| 8 | Concurrency & idempotency (multi-terminal) | ⚠ | **active — next to implement** (held / split / merge / transfer, see F6) |
 | 9 | Offline / retry | — | not started |
 | 10 | Returns / void / reversal | — | not started |
 | 11 | Receipt / printing boundary | — | not started |
@@ -98,17 +98,80 @@ Re-verified live: exactly one 5-arg overload in `pg_proc`.
 treatment as F5: confirm no client-side money math and that each mutation is
 version-guarded. Start here after Phase 7.
 
-## Phase 7 — Payment integrity (next)
-Verify against the live DB and code:
-1. `pos_payment_sessions` / `pos_payment_session_tenders` FSM: can a session
-   commit twice, or commit with `sum(tenders) <> total`? Is the total re-derived
-   server-side at commit, or trusted from the client?
-2. Cash overtender/change invariants (ADR 0009) enforced in SQL, not only in the dialog.
-3. Card terminal path: `useOverridePolicy.ts` calls `pos_card_*` RPCs directly and
-   breaks `src/test/architecture/pos-card-fsm.test.ts` (pre-existing failure, unrelated
-   to this pass) — route it through `CardTerminal` or widen the guard deliberately.
-4. Timeout/abort: an in-flight tender that never returns must leave the session
-   resumable, never the cart.
+## Phase 7 — Payment integrity ✅ (closed this pass)
+
+### F7 — the payable total was never re-derived at the commit boundary ❌→✅
+- Evidence: `pos_payment_session_open(p_grand_total …)` took the total straight
+  from the terminal (`grandTotal: data.cart.total`), and
+  `pos_payment_session_commit` passed `p_total := v_session.grand_total` into
+  `process_pos_transaction`, which does **not** call `pos_quote_cart`. The
+  Phase 4/6 server quote was therefore advisory: a tampered or stale client
+  could commit a basket for any amount it declared.
+- Fix (`pos_payment_session_commit`):
+  - retail — re-quotes `envelope.items` through `pos_quote_cart` (same resolver
+    stack the terminal quotes with) and compares against `session.grand_total`;
+    mismatch > 0.01 raises `check_violation` **before** any money moves;
+  - the server quote (not the envelope) now supplies `p_subtotal`,
+    `p_tax_amount`, `p_discount_amount`, `p_total`;
+  - restaurant — compares `session.grand_total` against the server-priced draft
+    `pos_transactions.total` written by `pos_sync_table_order`;
+  - the committed event carries `server_total` for audit.
+- Client: the cart-level discount is now part of the commit intent
+  (`cart_discount_type` / `cart_discount_value`) — without it a legitimately
+  discounted sale would be re-priced higher and fail closed.
+  `CompleteTransactionData.cart_discount` → envelope → `pos_quote_cart`.
+
+### F8 — change/tender hygiene was unconstrained ⚠→✅
+- `change_given` could be attached to a card/wallet tender, and a non-cash
+  tender could claim `tendered_amount <> amount` (a phantom drawer delta).
+- Fix: `pos_payment_session_tenders_change_cash_only` and
+  `pos_payment_session_tenders_noncash_exact` CHECK constraints. Verified 0
+  pre-existing violating rows.
+
+### F9 — abandoning a funded session silently discarded captured money ❌→✅
+- `pos_payment_session_cancel` blanket-reversed every tender, and the 30-minute
+  sweeper called it on any `open` session — so a captured card/M-Pesa amount on
+  a session the cashier walked away from was marked `reversed` in our books
+  while the processor still held the funds.
+- Fix: cancel now refuses (`check_violation`, with a HINT) while any non-cash
+  tender is un-reversed — it must go through
+  `pos_payment_session_reverse_tender` so the reversal is auditable and reaches
+  the driver. Cash is still reversed inline (the drawer is still open).
+  The sweeper only closes sessions with `pos_payment_session_allocated(...) = 0`,
+  and is `service_role`-only.
+
+### Guard precision fixes (not weakenings)
+- `pos-payment-session-lifecycle.test.ts` matched any *occurrence* of a session
+  RPC name; `useOverridePolicy` legitimately uses
+  `pos_payment_session_reverse_tender` as a `pos_override_matrix.action` **code**,
+  not a call. The guard now matches `.rpc("…")` invocations only.
+- `pos-payment-session-commit-contract.test.ts` scanned whole migration files,
+  so cancel's own `status = 'cancelled'` UPDATE was attributed to the sweeper.
+  It now extracts the named function body, and additionally asserts the
+  sweeper's `allocated = 0` filter.
+
+Regression guards: `supabase/tests/pos_rpc_lockdown_test.sql` (Phase 7 block),
+`src/test/architecture/pos-payment-integrity.test.ts` (5 assertions).
+Suite status this pass: 35/35 green across the five payment-session suites.
+
+Still open under Phase 7 (carried, not blocking):
+- Card terminal path — `useOverridePolicy` maps card actions; the
+  `src/test/architecture/pos-card-fsm.test.ts` failure is pre-existing and
+  belongs to the card-driver seam (Phase 10 reversal work).
+- Timeout/abort UX: the server is now safe (session stays resumable, funded
+  sessions are never swept), but the terminal has no "resume this payment"
+  affordance. Fold into Phase 9 (offline/retry).
+
+## Phase 8 — Concurrency & idempotency, multi-terminal (next)
+Do these in order:
+1. `pos_held_transactions` — hold/recall must be version-guarded and must not
+   recompute money client-side (same treatment as F5).
+2. Table split / merge / transfer (`useBillSplitting`, `useTableTransfer`) —
+   confirm every mutation goes through a server RPC that re-prices via
+   `pos_quote_cart` and takes an `expected_version`.
+3. Two terminals on the same table: prove the loser gets `conflict: true`
+   rather than last-write-wins.
+4. Drawer/shift boundaries: a shift close concurrent with an in-flight commit.
 
 ## Working rules for this wave
 - One phase at a time: implement → verify against the DB/live path → record verdict here → next phase.
@@ -116,6 +179,18 @@ Verify against the live DB and code:
 - Browser is never authoritative for identity, quantity conversion, price, tax, totals or stock.
 - Every SECURITY DEFINER routine added in this wave must be revoked from `PUBLIC`/`anon` in the same migration.
 - Finance stays out of scope; POS → Finance dependencies collect under Phase 13.
+
+## Instructions for the next agent
+1. **Verify before you build.** Re-check Phase 7 against the live DB, not this
+   document: `pos_payment_session_commit` must contain both `pos_quote_cart`
+   and the `total mismatch` raise; both tender CHECK constraints must exist;
+   `pos_payment_session_sweep_abandoned` must filter on `allocated = 0` and be
+   `service_role`-only; `SELECT` for anon/PUBLIC EXECUTE leaks on `pos_*` must
+   return 0. Run `src/test/architecture/pos-payment-*.test.ts` and
+   `src/lib/pos/__tests__/paymentSessionClient.test.ts`.
+2. Then start **Phase 8** at step 1 of the list above. Do not jump to Phases
+   9-15 while Phase 8 items remain open.
+3. Record the verdict for each item in the phase table before moving on.
 
 ## Known unrelated failures (do not chase)
 Repo-wide `vitest src/test` currently has ~206 pre-existing failures across 123
