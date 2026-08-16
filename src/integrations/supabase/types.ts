@@ -54959,6 +54959,8 @@ export type Database = {
           is_sample_data: boolean
           line_total: number
           packaging_id: string | null
+          price_override_approval_id: string | null
+          price_override_reason: string | null
           price_source: string | null
           product_id: string | null
           project_id: string | null
@@ -54968,6 +54970,7 @@ export type Database = {
           quantity_received: number | null
           receipt_status: string
           requisition_item_id: string | null
+          resolved_unit_price: number | null
           rfq_item_id: string | null
           rfq_quotation_item_id: string | null
           sort_order: number | null
@@ -54992,6 +54995,8 @@ export type Database = {
           is_sample_data?: boolean
           line_total: number
           packaging_id?: string | null
+          price_override_approval_id?: string | null
+          price_override_reason?: string | null
           price_source?: string | null
           product_id?: string | null
           project_id?: string | null
@@ -55001,6 +55006,7 @@ export type Database = {
           quantity_received?: number | null
           receipt_status?: string
           requisition_item_id?: string | null
+          resolved_unit_price?: number | null
           rfq_item_id?: string | null
           rfq_quotation_item_id?: string | null
           sort_order?: number | null
@@ -55025,6 +55031,8 @@ export type Database = {
           is_sample_data?: boolean
           line_total?: number
           packaging_id?: string | null
+          price_override_approval_id?: string | null
+          price_override_reason?: string | null
           price_source?: string | null
           product_id?: string | null
           project_id?: string | null
@@ -55034,6 +55042,7 @@ export type Database = {
           quantity_received?: number | null
           receipt_status?: string
           requisition_item_id?: string | null
+          resolved_unit_price?: number | null
           rfq_item_id?: string | null
           rfq_quotation_item_id?: string | null
           sort_order?: number | null
@@ -55448,6 +55457,70 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_party_supplier"
             referencedColumns: ["contact_id"]
+          },
+        ]
+      }
+      purchase_price_override_policies: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          require_approval: boolean
+          require_reason: boolean
+          tolerance_abs: number
+          tolerance_pct: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          require_approval?: boolean
+          require_reason?: boolean
+          tolerance_abs?: number
+          tolerance_pct?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          require_approval?: boolean
+          require_reason?: boolean
+          tolerance_abs?: number
+          tolerance_pct?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_price_override_policies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_price_override_policies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "purchase_price_override_policies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
           },
         ]
       }
