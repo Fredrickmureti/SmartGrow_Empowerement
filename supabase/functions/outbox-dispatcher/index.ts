@@ -534,6 +534,7 @@ const HANDLERS: Record<string, HandlerFn> = {
   "procurement.asn.in_transit":        handleInventoryLifecycleRecorded,
   "procurement.asn.arrived":           handleInventoryLifecycleRecorded,
   "procurement.gr.posted":             handleInventoryLifecycleRecorded,
+  "procurement.grn.received":          handleInventoryLifecycleRecorded,
   "goods_receipt.posted":              handleInventoryLifecycleRecorded,
   "product.created":                   handleInventoryLifecycleRecorded,
   "payment.received":                  handleInventoryLifecycleRecorded,
