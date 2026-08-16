@@ -33,6 +33,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLandedCostVouchers, type LandedCostVoucherRow } from "./useLandedCosts";
 import { LandedCostPeekSheet } from "./LandedCostPeekSheet";
+import { LandedCostRowActions } from "./LandedCostRowActions";
 import {
   useLandedCostClearingExposure,
   useLandedCostWorkspaceSummary,
@@ -239,6 +240,7 @@ export default function LandedCostListPage() {
                   <TableHead className="text-right">Charges</TableHead>
                   <TableHead className="text-right">Capitalised</TableHead>
                   <TableHead className="text-right">Expensed</TableHead>
+                  <TableHead className="w-12 text-right sr-only">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -268,6 +270,13 @@ export default function LandedCostListPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatCurrency(Number(r.expensed_amount ?? 0))}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <LandedCostRowActions
+                        voucher={r}
+                        onPeek={setPeekId}
+                        onChanged={refresh}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
