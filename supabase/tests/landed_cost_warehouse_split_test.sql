@@ -60,7 +60,7 @@ BEGIN
   SELECT string_agg(v.voucher_number, ', ') INTO v_bad
     FROM public.landed_cost_vouchers v
     JOIN LATERAL (
-      SELECT COALESCE(SUM(r.total_value_delta), 0) AS applied
+      SELECT COALESCE(SUM(r.amount_applied), 0) AS applied
         FROM public.inventory_cost_revaluations r
        WHERE r.source_type = 'landed_cost_voucher' AND r.source_id = v.id
     ) r ON true
