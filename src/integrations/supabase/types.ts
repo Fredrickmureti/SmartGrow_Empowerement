@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      _e2e_milk_log: {
+        Row: {
+          at: string
+          detail: Json | null
+          id: number
+          status: string
+          step: string
+        }
+        Insert: {
+          at?: string
+          detail?: Json | null
+          id?: number
+          status: string
+          step: string
+        }
+        Update: {
+          at?: string
+          detail?: Json | null
+          id?: number
+          status?: string
+          step?: string
+        }
+        Relationships: []
+      }
       _pret_sim_log: {
         Row: {
           at: string
