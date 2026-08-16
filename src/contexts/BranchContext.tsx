@@ -131,7 +131,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!currentOrg || !user) {
+    if (!currentOrg || !userId) {
       // Terminal: no auth/org. Safe to mark loaded.
       setBranches([]);
       setCurrentBranch(null);
@@ -154,7 +154,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       // ids + access flags). Identity fields (email/phone/address) are then
       // hydrated via a single follow-up SELECT — never returned as nulls.
       const { data: rpcData, error } = await supabase.rpc("get_user_allowed_branches", {
-        _user_id: user.id,
+        _user_id: userId,
         _business_id: currentBusiness.id,
       });
 
