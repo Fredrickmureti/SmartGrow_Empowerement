@@ -89,7 +89,7 @@ describe("POS Phase 8 — multi-terminal concurrency", () => {
   });
 
   it("transfer/merge audit rows carry business_id (NOT NULL column)", () => {
-    const merge = sql.slice(sql.lastIndexOf("FUNCTION public.merge_table_orders(")).slice(0, 9000);
+    const merge = sql.slice(sql.lastIndexOf("CREATE OR REPLACE FUNCTION public.merge_table_orders(")).slice(0, 9000);
     expect(merge).toMatch(/INSERT INTO public\.pos_table_transfers[\s\S]{0,200}business_id/);
   });
 
