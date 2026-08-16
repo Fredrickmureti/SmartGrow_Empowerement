@@ -1,6 +1,24 @@
 # Landed Cost Domain — Reconstruction Roadmap (live status)
 
-Last updated: 2026-08-16 · Active phase: **B (in progress)**
+Last updated: 2026-08-16 (handoff verification) · Active phase: **B (in progress)**
+
+## Verification of the previous session (done, live database)
+
+Confirmed directly against the live database, not from notes:
+
+- `public.cost_layer_lineage` exists (0 rows — never exercised).
+- `_maintain_cost_layers` references lineage; `inventory_cost_layer_descendants`
+  exists as a single function; `inventory_apply_cost_revaluation` calls the
+  tracer and returns `transferred_qty`; `inventory_cost_revaluations` carries
+  `warehouse_id`.
+- `inventory_reverse_cost_revaluation` still unwinds on `qty_remaining_at_apply`
+  but makes **no reference to `warehouse_id`** — the reversal path has not been
+  reviewed for the multi-warehouse case the apply path now creates.
+- `stock_transfers` is empty and `check_inventory_valuation_drift()` returns no
+  rows; 1 voucher exists.
+
+Verdict: Phase B item 1 is **code-complete but unverified**, exactly as the
+previous engineer stated, with one added open question (reversal per warehouse).
 
 ## Phase A — Full lifecycle execution — DONE, VERIFIED
 
@@ -49,10 +67,26 @@ Write-up: `docs/audit/2026-08-16-landed-cost-reversal-split.md`.
 
 ### Pending in Phase B (next work)
 
-1. **Inter-warehouse transfer before posting** — `inventory_apply_cost_revaluation`
-   matches layers on the receipt's warehouse only, so transferred stock is
-   expensed to COGS instead of capitalised at the destination. Needs layer
-   lineage across transfers. No live data exercises this yet.
+1. **Inter-warehouse transfer before posting** — code landed (lineage table,
+   lineage capture in `_maintain_cost_layers`, `inventory_cost_layer_descendants`,
+   warehouse-stamped revaluation rows). Remaining work, in order:
+   a. Rolled-back rehearsal that creates a real `stock_transfers` +
+      `stock_transfer_items` pair (or drives `approve_stock_transfer_atomic` /
+      `complete_stock_transfer_atomic`) inside the aborted transaction, so
+      `enforce_stock_movement_integrity` stops refusing the transfer legs with
+      `INVENTORY_DANGLING_PROVENANCE`. Then clone the voucher, post, and confirm
+      the full 51.50 capitalises across HQ 248 + destination 100 (not 36.70),
+      reversal restores both layers exactly, and
+      `check_inventory_valuation_drift()` stays clean in both scopes.
+   b. Confirm the reversal path handles the destination warehouse: the apply
+      path now stamps `warehouse_id` per layer, while
+      `inventory_reverse_cost_revaluation` never reads it. If AVCO restoration
+      or the reversal journal split collapses transferred stock into the origin
+      warehouse, fix it in the canonical revaluation engine.
+   c. Ratchet `supabase/tests/landed_cost_transfer_lineage_test.sql`
+      (lineage capture, tracer single-overload, apply uses the tracer, per-layer
+      warehouse stamping, no orphan lineage rows).
+   d. Write-up `docs/audit/2026-08-16-landed-cost-transfer-lineage.md`.
 2. **Goods receipt reversal / return to supplier** after a landed cost is
    allocated or posted — currently unguarded; decide between blocking the
    receipt reversal and auto-reversing the voucher.
@@ -79,21 +113,12 @@ reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
 
 ## Instructions for the next agent
 
-1. **Verify Phase B's committed work before writing anything new.** Read
-   `docs/audit/2026-08-16-landed-cost-reversal-split.md`, then confirm against
-   the live database: `inventory_reverse_cost_revaluation` uses
-   `qty_remaining_at_apply`; `landed_cost_reverse_voucher` builds its lines and
-   still routes through `post_journal_entry_atomic`; no reversed voucher has
-   open `inventory_cost_revaluations`; every `landed_cost_voucher` journal
-   balances; `check_inventory_valuation_drift()` returns no rows. Run
-   `supabase/tests/landed_cost_reversal_split_test.sql` and
-   `supabase/tests/landed_cost_hardening_test.sql`.
-2. **Rehearse destructively without persisting.** The pattern used here:
+1. **Rehearse destructively without persisting.** The pattern used here:
    a `DO $$ ... $$` migration that clones the voucher, exercises the lifecycle,
    and ends in `RAISE EXCEPTION` so the whole transaction rolls back while the
    results come back in the error text. Note `post_journal_entry_atomic`
    deduplicates by `(source_type, source_id)` — always rehearse on a cloned
    voucher id, never on one that already has journal history.
-3. **Then resume at Phase B item 1** (transfer-before-posting layer lineage),
-   not at an unrelated area. Finish Phase B's three items before Phase C.
-4. Keep this file current after every completed implementation.
+2. Resume at Phase B item 1 sub-steps (a) → (d), then items 2 and 3. No new
+   engines: transfers, valuation, journals, approvals and events stay canonical.
+3. Keep this file current after every completed implementation.
