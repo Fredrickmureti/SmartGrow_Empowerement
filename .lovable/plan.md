@@ -117,5 +117,9 @@ reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
    `landed_cost_reverse_voucher` needs an authenticated caller (`auth.uid()`),
    so reversal cannot be rehearsed from a migration — use `_landed_cost_post_apply`
    for the posting half.
-3. Then resume at Phase B item 1 above (goods receipt reversal).
+3. Then resume at Phase B item 1 above (supplier credit note against a
+   landed-cost bill): decide between adjusting the voucher in place and
+   reverse-and-re-post, and make sure Landed Cost Clearing is not double
+   counted. `vendor_credit_note` already has its own reversal intent resolver —
+   annotate it the same way rather than forking it.
 4. Keep this file current after every completed implementation.
