@@ -54959,6 +54959,7 @@ export type Database = {
           is_sample_data: boolean
           line_total: number
           packaging_id: string | null
+          price_source: string | null
           product_id: string | null
           project_id: string | null
           purchase_order_id: string
@@ -54970,6 +54971,7 @@ export type Database = {
           rfq_item_id: string | null
           rfq_quotation_item_id: string | null
           sort_order: number | null
+          supplier_terms_id: string | null
           task_id: string | null
           tax_amount: number | null
           tax_rate: number | null
@@ -54990,6 +54992,7 @@ export type Database = {
           is_sample_data?: boolean
           line_total: number
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           project_id?: string | null
           purchase_order_id: string
@@ -55001,6 +55004,7 @@ export type Database = {
           rfq_item_id?: string | null
           rfq_quotation_item_id?: string | null
           sort_order?: number | null
+          supplier_terms_id?: string | null
           task_id?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
@@ -55021,6 +55025,7 @@ export type Database = {
           is_sample_data?: boolean
           line_total?: number
           packaging_id?: string | null
+          price_source?: string | null
           product_id?: string | null
           project_id?: string | null
           purchase_order_id?: string
@@ -55032,6 +55037,7 @@ export type Database = {
           rfq_item_id?: string | null
           rfq_quotation_item_id?: string | null
           sort_order?: number | null
+          supplier_terms_id?: string | null
           task_id?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
@@ -55110,6 +55116,13 @@ export type Database = {
             columns: ["rfq_quotation_item_id"]
             isOneToOne: false
             referencedRelation: "rfq_quotation_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_supplier_terms_id_fkey"
+            columns: ["supplier_terms_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_item_terms"
             referencedColumns: ["id"]
           },
           {
@@ -65322,6 +65335,8 @@ export type Database = {
       }
       supplier_item_terms: {
         Row: {
+          approval_request_id: string | null
+          approval_status: string
           branch_id: string | null
           business_id: string
           created_at: string
@@ -65346,6 +65361,8 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          approval_request_id?: string | null
+          approval_status?: string
           branch_id?: string | null
           business_id: string
           created_at?: string
@@ -65370,6 +65387,8 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          approval_request_id?: string | null
+          approval_status?: string
           branch_id?: string | null
           business_id?: string
           created_at?: string
@@ -86804,6 +86823,17 @@ export type Database = {
         }
         Returns: Json
       }
+      _resolve_purchase_line_price: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_on_date?: string
+          p_product_id: string
+          p_quantity?: number
+          p_supplier_id: string
+        }
+        Returns: Json
+      }
       _resolve_supplier_role_id: {
         Args: { p_business_id: string; p_party_or_role_id: string }
         Returns: string
@@ -86887,6 +86917,10 @@ export type Database = {
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
       _seed_default_printer_roles: {
         Args: { p_organization_id: string }
+        Returns: undefined
+      }
+      _sit_emit: {
+        Args: { _id: string; _payload: Json; _state: string }
         Returns: undefined
       }
       _so_write_cancelled_quantities: {
@@ -100820,6 +100854,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      resolve_purchase_line_price: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_on_date?: string
+          p_product_id: string
+          p_quantity?: number
+          p_supplier_id?: string
+        }
+        Returns: Json
+      }
       resolve_reversal_bank_block: {
         Args: {
           _actor?: string
@@ -100974,12 +101019,15 @@ export type Database = {
       }
       resolve_supplier_purchasing_terms: {
         Args: {
+          p_branch_id?: string
           p_business_id: string
           p_on_date?: string
           p_product_id: string
+          p_quantity?: number
           p_supplier_id?: string
         }
         Returns: {
+          branch_id: string
           currency_code: string
           effective_from: string
           effective_to: string
@@ -100989,10 +101037,12 @@ export type Database = {
           min_order_qty: number
           min_order_source: string
           order_increment: number
+          price_source: string
           product_id: string
           purchase_uom_id: string
           supplier_id: string
           terms_id: string
+          tier_min_qty: number
           unit_price: number
         }[]
       }
@@ -103120,25 +103170,49 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      upsert_supplier_item_terms: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_currency_code?: string
-          p_effective_from?: string
-          p_effective_to?: string
-          p_id?: string
-          p_is_preferred?: boolean
-          p_lead_time_days?: number
-          p_min_order_qty?: number
-          p_notes?: string
-          p_organization_id?: string
-          p_product_id: string
-          p_unit_price: number
-          p_vendor_id: string
-        }
-        Returns: string
-      }
+      upsert_supplier_item_terms:
+        | {
+            Args: {
+              p_branch_id?: string
+              p_business_id: string
+              p_currency_code?: string
+              p_effective_from?: string
+              p_effective_to?: string
+              p_id?: string
+              p_is_preferred?: boolean
+              p_lead_time_days?: number
+              p_min_order_qty?: number
+              p_notes?: string
+              p_organization_id?: string
+              p_product_id: string
+              p_unit_price: number
+              p_vendor_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_branch_id?: string
+              p_business_id: string
+              p_currency_code: string
+              p_effective_from: string
+              p_effective_to: string
+              p_id?: string
+              p_is_preferred: boolean
+              p_lead_time_days: number
+              p_min_order_qty: number
+              p_notes: string
+              p_order_increment?: number
+              p_organization_id?: string
+              p_preferred_rank?: number
+              p_price_break_tiers?: Json
+              p_product_id: string
+              p_purchase_uom_id?: string
+              p_unit_price: number
+              p_vendor_id: string
+            }
+            Returns: string
+          }
       upsert_system_account: {
         Args: {
           _account_type: string
