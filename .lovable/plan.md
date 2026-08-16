@@ -1,136 +1,67 @@
-# Landed Cost Domain — Authoritative Project Status
+# Landed Cost Domain — Verification Verdict & Phase F Execution Plan
 
-Last updated: 2026-08-16. This file is the single source of truth for landed-cost
-status. Supersedes every earlier landed-cost file in `.lovable/plan/`.
+Last updated: 2026-08-16 (new owner). Supersedes earlier landed-cost files in `.lovable/plan/`.
 
-## Verdict on the domain
+## Phase 1 — Independent verification of the prior claims
 
-Landed Cost is a **first-class domain that consumes canonical engines**, not a page.
-One voucher engine (`landed_cost_allocate_voucher`, `landed_cost_post_voucher` →
-`_landed_cost_post_apply`, `landed_cost_reverse_voucher`), FX stamped server-side,
-valuation through `inventory_apply_cost_revaluation`, accounting through
-`post_journal_entry_atomic`, accounts through `resolve_posting_account`, governance
-through the approval registry, events through `_emit_landed_cost_outbox`.
+Re-checked directly against the live database and the working tree.
 
-## Phase status
-
-| Phase | Scope | State |
+| Prior claim | Verdict | Evidence |
 | --- | --- | --- |
-| A | Full lifecycle executed against live data (allocate → post → reverse) | ✅ done & verified |
-| B1 | Receipt reversal / goods-receipt cancellation guard | ✅ done & verified |
-| B2 | Supplier credit note / freight-bill reversal after capitalisation | ✅ done & verified |
-| B3 | Transfer / scrap between receipt and posting (lineage + reversal split) | ✅ done & verified |
-| B4 | Cross-branch / cross-warehouse voucher scope | ✅ verified, no code change needed |
-| B5 | Concurrent post / re-post (row locking, idempotency) | ✅ verified, no code change needed |
-| C | Retire the parallel `landed_cost_selftest*` verification path | ✅ done & verified |
-| D | Weight / volume allocation bases | ✅ supported — earlier "blocked" claim was WRONG |
-| E | Operator comprehension pass on the workspace (server-side aggregate) | ✅ done & verified |
-| F | **Weight / volume basis end-to-end execution against seeded data** | 🔴 **ACTIVE — start here** |
-| G | Authenticated browser verification of the landed-cost workspace | ⏸ blocked in this environment |
+| One writer per operation, no duplicate engines | Confirmed | `pg_proc` shows exactly one overload each for `landed_cost_allocate_voucher`, `landed_cost_post_voucher`, `_landed_cost_post_apply`, `landed_cost_reverse_voucher`, `inventory_apply_cost_revaluation`, `inventory_reverse_cost_revaluation`, `inventory_sync_avco_from_layers`, `resolve_product_measure` |
+| Phase C — parallel selftest path retired | Confirmed | no `landed_cost_selftest*` function exists in `public` |
+| Phase B2 — bill/credit-note encumbrance guard | Confirmed | `landed_cost_bill_encumbrance`, `landed_cost_bill_block_reason`, `landed_cost_assert_bill_unencumbered`, `_landed_cost_guard_vendor_credit_note` all present, single-overload |
+| Phase E — server-side workspace KPIs | Confirmed | `landed_cost_workspace_summary` exists and is the only KPI source in `landedCostRpcs.ts`; no `landedCostKpis` reducer remains; architecture guard in `src/test/architecture/landed-cost.test.ts` rejects client-side lifecycle counting |
+| Phase D — weight/volume is a data gap, not a capability gap | Confirmed | `resolve_product_measure` resolves at the exact packaging level, falls back to base × pack size, normalises through the UoM engine and returns NULL only when the fact is absent; `product_physical_attributes` has **0 rows** |
+| Phase A/B1/B3 lifecycle executed | Confirmed as far as data shows | 1 voucher, 1 component, 1 allocation, 1 revaluation, 1 GRN with 1 line; `stock_transfers` is empty, so the transfer/reversal case remains a rolled-back rehearsal only |
 
-### What is fully implemented and verified
+Verdict: the domain is genuinely reconstructed and canonically integrated. The active
+gap is exactly what the prior owner named — weight/volume allocation has never been
+executed, because no product carries physical attributes. One item is weaker than
+claimed: the transfer split is rehearsal-only, since there is no transfer data.
 
-- **A.** Voucher `LCV-2026-00001` driven end to end: allocation exact to the minor
-  unit, 348 : 152 on-hand/consumed split (capitalised 51.50 / expensed 22.50),
-  balanced journal, outbox event, reversal by compensating entry. Two defects found
-  and fixed in the process: AVCO was not moved by revaluation (now
-  `inventory_sync_avco_from_layers` + `trg_inventory_revaluation_avco_sync`,
-  registered in `inventory_valuation_writers`), and landed-cost events were
-  dead-lettering as `unknown_event_type` (topics now registered). Evidence:
-  `docs/audit/2026-08-16-landed-cost-lifecycle-execution.md`.
-- **B1.** `landed_cost_assert_receipt_unencumbered` refuses receipt reversal while a
-  posted voucher references it.
-- **B2.** `landed_cost_bill_encumbrance` authority refuses supplier credit notes
-  against a capitalised bill, naming the voucher and amount; enforced on draft and
-  on post by a trigger on `vendor_credit_notes`; `resolve_reversal_intent` annotated
-  to recommend reversing landed cost first. Internal assertion is `service_role`
-  only. Evidence: `docs/audit/2026-08-16-landed-cost-bill-encumbrance.md`.
-- **B3.** Transfer lineage capture plus the warehouse-correct reversal split.
-  Evidence: `docs/audit/2026-08-16-landed-cost-transfer-lineage.md`,
-  `docs/audit/2026-08-16-landed-cost-reversal-split.md`.
-- **B4/B5.** All mutating functions take `FOR UPDATE`; posting is idempotent by
-  `(source_type, source_id)`; reversal iterates per cost layer and a layer belongs to
-  one warehouse, so the unwind is warehouse-correct by construction.
-- **C.** `landed_cost_selftest` / `landed_cost_selftest_run` dropped along with their
-  writer-registry exemptions; `check_valuation_writer_coverage()` returns 0 issues,
-  `check_inventory_valuation_drift()` returns 0 rows.
-- **D.** `product_physical_attributes` (net/tare/derived gross weight, volume, L/W/H,
-  each with its own UoM, keyed by `(product_id, packaging_id)`) is the canonical
-  model; `resolve_product_measure` normalises and fails closed;
-  `landed_cost_allocate_voucher` already allocates by `weight` and `volume`;
-  `ProductForm` captures the attributes and `InventorySettings` can make them
-  mandatory. The refusal seen in testing was **data absence (0 rows)**, not a
-  modelling gap.
-- **E.** `landed_cost_workspace_summary(business_id)` — one set-based aggregate,
-  `STABLE`, invoker rights so RLS scopes it. `LandedCostListPage` renders it; the
-  client-side `landedCostKpis` reducer was deleted and an architecture guard now
-  rejects client-side landed-cost totals.
+## Phase 2 — Remaining work
 
-### Ratchets in place
+### F (active) — prove weight / volume allocation end to end
 
-`supabase/tests/landed_cost_{hardening,currency_fx,basis_immutability,receipt_reversal_guard,bill_encumbrance,transfer_lineage,reversal_split,workspace_and_selftest}_test.sql`
-and `product_measure_landed_cost_basis_test.sql`, plus `landed-cost.test.ts`,
-`landed-cost-currency.test.ts`, `stock-event-fabric-and-landed-cost.test.ts`.
+1. Seed through canonical paths only, in the existing business: products with
+   packaging levels, `product_physical_attributes` for base unit and at least one
+   pack level (never hand-writing trigger-derived columns such as `gross_weight`),
+   and a goods receipt with mixed pack levels across several lines.
+2. Create a weight-basis voucher and a volume-basis voucher over that receipt and
+   allocate. Assert: basis sum equals the sum of `resolve_product_measure` at the
+   pack level actually received (gross preferred, net fallback); allocation total
+   equals the charge total to the last minor unit; re-running is deterministic and
+   clears prior allocations; a line whose product has no measure refuses by name.
+3. Post and reverse one voucher. Assert the Phase A invariants: AVCO moved by exactly
+   the capitalised amount, consumed portion in COGS, balanced journal with
+   `source_type = 'landed_cost_voucher'`, one outbox event, zero valuation drift
+   before and after, reversal by compensating entry (no journal deletion).
+4. Check the operator-facing refusal message and the basis-picker hints against what
+   the engine actually requires; correct the copy if they diverge.
+5. Land `supabase/tests/landed_cost_weight_volume_test.sql` and the audit write-up
+   `docs/audit/2026-08-16-landed-cost-weight-volume-execution.md`.
 
-## Phase F — ACTIVE: prove weight / volume allocation end to end
+### F2 (added by this review) — close the transfer/reversal proof with real data
 
-Phase D proved the capability exists by introspection. It has never been *exercised*,
-because no product in this database carries physical attributes. Close that.
+The warehouse-split reversal is currently only proven inside a rolled-back
+rehearsal. With Phase F data in place, execute for real: receive → transfer part →
+post → reverse, and assert both origin and destination layers return to their
+pre-landed-cost unit cost, AVCO is re-derived per warehouse, and drift is zero in
+both scopes. Any defect found is fixed in `inventory_reverse_cost_revaluation`, never
+in landed cost.
 
-1. **Seed data — explicitly allowed.** Populate `product_physical_attributes` for the
-   products on a real goods receipt (base unit and at least one packaging level, with
-   proper UoM ids), through the canonical path (the product form / the same RPC the
-   form uses) — never by hand-writing derived columns such as `gross_weight`, which
-   the integrity trigger derives.
-2. Create a voucher with a **weight**-basis component and a second with a
-   **volume**-basis component over that receipt. Allocate, and verify:
-   - the basis sum equals the sum of `resolve_product_measure` per line at the
-     packaging level actually received (gross preferred, net fallback);
-   - allocation total equals the charge total to the last minor unit and is
-     deterministic on re-run;
-   - a mixed-packaging receipt allocates by the received pack level, not the base
-     unit;
-   - a line whose product has **no** measure still refuses, naming that product.
-3. Post and reverse one of them; confirm the same invariants Phase A established:
-   AVCO moved by exactly the capitalised amount, consumed portion in COGS, journal
-   balanced with `source_type = 'landed_cost_voucher'`, one outbox event, zero
-   valuation drift before and after, reversal by compensating entry.
-4. Confirm the operator-facing refusal message and the basis picker hints match what
-   the engine actually requires.
-5. Record the run in `docs/audit/2026-08-16-landed-cost-weight-volume-execution.md`
-   and add a SQL probe asserting the weight/volume allocation invariants.
+### G — authenticated browser verification
 
-Any discrepancy found here is fixed in the **canonical engine** (measure resolution,
-valuation, accounting) — never with a landed-cost-local workaround.
+Blocked in this environment (external, unmanaged Supabase; no session can be minted).
+Verify public routes only and record the limitation; do not simulate a session.
 
-## Phase G — after F
+## Rules carried forward
 
-Authenticated end-to-end browser verification of the workspace. Currently
-unavailable: external, unmanaged Supabase, so the preview redirects to sign-in and no
-session can be minted in this environment. Do not simulate it; verify public routes
-and record the limitation.
-
-## Instructions for the next agent
-
-1. **Verify before you continue. Dig, do not assume.** Everything above was verified
-   against the live database and the running code, but re-prove the pieces you are
-   about to build on: query `pg_proc` for overload counts and ACLs, read the live
-   function bodies, read the frontend files, run the probes. Two claims in this
-   domain's history were confidently wrong (Phase D "blocked", AVCO "in sync") — both
-   from reading a plausible-looking subset instead of the whole model. If you cannot
-   show the evidence, write "unverified", do not write a verdict.
-2. **Never accept a "blocked" label without reproducing the blockage yourself**, and
-   distinguish *data absence* from a *capability gap*. Read the failing function's
-   body and the actual rows before concluding anything is missing.
-3. **You may seed data for testing.** Seeding physical attributes, receipts, vouchers
-   and charge components in a scratch business is expected and encouraged — via
-   canonical RPCs and normal writes, never by minting privileged fixtures, never by
-   bypassing a trigger or a single-writer registry, and never by dropping a guard to
-   make a test pass.
-4. **Resume at Phase F step 1.** Do not re-audit A–E and do not wander into POS,
-   sales or product waves — those have their own status files.
-5. Bring F to a coherent, production-ready state (execution + audit doc + probe)
-   before touching G.
-6. Checks after each unit: `npm run typecheck:landed-costs`, the three landed-cost
-   architecture test files, and the `supabase/tests/landed_cost_*` probes. Update this
-   file's phase table with each verdict before moving on.
+- No new engines. FX, UoM, approvals, valuation, accounting, events, documents and
+  audit stay canonical; landed cost is a consumer.
+- Any discrepancy is fixed at the canonical engine, never with a landed-cost-local
+  workaround, fallback, or relaxed guard.
+- Seeding is allowed via canonical RPCs and normal writes only.
+- After each unit: `npm run typecheck:landed-costs`, the landed-cost architecture
+  tests, and the `supabase/tests/landed_cost_*` probes; then update this file.
