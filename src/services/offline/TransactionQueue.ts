@@ -298,14 +298,21 @@ class TransactionQueueService {
       console.error(`Failed to sync transaction ${queued.id}:`, error);
 
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      const isPermanentlyFailed = queued.attempts + 1 >= MAX_RETRY_ATTEMPTS;
+      // Phase 9 — a permanent rejection must not burn MAX_RETRY_ATTEMPTS
+      // against the server: the outcome cannot change by retrying.
+      const permanent = isPermanentError(error);
+      const attempts = queued.attempts + 1;
+      const isPermanentlyFailed = permanent || attempts >= MAX_RETRY_ATTEMPTS;
 
-      // Update with error
+      // Update with error + backoff schedule
       await offlineStorage.put(STORES.TRANSACTIONS_QUEUE, {
         ...queued,
         status: isPermanentlyFailed ? "failed" : "pending",
-        attempts: queued.attempts + 1,
+        attempts,
         lastAttemptAt: new Date().toISOString(),
+        nextAttemptAt: isPermanentlyFailed
+          ? undefined
+          : new Date(Date.now() + backoffDelayMs(attempts)).toISOString(),
         error: errorMessage,
       });
 
