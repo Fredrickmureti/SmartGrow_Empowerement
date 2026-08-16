@@ -14,7 +14,7 @@ So the correct engagement here is **not** another reconstruction. It is closing 
 ## Verified remaining gaps
 
 1. **The domain has never been exercised.** The database holds 1 voucher, in `draft`, 0 components, 0 allocations, 0 posted, 0 reversed. Every claim about posting, revaluation, journal balance, approval routing and reversal rests on introspection and read-only probes — never on an actual executed lifecycle.
-2. **Weight / volume allocation bases are still refused.** `landed_cost_allocate_voucher` references both, but the product master carries only `tare_weight` / `weight_unit` / `is_weighted` — no net weight, no volume. Correct: this stays blocked at the product domain, not patched locally.
+2. **Weight / volume allocation bases are fully supported — this earlier finding was WRONG (corrected 2026-08-16).** It read only the legacy POS columns on `products`. The canonical model is `product_physical_attributes` (net/tare/derived gross weight, volume, L/W/H, each with its own UoM, per product and per packaging level), normalised by `resolve_product_measure`, captured by the "Physical attributes" section of `ProductForm`, and already consumed by `landed_cost_allocate_voucher` for both bases. The refusal seen in testing is data absence for those specific products, not a modelling gap.
 3. **`landed_cost_selftest` / `landed_cost_selftest_run` still exist** in `public` — a second, non-canonical verification path that should be retired now that SQL probes cover its assertions.
 4. **Edge-case behaviour is unproven** for: receipt reversal after capitalisation, supplier credit note / freight-bill reversal after posting, stock transferred or scrapped between receipt and posting, a voucher spanning receipts in two branches or warehouses, and concurrent re-post (row locking on the voucher).
 
@@ -42,7 +42,7 @@ For each case, first determine whether the engine already refuses or handles it;
 Move any assertion `landed_cost_selftest` still uniquely covers into `supabase/tests/landed_cost_*`, then drop both functions. Add a probe asserting they stay dropped.
 
 ### Phase D — Weight / volume basis (product-domain dependency)
-Raise as a product-master change: net weight and volume with UoM on the product/packaging model, normalised through the canonical UoM engine. Landed Cost keeps refusing those bases until the data exists. No local conversion formulas, no fabricated dimensions.
+Nothing to build. The product/packaging model, the UoM normalisation and the allocation paths all exist and are wired. Capture physical attributes on the products in scope and weight/volume allocation runs; the per-product refusal message names exactly which products are missing a measure. No local conversion formulas, no fabricated dimensions.
 
 ### Phase E — Operator comprehension pass on the workspace
 Only after A–D. The workspace should answer, without database vocabulary: what needs allocating, what awaits approval, what is ready to post, how much value is being added, and what happened after posting. Read-only, from the existing server-side reporting RPCs.
