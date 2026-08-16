@@ -98186,6 +98186,22 @@ export type Database = {
         Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
         Returns: string
       }
+      pos_register_open_payment_sessions: {
+        Args: { p_register_id: string }
+        Returns: {
+          age_seconds: number
+          allocated: number
+          cashier_id: string
+          currency: string
+          grand_total: number
+          idempotency_key: string
+          opened_at: string
+          remaining: number
+          session_id: string
+          tender_count: number
+          tip_amount: number
+        }[]
+      }
       pos_register_stock_scope: {
         Args: { p_register_id: string }
         Returns: {
@@ -98326,6 +98342,7 @@ export type Database = {
         }
         Returns: Json
       }
+      pos_till_close_blockers: { Args: { p_till_id: string }; Returns: Json }
       pos_topic_handler_scope: {
         Args: { p_event_type: string }
         Returns: string
