@@ -1,128 +1,48 @@
-# Landed Cost Domain — Reconstruction Roadmap (live status)
+# Landed Cost Domain — Verification Verdict & Remaining Engineering
 
-Last updated: 2026-08-16 · Active phase: **B (in progress)**
+Last updated: 2026-08-16 (new owner handoff) · Active phase: **B (final item)**
 
-## Phase A — Full lifecycle execution — DONE, VERIFIED
+## Phase 1 — Independent verification of the previous engineer's claims
 
-See `docs/audit/2026-08-16-landed-cost-lifecycle-execution.md`. Allocation,
-posting (capitalised/expensed split, balanced journal through
-`post_journal_entry_atomic`) and reversal all driven end to end on live data.
-Two defects fixed: AVCO was not moved by capitalisation, and landed-cost outbox
-events were dead-lettered.
+Checked directly against the live database and the working tree, not against notes.
 
-## Phase B — Edge cases: movement between receipt and reversal — IN PROGRESS
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| One writer per operation, no duplicate engines | Confirmed | `landed_cost_allocate_voucher`, `landed_cost_post_voucher`, `_landed_cost_post_apply`, `landed_cost_reverse_voucher` — exactly one overload each; same for `inventory_apply_cost_revaluation`, `inventory_reverse_cost_revaluation`, `inventory_sync_avco_from_layers`, `inventory_cost_layer_descendants` |
+| Phase A lifecycle executed on live data | Confirmed | 1 voucher, status `reversed`, 1 allocation row — a real allocate → post → reverse cycle, not an empty table |
+| Valuation left clean after the cycle | Confirmed | `check_inventory_valuation_drift()` returns 0 rows |
+| Receipt-reversal guard landed | Confirmed | `landed_cost_receipt_encumbrance`, `landed_cost_receipt_block_reason`, `landed_cost_assert_receipt_unencumbered`, `_landed_cost_annotate_reversal_intent` all exist as single functions; `resolve_reversal_intent` is annotated, not forked |
+| Workspace reachable | Confirmed | `src/apps/purchases/routes.tsx` wires list / new / `:id` / component-types to `src/features/purchases/landed-costs/*`; the interim `src/pages/purchases/LandedCosts.tsx` shell is gone |
+| Transfer lineage proven | Partially confirmed | Code and ratchet exist, but `cost_layer_lineage` and `stock_transfers` are both empty — the proof is a rolled-back rehearsal only, and the **reversal** half across two warehouses was never asserted |
+| `landed_cost_selftest` retired | Not done | `landed_cost_selftest` and `landed_cost_selftest_run` still exist in `public` — a second, non-canonical verification path |
+| List KPIs read canonical server data | Not correct | `LandedCostListPage` computes KPIs in the browser via `landedCostKpis(rows)` / `useMemo` over fetched voucher rows, while `landed_cost_clearing_exposure`, `landed_cost_receipt_summary` and `landed_cost_valuation_attribution` exist server-side and go unused there |
 
-### Done and verified
+Verdict: the domain is genuinely reconstructed and canonically integrated. Three real gaps remain, plus one deliberately blocked item.
 
-**Stock sold between posting and reversal.** `inventory_reverse_cost_revaluation`
-now unwinds against `qty_remaining_at_apply` and reports the
-inventory/COGS split; `landed_cost_reverse_voucher` builds its reversal journal
-from that split instead of mirroring the original.
-Ratchet `supabase/tests/landed_cost_reversal_split_test.sql`;
-write-up `docs/audit/2026-08-16-landed-cost-reversal-split.md`.
+## Phase 2 — Remaining work, in dependency order
 
-**Inter-warehouse transfer before posting.** Three defects, each in a different
-canonical engine, made this impossible:
+### B1 — Supplier credit note against a landed-cost bill (last Phase B item)
+A freight/duty bill can be credited after the voucher is posted. Decide and enforce one rule: **block the credit note while the voucher still encumbers inventory, recommending voucher reversal** — consistent with the goods-receipt decision, because a posted voucher is an approved accounting document with its own governance route. Implementation:
+- extend `landed_cost_receipt_encumbrance` usage to bill scope (a bill-level encumbrance read over the same allocation truth, no second authority);
+- annotate the existing `vendor_credit_note` reversal-intent resolver the same way `resolve_reversal_intent` was annotated — do not fork it;
+- guard at credit-note draft creation and again at confirmation/posting, so Landed Cost Clearing can never be relieved twice;
+- ratchet `supabase/tests/landed_cost_credit_note_guard_test.sql`; write-up in `docs/audit/`.
 
-1. `stock_movements_movement_type_check` rejected `transfer_out` / `transfer_in`
-   (and `adjustment_in/out`, `opening_stock`, `customer_return`,
-   `vendor_return`) although 10+ engines emit them — every transfer in the
-   product failed at approval. Constraint widened to the engine vocabulary and
-   the missing types registered in `inventory_movement_event_classes`.
-2. The business transit location had `warehouse_id IS NULL`, so dispatched stock
-   projected onto no warehouse (ADR 0142) and receiving failed with
-   "Available: 0". `get_business_transit_location` now scopes it to the
-   `is_in_transit` warehouse.
-3. Transfer legs carry no `unit_cost`, so destination layers were created at
-   0.00. `_maintain_cost_layers` now inherits the quantity-weighted cost of the
-   parent consumptions and re-derives destination AVCO through
-   `inventory_sync_avco_from_layers` (registered writer, ADR 0078 intact).
+### B2 — Close the transfer-reversal hole found in verification
+`inventory_apply_cost_revaluation` stamps `warehouse_id` per revaluation row, but `inventory_reverse_cost_revaluation` never reads it. Rehearse (rolled back): receive → transfer part of the stock → post → **reverse**, and assert both origin and destination layers return to their pre-landed-cost unit cost, AVCO is re-derived per warehouse, the reversal journal splits inventory vs COGS correctly across warehouses, and drift stays zero in both scopes. Any defect is fixed in the canonical revaluation engine, not in landed cost. Extend `landed_cost_transfer_lineage_test.sql` with the reversal assertions.
 
-Rehearsed and rolled back: after transferring 100 of 348 on-hand units, posting
-capitalised 51.50 across both warehouses (HQ 36.70 / destination 14.80),
-expensed 22.50 for the 152 already sold, journal 74/74 balanced, zero valuation
-drift. `inventory_apply_cost_revaluation` already followed lineage across
-warehouses — what was missing was a working transfer and a cost to follow.
+### C — Retire the parallel verification path
+Move any assertion only `landed_cost_selftest` covers into `supabase/tests/landed_cost_*`, drop both functions, and add a probe asserting they stay dropped.
 
-Ratchet: `supabase/tests/landed_cost_transfer_lineage_test.sql`.
-Write-up: `docs/audit/2026-08-16-landed-cost-transfer-lineage.md`.
+### D — Physical allocation bases (stays blocked, by design)
+Weight / volume remain refused until the product master carries canonical net weight and volume with UoM, normalised through the existing UoM engine. Keep the refusal explicit and the message actionable. No local conversion formulas, no fabricated dimensions.
 
-**Goods receipt reversal / return to supplier.** Neither `void_goods_receipt_atomic`
-nor any `purchase_return_*` command knew about landed cost, so capitalised
-charges would have stayed in inventory after the stock left. Decision: **block,
-never auto-reverse** — a posted voucher is an approved accounting document with
-its own governance route.
+### E — Operator comprehension pass on the workspace
+Replace the browser-side KPI aggregation with the existing server-side reporting RPCs so there is one truth. The workspace must answer, without database vocabulary: what needs allocating, what awaits approval, what is ready to post, how much value is being added and where, what is sitting in clearing, and what happened after posting. Read-only; no client-side financial calculation.
 
-- `landed_cost_receipt_encumbrance` is the single authority for "does this
-  receipt still carry landed cost"; `landed_cost_receipt_block_reason` renders
-  the operator sentence and `landed_cost_assert_receipt_unencumbered` is the
-  hard guard.
-- `resolve_reversal_intent` is *annotated, not forked*:
-  `_landed_cost_annotate_reversal_intent` decorates the finance authority's
-  goods_receipt verdict (disallows `goods_return`, adds the
-  `landed_cost_encumbered` blocker, recommends `reverse_landed_cost`).
-  `void_goods_receipt_atomic` inherits the block through `assert_can_reverse`.
-- `purchase_return_create` guards at draft time, `purchase_return_dispatch`
-  re-guards at the moment stock leaves.
-- Defect fixed: `purchase_return_dispatch` emitted `movement_type = 'return'`,
-  which the movement vocabulary forbids and neither cost-layer branch consumes —
-  returns could not dispatch at all, and would not have relieved inventory value
-  if they had. Now `vendor_return`, consumed at layer cost (landed cost
-  included), with AVCO re-derived via `inventory_sync_avco_from_layers`.
+## Technical notes
 
-Verified live and rolled back: a posted voucher yields `encumbered=true`, the
-assert raises, `goods_return` becomes disallowed and `reverse_landed_cost` is
-recommended; the voucher remains `reversed` afterwards.
-
-Ratchet: `supabase/tests/landed_cost_receipt_reversal_guard_test.sql`.
-Write-up: `docs/audit/2026-08-16-landed-cost-receipt-reversal-guard.md`.
-
-### Pending in Phase B (next work)
-
-1. **Supplier credit note against a landed-cost bill** — adjust or reverse-and-
-   re-post the voucher; must not double-count clearing.
-   This is the last Phase B item; Phase C follows.
-
-## Phase C — Cleanup — PENDING
-
-Retire `landed_cost_selftest` and `landed_cost_selftest_run` (superseded by the
-SQL ratchets in `supabase/tests/`).
-
-## Phase D — Physical allocation bases — PENDING (deliberately blocked)
-
-Weight / volume bases stay refused until the product master carries canonical
-dimensions.
-
-## Phase E — Workspace UX — PENDING
-
-Surface operational status in the landed-cost workspace from the server-side
-reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
-`landed_cost_valuation_attribution`) — no client-side aggregation.
-
----
-
-## Instructions for the next agent
-
-1. Verify committed work first: run
-   `supabase/tests/landed_cost_transfer_lineage_test.sql`,
-   `supabase/tests/landed_cost_reversal_split_test.sql` and
-   `supabase/tests/landed_cost_hardening_test.sql`, and confirm
-   `check_inventory_valuation_drift()` returns no rows.
-2. `supabase--read_query` runs as a role without EXECUTE on the new
-   `landed_cost_receipt_*` helpers, so exercise them from a migration, not a
-   query.
-3. Rehearse destructively without persisting: a `DO $$ ... $$` migration that
-   clones the voucher, exercises the lifecycle and ends in `RAISE EXCEPTION` so
-   everything rolls back while results come back in the error text. Clone the
-   voucher (`post_journal_entry_atomic` deduplicates by
-   `(source_type, source_id)`) and give the clone a different `created_by` than
-   the posting actor, or `guard_landed_cost_self_approval` refuses.
-   `landed_cost_reverse_voucher` needs an authenticated caller (`auth.uid()`),
-   so reversal cannot be rehearsed from a migration — use `_landed_cost_post_apply`
-   for the posting half.
-4. Then resume at Phase B item 1 above (supplier credit note against a
-   landed-cost bill): decide between adjusting the voucher in place and
-   reverse-and-re-post, and make sure Landed Cost Clearing is not double
-   counted. `vendor_credit_note` already has its own reversal intent resolver —
-   annotate it the same way rather than forking it.
-5. Keep this file current after every completed implementation.
+- No new engines. FX, UoM, approvals, valuation, accounting, events, documents and audit stay canonical; landed cost is a consumer.
+- Rehearsal pattern: a `DO $$ ... $$` migration that clones the voucher, exercises the lifecycle and ends in `RAISE EXCEPTION` so nothing persists while results return in the error text. Clone the voucher id (`post_journal_entry_atomic` deduplicates by `(source_type, source_id)`) and give the clone a different `created_by` than the posting actor or `guard_landed_cost_self_approval` refuses. `landed_cost_reverse_voucher` needs `auth.uid()`, so drive the posting half through `_landed_cost_post_apply`.
+- `supabase--read_query` runs without EXECUTE on the `landed_cost_receipt_*` helpers; exercise them from a migration.
+- Every change lands with a SQL ratchet in `supabase/tests/` plus an audit write-up, and this file is updated after each completed item.
