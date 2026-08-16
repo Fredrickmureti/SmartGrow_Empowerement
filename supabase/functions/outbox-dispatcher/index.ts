@@ -548,7 +548,16 @@ const HANDLERS: Record<string, HandlerFn> = {
   "warehouse.receiving.posted":        handleInventoryLifecycleRecorded,
   "warehouse.exception.raised":        handleInventoryLifecycleRecorded,
   "warehouse.exception.escalated":     handleInventoryLifecycleRecorded,
+
+  // POS payment-session lifecycle. The session state machine is fully durable
+  // in `pos_payment_sessions`; these topics exist for lineage/analytics only
+  // and had no consumer, so they dead-lettered too.
+  "pos.payment.session.opened":        handleInventoryLifecycleRecorded,
+  "pos.payment.session.committed":     handleInventoryLifecycleRecorded,
+  "pos.payment.tender.recorded":       handleInventoryLifecycleRecorded,
+  "shift.opened":                      handleInventoryLifecycleRecorded,
 };
+
 
 
 async function dispatch(row: OutboxRow): Promise<void> {
