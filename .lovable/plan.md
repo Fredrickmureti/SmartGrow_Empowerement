@@ -47,13 +47,41 @@ warehouses — what was missing was a working transfer and a cost to follow.
 Ratchet: `supabase/tests/landed_cost_transfer_lineage_test.sql`.
 Write-up: `docs/audit/2026-08-16-landed-cost-transfer-lineage.md`.
 
+**Goods receipt reversal / return to supplier.** Neither `void_goods_receipt_atomic`
+nor any `purchase_return_*` command knew about landed cost, so capitalised
+charges would have stayed in inventory after the stock left. Decision: **block,
+never auto-reverse** — a posted voucher is an approved accounting document with
+its own governance route.
+
+- `landed_cost_receipt_encumbrance` is the single authority for "does this
+  receipt still carry landed cost"; `landed_cost_receipt_block_reason` renders
+  the operator sentence and `landed_cost_assert_receipt_unencumbered` is the
+  hard guard.
+- `resolve_reversal_intent` is *annotated, not forked*:
+  `_landed_cost_annotate_reversal_intent` decorates the finance authority's
+  goods_receipt verdict (disallows `goods_return`, adds the
+  `landed_cost_encumbered` blocker, recommends `reverse_landed_cost`).
+  `void_goods_receipt_atomic` inherits the block through `assert_can_reverse`.
+- `purchase_return_create` guards at draft time, `purchase_return_dispatch`
+  re-guards at the moment stock leaves.
+- Defect fixed: `purchase_return_dispatch` emitted `movement_type = 'return'`,
+  which the movement vocabulary forbids and neither cost-layer branch consumes —
+  returns could not dispatch at all, and would not have relieved inventory value
+  if they had. Now `vendor_return`, consumed at layer cost (landed cost
+  included), with AVCO re-derived via `inventory_sync_avco_from_layers`.
+
+Verified live and rolled back: a posted voucher yields `encumbered=true`, the
+assert raises, `goods_return` becomes disallowed and `reverse_landed_cost` is
+recommended; the voucher remains `reversed` afterwards.
+
+Ratchet: `supabase/tests/landed_cost_receipt_reversal_guard_test.sql`.
+Write-up: `docs/audit/2026-08-16-landed-cost-receipt-reversal-guard.md`.
+
 ### Pending in Phase B (next work)
 
-1. **Goods receipt reversal / return to supplier** after a landed cost is
-   allocated or posted — currently unguarded; decide between blocking the
-   receipt reversal and auto-reversing the voucher.
-2. **Supplier credit note against a landed-cost bill** — adjust or reverse-and-
+1. **Supplier credit note against a landed-cost bill** — adjust or reverse-and-
    re-post the voucher; must not double-count clearing.
+   This is the last Phase B item; Phase C follows.
 
 ## Phase C — Cleanup — PENDING
 
@@ -80,7 +108,10 @@ reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
    `supabase/tests/landed_cost_reversal_split_test.sql` and
    `supabase/tests/landed_cost_hardening_test.sql`, and confirm
    `check_inventory_valuation_drift()` returns no rows.
-2. Rehearse destructively without persisting: a `DO $$ ... $$` migration that
+2. `supabase--read_query` runs as a role without EXECUTE on the new
+   `landed_cost_receipt_*` helpers, so exercise them from a migration, not a
+   query.
+3. Rehearse destructively without persisting: a `DO $$ ... $$` migration that
    clones the voucher, exercises the lifecycle and ends in `RAISE EXCEPTION` so
    everything rolls back while results come back in the error text. Clone the
    voucher (`post_journal_entry_atomic` deduplicates by
@@ -89,5 +120,9 @@ reporting RPCs (`landed_cost_receipt_summary`, `landed_cost_clearing_exposure`,
    `landed_cost_reverse_voucher` needs an authenticated caller (`auth.uid()`),
    so reversal cannot be rehearsed from a migration — use `_landed_cost_post_apply`
    for the posting half.
-3. Then resume at Phase B item 1 above (goods receipt reversal).
-4. Keep this file current after every completed implementation.
+4. Then resume at Phase B item 1 above (supplier credit note against a
+   landed-cost bill): decide between adjusting the voucher in place and
+   reverse-and-re-post, and make sure Landed Cost Clearing is not double
+   counted. `vendor_credit_note` already has its own reversal intent resolver —
+   annotate it the same way rather than forking it.
+5. Keep this file current after every completed implementation.
