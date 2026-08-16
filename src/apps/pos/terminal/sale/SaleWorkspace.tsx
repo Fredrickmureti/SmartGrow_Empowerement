@@ -47,6 +47,7 @@ export interface SaleWorkspaceProps {
   setSelectedCategory: (cat: string | null) => void;
   filteredProducts: POSProduct[];
   productsLoading: boolean;
+  productsErrorMessage?: string | null;
   productsLoadedCount: number;
   productsTotalCount: number | null;
   productsHasMore: boolean;
@@ -108,6 +109,7 @@ export function SaleWorkspace({
   setSelectedCategory,
   filteredProducts,
   productsLoading,
+  productsErrorMessage,
   productsLoadedCount,
   productsTotalCount,
   productsHasMore,
@@ -156,6 +158,7 @@ export function SaleWorkspace({
         setSelectedCategory={setSelectedCategory}
         filteredProducts={filteredProducts}
         productsLoading={productsLoading}
+        productsErrorMessage={productsErrorMessage}
         productsLoadedCount={productsLoadedCount}
         productsTotalCount={productsTotalCount}
         productsHasMore={productsHasMore}
