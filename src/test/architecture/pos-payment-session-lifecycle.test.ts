@@ -67,7 +67,16 @@ describe("POS payment-session lifecycle is server-owned", () => {
       if (ALLOWLIST.some((r) => r.test(rel))) continue;
       const src = readFileSync(file, "utf8");
       for (const rpc of SESSION_RPCS) {
-        if (src.includes(`"${rpc}"`) || src.includes(`'${rpc}'`)) {
+        // Phase 7 precision fix: the rule is "no direct RPC *invocation*".
+        // A bare occurrence of the name is not an invocation — e.g.
+        // `useOverridePolicy` maps a reversal command to the manager-override
+        // ACTION CODE `pos_payment_session_reverse_tender`, which is data
+        // written into `pos_override_matrix.action`, never a call. Matching on
+        // `supabase.rpc(...)` keeps the guard on the behaviour it protects.
+        const invoked = new RegExp(
+          String.raw`\.rpc\s*\(\s*['"\`]` + rpc + String.raw`['"\`]`,
+        );
+        if (invoked.test(src)) {
           offenders.push({ file: rel, rpc });
         }
       }
