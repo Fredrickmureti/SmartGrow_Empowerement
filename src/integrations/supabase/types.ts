@@ -94797,6 +94797,14 @@ export type Database = {
         Args: { p_actor?: string; p_source_id: string; p_source_type: string }
         Returns: Json
       }
+      inventory_sync_avco_from_layers: {
+        Args: {
+          p_business_id: string
+          p_product_id: string
+          p_warehouse_id?: string
+        }
+        Returns: undefined
+      }
       is_ap_control_account: { Args: { _account_id: string }; Returns: boolean }
       is_app_trialable: { Args: { p_app_id: string }; Returns: boolean }
       is_app_trialable_for: {
