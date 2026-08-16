@@ -15,6 +15,11 @@ import { normalizeError } from "@/services/resilience";
  * RPCs, which resolve the party (contact) to its supplier record server-side.
  * The exposed shape stays party-keyed (`vendor_id`) for existing callers.
  */
+export interface PriceBreakTier {
+  min_qty: number;
+  unit_price: number;
+}
+
 export interface VendorPriceList {
   id: string;
   organization_id: string;
@@ -25,8 +30,14 @@ export interface VendorPriceList {
   unit_price: number;
   currency: string;
   min_order_qty: number;
+  order_increment: number | null;
+  purchase_uom_id: string | null;
+  price_break_tiers: PriceBreakTier[];
   lead_time_days: number;
   is_preferred: boolean;
+  preferred_rank: number;
+  /** Governance state of the condition — only 'approved' rows price a PO. */
+  approval_status: "draft" | "pending_approval" | "approved" | "rejected";
   valid_from: string | null;
   valid_until: string | null;
   notes: string | null;
@@ -39,6 +50,7 @@ export type VendorPriceListWithRelations = VendorPriceList & {
   vendor: { id: string; name: string } | null;
   product: { id: string; name: string; sku: string | null } | null;
 };
+
 
 export function useVendorPriceLists(vendorId?: string, productId?: string) {
   const { currentOrg } = useOrganization();
