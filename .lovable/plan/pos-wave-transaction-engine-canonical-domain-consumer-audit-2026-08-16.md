@@ -19,55 +19,62 @@ Do not repeat completed investigation. Prior wave record:
 | 6 | Server-side money authority | ✅ | retail + restaurant quote server-side |
 | 7 | Payment integrity | ✅ | server re-derives payable total at commit |
 | 8 | Concurrency & idempotency (multi-terminal) | ✅ | **closed this pass — F6 fixed** (hold/recall/cancel, split bills, merge/transfer/move) |
-| 9 | Offline / retry behaviour | ⚠ | **active — DB seam landed & verified; client items 1–4 pending** |
+| 9 | Offline / retry behaviour | ✅ | **closed this pass — DB seam + all four client items landed** |
+| 10 | Returns / void / reversal | — | **next** |
 
-## Phase 9 — offline / retry behaviour ⚠ (active)
+## Phase 9 — offline / retry behaviour ✅ (closed)
 
-**Verified this pass (independent re-check of the previous agent's claims — all four DB claims are TRUE):**
+**DB seam (verified by independent re-check, all four claims TRUE):**
 - `pos_register_open_payment_sessions` — exists, SECURITY DEFINER, anon/PUBLIC EXECUTE revoked.
 - `pos_till_close_blockers` — exists, SECURITY DEFINER, anon/PUBLIC revoked.
 - `trg_pos_till_close_payment_guard` — attached to `public.pos_shifts`.
-- `pos_payment_session_commit` — contains the `shift_closed` guard, and it sits
-  *after* the apply-log replay branch (apply-log at char 305, `shift_closed` at 2696),
-  so an offline retry of an already-committed sale still returns its cached envelope.
-- Naming note confirmed: the DDL event trigger `_reject_country_named_function`
-  rejects any routine name containing `shif` (SHIF statutory token) → `*_till_*` naming.
+- `pos_payment_session_commit` — the `shift_closed` guard sits *after* the apply-log
+  replay branch (apply-log at char 305, `shift_closed` at 2696), so an offline retry of
+  an already-committed sale still returns its cached envelope rather than being rejected.
+- Naming note: the DDL event trigger `_reject_country_named_function` rejects any routine
+  name containing `shif` (SHIF statutory token) → hence the `*_till_*` naming.
 
-**Not done (client side) — remaining Phase 9 work:**
-1. `src/components/pos/CloseShiftDialog.tsx` still calls `can_close_pos_shift`
-   (line ~82); the new `open_payment_sessions` blocker is never shown, so the cashier
-   only meets the DB trigger error at submit time.
-2. `src/services/offline/TransactionQueue.ts` — `RETRY_DELAY_MS` (5000) declared but
-   unused; `syncAll` uses a flat 100 ms inter-drain delay and every failure burns all
-   5 attempts. No error classification: `shift_closed` / check-violation are permanent
-   and must fail fast.
-3. No `PaymentResumeBanner` — nothing consumes `pos_register_open_payment_sessions`,
-   so a cashier who reloads mid-payment has no resume affordance.
-4. No guard test for any of the above; plan.md carried no Phase 9 record.
+**Client work landed this pass:**
+1. `src/components/pos/CloseShiftDialog.tsx` now gates on `pos_till_close_blockers`
+   (was `can_close_pos_shift`), so the cashier sees the `open_payment_sessions` blocker —
+   count and amount tendered — before submit instead of meeting the DB trigger error.
+2. `src/services/offline/TransactionQueue.ts`
+   - `RETRY_DELAY_MS` is now the base of an exponential backoff with ±20% jitter
+     (`backoffDelayMs`, capped at `MAX_RETRY_DELAY_MS` = 5 min); the schedule is persisted
+     per row as `nextAttemptAt` and `syncAll` drains via `getDueTransactions()`.
+   - `isPermanentError` classifies rejections the server will repeat identically
+     (`shift_closed`, check/FK/not-null violations, `invalid input syntax`,
+     permission denied / 42501, `total mismatch`, `session_not_open`) → the row goes
+     `failed` immediately instead of burning all 5 attempts. Everything else (transport,
+     timeout, 5xx, unknown) is transient — safe because replay is idempotent: the queued
+     id is the key and the session apply-log collapses duplicate commits.
+   - `getPendingTransactions()` no longer returns `failed` rows: a permanent rejection is
+     terminal until an operator calls `retryTransaction` (which clears `nextAttemptAt`).
+3. `src/components/pos/PaymentResumeBanner.tsx` (new, mounted in
+   `src/apps/pos/terminal/sale/SaleWorkspace.tsx`) reads
+   `pos_register_open_payment_sessions` through `listOpenSessions` in
+   `src/lib/pos/paymentSessionClient.ts` and offers resume or discard via the existing
+   `pos_payment_session_cancel`, which already refuses to discard captured non-cash money.
+4. Guards: `src/test/architecture/pos-offline-retry-and-resume.test.ts` (8 tests, green)
+   and `supabase/tests/pos_till_close_guard_test.sql`.
 
-## Next steps (this pass — close Phase 9, then Phase 10)
+**Stale guard corrected:** `src/test/architecture/pos-offline-replay-uses-rpc.test.ts` was
+still asserting a bare `process_pos_transaction` + `p_idempotency_key` call in
+`SQLiteSyncManager`. The desktop replay path was migrated to the payment-session saga in
+Wave 3 · Phase 1, so the test was failing on obsolete expectations, not a regression. It
+now asserts the saga (`openPaymentSession → recordPaymentTender → commitPaymentSession`),
+deterministic keys derived from the local `tx.id`, and the unchanged no-direct-insert
+rules. Green.
 
-1. **CloseShiftDialog → `pos_till_close_blockers`.** Swap the gate RPC, render the
-   `open_payment_sessions` reason (count + amount tendered) as a blocking row with
-   operator copy. No money math client-side.
-2. **TransactionQueue retry policy.** Use `RETRY_DELAY_MS` as the base for exponential
-   backoff with jitter between drains; classify errors — `shift_closed`,
-   `check_violation`, access denied (42501) and explicit business rejections are
-   permanent → `failed` immediately; transport/5xx/offline are transient → backoff to
-   `MAX_RETRY_ATTEMPTS`. Replay stays idempotent (queued.id remains the key; the
-   apply-log already collapses replays).
-3. **PaymentResumeBanner.** New `src/components/pos/PaymentResumeBanner.tsx` backed by
-   `pos_register_open_payment_sessions`, mounted in the terminal sale surface: lists
-   in-flight sessions with allocated/remaining, offers resume or cancel (existing
-   `pos_payment_session_cancel`, which already refuses to discard captured non-cash
-   money). Read-only + existing RPCs only.
-4. **Guards.** `src/test/architecture/pos-offline-retry-and-resume.test.ts` (no
-   `can_close_pos_shift` left in POS components, backoff + permanent-error
-   classification present, banner reads only the canonical RPC, no new client writes to
-   session tables) and `supabase/tests/pos_till_close_guard_test.sql` (four DB objects,
-   trigger attachment, anon revocation, `shift_closed` check after the replay branch).
-5. Record the Phase 9 verdict here, then start **Phase 10 — returns / void / reversal**
-   (carry the pre-existing `pos-card-fsm.test.ts` failure into that phase).
+**Residual (not blocking Phase 9):** `getPendingCount()` in the queue now excludes
+`failed` rows; surfacing a separate operator-facing "needs attention" count belongs with
+the Phase 10 exception surface.
+
+## Next steps
+
+Start **Phase 10 — returns / void / reversal** (carry the pre-existing
+`pos-card-fsm.test.ts` failure into that phase).
+
 
 Out of scope, unchanged: UI redesign, Finance internals, printing subsystem.
 | 10-15 | Returns/void, printing, events, finance, audit, reporting | — | not started |
