@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.landed_cost_assert_bill_unencumbered(uuid, text) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.landed_cost_assert_bill_unencumbered(uuid, text) TO service_role;
