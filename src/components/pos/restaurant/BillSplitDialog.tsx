@@ -50,7 +50,7 @@ export function BillSplitDialog({
     assignItemToPortion,
     markPortionPaid,
     cancelSplitBill,
-    calculateEqualSplit,
+    
     getUnpaidPortions,
   } = useBillSplitting(tableSessionId);
   
