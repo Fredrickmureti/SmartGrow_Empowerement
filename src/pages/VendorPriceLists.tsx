@@ -43,7 +43,13 @@ export default function VendorPriceLists() {
   const { priceLists, isLoading, createPriceList, updatePriceList, deletePriceList } = useVendorPriceLists();
   const { contacts } = useContacts();
   const { products } = useProducts();
-  const { formatCurrency, baseCurrency } = useCurrency();
+  const currencyApi = useCurrency() as any;
+  const { formatCurrency, baseCurrency } = currencyApi;
+  const activeCurrencies: string[] = Array.isArray(currencyApi.activeCurrencies)
+    ? currencyApi.activeCurrencies
+        .map((c: any) => (typeof c === "string" ? c : c?.currency_code))
+        .filter(Boolean)
+    : [];
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMode, setSheetMode] = useState<"create" | "edit">("create");
@@ -73,6 +79,8 @@ export default function VendorPriceLists() {
       currency: entry.currency,
       min_order_qty: entry.min_order_qty,
       order_increment: entry.order_increment ?? 0,
+      purchase_uom_id: entry.purchase_uom_id ?? null,
+      preferred_rank: entry.preferred_rank ?? 10,
       price_break_tiers: entry.price_break_tiers ?? [],
       lead_time_days: entry.lead_time_days,
       is_preferred: entry.is_preferred,
@@ -443,8 +451,14 @@ export default function VendorPriceLists() {
         mode={sheetMode}
         initialValues={initialValues}
         vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
-        products={products.map((p) => ({ id: p.id, name: p.name, is_active: p.is_active }))}
+        products={products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          is_active: p.is_active,
+          base_uom_id: (p as any).base_uom_id ?? null,
+        }))}
         baseCurrency={baseCurrency}
+        currencyOptions={activeCurrencies}
         onSubmit={handleSubmit}
       />
 
