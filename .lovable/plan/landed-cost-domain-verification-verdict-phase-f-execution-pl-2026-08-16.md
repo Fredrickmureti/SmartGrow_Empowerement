@@ -22,25 +22,29 @@ claimed: the transfer split is rehearsal-only, since there is no transfer data.
 
 ## Phase 2 — Remaining work
 
-### F (active) — prove weight / volume allocation end to end
+### F (complete) — weight / volume allocation proven end to end
 
-1. Seed through canonical paths only, in the existing business: products with
-   packaging levels, `product_physical_attributes` for base unit and at least one
-   pack level (never hand-writing trigger-derived columns such as `gross_weight`),
-   and a goods receipt with mixed pack levels across several lines.
-2. Create a weight-basis voucher and a volume-basis voucher over that receipt and
-   allocate. Assert: basis sum equals the sum of `resolve_product_measure` at the
-   pack level actually received (gross preferred, net fallback); allocation total
-   equals the charge total to the last minor unit; re-running is deterministic and
-   clears prior allocations; a line whose product has no measure refuses by name.
-3. Post and reverse one voucher. Assert the Phase A invariants: AVCO moved by exactly
-   the capitalised amount, consumed portion in COGS, balanced journal with
-   `source_type = 'landed_cost_voucher'`, one outbox event, zero valuation drift
-   before and after, reversal by compensating entry (no journal deletion).
-4. Check the operator-facing refusal message and the basis-picker hints against what
-   the engine actually requires; correct the copy if they diverge.
-5. Land `supabase/tests/landed_cost_weight_volume_test.sql` and the audit write-up
-   `docs/audit/2026-08-16-landed-cost-weight-volume-execution.md`.
+Seeded physical attributes and a mixed-packaging receipt through canonical paths;
+allocated a weight-basis and a volume-basis voucher, both summing exactly to their
+component; refusal by product name proven with zero allocation rows.
+**Posted both vouchers** (LCV-2026-00002, LCV-2026-00003) as the owner via a
+migration-scoped JWT claim — governance auto-allowed under `solo` mode, audited.
+Balanced journals Dr Inventory / Cr Landed Cost Clearing, one outbox event each,
+layer unit costs raised by exactly the allocated amounts.
+
+Defects found and fixed at the canonical engines:
+- `convert_uom` raised on a NULL quantity, blocking any net weight without a tare.
+- `update_weighted_avg_cost_on_receipt` was a second costing authority and read
+  `products.stock_quantity` before the stock trigger applied the receipt, so AVCO
+  was overwritten with the last purchase price on every receipt into existing
+  stock. It now delegates to `inventory_sync_avco_from_layers`; all AVCO re-derived;
+  drift back to zero.
+
+Ratchets: `supabase/tests/landed_cost_weight_volume_test.sql`,
+`supabase/tests/inventory_avco_single_writer_test.sql`. Write-ups:
+`docs/audit/2026-08-16-landed-cost-physical-basis.md`,
+`docs/audit/2026-08-16-landed-cost-posting-and-avco-writer.md`.
+
 
 ### F2 (added by this review) — close the transfer/reversal proof with real data
 
