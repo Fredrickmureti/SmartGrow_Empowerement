@@ -72,6 +72,8 @@ export default function VendorPriceLists() {
       unit_price: entry.unit_price,
       currency: entry.currency,
       min_order_qty: entry.min_order_qty,
+      order_increment: entry.order_increment ?? 0,
+      price_break_tiers: entry.price_break_tiers ?? [],
       lead_time_days: entry.lead_time_days,
       is_preferred: entry.is_preferred,
       valid_from: entry.valid_from || "",
@@ -88,12 +90,17 @@ export default function VendorPriceLists() {
       valid_from: values.valid_from || null,
       valid_until: values.valid_until || null,
       notes: values.notes || null,
+      order_increment: values.order_increment > 0 ? values.order_increment : null,
+      price_break_tiers: [...values.price_break_tiers].sort(
+        (a, b) => a.min_qty - b.min_qty,
+      ),
     };
     if (editingId) {
       await updatePriceList({ id: editingId, ...payload });
     } else {
       await createPriceList(payload);
     }
+
     setSheetOpen(false);
     setEditingId(null);
     setInitialValues(undefined);
