@@ -66,25 +66,6 @@ interface TransactionItemRow {
   etims_tax_code: string | null;
 }
 
-const calculateItemTotals = (
-  quantity: number,
-  unit_price: number,
-  discount_type?: string | null,
-  discount_value: number = 0,
-  tax_rate: number = 0
-) => {
-  const gross = quantity * unit_price;
-  let discountAmount = 0;
-  if (discount_type === "percent") {
-    discountAmount = gross * (discount_value / 100);
-  } else if (discount_type === "fixed") {
-    discountAmount = discount_value;
-  }
-  discountAmount = Math.min(Math.max(Number.isFinite(discountAmount) ? discountAmount : 0, 0), gross);
-  const afterDiscount = gross - discountAmount;
-  const taxAmount = afterDiscount * (tax_rate / 100);
-  const lineTotal = afterDiscount + taxAmount;
-  return { discount_amount: discountAmount, tax_amount: taxAmount, line_total: lineTotal };
 };
 
 export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber }: UseTableOrderOptions) {
@@ -233,47 +214,18 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
     }));
   }, [dbItems]);
 
-  // ========== Calculate totals (same logic as usePOSCart) ==========
-  const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => {
-      const itemGross = item.quantity * item.unit_price;
-      let itemDiscount = 0;
-      if (item.discount_type === "percent") {
-        itemDiscount = itemGross * (item.discount_value / 100);
-      } else if (item.discount_type === "fixed") {
-        itemDiscount = item.discount_value;
-      }
-      itemDiscount = Math.min(Math.max(Number.isFinite(itemDiscount) ? itemDiscount : 0, 0), itemGross);
-      return sum + (itemGross - itemDiscount);
-    }, 0);
-
-    let discountAmount = 0;
-    if (cartDiscount) {
-      discountAmount = cartDiscount.type === "percent"
-        ? subtotal * (cartDiscount.value / 100)
-        : cartDiscount.value;
-    }
-    discountAmount = Math.min(Math.max(Number.isFinite(discountAmount) ? discountAmount : 0, 0), subtotal);
-
-    let taxAmount = 0;
-    if (subtotal > 0 && discountAmount > 0) {
-      taxAmount = items.reduce((sum, item) => {
-        const itemGross = item.quantity * item.unit_price;
-        let itemDisc = 0;
-        if (item.discount_type === "percent") itemDisc = itemGross * (item.discount_value / 100);
-        else if (item.discount_type === "fixed") itemDisc = item.discount_value;
-        itemDisc = Math.min(Math.max(Number.isFinite(itemDisc) ? itemDisc : 0, 0), itemGross);
-        const itemNet = itemGross - itemDisc;
-        const itemCartDiscount = (itemNet / subtotal) * discountAmount;
-        return sum + (itemNet - itemCartDiscount) * (item.tax_rate / 100);
-      }, 0);
-    } else {
-      taxAmount = items.reduce((sum, item) => sum + item.tax_amount, 0);
-    }
-
-    const total = subtotal - discountAmount + taxAmount;
-    return { subtotal, discount_amount: discountAmount, tax_amount: taxAmount, total };
-  }, [items, cartDiscount]);
+  // ========== Totals: SERVER-AUTHORITATIVE ==========
+  // Phase 5. Money is never computed in the browser for a table order.
+  // Every mutation round-trips through `pos_sync_table_order`, which prices
+  // the cart with `pos_quote_cart` (the same resolver retail checkout uses)
+  // and writes the money columns. We simply read them back.
+  const txnRow = orderQuery.data?.transaction;
+  const totals = useMemo(() => ({
+    subtotal: Number(txnRow?.subtotal ?? 0),
+    discount_amount: Number(txnRow?.discount_amount ?? 0),
+    tax_amount: Number(txnRow?.tax_amount ?? 0),
+    total: Number(txnRow?.total ?? 0),
+  }), [txnRow?.subtotal, txnRow?.discount_amount, txnRow?.tax_amount, txnRow?.total]);
 
   // ========== Helper: invalidate order query ==========
   const invalidateOrder = useCallback(() => {
@@ -321,41 +273,70 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
   }, [transactionId, invalidateOrder]);
 
 
-  const updateTransactionTotals = useCallback(async (txnId: string, newItems: CartItem[]) => {
-    const subtotal = newItems.reduce((sum, item) => {
-      const g = item.quantity * item.unit_price;
-      let d = 0;
-      if (item.discount_type === "percent") d = g * (item.discount_value / 100);
-      else if (item.discount_type === "fixed") d = item.discount_value;
-      return sum + (g - d);
-    }, 0);
-    const taxAmount = newItems.reduce((s, i) => s + i.tax_amount, 0);
-    const total = subtotal + taxAmount;
+  // ========== THE SINGLE WRITE SEAM ==========
+  // Client sends INTENT (what was ordered). Server returns MONEY.
+  type IntentLine = {
+    line_id?: string;
+    product_id: string | null;
+    description: string;
+    quantity: number;
+    unit_price?: number;          // honoured only for non-catalog lines
+    discount_type?: string | null;
+    discount_value?: number;
+    cost_price?: number;
+    etims_tax_code?: string | null;
+    packaging_id?: string | null;
+    display_uom_id?: string | null;
+    display_quantity?: number | null;
+  };
 
-    const { data, error } = await supabase
-      .from("pos_transactions")
-      .update({
-        subtotal,
-        tax_amount: taxAmount,
-        total,
-        version: versionRef.current + 1,
-        updated_at: new Date().toISOString(),
-      } as any)
-      .eq("id", txnId)
-      .eq("version", versionRef.current)
-      .eq("branch_id", branchIdRef.current!) // branch-bind: cross-branch race => 0 rows
-      .select("id")
-      .maybeSingle();
+  const currentIntent = useCallback((): IntentLine[] => {
+    return dbItems.map((row) => ({
+      line_id: row.id,
+      product_id: row.product_id,
+      description: row.description,
+      quantity: row.quantity,
+      unit_price: row.product_id ? undefined : row.unit_price,
+      discount_type: row.discount_type,
+      discount_value: row.discount_value ?? 0,
+      cost_price: row.cost_price ?? 0,
+      etims_tax_code: row.etims_tax_code,
+    }));
+  }, [dbItems]);
 
-    if (!data && !error) {
-      // Version conflict — another terminal updated this order
-      toast.info("Order updated by another terminal. Refreshing...");
-      invalidateOrder();
-      return;
-    }
+  const syncLines = useCallback(
+    async (
+      lines: IntentLine[],
+      opts?: { contactId?: string | null; notes?: string | null },
+    ): Promise<{ lineIds: string[] } | null> => {
+      if (!transactionId) throw new Error("No active table order");
 
-    versionRef.current += 1;
-  }, [invalidateOrder]);
+      const { data, error } = await supabase.rpc("pos_sync_table_order" as any, {
+        p_transaction_id: transactionId,
+        p_lines: lines as any,
+        p_expected_version: versionRef.current,
+        p_cart_discount_type: cartDiscount?.type === "percent" ? "percentage" : cartDiscount?.type ?? null,
+        p_cart_discount_value: cartDiscount?.value ?? 0,
+        p_contact_id: opts?.contactId ?? customer?.id ?? null,
+        p_notes: opts?.notes ?? null,
+      });
+
+      if (error) throw error;
+
+      const res = data as any;
+      if (!res?.success) {
+        // Another terminal edited this table first — never overwrite silently.
+        if (res?.current_version) versionRef.current = res.current_version;
+        toast.info("Order updated by another terminal. Refreshing…");
+        invalidateOrder();
+        return null;
+      }
+
+      versionRef.current = res.version;
+      return { lineIds: (res.line_ids ?? []) as string[] };
+    },
+    [transactionId, cartDiscount, customer?.id, invalidateOrder],
+  );
 
   // ========== MUTATION: Add item ==========
   const addItemMutation = useMutation({
@@ -375,99 +356,66 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
     }) => {
       if (!transactionId) throw new Error("No active table order");
 
-      const hasModifiers = product.modifiers && product.modifiers.length > 0;
-      const effectivePrice = product.price + (product.modifiers_total || 0);
-      const taxRate = product.tax_rate || 0;
+      const modifiers = product.modifiers ?? [];
+      const hasModifiers = modifiers.length > 0;
+      const intent = currentIntent();
 
-      // Check if product already exists (no modifiers) and increment
+      // Plain re-order of an existing catalog line → bump quantity.
       if (!hasModifiers) {
-        const existingItem = dbItems.find(
-          (i) => i.product_id === product.id
-        );
-        if (existingItem) {
-          const newQty = existingItem.quantity + 1;
-          const t = calculateItemTotals(newQty, existingItem.unit_price, existingItem.discount_type, existingItem.discount_value || 0, existingItem.tax_rate || 0);
-          
-          await supabase
-            .from("pos_transaction_items")
-            .update({
-              quantity: newQty,
-              tax_amount: t.tax_amount,
-              line_total: t.line_total,
-            })
-            .eq("id", existingItem.id);
-
-          // Update transaction totals
-          const updatedItems = items.map(i => 
-            i.id === existingItem.id 
-              ? { ...i, quantity: newQty, tax_amount: t.tax_amount, line_total: t.line_total }
-              : i
-          );
-          await updateTransactionTotals(transactionId, updatedItems);
+        const existing = intent.find((l) => l.product_id === product.id && !l.description.startsWith("↳"));
+        if (existing) {
+          existing.quantity += 1;
+          await syncLines(intent);
           return;
         }
       }
 
-      // Build name with modifier suffix
-      const modifierSuffix = product.modifiers?.length
-        ? ` (${product.modifiers.map(m => m.modifier_name).join(', ')})`
-        : '';
+      const modifierSuffix = hasModifiers
+        ? ` (${modifiers.map((m) => m.modifier_name).join(", ")})`
+        : "";
 
-      const t = calculateItemTotals(1, effectivePrice, undefined, 0, taxRate);
+      // The catalog line carries NO price — the server prices it. Modifier
+      // surcharges ride as their own non-catalog lines so the money stays
+      // server-derived while the surcharge revenue is still captured.
+      intent.push({
+        product_id: product.id,
+        description: product.name + modifierSuffix,
+        quantity: 1,
+        cost_price: product.cost_price ?? 0,
+        etims_tax_code: product.etims_tax_code ?? null,
+      });
+      const mainLineIndex = intent.length - 1;
 
-      const { data: insertedItem } = await supabase
-        .from("pos_transaction_items")
-        .insert({
-          transaction_id: transactionId,
-          business_id: currentBusiness!.id,
-          product_id: product.id,
-          description: product.name + modifierSuffix,
+      for (const m of modifiers) {
+        if (!m.price_adjustment) continue;
+        intent.push({
+          product_id: null,
+          description: `↳ ${m.modifier_name}`,
           quantity: 1,
-          unit_price: effectivePrice,
-          tax_rate: taxRate,
-          tax_amount: t.tax_amount,
-          line_total: t.line_total,
-          cost_price: product.cost_price || null,
-          sort_order: dbItems.length,
-          tax_rate_id: product.tax_rate_id || null,
-          etims_tax_code: product.etims_tax_code || null,
-        })
-        .select("id")
-        .single();
-
-      // Send to kitchen automatically in restaurant mode
-      if (insertedItem && sessionOrg?.id && currentBusiness?.id) {
-        supabase
-          .from("pos_kitchen_orders")
-          .insert({
-            organization_id: sessionOrg.id,
-            business_id: currentBusiness.id,
-            transaction_id: transactionId,
-            transaction_item_id: insertedItem.id,
-            printer_category: product.category_id === "bar" ? "bar" : "kitchen",
-            table_number: tableNumber || null,
-            status: "pending",
-            priority: 0,
-            notes: modifierSuffix ? `Modifiers: ${modifierSuffix}` : null,
-          } as any)
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: ["pos-kitchen-orders"] });
-          });
+          unit_price: m.price_adjustment,
+        });
       }
 
-      // Update transaction totals
-      const newItem: CartItem = {
-        id: "temp",
-        product_id: product.id,
-        name: product.name + modifierSuffix,
-        quantity: 1,
-        unit_price: effectivePrice,
-        discount_value: 0,
-        tax_rate: taxRate,
-        tax_amount: t.tax_amount,
-        line_total: t.line_total,
-      };
-      await updateTransactionTotals(transactionId, [...items, newItem]);
+      const result = await syncLines(intent);
+      if (!result) return;
+
+      const insertedItemId = result.lineIds[mainLineIndex];
+
+      // Fire the kitchen/bar ticket against the persisted line.
+      if (insertedItemId && sessionOrg?.id && currentBusiness?.id) {
+        await supabase.from("pos_kitchen_orders").insert({
+          organization_id: sessionOrg.id,
+          business_id: currentBusiness.id,
+          transaction_id: transactionId,
+          transaction_item_id: insertedItemId,
+          printer_category: product.category_id === "bar" ? "bar" : "kitchen",
+          table_number: tableNumber || null,
+          status: "pending",
+          priority: 0,
+          notes: modifierSuffix ? `Modifiers: ${modifierSuffix}` : null,
+        } as any);
+        queryClient.invalidateQueries({ queryKey: ["pos-kitchen-orders"] });
+      }
     },
     onSuccess: () => invalidateOrder(),
     onError: (err: Error) => toast.error(`Failed to add item: ${normalizeError(err).message}`),
@@ -476,29 +424,11 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
   // ========== MUTATION: Update quantity ==========
   const updateQuantityMutation = useMutation({
     mutationFn: async ({ itemId, quantity }: { itemId: string; quantity: number }) => {
-      if (!transactionId) throw new Error("No active table order");
-
-      if (quantity <= 0) {
-        await supabase.from("pos_transaction_items").delete().eq("id", itemId);
-        const remaining = items.filter(i => i.id !== itemId);
-        await updateTransactionTotals(transactionId, remaining);
-        return;
-      }
-
-      const item = dbItems.find(i => i.id === itemId);
-      if (!item) return;
-
-      const t = calculateItemTotals(quantity, item.unit_price, item.discount_type, item.discount_value || 0, item.tax_rate || 0);
-
-      await supabase
-        .from("pos_transaction_items")
-        .update({ quantity, tax_amount: t.tax_amount, line_total: t.line_total })
-        .eq("id", itemId);
-
-      const updatedItems = items.map(i =>
-        i.id === itemId ? { ...i, quantity, tax_amount: t.tax_amount, line_total: t.line_total } : i
-      );
-      await updateTransactionTotals(transactionId, updatedItems);
+      const intent = currentIntent();
+      const next = quantity <= 0
+        ? intent.filter((l) => l.line_id !== itemId)
+        : intent.map((l) => (l.line_id === itemId ? { ...l, quantity } : l));
+      await syncLines(next);
     },
     onSuccess: () => invalidateOrder(),
     onError: (err: Error) => toast.error(`Failed to update quantity: ${normalizeError(err).message}`),
@@ -507,10 +437,7 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
   // ========== MUTATION: Remove item ==========
   const removeItemMutation = useMutation({
     mutationFn: async (itemId: string) => {
-      if (!transactionId) throw new Error("No active table order");
-      await supabase.from("pos_transaction_items").delete().eq("id", itemId);
-      const remaining = items.filter(i => i.id !== itemId);
-      await updateTransactionTotals(transactionId, remaining);
+      await syncLines(currentIntent().filter((l) => l.line_id !== itemId));
     },
     onSuccess: () => invalidateOrder(),
     onError: (err: Error) => toast.error(`Failed to remove item: ${normalizeError(err).message}`),
@@ -519,52 +446,51 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
   // ========== MUTATION: Apply item discount ==========
   const applyItemDiscountMutation = useMutation({
     mutationFn: async ({ itemId, discount_type, discount_value }: { itemId: string; discount_type: "percent" | "fixed"; discount_value: number }) => {
-      if (!transactionId) throw new Error("No active table order");
-      const item = dbItems.find(i => i.id === itemId);
-      if (!item) return;
-
-      const t = calculateItemTotals(item.quantity, item.unit_price, discount_type, discount_value, item.tax_rate || 0);
-
-      await supabase
-        .from("pos_transaction_items")
-        .update({ discount_type, discount_value, tax_amount: t.tax_amount, line_total: t.line_total })
-        .eq("id", itemId);
-
-      const updatedItems = items.map(i =>
-        i.id === itemId ? { ...i, discount_type, discount_value, tax_amount: t.tax_amount, line_total: t.line_total } : i
+      const next = currentIntent().map((l) =>
+        l.line_id === itemId
+          ? { ...l, discount_type: discount_type === "percent" ? "percentage" : "fixed", discount_value }
+          : l,
       );
-      await updateTransactionTotals(transactionId, updatedItems);
+      await syncLines(next);
     },
     onSuccess: () => invalidateOrder(),
+    onError: (err: Error) => toast.error(`Failed to apply discount: ${normalizeError(err).message}`),
   });
 
   // ========== MUTATION: Update customer on transaction ==========
+  // The customer changes the PRICE (price lists, group discounts), so the
+  // cart is re-quoted server-side after the contact is stamped.
   const updateCustomerMutation = useMutation({
     mutationFn: async (newCustomer: CartCustomer | null) => {
       if (!transactionId) return;
-      await supabase
+      const { error } = await supabase
         .from("pos_transactions")
         .update({
           customer_id: newCustomer?.id || null,
           customer_name: newCustomer?.name || null,
-        })
+        } as any)
         .eq("id", transactionId)
         .eq("branch_id", branchIdRef.current!); // branch-bind
+      if (error) throw error;
+      await syncLines(currentIntent(), { contactId: newCustomer?.id ?? null });
     },
     onSuccess: () => invalidateOrder(),
+    onError: (err: Error) => toast.error(`Failed to set customer: ${normalizeError(err).message}`),
   });
 
   // ========== MUTATION: Update notes ==========
   const updateNotesMutation = useMutation({
     mutationFn: async (newNotes: string) => {
       if (!transactionId) return;
-      await supabase
+      const { error } = await supabase
         .from("pos_transactions")
-        .update({ notes: newNotes })
+        .update({ notes: newNotes } as any)
         .eq("id", transactionId)
         .eq("branch_id", branchIdRef.current!); // branch-bind
+      if (error) throw error;
     },
     onSuccess: () => invalidateOrder(),
+    onError: (err: Error) => toast.error(`Failed to save notes: ${normalizeError(err).message}`),
   });
 
   // ========== Wrapper functions matching usePOSCart interface ==========
@@ -595,20 +521,22 @@ export function useTableOrder({ tableSessionId, registerId, shiftId, tableNumber
   }, [updateNotesMutation]);
 
   const clearCart = useCallback(() => {
-    // In restaurant mode, clearing cart means removing all items (not deleting the transaction)
+    // Restaurant mode: clearing means emptying the bill, not deleting it.
     if (!transactionId) return;
-    // Delete all items
-    supabase
-      .from("pos_transaction_items")
-      .delete()
-      .eq("transaction_id", transactionId)
-      .then(() => {
-        invalidateOrder();
-      });
+    void syncLines([]).catch((err: Error) =>
+      toast.error(`Failed to clear order: ${normalizeError(err).message}`),
+    );
     setCustomer(null);
     setNotes("");
     setCartDiscount(null);
-  }, [transactionId, invalidateOrder]);
+  }, [transactionId, syncLines]);
+
+  // A cart-level discount is money: re-quote instead of adjusting locally.
+  useEffect(() => {
+    if (!transactionId) return;
+    void syncLines(currentIntent()).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartDiscount?.type, cartDiscount?.value]);
 
   // restoreCart is a no-op in persistent mode
   const restoreCart = useCallback((_state: CartState) => {
