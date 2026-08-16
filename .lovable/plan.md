@@ -136,3 +136,21 @@ Phase 9 (offline/retry) since both concern in-flight work at a boundary.
 Repo-wide `vitest src/test` has ~206 pre-existing failures across 123 files
 (hardware transport mocks, card FSM, etc.), none in the product-read,
 table-order or commit paths.
+
+## Instructions for the next agent
+1. **Verify Phase 8 first.** Run
+   `npx vitest run src/test/architecture/pos-multi-terminal-concurrency.test.ts`
+   and confirm against the live DB that: `pos_table_transfers` inserts carry
+   `business_id`; only one `transfer_table_items` overload exists; split/transfer
+   tables have no INSERT/UPDATE/DELETE grant to `authenticated`; every Phase 8
+   routine is revoked from `PUBLIC`/`anon`. Then smoke-test hold→recall, a
+   double-pay of one split portion from two tabs (second must report a
+   conflict), a table merge and a partial item transfer.
+2. **Then resume at Phase 9 (offline / retry behaviour)** — do not jump ahead.
+   Include the two carried items: a "resume this payment" affordance after a
+   payment timeout, and shift close racing an in-flight commit
+   (`close_pos_shift`).
+3. Keep the working rules above: no client money math, no POS-local domain
+   logic, every new SECURITY DEFINER routine revoked from `PUBLIC`/`anon`,
+   every `RETURNS TABLE` seam explicitly cast, one phase closed at a time with
+   its own regression guard, and update this file as each phase closes.
