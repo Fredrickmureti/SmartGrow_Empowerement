@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, MoreHorizontal, Trash2, Star, Edit, ListChecks, AlertTriangle, Clock, Eye } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Star, Edit, ListChecks, AlertTriangle, Clock, Eye, ShieldCheck } from "lucide-react";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { VendorPriceListPeekSheet } from "@/features/purchases/price-lists/VendorPriceListPeekSheet";
@@ -219,7 +219,7 @@ export default function VendorPriceLists() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
@@ -264,6 +264,18 @@ export default function VendorPriceLists() {
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold text-destructive">{stats.expired}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Pending approval
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl font-bold">{stats.pending}</div>
+              <p className="text-xs text-muted-foreground">Not yet pricing POs</p>
             </CardContent>
           </Card>
         </div>
