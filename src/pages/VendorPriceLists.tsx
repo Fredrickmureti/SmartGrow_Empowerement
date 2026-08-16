@@ -106,18 +106,20 @@ export default function VendorPriceLists() {
     setInitialValues(undefined);
   };
 
-  // Check if an entry is expired
-  const isExpired = (validUntil: string | null) => {
-    if (!validUntil) return false;
-    return validUntil < new Date().toISOString().split("T")[0];
-  };
+  // Lifecycle state is server-derived (`effective_status`, ADR 0142 Phase 3).
+  // The browser must not recompute validity windows.
+  const isExpired = (entry: any) => entry.effective_status === "expired";
+  const isExpiringSoon = (entry: any) => entry.effective_status === "expiring_soon";
 
-  const isExpiringSoon = (validUntil: string | null) => {
-    if (!validUntil) return false;
-    const today = new Date();
-    const soon = new Date();
-    soon.setDate(today.getDate() + 30);
-    return validUntil >= today.toISOString().split("T")[0] && validUntil <= soon.toISOString().split("T")[0];
+  const STATUS_LABEL: Record<string, string> = {
+    active: "Active",
+    expiring_soon: "Expiring",
+    expired: "Expired",
+    scheduled: "Scheduled",
+    inactive: "Inactive",
+    draft: "Draft",
+    pending_approval: "Pending approval",
+    rejected: "Rejected",
   };
 
   const filteredList = priceLists.filter((entry) => {
@@ -127,9 +129,13 @@ export default function VendorPriceLists() {
       entry.product?.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesVendor = vendorFilter === "all" || entry.vendor_id === vendorFilter;
     let matchesValidity = true;
-    if (validityFilter === "active") matchesValidity = !isExpired(entry.valid_until);
-    else if (validityFilter === "expiring") matchesValidity = isExpiringSoon(entry.valid_until);
-    else if (validityFilter === "expired") matchesValidity = isExpired(entry.valid_until);
+    if (validityFilter === "active") matchesValidity = entry.effective_status === "active";
+    else if (validityFilter === "expiring") matchesValidity = entry.effective_status === "expiring_soon";
+    else if (validityFilter === "expired") matchesValidity = entry.effective_status === "expired";
+    else if (validityFilter === "scheduled") matchesValidity = entry.effective_status === "scheduled";
+    else if (validityFilter === "pending")
+      matchesValidity =
+        entry.effective_status === "pending_approval" || entry.effective_status === "draft";
     else if (validityFilter === "preferred") matchesValidity = entry.is_preferred;
     return matchesSearch && matchesVendor && matchesValidity;
   });
@@ -146,7 +152,8 @@ export default function VendorPriceLists() {
       { key: "preferred", header: "Preferred", width: 10 },
       { key: "valid_from", header: "Valid From", width: 12, format: "date" },
       { key: "valid_until", header: "Valid Until", width: 12, format: "date" },
-      { key: "status", header: "Status", width: 10 },
+      { key: "status", header: "Status", width: 16 },
+      { key: "rank", header: "Sourcing Rank", width: 12, format: "number" },
     ];
 
     const rows = filteredList.map((e) => ({
@@ -160,12 +167,13 @@ export default function VendorPriceLists() {
       preferred: e.is_preferred ? "Yes" : "No",
       valid_from: e.valid_from || "",
       valid_until: e.valid_until || "",
-      status: !e.is_active ? "Inactive" : isExpired(e.valid_until) ? "Expired" : "Active",
+      status: STATUS_LABEL[e.effective_status] ?? e.effective_status,
+      rank: e.preferred_rank,
     }));
 
     return {
-      title: "Vendor Price Lists",
-      sheetName: "vendor-price-lists",
+      title: "Supplier Conditions",
+      sheetName: "supplier-conditions",
       columns,
       rows,
     };
@@ -173,28 +181,16 @@ export default function VendorPriceLists() {
 
   // Stats
   const stats = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const soon = new Date();
-    soon.setDate(soon.getDate() + 30);
-    const soonStr = soon.toISOString().split("T")[0];
-
-    const active = priceLists.filter(
-      (e) => e.is_active && (!e.valid_until || e.valid_until >= today)
-    );
-    const expiringSoon = priceLists.filter(
-      (e) => e.is_active && e.valid_until && e.valid_until >= today && e.valid_until <= soonStr
-    );
-    const expired = priceLists.filter(
-      (e) => e.valid_until && e.valid_until < today
-    );
-    const preferred = priceLists.filter((e) => e.is_preferred);
+    const by = (status: string) =>
+      priceLists.filter((e) => e.effective_status === status).length;
 
     return {
       total: priceLists.length,
-      active: active.length,
-      expiringSoon: expiringSoon.length,
-      expired: expired.length,
-      preferred: preferred.length,
+      active: by("active"),
+      expiringSoon: by("expiring_soon"),
+      expired: by("expired"),
+      pending: by("pending_approval") + by("draft"),
+      preferred: priceLists.filter((e) => e.is_preferred).length,
     };
   }, [priceLists]);
 
@@ -204,12 +200,12 @@ export default function VendorPriceLists() {
         <div className="page-header">
           <div className="flex items-center gap-2">
             <div>
-              <h1 className="page-title">Vendor Price Lists</h1>
+              <h1 className="page-title">Supplier Conditions</h1>
               <p className="text-sm sm:text-base text-muted-foreground">
-                Track vendor pricing, lead times, and minimum order quantities
+                The commercial conditions under which a supplier supplies a product — price, price breaks, currency, purchase unit, minimum quantity, order increment and lead time
               </p>
             </div>
-            <RefreshButton queryKeyPrefixes={[["vendor-pricelists"]]} tooltip="Refresh price lists" />
+            <RefreshButton queryKeyPrefixes={[["vendor-pricelists"]]} tooltip="Refresh supplier conditions" />
           </div>
           <div className="flex gap-2 flex-wrap">
             <ReportExportButtons
@@ -217,7 +213,7 @@ export default function VendorPriceLists() {
               formats={["excel", "csv", "print", "pdf"]}
             />
             <Button onClick={handleOpenCreate}>
-              <Plus className="mr-2 h-4 w-4" /> Add Price Entry
+              <Plus className="mr-2 h-4 w-4" /> New condition
             </Button>
           </div>
         </div>
@@ -301,8 +297,10 @@ export default function VendorPriceLists() {
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="preferred">Preferred</SelectItem>
+              <SelectItem value="scheduled">Scheduled</SelectItem>
               <SelectItem value="expiring">Expiring Soon</SelectItem>
               <SelectItem value="expired">Expired</SelectItem>
+              <SelectItem value="pending">Pending approval</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -329,12 +327,12 @@ export default function VendorPriceLists() {
               ) : filteredList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    No price list entries found. Add one to start tracking vendor pricing.
+                    No supplier conditions found. Add one to define how a supplier supplies a product.
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredList.map((entry) => (
-                  <TableRow key={entry.id} className={`cursor-pointer ${isExpired(entry.valid_until) ? "opacity-60" : ""}`} onClick={() => setViewingEntry(entry)}>
+                  <TableRow key={entry.id} className={`cursor-pointer ${isExpired(entry) ? "opacity-60" : ""}`} onClick={() => setViewingEntry(entry)}>
                     <TableCell className="font-medium">{entry.vendor?.name || "—"}</TableCell>
                     <TableCell>
                       <div>
@@ -364,22 +362,23 @@ export default function VendorPriceLists() {
                       <div className="flex items-center gap-1 flex-wrap">
                         {entry.is_preferred && (
                           <Badge variant="default" className="bg-amber-500 text-white text-[10px] px-1.5">
-                            <Star className="h-3 w-3 mr-0.5" /> Preferred
+                            <Star className="h-3 w-3 mr-0.5" /> Rank {entry.preferred_rank}
                           </Badge>
                         )}
-                        {isExpired(entry.valid_until) && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5">
-                            Expired
-                          </Badge>
-                        )}
-                        {!isExpired(entry.valid_until) && isExpiringSoon(entry.valid_until) && (
-                          <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] px-1.5">
-                            Expiring
-                          </Badge>
-                        )}
-                        {!entry.is_active && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5">Inactive</Badge>
-                        )}
+                        <Badge
+                          variant={
+                            entry.effective_status === "expired" || entry.effective_status === "rejected"
+                              ? "destructive"
+                              : entry.effective_status === "active"
+                              ? "default"
+                              : entry.effective_status === "inactive"
+                              ? "secondary"
+                              : "outline"
+                          }
+                          className="text-[10px] px-1.5"
+                        >
+                          {STATUS_LABEL[entry.effective_status] ?? entry.effective_status}
+                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -396,9 +395,13 @@ export default function VendorPriceLists() {
                           <DropdownMenuItem onClick={() => handleOpenEdit(entry)}>
                             <Edit className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
-                          {!entry.is_preferred && (
-                            <DropdownMenuItem onClick={() => updatePriceList({ id: entry.id, is_preferred: true })}>
-                              <Star className="mr-2 h-4 w-4" /> Set as Preferred
+                          {entry.preferred_rank > 1 && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updatePriceList({ id: entry.id, is_preferred: true, preferred_rank: 1 })
+                              }
+                            >
+                              <Star className="mr-2 h-4 w-4" /> Make primary source
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
