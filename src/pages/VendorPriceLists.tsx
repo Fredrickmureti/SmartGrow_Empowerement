@@ -149,6 +149,7 @@ export default function VendorPriceLists() {
 
   const STATUS_LABEL: Record<string, string> = {
     active: "Active",
+</dummy>
     expiring_soon: "Expiring",
     expired: "Expired",
     scheduled: "Scheduled",
