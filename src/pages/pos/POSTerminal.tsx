@@ -190,6 +190,7 @@ function POSTerminalInner() {
     filteredProducts, 
     categories, 
     isLoading: productsLoading,
+    errorMessage: productsErrorMessage,
     searchQuery,
     setSearchQuery,
     selectedCategory,
@@ -1797,6 +1798,7 @@ function POSTerminalInner() {
         setSelectedCategory={setSelectedCategory}
         filteredProducts={filteredProducts}
         productsLoading={productsLoading}
+        productsErrorMessage={productsErrorMessage}
         productsLoadedCount={productsLoadedCount}
         productsTotalCount={productsTotalCount}
         productsHasMore={productsHasMore}
