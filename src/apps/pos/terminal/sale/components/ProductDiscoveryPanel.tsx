@@ -20,6 +20,8 @@ export interface ProductDiscoveryPanelProps {
   setSelectedCategory: (cat: string | null) => void;
   filteredProducts: POSProduct[];
   productsLoading: boolean;
+  /** Message from a failed canonical product read, if any. */
+  productsErrorMessage?: string | null;
   productsLoadedCount: number;
   productsTotalCount: number | null;
   productsHasMore: boolean;
@@ -51,6 +53,7 @@ export function ProductDiscoveryPanel({
   setSelectedCategory,
   filteredProducts,
   productsLoading,
+  productsErrorMessage,
   productsLoadedCount,
   productsTotalCount,
   productsHasMore,
@@ -142,6 +145,13 @@ export function ProductDiscoveryPanel({
                 )}
               />
             ))
+          ) : productsErrorMessage ? (
+            <div className="col-span-full text-center py-12 space-y-1">
+              <p className="text-sm font-medium text-destructive">
+                Product catalogue could not be loaded
+              </p>
+              <p className="text-xs text-muted-foreground">{productsErrorMessage}</p>
+            </div>
           ) : filteredProducts.length === 0 ? (
             <div className="col-span-full text-center py-12 text-muted-foreground">
               No products found
