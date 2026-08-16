@@ -122,22 +122,36 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const branchId = currentBranch?.id ?? null;
 
-  const { data, isLoading } = useQuery<POSProduct[]>({
+  const { data, isLoading, error } = useQuery<POSProduct[]>({
     queryKey: ["pos-products", currentOrg?.id, currentBusiness?.id, branchId],
     enabled: !!currentOrg?.id && !!currentBusiness?.id,
     staleTime: 15_000,
+    retry: false,
     queryFn: async () => {
-      const { data: rows, error } = await supabase.rpc(
-        "list_products_with_branch_stock" as any,
-        {
+      const read = async (branch: string | null) =>
+        await supabase.rpc("list_products_with_branch_stock" as any, {
           p_org_id: currentOrg!.id,
           p_business_id: currentBusiness!.id,
-          p_branch_id: branchId,
+          p_branch_id: branch,
           p_include_variant_parents: false,
           p_warehouse_id: null,
-        } as any,
-      );
-      if (error) throw error;
+        } as any);
+
+      let { data: rows, error: rpcError } = await read(branchId);
+
+      // Self-heal a stale/foreign branch selection (ERRCODE 22023 raised by
+      // the canonical seam). The catalog is business-scoped; only the stock
+      // columns are branch-grained, so an unscoped read is a safe fallback
+      // rather than showing an empty terminal.
+      if (rpcError && (rpcError as any).code === "22023" && branchId) {
+        console.error("[POS] branch-scoped product read rejected, retrying unscoped", rpcError);
+        ({ data: rows, error: rpcError } = await read(null));
+      }
+
+      if (rpcError) {
+        console.error("[POS] list_products_with_branch_stock failed", rpcError);
+        throw rpcError;
+      }
       return ((rows as any[]) || []).map(mapCanonicalProductRow);
     },
   });
@@ -204,6 +218,8 @@ export function usePOSProducts(registerScope?: RegisterProductScope) {
     filteredProducts,
     categories,
     isLoading,
+    error: (error as { message?: string } | null) ?? null,
+    errorMessage: error ? ((error as any).message ?? "Product catalogue failed to load") : null,
     searchQuery,
     setSearchQuery,
     selectedCategory,
