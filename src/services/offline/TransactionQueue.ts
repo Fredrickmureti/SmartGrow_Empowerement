@@ -477,6 +477,7 @@ class TransactionQueueService {
       ...transaction,
       status: "pending",
       attempts: 0,
+      nextAttemptAt: undefined,
       error: undefined,
     });
 
