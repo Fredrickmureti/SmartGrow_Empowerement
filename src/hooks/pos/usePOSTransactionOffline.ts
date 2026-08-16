@@ -66,6 +66,13 @@ export interface CompleteTransactionData {
   cashier_id?: string | null;
   cart: CartState;
   payments: PaymentMethod[];
+  /**
+   * Phase 7 — cart-level discount intent. Forwarded to the commit envelope so
+   * `pos_payment_session_commit` can re-quote the basket with `pos_quote_cart`
+   * and prove the session's grand total. Omitting it when a cart discount is
+   * active makes the server price the cart higher and the commit fails closed.
+   */
+  cart_discount?: { type: "percent" | "fixed"; value: number } | null;
   transaction_type?: "sale" | "return" | "exchange";
   table_session_id?: string;
   tip_amount?: number;
