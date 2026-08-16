@@ -97,8 +97,21 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         unit_price: Number(row.unit_price ?? 0),
         currency: row.currency_code,
         min_order_qty: Number(row.min_order_qty ?? 1),
+        order_increment:
+          row.order_increment === null || row.order_increment === undefined
+            ? null
+            : Number(row.order_increment),
+        purchase_uom_id: row.purchase_uom_id ?? null,
+        price_break_tiers: Array.isArray(row.price_break_tiers)
+          ? (row.price_break_tiers as any[]).map((t) => ({
+              min_qty: Number(t?.min_qty ?? 0),
+              unit_price: Number(t?.unit_price ?? 0),
+            }))
+          : [],
         lead_time_days: Number(row.lead_time_days ?? 0),
         is_preferred: Number(row.preferred_rank ?? 10) <= 1,
+        preferred_rank: Number(row.preferred_rank ?? 10),
+        approval_status: (row.approval_status ?? "approved") as VendorPriceList["approval_status"],
         valid_from: row.effective_from,
         valid_until: row.effective_to,
         notes: row.notes,
@@ -108,6 +121,7 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         vendor: row.supplier?.contact ?? null,
         product: row.product ?? null,
       }));
+
     },
     enabled: !!organizationId && !!businessId,
   });
