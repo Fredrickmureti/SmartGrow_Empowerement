@@ -74,7 +74,15 @@ export function BillSplitDialog({
     }
   };
 
-  const equalAmounts = calculateEqualSplit(totalAmount, splitCount);
+  // UI PREVIEW ONLY — the authoritative per-portion amounts are computed by
+  // `create_pos_split_bill` on the server and read back from `splitBill`.
+  const equalAmounts = (() => {
+    const base = Math.floor((totalAmount / splitCount) * 100) / 100;
+    const remainder = Math.round((totalAmount - base * splitCount) * 100) / 100;
+    const amounts = Array(splitCount).fill(base);
+    if (remainder > 0) amounts[0] = Math.round((amounts[0] + remainder) * 100) / 100;
+    return amounts as number[];
+  })();
   const unpaidPortions = getUnpaidPortions();
 
   return (
