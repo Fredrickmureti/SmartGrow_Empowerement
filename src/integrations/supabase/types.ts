@@ -88915,6 +88915,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_pos_split_item: {
+        Args: {
+          p_portion_id: string
+          p_quantity: number
+          p_transaction_item_id: string
+        }
+        Returns: Json
+      }
       assign_procurement_recommendation: {
         Args: { p_assignee: string; p_rec_id: string }
         Returns: undefined
@@ -89462,6 +89470,39 @@ export type Database = {
       }
       cancel_pick_wave: {
         Args: { p_reason?: string; p_wave_id: string }
+        Returns: Json
+      }
+      cancel_pos_held_transaction: {
+        Args: { p_held_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          held_at: string
+          held_by: string | null
+          id: string
+          items: Json
+          notes: string | null
+          organization_id: string
+          register_id: string
+          resumed_transaction_id: string | null
+          shift_id: string
+          status: string
+          subtotal: number | null
+          tax_snapshot: Json | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_held_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_pos_split_bill: {
+        Args: { p_split_bill_id: string }
         Returns: Json
       }
       cancel_procurement_approval: {
@@ -90973,6 +91014,14 @@ export type Database = {
           _user_id?: string
         }
         Returns: string
+      }
+      create_pos_split_bill: {
+        Args: {
+          p_split_count: number
+          p_split_type: string
+          p_table_session_id: string
+        }
+        Returns: Json
       }
       create_procurement_contract: {
         Args: {
@@ -94609,6 +94658,40 @@ export type Database = {
           setting_key: string
         }[]
       }
+      hold_pos_transaction: {
+        Args: {
+          p_cart: Json
+          p_notes?: string
+          p_register_id: string
+          p_shift_id: string
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          held_at: string
+          held_by: string | null
+          id: string
+          items: Json
+          notes: string | null
+          organization_id: string
+          register_id: string
+          resumed_transaction_id: string | null
+          shift_id: string
+          status: string
+          subtotal: number | null
+          tax_snapshot: Json | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_held_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       hr_list_failed_onboarding_attempts: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -95644,16 +95727,29 @@ export type Database = {
         Args: { p_ids: string[] }
         Returns: string
       }
-      merge_table_orders: {
-        Args: {
-          p_notes?: string
-          p_organization_id: string
-          p_source_session_id: string
-          p_target_session_id: string
-          p_user_id?: string
-        }
-        Returns: Json
-      }
+      merge_table_orders:
+        | {
+            Args: {
+              p_notes?: string
+              p_organization_id: string
+              p_source_session_id: string
+              p_target_session_id: string
+              p_user_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_expected_source_version?: number
+              p_expected_target_version?: number
+              p_notes?: string
+              p_organization_id: string
+              p_source_session_id: string
+              p_target_session_id: string
+              p_user_id?: string
+            }
+            Returns: Json
+          }
       migrate_components_to_rules: {
         Args: { p_structure_id: string }
         Returns: {
@@ -95934,6 +96030,10 @@ export type Database = {
           p_statement_cadence?: string
           p_tax_id?: string
         }
+        Returns: Json
+      }
+      pay_pos_split_portion: {
+        Args: { p_portion_id: string; p_transaction_id?: string }
         Returns: Json
       }
       payment_is_bank_reconciled: {
@@ -98069,6 +98169,10 @@ export type Database = {
         }
         Returns: Json
       }
+      pos_recalc_split_portion: {
+        Args: { p_portion_id: string }
+        Returns: number
+      }
       pos_reconcile_register_period: {
         Args: { p_actual_cash: number; p_notes?: string; p_shift_id: string }
         Returns: string
@@ -98191,6 +98295,15 @@ export type Database = {
       pos_revoke_scanner_pairing: {
         Args: { p_register_id: string }
         Returns: number
+      }
+      pos_split_bill_session: {
+        Args: { p_split_bill_id: string }
+        Returns: {
+          branch_id: string
+          business_id: string
+          organization_id: string
+          session_id: string
+        }[]
       }
       pos_sync_table_order: {
         Args: {
@@ -99591,6 +99704,10 @@ export type Database = {
         }
       }
       remove_device: { Args: { p_device_id: string }; Returns: boolean }
+      remove_pos_split_item: {
+        Args: { p_split_bill_item_id: string }
+        Returns: Json
+      }
       remove_supplier_from_asl: {
         Args: {
           p_category_id: string
@@ -102420,6 +102537,8 @@ export type Database = {
           }
         | {
             Args: {
+              p_expected_source_version?: number
+              p_expected_target_version?: number
               p_items: Json
               p_notes?: string
               p_organization_id: string
