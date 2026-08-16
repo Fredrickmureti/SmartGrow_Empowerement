@@ -149,40 +149,6 @@ export function useLandedCostVouchers() {
   return { rows, loading, error, refresh: fetchRows };
 }
 
-export interface LandedCostKpis {
-  drafts: number;
-  awaitingPosting: number;
-  posted: number;
-  unpostedValue: number;
-  capitalizedValue: number;
-  expensedValue: number;
-}
-
-export function landedCostKpis(rows: LandedCostVoucherRow[]): LandedCostKpis {
-  const kpi: LandedCostKpis = {
-    drafts: 0,
-    awaitingPosting: 0,
-    posted: 0,
-    unpostedValue: 0,
-    capitalizedValue: 0,
-    expensedValue: 0,
-  };
-  for (const r of rows) {
-    if (r.status === "draft" || r.status === "pending_approval") kpi.drafts += 1;
-    if (r.status === "allocated") {
-      kpi.awaitingPosting += 1;
-      kpi.unpostedValue += Number(r.total_base_amount ?? 0);
-    }
-    if (r.status === "draft") kpi.unpostedValue += Number(r.total_base_amount ?? 0);
-    if (r.status === "posted") {
-      kpi.posted += 1;
-      kpi.capitalizedValue += Number(r.capitalized_amount ?? 0);
-      kpi.expensedValue += Number(r.expensed_amount ?? 0);
-    }
-  }
-  return kpi;
-}
-
 /* ------------------------------------------------------------------ *
  * Record
  * ------------------------------------------------------------------ */

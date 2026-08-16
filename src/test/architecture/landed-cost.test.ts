@@ -103,4 +103,21 @@ describe("landed cost architecture", () => {
       ).toBe(false);
     }
   });
+  it("does not keep a competing landed-cost total in the browser", () => {
+    for (const f of files) {
+      // Money and lifecycle counts come from the server-side aggregates
+      // (landed_cost_workspace_summary / _clearing_exposure / _receipt_summary),
+      // never from a reduce over whichever page of rows the client holds.
+      expect(
+        /\.reduce\((?:[^)]*)(capitalized_amount|expensed_amount|total_base_amount|allocated_amount)/.test(
+          f.source,
+        ),
+        `${f.name} sums landed-cost money client-side — read a server-side aggregate instead`,
+      ).toBe(false);
+      expect(
+        /rows\.filter\([^)]*\)\.length/.test(f.source),
+        `${f.name} counts lifecycle buckets from a paged row set — use landed_cost_workspace_summary`,
+      ).toBe(false);
+    }
+  });
 });

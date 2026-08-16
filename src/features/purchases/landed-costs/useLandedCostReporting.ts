@@ -13,6 +13,7 @@ import {
   fetchLandedCostClearingExposure,
   fetchLandedCostReceiptSummary,
   fetchLandedCostValuationAttribution,
+  fetchLandedCostWorkspaceSummary,
 } from "./landedCostRpcs";
 
 export interface LandedCostReceiptSummary {
@@ -122,4 +123,45 @@ export function useLandedCostClearingExposure() {
   });
 
   return { exposure: query.data ?? null, loading: query.isLoading };
+}
+
+export interface LandedCostWorkspaceSummary {
+  captureCount: number;
+  allocatedCount: number;
+  postedCount: number;
+  closedCount: number;
+  totalCount: number;
+  unpostedAmount: number;
+  capitalizedAmount: number;
+  expensedAmount: number;
+}
+
+/**
+ * Lifecycle counts and money for the whole business, aggregated by the
+ * database. The workbench renders these figures; it never re-sums the voucher
+ * rows it happens to have paged in.
+ */
+export function useLandedCostWorkspaceSummary() {
+  const { currentBusiness } = useBusinesses();
+  const bizId = currentBusiness?.id ?? null;
+
+  const query = useQuery({
+    queryKey: ["landed-cost-workspace-summary", bizId],
+    enabled: !!bizId,
+    queryFn: async (): Promise<LandedCostWorkspaceSummary> => {
+      const raw = await fetchLandedCostWorkspaceSummary(bizId!);
+      return {
+        captureCount: Number(raw.capture_count ?? 0),
+        allocatedCount: Number(raw.allocated_count ?? 0),
+        postedCount: Number(raw.posted_count ?? 0),
+        closedCount: Number(raw.closed_count ?? 0),
+        totalCount: Number(raw.total_count ?? 0),
+        unpostedAmount: Number(raw.unposted_amount ?? 0),
+        capitalizedAmount: Number(raw.capitalized_amount ?? 0),
+        expensedAmount: Number(raw.expensed_amount ?? 0),
+      };
+    },
+  });
+
+  return { summary: query.data ?? null, loading: query.isLoading, refresh: query.refetch };
 }
