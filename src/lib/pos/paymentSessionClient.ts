@@ -313,6 +313,44 @@ export async function cancelSession(args: CancelSessionArgs): Promise<void> {
 }
 
 /**
+ * Phase 9 — recovery seam.
+ *
+ * Lists the payment sessions still `open` on a register so the terminal can
+ * offer a "resume / cancel" affordance after a crash, reload, network drop or
+ * payment timeout. Read-only, SECURITY DEFINER, branch-access checked by the
+ * RPC; the browser never derives allocated/remaining itself.
+ */
+export interface OpenPaymentSession {
+  session_id: string;
+  idempotency_key: string;
+  grand_total: number;
+  tip_amount: number;
+  currency: string;
+  allocated: number;
+  remaining: number;
+  tender_count: number;
+  cashier_id: string | null;
+  opened_at: string | null;
+  age_seconds: number;
+}
+
+export async function listOpenSessions(registerId: string): Promise<OpenPaymentSession[]> {
+  const { data, error } = await supabase.rpc("pos_register_open_payment_sessions", {
+    p_register_id: registerId,
+  });
+  if (error) throwRpcError("pos_register_open_payment_sessions", error);
+  return ((data ?? []) as unknown as OpenPaymentSession[]).map((row) => ({
+    ...row,
+    grand_total: Number(row.grand_total ?? 0),
+    tip_amount: Number(row.tip_amount ?? 0),
+    allocated: Number(row.allocated ?? 0),
+    remaining: Number(row.remaining ?? 0),
+    tender_count: Number(row.tender_count ?? 0),
+    age_seconds: Number(row.age_seconds ?? 0),
+  }));
+}
+
+/**
  * Grouped export — some call sites prefer namespaced access
  * (`paymentSessionClient.commit(...)`), others prefer named imports.
  * Both surfaces resolve to the same functions.
@@ -324,4 +362,5 @@ export const paymentSessionClient = {
   reverseTender,
   commitSession,
   cancelSession,
+  listOpenSessions,
 };

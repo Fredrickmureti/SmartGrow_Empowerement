@@ -63,7 +63,64 @@ export interface OfflineTransactionData {
 }
 
 const MAX_RETRY_ATTEMPTS = 5;
+/** Base unit of the exponential backoff schedule (attempt 1 waits this long). */
 const RETRY_DELAY_MS = 5000;
+/** Cap so a long-offline queue still drains promptly once connectivity returns. */
+const MAX_RETRY_DELAY_MS = 5 * 60_000;
+/** Politeness gap between two rows in the same drain. */
+const INTER_SYNC_GAP_MS = 100;
+
+/**
+ * Phase 9 — exponential backoff with jitter.
+ *
+ * attempt 1 → ~5s, 2 → ~10s, 3 → ~20s, 4 → ~40s, capped at 5 min.
+ * Jitter (±20%) prevents a whole store's terminals from re-drumming the
+ * server in lockstep after a shared outage.
+ */
+export function backoffDelayMs(attempt: number, random: () => number = Math.random): number {
+  const base = Math.min(RETRY_DELAY_MS * 2 ** Math.max(0, attempt - 1), MAX_RETRY_DELAY_MS);
+  const jitter = base * 0.2 * (random() * 2 - 1);
+  return Math.max(0, Math.round(base + jitter));
+}
+
+/**
+ * Phase 9 — error classification.
+ *
+ * A *permanent* error is one the server will reject identically on every
+ * replay: a closed till (`shift_closed`), a violated business invariant
+ * (check/unique constraint), an access denial, or a malformed envelope.
+ * Retrying those only delays the operator seeing the truth and burns the
+ * retry budget. Everything else (network, timeout, 5xx, unknown) is treated
+ * as transient — the safest default, because replay is idempotent: the
+ * session apply-log collapses a duplicate commit onto the same transaction.
+ */
+const PERMANENT_ERROR_PATTERNS: RegExp[] = [
+  /shift_closed/i,
+  /till_closed/i,
+  /check_violation/i,
+  /violates check constraint/i,
+  /foreign key constraint/i,
+  /not-null constraint/i,
+  /invalid input syntax/i,
+  /permission denied/i,
+  /access denied/i,
+  /override_required/i,
+  /session_not_open/i,
+  /total mismatch/i,
+];
+
+const PERMANENT_SQLSTATES = new Set(["23514", "23502", "23503", "22P02", "42501", "42883"]);
+
+export function isPermanentError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  if (typeof code === "string" && PERMANENT_SQLSTATES.has(code)) return true;
+  const message = [
+    error instanceof Error ? error.message : String(error ?? ""),
+    (error as { details?: string } | null)?.details ?? "",
+    (error as { hint?: string } | null)?.hint ?? "",
+  ].join(" ");
+  return PERMANENT_ERROR_PATTERNS.some((re) => re.test(message));
+}
 
 export interface FailedTransactionInfo {
   id: string;
@@ -170,11 +227,23 @@ class TransactionQueueService {
   }
 
   /**
-   * Get all pending transactions
+   * Get all pending transactions.
+   *
+   * `failed` rows are terminal: a permanent server rejection (or an exhausted
+   * retry budget) must be resolved by an operator through `retryTransaction`,
+   * not silently re-driven by the next drain.
    */
   async getPendingTransactions(): Promise<QueuedTransaction[]> {
     const all = await offlineStorage.getAll<QueuedTransaction>(STORES.TRANSACTIONS_QUEUE);
-    return all.filter((t) => t.status === "pending" || t.status === "failed");
+    return all.filter((t) => t.status === "pending");
+  }
+
+  /** Rows eligible right now — respects the exponential backoff schedule. */
+  async getDueTransactions(now = Date.now()): Promise<QueuedTransaction[]> {
+    const pending = await this.getPendingTransactions();
+    return pending.filter(
+      (t) => !t.nextAttemptAt || new Date(t.nextAttemptAt).getTime() <= now,
+    );
   }
 
   /**
@@ -298,14 +367,21 @@ class TransactionQueueService {
       console.error(`Failed to sync transaction ${queued.id}:`, error);
 
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      const isPermanentlyFailed = queued.attempts + 1 >= MAX_RETRY_ATTEMPTS;
+      // Phase 9 — a permanent rejection must not burn MAX_RETRY_ATTEMPTS
+      // against the server: the outcome cannot change by retrying.
+      const permanent = isPermanentError(error);
+      const attempts = queued.attempts + 1;
+      const isPermanentlyFailed = permanent || attempts >= MAX_RETRY_ATTEMPTS;
 
-      // Update with error
+      // Update with error + backoff schedule
       await offlineStorage.put(STORES.TRANSACTIONS_QUEUE, {
         ...queued,
         status: isPermanentlyFailed ? "failed" : "pending",
-        attempts: queued.attempts + 1,
+        attempts,
         lastAttemptAt: new Date().toISOString(),
+        nextAttemptAt: isPermanentlyFailed
+          ? undefined
+          : new Date(Date.now() + backoffDelayMs(attempts)).toISOString(),
         error: errorMessage,
       });
 
@@ -339,8 +415,9 @@ class TransactionQueueService {
         await this.recoverStuckSyncing();
       }
 
-      const pending = await this.getPendingTransactions();
-      
+      // Only rows whose backoff window has elapsed.
+      const pending = await this.getDueTransactions();
+
       // Sort by creation time to maintain order
       pending.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
@@ -352,8 +429,10 @@ class TransactionQueueService {
           failed++;
         }
 
-        // Small delay between syncs to avoid overwhelming the server
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Small delay between syncs to avoid overwhelming the server.
+        // Per-row retry pacing is handled by `nextAttemptAt` (exponential
+        // backoff), not by this inter-row gap.
+        await new Promise((resolve) => setTimeout(resolve, INTER_SYNC_GAP_MS));
       }
     })();
 
@@ -398,6 +477,7 @@ class TransactionQueueService {
       ...transaction,
       status: "pending",
       attempts: 0,
+      nextAttemptAt: undefined,
       error: undefined,
     });
 

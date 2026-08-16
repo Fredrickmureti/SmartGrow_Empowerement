@@ -79,7 +79,12 @@ export function CloseShiftDialog({ open, onOpenChange, shift, onShiftClosed }: C
         supabase.from("v_pos_cash_expected" as any)
           .select("opening_cash, cash_sales, cash_refunds, movements_net, expected_cash_computed")
           .eq("shift_id", shift.id).maybeSingle(),
-        supabase.rpc("can_close_pos_shift" as any, { p_shift_id: shift.id } as any),
+        // Phase 9: `pos_till_close_blockers` wraps the legacy gate and adds the
+        // `open_payment_sessions` reason (a session still holding tendered money).
+        // The DB trigger `trg_pos_till_close_payment_guard` enforces the same
+        // boundary regardless of caller — this call is what lets the cashier see
+        // it before submitting instead of after.
+        supabase.rpc("pos_till_close_blockers" as any, { p_till_id: shift.id } as any),
         supabase.from("pos_override_matrix" as any)
           .select("threshold_amount")
           .eq("organization_id", shift.organization_id)
