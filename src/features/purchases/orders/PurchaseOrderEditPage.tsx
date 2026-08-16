@@ -183,6 +183,8 @@ export default function PurchaseOrderEditPage() {
             packaging_id: item.packaging_id ?? null,
             display_quantity: item.display_quantity ?? null,
             display_uom_id: item.display_uom_id ?? null,
+            resolved_unit_price: item.resolved_unit_price ?? null,
+            price_override_reason: item.price_override_reason ?? null,
           }))
         : [
             {
@@ -254,6 +256,7 @@ export default function PurchaseOrderEditPage() {
           patchLineItem(index, {
             quantity: defaults.quantity,
             display_uom_id: defaults.displayUomId,
+            resolved_unit_price: defaults.unitPrice ?? null,
           } as Partial<LineItem>);
         } catch {
           // Advisory at entry time; the submit gate below is authoritative.
@@ -630,6 +633,13 @@ export default function PurchaseOrderEditPage() {
             )}
             footer={
               <div className="flex justify-end">
+                <div className="flex-1 pr-6">
+                  <PriceOverrideReasons
+                    lines={lineItems}
+                    formatCurrency={formatCurrency}
+                    onPatch={(index, patch) => patchLineItem(index, patch as Partial<LineItem>)}
+                  />
+                </div>
                 <div className="w-64 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
