@@ -94183,7 +94183,10 @@ export type Database = {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_grn_number: { Args: { _org_id: string }; Returns: string }
+      get_next_grn_number: {
+        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
+        Returns: string
+      }
       get_next_invoice_number: {
         Args: { _business_id?: string; _org_id: string }
         Returns: string
