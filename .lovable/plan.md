@@ -47,13 +47,41 @@ warehouses — what was missing was a working transfer and a cost to follow.
 Ratchet: `supabase/tests/landed_cost_transfer_lineage_test.sql`.
 Write-up: `docs/audit/2026-08-16-landed-cost-transfer-lineage.md`.
 
+**Goods receipt reversal / return to supplier.** Neither `void_goods_receipt_atomic`
+nor any `purchase_return_*` command knew about landed cost, so capitalised
+charges would have stayed in inventory after the stock left. Decision: **block,
+never auto-reverse** — a posted voucher is an approved accounting document with
+its own governance route.
+
+- `landed_cost_receipt_encumbrance` is the single authority for "does this
+  receipt still carry landed cost"; `landed_cost_receipt_block_reason` renders
+  the operator sentence and `landed_cost_assert_receipt_unencumbered` is the
+  hard guard.
+- `resolve_reversal_intent` is *annotated, not forked*:
+  `_landed_cost_annotate_reversal_intent` decorates the finance authority's
+  goods_receipt verdict (disallows `goods_return`, adds the
+  `landed_cost_encumbered` blocker, recommends `reverse_landed_cost`).
+  `void_goods_receipt_atomic` inherits the block through `assert_can_reverse`.
+- `purchase_return_create` guards at draft time, `purchase_return_dispatch`
+  re-guards at the moment stock leaves.
+- Defect fixed: `purchase_return_dispatch` emitted `movement_type = 'return'`,
+  which the movement vocabulary forbids and neither cost-layer branch consumes —
+  returns could not dispatch at all, and would not have relieved inventory value
+  if they had. Now `vendor_return`, consumed at layer cost (landed cost
+  included), with AVCO re-derived via `inventory_sync_avco_from_layers`.
+
+Verified live and rolled back: a posted voucher yields `encumbered=true`, the
+assert raises, `goods_return` becomes disallowed and `reverse_landed_cost` is
+recommended; the voucher remains `reversed` afterwards.
+
+Ratchet: `supabase/tests/landed_cost_receipt_reversal_guard_test.sql`.
+Write-up: `docs/audit/2026-08-16-landed-cost-receipt-reversal-guard.md`.
+
 ### Pending in Phase B (next work)
 
-1. **Goods receipt reversal / return to supplier** after a landed cost is
-   allocated or posted — currently unguarded; decide between blocking the
-   receipt reversal and auto-reversing the voucher.
-2. **Supplier credit note against a landed-cost bill** — adjust or reverse-and-
+1. **Supplier credit note against a landed-cost bill** — adjust or reverse-and-
    re-post the voucher; must not double-count clearing.
+   This is the last Phase B item; Phase C follows.
 
 ## Phase C — Cleanup — PENDING
 
