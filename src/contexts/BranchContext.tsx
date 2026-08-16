@@ -75,6 +75,10 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const { currentOrg, isLoading: orgLoading } = useOrganization();
   const { currentBusiness, isLoading: businessLoading } = useBusinesses();
   const { user } = useAuth();
+  // Depend on the stable identity, never the session-bound `user` object —
+  // a re-emitted auth event must not re-trigger the branch fetch (and its
+  // isLoading=true flash) for the same signed-in user.
+  const userId = user?.id ?? null;
   const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [currentBranch, setCurrentBranch] = useState<Branch | null>(null);
@@ -127,7 +131,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!currentOrg || !user) {
+    if (!currentOrg || !userId) {
       // Terminal: no auth/org. Safe to mark loaded.
       setBranches([]);
       setCurrentBranch(null);
@@ -150,7 +154,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       // ids + access flags). Identity fields (email/phone/address) are then
       // hydrated via a single follow-up SELECT — never returned as nulls.
       const { data: rpcData, error } = await supabase.rpc("get_user_allowed_branches", {
-        _user_id: user.id,
+        _user_id: userId,
         _business_id: currentBusiness.id,
       });
 
@@ -261,7 +265,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg, currentBusiness, user, orgLoading, businessLoading]);
+  }, [currentOrg, currentBusiness, userId, orgLoading, businessLoading]);
 
   useEffect(() => {
     fetchBranches();
