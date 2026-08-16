@@ -99,6 +99,29 @@ describe("purchasing terms single owner", () => {
     expect(missing).toEqual([]);
   });
 
+  // Phase 3/7 — condition lifecycle state is server-derived.
+  it("does not recompute supplier-condition validity in the browser", () => {
+    const SURFACES = [
+      "src/pages/VendorPriceLists.tsx",
+      "src/features/purchases/price-lists/vendorPriceListView.tsx",
+      "src/features/purchases/price-lists/VendorPriceListPeekSheet.tsx",
+    ];
+    const offenders = SURFACES.filter((rel) => {
+      const file = appFiles.find((f) => f.rel === rel);
+      if (!file) return false;
+      return /(valid_until|valid_from|effective_to|effective_from)[^\n]*(new Date\(\)|Date\.now\(\))/.test(
+        file.body,
+      );
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("reads the server effective status on the conditions workspace", () => {
+    const hook = appFiles.find((f) => f.rel === "src/hooks/useVendorPriceLists.ts");
+    expect(hook).toBeTruthy();
+    expect(hook!.body).toMatch(/effective_status/);
+  });
+
   it("routes Purchases terms reads through the Purchases adapter", () => {
     const ADAPTER = "src/features/purchases/purchasingTerms/purchaseLineTerms.ts";
     const direct = appFiles.filter(

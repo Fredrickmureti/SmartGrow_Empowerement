@@ -38,6 +38,20 @@ export interface VendorPriceList {
   preferred_rank: number;
   /** Governance state of the condition — only 'approved' rows price a PO. */
   approval_status: "draft" | "pending_approval" | "approved" | "rejected";
+  /**
+   * Server-derived lifecycle state (PostgREST computed column
+   * `public.effective_status(supplier_item_terms)`). The browser must never
+   * recompute validity windows — ADR 0142, Phase 3.
+   */
+  effective_status:
+    | "active"
+    | "expiring_soon"
+    | "expired"
+    | "scheduled"
+    | "inactive"
+    | "draft"
+    | "pending_approval"
+    | "rejected";
   valid_from: string | null;
   valid_until: string | null;
   notes: string | null;
@@ -71,6 +85,7 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         .from("supplier_item_terms")
         .select(`
           *,
+          effective_status,
           supplier:suppliers!inner(id, contact_id, contact:contacts!contact_id(id, name)),
           product:products!product_id(id, name, sku)
         `)
@@ -112,6 +127,7 @@ export function useVendorPriceLists(vendorId?: string, productId?: string) {
         is_preferred: Number(row.preferred_rank ?? 10) <= 1,
         preferred_rank: Number(row.preferred_rank ?? 10),
         approval_status: (row.approval_status ?? "approved") as VendorPriceList["approval_status"],
+        effective_status: (row.effective_status ?? "active") as VendorPriceList["effective_status"],
         valid_from: row.effective_from,
         valid_until: row.effective_to,
         notes: row.notes,
