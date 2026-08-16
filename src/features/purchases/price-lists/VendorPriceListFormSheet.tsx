@@ -8,7 +8,7 @@
  * DetailSheet for that record class (see design-system/records.md).
  */
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
