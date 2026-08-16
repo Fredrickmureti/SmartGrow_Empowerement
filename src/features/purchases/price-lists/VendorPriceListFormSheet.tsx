@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
+import { useSellableUnits } from "@/hooks/useSellableUnits";
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
@@ -17,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -34,6 +34,7 @@ interface ProductOption {
   id: string;
   name: string;
   is_active?: boolean;
+  base_uom_id?: string | null;
 }
 
 export interface PriceBreakTierInput {
@@ -50,7 +51,10 @@ export interface VendorPriceListFormValues {
   /** Orderable step above the minimum. 0 / empty means any quantity. */
   order_increment: number;
   price_break_tiers: PriceBreakTierInput[];
+  purchase_uom_id: string | null;
   lead_time_days: number;
+  /** 1 = primary source. Lower ranks are preferred. */
+  preferred_rank: number;
   is_preferred: boolean;
   valid_from: string;
   valid_until: string;
@@ -66,7 +70,9 @@ const defaults = (baseCurrency: string): VendorPriceListFormValues => ({
   min_order_qty: 1,
   order_increment: 0,
   price_break_tiers: [],
+  purchase_uom_id: null,
   lead_time_days: 0,
+  preferred_rank: 10,
   is_preferred: false,
   valid_from: "",
   valid_until: "",
@@ -83,6 +89,8 @@ interface Props {
   vendors: VendorOption[];
   products: ProductOption[];
   baseCurrency: string;
+  /** Currencies the business has enabled. Falls back to the base currency. */
+  currencyOptions?: string[];
   isSubmitting?: boolean;
   onSubmit: (values: VendorPriceListFormValues) => void | Promise<void>;
 }
@@ -95,13 +103,22 @@ export function VendorPriceListFormSheet({
   vendors,
   products,
   baseCurrency,
+  currencyOptions,
   isSubmitting,
   onSubmit,
 }: Props) {
+
   const [values, setValues] = useState<VendorPriceListFormValues>({
     ...defaults(baseCurrency),
     ...initialValues,
   });
+
+  const { unitsForBase } = useSellableUnits();
+  const selectedProduct = products.find((p) => p.id === values.product_id);
+  const unitOptions = unitsForBase(selectedProduct?.base_uom_id ?? null);
+  const currencies = Array.from(
+    new Set([...(currencyOptions ?? []), baseCurrency, values.currency].filter(Boolean)),
+  ) as string[];
 
   useEffect(() => {
     if (open) {
@@ -226,13 +243,21 @@ export function VendorPriceListFormSheet({
             </div>
             <div className="space-y-2">
               <Label>Currency</Label>
-              <Input
-                value={values.currency}
-                onChange={(e) =>
-                  setValues({ ...values, currency: e.target.value.toUpperCase().slice(0, 3) })
-                }
-                placeholder={baseCurrency}
-              />
+              <Select
+                value={values.currency || baseCurrency}
+                onValueChange={(v) => setValues({ ...values, currency: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={baseCurrency} />
+                </SelectTrigger>
+                <SelectContent>
+                  {currencies.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Order increment</Label>
@@ -247,7 +272,29 @@ export function VendorPriceListFormSheet({
               />
             </div>
             <div className="space-y-2">
-              <Label>Lead Time (days)</Label>
+              <Label>Purchase unit</Label>
+              <Select
+                value={values.purchase_uom_id ?? "__base"}
+                onValueChange={(v) =>
+                  setValues({ ...values, purchase_uom_id: v === "__base" ? null : v })
+                }
+                disabled={!values.product_id || unitOptions.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Product base unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__base">Product base unit</SelectItem>
+                  {unitOptions.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.code} — {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Lead time (calendar days)</Label>
               <Input
                 type="number"
                 value={values.lead_time_days}
@@ -255,6 +302,24 @@ export function VendorPriceListFormSheet({
                   setValues({ ...values, lead_time_days: parseInt(e.target.value) || 0 })
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                From purchase-order issue to goods available at the receiving location.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Sourcing rank</Label>
+              <Input
+                type="number"
+                min={1}
+                value={values.preferred_rank}
+                onChange={(e) => {
+                  const rank = Math.max(1, parseInt(e.target.value) || 1);
+                  setValues({ ...values, preferred_rank: rank, is_preferred: rank <= 1 });
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                1 is the primary source; higher numbers are fallbacks.
+              </p>
             </div>
           </FieldGrid>
         </FieldGroup>
@@ -351,18 +416,6 @@ export function VendorPriceListFormSheet({
             </div>
           </FieldGrid>
 
-          <div className="flex items-start gap-2 rounded-lg border border-border p-3">
-            <Checkbox
-              id="is_preferred"
-              checked={values.is_preferred}
-              onCheckedChange={(checked) =>
-                setValues({ ...values, is_preferred: !!checked })
-              }
-            />
-            <Label htmlFor="is_preferred" className="text-sm leading-relaxed">
-              Set as preferred vendor for this product
-            </Label>
-          </div>
         </FieldGroup>
 
         <FieldGroup label="Notes">
