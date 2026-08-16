@@ -12,7 +12,7 @@ Do not repeat completed investigation. Prior wave record:
 | 1 | Product consumption / read seam | ✅ | **closed this pass — F10 fixed (catalogue RPC executes again)** |
 | 2 | UoM & packaging contract | ✅ | packaging/display UoM on the line, server converts |
 | 3 | Inventory availability | ✅ | `pos_register_stock_scope` + branch-grained `stock_quants` |
-| 4 | Pricing / tax authority | ✅ | `pos_resolve_line` + `pos_quote_cart` |
+| 4 | Pricing / tax authority | ✅ | `pos_resolve_line` + `pos_quote_cart` — **live defect F11 found & fixed (see below)** |
 | 4a | POS RPC exposure | ✅ | anon/PUBLIC EXECUTE revoked wave-wide |
 | 4b | Commit idempotency race | ✅ | duplicate submit collapses to replay |
 | 5 | Transaction state machine | ✅ | table orders server-priced |
