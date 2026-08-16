@@ -10301,6 +10301,64 @@ export type Database = {
           },
         ]
       }
+      cost_layer_lineage: {
+        Row: {
+          business_id: string
+          child_layer_id: string
+          consumption_id: string | null
+          created_at: string
+          id: string
+          movement_id: string | null
+          organization_id: string
+          parent_layer_id: string
+          qty: number
+        }
+        Insert: {
+          business_id: string
+          child_layer_id: string
+          consumption_id?: string | null
+          created_at?: string
+          id?: string
+          movement_id?: string | null
+          organization_id: string
+          parent_layer_id: string
+          qty: number
+        }
+        Update: {
+          business_id?: string
+          child_layer_id?: string
+          consumption_id?: string | null
+          created_at?: string
+          id?: string
+          movement_id?: string | null
+          organization_id?: string
+          parent_layer_id?: string
+          qty?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_layer_lineage_child_layer_id_fkey"
+            columns: ["child_layer_id"]
+            isOneToOne: false
+            referencedRelation: "cost_layers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_layer_lineage_consumption_id_fkey"
+            columns: ["consumption_id"]
+            isOneToOne: false
+            referencedRelation: "cost_layer_consumptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_layer_lineage_parent_layer_id_fkey"
+            columns: ["parent_layer_id"]
+            isOneToOne: false
+            referencedRelation: "cost_layers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cost_layers: {
         Row: {
           business_id: string
@@ -94781,6 +94839,13 @@ export type Database = {
           p_source_type: string
         }
         Returns: Json
+      }
+      inventory_cost_layer_descendants: {
+        Args: { p_layer_ids: string[] }
+        Returns: {
+          layer_id: string
+          traced_qty: number
+        }[]
       }
       inventory_gl_readiness: {
         Args: { _business_id: string; _org_id: string }
