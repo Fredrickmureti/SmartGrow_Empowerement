@@ -19,7 +19,57 @@ Do not repeat completed investigation. Prior wave record:
 | 6 | Server-side money authority | ✅ | retail + restaurant quote server-side |
 | 7 | Payment integrity | ✅ | server re-derives payable total at commit |
 | 8 | Concurrency & idempotency (multi-terminal) | ✅ | **closed this pass — F6 fixed** (hold/recall/cancel, split bills, merge/transfer/move) |
-| 9 | Offline / retry behaviour | ⚠ | **active — next** |
+| 9 | Offline / retry behaviour | ⚠ | **active — DB seam landed & verified; client items 1–4 pending** |
+
+## Phase 9 — offline / retry behaviour ⚠ (active)
+
+**Verified this pass (independent re-check of the previous agent's claims — all four DB claims are TRUE):**
+- `pos_register_open_payment_sessions` — exists, SECURITY DEFINER, anon/PUBLIC EXECUTE revoked.
+- `pos_till_close_blockers` — exists, SECURITY DEFINER, anon/PUBLIC revoked.
+- `trg_pos_till_close_payment_guard` — attached to `public.pos_shifts`.
+- `pos_payment_session_commit` — contains the `shift_closed` guard, and it sits
+  *after* the apply-log replay branch (apply-log at char 305, `shift_closed` at 2696),
+  so an offline retry of an already-committed sale still returns its cached envelope.
+- Naming note confirmed: the DDL event trigger `_reject_country_named_function`
+  rejects any routine name containing `shif` (SHIF statutory token) → `*_till_*` naming.
+
+**Not done (client side) — remaining Phase 9 work:**
+1. `src/components/pos/CloseShiftDialog.tsx` still calls `can_close_pos_shift`
+   (line ~82); the new `open_payment_sessions` blocker is never shown, so the cashier
+   only meets the DB trigger error at submit time.
+2. `src/services/offline/TransactionQueue.ts` — `RETRY_DELAY_MS` (5000) declared but
+   unused; `syncAll` uses a flat 100 ms inter-drain delay and every failure burns all
+   5 attempts. No error classification: `shift_closed` / check-violation are permanent
+   and must fail fast.
+3. No `PaymentResumeBanner` — nothing consumes `pos_register_open_payment_sessions`,
+   so a cashier who reloads mid-payment has no resume affordance.
+4. No guard test for any of the above; plan.md carried no Phase 9 record.
+
+## Next steps (this pass — close Phase 9, then Phase 10)
+
+1. **CloseShiftDialog → `pos_till_close_blockers`.** Swap the gate RPC, render the
+   `open_payment_sessions` reason (count + amount tendered) as a blocking row with
+   operator copy. No money math client-side.
+2. **TransactionQueue retry policy.** Use `RETRY_DELAY_MS` as the base for exponential
+   backoff with jitter between drains; classify errors — `shift_closed`,
+   `check_violation`, access denied (42501) and explicit business rejections are
+   permanent → `failed` immediately; transport/5xx/offline are transient → backoff to
+   `MAX_RETRY_ATTEMPTS`. Replay stays idempotent (queued.id remains the key; the
+   apply-log already collapses replays).
+3. **PaymentResumeBanner.** New `src/components/pos/PaymentResumeBanner.tsx` backed by
+   `pos_register_open_payment_sessions`, mounted in the terminal sale surface: lists
+   in-flight sessions with allocated/remaining, offers resume or cancel (existing
+   `pos_payment_session_cancel`, which already refuses to discard captured non-cash
+   money). Read-only + existing RPCs only.
+4. **Guards.** `src/test/architecture/pos-offline-retry-and-resume.test.ts` (no
+   `can_close_pos_shift` left in POS components, backoff + permanent-error
+   classification present, banner reads only the canonical RPC, no new client writes to
+   session tables) and `supabase/tests/pos_till_close_guard_test.sql` (four DB objects,
+   trigger attachment, anon revocation, `shift_closed` check after the replay branch).
+5. Record the Phase 9 verdict here, then start **Phase 10 — returns / void / reversal**
+   (carry the pre-existing `pos-card-fsm.test.ts` failure into that phase).
+
+Out of scope, unchanged: UI redesign, Finance internals, printing subsystem.
 | 10-15 | Returns/void, printing, events, finance, audit, reporting | — | not started |
 
 ## F10 — catalogue RPC return-type mismatch ❌→✅ (Phase 1, fixed this pass)
