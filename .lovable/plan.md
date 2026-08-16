@@ -196,3 +196,30 @@ Do these in order:
 Repo-wide `vitest src/test` currently has ~206 pre-existing failures across 123
 files (hardware transport mocks, card FSM, etc.). None are in the table-order,
 product-read or commit paths touched by this pass.
+
+## F7 — POS grid showed an empty catalogue (operator report, this pass)
+
+Server side is clean: business `bf392ca6…` has 4 active, non-variant-parent
+products; the single branch belongs to that business; `stock_quants` are
+positive; `list_products_with_branch_stock(uuid,uuid,uuid,boolean,uuid)` is a
+single overload with EXECUTE for `authenticated` + `service_role` only
+(anon correctly denied, verified by REST probe returning 42501).
+
+Root-cause class: the read seam **swallowed failures**. `usePOSProducts`
+threw the RPC error into react-query and the grid rendered the generic
+"No products found" empty state — an access/branch-scope error and an empty
+catalogue were indistinguishable to the operator, and nothing was logged.
+
+Fix (implemented):
+- `usePOSProducts` now logs the RPC error, retries once **unscoped** when the
+  seam raises `22023` (stale/foreign branch id from `BranchContext`
+  localStorage), sets `retry: false`, and returns `error` / `errorMessage`.
+- `POSTerminal → SaleWorkspace → ProductDiscoveryPanel` plumb
+  `productsErrorMessage`; a failed read now renders a distinct destructive
+  state instead of "No products found".
+- Guard test `pos-product-read-seam.test.ts` still passes (RPC-only read).
+
+Next agent: if the grid is still empty for a signed-in operator, the terminal
+now displays the exact RPC error — capture it before further investigation.
+Then resume Phase 8 (multi-terminal concurrency: held / split / merge /
+transfer, see F6).
