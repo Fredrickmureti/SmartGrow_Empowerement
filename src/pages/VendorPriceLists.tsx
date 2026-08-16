@@ -317,6 +317,13 @@ export default function VendorPriceLists() {
           </Card>
         </div>
 
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "conditions" | "coverage")}>
+          <TabsList>
+            <TabsTrigger value="conditions">Conditions</TabsTrigger>
+            <TabsTrigger value="coverage">Coverage</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="conditions" className="space-y-4">
         <div className="filter-bar">
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -350,6 +357,7 @@ export default function VendorPriceLists() {
               <SelectItem value="expiring">Expiring Soon</SelectItem>
               <SelectItem value="expired">Expired</SelectItem>
               <SelectItem value="pending">Pending approval</SelectItem>
+              <SelectItem value="inactive">Suspended</SelectItem>
             </SelectContent>
           </Select>
         </div>
