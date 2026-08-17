@@ -360,8 +360,7 @@ export async function fetchAndBuildCountDocumentSnapshot(
     .select(
       `id, code, state, strategy, is_blind, notes, organization_id, business_id,
        branch_id, warehouse_id, physical_count_id, requires_approval,
-       created_at, posted_at,
-       warehouses(name, code)`,
+       created_at, posted_at`,
     )
     .eq("id", sessionId)
     .maybeSingle();
@@ -374,15 +373,20 @@ export async function fetchAndBuildCountDocumentSnapshot(
     );
   }
 
-  const raw = sessionRow as unknown as CountSessionHeaderRow & {
-    warehouses?: { name: string | null; code: string | null } | null;
-  };
+  const raw = sessionRow as unknown as CountSessionHeaderRow;
 
-  const session: CountSessionHeaderRow = {
-    ...raw,
-    warehouse_name: raw.warehouses?.name ?? null,
-    warehouse_code: raw.warehouses?.code ?? null,
-  };
+  const session: CountSessionHeaderRow = { ...raw };
+
+  if (session.warehouse_id) {
+    const { data: wh } = await client
+      .from("warehouses")
+      .select("name, code")
+      .eq("id", session.warehouse_id)
+      .maybeSingle();
+    const w = wh as { name?: string | null; code?: string | null } | null;
+    session.warehouse_name = w?.name ?? null;
+    session.warehouse_code = w?.code ?? null;
+  }
 
   if (session.physical_count_id) {
     const { data: pc } = await client
