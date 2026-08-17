@@ -223,6 +223,13 @@ export default function CountReview() {
             difference and will need a manager's approval in Inventory before stock moves.
           </div>
         )}
+        {needsApproval.length === 0 && resolvedApprovals.length > 0 && session.state === "posted" && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Differences on this count were approved in Inventory and the stock adjustment has
+            been posted. Nothing here is waiting on anyone.
+          </div>
+        )}
+
         {missingReasons.length > 0 && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             Choose a reason for each difference below before submitting.
