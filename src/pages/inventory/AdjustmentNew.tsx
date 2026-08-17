@@ -442,7 +442,7 @@ export default function AdjustmentNew() {
               )}
               {linkedProduct && (
                 <Link
-                  to={`/inventory-app/products/${linkedProduct.id}`}
+                  to={`/inventory-app/products/${linkedProduct.id}/edit`}
                   className="inline-block text-xs text-primary underline"
                 >
                   Open {linkedProduct.name}
