@@ -100999,6 +100999,7 @@ export type Database = {
       }
       reset_module__ancillaries: { Args: { org_id: string }; Returns: Json }
       reset_module__banking: { Args: { org_id: string }; Returns: Json }
+      reset_module__costing: { Args: { org_id: string }; Returns: Json }
       reset_module__events: { Args: { org_id: string }; Returns: Json }
       reset_module__finance: { Args: { org_id: string }; Returns: Json }
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
