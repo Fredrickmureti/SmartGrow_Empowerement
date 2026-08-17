@@ -3,8 +3,9 @@
  *
  * Exceptions are the platform's single record of "something went wrong on
  * the floor"; the tower does not fork that model, it reads the open rows for
- * the outbound owner roles and links each one into the exceptions inbox,
- * which owns triage, assignment and resolution.
+ * the outbound owner roles and deep-links each one into the exceptions
+ * inbox — which owns triage, assignment and resolution — so a supervisor
+ * lands on THAT exception rather than an unfiltered queue they must search.
  */
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
@@ -41,7 +42,7 @@ export function ExceptionRail({
         return (
           <li key={e.id}>
             <Link
-              to="/warehouse-app/exceptions"
+              to={`/warehouse-app/exceptions?exception=${e.id}`}
               className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50"
             >
               <span
