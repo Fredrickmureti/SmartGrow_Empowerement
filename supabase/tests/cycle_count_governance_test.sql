@@ -255,3 +255,86 @@ BEGIN
     RAISE EXCEPTION '% document record(s) supersede an unrelated document', v_n;
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Gated-mode proof (Phase 10). SOLO is proven by tests 1-15 above; these pin
+-- the STANDARD / STRICT / ADVANCED semantics of the same single engine.
+-- ---------------------------------------------------------------------------
+
+-- 16. The action is registered and active, so a tenant can write a rule for it
+--     and the Governance settings screen can list it.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.governance_action_registry
+     WHERE action_key = 'warehouse.count_variance'
+       AND module = 'Warehouse'
+       AND is_active
+  ) THEN
+    RAISE EXCEPTION 'warehouse.count_variance is not an active registered governance action';
+  END IF;
+END $$;
+
+-- 17. STANDARD: routing is decided by approval_rules through the shared
+--     matcher. No warehouse-specific threshold logic may exist anywhere else.
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='approval_route';
+
+  IF v_def NOT LIKE '%_approval_match_rule%' THEN
+    RAISE EXCEPTION 'approval_route no longer resolves policy through _approval_match_rule';
+  END IF;
+
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='physical_count_submit';
+
+  IF v_def LIKE '%governance_mode%' OR v_def LIKE '%solo%' THEN
+    RAISE EXCEPTION 'physical_count_submit branches on governance mode instead of asking the engine';
+  END IF;
+END $$;
+
+-- 18. Any rule a tenant writes for the action must name a reachable approver —
+--     a rule with no approver would gate counts forever with nobody able to act.
+DO $$
+DECLARE v_n integer;
+BEGIN
+  SELECT count(*) INTO v_n
+    FROM public.approval_rules r
+   WHERE r.action_name = 'warehouse.count_variance'
+     AND r.is_active
+     AND (
+       (r.approver_type = 'user' AND r.approver_user_id IS NULL)
+       OR (r.approver_type = 'role' AND COALESCE(r.approver_role,'') = '')
+     );
+
+  IF v_n > 0 THEN
+    RAISE EXCEPTION '% active count-variance rule(s) name no approver', v_n;
+  END IF;
+END $$;
+
+-- 19. STRICT: the decision itself refuses self-approval, and the refusal is
+--     policy-driven (self_action_policy) with single-use overrides honoured.
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='approval_decide';
+  IF v_def NOT LIKE '%governance_assert_not_self%' THEN
+    RAISE EXCEPTION 'approval_decide allows the requester to approve their own request';
+  END IF;
+
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='governance_assert_not_self';
+  IF v_def NOT LIKE '%self_action_policy%' THEN
+    RAISE EXCEPTION 'self-action refusals ignore the per-action policy table';
+  END IF;
+  IF v_def NOT LIKE '%self_action_overrides%' THEN
+    RAISE EXCEPTION 'ADVANCED single-use overrides are not consulted';
+  END IF;
+END $$;
