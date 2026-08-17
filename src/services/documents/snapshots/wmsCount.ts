@@ -319,15 +319,28 @@ export function buildCountSheetSnapshot(
   });
 }
 
+/** Serialised sign-off block; empty entries print as a blank ruled line. */
+function signoffBlock(signoffs: CountSignoffs | null | undefined) {
+  if (!signoffs) return null;
+  return {
+    counted_by: signoffs.counted_by ?? [],
+    reviewed_by: signoffs.reviewed_by ?? null,
+    approved_by: signoffs.approved_by ?? null,
+    posted_by: signoffs.posted_by ?? null,
+  };
+}
+
 /** Difference report — what disagreed, by how much, why, and what happens next. */
 export function buildCountVarianceSnapshot(
   session: CountSessionHeaderRow,
   lines: CountSnapshotLineRow[],
+  signoffs?: CountSignoffs | null,
 ): BuildCountSnapshotResult {
   const latest = latestOnly(lines);
   const variances = latest.filter(
     (l) => l.counted_qty != null && num(l.variance_qty) !== 0,
   );
+  const approverName = signoffs?.approved_by?.name ?? null;
 
   const rows = variances.map((line, index) => ({
     line_no: index + 1,
@@ -339,7 +352,12 @@ export function buildCountVarianceSnapshot(
     counted: num(line.counted_qty),
     difference: num(line.variance_qty),
     reason: humanize(line.variance_reason),
-    outcome: toleranceExplanation(line.tolerance_outcome),
+    outcome: toleranceExplanation(
+      line.tolerance_outcome,
+      line.approval_state,
+      approverName ?? (line.approval_note ? "an unrecorded approver" : null),
+      line.approval_at,
+    ),
   }));
 
   return result(session, {
@@ -349,18 +367,26 @@ export function buildCountVarianceSnapshot(
     layout: "count_report",
     count_lines: rows,
     line_count: rows.length,
+    signoffs: signoffBlock(signoffs),
     summary: {
       lines_in_scope: latest.length,
       lines_counted: latest.filter((l) => l.counted_qty != null).length,
       lines_not_counted: latest.filter((l) => l.counted_qty == null).length,
       differences: variances.length,
-      awaiting_approval: latest.filter((l) => l.tolerance_outcome === "approval_required").length,
-      recounts_open: latest.filter((l) => l.tolerance_outcome === "recount_required").length,
+      awaiting_approval: latest.filter(isAwaitingApproval).length,
+      approved: latest.filter((l) => l.approval_state === "approved").length,
+      rejected: latest.filter((l) => l.approval_state === "rejected").length,
+      recounts_open: latest.filter(
+        (l) =>
+          l.tolerance_outcome === "recount_required" &&
+          (l.approval_state ?? "pending") === "pending",
+      ).length,
       units_over: variances.reduce((s, l) => s + Math.max(0, num(l.variance_qty)), 0),
       units_short: variances.reduce((s, l) => s + Math.min(0, num(l.variance_qty)), 0),
     },
   });
 }
+
 
 /** Audit report — the full attempt history, including superseded rounds. */
 export function buildCountAuditSnapshot(
