@@ -117,6 +117,83 @@ const LEDGER_LAYOUTS: Record<
 };
 
 const LANDED_COST_FORBIDDEN_BLOCKS = new Set(["party"]);
+
+/**
+ * Warehouse cycle-count paperwork.
+ *
+ * Same class as procurement and ledger artefacts: quantities only, no
+ * counterparty, no currency, no totals ladder. Drawn by dedicated
+ * sheet-only layouts, registered BEFORE the thermal gate so a
+ * misconfigured print policy cannot route a count sheet onto an 80 mm roll.
+ */
+const WAREHOUSE_LAYOUTS: Record<
+  string,
+  (
+    snapshot: Record<string, unknown>,
+    organization: unknown,
+    options: { paperFormat?: string; orientation?: "portrait" | "landscape" },
+  ) => Promise<Uint8Array>
+> = {
+  "wms.count_sheet": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/warehouseCount.ts")).generateCountSheetPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "wms.count_sheet_blind": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/warehouseCount.ts")).generateCountSheetPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "wms.count_variance_report": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/warehouseCount.ts")).generateCountReportPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "wms.count_audit_report": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/warehouseCount.ts")).generateCountReportPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+};
+
+const COUNT_FORBIDDEN_BLOCKS = new Set(["party", "totals"]);
+const COUNT_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
+
+/**
+ * Cycle-count templates may never grow invoice anatomy, and a blind sheet
+ * may never be pinned to the sighted layout — the two kinds are separate
+ * precisely so a template edit cannot leak an expected quantity.
+ */
+export function assertCountTemplateContract(
+  template: ResolvedTemplate,
+  blocks: AstBlock[],
+): void {
+  if (!(template.kind_code in WAREHOUSE_LAYOUTS)) return;
+  const layout = (template.ast as unknown as Record<string, unknown>)["layout"];
+  const expected =
+    template.kind_code === "wms.count_sheet" ||
+    template.kind_code === "wms.count_sheet_blind"
+      ? "count_sheet"
+      : "count_report";
+  if (layout !== expected) {
+    throw new Error(`count_template_contract: layout must be ${expected}`);
+  }
+  for (const block of blocks) {
+    if (COUNT_FORBIDDEN_BLOCKS.has(block.type)) {
+      throw new Error(`count_template_contract: forbidden block ${block.type}`);
+    }
+    if (block.type === "table" && COUNT_FORBIDDEN_TABLE_PRESETS.has(block.preset)) {
+      throw new Error(
+        `count_template_contract: forbidden table preset ${block.preset}`,
+      );
+    }
+  }
+}
+
 const LANDED_COST_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
 
 /**
@@ -190,6 +267,7 @@ function hasDedicatedLayout(kindCode: string): boolean {
     kindCode in LEDGER_LAYOUTS ||
     kindCode in STATEMENT_LAYOUTS ||
     kindCode in PROCUREMENT_LAYOUTS ||
+    kindCode in WAREHOUSE_LAYOUTS ||
     STATEMENT_KIND_CODES.has(kindCode)
   );
 }
@@ -292,6 +370,7 @@ export async function renderAstToPdf(args: {
   assertRfqTemplateContract(args.template, args.blocks);
   assertJournalTemplateContract(args.template, args.blocks);
   assertLandedCostTemplateContract(args.template, args.blocks);
+  assertCountTemplateContract(args.template, args.blocks);
   assertCommercialFallthroughAllowed(args.template, args.blocks);
 
   const ledgerLayout = LEDGER_LAYOUTS[args.template.kind_code];
@@ -309,6 +388,15 @@ export async function renderAstToPdf(args: {
   const procurementLayout = PROCUREMENT_LAYOUTS[args.template.kind_code];
   if (procurementLayout) {
     return await procurementLayout(
+      snap,
+      (snap["organization"] as unknown) ?? (args.context.business as unknown) ?? null,
+      { paperFormat: mediaClassToPaper(args.template.media_class) },
+    );
+  }
+
+  const warehouseLayout = WAREHOUSE_LAYOUTS[args.template.kind_code];
+  if (warehouseLayout) {
+    return await warehouseLayout(
       snap,
       (snap["organization"] as unknown) ?? (args.context.business as unknown) ?? null,
       { paperFormat: mediaClassToPaper(args.template.media_class) },

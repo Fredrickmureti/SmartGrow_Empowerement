@@ -233,6 +233,7 @@ export default function CountSession() {
               * sheet, which carries no expected quantity at all. */}
             <CountDocumentsMenu
               sessionId={session.id}
+              countNumber={session.code}
               isBlind={blind}
               only={["count_sheet"]}
             />

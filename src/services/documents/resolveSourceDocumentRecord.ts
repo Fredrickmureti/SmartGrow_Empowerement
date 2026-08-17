@@ -53,6 +53,10 @@ import {
   fetchAndBuildHrLetterSnapshot,
   HR_LETTER_KIND_CODES,
 } from "@/services/documents/snapshots/hrLetter";
+import {
+  fetchAndBuildCountDocumentSnapshot,
+  COUNT_KIND_BY_DOCUMENT_TYPE,
+} from "@/services/documents/snapshots/wmsCount";
 
 /** Tenancy fallbacks used only when the snapshot cannot resolve them. */
 export interface SourceDocumentContext {
@@ -332,6 +336,57 @@ const REGISTRY: Record<string, RegistryEntry> = {
             null) as string | null,
       };
     },
+  },
+  /**
+   * Cycle-count paperwork (ADR 0106). Warehouse artifacts: quantity only,
+   * no counterparty, no currency. Each type has its own kind code so the
+   * blind sheet can never be rendered from the sighted template, and each
+   * kind's system template pins a dedicated count layout — the commercial
+   * (invoice) renderer refuses them by contract.
+   */
+  count_sheet: {
+    kindCode: "wms.count_sheet",
+    sourceModule: "wms",
+    sourceDocType: "count_sheet",
+    partyKind: null,
+    build: (id: string) =>
+      fetchAndBuildCountDocumentSnapshot(supabase, id, COUNT_KIND_BY_DOCUMENT_TYPE.count_sheet),
+  },
+  count_sheet_blind: {
+    kindCode: "wms.count_sheet_blind",
+    sourceModule: "wms",
+    sourceDocType: "count_sheet_blind",
+    partyKind: null,
+    build: (id: string) =>
+      fetchAndBuildCountDocumentSnapshot(
+        supabase,
+        id,
+        COUNT_KIND_BY_DOCUMENT_TYPE.count_sheet_blind,
+      ),
+  },
+  count_variance_report: {
+    kindCode: "wms.count_variance_report",
+    sourceModule: "wms",
+    sourceDocType: "count_variance_report",
+    partyKind: null,
+    build: (id: string) =>
+      fetchAndBuildCountDocumentSnapshot(
+        supabase,
+        id,
+        COUNT_KIND_BY_DOCUMENT_TYPE.count_variance_report,
+      ),
+  },
+  count_audit_report: {
+    kindCode: "wms.count_audit_report",
+    sourceModule: "wms",
+    sourceDocType: "count_audit_report",
+    partyKind: null,
+    build: (id: string) =>
+      fetchAndBuildCountDocumentSnapshot(
+        supabase,
+        id,
+        COUNT_KIND_BY_DOCUMENT_TYPE.count_audit_report,
+      ),
   },
 };
 

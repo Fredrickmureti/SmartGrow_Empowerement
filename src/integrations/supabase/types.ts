@@ -95079,6 +95079,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: string
       }
+      get_next_count_session_number: {
+        Args: { p_business?: string; p_org: string }
+        Returns: string
+      }
       get_next_credit_note_number: {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
