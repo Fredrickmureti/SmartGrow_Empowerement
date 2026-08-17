@@ -123,6 +123,11 @@ before/after evidence:
    exists, and `ensure_document_record` still contains the supersede branch.
 2. **Then execute Phase 7** exactly as listed above — do not start unrelated
    work. Record the evidence in this file under a "Phase 7 evidence" heading.
+   Step 7 needs no code: sign in, open Warehouse → Counts →
+   `CC-260817-013059278` → Difference Report → print/regenerate once, then
+   confirm in SQL that the 13:13 record flipped to `status = superseded` with
+   `superseded_by` pointing at a `version = 2` record whose snapshot carries
+   the three sign-offs.
 3. **Constraints that still hold:** one approval engine only (no new tables, no
    parallel approval path); stock moves only through the Inventory adjustment
    path; `get_count_lines` stays the sole line read path; sign-offs come only
