@@ -300,6 +300,7 @@ const REJECTION_COPY: Array<[RegExp, string]> = [
   [/wms_lpn_locked|wms_lpn_immutable/, "This plate is closed out and can no longer be changed."],
   [/wms_lpn_version_conflict|stale/, "Someone else changed this plate. Reload and try again."],
   [/wms_lpn_version_required/, "This screen lost track of the plate's revision. Reload the plate and try again."],
+  [/lock_not_available|55P03|wms_lpn_busy|canceling statement due to lock timeout/i, "Another operator is working on this plate right now. Wait a moment and try again."],
   [/WMS_LPN_OVER_CAPACITY/, "That would push the handling unit past its container's weight limit. Use another pallet or carton."],
   [/wms_lpn_invalid_transition/, "That status change is not allowed from the plate's current state."],
   [/wms_lpn_reason_required/, "A reason code is required for this action."],
