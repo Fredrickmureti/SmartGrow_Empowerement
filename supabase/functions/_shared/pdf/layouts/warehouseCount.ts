@@ -463,19 +463,21 @@ export async function generateCountReportPdf(
   }
 
   drawSectionLabel(builder, "Sign off");
-  drawSignatureStrip(
-    builder,
-    isAudit ? ["Reviewed by", "Audited by"] : ["Counted by", "Reviewed by", "Approved by"],
-  );
+  drawSignatureStrip(builder, signatureSlots(snapshot, isAudit));
 
+  const posted = str(snapshot["posted_at"]);
   drawFinalFooter(builder, builder.page, {
     footerNote: isAudit
       ? "Full counting history, including superseded recount rounds. Retained as " +
         "supporting evidence for the stock adjustment raised by this count."
-      : "Differences shown are proposals. Stock changes only once the count is " +
-        "approved and the resulting adjustment is posted.",
+      : posted
+        ? "This count has been approved and posted. The differences shown were " +
+          "applied to stock through the resulting adjustment."
+        : "Differences shown are proposals. Stock changes only once the count is " +
+          "approved and the resulting adjustment is posted.",
     includeGeneratedStamp: true,
   });
+
 
   return await builder.save();
 }
