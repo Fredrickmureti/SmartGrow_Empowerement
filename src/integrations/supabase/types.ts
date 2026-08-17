@@ -86917,6 +86917,10 @@ export type Database = {
         Returns: Json
       }
       _default_receipt_settings: { Args: never; Returns: Json }
+      _document_snapshot_fingerprint: {
+        Args: { p_snapshot: Json }
+        Returns: string
+      }
       _eba_sync_primary_to_employees: {
         Args: { p_employee_id: string }
         Returns: undefined
