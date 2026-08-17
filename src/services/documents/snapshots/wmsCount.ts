@@ -496,6 +496,18 @@ export async function fetchAndBuildCountDocumentSnapshot(
   if (lineError) throw lineError;
   const lines = (lineData ?? []) as unknown as CountSnapshotLineRow[];
 
+  // Sign-offs are only meaningful on the evidence documents (a blank count
+  // sheet is signed by hand). Actors come from the canonical count record.
+  let signoffs: CountSignoffs | null = null;
+  if (kind === "wms.count_variance_report" || kind === "wms.count_audit_report") {
+    const { data: signoffData, error: signoffError } = await client.rpc(
+      "get_count_signoffs",
+      { p_session_id: sessionId },
+    );
+    if (signoffError) throw signoffError;
+    signoffs = (signoffData ?? null) as unknown as CountSignoffs | null;
+  }
+
   switch (kind) {
     case "wms.count_sheet_blind":
       // Project to identity-only BEFORE the builder sees the rows.
@@ -512,9 +524,9 @@ export async function fetchAndBuildCountDocumentSnapshot(
         })),
       );
     case "wms.count_variance_report":
-      return buildCountVarianceSnapshot(session, lines);
+      return buildCountVarianceSnapshot(session, lines, signoffs);
     case "wms.count_audit_report":
-      return buildCountAuditSnapshot(session, lines);
+      return buildCountAuditSnapshot(session, lines, signoffs);
     case "wms.count_sheet":
     default:
       return buildCountSheetSnapshot(session, lines);
