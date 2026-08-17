@@ -18,6 +18,32 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { SELF_ACTION_CATALOGUE } from "@/lib/governance/selfActionCatalogue";
 
+/**
+ * Action keys seeded into governance_action_registry that intentionally have
+ * no SELF_ACTION_CATALOGUE entry. Keep this empty unless there is a documented
+ * reason — a registry row with no catalogue entry is invisible in
+ * Settings → Governance → Advanced (per-action overrides).
+ */
+const REGISTRY_ONLY_ALLOWLIST = new Set<string>([]);
+
+/** Extract action_key literals out of every registry seed INSERT block. */
+function seededRegistryKeys(): string[] {
+  const dir = join(process.cwd(), "supabase", "migrations");
+  const keys = new Set<string>();
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql"))) {
+    const sql = readFileSync(join(dir, f), "utf8");
+    const blocks = sql.matchAll(
+      /INSERT\s+INTO\s+public\.governance_action_registry[\s\S]*?;/gi
+    );
+    for (const block of blocks) {
+      for (const m of block[0].matchAll(/'([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)'/g)) {
+        keys.add(m[1]);
+      }
+    }
+  }
+  return Array.from(keys);
+}
+
 function readRegistryMigrations(): string {
   const dir = join(process.cwd(), "supabase", "migrations");
   const files = readdirSync(dir).filter((f) => f.endsWith(".sql"));
@@ -32,6 +58,17 @@ describe("Approval & Governance — action registry parity (Phase 1)", () => {
       (entry) => !migrationSql.includes(`'${entry.key}'`)
     ).map((e) => e.key);
     expect(missing, `missing seed rows: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("every seeded registry action key has a SELF_ACTION_CATALOGUE entry", () => {
+    const known = new Set(SELF_ACTION_CATALOGUE.map((e) => e.key));
+    const orphans = seededRegistryKeys().filter(
+      (k) => !known.has(k) && !REGISTRY_ONLY_ALLOWLIST.has(k)
+    );
+    expect(
+      orphans,
+      `registry rows with no catalogue entry (invisible in Governance settings): ${orphans.join(", ")}`
+    ).toEqual([]);
   });
 
   it("registry seed carries the CHECK constraint for subject_mode", () => {
