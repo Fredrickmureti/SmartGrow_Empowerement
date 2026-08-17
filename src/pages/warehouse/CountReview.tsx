@@ -19,6 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePostCountSession } from "@/features/warehouse/aggregates/useDomainOperations";
+import {
+  useCountGovernancePreview,
+  describeCountGovernance,
+} from "@/features/warehouse/counts/useCountGovernancePreview";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -81,11 +85,19 @@ export default function CountReview() {
 
   const recount = useRequestRecount(sessionId);
   const post = usePostCountSession(sessionId);
+  // What the ONE engine will actually decide — not a hardcoded assumption.
+  const { data: governance } = useCountGovernancePreview(sessionId);
 
   const handlePost = () =>
     post.mutate(undefined, {
-      onSuccess: () => {
-        toast.success("Count submitted to Inventory for approval and posting");
+      onSuccess: (res) => {
+        const outcome =
+          (res as { submit_result?: { governance?: string } } | null)?.submit_result?.governance;
+        toast.success(
+          outcome === "approval_required"
+            ? "Count submitted — differences sent for approval before stock moves"
+            : "Count submitted — differences recorded and stock adjusted",
+        );
         nav("/warehouse-app/counts");
       },
     });
