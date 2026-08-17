@@ -144,8 +144,32 @@ function productLabel(line: { product_name: string | null; product_sku: string |
   return line.product_name?.trim() || line.product_sku?.trim() || "Product no longer in catalogue";
 }
 
-/** Plain-English reason a supervisor is being asked to approve a line. */
-export function toleranceExplanation(outcome: string | null | undefined): string {
+/**
+ * Plain-English outcome for a line.
+ *
+ * `tolerance_outcome` is the CAPTURE-TIME classification and never changes —
+ * it is audit truth. `approval_state` is the RESOLUTION recorded once
+ * Inventory approved, rejected or posted the linked count. A posted count
+ * must therefore never read as if it is still waiting for a supervisor.
+ */
+export function toleranceExplanation(
+  outcome: string | null | undefined,
+  approvalState?: string | null,
+  approverName?: string | null,
+  approvedAt?: string | null,
+): string {
+  const when = approvedAt ? ` on ${approvedAt.slice(0, 10)}` : "";
+  const who = approverName ? ` by ${approverName}` : "";
+
+  if (approvalState === "approved") {
+    return outcome === "within_tolerance"
+      ? `Within the allowed tolerance — approved${who}${when}`
+      : `Outside tolerance — approved${who}${when}`;
+  }
+  if (approvalState === "rejected") {
+    return `Rejected${who}${when}`;
+  }
+
   switch (outcome) {
     case "within_tolerance":
       return "Within the allowed tolerance";
@@ -159,6 +183,18 @@ export function toleranceExplanation(outcome: string | null | undefined): string
       return outcome ? humanize(outcome) : "";
   }
 }
+
+/** A line is only still open if the Inventory decision has not landed. */
+export function isAwaitingApproval(line: {
+  tolerance_outcome: string | null;
+  approval_state?: string | null;
+}): boolean {
+  return (
+    line.tolerance_outcome === "approval_required" &&
+    (line.approval_state ?? "pending") === "pending"
+  );
+}
+
 
 function detailBits(line: CountSnapshotLineRow): string {
   const bits: string[] = [];
