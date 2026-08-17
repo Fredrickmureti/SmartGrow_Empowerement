@@ -11,6 +11,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { toWmsFailure, wmsErrorToast } from "@/features/warehouse/errors/wmsRpcError";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
@@ -135,7 +136,7 @@ export default function MobileDispatch() {
       toast.success(r.queued ? "Queued (offline)" : "Proof captured");
       invalidate();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not capture proof");
+      toast.error(...wmsErrorToast(e, "Could not capture proof"));
     } finally {
       setBusy(false);
     }
@@ -165,7 +166,7 @@ export default function MobileDispatch() {
         invalidate();
         return { ok: true, message: r.queued ? `${code} queued (offline)` : `${code} loaded` };
       } catch (e) {
-        return { ok: false, message: e instanceof Error ? e.message : "Load failed" };
+        return { ok: false, message: toWmsFailure(e, "Load failed").message };
       } finally {
         setBusy(false);
       }
@@ -180,15 +181,18 @@ export default function MobileDispatch() {
   // We deliberately do NOT preview shortage via `supabase.rpc` here — the
   // Phase 13 mobile guard forbids direct RPCs on the RF shell, so the
   // enforcement RPC itself is the source of truth on close/dispatch.
-  const handleShortageError = (msg: string, verb: "close" | "dispatch") => {
-    if (!msg.includes("WMS_SCAN_SHORTAGE")) return false;
-    toast.error(
-      verb === "close"
-        ? "Cannot close: sealed cartons are still on the floor."
-        : "Cannot dispatch: sealed cartons are missing from this manifest.",
-      { description: "Scan every sealed carton for this wave/SO onto the manifest first." },
-    );
-    return true;
+  const reportFailure = (e: unknown, verb: "close" | "dispatch") => {
+    const failure = toWmsFailure(e, verb === "close" ? "Close failed" : "Dispatch failed");
+    if (failure.code === "WMS_SCAN_SHORTAGE") {
+      toast.error(
+        verb === "close"
+          ? "Cannot close: sealed cartons are still on the floor."
+          : "Cannot dispatch: sealed cartons are missing from this manifest.",
+        { description: "Scan every sealed carton for this wave/SO onto the manifest first." },
+      );
+      return;
+    }
+    toast.error(failure.message, failure.description ? { description: failure.description } : {});
   };
 
   const close = async () => {
@@ -199,8 +203,7 @@ export default function MobileDispatch() {
       toast.success(r.queued ? "Queued (offline)" : "Manifest closed");
       invalidate();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!handleShortageError(msg, "close")) toast.error(msg || "Close failed");
+      reportFailure(e, "close");
     } finally {
       setBusy(false);
     }
@@ -218,8 +221,7 @@ export default function MobileDispatch() {
       invalidate();
       if (!r.queued) nav("/wm");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!handleShortageError(msg, "dispatch")) toast.error(msg || "Dispatch failed");
+      reportFailure(e, "dispatch");
     } finally {
       setBusy(false);
     }

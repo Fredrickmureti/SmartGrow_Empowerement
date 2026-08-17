@@ -20,13 +20,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
+import { toWmsFailure } from "@/features/warehouse/errors/wmsRpcError";
 
+/**
+ * Every warehouse mutation funnels its rejection through the shared WMS
+ * failure contract. PostgREST rejections are plain objects, so the old
+ * `e instanceof Error ? e.message : String(e)` shape rendered
+ * `[object Object]` and never matched a coded business rule.
+ */
 function normalizeError(e: unknown, fallback: string) {
-  const msg = e instanceof Error ? e.message : String(e ?? "");
-  if (msg.includes("Row version mismatch") || msg.includes("row_version")) {
-    return "Someone else just updated this record. Refresh and try again.";
-  }
-  return msg || fallback;
+  return toWmsFailure(e, fallback).message;
 }
 
 // -------------------------------------------------------------------
@@ -283,8 +286,8 @@ export function useDispatchManifest(manifestId: string | null | undefined) {
       qc.invalidateQueries({ queryKey: ["wms_loading_manifests"] });
     },
     onError: (e) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("WMS_SCAN_SHORTAGE")) {
+      const failure = toWmsFailure(e, "Dispatch failed");
+      if (failure.code === "WMS_SCAN_SHORTAGE") {
         // Phase 3.7 §4 — scan-out enforcement. Force the operator back
         // to the loading floor rather than accepting a short shipment.
         toast.error("Cannot dispatch: sealed cartons are missing from this manifest.", {
@@ -293,7 +296,7 @@ export function useDispatchManifest(manifestId: string | null | undefined) {
         qc.invalidateQueries({ queryKey: ["wms-manifest-shortage", manifestId] });
         return;
       }
-      toast.error(normalizeError(e, "Dispatch failed"));
+      toast.error(failure.message, failure.description ? { description: failure.description } : {});
     },
   });
 }

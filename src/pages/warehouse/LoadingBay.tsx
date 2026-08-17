@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
+import { toWmsFailure } from "@/features/warehouse/errors/wmsRpcError";
 import {
   useCaptureDispatchProof,
   useDispatchManifest,
@@ -136,13 +137,14 @@ export default function LoadingBay() {
     },
     onSuccess: () => { toast.success("Manifest closed"); qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] }); },
     onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("WMS_SCAN_SHORTAGE")) {
-        toast.error("Cannot close: sealed cartons are missing from this manifest.");
+      const failure = toWmsFailure(e, "Close failed");
+      if (failure.code === "WMS_SCAN_SHORTAGE") {
         qc.invalidateQueries({ queryKey: ["wms-manifest-shortage", manifestId] });
-        return;
       }
-      toast.error(msg || "Close failed");
+      toast.error(
+        failure.code === "WMS_SCAN_SHORTAGE" ? `Cannot close: ${failure.message.toLowerCase()}` : failure.message,
+        failure.description ? { description: failure.description } : {},
+      );
     },
   });
 
@@ -206,26 +208,72 @@ export default function LoadingBay() {
 
   const isComplete = shortCount === 0;
   const canLoad = manifest.state === "loading";
-  const canClose = manifest.state === "loading" && isComplete;
-  const canDispatch =
-    (manifest.state === "loading" || manifest.state === "closed") && isComplete && proofSatisfied;
+
+  /**
+   * Close and Dispatch mirror the server, and say why when they refuse.
+   *
+   * The FSM only permits `loading → closed → dispatched`; the Dispatch
+   * delegate closes an open load first, which is why Dispatch is offered
+   * from `loading` too. Every other precondition here — full scan-out, at
+   * least one carton, proof of dispatch — is re-enforced by
+   * `wms_transition_manifest`, so a disabled button is never the security
+   * boundary: it just spares the operator a rejected round-trip and names
+   * the blocker instead of greying out silently.
+   */
+  const closeBlockedReason =
+    manifest.state !== "loading"
+      ? `This load is already ${manifest.state}.`
+      : loadedCount === 0
+        ? "Load at least one sealed carton before closing."
+        : !isComplete
+          ? `${shortCount} sealed carton${shortCount === 1 ? "" : "s"} for this load ${shortCount === 1 ? "is" : "are"} still on the floor.`
+          : null;
+
+  const dispatchBlockedReason =
+    manifest.state === "dispatched"
+      ? "This load has already departed."
+      : manifest.state !== "loading" && manifest.state !== "closed"
+        ? `A ${manifest.state} load cannot depart.`
+        : loadedCount === 0
+          ? "Load at least one sealed carton before dispatching."
+          : !isComplete
+            ? `${shortCount} sealed carton${shortCount === 1 ? "" : "s"} for this load ${shortCount === 1 ? "is" : "are"} still on the floor.`
+            : !proofSatisfied
+              ? "This warehouse requires proof of dispatch — capture the seal, driver and signature first."
+              : null;
+
+  const canClose = closeBlockedReason === null;
+  const canDispatch = dispatchBlockedReason === null;
+
+
 
 
   return (
     <>
       <PageHeader
         title={<span className="font-mono">{manifest.code}</span>}
-        description={<>State: <StatusBadge tone={manifest.state === "dispatched" ? "success" : "info"}>{manifest.state}</StatusBadge></>}
+        description={
+          <>
+            State: <StatusBadge tone={manifest.state === "dispatched" ? "success" : "info"}>{manifest.state}</StatusBadge>
+            {dispatchBlockedReason && manifest.state !== "dispatched" && (
+              <span className="ml-2 text-muted-foreground">· {dispatchBlockedReason}</span>
+            )}
+          </>
+        }
         actions={
           <div className="flex gap-2">
             <Button variant="outline" asChild><Link to="/warehouse-app/dispatch"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Link></Button>
             <DispatchDocumentsMenu manifestId={manifest.id} hideLabel={isOwnFleet} />
-            <Button variant="outline" disabled={!canClose || close.isPending} onClick={() => close.mutate()}>
-              <PackageCheck className="h-4 w-4 mr-2" /> Close
-            </Button>
-            <Button disabled={!canDispatch || dispatch.isPending} onClick={handleDispatch}>
-              <Truck className="h-4 w-4 mr-2" /> Dispatch
-            </Button>
+            <span title={closeBlockedReason ?? "Close this load to loading-complete."}>
+              <Button variant="outline" disabled={!canClose || close.isPending} onClick={() => close.mutate()}>
+                <PackageCheck className="h-4 w-4 mr-2" /> Close
+              </Button>
+            </span>
+            <span title={dispatchBlockedReason ?? "Release this load — stock leaves the books on departure."}>
+              <Button disabled={!canDispatch || dispatch.isPending} onClick={handleDispatch}>
+                <Truck className="h-4 w-4 mr-2" /> Dispatch
+              </Button>
+            </span>
           </div>
         }
       />
