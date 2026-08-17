@@ -39,6 +39,17 @@ import {
   type SelfActionMode,
 } from "@/lib/governance/selfActionCatalogue";
 import { SelfActionOverrideDialog } from "@/components/governance/SelfActionOverrideDialog";
+import { useGovernanceActionRegistry } from "@/hooks/governance/useGovernanceActionRegistry";
+
+/** A row in the per-action table, sourced from the DB registry (authoritative). */
+interface DisplayEntry {
+  key: string;
+  module: string;
+  label: string;
+  description: string;
+}
+
+const titleCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 interface PolicyRow {
   id: string;
@@ -63,6 +74,7 @@ export function SelfActionPolicy() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const { data: registry = [] } = useGovernanceActionRegistry();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["self-action-policy", orgId],
