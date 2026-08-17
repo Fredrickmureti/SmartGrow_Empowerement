@@ -158,6 +158,32 @@ export default function CountReview() {
           count is approved there — the warehouse never changes stock on its own.
         </p>
 
+        {/* At-a-glance result. The whole point is that a supervisor can judge
+          * the count on screen without downloading a single document. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            { label: "Bins in scope", value: all.filter((l) => isLatest(l.id)).length },
+            { label: "Counted", value: all.filter((l) => isLatest(l.id) && l.counted_qty != null).length },
+            { label: "Not counted", value: uncounted.length },
+            { label: "Differences", value: variances.length },
+            {
+              label: "Units over",
+              value: variances.reduce((s, l) => s + Math.max(0, Number(l.variance_qty ?? 0)), 0),
+            },
+            {
+              label: "Units short",
+              value: Math.abs(
+                variances.reduce((s, l) => s + Math.min(0, Number(l.variance_qty ?? 0)), 0),
+              ),
+            },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-md border border-border bg-card p-3">
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
+              <div className="text-xl font-semibold tabular-nums">{stat.value}</div>
+            </div>
+          ))}
+        </div>
+
         {openRecounts.length > 0 && (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm space-y-2">
             <p>
