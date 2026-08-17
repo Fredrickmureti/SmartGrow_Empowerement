@@ -70,7 +70,7 @@ interface EvidenceRow {
  */
 const AGGREGATE_ROUTES: Record<string, (id: string) => string> = {
   wms_task: () => "/warehouse-app/tasks",
-  wms_license_plate: () => "/warehouse-app/lpns",
+  wms_license_plate: () => "/warehouse-app/plates",
   wms_qc_inspection: (id) => `/warehouse-app/qc/${id}`,
   wms_count_line: () => "/warehouse-app/counts",
   wms_count_session: (id) => `/warehouse-app/counts/${id}`,
