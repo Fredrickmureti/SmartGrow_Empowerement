@@ -145,29 +145,63 @@ function drawSectionLabel(builder: PdfBuilder, label: string): void {
 }
 
 /** Counter / supervisor accountability. A count is evidence only once signed. */
-function drawSignatureStrip(builder: PdfBuilder, roles: string[]): void {
+interface SignatureSlot {
+  role: string;
+  name?: string | null;
+  at?: string | null;
+}
+
+function drawSignatureStrip(
+  builder: PdfBuilder,
+  slots: Array<string | SignatureSlot>,
+): void {
   builder.ensureSpace(66);
   const { margin, contentWidth } = builder.state;
-  const colWidth = contentWidth / roles.length;
+  const entries: SignatureSlot[] = slots.map((s) =>
+    typeof s === "string" ? { role: s } : s,
+  );
+  const colWidth = contentWidth / entries.length;
   const page = builder.page;
   const top = builder.y;
 
-  roles.forEach((role, i) => {
+  entries.forEach((entry, i) => {
     const x = margin + i * colWidth;
-    page.drawText(role.toUpperCase(), {
+    page.drawText(entry.role.toUpperCase(), {
       x,
       y: top,
       size: 7.5,
       font: builder.fontBold,
       color: theme.color.medGray,
     });
+
+    // A recorded actor is printed above the rule; an unrecorded one leaves the
+    // rule blank so nobody is credited with a sign-off they did not make.
+    if (entry.name) {
+      page.drawText(entry.name.slice(0, 34), {
+        x,
+        y: top - 18,
+        size: 8.5,
+        font: builder.fontBold,
+        color: theme.color.text,
+      });
+      if (entry.at) {
+        page.drawText(String(entry.at).slice(0, 10), {
+          x,
+          y: top - 27,
+          size: 7,
+          font: builder.fontRegular,
+          color: theme.color.medGray,
+        });
+      }
+    }
+
     page.drawLine({
       start: { x, y: top - 30 },
       end: { x: x + colWidth - 18, y: top - 30 },
       thickness: 0.5,
       color: theme.color.medGray,
     });
-    page.drawText("Name / Signature / Date", {
+    page.drawText(entry.name ? "Recorded in the system" : "Name / Signature / Date", {
       x,
       y: top - 42,
       size: 7,
@@ -178,6 +212,7 @@ function drawSignatureStrip(builder: PdfBuilder, roles: string[]): void {
 
   builder.y = top - 56;
 }
+
 
 function headerFactRows(snapshot: Snapshot): Array<[string, string | null]> {
   return [
