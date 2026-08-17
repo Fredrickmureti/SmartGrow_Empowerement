@@ -98699,6 +98699,10 @@ export type Database = {
         }
         Returns: Json
       }
+      physical_count_release_freeze_before_post: {
+        Args: { p_count_id: string }
+        Returns: number
+      }
       physical_count_request_recount: {
         Args: { p_count_id: string; p_line_ids: string[]; p_user_id: string }
         Returns: Json
