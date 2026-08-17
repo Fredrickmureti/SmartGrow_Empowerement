@@ -111,8 +111,13 @@ export default function CountReview() {
   );
   const uncounted = all.filter((l) => isLatest(l.id) && l.counted_qty == null);
   const missingReasons = variances.filter((l) => !l.variance_reason);
-  const openRecounts = all.filter((l) => l.tolerance_outcome === "recount_required" && isLatest(l.id));
-  const needsApproval = all.filter((l) => l.tolerance_outcome === "approval_required" && isLatest(l.id));
+  const openRecounts = all.filter(
+    (l) => l.tolerance_outcome === "recount_required" && isLatest(l.id) && (l.approval_state ?? "pending") === "pending",
+  );
+  // Only lines whose Inventory decision is still outstanding are pending.
+  const needsApproval = all.filter((l) => countLineAwaitsApproval(l) && isLatest(l.id));
+  const resolvedApprovals = all.filter((l) => isLatest(l.id) && l.approval_state === "approved");
+
 
   const canPost =
     session.state !== "posted" &&
