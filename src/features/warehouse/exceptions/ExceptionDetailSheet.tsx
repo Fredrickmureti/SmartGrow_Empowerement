@@ -120,6 +120,7 @@ export function ExceptionDetailSheet({
 }: ExceptionDetailSheetProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const workItemRoute = aggregateRoute(exception?.aggregate_type ?? null, exception?.aggregate_id ?? null);
   const id = exception?.id ?? null;
 
   const [resolution, setResolution] = useState("");
@@ -517,11 +518,23 @@ export function ExceptionDetailSheet({
   );
 }
 
-function Field({ label, value, tone }: { label: string; value: string; tone?: "danger" }) {
+function Field({
+  label, value, tone, action,
+}: {
+  label: string;
+  value: string;
+  tone?: "danger";
+  action?: { label: string; onClick: () => void };
+}) {
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={cn("font-medium", tone === "danger" && "text-destructive")}>{value}</div>
+      {action && (
+        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
     </div>
   );
 }
