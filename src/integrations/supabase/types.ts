@@ -87759,6 +87759,10 @@ export type Database = {
         Args: { _business_id: string; _on_date: string }
         Returns: undefined
       }
+      _wms_billing_quantity: {
+        Args: { _activity: string; _aggregate_id: string; _payload: Json }
+        Returns: number
+      }
       _wms_caller_business_branch: {
         Args: never
         Returns: {
@@ -88238,6 +88242,41 @@ export type Database = {
         }
         Returns: number
       }
+      _wms_reprice_billable_activity_internal: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _wms_resolve_client_id: {
         Args: { _aggregate_id: string; _business_id: string; _payload: Json }
         Returns: string
@@ -88286,6 +88325,41 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      _wms_reverse_billable_activity_internal: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _wms_roster_seconds: {
         Args: { _break_minutes: number; _end: string; _start: string }
@@ -105970,6 +106044,41 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_reprice_billable_activity: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_resolve_carton_scan: {
         Args: { p_business_id: string; p_code: string }
         Returns: Json
@@ -106132,13 +106241,113 @@ export type Database = {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
+      wms_set_lpn_client: {
+        Args: { p_client_id: string; p_lpn_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          client_id: string | null
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_set_operator_status: {
         Args: { p_operator_id: string; p_row_version: number; p_status: string }
         Returns: Json
       }
+      wms_set_receiving_session_client: {
+        Args: { p_client_id: string; p_session_id: string }
+        Returns: {
+          appointment_id: string | null
+          branch_id: string | null
+          business_id: string
+          client_id: string | null
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          dock_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          row_version: number
+          source_doc_id: string | null
+          source_doc_type: string | null
+          started_at: string | null
+          state: Database["public"]["Enums"]["wms_receiving_state"]
+          supervisor_id: string | null
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_receiving_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_set_task_priority: {
         Args: { p_priority: number; p_row_version: number; p_task_id: string }
         Returns: Json
+      }
+      wms_set_trailer_visit_client: {
+        Args: { p_client_id: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_id: string | null
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_split_putaway_task: {
         Args: {
