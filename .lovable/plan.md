@@ -65,9 +65,39 @@ outcome; `useCountGovernancePreview` + `describeCountGovernance` render it in
 - Every behavioural assertion was additionally executed against the live
   database this pass: all green.
 
+## Phase 7 evidence (pass of 2026-08-17 20:45 UTC)
+
+Re-verification of Phases 1–6 (all green, executed this pass):
+- `bunx vitest run count-governance-single-engine + count-documents-single-pipeline`
+  → **9/9 passing**.
+- Live DB structural invariants (single query, all `1`):
+  `warehouse.count_variance` registered · `physical_count_submit` contains
+  `approval_route` · `trg_mirror_approval_to_physical_count` exists ·
+  `ensure_document_record` contains the supersede branch ·
+  `physical_count_approve` still raises `GOV_USE_APPROVAL_ENGINE` ·
+  `wms_count_governance_preview` present.
+
+Live state of the evidence session `551d3439-…` (`PC-000005`):
+- `physical_counts`: `state = posted`, `submitted_by = af903a2e…`,
+  `approved_by = posted_by = 81c0b017…`, `approval_request_id = NULL`
+  (pre-dates the engine wiring — legacy SoD path). Actors are present in the
+  source data, so a re-render resolves all three sign-offs.
+- `wms_count_lines`: 1 line, `pending = 0`, `approved = 1` — no orphan state.
+- `document_records` for the session: three `version = 1`, `status = issued`
+  rows (13:01, 13:10, 13:13); the 13:13 one still carries
+  `awaiting_approval = 1`, `signoffs = null`. **Still awaiting the first
+  authenticated re-render to supersede into v2.**
+
+Why the run stops here: `get_count_signoffs` (and every count RPC) raises
+`access denied` without an authenticated session — confirmed live this pass.
+The project uses an external, unmanaged Supabase
+(`LOVABLE_BROWSER_AUTH_STATUS = external_unmanaged`), so neither the sandbox
+browser nor service-role SQL can stand in for a signed-in operator. Steps 1–7
+below must be executed in the preview by a signed-in user.
+
 ## Pending
 
-### Phase 7 — live acceptance run (NEXT)
+### Phase 7 — live acceptance run (ACTIVE, blocked on a signed-in session)
 Run a fresh count with a material variance end to end, signed in, and record
 before/after evidence:
 1. `physical_counts` state + `submitted_by` / `approved_by` / `posted_by`.
