@@ -26,15 +26,34 @@ export interface CountLineRow {
   variance_qty: number | null;
 
   counted_at: string | null;
+  counted_by: string | null;
   assigned_to: string | null;
   is_blind: boolean;
   recount_round: number | null;
   recount_of_line_id: string | null;
+  /** Capture-time classification — permanent audit truth, never rewritten. */
   tolerance_outcome: string | null;
+  /** Resolution of the Inventory decision: pending | approved | rejected. */
+  approval_state: string | null;
+  approval_actor_id: string | null;
+  approval_at: string | null;
+  approval_note: string | null;
   variance_reason: string | null;
   serial_numbers: string[] | null;
   expiry_date: string | null;
 }
+
+/**
+ * A line only still blocks on a supervisor while the Inventory decision is
+ * outstanding. Once the linked count is approved/posted, the tolerance flag
+ * is history, not a pending task.
+ */
+export function countLineAwaitsApproval(
+  l: Pick<CountLineRow, "tolerance_outcome" | "approval_state">,
+): boolean {
+  return l.tolerance_outcome === "approval_required" && (l.approval_state ?? "pending") === "pending";
+}
+
 
 export function useCountLines(sessionId: string | undefined) {
   return useQuery({
