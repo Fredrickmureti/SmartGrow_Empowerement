@@ -447,48 +447,26 @@ export async function fetchAndBuildCountDocumentSnapshot(
   sessionId: string,
   kind: CountDocumentKind,
 ): Promise<BuildCountSnapshotResult> {
-  const { data: sessionRow, error: sessionError } = await client
-    .from("wms_count_sessions" as never)
-    .select(
-      `id, code, state, strategy, is_blind, notes, organization_id, business_id,
-       branch_id, warehouse_id, physical_count_id, requires_approval,
-       created_at, posted_at`,
-    )
-    .eq("id", sessionId)
-    .maybeSingle();
+  // The header is resolved server-side so BOTH origins render the same
+  // paperwork: a Warehouse-app session id AND an Inventory-module
+  // `physical_counts` id are accepted, and the warehouse name plus the
+  // linked count number come back on the same row.
+  const { data: headerRow, error: headerError } = await client.rpc(
+    "get_count_document_header",
+    { p_id: sessionId },
+  );
 
-  if (sessionError || !sessionRow) {
+  if (headerError || !headerRow) {
     throw new Error(
       `fetchAndBuildCountDocumentSnapshot: count ${sessionId} not found: ${
-        sessionError?.message ?? "no row"
+        headerError?.message ?? "no row"
       }`,
     );
   }
 
-  const raw = sessionRow as unknown as CountSessionHeaderRow;
-
-  const session: CountSessionHeaderRow = { ...raw };
-
-  if (session.warehouse_id) {
-    const { data: wh } = await client
-      .from("warehouses")
-      .select("name, code")
-      .eq("id", session.warehouse_id)
-      .maybeSingle();
-    const w = wh as { name?: string | null; code?: string | null } | null;
-    session.warehouse_name = w?.name ?? null;
-    session.warehouse_code = w?.code ?? null;
-  }
-
-  if (session.physical_count_id) {
-    const { data: pc } = await client
-      .from("physical_counts")
-      .select("count_number")
-      .eq("id", session.physical_count_id)
-      .maybeSingle();
-    session.linked_count_number =
-      ((pc as { count_number?: string | null } | null)?.count_number) ?? null;
-  }
+  const session: CountSessionHeaderRow = {
+    ...(headerRow as unknown as CountSessionHeaderRow),
+  };
 
   const { data: lineData, error: lineError } = await client.rpc("get_count_lines", {
     p_session_id: sessionId,
