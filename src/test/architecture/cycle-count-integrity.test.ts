@@ -107,5 +107,51 @@ describe("cycle count seams", () => {
     expect(src).toMatch(/wms_count_triggers/);
     expect(src).toMatch(/cooldown_hours/);
   });
+
+  // Invariant 5 (governance audit) — a resolved count never reads as pending,
+  // and no surface re-derives "awaiting approval" from the capture-time flag.
+  it("pending approval is derived from the resolution, not the capture flag", () => {
+    const seam = readFileSync(
+      join(process.cwd(), "src/features/warehouse/counts/useCountLines.ts"),
+      "utf8",
+    );
+    expect(seam, "the read seam must expose the resolution").toMatch(/approval_state/);
+    expect(seam, "one predicate owns 'still awaiting approval'").toMatch(
+      /export function countLineAwaitsApproval/,
+    );
+
+    const offenders = FILES.filter((f) => {
+      if (f.replace(/\\/g, "/").endsWith(READ_SEAM)) return false;
+      const src = readFileSync(f, "utf8");
+      // Comparing the capture-time flag to approval_required, without consulting
+      // the resolution, is what made a posted count keep asking for a supervisor.
+      return (
+        /tolerance_outcome\s*===\s*["'`]approval_required["'`]/.test(src) &&
+        !/approval_state/.test(src)
+      );
+    });
+    expect(
+      offenders,
+      `Use countLineAwaitsApproval — a posted, approved count is not pending:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the count PDF prints recorded sign-offs rather than blank rules", () => {
+    const layout = readFileSync(
+      join(process.cwd(), "supabase/functions/_shared/pdf/layouts/warehouseCount.ts"),
+      "utf8",
+    );
+    expect(layout, "signature slots come from the snapshot").toMatch(/function signatureSlots/);
+    expect(layout).toMatch(/signoffs/);
+
+    const snapshot = readFileSync(
+      join(process.cwd(), "src/services/documents/snapshots/wmsCount.ts"),
+      "utf8",
+    );
+    expect(snapshot, "sign-offs are resolved server-side, never guessed").toMatch(
+      /get_count_signoffs/,
+    );
+  });
 });
+
 

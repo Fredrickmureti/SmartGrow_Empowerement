@@ -112,3 +112,49 @@ work in the queue. `get_count_task_target` resolves a claimed task to its
 session and bin for deep-linking without exposing `wms_count_lines`, so
 the blind-count seam is preserved. Event-trigger rules
 (`wms_count_triggers`) are maintained at `/warehouse-app/counts/automation`.
+
+## Addendum (2026-08-17) — the count must say who signed it
+
+A posted cycle count printed a Difference Report that still read "a
+supervisor must approve this" and carried three blank signature rules. The
+stock had already moved. Two defects, both of them integrity defects rather
+than cosmetic ones:
+
+1. **The actor was optional.** `physical_count_submit / approve / post /
+   cancel` accepted a `NULL` actor. A `NULL` actor makes
+   `governance_assert_not_self` return without deciding anything, so the
+   Segregation-of-Duties check was not merely passed — it was never run —
+   and the document recorded an approval nobody owned.
+2. **The classification was mistaken for the decision.**
+   `wms_count_lines.tolerance_outcome` is what the *policy* said at capture
+   time. Nothing ever recorded what the *approver* then decided, so every
+   reader — the review screen and the PDF alike — kept re-announcing a
+   requirement that had already been met.
+
+Corrections:
+
+- The lifecycle RPCs default the actor to `auth.uid()` and raise
+  `42501 / GOV_ACTOR_REQUIRED` when none can be resolved. An unattributable
+  approval is now impossible rather than merely unusual.
+- `wms_count_lines` gained `approval_state` (`pending | approved | rejected`,
+  CHECK-constrained), `approval_actor_id`, `approval_at` and
+  `approval_note`, mirrored from the Inventory decision. `tolerance_outcome`
+  is left untouched — it is the permanent record of what policy demanded,
+  and rewriting it would destroy the audit trail.
+- `get_count_lines` returns the resolution, keeping it the only read seam.
+  `countLineAwaitsApproval` is the single predicate for "still pending"; a
+  guard fails the build if any surface tests `tolerance_outcome` alone.
+- `get_count_signoffs` resolves the counters, reviewer, approver and poster
+  to real names; the PDF prints them above the signature rules instead of
+  offering empty lines. Under solo governance one person legitimately fills
+  several roles — the paper says so rather than inventing colleagues.
+- Historic rows were backfilled from `physical_count_events`, attributed to
+  the actor who posted the count and explicitly flagged
+  `actor_backfilled: true` with the reason, so a reconstructed attribution
+  is never mistaken for a witnessed one.
+
+Coverage: `supabase/tests/cycle_count_governance_test.sql` (actor guard,
+constrained resolution, read-seam exposure, no posted-yet-pending line, no
+unattributed approval, no direct stock write) and the two new cases in
+`src/test/architecture/cycle-count-integrity.test.ts`.
+
