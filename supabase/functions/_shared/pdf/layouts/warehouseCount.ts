@@ -213,6 +213,37 @@ function drawSignatureStrip(
   builder.y = top - 56;
 }
 
+/**
+ * Sign-off slots for an evidence document, filled from the recorded actors.
+ * Under solo governance the same person legitimately fills several roles —
+ * that is what happened, and the paper says so rather than inventing people.
+ */
+function signatureSlots(snapshot: Snapshot, isAudit: boolean): SignatureSlot[] {
+  const so = (snapshot["signoffs"] ?? null) as Snapshot | null;
+  const actor = (key: string): { name?: string | null; at?: string | null } => {
+    const a = (so?.[key] ?? null) as Snapshot | null;
+    return { name: a ? str(a["name"]) : null, at: a ? str(a["at"]) : null };
+  };
+  const counters = Array.isArray(so?.["counted_by"]) ? (so["counted_by"] as Snapshot[]) : [];
+  const counterNames = counters
+    .map((c) => str(c["name"]))
+    .filter((n): n is string => Boolean(n));
+
+  if (isAudit) {
+    return [
+      { role: "Reviewed by", ...actor("reviewed_by") },
+      { role: "Audited by" },
+    ];
+  }
+  return [
+    { role: "Counted by", name: counterNames.join(", ") || null },
+    { role: "Reviewed by", ...actor("reviewed_by") },
+    { role: "Approved by", ...actor("approved_by") },
+  ];
+}
+
+
+
 
 function headerFactRows(snapshot: Snapshot): Array<[string, string | null]> {
   return [
