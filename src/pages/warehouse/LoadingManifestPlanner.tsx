@@ -11,6 +11,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { wmsErrorToast } from "@/features/warehouse/errors/wmsRpcError";
 import { PageHeader, PageBody, Section } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,7 +102,7 @@ export default function LoadingManifestPlanner() {
       setDockId(id);
       qc.invalidateQueries({ queryKey: ["docks-for-manifest", warehouseId] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e: unknown) => toast.error(...wmsErrorToast(e, "Action failed")),
   });
 
   const openManifest = useMutation({
@@ -121,7 +122,7 @@ export default function LoadingManifestPlanner() {
       toast.success("Manifest opened");
       nav(`/warehouse-app/dispatch/${id}`);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e: unknown) => toast.error(...wmsErrorToast(e, "Action failed")),
   });
 
   return (

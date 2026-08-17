@@ -15,7 +15,8 @@
  * This page is the human surface over that service: triage queue, deep
  * drill-down, and recurrence analytics.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -69,6 +70,46 @@ export default function ExceptionsInbox() {
   const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
   const [active, setActive] = useState<ExceptionRow | null>(null);
+
+  /**
+   * Deep link support — `?exception=<id>`.
+   *
+   * The Outbound Control Tower (and any notification) links to a specific
+   * exception. Fetch it by id rather than hunting the filtered list: a
+   * supervisor following an escalation must land on the row even when the
+   * inbox's current filters, warehouse or SLA scope would hide it.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusId = searchParams.get("exception");
+
+  const { data: focused } = useQuery({
+    queryKey: ["wms_exception_focus", focusId],
+    enabled: !!focusId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_exceptions" as any)
+        .select("*")
+        .eq("id", focusId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as unknown as ExceptionRow | null;
+    },
+  });
+
+  useEffect(() => {
+    if (focused && (!active || active.id !== focused.id)) setActive(focused);
+    // Only react to a newly resolved deep link, not to every sheet change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused]);
+
+  const closeDetail = () => {
+    setActive(null);
+    if (focusId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("exception");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const effectiveWh = warehouseId || warehouses[0]?.id || "";
 
@@ -354,7 +395,7 @@ export default function ExceptionsInbox() {
       <ExceptionDetailSheet
         exception={active}
         currentUserId={userId}
-        onOpenChange={(o) => !o && setActive(null)}
+        onOpenChange={(o) => { if (!o) closeDetail(); }}
       />
     </>
   );

@@ -60,6 +60,37 @@ interface EvidenceRow {
   captured_at: string;
 }
 
+/**
+ * Where the work actually lives.
+ *
+ * An exception is only workable if the supervisor can reach the thing that
+ * went wrong. `wms_exception_links.route_path` covers curated links; this
+ * map is the fallback for the aggregates the raisers stamp, so every
+ * exception offers a way back onto the floor instead of a bare UUID.
+ */
+const AGGREGATE_ROUTES: Record<string, (id: string) => string> = {
+  wms_task: () => "/warehouse-app/tasks",
+  wms_license_plate: () => "/warehouse-app/plates",
+  wms_qc_inspection: (id) => `/warehouse-app/qc/${id}`,
+  wms_count_line: () => "/warehouse-app/counts",
+  wms_count_session: (id) => `/warehouse-app/counts/${id}`,
+  wms_dock_appointment: () => "/warehouse-app/schedule",
+  wms_trailer_visit: (id) => `/warehouse-app/yard/visit/${id}`,
+  wms_receiving_line: () => "/warehouse-app/receiving",
+  wms_receiving_session: () => "/warehouse-app/receiving",
+  wms_return_line: () => "/warehouse-app/returns",
+  wms_return_order: () => "/warehouse-app/returns",
+  wms_loading_manifest: (id) => `/warehouse-app/dispatch/${id}`,
+  wms_pick_wave: () => "/warehouse-app/waves",
+  stock_quant: () => "/inventory-app/stock",
+};
+
+function aggregateRoute(type: string | null, id: string | null): string | null {
+  if (!type || !id) return null;
+  const build = AGGREGATE_ROUTES[type];
+  return build ? build(id) : null;
+}
+
 interface LinkRow {
   id: string;
   link_type: string;
@@ -89,6 +120,7 @@ export function ExceptionDetailSheet({
 }: ExceptionDetailSheetProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const workItemRoute = aggregateRoute(exception?.aggregate_type ?? null, exception?.aggregate_id ?? null);
   const id = exception?.id ?? null;
 
   const [resolution, setResolution] = useState("");
@@ -252,7 +284,15 @@ export function ExceptionDetailSheet({
             label="Financial impact"
             value={e.financial_impact ? `${e.impact_currency ?? ""} ${Number(e.financial_impact).toLocaleString()}`.trim() : "—"}
           />
-          <Field label="Aggregate" value={`${humanise(e.aggregate_type)}${e.aggregate_id ? ` · ${e.aggregate_id.slice(0, 8)}` : ""}`} />
+          <Field
+            label="Aggregate"
+            value={`${humanise(e.aggregate_type)}${e.aggregate_id ? ` · ${e.aggregate_id.slice(0, 8)}` : ""}`}
+            action={
+              workItemRoute
+                ? { label: "Open work item", onClick: () => { onOpenChange(false); navigate(workItemRoute); } }
+                : undefined
+            }
+          />
           <Field label="Assigned" value={e.assigned_to ? (e.assigned_to === currentUserId ? "You" : `${e.assigned_to.slice(0, 8)}…`) : "Unassigned"} />
         </div>
 
@@ -478,11 +518,23 @@ export function ExceptionDetailSheet({
   );
 }
 
-function Field({ label, value, tone }: { label: string; value: string; tone?: "danger" }) {
+function Field({
+  label, value, tone, action,
+}: {
+  label: string;
+  value: string;
+  tone?: "danger";
+  action?: { label: string; onClick: () => void };
+}) {
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={cn("font-medium", tone === "danger" && "text-destructive")}>{value}</div>
+      {action && (
+        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
     </div>
   );
 }

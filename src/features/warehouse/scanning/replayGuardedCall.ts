@@ -28,6 +28,7 @@
  * directly — `wms-client-scan-id-unique.test.ts` fails the build if you do.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { WmsRpcError } from "@/features/warehouse/errors/wmsRpcError";
 
 const DEVICE_KEY = "wms_client_device_id";
 /** Window in which an identical intent is treated as the same operator action. */
@@ -94,8 +95,9 @@ export interface GuardedCallResult<T> {
 
 /**
  * Execute a whitelisted WMS RPC through the replay dispatcher.
- * Throws the underlying Postgres error unchanged so existing
- * `WMS_SCAN_SHORTAGE` / row-version handling keeps working.
+ * Rejections are re-thrown as `WmsRpcError` — a real `Error` that keeps the
+ * Postgres `message`/`details`/`hint`/`code`, so callers can classify them
+ * through `toWmsFailure` instead of stringifying a plain object.
  */
 export async function replayGuardedCall<T = unknown>(
   rpc: string,
@@ -112,7 +114,7 @@ export async function replayGuardedCall<T = unknown>(
     // A rejected call recorded no receipt; let the operator retry the same
     // values once they have fixed whatever the server complained about.
     forgetIntent(rpc, args);
-    throw error;
+    throw new WmsRpcError(rpc, error);
   }
   const envelope = (data ?? {}) as { replayed?: boolean; result?: unknown };
   return {
