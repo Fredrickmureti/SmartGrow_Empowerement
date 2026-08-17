@@ -62,30 +62,6 @@ export type Database = {
         }
         Relationships: []
       }
-      _sim_log: {
-        Row: {
-          at: string
-          detail: string | null
-          id: number
-          outcome: string
-          step: string
-        }
-        Insert: {
-          at?: string
-          detail?: string | null
-          id?: number
-          outcome: string
-          step: string
-        }
-        Update: {
-          at?: string
-          detail?: string | null
-          id?: number
-          outcome?: string
-          step?: string
-        }
-        Relationships: []
-      }
       account_change_audit_log: {
         Row: {
           account_id: string | null
