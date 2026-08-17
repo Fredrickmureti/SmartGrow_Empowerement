@@ -89,6 +89,34 @@ BEGIN
       RAISE EXCEPTION 'WMS/P6: % does not run the capacity guard', v_name;
     END IF;
   END LOOP;
+
+  -- 6. INV-SIM 2026-08-17: a version conflict must NOT be raised as SQLSTATE
+  --    40001. The API layer retries serialization failures, so a stale plate
+  --    call never returned, leaked an aborted open transaction and wedged the
+  --    plate row for every later operator.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND pg_get_functiondef(p.oid) ~ '''(wms_lpn_stale|wms_task_stale)[^'']*''[^;]*40001'
+  ) THEN
+    RAISE EXCEPTION 'WMS/P6: a plate/task conflict is raised as retryable 40001 again';
+  END IF;
+
+  -- 7. every plate mutator that takes a row lock must bound the wait, so one
+  --    abandoned request cannot park the connection pool on a single plate.
+  FOR v_name IN
+    SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname LIKE 'wms_lpn_%'
+       AND pg_get_functiondef(p.oid) ~* 'FOR UPDATE'
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public' AND p.proname = v_name
+         AND array_to_string(p.proconfig, ',') LIKE '%lock_timeout%'
+    ) THEN
+      RAISE EXCEPTION 'WMS/P6: % locks rows without a bounded lock_timeout', v_name;
+    END IF;
+  END LOOP;
 END $$;
 
 ROLLBACK;
