@@ -392,12 +392,14 @@ export function buildCountVarianceSnapshot(
 export function buildCountAuditSnapshot(
   session: CountSessionHeaderRow,
   lines: CountSnapshotLineRow[],
+  signoffs?: CountSignoffs | null,
 ): BuildCountSnapshotResult {
   const ordered = [...lines].sort((a, b) => {
     const bin = binLabel(a).localeCompare(binLabel(b));
     if (bin !== 0) return bin;
     return (a.recount_round ?? 0) - (b.recount_round ?? 0);
   });
+  const approverName = signoffs?.approved_by?.name ?? null;
 
   const rows = ordered.map((line, index) => ({
     line_no: index + 1,
@@ -412,7 +414,12 @@ export function buildCountAuditSnapshot(
       ? `${num(line.entered_qty)} × ${line.packaging_name}`
       : "",
     counted_at: line.counted_at ? line.counted_at.slice(0, 16).replace("T", " ") : "",
-    outcome: toleranceExplanation(line.tolerance_outcome),
+    outcome: toleranceExplanation(
+      line.tolerance_outcome,
+      line.approval_state,
+      approverName ?? (line.approval_note ? "an unrecorded approver" : null),
+      line.approval_at,
+    ),
     superseded: line.recount_of_line_id ? "recount of an earlier attempt" : "",
   }));
 
@@ -423,8 +430,10 @@ export function buildCountAuditSnapshot(
     layout: "count_report",
     count_lines: rows,
     line_count: rows.length,
+    signoffs: signoffBlock(signoffs),
     attempts: rows.length,
   });
+
 }
 
 /**
