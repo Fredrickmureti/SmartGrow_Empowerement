@@ -219,14 +219,14 @@ export default function CountReview() {
 
         {needsApproval.length > 0 && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-            {needsApproval.length} line{needsApproval.length === 1 ? "" : "s"} exceed the allowed
-            difference and will need a manager's approval in Inventory before stock moves.
+            {describeCountGovernance(governance, needsApproval.length) ??
+              `${needsApproval.length} line${needsApproval.length === 1 ? "" : "s"} exceed the allowed difference. Governance decides who signs this off when you submit.`}
           </div>
         )}
         {needsApproval.length === 0 && resolvedApprovals.length > 0 && session.state === "posted" && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-            Differences on this count were approved in Inventory and the stock adjustment has
-            been posted. Nothing here is waiting on anyone.
+            Differences on this count were signed off and the stock adjustment has been posted.
+            Nothing here is waiting on anyone.
           </div>
         )}
 
