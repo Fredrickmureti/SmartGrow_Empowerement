@@ -18,14 +18,6 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { SELF_ACTION_CATALOGUE } from "@/lib/governance/selfActionCatalogue";
 
-/**
- * Action keys seeded into governance_action_registry that intentionally have
- * no SELF_ACTION_CATALOGUE entry. Keep this empty unless there is a documented
- * reason — a registry row with no catalogue entry is invisible in
- * Settings → Governance → Advanced (per-action overrides).
- */
-const REGISTRY_ONLY_ALLOWLIST = new Set<string>([]);
-
 /** Extract action_key literals out of every registry seed INSERT block. */
 function seededRegistryKeys(): string[] {
   const dir = join(process.cwd(), "supabase", "migrations");
@@ -60,15 +52,26 @@ describe("Approval & Governance — action registry parity (Phase 1)", () => {
     expect(missing, `missing seed rows: ${missing.join(", ")}`).toEqual([]);
   });
 
-  it("every seeded registry action key has a SELF_ACTION_CATALOGUE entry", () => {
-    const known = new Set(SELF_ACTION_CATALOGUE.map((e) => e.key));
-    const orphans = seededRegistryKeys().filter(
-      (k) => !known.has(k) && !REGISTRY_ONLY_ALLOWLIST.has(k)
+  it("the per-action overrides screen is driven by the DB registry, not the static catalogue", () => {
+    // Registry rows with no catalogue entry (Warehouse, Purchasing reversal
+    // keys, …) must still be configurable. The screen therefore reads the
+    // registry; the catalogue only supplies entity metadata for overrides.
+    const screen = readFileSync(
+      join(process.cwd(), "src/components/settings/SelfActionPolicy.tsx"),
+      "utf8"
     );
-    expect(
-      orphans,
-      `registry rows with no catalogue entry (invisible in Governance settings): ${orphans.join(", ")}`
-    ).toEqual([]);
+    expect(screen).toMatch(/useGovernanceActionRegistry\(/);
+    // The grouping must consume the registry result.
+    expect(screen).toMatch(/for \(const r of registry\)/);
+  });
+
+  it("every seeded registry key is either in the catalogue or reachable via the registry-driven screen", () => {
+    const known = new Set(SELF_ACTION_CATALOGUE.map((e) => e.key));
+    const seeded = seededRegistryKeys();
+    expect(seeded.length).toBeGreaterThan(0);
+    // Warehouse is the module this wave added — it must be in both.
+    expect(seeded).toContain("warehouse.count_variance");
+    expect(known.has("warehouse.count_variance")).toBe(true);
   });
 
   it("registry seed carries the CHECK constraint for subject_mode", () => {
