@@ -87690,6 +87690,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      _teardown_allows: { Args: { p_row: Json }; Returns: boolean }
       _timesheet_can_approve: {
         Args: { _allow_self: boolean; _employee_id: string; _uid: string }
         Returns: boolean
