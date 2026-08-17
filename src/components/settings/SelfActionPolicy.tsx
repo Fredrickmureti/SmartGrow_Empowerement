@@ -120,15 +120,35 @@ export function SelfActionPolicy() {
     },
   });
 
+  // The governance registry in the database is the source of truth for which
+  // actions exist. The static catalogue is only a compile-time mirror, so the
+  // table must never be built from it alone — a module registered server-side
+  // (e.g. Warehouse) would otherwise be invisible here and impossible to
+  // configure. Parity between the two is enforced by
+  // src/test/architecture/governance-action-registry-parity.test.ts.
   const grouped = useMemo(() => {
-    const map = new Map<string, typeof SELF_ACTION_CATALOGUE>();
-    for (const entry of SELF_ACTION_CATALOGUE) {
+    const entries = new Map<string, DisplayEntry>();
+    for (const e of SELF_ACTION_CATALOGUE) {
+      entries.set(e.key, { key: e.key, module: e.module, label: e.label, description: e.description });
+    }
+    for (const r of registry) {
+      entries.set(r.action_key, {
+        key: r.action_key,
+        module: titleCase(r.module),
+        label: r.label,
+        description: r.description,
+      });
+    }
+    const map = new Map<string, DisplayEntry[]>();
+    for (const entry of entries.values()) {
       const list = map.get(entry.module) ?? [];
       list.push(entry);
       map.set(entry.module, list);
     }
-    return Array.from(map.entries());
-  }, []);
+    for (const list of map.values()) list.sort((a, b) => a.label.localeCompare(b.label));
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [registry]);
+
 
   if (!orgId) return null;
 
