@@ -106249,6 +106249,45 @@ export type Database = {
         Args: { p_priority: number; p_row_version: number; p_task_id: string }
         Returns: Json
       }
+      wms_set_trailer_visit_client: {
+        Args: { p_client_id: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_id: string | null
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_split_putaway_task: {
         Args: {
           p_location_id?: string
