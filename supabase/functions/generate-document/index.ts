@@ -3013,11 +3013,6 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   stock_transfer: "invoice",
   vendor_return: "credit_note",
   purchase_return: "credit_note",
-  // ADR 0106 — cycle-count paperwork. Tabular body, no money column.
-  count_sheet: "invoice",
-  count_sheet_blind: "invoice",
-  count_variance_report: "invoice",
-  count_audit_report: "invoice",
   // ADR 0110 — dispatch paperwork. The bill of lading and the dispatch
   // manifest are the carrier-facing artifacts; the packing list travels
   // with the goods; the carrier label is a 4x6 thermal artifact and is
@@ -4693,11 +4688,6 @@ const TABLE_MAP: Record<string, string> = {
   purchase_return: "purchase_returns",
   goods_received_note: "goods_receipts",
   goods_receipt: "goods_receipts",
-  // ADR 0106 — cycle-count paperwork is a read model over the count session.
-  count_sheet: "wms_count_sessions",
-  count_sheet_blind: "wms_count_sessions",
-  count_variance_report: "wms_count_sessions",
-  count_audit_report: "wms_count_sessions",
   // ADR 0110 — every dispatch artifact hangs off one loading manifest.
   bill_of_lading: "wms_loading_manifests",
   dispatch_manifest: "wms_loading_manifests",
