@@ -106241,9 +106241,70 @@ export type Database = {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
+      wms_set_lpn_client: {
+        Args: { p_client_id: string; p_lpn_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          client_id: string | null
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_set_operator_status: {
         Args: { p_operator_id: string; p_row_version: number; p_status: string }
         Returns: Json
+      }
+      wms_set_receiving_session_client: {
+        Args: { p_client_id: string; p_session_id: string }
+        Returns: {
+          appointment_id: string | null
+          branch_id: string | null
+          business_id: string
+          client_id: string | null
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          dock_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          row_version: number
+          source_doc_id: string | null
+          source_doc_type: string | null
+          started_at: string | null
+          state: Database["public"]["Enums"]["wms_receiving_state"]
+          supervisor_id: string | null
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_receiving_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_set_task_priority: {
         Args: { p_priority: number; p_row_version: number; p_task_id: string }
