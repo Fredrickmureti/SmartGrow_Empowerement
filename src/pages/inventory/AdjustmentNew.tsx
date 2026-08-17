@@ -19,6 +19,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventory, useOffsetAccountPreview } from "@/hooks/useInventory";
 import { useProducts } from "@/hooks/useProducts";
@@ -35,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, XCircle } from "lucide-react";
+import { AlertTriangle, Plus, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RecordFormShell, Section, FieldGrid } from "@/design-system";
 import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
@@ -45,6 +46,24 @@ type Item = {
   quantity_adjustment: number;
   unit_cost: number | "";
   notes: string;
+};
+
+/**
+ * The product the caller deep-linked to. Resolved from the database rather
+ * than from the adjustable list, because the whole point is to explain the
+ * cases where the product is NOT in that list (variant parent, service,
+ * untracked, archived, other business). Silently dropping the id is what
+ * made the page look like it had forgotten which product you came from.
+ */
+type LinkedProduct = {
+  id: string;
+  name: string;
+  sku: string | null;
+  type: string | null;
+  is_active: boolean | null;
+  track_inventory: boolean | null;
+  is_variant_parent: boolean | null;
+  business_id: string | null;
 };
 
 type Warehouse = {
