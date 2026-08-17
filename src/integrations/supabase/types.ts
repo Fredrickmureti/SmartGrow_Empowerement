@@ -73457,6 +73457,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_loading_manifests_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_loading_manifests_carrier_service_id_fkey"
             columns: ["carrier_service_id"]
             isOneToOne: false
