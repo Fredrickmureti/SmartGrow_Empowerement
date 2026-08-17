@@ -42,6 +42,7 @@ import {
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 
@@ -515,6 +516,21 @@ export default function PhysicalCountDetail() {
         actions={
           <ActionBar>
             <RefreshButton queryKeyPrefixes={[["physical-count-detail", id] as const, ["physical-count-lines", id] as const, ["physical-count-preflight", id] as const, ["physical-count-events", id] as const]} tooltip="Refresh" />
+            {/* ADR 0106 — the same paperwork the Warehouse app produces, for
+              * counts started in Inventory. The count sheet is only useful
+              * while counting; the evidence reports carry the sign-off block
+              * (counted / reviewed / approved / posted by). */}
+            <CountDocumentsMenu
+              sessionId={header.id}
+              countNumber={header.count_number}
+              size="sm"
+              only={
+                ["draft", "counting"].includes(header.state)
+                  ? ["count_sheet"]
+                  : ["count_sheet", "count_variance_report", "count_audit_report"]
+              }
+            />
+
             {/* Recount is a contextual action available while lines are selected in review. */}
             {header.state === "in_review" && selected.size > 0 && (
               <Button size="sm" variant="outline" disabled={busy}

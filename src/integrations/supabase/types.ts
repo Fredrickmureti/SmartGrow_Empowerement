@@ -94869,6 +94869,7 @@ export type Database = {
         Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
       }
+      get_count_document_header: { Args: { p_id: string }; Returns: Json }
       get_count_lines: {
         Args: { p_session_id: string }
         Returns: {
