@@ -42,3 +42,40 @@ BEGIN
       '% business event(s) dead-lettered as unknown_event_type', v_n;
   END IF;
 END $$;
+
+-- 3. Static: a topic must be registered BEFORE it is ever emitted. Checks 1-2
+--    can only see topics that already fired; this one reads the emitter source
+--    so a brand-new topic cannot ship unregistered and dead-letter in
+--    production. Scans every function that calls an outbox emit helper for
+--    domain topic literals.
+DO $$
+DECLARE v_missing text;
+BEGIN
+  WITH fns AS (
+    SELECT pg_get_functiondef(p.oid) AS def
+      FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND pg_get_functiondef(p.oid) ~ '(emit_business_event|emit_inventory_event|_wms_emit_event)\s*\('
+  ),
+  lits AS (
+    SELECT DISTINCT m[1] AS topic
+      FROM fns,
+           regexp_matches(
+             fns.def,
+             '''((?:warehouse|procurement|inventory|goods_receipt|delivery_note|product|stock|pos)\.[a-z_]+(?:\.[a-z_]+)*)''',
+             'g'
+           ) m
+  )
+  SELECT string_agg(l.topic, ', ' ORDER BY l.topic)
+    INTO v_missing
+    FROM lits l
+   WHERE NOT EXISTS (
+     SELECT 1 FROM public.business_event_topics bt
+      WHERE bt.topic_prefix = l.topic
+   );
+
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION
+      'topic(s) emitted by database code but never registered in business_event_topics: %', v_missing;
+  END IF;
+END $$;
