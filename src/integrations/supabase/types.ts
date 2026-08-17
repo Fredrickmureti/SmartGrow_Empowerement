@@ -71506,6 +71506,10 @@ export type Database = {
       }
       wms_count_lines: {
         Row: {
+          approval_actor_id: string | null
+          approval_at: string | null
+          approval_note: string | null
+          approval_state: string
           assigned_to: string | null
           business_id: string
           counted_at: string | null
@@ -71536,6 +71540,10 @@ export type Database = {
             | null
         }
         Insert: {
+          approval_actor_id?: string | null
+          approval_at?: string | null
+          approval_note?: string | null
+          approval_state?: string
           assigned_to?: string | null
           business_id: string
           counted_at?: string | null
@@ -71566,6 +71574,10 @@ export type Database = {
             | null
         }
         Update: {
+          approval_actor_id?: string | null
+          approval_at?: string | null
+          approval_note?: string | null
+          approval_state?: string
           assigned_to?: string | null
           business_id?: string
           counted_at?: string | null
@@ -94832,8 +94844,13 @@ export type Database = {
       get_count_lines: {
         Args: { p_session_id: string }
         Returns: {
+          approval_actor_id: string
+          approval_at: string
+          approval_note: string
+          approval_state: string
           assigned_to: string
           counted_at: string
+          counted_by: string
           counted_qty: number
           entered_qty: number
           expiry_date: string
@@ -94886,6 +94903,7 @@ export type Database = {
           warehouse_name: string
         }[]
       }
+      get_count_signoffs: { Args: { p_session_id: string }; Returns: Json }
       get_count_task_target: { Args: { p_task_id: string }; Returns: Json }
       get_current_employee: {
         Args: { _organization_id?: string }

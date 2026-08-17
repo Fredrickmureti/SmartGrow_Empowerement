@@ -87,11 +87,32 @@ export interface CountSnapshotLineRow {
   entered_qty: number | null;
   packaging_name: string | null;
   counted_at: string | null;
+  counted_by: string | null;
   recount_round: number | null;
   recount_of_line_id: string | null;
   tolerance_outcome: string | null;
+  /** Resolution of the Inventory decision: pending | approved | rejected. */
+  approval_state: string | null;
+  approval_actor_id: string | null;
+  approval_at: string | null;
+  approval_note: string | null;
   variance_reason: string | null;
 }
+
+/** Who counted, reviewed, approved and posted — from the canonical actors. */
+export interface CountSignoffActor {
+  user_id: string | null;
+  name: string | null;
+  at?: string | null;
+}
+
+export interface CountSignoffs {
+  counted_by: CountSignoffActor[];
+  reviewed_by: CountSignoffActor | null;
+  approved_by: CountSignoffActor | null;
+  posted_by: CountSignoffActor | null;
+}
+
 
 export interface BuildCountSnapshotResult {
   snapshot: Record<string, unknown>;
@@ -123,8 +144,32 @@ function productLabel(line: { product_name: string | null; product_sku: string |
   return line.product_name?.trim() || line.product_sku?.trim() || "Product no longer in catalogue";
 }
 
-/** Plain-English reason a supervisor is being asked to approve a line. */
-export function toleranceExplanation(outcome: string | null | undefined): string {
+/**
+ * Plain-English outcome for a line.
+ *
+ * `tolerance_outcome` is the CAPTURE-TIME classification and never changes —
+ * it is audit truth. `approval_state` is the RESOLUTION recorded once
+ * Inventory approved, rejected or posted the linked count. A posted count
+ * must therefore never read as if it is still waiting for a supervisor.
+ */
+export function toleranceExplanation(
+  outcome: string | null | undefined,
+  approvalState?: string | null,
+  approverName?: string | null,
+  approvedAt?: string | null,
+): string {
+  const when = approvedAt ? ` on ${approvedAt.slice(0, 10)}` : "";
+  const who = approverName ? ` by ${approverName}` : "";
+
+  if (approvalState === "approved") {
+    return outcome === "within_tolerance"
+      ? `Within the allowed tolerance — approved${who}${when}`
+      : `Outside tolerance — approved${who}${when}`;
+  }
+  if (approvalState === "rejected") {
+    return `Rejected${who}${when}`;
+  }
+
   switch (outcome) {
     case "within_tolerance":
       return "Within the allowed tolerance";
@@ -138,6 +183,18 @@ export function toleranceExplanation(outcome: string | null | undefined): string
       return outcome ? humanize(outcome) : "";
   }
 }
+
+/** A line is only still open if the Inventory decision has not landed. */
+export function isAwaitingApproval(line: {
+  tolerance_outcome: string | null;
+  approval_state?: string | null;
+}): boolean {
+  return (
+    line.tolerance_outcome === "approval_required" &&
+    (line.approval_state ?? "pending") === "pending"
+  );
+}
+
 
 function detailBits(line: CountSnapshotLineRow): string {
   const bits: string[] = [];
@@ -262,15 +319,28 @@ export function buildCountSheetSnapshot(
   });
 }
 
+/** Serialised sign-off block; empty entries print as a blank ruled line. */
+function signoffBlock(signoffs: CountSignoffs | null | undefined) {
+  if (!signoffs) return null;
+  return {
+    counted_by: signoffs.counted_by ?? [],
+    reviewed_by: signoffs.reviewed_by ?? null,
+    approved_by: signoffs.approved_by ?? null,
+    posted_by: signoffs.posted_by ?? null,
+  };
+}
+
 /** Difference report — what disagreed, by how much, why, and what happens next. */
 export function buildCountVarianceSnapshot(
   session: CountSessionHeaderRow,
   lines: CountSnapshotLineRow[],
+  signoffs?: CountSignoffs | null,
 ): BuildCountSnapshotResult {
   const latest = latestOnly(lines);
   const variances = latest.filter(
     (l) => l.counted_qty != null && num(l.variance_qty) !== 0,
   );
+  const approverName = signoffs?.approved_by?.name ?? null;
 
   const rows = variances.map((line, index) => ({
     line_no: index + 1,
@@ -282,7 +352,12 @@ export function buildCountVarianceSnapshot(
     counted: num(line.counted_qty),
     difference: num(line.variance_qty),
     reason: humanize(line.variance_reason),
-    outcome: toleranceExplanation(line.tolerance_outcome),
+    outcome: toleranceExplanation(
+      line.tolerance_outcome,
+      line.approval_state,
+      approverName ?? (line.approval_note ? "an unrecorded approver" : null),
+      line.approval_at,
+    ),
   }));
 
   return result(session, {
@@ -292,29 +367,39 @@ export function buildCountVarianceSnapshot(
     layout: "count_report",
     count_lines: rows,
     line_count: rows.length,
+    signoffs: signoffBlock(signoffs),
     summary: {
       lines_in_scope: latest.length,
       lines_counted: latest.filter((l) => l.counted_qty != null).length,
       lines_not_counted: latest.filter((l) => l.counted_qty == null).length,
       differences: variances.length,
-      awaiting_approval: latest.filter((l) => l.tolerance_outcome === "approval_required").length,
-      recounts_open: latest.filter((l) => l.tolerance_outcome === "recount_required").length,
+      awaiting_approval: latest.filter(isAwaitingApproval).length,
+      approved: latest.filter((l) => l.approval_state === "approved").length,
+      rejected: latest.filter((l) => l.approval_state === "rejected").length,
+      recounts_open: latest.filter(
+        (l) =>
+          l.tolerance_outcome === "recount_required" &&
+          (l.approval_state ?? "pending") === "pending",
+      ).length,
       units_over: variances.reduce((s, l) => s + Math.max(0, num(l.variance_qty)), 0),
       units_short: variances.reduce((s, l) => s + Math.min(0, num(l.variance_qty)), 0),
     },
   });
 }
 
+
 /** Audit report — the full attempt history, including superseded rounds. */
 export function buildCountAuditSnapshot(
   session: CountSessionHeaderRow,
   lines: CountSnapshotLineRow[],
+  signoffs?: CountSignoffs | null,
 ): BuildCountSnapshotResult {
   const ordered = [...lines].sort((a, b) => {
     const bin = binLabel(a).localeCompare(binLabel(b));
     if (bin !== 0) return bin;
     return (a.recount_round ?? 0) - (b.recount_round ?? 0);
   });
+  const approverName = signoffs?.approved_by?.name ?? null;
 
   const rows = ordered.map((line, index) => ({
     line_no: index + 1,
@@ -329,7 +414,12 @@ export function buildCountAuditSnapshot(
       ? `${num(line.entered_qty)} × ${line.packaging_name}`
       : "",
     counted_at: line.counted_at ? line.counted_at.slice(0, 16).replace("T", " ") : "",
-    outcome: toleranceExplanation(line.tolerance_outcome),
+    outcome: toleranceExplanation(
+      line.tolerance_outcome,
+      line.approval_state,
+      approverName ?? (line.approval_note ? "an unrecorded approver" : null),
+      line.approval_at,
+    ),
     superseded: line.recount_of_line_id ? "recount of an earlier attempt" : "",
   }));
 
@@ -340,8 +430,10 @@ export function buildCountAuditSnapshot(
     layout: "count_report",
     count_lines: rows,
     line_count: rows.length,
+    signoffs: signoffBlock(signoffs),
     attempts: rows.length,
   });
+
 }
 
 /**
@@ -404,6 +496,18 @@ export async function fetchAndBuildCountDocumentSnapshot(
   if (lineError) throw lineError;
   const lines = (lineData ?? []) as unknown as CountSnapshotLineRow[];
 
+  // Sign-offs are only meaningful on the evidence documents (a blank count
+  // sheet is signed by hand). Actors come from the canonical count record.
+  let signoffs: CountSignoffs | null = null;
+  if (kind === "wms.count_variance_report" || kind === "wms.count_audit_report") {
+    const { data: signoffData, error: signoffError } = await client.rpc(
+      "get_count_signoffs",
+      { p_session_id: sessionId },
+    );
+    if (signoffError) throw signoffError;
+    signoffs = (signoffData ?? null) as unknown as CountSignoffs | null;
+  }
+
   switch (kind) {
     case "wms.count_sheet_blind":
       // Project to identity-only BEFORE the builder sees the rows.
@@ -420,9 +524,9 @@ export async function fetchAndBuildCountDocumentSnapshot(
         })),
       );
     case "wms.count_variance_report":
-      return buildCountVarianceSnapshot(session, lines);
+      return buildCountVarianceSnapshot(session, lines, signoffs);
     case "wms.count_audit_report":
-      return buildCountAuditSnapshot(session, lines);
+      return buildCountAuditSnapshot(session, lines, signoffs);
     case "wms.count_sheet":
     default:
       return buildCountSheetSnapshot(session, lines);

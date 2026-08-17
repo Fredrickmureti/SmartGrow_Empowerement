@@ -145,29 +145,63 @@ function drawSectionLabel(builder: PdfBuilder, label: string): void {
 }
 
 /** Counter / supervisor accountability. A count is evidence only once signed. */
-function drawSignatureStrip(builder: PdfBuilder, roles: string[]): void {
+interface SignatureSlot {
+  role: string;
+  name?: string | null;
+  at?: string | null;
+}
+
+function drawSignatureStrip(
+  builder: PdfBuilder,
+  slots: Array<string | SignatureSlot>,
+): void {
   builder.ensureSpace(66);
   const { margin, contentWidth } = builder.state;
-  const colWidth = contentWidth / roles.length;
+  const entries: SignatureSlot[] = slots.map((s) =>
+    typeof s === "string" ? { role: s } : s,
+  );
+  const colWidth = contentWidth / entries.length;
   const page = builder.page;
   const top = builder.y;
 
-  roles.forEach((role, i) => {
+  entries.forEach((entry, i) => {
     const x = margin + i * colWidth;
-    page.drawText(role.toUpperCase(), {
+    page.drawText(entry.role.toUpperCase(), {
       x,
       y: top,
       size: 7.5,
       font: builder.fontBold,
       color: theme.color.medGray,
     });
+
+    // A recorded actor is printed above the rule; an unrecorded one leaves the
+    // rule blank so nobody is credited with a sign-off they did not make.
+    if (entry.name) {
+      page.drawText(entry.name.slice(0, 34), {
+        x,
+        y: top - 18,
+        size: 8.5,
+        font: builder.fontBold,
+        color: theme.color.text,
+      });
+      if (entry.at) {
+        page.drawText(String(entry.at).slice(0, 10), {
+          x,
+          y: top - 27,
+          size: 7,
+          font: builder.fontRegular,
+          color: theme.color.medGray,
+        });
+      }
+    }
+
     page.drawLine({
       start: { x, y: top - 30 },
       end: { x: x + colWidth - 18, y: top - 30 },
       thickness: 0.5,
       color: theme.color.medGray,
     });
-    page.drawText("Name / Signature / Date", {
+    page.drawText(entry.name ? "Recorded in the system" : "Name / Signature / Date", {
       x,
       y: top - 42,
       size: 7,
@@ -178,6 +212,38 @@ function drawSignatureStrip(builder: PdfBuilder, roles: string[]): void {
 
   builder.y = top - 56;
 }
+
+/**
+ * Sign-off slots for an evidence document, filled from the recorded actors.
+ * Under solo governance the same person legitimately fills several roles —
+ * that is what happened, and the paper says so rather than inventing people.
+ */
+function signatureSlots(snapshot: Snapshot, isAudit: boolean): SignatureSlot[] {
+  const so = (snapshot["signoffs"] ?? null) as Snapshot | null;
+  const actor = (key: string): { name?: string | null; at?: string | null } => {
+    const a = (so?.[key] ?? null) as Snapshot | null;
+    return { name: a ? str(a["name"]) : null, at: a ? str(a["at"]) : null };
+  };
+  const counters = Array.isArray(so?.["counted_by"]) ? (so["counted_by"] as Snapshot[]) : [];
+  const counterNames = counters
+    .map((c) => str(c["name"]))
+    .filter((n): n is string => Boolean(n));
+
+  if (isAudit) {
+    return [
+      { role: "Reviewed by", ...actor("reviewed_by") },
+      { role: "Audited by" },
+    ];
+  }
+  return [
+    { role: "Counted by", name: counterNames.join(", ") || null },
+    { role: "Reviewed by", ...actor("reviewed_by") },
+    { role: "Approved by", ...actor("approved_by") },
+  ];
+}
+
+
+
 
 function headerFactRows(snapshot: Snapshot): Array<[string, string | null]> {
   return [
@@ -428,19 +494,21 @@ export async function generateCountReportPdf(
   }
 
   drawSectionLabel(builder, "Sign off");
-  drawSignatureStrip(
-    builder,
-    isAudit ? ["Reviewed by", "Audited by"] : ["Counted by", "Reviewed by", "Approved by"],
-  );
+  drawSignatureStrip(builder, signatureSlots(snapshot, isAudit));
 
+  const posted = str(snapshot["posted_at"]);
   drawFinalFooter(builder, builder.page, {
     footerNote: isAudit
       ? "Full counting history, including superseded recount rounds. Retained as " +
         "supporting evidence for the stock adjustment raised by this count."
-      : "Differences shown are proposals. Stock changes only once the count is " +
-        "approved and the resulting adjustment is posted.",
+      : posted
+        ? "This count has been approved and posted. The differences shown were " +
+          "applied to stock through the resulting adjustment."
+        : "Differences shown are proposals. Stock changes only once the count is " +
+          "approved and the resulting adjustment is posted.",
     includeGeneratedStamp: true,
   });
+
 
   return await builder.save();
 }

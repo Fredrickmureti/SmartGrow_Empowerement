@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
-import { useCountLines, countLineProductLabel, countLineEnteredLabel } from "@/features/warehouse/counts/useCountLines";
+import { useCountLines, countLineProductLabel, countLineEnteredLabel, countLineAwaitsApproval } from "@/features/warehouse/counts/useCountLines";
 import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
 import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 
@@ -111,8 +111,13 @@ export default function CountReview() {
   );
   const uncounted = all.filter((l) => isLatest(l.id) && l.counted_qty == null);
   const missingReasons = variances.filter((l) => !l.variance_reason);
-  const openRecounts = all.filter((l) => l.tolerance_outcome === "recount_required" && isLatest(l.id));
-  const needsApproval = all.filter((l) => l.tolerance_outcome === "approval_required" && isLatest(l.id));
+  const openRecounts = all.filter(
+    (l) => l.tolerance_outcome === "recount_required" && isLatest(l.id) && (l.approval_state ?? "pending") === "pending",
+  );
+  // Only lines whose Inventory decision is still outstanding are pending.
+  const needsApproval = all.filter((l) => countLineAwaitsApproval(l) && isLatest(l.id));
+  const resolvedApprovals = all.filter((l) => isLatest(l.id) && l.approval_state === "approved");
+
 
   const canPost =
     session.state !== "posted" &&
@@ -218,6 +223,13 @@ export default function CountReview() {
             difference and will need a manager's approval in Inventory before stock moves.
           </div>
         )}
+        {needsApproval.length === 0 && resolvedApprovals.length > 0 && session.state === "posted" && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Differences on this count were approved in Inventory and the stock adjustment has
+            been posted. Nothing here is waiting on anyone.
+          </div>
+        )}
+
         {missingReasons.length > 0 && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             Choose a reason for each difference below before submitting.
