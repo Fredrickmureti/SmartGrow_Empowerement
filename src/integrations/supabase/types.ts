@@ -41999,6 +41999,7 @@ export type Database = {
       }
       physical_counts: {
         Row: {
+          approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           attachments: Json | null
@@ -42033,6 +42034,7 @@ export type Database = {
           warehouse_id: string
         }
         Insert: {
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           attachments?: Json | null
@@ -42067,6 +42069,7 @@ export type Database = {
           warehouse_id: string
         }
         Update: {
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           attachments?: Json | null
@@ -42101,6 +42104,20 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "physical_counts_approval_request_id_fkey"
+            columns: ["approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physical_counts_approval_request_id_fkey"
+            columns: ["approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
+          },
           {
             foreignKeyName: "physical_counts_source_count_id_fkey"
             columns: ["source_count_id"]
@@ -104655,6 +104672,10 @@ export type Database = {
       }
       wms_close_return: {
         Args: { p_reason?: string; p_return_id: string; p_row_version: number }
+        Returns: Json
+      }
+      wms_count_governance_preview: {
+        Args: { p_session_id: string }
         Returns: Json
       }
       wms_create_return_finance_doc: {

@@ -9,8 +9,8 @@
  * to the system figure".
  *
  * `record_count` returns a tolerance outcome per line. A line outside
- * policy is flagged for recount or supervisor approval before the
- * session can be submitted.
+ * policy is flagged for recount, or carried to review where governance
+ * decides who must sign the difference off before stock moves.
  */
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -128,7 +128,9 @@ export default function CountSession() {
       if (outcome === "recount_required") {
         toast.warning("Outside tolerance — count this bin again.");
       } else if (outcome === "approval_required") {
-        toast.warning("Outside tolerance — a supervisor must approve this line.");
+        // WHO signs this off is a governance decision made at submit time
+        // (`warehouse.count_variance` → approval_route), not a WMS assumption.
+        toast.warning("Outside tolerance — this difference needs sign-off at review.");
       }
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Record failed"),

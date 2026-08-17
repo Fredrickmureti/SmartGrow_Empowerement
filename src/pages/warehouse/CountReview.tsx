@@ -19,6 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePostCountSession } from "@/features/warehouse/aggregates/useDomainOperations";
+import {
+  useCountGovernancePreview,
+  describeCountGovernance,
+} from "@/features/warehouse/counts/useCountGovernancePreview";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -81,11 +85,19 @@ export default function CountReview() {
 
   const recount = useRequestRecount(sessionId);
   const post = usePostCountSession(sessionId);
+  // What the ONE engine will actually decide — not a hardcoded assumption.
+  const { data: governance } = useCountGovernancePreview(sessionId);
 
   const handlePost = () =>
     post.mutate(undefined, {
-      onSuccess: () => {
-        toast.success("Count submitted to Inventory for approval and posting");
+      onSuccess: (res) => {
+        const outcome =
+          (res as { submit_result?: { governance?: string } } | null)?.submit_result?.governance;
+        toast.success(
+          outcome === "approval_required"
+            ? "Count submitted — differences sent for approval before stock moves"
+            : "Count submitted — differences recorded and stock adjusted",
+        );
         nav("/warehouse-app/counts");
       },
     });
@@ -219,14 +231,14 @@ export default function CountReview() {
 
         {needsApproval.length > 0 && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-            {needsApproval.length} line{needsApproval.length === 1 ? "" : "s"} exceed the allowed
-            difference and will need a manager's approval in Inventory before stock moves.
+            {describeCountGovernance(governance, needsApproval.length) ??
+              `${needsApproval.length} line${needsApproval.length === 1 ? "" : "s"} exceed the allowed difference. Governance decides who signs this off when you submit.`}
           </div>
         )}
         {needsApproval.length === 0 && resolvedApprovals.length > 0 && session.state === "posted" && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-            Differences on this count were approved in Inventory and the stock adjustment has
-            been posted. Nothing here is waiting on anyone.
+            Differences on this count were signed off and the stock adjustment has been posted.
+            Nothing here is waiting on anyone.
           </div>
         )}
 
