@@ -87,11 +87,32 @@ export interface CountSnapshotLineRow {
   entered_qty: number | null;
   packaging_name: string | null;
   counted_at: string | null;
+  counted_by: string | null;
   recount_round: number | null;
   recount_of_line_id: string | null;
   tolerance_outcome: string | null;
+  /** Resolution of the Inventory decision: pending | approved | rejected. */
+  approval_state: string | null;
+  approval_actor_id: string | null;
+  approval_at: string | null;
+  approval_note: string | null;
   variance_reason: string | null;
 }
+
+/** Who counted, reviewed, approved and posted — from the canonical actors. */
+export interface CountSignoffActor {
+  user_id: string | null;
+  name: string | null;
+  at?: string | null;
+}
+
+export interface CountSignoffs {
+  counted_by: CountSignoffActor[];
+  reviewed_by: CountSignoffActor | null;
+  approved_by: CountSignoffActor | null;
+  posted_by: CountSignoffActor | null;
+}
+
 
 export interface BuildCountSnapshotResult {
   snapshot: Record<string, unknown>;
