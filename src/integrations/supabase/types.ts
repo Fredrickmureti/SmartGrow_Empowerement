@@ -87802,6 +87802,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _wms_client_from_wave: {
+        Args: { _business_id: string; _wave_id: string }
+        Returns: string
+      }
       _wms_client_scan_lookup: {
         Args: { p_client_scan_id: string; p_device_id: string }
         Returns: Json
@@ -88013,6 +88017,10 @@ export type Database = {
       _wms_event_business_id: {
         Args: { _org_id: string; _payload: Json; _warehouse_id: string }
         Returns: string
+      }
+      _wms_event_dwell_hours: {
+        Args: { _aggregate_id: string; _payload: Json }
+        Returns: number
       }
       _wms_exception_log: {
         Args: {
