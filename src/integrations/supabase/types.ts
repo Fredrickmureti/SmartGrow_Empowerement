@@ -99798,7 +99798,11 @@ export type Database = {
         }
       }
       receive_goods_to_wms: {
-        Args: { p_goods_receipt_id: string; p_staging_location_id: string }
+        Args: {
+          p_actor?: string
+          p_goods_receipt_id: string
+          p_staging_location_id: string
+        }
         Returns: Json
       }
       receive_inbound_shipment: {
@@ -106023,6 +106027,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_resolve_receiving_staging_location: {
+        Args: { p_warehouse_id: string }
+        Returns: string
       }
       wms_resolve_sscc: {
         Args: { p_business_id: string; p_code: string }
