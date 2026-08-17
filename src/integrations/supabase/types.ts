@@ -104674,6 +104674,10 @@ export type Database = {
         Args: { p_reason?: string; p_return_id: string; p_row_version: number }
         Returns: Json
       }
+      wms_count_governance_preview: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
       wms_create_return_finance_doc: {
         Args: { p_return_id: string; p_row_version: number }
         Returns: Json
