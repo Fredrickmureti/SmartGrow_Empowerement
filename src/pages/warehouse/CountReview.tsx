@@ -132,7 +132,7 @@ export default function CountReview() {
             </Button>
             {/* ADR 0106 — supervisor paperwork: the sheet, the difference
               * report and the full attempt-by-attempt audit report. */}
-            <CountDocumentsMenu sessionId={session.id} isBlind={session.is_blind === true} />
+            <CountDocumentsMenu sessionId={session.id} countNumber={session.code} isBlind={session.is_blind === true} />
 
             <CancelAggregateButton
               aggregate="count"
