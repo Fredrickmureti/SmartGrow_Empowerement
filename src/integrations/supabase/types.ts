@@ -88010,6 +88010,10 @@ export type Database = {
             Returns: undefined
           }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
+      _wms_event_business_id: {
+        Args: { _org_id: string; _payload: Json; _warehouse_id: string }
+        Returns: string
+      }
       _wms_exception_log: {
         Args: {
           p_event_type: Database["public"]["Enums"]["wms_exception_event_type"]
@@ -107395,6 +107399,7 @@ export type Database = {
         | "resolved"
         | "wont_fix"
         | "escalated"
+        | "cancelled"
       wms_lpn_status:
         | "open"
         | "sealed"
@@ -108646,6 +108651,7 @@ export const Constants = {
         "resolved",
         "wont_fix",
         "escalated",
+        "cancelled",
       ],
       wms_lpn_status: [
         "open",
