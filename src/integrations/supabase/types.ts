@@ -87759,6 +87759,10 @@ export type Database = {
         Args: { _business_id: string; _on_date: string }
         Returns: undefined
       }
+      _wms_billing_quantity: {
+        Args: { _activity: string; _aggregate_id: string; _payload: Json }
+        Returns: number
+      }
       _wms_caller_business_branch: {
         Args: never
         Returns: {
@@ -88238,6 +88242,41 @@ export type Database = {
         }
         Returns: number
       }
+      _wms_reprice_billable_activity_internal: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _wms_resolve_client_id: {
         Args: { _aggregate_id: string; _business_id: string; _payload: Json }
         Returns: string
@@ -88286,6 +88325,41 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      _wms_reverse_billable_activity_internal: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _wms_roster_seconds: {
         Args: { _break_minutes: number; _end: string; _start: string }
@@ -105969,6 +106043,41 @@ export type Database = {
           p_task_id: string
         }
         Returns: Json
+      }
+      wms_reprice_billable_activity: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_resolve_carton_scan: {
         Args: { p_business_id: string; p_code: string }
