@@ -297,8 +297,8 @@ BEGIN
   END IF;
 END $$;
 
--- 18. Any rule a tenant writes for the action must target this action key on a
---     live workflow — a dangling rule would silently gate counts forever.
+-- 18. Any rule a tenant writes for the action must name a reachable approver —
+--     a rule with no approver would gate counts forever with nobody able to act.
 DO $$
 DECLARE v_n integer;
 BEGIN
@@ -306,14 +306,13 @@ BEGIN
     FROM public.approval_rules r
    WHERE r.action_name = 'warehouse.count_variance'
      AND r.is_active
-     AND r.workflow_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM public.approval_workflows w
-        WHERE w.id = r.workflow_id AND w.is_active
+     AND (
+       (r.approver_type = 'user' AND r.approver_user_id IS NULL)
+       OR (r.approver_type = 'role' AND COALESCE(r.approver_role,'') = '')
      );
 
   IF v_n > 0 THEN
-    RAISE EXCEPTION '% active count-variance rule(s) point at an inactive workflow', v_n;
+    RAISE EXCEPTION '% active count-variance rule(s) name no approver', v_n;
   END IF;
 END $$;
 
