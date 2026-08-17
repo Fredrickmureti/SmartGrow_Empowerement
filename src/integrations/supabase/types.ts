@@ -95070,9 +95070,17 @@ export type Database = {
         Args: { p_business_id?: string; p_organization_id: string }
         Returns: string
       }
+      get_next_asn_number: {
+        Args: { p_business?: string; p_org: string }
+        Returns: string
+      }
       get_next_asset_number: { Args: { _org_id: string }; Returns: string }
       get_next_bill_number: {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
+        Returns: string
+      }
+      get_next_carton_number: {
+        Args: { p_business?: string; p_org: string }
         Returns: string
       }
       get_next_contract_reference: {
@@ -95090,6 +95098,18 @@ export type Database = {
       get_next_delivery_number:
         | { Args: { _org_id: string }; Returns: string }
         | { Args: { _business_id: string; _org_id: string }; Returns: string }
+      get_next_document_number: {
+        Args: {
+          p_business: string
+          p_business_column?: string
+          p_column: string
+          p_org: string
+          p_prefix: string
+          p_table: string
+          p_width?: number
+        }
+        Returns: string
+      }
       get_next_draft_transaction_number: {
         Args: { p_organization_id: string; p_register_code: string }
         Returns: string
@@ -95124,6 +95144,14 @@ export type Database = {
         Returns: string
       }
       get_next_loan_number: { Args: { _org_id: string }; Returns: string }
+      get_next_manifest_number: {
+        Args: { p_business?: string; p_org: string }
+        Returns: string
+      }
+      get_next_opening_stock_number: {
+        Args: { p_business?: string; p_org: string }
+        Returns: string
+      }
       get_next_payroll_number: { Args: { _org_id: string }; Returns: string }
       get_next_po_number: { Args: { _org_id: string }; Returns: string }
       get_next_pos_transaction_number: {
@@ -95137,6 +95165,10 @@ export type Database = {
       get_next_project_number: { Args: { p_org_id: string }; Returns: string }
       get_next_purchase_return_number: {
         Args: { _business_id?: string; _org_id: string }
+        Returns: string
+      }
+      get_next_recall_reference: {
+        Args: { p_business?: string; p_org: string }
         Returns: string
       }
       get_next_receipt_number: {
@@ -95166,6 +95198,10 @@ export type Database = {
       get_next_transfer_number: { Args: { _org_id: string }; Returns: string }
       get_next_vendor_credit_note_number: {
         Args: { p_business_id?: string; p_organization_id: string }
+        Returns: string
+      }
+      get_next_wave_number: {
+        Args: { p_business?: string; p_org: string }
         Returns: string
       }
       get_or_create_in_transit_warehouse: {

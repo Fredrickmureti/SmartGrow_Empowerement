@@ -15,7 +15,19 @@ Every generator that computes a counter must take
 uniqueness constraint is narrower). Delegating overloads are fine and are
 exempt.
 
-Ratchet: `supabase/tests/document_numbering_segment_parse_test.sql`.
+`public.get_next_document_number(org, business, prefix, table, column, …)` is
+the shared authority (added 2026-08-17): advisory-locked per prefix+org+business,
+trailing-counter parse, retries on collision. Warehouse issuers
+(`get_next_wave_number`, `get_next_asn_number`, `get_next_manifest_number`,
+`get_next_carton_number`, `get_next_recall_reference`,
+`get_next_opening_stock_number`) delegate to it; new document types should too.
+
+Clock strings (`CC-260817-013059278`) and md5/uuid fragments are never
+acceptable as operator-facing identifiers — that was the WMS defect fixed on
+2026-08-17. Machine-only barcodes (LPN payloads) may still be opaque.
+
+Ratchets: `supabase/tests/document_numbering_segment_parse_test.sql` and
+`supabase/tests/document_numbering_no_clock_test.sql`.
 
 Document numbers of posted/received documents are immutable —
 `_po_commercial_fields_immutable()` and friends will refuse a rewrite. Repair
