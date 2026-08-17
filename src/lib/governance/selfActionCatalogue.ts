@@ -32,6 +32,7 @@ export type SelfActionEntityType =
   | "stock_transfer"
   | "expense"
   | "bank_account"
+  | "physical_count"
   | "payroll_run_loan_skip_override";
 
 /**
@@ -43,7 +44,15 @@ export type SubjectMode = "actor" | "from_entity";
 
 export interface SelfActionEntry {
   key: string;
-  module: "Payroll" | "HR" | "Finance" | "Purchasing" | "Sales" | "Inventory" | "Spend";
+  module:
+    | "Payroll"
+    | "HR"
+    | "Finance"
+    | "Purchasing"
+    | "Sales"
+    | "Inventory"
+    | "Warehouse"
+    | "Spend";
   label: string;
   description: string;
   entityType: SelfActionEntityType;
@@ -377,6 +386,16 @@ export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
     entityType: "stock_adjustment",
     subjectMode: "actor",
   },
+  // Warehouse — the cycle-count difference decision routed through the approval engine.
+  {
+    key: "warehouse.count_variance",
+    module: "Warehouse",
+    label: "Approve a cycle count difference",
+    description:
+      "A cycle count found a difference outside the allowed tolerance. Governance decides whether anybody must approve it before stock moves.",
+    entityType: "physical_count",
+    subjectMode: "actor",
+  },
   {
     key: "inventory.post_count",
     module: "Inventory",
@@ -492,6 +511,7 @@ export const ENTITY_TYPE_LABELS: Record<SelfActionEntityType, string> = {
   stock_transfer: "stock transfer",
   expense: "expense",
   bank_account: "bank account",
+  physical_count: "cycle count",
   payroll_run_loan_skip_override: "loan skip override",
 };
 
@@ -521,6 +541,7 @@ export const ENTITY_TYPE_DB_KEY: Record<SelfActionEntityType, string> = {
   stock_transfer: "stock_transfer",
   expense: "expense",
   bank_account: "bank_account",
+  physical_count: "physical_count",
   payroll_run_loan_skip_override: "payroll_run_loan_skip_override",
 };
 
