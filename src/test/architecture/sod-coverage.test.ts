@@ -82,6 +82,15 @@ const RPC_ENFORCED_ACTIONS: Record<string, string> = {
   "inventory.post_count": "physical_count_post",
 };
 
+/**
+ * Actions whose decision is made by the canonical approval engine
+ * (approval_route / approval_decide) rather than by a SoD guard. They have no
+ * sod_*_guard trigger by design — the engine and its rules own the outcome.
+ */
+const ENGINE_ROUTED_ACTIONS: Record<string, string> = {
+  "warehouse.count_variance": "physical_count_submit",
+};
+
 
 function readMigrations(): string {
   const dir = join(process.cwd(), "supabase", "migrations");
@@ -95,9 +104,19 @@ describe("SoD self-action coverage", () => {
   it("every catalogue action maps to a known table or enforcing RPC", () => {
     for (const entry of SELF_ACTION_CATALOGUE) {
       expect(
-        ACTION_TO_TABLE[entry.key] ?? RPC_ENFORCED_ACTIONS[entry.key],
+        ACTION_TO_TABLE[entry.key] ??
+          RPC_ENFORCED_ACTIONS[entry.key] ??
+          ENGINE_ROUTED_ACTIONS[entry.key],
         `missing table mapping for ${entry.key}`,
       ).toBeTruthy();
+    }
+  });
+
+  it("engine-routed actions are routed through approval_route", () => {
+    const sql = readMigrations();
+    for (const [key, fn] of Object.entries(ENGINE_ROUTED_ACTIONS)) {
+      const re = new RegExp(`approval_route\\([\\s\\S]{0,200}?${key.replace(".", "\\.")}`, "i");
+      expect(re.test(sql), `${fn} must route ${key} through approval_route`).toBe(true);
     }
   });
 
