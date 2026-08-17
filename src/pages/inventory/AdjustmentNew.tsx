@@ -404,6 +404,55 @@ export default function AdjustmentNew() {
         </div>
       </Section>
 
+      {linkedBlockedReason && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <div className="space-y-2">
+              <p className="font-medium">{linkedBlockedReason}</p>
+              {linkedVariants.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {linkedVariants.map((v) => (
+                    <Button
+                      key={v.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setItems((prev) => {
+                          const idx = prev.findIndex((i) => !i.product_id);
+                          const line = {
+                            product_id: v.id,
+                            quantity_adjustment: 0,
+                            unit_cost: "" as number | "",
+                            notes: "",
+                          };
+                          if (idx === -1) return [...prev, line];
+                          const next = [...prev];
+                          next[idx] = line;
+                          return next;
+                        });
+                      }}
+                    >
+                      {v.name}
+                      {v.sku ? ` · ${v.sku}` : ""}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {linkedProduct && (
+                <Link
+                  to={`/inventory-app/products/${linkedProduct.id}`}
+                  className="inline-block text-xs text-primary underline"
+                >
+                  Open {linkedProduct.name}
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Section
         title="Items"
         description="Enter a positive quantity to increase on-hand or a negative quantity to decrease. Unit cost drives the general-ledger valuation."
