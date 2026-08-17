@@ -64,9 +64,10 @@ Conversion happens exactly once, server-side, through `wms_to_base_qty` / `produ
 | P0-2 | Lifecycle / financial | `receive_inbound_shipment` created a draft GRN, rolled up the PO and stopped — no movements, no GRNI journal, PO closed | ASN leg bypassed the posting authority | FIXED (`20260816230735`) — now routes through `complete_goods_receipt_atomic` |
 | P0-3 | UOM integrity | `inbound_shipment_items.expected_quantity` accepted an unconverted pack figure (200) while the ledger is base units | no normalizer trigger, unlike `stock_movements` | FIXED (`20260816230853`) — expected = base, display = entered |
 | P0-4 | Event lineage | 25 emitted topics unregistered in `business_event_topics`; `pos_topic_handler_scope` fell back to `server`, dispatcher dead-lettered them as `unknown_event_type` | prefix fallback with no completeness guard | FIXED (`20260816231127`, `…231313`, `…231424`) + dead letters replayed |
-| P2-1 | Architecture | Two receipt entry paths converge on the same posting authority, but only path 1 creates a licence plate and a putaway task; ASN-direct receipts land in stock with no physical execution record | `receive_inbound_shipment` does not call `receive_goods_to_wms` | OPEN |
-| P2-2 | Architecture | No DB invariant preventing a product balance being counted both plate-scoped and location-scoped at the same location | quants key allows both shapes | OPEN |
-| P3-1 | Test hygiene | Simulation rows (`E2E-MILK-*`, `_e2e_milk_log`) are not tagged `is_sample_data` | sim script | OPEN |
+| P2-1 | Architecture | Two receipt entry paths converge on the same posting authority, but only path 1 creates a licence plate and a putaway task; ASN-direct receipts land in stock with no physical execution record | `receive_inbound_shipment` does not call `receive_goods_to_wms` | FIXED (2026-08-17) — ASN path now stages via `wms_resolve_receiving_staging_location` + `receive_goods_to_wms` (idempotent per receipt line); pinned by `supabase/tests/receipt_paths_physical_execution_parity_test.sql` |
+| P2-2 | Architecture | No DB invariant preventing a product balance being counted both plate-scoped and location-scoped at the same location | quants key allows both shapes | FIXED (2026-08-17) — writer invariant: `receive_goods_to_wms` raises `WMS_STAGING_UNRELIEVED_BALANCE` when no loose quant is relieved, so a plate quant can never be additive; `check_stock_quant_drift()` now reports the `stock_quants.mixed_scope` shape. A blanket table constraint was deliberately NOT added: loose + plate stock in one storage bin is legitimate; only an unrelieved staging write is a defect |
+| P0-4b | Event lineage | Recurrence: 9 further topics (`purchase_return.*`, `purchasing.purchase_return.*`, `procurement.grn.received`, `warehouse.receiving.discrepant/closed`) plus 14 emitted-but-never-fired warehouse topics were unregistered; 6 events dead-lettered | the dispatcher's hardcoded handler map and `business_event_topics` were two independent registries | FIXED (2026-08-17) — all 23 topics registered; `outbox-dispatcher` now treats any registry-known server topic without a bespoke handler as record-only, so the two registries can no longer diverge; the 6 dead letters were replayed and succeeded (outbox: 215 succeeded, 0 failed, 0 dead) |
+| P3-1 | Test hygiene | Simulation rows (`E2E-MILK-*`, `_e2e_milk_log`) are not tagged `is_sample_data` | sim script | FIXED (2026-08-17) — product, both POs and their stock movements tagged `is_sample_data = true`. Rows are retained, not deleted: the receipts carry posted journals and are the evidence base for this report |
 
 ## E. Architecture assessment
 
@@ -76,11 +77,13 @@ Warehouse and Inventory are **one coherent system at the posting boundary and ev
 - Idempotency: GRN posting is guarded (`status = 'completed'` short-circuits), capture is replay-keyed (`client_scan_id`, `replayed:false/true`), outbox rows are keyed `procurement.gr:<id>:posted` / `inventory.movement.recorded:<movement_id>`.
 - Auditability holds end to end: 6,000 packets → `stock_quants` → `stock_movements(reference_type=goods_receipt)` → `goods_receipts` → `purchase_order_items` → `purchase_orders` → supplier; the ASN leg additionally carries `inbound_shipment_items.purchase_order_item_id`.
 
-The remaining weakness is **physical-execution coverage, not integrity**: an ASN-direct receipt is financially and quantitatively correct but leaves no plate and no putaway task (P2-1).
+The remaining weakness identified here — **physical-execution coverage, not integrity** — is now closed: both receipt paths produce identical plate + putaway records, and staging can no longer create stock it did not relieve.
 
 ## F. Remediation plan (dependency order)
 
-1. **P2-1** — make `receive_inbound_shipment` call `receive_goods_to_wms` (staging location from the shipment's dock/warehouse default) so every receipt, regardless of entry path, produces the same plate + putaway task. Pin with a pgTAP test asserting `wms_tasks(putaway)` exists for every completed `goods_receipts` row.
-2. **P2-2** — add a DB invariant (partial unique / check trigger) that a `(product, location, lot)` balance is either plate-scoped or location-scoped, never both; extend `check_stock_quant_drift()` to report the mixed shape.
-3. **P0-4 guard** — add an architecture test that fails when any topic literal emitted by a trigger/RPC is missing from `business_event_topics` (prevents a third recurrence).
-4. **P3-1** — teardown migration for the `E2E-MILK-*` fixtures and `_e2e_milk_log`.
+All four steps are executed (2026-08-17):
+
+1. **P2-1 — done.** `receive_inbound_shipment` stages through the shared staging resolver and `receive_goods_to_wms`. Guard: `supabase/tests/receipt_paths_physical_execution_parity_test.sql` (structural + behavioural: no completed receipt line without a putaway task).
+2. **P2-2 — done (writer invariant + audit visibility).** See the defect table for why a blanket table constraint was rejected.
+3. **P0-4 guard — done.** `supabase/tests/business_event_topic_registration_test.sql` now also scans emitter source for topic literals, so an unregistered topic fails the test *before* it ever fires. The dispatcher reads the registry as the single source of truth.
+4. **P3-1 — done.** Simulation rows tagged `is_sample_data`; `_e2e_milk_log` retained as the simulation audit trail.
