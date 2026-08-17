@@ -354,6 +354,22 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.created_by ?? null,
     }));
   },
+  physical_count: async (orgId) => {
+    const { data, error } = await supabase
+      .from("physical_counts")
+      .select("id, count_number, state, created_by")
+      .eq("organization_id", orgId)
+      .in("state", ["counting", "in_review"] as any)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: r.count_number ?? `Count ${r.id.slice(0, 8)}`,
+      hint: r.state,
+      subject_user_id: r.created_by ?? null,
+    }));
+  },
   stock_transfer: async (orgId) => {
     const { data, error } = await supabase
       .from("stock_transfers")
