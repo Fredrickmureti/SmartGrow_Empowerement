@@ -128,3 +128,130 @@ BEGIN
     RAISE EXCEPTION 'post_count_session writes stock directly — it must delegate to Inventory';
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Phase 6 (canonical governance wave, 2026-08-17): the variance decision is
+-- routed through the ONE approval engine, and count paperwork versions itself.
+-- ---------------------------------------------------------------------------
+
+-- 8. Structural: Warehouse is a governed module with the variance action.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.governance_action_registry
+     WHERE action_key = 'warehouse.count_variance'
+  ) THEN
+    RAISE EXCEPTION 'warehouse.count_variance is not registered — the variance decision is ungoverned';
+  END IF;
+END $$;
+
+-- 9. Structural: submission consults the policy layer, not a hardcoded gate.
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='physical_count_submit';
+
+  IF v_def IS NULL OR v_def NOT LIKE '%approval_route%' THEN
+    RAISE EXCEPTION 'physical_count_submit does not call approval_route — counts bypass the approval engine';
+  END IF;
+  IF v_def NOT LIKE '%warehouse.count_variance%' THEN
+    RAISE EXCEPTION 'physical_count_submit does not route the registered warehouse.count_variance action';
+  END IF;
+END $$;
+
+-- 10. Structural: no second engine. Warehouse/Inventory count code must not
+--     write approval_requests directly; only approval_route/approval_decide may.
+DO $$
+DECLARE v_bad text;
+BEGIN
+  SELECT string_agg(p.proname, ', ')
+    INTO v_bad
+    FROM pg_proc p
+   WHERE p.pronamespace = 'public'::regnamespace
+     AND p.proname IN ('physical_count_approve','physical_count_post',
+                       'post_count_session','submit_count_session')
+     AND pg_get_functiondef(p.oid) ~* 'INSERT\s+INTO\s+public\.approval_requests';
+
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION 'count RPC(s) create approval requests outside the engine: %', v_bad;
+  END IF;
+END $$;
+
+-- 11. Structural: the engine's decision is mirrored back onto the count.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_mirror_approval_to_physical_count'
+  ) THEN
+    RAISE EXCEPTION 'approval decisions are not mirrored onto physical_counts';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='physical_counts'
+       AND column_name='approval_request_id'
+  ) THEN
+    RAISE EXCEPTION 'physical_counts.approval_request_id is missing — the count cannot point at its request';
+  END IF;
+END $$;
+
+-- 12. Structural: manual approval cannot bypass a live governance request.
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='physical_count_approve';
+
+  IF v_def IS NULL OR v_def NOT LIKE '%GOV_USE_APPROVAL_ENGINE%' THEN
+    RAISE EXCEPTION 'physical_count_approve can be used to bypass a pending approval request';
+  END IF;
+END $$;
+
+-- 13. Behavioural: no count may sit approved/posted while its governance
+--     request is still pending — that would be an orphaned decision.
+DO $$
+DECLARE v_n integer;
+BEGIN
+  SELECT count(*) INTO v_n
+    FROM public.physical_counts pc
+    JOIN public.approval_requests ar ON ar.id = pc.approval_request_id
+   WHERE pc.state IN ('approved','posted')
+     AND ar.status = 'pending';
+
+  IF v_n > 0 THEN
+    RAISE EXCEPTION '% count(s) moved stock while their approval request is still pending', v_n;
+  END IF;
+END $$;
+
+-- 14. Structural: count paperwork versions itself when the resolution changes.
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_def
+    FROM pg_proc
+   WHERE pronamespace='public'::regnamespace AND proname='ensure_document_record';
+
+  IF v_def IS NULL OR v_def NOT LIKE '%superseded_by = v_id%' THEN
+    RAISE EXCEPTION 'ensure_document_record never supersedes a stale snapshot';
+  END IF;
+  IF v_def NOT LIKE '%wms.count_%' THEN
+    RAISE EXCEPTION 'count documents are not in the supersede path — stale paperwork can persist';
+  END IF;
+END $$;
+
+-- 15. Behavioural: a superseded record always points forward exactly once.
+DO $$
+DECLARE v_n integer;
+BEGIN
+  SELECT count(*) INTO v_n
+    FROM public.document_records a
+    JOIN public.document_records b ON b.id = a.superseded_by
+   WHERE a.source_doc_id IS DISTINCT FROM b.source_doc_id
+      OR a.kind_code     IS DISTINCT FROM b.kind_code;
+
+  IF v_n > 0 THEN
+    RAISE EXCEPTION '% document record(s) supersede an unrelated document', v_n;
+  END IF;
+END $$;
