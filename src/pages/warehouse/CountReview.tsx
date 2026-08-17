@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
-import { useCountLines, countLineProductLabel, countLineEnteredLabel } from "@/features/warehouse/counts/useCountLines";
+import { useCountLines, countLineProductLabel, countLineEnteredLabel, countLineAwaitsApproval } from "@/features/warehouse/counts/useCountLines";
 import { useWarehouseQtyFormatter, WarehouseQty } from "@/features/warehouse/quantity/warehouseQty";
 import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 
