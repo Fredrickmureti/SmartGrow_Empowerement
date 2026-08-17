@@ -571,11 +571,40 @@ const RECORD_ONLY_PREFIXES = [
   "goods_receipt.",
 ];
 
+// P0-4 recurrence fix (2026-08-17). The handler map above and
+// `business_event_topics` were two independent registries: a topic could be
+// registered in the database and still dead-letter here as
+// `unknown_event_type` (purchase_return.*, warehouse.receiving.discrepant, …).
+// `business_event_topics` is the single source of truth: a topic that the
+// registry knows and scopes to the server, but that has no bespoke handler,
+// is lineage-only and is RECORDED, never dead-lettered. Unregistered topics
+// still fail loudly — that contract is what the registration ratchet pins.
+const registryCache = new Map<string, boolean>();
+
+async function isRegisteredServerTopic(eventType: string): Promise<boolean> {
+  const cached = registryCache.get(eventType);
+  if (cached !== undefined) return cached;
+
+  const { data, error } = await admin
+    .from("business_event_topics")
+    .select("topic_prefix, handler_scope")
+    .eq("topic_prefix", eventType)
+    .maybeSingle();
+
+  if (error) return false; // fail closed: dead-letter rather than swallow
+  const ok = !!data && (data.handler_scope ?? "server") === "server";
+  registryCache.set(eventType, ok);
+  return ok;
+}
+
 async function dispatch(row: OutboxRow): Promise<void> {
-  const handler = HANDLERS[row.event_type] ??
+  let handler = HANDLERS[row.event_type] ??
     (RECORD_ONLY_PREFIXES.some((p) => row.event_type.startsWith(p))
       ? handleInventoryLifecycleRecorded
       : undefined);
+  if (!handler && await isRegisteredServerTopic(row.event_type)) {
+    handler = handleInventoryLifecycleRecorded;
+  }
   if (!handler) {
     throw new Error(
       `posting.contract_violation: unknown_event_type ${row.event_type} (row ${row.id})`,
