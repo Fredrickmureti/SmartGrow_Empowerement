@@ -87,3 +87,54 @@ All four steps are executed (2026-08-17):
 2. **P2-2 — done (writer invariant + audit visibility).** See the defect table for why a blanket table constraint was rejected.
 3. **P0-4 guard — done.** `supabase/tests/business_event_topic_registration_test.sql` now also scans emitter source for topic literals, so an unregistered topic fails the test *before* it ever fires. The dispatcher reads the registry as the single source of truth.
 4. **P3-1 — done.** Simulation rows tagged `is_sample_data`; `_e2e_milk_log` retained as the simulation audit trail.
+
+## G. Live UI-driven re-run (2026-08-17) — receiving board worked to empty
+
+The report above was written from the ASN-direct leg. Running the **operator path**
+(receiving workspace → putaway queue) on a fresh PO exposed two defects that the
+ASN leg could never have surfaced, because it never touched the suggestion engine.
+
+### Defects found by the operator-path run
+
+| # | Class | Defect | Root cause | Status |
+|---|---|---|---|---|
+| P0-5 | Broken code path | Every `wms_post_receiving_session` aborted (42883). Sessions stranded in `unloading`/`captured`; the board showed work that could not advance | `receive_goods_to_wms` called `wms_suggest_putaway_location(...)` — a function that has never existed — and inserted `wms_putaway_suggestions.warehouse_id` / `.strategy_id`, columns that do not exist | FIXED — now calls the canonical `suggest_putaway_locations`, writing only real columns |
+| P0-6 | Executability | Putaway tasks were created with `destination_location_id = NULL`, or with a bin that `complete_putaway_task` then rejected as `partial_capacity` — an instruction the operator cannot execute | (a) Nakuru Depot had exactly one location (`NKR-DEFAULT`, a staging area) and therefore no valid putaway target; (b) `suggest_putaway_locations` ranked purely by strategy sequence, so a bin with room for 2,000 of a 2,940 pallet outranked an empty bin | FIXED — rack zone + bins `NKR-A-01…04` seeded; ranking now puts full-fit bins ahead of partial-fit ones |
+
+Both are pinned by `supabase/tests/putaway_suggestion_contract_test.sql`
+(no call to the phantom function, no phantom columns, full-fit ranking, and a
+behavioural check that no open putaway task has a NULL destination).
+
+### Event-by-event trace of the operator run (PO 100 cartons, deliberate 2-carton short)
+
+| # | Event | Mechanism | Result |
+|---|---|---|---|
+| 1 | PO issued, 100 cartons | `purchase_orders` | ok |
+| 2 | ASN created, appointment scheduled | `create_inbound_shipment`, `schedule_dock_appointment` (`p_type='inbound'`) | ok |
+| 3 | Shipment arrived / yard | `mark_inbound_shipment_arrived` | ok |
+| 4 | Session `open → unloading` | `wms_transition_receiving` | ok |
+| 5 | Lines captured 98/100 cartons | `wms_capture_receiving_line` (entered 98 + packaging → 2,940 base) | ok, conversion server-side |
+| 6 | Variance flagged | `wms_flag_receiving_variances` | 2 exceptions raised (`under_receipt`, `receiving_discrepancy`) |
+| 7 | Session posted | `wms_post_receiving_session` → `complete_goods_receipt_atomic` | GRN-2026-00007, stock + GRNI journal — **previously failed here** |
+| 8 | Plate staged, putaway task raised | `receive_goods_to_wms` | LPN + task, destination suggested |
+| 9 | Putaway completed | `complete_putaway_task` | 2,940 → `NKR-A-02`; the earlier 6,000 plate → `NKR-A-01` |
+| 10 | Session closed | `wms_transition_receiving` | board empty |
+
+### Final reconciliation
+
+| Ledger | Milk (packets) |
+|---|---|
+| `stock_movements` net | 14,940 |
+| `products.stock_quantity` | 14,940 |
+| `stock_quants` | 6,000 loose `NKR-DEFAULT` + 6,000 plate `NKR-A-01` + 2,940 plate `NKR-A-02` |
+
+14,940 = 12,000 (two 200-carton legs × 30) + 2,940 (98 cartons × 30). Every leg
+converts once. **Open receiving sessions: 0. Open putaway tasks: 0.**
+
+### Assessment update
+
+The integrity layer held throughout — no phantom stock, no double count, no
+unbalanced journal. What failed was the **execution layer**: a call to a function
+that does not exist, and a suggestion engine that emitted instructions the
+completion RPC would refuse. Neither is detectable from the data model; both need
+the operator path to be exercised, which is exactly why this re-run was required.
