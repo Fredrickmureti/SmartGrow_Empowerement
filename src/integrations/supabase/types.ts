@@ -87806,6 +87806,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _wms_client_from_count_session: {
+        Args: { _business_id: string; _session_id: string }
+        Returns: string
+      }
+      _wms_client_from_goods_receipt: {
+        Args: { _business_id: string; _grn_id: string }
+        Returns: string
+      }
       _wms_client_from_manifest: {
         Args: { _business_id: string; _manifest_id: string }
         Returns: string
