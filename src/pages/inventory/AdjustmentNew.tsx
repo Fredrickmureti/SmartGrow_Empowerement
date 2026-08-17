@@ -19,6 +19,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventory, useOffsetAccountPreview } from "@/hooks/useInventory";
 import { useProducts } from "@/hooks/useProducts";
@@ -35,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, XCircle } from "lucide-react";
+import { AlertTriangle, Plus, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RecordFormShell, Section, FieldGrid } from "@/design-system";
 import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
@@ -45,6 +46,24 @@ type Item = {
   quantity_adjustment: number;
   unit_cost: number | "";
   notes: string;
+};
+
+/**
+ * The product the caller deep-linked to. Resolved from the database rather
+ * than from the adjustable list, because the whole point is to explain the
+ * cases where the product is NOT in that list (variant parent, service,
+ * untracked, archived, other business). Silently dropping the id is what
+ * made the page look like it had forgotten which product you came from.
+ */
+type LinkedProduct = {
+  id: string;
+  name: string;
+  sku: string | null;
+  type: string | null;
+  is_active: boolean | null;
+  track_inventory: boolean | null;
+  is_variant_parent: boolean | null;
+  business_id: string | null;
 };
 
 type Warehouse = {
@@ -71,6 +90,64 @@ export default function AdjustmentNew() {
     () => products.filter((p: any) => p.type === "product"),
     [products],
   );
+
+  // ---- Deep-linked product resolution ------------------------------------
+  // `?product=<id>` may point at something that cannot be adjusted. Read the
+  // row itself so the page can say which case it is instead of rendering an
+  // empty product picker.
+  const linkedProductId = searchParams.get("product");
+  const { data: linkedProduct } = useQuery({
+    queryKey: ["adjustment-linked-product", linkedProductId],
+    enabled: !!linkedProductId,
+    queryFn: async (): Promise<LinkedProduct | null> => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, sku, type, is_active, track_inventory, is_variant_parent, business_id")
+        .eq("id", linkedProductId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as LinkedProduct) ?? null;
+    },
+  });
+
+  // A variant parent is catalogue-only (ADR 0072); stock lives on its
+  // variants, so offer those as the adjustable targets.
+  const { data: linkedVariants = [] } = useQuery({
+    queryKey: ["adjustment-linked-variants", linkedProductId],
+    enabled: !!linkedProductId && !!linkedProduct?.is_variant_parent,
+    queryFn: async (): Promise<LinkedProduct[]> => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, sku, type, is_active, track_inventory, is_variant_parent, business_id")
+        .eq("variant_parent_id", linkedProductId!)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data as LinkedProduct[]) ?? [];
+    },
+  });
+
+  const linkedIsAdjustable =
+    !!linkedProductId &&
+    inventoryProducts.some((p: any) => p.id === linkedProductId);
+
+  /** Why the deep-linked product cannot be adjusted, in operator language. */
+  const linkedBlockedReason = useMemo(() => {
+    if (!linkedProductId || linkedIsAdjustable) return null;
+    if (!linkedProduct) return "That product could not be found in this business.";
+    if (linkedProduct.is_variant_parent) {
+      return linkedVariants.length > 0
+        ? `"${linkedProduct.name}" is a variant parent — stock is held per variant. Pick the variant you are adjusting.`
+        : `"${linkedProduct.name}" is a variant parent and has no variants yet. Create a variant before adjusting its stock.`;
+    }
+    if (linkedProduct.type !== "product")
+      return `"${linkedProduct.name}" is a service, so it holds no stock to adjust.`;
+    if (linkedProduct.is_active === false)
+      return `"${linkedProduct.name}" is archived. Reactivate it before adjusting stock.`;
+    if (linkedProduct.business_id && linkedProduct.business_id !== businessId)
+      return `"${linkedProduct.name}" belongs to a different business. Switch business to adjust it.`;
+    return `"${linkedProduct.name}" is not available for adjustment in this scope.`;
+  }, [linkedProductId, linkedIsAdjustable, linkedProduct, linkedVariants, businessId]);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   useEffect(() => {
@@ -106,6 +183,17 @@ export default function AdjustmentNew() {
       return;
     }
     const prod = inventoryProducts.find((p: any) => p.id === productId) as any;
+    if (!prod) {
+      // Not adjustable (variant parent, service, archived, other business).
+      // Keep an empty line so the operator can still pick a target, and let
+      // the banner below explain what happened.
+      if (items.length === 0) {
+        setItems([
+          { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+        ]);
+      }
+      return;
+    }
     const prefilledCost: number | "" =
       prod && Number(prod.cost_price) > 0 ? Number(prod.cost_price) : "";
     setReason((r) => r || searchParams.get("reason") || "opening_balance");
@@ -315,6 +403,55 @@ export default function AdjustmentNew() {
           />
         </div>
       </Section>
+
+      {linkedBlockedReason && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <div className="space-y-2">
+              <p className="font-medium">{linkedBlockedReason}</p>
+              {linkedVariants.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {linkedVariants.map((v) => (
+                    <Button
+                      key={v.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setItems((prev) => {
+                          const idx = prev.findIndex((i) => !i.product_id);
+                          const line = {
+                            product_id: v.id,
+                            quantity_adjustment: 0,
+                            unit_cost: "" as number | "",
+                            notes: "",
+                          };
+                          if (idx === -1) return [...prev, line];
+                          const next = [...prev];
+                          next[idx] = line;
+                          return next;
+                        });
+                      }}
+                    >
+                      {v.name}
+                      {v.sku ? ` · ${v.sku}` : ""}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {linkedProduct && (
+                <Link
+                  to={`/inventory-app/products/${linkedProduct.id}/edit`}
+                  className="inline-block text-xs text-primary underline"
+                >
+                  Open {linkedProduct.name}
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Section
         title="Items"
