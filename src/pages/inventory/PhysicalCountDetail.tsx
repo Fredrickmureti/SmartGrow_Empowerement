@@ -42,6 +42,7 @@ import {
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 
