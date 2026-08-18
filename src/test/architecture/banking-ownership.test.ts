@@ -26,12 +26,13 @@ describe("banking ownership architecture", () => {
     expect(src).toMatch(/branch_id:\s*\(account as any\)\.branch_id/);
   });
 
-  it("useBankAccounts maps the new DB friendly errors (R1/R2/R5)", () => {
+  it("useBankAccounts maps the write-seam HINTs (R1/R2/R5)", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
-    expect(src).toContain("bank_accounts_external_unique");
-    expect(src).toContain("bank_accounts_manual_unique");
+    expect(src).toContain("BANK_ACCOUNT_ALREADY_CONNECTED");
+    expect(src).toContain("BANK_ACCOUNT_VERSION_CONFLICT");
     expect(src).toContain("bank_accounts_shared_branch_consistency");
   });
+
 
   it("useReconciliationSessions maps the open-session unique violation (R4)", () => {
     const src = readFileSync(
