@@ -515,10 +515,13 @@ export function useBankAccounts() {
   };
 
   /**
-   * Sync is owned end-to-end by the `sync-bank-transactions` function: it
-   * stamps `sync_status` / `sync_error` with the service role. The browser
-   * only asks for the sync and re-reads the result.
+   * Sync is owned end-to-end by the `sync-bank-transactions` function: it opens
+   * a run through `bank_feed_run_start`, ingests through
+   * `bank_statement_import_batch`, and closes the run — so state and counts live
+   * on the connection and its run history, never on the account row. The
+   * browser only asks for the sync and re-reads the result.
    */
+
   const syncTransactions = async (accountId: string) => {
     if (!currentOrg?.id) return;
 
