@@ -60,7 +60,14 @@ export interface ReconciliationSession {
   interest_earned_amount?: number;
   interest_earned_date?: string;
   interest_earned_account_id?: string;
+  // Phase 4 — server-recorded write-off + cancellation provenance
+  writeoff_amount?: number;
+  writeoff_je_id?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  cancel_reason?: string | null;
 }
+
 
 export function useReconciliationSessions(bankAccountId?: string) {
   const [sessions, setSessions] = useState<ReconciliationSession[]>([]);
