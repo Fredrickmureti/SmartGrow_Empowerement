@@ -56,12 +56,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const JENGA_TEST_ACCOUNTS = [
-  { label: "Equity Kenya Test 1", accountNumber: "1100194977404", bankCode: "68", currency: "KES", country: "KE" },
-  { label: "Equity Kenya Test 2", accountNumber: "0020100014605", bankCode: "68", currency: "KES", country: "KE" },
-  { label: "Equity Kenya Test 3", accountNumber: "1450160649886", bankCode: "68", currency: "KES", country: "KE" },
-  { label: "Equity Kenya USD", accountNumber: "0810178838044", bankCode: "68", currency: "USD", country: "KE" },
-];
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+
+
 
 const MANUAL_PROVIDER_OPTION = {
   id: "__manual__",
