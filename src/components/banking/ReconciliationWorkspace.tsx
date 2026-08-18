@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import type { ReconciliationSession } from "@/hooks/useReconciliationSessions";
 import { useBankTransactions, BankTransaction } from "@/hooks/useBankTransactions";
 import { useReconciliationItems } from "@/hooks/useReconciliationItems";
-import { useGLPosting } from "@/hooks/useGLPosting";
+
 import { useCurrency } from "@/hooks/useCurrency";
 import { toast } from "sonner";
 import {
