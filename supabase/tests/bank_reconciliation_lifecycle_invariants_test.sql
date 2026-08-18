@@ -66,8 +66,19 @@ BEGIN
   SELECT pg_get_functiondef(p.oid) INTO v_cancel FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
    WHERE n.nspname='public' AND p.proname='bank_reconciliation_session_cancel';
 
-  IF v_start NOT LIKE '%BANK_ACCOUNT_NOT_ACTIVE%' THEN
+  IF v_start NOT LIKE '%_bank_reconciliation_assert_account%' THEN
+    RAISE EXCEPTION 'session start bypasses the account guard';
+  END IF;
+  IF (SELECT pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+       WHERE n.nspname='public' AND p.proname='_bank_reconciliation_assert_account')
+     NOT LIKE '%BANK_ACCOUNT_NOT_ACTIVE%' THEN
     RAISE EXCEPTION 'a non-active account can open a reconciliation session';
+  END IF;
+  IF v_start NOT LIKE '%BANK_RECON_SESSION_OPEN%' THEN
+    RAISE EXCEPTION 'a second open session per account is not refused';
+  END IF;
+  IF v_start NOT LIKE '%unique_violation%' THEN
+    RAISE EXCEPTION 'D-9 regression: the concurrent-start race is not collapsed into a domain error';
   END IF;
   IF v_start NOT LIKE '%BANK_RECON_PERIOD_LOCKED%' THEN
     RAISE EXCEPTION 'a locked accounting period can be reconciled into';
@@ -141,7 +152,7 @@ BEGIN
     WHERE i.indrelid = 'public.bank_reconciliation_sessions'::regclass
       AND i.indisunique
       AND pg_get_indexdef(i.indexrelid) ILIKE '%bank_account_id%'
-      AND pg_get_indexdef(i.indexrelid) ILIKE '%WHERE%'
+      AND pg_get_indexdef(i.indexrelid) ILIKE '%in_progress%'
   ) THEN
     RAISE EXCEPTION 'no partial unique index guaranteeing a single open session per account';
   END IF;

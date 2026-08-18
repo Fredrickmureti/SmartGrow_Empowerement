@@ -75,7 +75,8 @@ END $$;
 
 -- ---------------------------------------------------------------------
 -- 3) Dedup is enforced by the DATABASE, not by a SELECT-then-INSERT race:
---    a unique index on (bank_account_id, fingerprint) must exist.
+--    a unique index on (bank_account_id, external_transaction_id) — the
+--    column that carries the fingerprint — must exist.
 -- ---------------------------------------------------------------------
 DO $$
 BEGIN
@@ -85,9 +86,10 @@ BEGIN
     JOIN pg_class c ON c.oid = i.indexrelid
     WHERE i.indrelid = 'public.bank_transactions'::regclass
       AND i.indisunique
-      AND pg_get_indexdef(i.indexrelid) ILIKE '%fingerprint%'
+      AND pg_get_indexdef(i.indexrelid) ILIKE '%bank_account_id%'
+      AND pg_get_indexdef(i.indexrelid) ILIKE '%external_transaction_id%'
   ) THEN
-    RAISE EXCEPTION 'no unique index on bank_transactions fingerprint — concurrent imports can double-post';
+    RAISE EXCEPTION 'no unique index on (bank_account_id, external_transaction_id) — concurrent imports can double-post';
   END IF;
 END $$;
 
