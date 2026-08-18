@@ -265,14 +265,24 @@ export default function AdjustmentNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryProducts]);
 
+  const patchItem = (index: number, patch: Partial<Item>) =>
+    setItems((prev) =>
+      prev.map((it, i) => (i === index ? { ...it, ...patch } : it)),
+    );
+
   const updateItem = (
     index: number,
     field: keyof Item,
-    value: string | number,
+    value: string | number | null,
   ) => {
     const next = [...items];
     next[index] = { ...next[index], [field]: value } as Item;
     if (field === "product_id" && typeof value === "string") {
+      // A different product means a different unit ladder and lot identity.
+      next[index].packaging_id = null;
+      next[index].pack_factor = null;
+      next[index].lot_number = "";
+      next[index].expiry_date = "";
       const prod = inventoryProducts.find((p: any) => p.id === value) as any;
       if (prod && prod.cost_price && !next[index].unit_cost) {
         next[index].unit_cost = Number(prod.cost_price);
@@ -280,6 +290,7 @@ export default function AdjustmentNew() {
     }
     setItems(next);
   };
+
 
   const addItem = () =>
     setItems([
