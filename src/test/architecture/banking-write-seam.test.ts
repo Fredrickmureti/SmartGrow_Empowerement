@@ -72,8 +72,9 @@ describe("bank account write seam", () => {
   it("feed state lives on the connection + its runs, never on the account row", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
     // The dropped columns must not come back as a second source of feed truth.
-    expect(src).not.toMatch(/account\.sync_status|sync_status:/);
-    expect(src).not.toMatch(/sync_error/);
+    expect(src).not.toMatch(/\.(sync_status|sync_error|last_sync_at)\b/);
+    expect(src).not.toMatch(/(sync_status|sync_error):/);
+
     expect(src).toContain("bank_feed_status");
 
     const card = readFileSync(
