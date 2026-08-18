@@ -69,7 +69,12 @@ export function CurrencyCombobox({
         <Command>
           <CommandInput placeholder="Search currency..." />
           <CommandList className="max-h-[250px]">
-            <CommandEmpty>No currency found.</CommandEmpty>
+            <CommandEmpty>
+              <span className="block px-3 py-2 text-xs text-muted-foreground text-left">
+                {emptyMessage}
+              </span>
+            </CommandEmpty>
+
             <CommandGroup>
               {currencies.map((c) => (
                 <CommandItem
