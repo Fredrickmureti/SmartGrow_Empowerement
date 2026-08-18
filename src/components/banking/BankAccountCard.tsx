@@ -66,6 +66,18 @@ export function BankAccountCard({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
+  // Phase 7: prefer the caller-supplied GL balance, then the server-derived
+  // position. When neither resolves we render an em dash — a balance we cannot
+  // trace to a source row is an absence, not a zero.
+  const resolved = resolveBankAccountBalance(account);
+  const displayBalance = glBalance ?? resolved?.amount ?? null;
+  const balanceLabel =
+    glBalance != null || resolved?.source === "gl"
+      ? "Book Balance (GL)"
+      : resolved?.source === "statement"
+        ? "Statement Balance"
+        : "Balance";
+
   const formatAmount = (amount: number, currency: string) => {
     return formatCurrency(amount, currency);
   };
