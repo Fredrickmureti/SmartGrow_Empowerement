@@ -504,15 +504,14 @@ export function useMigrationSession() {
 
       // Reset bank account opening balances
       if (config.resetBankBalances) {
-        const { data } = await supabase
-          .from("bank_accounts")
-          .update({ opening_balance: 0, current_balance: 0, updated_at: new Date().toISOString() })
-          .eq("organization_id", orgId)
-          .eq("business_id", currentBusiness.id)
-          .neq("opening_balance", 0)
-          .select("id");
-        deleted.bank_balances = data?.length || 0;
+        // Wave 1: the server reverses any posted opening-balance journal entry
+        // before clearing the figure, so the ledger never keeps an orphan.
+        const { data } = await supabase.rpc("bank_account_reset_opening_balances", {
+          _business_id: currentBusiness.id,
+        });
+        deleted.bank_balances = (data as number | null) ?? 0;
       }
+
 
       // Delete batches for this step
       await supabase
