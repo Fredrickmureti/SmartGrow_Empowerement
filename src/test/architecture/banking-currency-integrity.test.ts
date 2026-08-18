@@ -37,14 +37,21 @@ function walk(dir: string, out: string[] = []): string[] {
 const bankingFiles = walk(BANKING_DIR);
 
 describe("banking currency integrity (Phase 5)", () => {
-  it("bank account create/edit pick currency from the active catalogue", () => {
+  it("bank account create/edit pick currency from the canonical catalogue", () => {
     for (const page of ["BankAccountCreatePage.tsx", "BankAccountEditPage.tsx"]) {
       const src = readFileSync(join(BANKING_DIR, page), "utf8");
       expect(src, `${page} must use CurrencyCombobox`).toContain(
         "CurrencyCombobox",
       );
-      expect(src, `${page} must source the active currency list`).toContain(
-        "useBusinessActiveCurrencies",
+      expect(src, `${page} must source the canonical catalogue`).toContain(
+        "useCurrencies",
+      );
+      expect(
+        src.includes("useBusinessActiveCurrencies"),
+        `${page} must not narrow the catalogue to a private active list`,
+      ).toBe(false);
+      expect(src, `${page} must show rate provenance`).toContain(
+        "ExchangeRatePanel",
       );
       // A free-text currency box is the regression this guards.
       expect(
