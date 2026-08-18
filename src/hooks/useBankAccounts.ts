@@ -23,7 +23,13 @@ export interface BankAccount {
   account_number: string | null;
   routing_number: string | null;
   currency: string | null;
-  current_balance: number | null;
+  /**
+   * Phase 7 — canonical cash position, derived server-side by
+   * `bank_account_positions()`. The old `bank_accounts.current_balance`
+   * column was removed: nothing maintained it, so it could not be
+   * reconciled back to any source row. `null` means "not resolved yet".
+   */
+  position?: BankAccountPosition | null;
   is_active: boolean | null;
   is_primary: boolean | null;
   account_id: string | null;
