@@ -142,22 +142,29 @@ export default function BankAccountEditPage() {
     if (isActive && !glAccountId) return;
     if (requiresReattributeConfirm && !reattributeConfirmed) return;
     const resolvedBranchId = branchScope === "__all__" ? null : branchScope;
-    submit.run(() =>
-      updateAccount(account.id, {
-        name: name.trim(),
-        bank_name: bankName.trim() || undefined,
-        account_number: accountNumber.trim() || undefined,
-        currency: hasTransactions ? undefined : currency.toUpperCase(),
-        account_type: accountType,
-        account_id: glAccountId || null,
-        is_primary: isPrimary,
-        is_active: isActive,
-        ...(branchChanged
-          ? { branch_id: resolvedBranchId, is_shared: resolvedBranchId === null }
-          : {}),
-      }) as any,
-    );
+    const statusChanged = isActive !== (account.lifecycle_status === "active");
+    submit.run(async () => {
+      await updateAccount(
+        account.id,
+        {
+          name: name.trim(),
+          bank_name: bankName.trim() || undefined,
+          account_number: accountNumber.trim() || undefined,
+          currency: hasTransactions ? undefined : currency.toUpperCase(),
+          account_type: accountType,
+          account_id: glAccountId || null,
+          is_primary: isPrimary,
+          ...(branchChanged ? { branch_id: resolvedBranchId } : {}),
+        },
+        account.row_version,
+      );
+      // Active/inactive is a lifecycle transition, not a field write.
+      if (statusChanged) {
+        await transitionAccount(account.id, isActive ? "active" : "suspended");
+      }
+    });
   };
+
 
   if (!account) {
     return bankAccounts === undefined || (bankAccounts?.length ?? 0) === 0 ? (
