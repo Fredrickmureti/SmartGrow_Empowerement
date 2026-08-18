@@ -601,14 +601,13 @@ export default function AdjustmentNew() {
                     <PackagingSelect
                       productId={item.product_id || null}
                       value={item.packaging_id}
-                      onChange={(packagingId, qtyInBaseUom) => {
-                        const pack = null;
+                      onChange={(packagingId, qtyInBaseUom, packName) =>
                         patchItem(index, {
                           packaging_id: packagingId,
                           pack_factor: qtyInBaseUom,
-                          pack_name: pack,
-                        });
-                      }}
+                          pack_name: packName ?? null,
+                        })
+                      }
                       disabled={!item.product_id}
                     />
                     <p className="mt-1 text-xs text-muted-foreground">

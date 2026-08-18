@@ -32,7 +32,11 @@ interface PackagingSelectProps {
    * pack's `qty_in_base_uom` multiplier (or null when base). Callers
    * derive the display UoM from the product's `base_uom_id` separately.
    */
-  onChange: (packagingId: string | null, qtyInBaseUom: number | null) => void;
+  onChange: (
+    packagingId: string | null,
+    qtyInBaseUom: number | null,
+    packName?: string | null,
+  ) => void;
   disabled?: boolean;
   className?: string;
   /** When true the dropdown is hidden if the product has no packs defined. */
@@ -74,11 +78,11 @@ export function PackagingSelect({
       value={value ?? "__base__"}
       onValueChange={(v) => {
         if (v === "__base__") {
-          onChange(null, null);
+          onChange(null, null, null);
           return;
         }
         const p = packs.find((x) => x.id === v);
-        onChange(v, p ? Number(p.qty_in_base_uom) : null);
+        onChange(v, p ? Number(p.qty_in_base_uom) : null, p?.name ?? null);
       }}
       disabled={disabled || !productId}
     >
