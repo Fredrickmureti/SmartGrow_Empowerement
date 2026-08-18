@@ -57,7 +57,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
-import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+import { useCurrencies } from "@/hooks/useCurrencies";
+import {
+  ExchangeRatePanel,
+  useDescribedExchangeRate,
+} from "@/components/finance/ExchangeRatePanel";
 
 
 
