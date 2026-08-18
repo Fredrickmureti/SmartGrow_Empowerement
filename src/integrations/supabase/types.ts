@@ -4800,6 +4800,7 @@ export type Database = {
       }
       bank_reconciliation_matches: {
         Row: {
+          allocations: Json
           bank_transaction_id: string
           branch_id: string | null
           business_id: string
@@ -4808,6 +4809,9 @@ export type Database = {
           confirmed_by: string | null
           created_at: string
           created_by: string | null
+          exchange_rate: number | null
+          fee_account_id: string | null
+          fee_amount: number
           id: string
           legal_order_remittance_batch_id: string | null
           match_type: string
@@ -4819,6 +4823,9 @@ export type Database = {
           matched_payment_id: string | null
           notes: string | null
           organization_id: string
+          proposed_by: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           residual_amount: number
           reversed_at: string | null
           reversed_by: string | null
@@ -4827,6 +4834,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allocations?: Json
           bank_transaction_id: string
           branch_id?: string | null
           business_id: string
@@ -4835,6 +4843,9 @@ export type Database = {
           confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          exchange_rate?: number | null
+          fee_account_id?: string | null
+          fee_amount?: number
           id?: string
           legal_order_remittance_batch_id?: string | null
           match_type?: string
@@ -4846,6 +4857,9 @@ export type Database = {
           matched_payment_id?: string | null
           notes?: string | null
           organization_id: string
+          proposed_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           residual_amount?: number
           reversed_at?: string | null
           reversed_by?: string | null
@@ -4854,6 +4868,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allocations?: Json
           bank_transaction_id?: string
           branch_id?: string | null
           business_id?: string
@@ -4862,6 +4877,9 @@ export type Database = {
           confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          exchange_rate?: number | null
+          fee_account_id?: string | null
+          fee_amount?: number
           id?: string
           legal_order_remittance_batch_id?: string | null
           match_type?: string
@@ -4873,6 +4891,9 @@ export type Database = {
           matched_payment_id?: string | null
           notes?: string | null
           organization_id?: string
+          proposed_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           residual_amount?: number
           reversed_at?: string | null
           reversed_by?: string | null
@@ -4922,6 +4943,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_matches_fee_account_id_fkey"
+            columns: ["fee_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_matches_fee_account_id_fkey"
+            columns: ["fee_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_matches_fee_account_id_fkey"
+            columns: ["fee_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bank_reconciliation_matches_legal_order_remittance_batch_i_fkey"
@@ -86994,6 +87036,14 @@ export type Database = {
         Returns: string
       }
       _bank_account_row: { Args: { _id: string }; Returns: Json }
+      _bank_match_validate: {
+        Args: {
+          _allocations: Json
+          _fee_amount: number
+          _txn: Database["public"]["Tables"]["bank_transactions"]["Row"]
+        }
+        Returns: string
+      }
       _bank_reconciliation_assert_account: {
         Args: { _bank_account_id: string }
         Returns: {
@@ -90527,6 +90577,34 @@ export type Database = {
       }
       bank_account_update: {
         Args: { _id: string; _payload: Json; _row_version: number }
+        Returns: Json
+      }
+      bank_match_confirm: {
+        Args: {
+          _client_request_id?: string
+          _match_id: string
+          _user_id?: string
+        }
+        Returns: Json
+      }
+      bank_match_propose: {
+        Args: {
+          _allocations: Json
+          _fee_amount?: number
+          _match_type?: string
+          _notes?: string
+          _rule_id?: string
+          _txn_id: string
+          _user_id?: string
+        }
+        Returns: Json
+      }
+      bank_match_reject: {
+        Args: { _match_id: string; _reason?: string; _user_id?: string }
+        Returns: Json
+      }
+      bank_match_reverse: {
+        Args: { _match_id: string; _reason?: string; _user_id?: string }
         Returns: Json
       }
       bank_reconciliation_item_set: {

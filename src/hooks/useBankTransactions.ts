@@ -141,10 +141,11 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
   }, [currentOrg?.id, currentBusiness?.id, scope.branchId, JSON.stringify(filters)]);
 
   /**
-   * Reconcile a bank transaction — creates real accounting impact.
-   * For invoice: creates payment + GL entry (DR Bank, CR AR)
-   * For bill: creates bill_payment + GL entry (DR AP, CR Bank)
-   * For manual: prompts for offset account and posts GL
+   * Reconcile a bank transaction through the canonical matching seam
+   * (Wave 2 Phase 10): `bank_match_propose` states the allocation set,
+   * `bank_match_confirm` settles it through the AR/AP engines and the single
+   * posting engine. Partial and multi-document matches are expressed by
+   * passing `allocations`; a bank charge is the `feeAmount` residual.
    */
   const reconcileTransaction = async (
     transactionId: string,
@@ -154,6 +155,16 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
       category?: string;
       createGLEntry?: boolean;
       offsetAccountId?: string;
+      /** n:m allocations. When omitted, derived from the legacy single-entity shape. */
+      allocations?: Array<{
+        document_type: "invoice" | "bill" | "account";
+        document_id: string;
+        amount: number;
+        description?: string;
+      }>;
+      /** Bank charge absorbed on this line (allocations + fee must equal the line). */
+      feeAmount?: number;
+      feeAccountId?: string;
     }
   ) => {
     try {
@@ -168,21 +179,54 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
         throw new Error(`Cannot reconcile: fiscal period for ${txn.transaction_date} is closed and locked.`);
       }
 
-      const { error } = await supabase.rpc("reconcile_bank_transaction_atomic", {
+      const fee = reconcileData.feeAmount ?? 0;
+      const allocations = reconcileData.allocations ?? (() => {
+        const amount = Math.abs(Number(txn.amount)) - fee;
+        if (reconcileData.reconciled_type === "invoice" || reconcileData.reconciled_type === "bill") {
+          if (!reconcileData.reconciled_entity_id) {
+            throw new Error("A document must be selected to reconcile this line.");
+          }
+          return [{
+            document_type: reconcileData.reconciled_type,
+            document_id: reconcileData.reconciled_entity_id,
+            amount,
+          }];
+        }
+        if (!reconcileData.offsetAccountId) {
+          throw new Error("An offset account is required to classify this bank line.");
+        }
+        return [{
+          document_type: "account" as const,
+          document_id: reconcileData.offsetAccountId,
+          amount,
+          description: reconcileData.category ?? undefined,
+        }];
+      })();
+
+      const { data: proposed, error: proposeError } = await (supabase as any).rpc("bank_match_propose", {
         _txn_id: transactionId,
-        _recon_type: reconcileData.reconciled_type,
-        _entity_id: reconcileData.reconciled_entity_id || null,
-        _category: reconcileData.category || null,
-        _offset_account_id: reconcileData.offsetAccountId || null,
-        _create_gl: reconcileData.createGLEntry !== false,
+        _allocations: allocations,
+        _fee_amount: fee,
+        _match_type: "manual",
+        _rule_id: null,
+        _notes: reconcileData.category ?? null,
+        _user_id: userData.user?.id || null,
+      });
+      if (proposeError) throw proposeError;
+
+      const matchId = (proposed as { match_id?: string } | null)?.match_id;
+      if (!matchId) throw new Error("Match proposal did not return an identifier.");
+
+      const { error } = await (supabase as any).rpc("bank_match_confirm", {
+        _match_id: matchId,
         _user_id: userData.user?.id || null,
         // Deterministic per bank line: a double-click or retry collapses onto
         // the same settlement instead of minting a second payment (D5).
         _client_request_id: `brecon:${transactionId}`,
       });
 
-
       if (error) throw error;
+
 
       // Audit log
       logAction({
