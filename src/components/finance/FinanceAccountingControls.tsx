@@ -18,7 +18,8 @@ import { useFxRevaluation, useFxRevaluationReadiness } from "@/hooks/finance/use
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
-import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { useFinancePermissions } from "@/hooks/finance/useFinancePermission";
+import { FinanceReadOnlyNotice } from "@/components/finance/FinanceReadOnlyNotice";
 import { normalizeError } from "@/services/resilience";
 
 interface AccountOption {
@@ -156,14 +157,12 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
           </TabsList>
 
           <TabsContent value="journals" className="space-y-4">
-            {journalsReadOnly && (
-              <Alert variant="destructive">
-                <ShieldAlert className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Read-only — <code>finance.manage_settings</code> required to create or seed journal books.
-                </AlertDescription>
-              </Alert>
-            )}
+            <FinanceReadOnlyNotice
+              what="review the journal books"
+              permission="finance.manage_settings"
+              isLoading={permLoading}
+              readOnly={journalsReadOnly}
+            />
             <div className="grid gap-3 md:grid-cols-5">
               <Input placeholder="Code" disabled={journalsReadOnly} value={journalDraft.code} onChange={(event) => setJournalDraft((draft) => ({ ...draft, code: event.target.value }))} />
               <Input placeholder="Name" className="md:col-span-2" disabled={journalsReadOnly} value={journalDraft.name} onChange={(event) => setJournalDraft((draft) => ({ ...draft, name: event.target.value }))} />
@@ -197,14 +196,12 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
           </TabsContent>
 
           <TabsContent value="reconciliation" className="space-y-4">
-            {rulesReadOnly && (
-              <Alert variant="destructive">
-                <ShieldAlert className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Read-only — <code>finance.manage_settings</code> or <code>finance.reconcile_bank</code> required.
-                </AlertDescription>
-              </Alert>
-            )}
+            <FinanceReadOnlyNotice
+              what="review the reconciliation rules"
+              permission="finance.manage_settings / finance.reconcile_bank"
+              isLoading={permLoading}
+              readOnly={rulesReadOnly}
+            />
             <div className="flex justify-end">
               <Button variant="outline" size="sm" onClick={refreshBanks} disabled={isLoadingBanks}>
                 {isLoadingBanks ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
@@ -270,14 +267,12 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
           </TabsContent>
 
           <TabsContent value="fx" className="space-y-4">
-            {fxReadOnly && (
-              <Alert variant="destructive">
-                <ShieldAlert className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Read-only — <code>finance.manage_je</code> required to run FX revaluation (it posts a journal entry).
-                </AlertDescription>
-              </Alert>
-            )}
+            <FinanceReadOnlyNotice
+              what="review FX revaluation settings"
+              permission="finance.manage_je"
+              isLoading={permLoading}
+              readOnly={fxReadOnly}
+            />
             <div className="grid gap-3 md:grid-cols-2">
               <Input type="date" value={fxDraft.run_date} onChange={(event) => setFxDraft((draft) => ({ ...draft, run_date: event.target.value }))} />
               <Input placeholder="Base currency" value={fxDraft.base_currency} onChange={(event) => setFxDraft((draft) => ({ ...draft, base_currency: event.target.value.toUpperCase() }))} />
