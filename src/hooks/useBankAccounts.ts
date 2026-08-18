@@ -381,6 +381,8 @@ export function useBankAccounts() {
       fetchAccounts,
       createAccount,
       updateAccount,
+      transitionAccount,
+
       deleteAccount,
       syncTransactions,
     }),
