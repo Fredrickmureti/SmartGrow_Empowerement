@@ -36,7 +36,7 @@ and the stale cleanup reference in `reset_module__inventory`.
 Correction to the earlier note: `bank_reconciliation_sessions` is **not** an
 orphan — it has seams, reports and RLS tests, and stays.
 
-## Remaining
+## Done (continued)
 
 **Phase 16 — feed transport tests (done, verified).**
 `supabase/tests/bank_feed_transport_invariants_test.sql` asserts, against the
