@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useBankAccounts } from "@/hooks/useBankAccounts";
+import { useBankAccounts, resolveBankAccountBalance } from "@/hooks/useBankAccounts";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -25,8 +25,8 @@ export function BankBalanceWidget() {
         return getEffectiveBalance(glAccount.id, glAccount.opening_balance || 0);
       }
     }
-    // Fallback to operational balance if no GL link
-    return bankAccount.current_balance || 0;
+    // No GL link: fall back to the server-derived statement position.
+    return resolveBankAccountBalance(bankAccount)?.amount ?? 0;
   };
 
   const activeAccounts = bankAccounts?.filter(acc => acc.is_active) || [];

@@ -112,7 +112,7 @@ export function useGLIntelligence() {
 
       let bankQ = supabase
         .from("bank_accounts")
-        .select("id, current_balance, is_active, name, account_id")
+        .select("id, is_active, name, account_id")
         .eq("organization_id", currentOrg.id)
         .eq("is_active", true);
       bankQ = bankQ.eq("business_id", businessId);
@@ -179,7 +179,8 @@ export function useGLIntelligence() {
         if (a.account_id && glBalanceMap.has(a.account_id)) {
           return s + glBalanceMap.get(a.account_id)!;
         }
-        return s + (a.current_balance || 0);
+        // Unlinked bank accounts contribute nothing to a GL-derived position.
+        return s;
       }, 0);
       const totalReceivables = invoices.reduce((s: number, i: any) => s + (i.total - (i.amount_paid || 0)), 0);
       const totalPayables = bills.reduce((s: number, b: any) => s + (b.total - (b.amount_paid || 0)), 0);

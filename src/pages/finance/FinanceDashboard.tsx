@@ -12,7 +12,7 @@ import {
   PiggyBank, ArrowRightLeft,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useBankAccounts } from "@/hooks/useBankAccounts";
+import { useBankAccounts, resolveBankAccountBalance } from "@/hooks/useBankAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -192,7 +192,10 @@ export default function FinanceDashboard() {
 
 
   // Bank stats
-  const totalBankBalance = bankAccountsList.reduce((s, a) => s + (a.current_balance || 0), 0);
+  const totalBankBalance = bankAccountsList.reduce(
+    (s, a) => s + (resolveBankAccountBalance(a)?.amount ?? 0),
+    0,
+  );
   const activeAccounts = bankAccountsList.filter(a => a.is_active);
 
   if (isLoading) {

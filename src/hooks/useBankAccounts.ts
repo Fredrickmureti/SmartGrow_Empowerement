@@ -13,6 +13,46 @@ export type BankAccountLifecycleStatus =
   | "suspended"
   | "closed";
 
+/**
+ * One row of `public.bank_account_positions()` — the only sanctioned answer to
+ * "how much money does this account hold". Every field is reproducible from
+ * source rows, so a figure on screen can always be traced back to a statement
+ * line or a posted journal line.
+ */
+export interface BankAccountPosition {
+  /** Opening balance recorded on the account. */
+  opening_balance: number;
+  /** Opening balance + every imported statement line up to `as_of`. */
+  statement_balance: number;
+  /** Date of the most recent statement line, or null when none imported. */
+  last_statement_line_date: string | null;
+  /**
+   * Posted-journal balance of the linked control account. `null` when the
+   * account has no GL link, or when several bank accounts share one control
+   * account and the balance therefore cannot be attributed to just this one.
+   */
+  gl_balance: number | null;
+  /** True when the control account is shared, which is why `gl_balance` is null. */
+  gl_shared: boolean;
+  unreconciled_count: number;
+  unreconciled_amount: number;
+  as_of: string;
+}
+
+/**
+ * The figure to display for an account, and where it came from. Returns `null`
+ * rather than a fabricated zero when nothing is resolvable — a missing balance
+ * is an absence, not zero (ADR-0136's rule applied to cash).
+ */
+export function resolveBankAccountBalance(
+  account: Pick<BankAccount, "position">,
+): { amount: number; source: "gl" | "statement" } | null {
+  const p = account.position;
+  if (!p) return null;
+  if (p.gl_balance != null) return { amount: Number(p.gl_balance), source: "gl" };
+  return { amount: Number(p.statement_balance ?? 0), source: "statement" };
+}
+
 export interface BankAccount {
   id: string;
   organization_id: string;
@@ -23,7 +63,13 @@ export interface BankAccount {
   account_number: string | null;
   routing_number: string | null;
   currency: string | null;
-  current_balance: number | null;
+  /**
+   * Phase 7 — canonical cash position, derived server-side by
+   * `bank_account_positions()`. The old `bank_accounts.current_balance`
+   * column was removed: nothing maintained it, so it could not be
+   * reconciled back to any source row. `null` means "not resolved yet".
+   */
+  position?: BankAccountPosition | null;
   is_active: boolean | null;
   is_primary: boolean | null;
   account_id: string | null;
@@ -128,7 +174,34 @@ export function useBankAccounts() {
         .order("name");
 
       if (error) throw error;
-      setAccounts((data as unknown as BankAccount[]) || []);
+      const rows = (data as unknown as BankAccount[]) || [];
+
+      // Phase 7: balances are never read from the account row. They come from
+      // the server projection so statement and GL figures stay traceable.
+      const { data: positions, error: posError } = await supabase.rpc(
+        "bank_account_positions",
+        { _business_id: currentBusiness.id },
+      );
+      if (posError) {
+        console.error("Error resolving bank positions:", posError);
+      }
+      const byId = new Map<string, BankAccountPosition>(
+        ((positions ?? []) as Array<Record<string, unknown>>).map((p) => [
+          String(p.bank_account_id),
+          {
+            opening_balance: Number(p.opening_balance ?? 0),
+            statement_balance: Number(p.statement_balance ?? 0),
+            last_statement_line_date: (p.last_statement_line_date as string | null) ?? null,
+            gl_balance: p.gl_balance == null ? null : Number(p.gl_balance),
+            gl_shared: Boolean(p.gl_shared),
+            unreconciled_count: Number(p.unreconciled_count ?? 0),
+            unreconciled_amount: Number(p.unreconciled_amount ?? 0),
+            as_of: String(p.as_of ?? ""),
+          },
+        ]),
+      );
+
+      setAccounts(rows.map((a) => ({ ...a, position: byId.get(a.id) ?? null })));
     } catch (error: unknown) {
       console.error("Error fetching bank accounts:", error);
       toast.error("Failed to load bank accounts");

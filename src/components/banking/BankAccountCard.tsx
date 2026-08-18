@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { BankAccount } from "@/hooks/useBankAccounts";
+import { BankAccount, resolveBankAccountBalance } from "@/hooks/useBankAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { getBankAccountTypeLabel } from "@/lib/bankAccountTypes";
 import {
@@ -65,6 +65,18 @@ export function BankAccountCard({
   const { formatCurrency } = useCurrency();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
+
+  // Phase 7: prefer the caller-supplied GL balance, then the server-derived
+  // position. When neither resolves we render an em dash — a balance we cannot
+  // trace to a source row is an absence, not a zero.
+  const resolved = resolveBankAccountBalance(account);
+  const displayBalance = glBalance ?? resolved?.amount ?? null;
+  const balanceLabel =
+    glBalance != null || resolved?.source === "gl"
+      ? "Book Balance (GL)"
+      : resolved?.source === "statement"
+        ? "Statement Balance"
+        : "Balance";
 
   const formatAmount = (amount: number, currency: string) => {
     return formatCurrency(amount, currency);
@@ -182,10 +194,12 @@ export function BankAccountCard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">
-                {glBalance != null ? "Book Balance (GL)" : "Balance"}
+                {balanceLabel}
               </p>
               <p className="text-2xl font-bold">
-                {formatAmount(glBalance ?? account.current_balance ?? 0, account.currency || "USD")} // architecture-allow: display-only fallback
+                {displayBalance == null
+                  ? "—"
+                  : formatAmount(displayBalance, account.currency || "USD")}
               </p>
               {glBalance == null && account.account_id == null && (
                 <p className="text-xs text-amber-600 mt-0.5">⚠ No GL link — balance is not ledger-derived</p>

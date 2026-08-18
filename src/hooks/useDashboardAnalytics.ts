@@ -396,8 +396,10 @@ export function useDashboardAnalytics() {
         }
       }
 
+      // No GL link means no ledger-derived balance; report 0 rather than a
+      // stale denormalised figure (the `current_balance` column is gone).
       const bankBalances = (bankAccounts || []).map(acc => {
-        let balance = acc.current_balance || 0;
+        let balance = 0;
         if (acc.account_id && glAccountMap[acc.account_id]) {
           const gl = glAccountMap[acc.account_id];
           balance = (gl.opening_balance || 0) + (gl.current_balance || 0);

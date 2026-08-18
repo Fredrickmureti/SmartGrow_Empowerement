@@ -45,7 +45,7 @@ export function MigrationStepBankBalances({ onComplete, onSkip }: Props) {
       const { data } = await supabase
         // SCOPE-EXEMPT: migration tool lists all bank accounts in workspace for matching
         .from("bank_accounts")
-        .select("id, name, account_number, opening_balance, current_balance")
+        .select("id, name, account_number, opening_balance")
         .eq("organization_id", currentOrg.id)
         .eq("is_active", true);
       return data || [];
