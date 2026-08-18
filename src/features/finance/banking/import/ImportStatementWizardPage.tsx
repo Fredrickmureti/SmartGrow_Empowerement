@@ -49,7 +49,6 @@ import { Badge } from "@/components/ui/badge";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { useTransactionRules } from "@/hooks/useTransactionRules";
 import { supabase } from "@/integrations/supabase/client";
 import {
   parseStatementFile,
