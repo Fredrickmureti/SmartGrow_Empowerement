@@ -73,3 +73,17 @@ type: feature
   bank_account_id / counterpart / target / offset accounts.
 - Ratchet: `src/test/architecture/banking-rule-authoring-seam.test.ts`.
 
+
+## Currency & FX (Phase 5)
+- Bank account currency is chosen from the company's **active** currencies
+  (`useBusinessActiveCurrencies` + shared `CurrencyCombobox`) on both create and
+  edit. No free-text currency box; no country-specific bank fixtures in core
+  Finance (the Kenyan Jenga/Equity test accounts were deleted).
+- Editing currency stays locked once the account has posted history.
+- `bank_statement_import_batch` rejects any row whose `currency` differs from
+  the parent account's currency (reported in `rejected_rows`) and stamps
+  `original_currency` on every inserted row.
+- `reconcile_bank_transfer_atomic` refuses a cross-currency match
+  (`BANK_TRANSFER_CURRENCY_MISMATCH`) — a 1:1 mirror would misstate FX.
+- Ratchet: `src/test/architecture/banking-currency-integrity.test.ts`
+  (combobox usage, no country fixtures, no 1:1 rate fallback).
