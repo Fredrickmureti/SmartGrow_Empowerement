@@ -1,5 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  buildCurrencyRulePrompt,
+  formatMoney,
+  formatRecordMoney,
+  resolveWorkspaceCurrency,
+  UNRESOLVED_CURRENCY_CONTEXT,
+  type WorkspaceCurrencyContext,
+} from "../_shared/workspaceCurrency.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -294,7 +302,7 @@ async function getFinancialContext(
       // Organization info
       supabaseClient
         .from("organizations")
-        .select("name, base_currency, email, phone, address, city, country")
+        .select("name, email, phone, address, city, country")
         .eq("id", organizationId)
         .single(),
       
@@ -645,7 +653,7 @@ async function getFinancialContext(
 }
 
 // Build context string for AI with branch awareness
-function buildContextPrompt(context: FinancialContext): string {
+function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCurrencyContext): string {
   const { 
     organization, bankAccounts, recentInvoices, recentExpenses, pendingBills, summary,
     lowStockProducts, employees, leaveRequests, projects, projectTasks, crmLeads,
@@ -660,27 +668,18 @@ function buildContextPrompt(context: FinancialContext): string {
   const businessName = (context as any)._businessName;
   const businessId = (context as any)._businessId;
   
-  // Determine the org's base currency for all monetary formatting
-  const cur = organization?.base_currency || 'USD';
-  
+  // The workspace currency comes from the canonical resolver
+  // (businesses.base_currency). There is no literal fallback anywhere on this
+  // path: when it cannot be resolved the model is told it is unknown.
+  const cur = currencyCtx.baseCurrency;
+
   const today = new Date().toLocaleDateString();
   const todayISO = new Date().toISOString().split('T')[0];
-  
+
   let prompt = `\n\n---\n**COMPLETE SYSTEM DATA (as of ${today}):**\n\n`;
 
-  // ===== NON-NEGOTIABLE CURRENCY RULE =====
-  // The workspace base currency is the ONLY currency the assistant may use
-  // when echoing monetary values. Every monetary number below is already
-  // prefixed with its ISO code (e.g. "${cur} 0.00"). The model must
-  // reproduce that exact prefix and MUST NOT substitute "$", "USD", or
-  // any other symbol/code unless the base currency is literally USD.
-  prompt += `**🔒 CURRENCY RULE (STRICT):** This workspace's base currency is **${cur}**. ` +
-    `ALL monetary values in your response MUST be written as "${cur} <amount>" ` +
-    `(e.g. "${cur} 1,250.00", "${cur} 0.00"). ` +
-    `NEVER use the "$" sign, "USD", or any other currency symbol/code ` +
-    `unless ${cur} === "USD". This rule overrides any default formatting habits.\n\n`;
+  prompt += buildCurrencyRulePrompt(currencyCtx);
 
-  
   // Business context indicator
   if (businessId && businessName) {
     prompt += `**⚡ BUSINESS CONTEXT: Viewing data for "${businessName}" only. All data below is scoped to this specific business.**\n\n`;
@@ -691,7 +690,7 @@ function buildContextPrompt(context: FinancialContext): string {
   // Organization info
   if (organization) {
     prompt += `**Organization:** ${organization.name}\n`;
-    prompt += `**Base Currency:** ${organization.base_currency || 'USD'}\n`;
+    prompt += `**Base Currency:** ${cur ?? 'NOT CONFIGURED'}${currencyCtx.mixed ? ` (mixed across businesses: ${currencyCtx.businessCurrencies.join(', ')})` : ''}\n`;
   }
 
   // Branch context indicator
@@ -765,7 +764,7 @@ function buildContextPrompt(context: FinancialContext): string {
   if (bankAccounts.length > 0) {
     prompt += `## 🏦 Bank Accounts\n`;
     bankAccounts.forEach((acc: any) => {
-      prompt += `- **${acc.name}** (${acc.bank_name || 'Bank'}): ${formatCurrency(acc.current_balance, cur)} ${acc.is_primary ? '(Primary)' : ''}\n`;
+      prompt += `- **${acc.name}** (${acc.bank_name || 'Bank'}): ${formatRecordMoney(acc.current_balance, acc.currency, cur)} ${acc.is_primary ? '(Primary)' : ''}\n`;
     });
     prompt += `\n`;
   }
@@ -971,18 +970,15 @@ function buildContextPrompt(context: FinancialContext): string {
   return prompt;
 }
 
-function formatCurrency(amount: number, currency: string = 'USD'): string {
+function formatCurrency(amount: number, currency: string | null): string {
   // CRITICAL: We render the ISO currency CODE explicitly (e.g. "KES 1,234.50")
   // rather than relying on locale symbols. This stops the model from
   // hallucinating "$" for non-USD workspaces — every value the model sees
   // already carries the correct code as a literal token, so it has no
   // freedom to substitute a different symbol when echoing numbers back.
-  const code = (currency || 'USD').toUpperCase();
-  const n = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount || 0);
-  return `${code} ${n}`;
+  // No literal fallback: an unresolved workspace currency is reported as such
+  // rather than silently relabelled (see _shared/workspaceCurrency.ts).
+  return formatMoney(amount, currency);
 }
 
 const systemPrompts: Record<string, string> = {
@@ -1736,6 +1732,13 @@ serve(async (req) => {
       );
     }
 
+    // Resolve the workspace currency for EVERY request type — categorisation,
+    // invoice analysis, email drafting and document text all used to run with
+    // zero currency context and defaulted to USD.
+    const currencyCtx: WorkspaceCurrencyContext = organizationId
+      ? await resolveWorkspaceCurrency(supabaseClient, organizationId, businessId)
+      : UNRESOLVED_CURRENCY_CONTEXT;
+
     // Fetch financial context if organization ID is provided - now with branch awareness
     let financialContext: FinancialContext | null = null;
     if (organizationId && (type === "chat" || type === "financial_insights" || type === "suggest_actions")) {
@@ -1750,6 +1753,7 @@ serve(async (req) => {
     }
 
     let systemPrompt = systemPrompts[type] || systemPrompts.chat;
+
     
     // Handle document_text request type with specific prompts
     if (type === "document_text" && data) {
@@ -1757,6 +1761,10 @@ serve(async (req) => {
       systemPrompt = systemPrompts[`document_text_${fieldType}`] || systemPrompts.document_text_notes;
     }
     
+    // The currency rule is universal: it is prepended to every request type
+    // before any task-specific context.
+    systemPrompt += "\n\n" + buildCurrencyRulePrompt(currencyCtx);
+
     // Append page context hint
     if (currentPage && type === "chat") {
       systemPrompt += `\n\nThe user is currently on the "${currentPage}" page. Prioritize information relevant to this context when answering.`;
@@ -1764,7 +1772,7 @@ serve(async (req) => {
 
     // Append financial context to system prompt
     if (financialContext) {
-      systemPrompt += buildContextPrompt(financialContext);
+      systemPrompt += buildContextPrompt(financialContext, currencyCtx);
     }
 
     // ── Inject route catalog + action-block protocol + payroll diagnostics
