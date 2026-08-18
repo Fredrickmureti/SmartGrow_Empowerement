@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
+import { FinanceReadOnlyNotice } from "@/components/finance/FinanceReadOnlyNotice";
 import {
   Card,
   CardContent,

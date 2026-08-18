@@ -45,6 +45,7 @@ import { Sparkles } from "lucide-react";
 import { useAccountRoleEligibility } from "@/hooks/useAccountRoleEligibility";
 import { explainMappingError } from "@/lib/finance/mappingErrors";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { FinanceReadOnlyNotice } from "@/components/finance/FinanceReadOnlyNotice";
 
 interface MappingConfig {
   key: string;
