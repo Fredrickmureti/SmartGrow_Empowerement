@@ -251,9 +251,9 @@ export default function BankAccountEditPage() {
               )}
             </Label>
             <div className="mt-1.5">
-              {/* Active-currency list only; the seam validates the same set. */}
+              {/* Canonical catalogue; rate coverage is shown, not hidden. */}
               <CurrencyCombobox
-                currencies={activeCurrencies}
+                currencies={currencies}
                 value={currency}
                 onValueChange={setCurrency}
                 placeholder={
@@ -262,8 +262,18 @@ export default function BankAccountEditPage() {
                 disabled={hasTransactions || checkingTxns || currenciesLoading}
               />
             </div>
-
           </FieldCell>
+
+          <FieldCell>
+            <Label>Exchange rate</Label>
+            <ExchangeRatePanel
+              currency={currency}
+              onDate={rateDate}
+              baseHint="This account is in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book so this account's activity can be valued."
+            />
+          </FieldCell>
+
 
           <FieldCell>
             <Label>Account type</Label>
