@@ -28,10 +28,20 @@ breaks the deliberately-simple model.
 ## Numbering hygiene
 
 Numbers were allocated concurrently and collided: **0102** is used by three
-ADRs and **0110** by two. Those files are left as they are (an accepted ADR
-is immutable), but the numbers are burnt: never reuse them, and always
-allocate the next number by listing `docs/adr/` rather than by memory. The
-highest allocated number is **0114**.
+ADRs, **0110** by two, and **0141** / **0142** each by two (a Banking pair and
+a Supplier-purchasing pair, written in parallel waves). Those files are left as
+they are — an accepted ADR is immutable, and renaming one silently breaks every
+citation of it in code comments, tests and memory files. The numbers are burnt:
+never reuse them, cite a collided ADR by number *and* title, and always allocate
+the next number by listing `docs/adr/` rather than by memory. The highest
+allocated number is **0145**.
+
+Collided numbers, disambiguated by title:
+
+| #    | Files |
+| ---- | ----- |
+| 0141 | [A bank balance is derived, never stored](./0141-bank-cash-position-is-derived-never-stored.md) · [Purchasing terms belong to the supplier-product relationship](./0141-supplier-owned-purchasing-terms.md) |
+| 0142 | [Supplier purchasing conditions](./0142-supplier-purchasing-conditions.md) · see the directory listing for the Banking-wave sibling |
 
 ## Format
 
