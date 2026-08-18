@@ -39,7 +39,7 @@ interface Account {
 
 export default function FinanceSettings() {
   const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusinesses();
+  const { currentBusiness, isLoading: businessLoading } = useBusinesses();
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,7 +126,9 @@ export default function FinanceSettings() {
             used by the `apply-default-mappings` edge function. */}
         <DefaultAccountsConfig />
 
-        {!currentBusiness?.id && (
+        {/* Only after the company context has settled — a company that is
+            still loading is NOT "no company selected". */}
+        {!businessLoading && !currentBusiness?.id && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
