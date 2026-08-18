@@ -415,9 +415,6 @@ export default function BankAccountCreatePage() {
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
               placeholder="Enter your account number"
-              disabled={
-                isJengaProvider && useTestAccount && !!selectedTestAccount
-              }
               className="mt-1.5"
             />
           </FieldCell>
@@ -439,18 +436,31 @@ export default function BankAccountCreatePage() {
           </FieldCell>
 
           <FieldCell>
-            <Label>Currency</Label>
-            <Input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              maxLength={3}
-              placeholder="KES"
-              disabled={
-                isJengaProvider && useTestAccount && !!selectedTestAccount
-              }
-              className="mt-1.5"
-            />
+            <Label>Currency *</Label>
+            <div className="mt-1.5">
+              {/* Only currencies the business has activated. The server seam
+                  validates against the same set, so a free-text box could only
+                  ever produce a rejected write or an unpriced currency. */}
+              <CurrencyCombobox
+                currencies={activeCurrencies}
+                value={currency}
+                onValueChange={setCurrency}
+                placeholder={
+                  currenciesLoading
+                    ? "Loading currencies…"
+                    : "Select currency..."
+                }
+                disabled={currenciesLoading || activeCurrencies.length === 0}
+              />
+            </div>
+            {!currenciesLoading && activeCurrencies.length === 0 && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                No currencies are active for this company. Activate one in
+                Settings → Currencies first.
+              </p>
+            )}
           </FieldCell>
+
 
           <FieldCell>
             <Label>Opening balance</Label>
