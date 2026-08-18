@@ -236,6 +236,15 @@ export default function ContractCreatePage() {
               />
             </div>
             <div>
+              <Label>Exchange rate</Label>
+              <ExchangeRatePanel
+                currency={currency}
+                onDate={startDate}
+                baseHint="Agreed prices are in the base currency — no conversion applies."
+                missingHint="Publish or override a rate in the rate book before saving — contract ceilings cannot be valued at parity."
+              />
+            </div>
+            <div>
               <Label>Price tolerance (%)</Label>
               <Input
                 type="number"
