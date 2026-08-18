@@ -584,7 +584,7 @@ export default function BankAccountCreatePage() {
 
       {selectedProvider &&
         selectedProvider.provider_code !== "manual" &&
-        !isJengaProvider && (
+        !isSandboxProvider && (
           <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
             <p className="text-sm text-blue-700 dark:text-blue-400">
               <strong>Note:</strong> After connecting, transactions will be
