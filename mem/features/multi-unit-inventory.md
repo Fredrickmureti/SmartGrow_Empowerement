@@ -67,3 +67,16 @@ do not change copy to FIFO without an ADR amendment.
 - Client seam: `src/features/products/save/saveProductAtomic.ts` (`saveProductAtomic`, `describeProductSaveFailure`). Operator copy for save failures comes from there — no raw SQLSTATE in toasts. Opening stock stays on `create_product_with_opening_stock_atomic` (ledger path unchanged).
 - Guard: `supabase/tests/product_packaging_hierarchy_test.sql`.
 - `ProductForm` submits ONE `saveProductAtomic` call for create and edit; the child editors expose `collect()` payloads (`commit()` survives only for their standalone save buttons). Never reintroduce best-effort child writes after the master save. Guard: `src/test/architecture/product-save-single-transaction.test.ts`.
+
+## Stock adjustments (2026-08-18)
+- `apply_or_request_stock_adjustment` carries `packaging_id`,
+  `display_uom_id`, `display_quantity`, `lot_number`, `serial_number`,
+  `expiry_date`, `lot_allocations` into `stock_adjustment_items`. The base
+  quantity is derived by the BEFORE trigger `_uom_normalize_adj_line` — the
+  form sends pack COUNT as `display_quantity`, never a converted base number.
+- Positive adjustments on lot-tracked products require a lot number; the RPC
+  pre-flights it (and registers the lot in `stock_lots`, with expiry when the
+  product is expiry-tracked) before any row is written. Negative lines are
+  resolved FEFO by `approve_stock_adjustment_atomic` — never weaken these.
+- Guards: `supabase/tests/stock_adjustment_uom_lot_test.sql`,
+  `src/test/architecture/stock-adjustment-uom-lot-contract.test.ts`.
