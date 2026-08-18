@@ -243,14 +243,19 @@ export default function BankAccountEditPage() {
                 </Tooltip>
               )}
             </Label>
-            <Input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              maxLength={3}
-              placeholder="e.g. USD"
-              disabled={hasTransactions || checkingTxns}
-              className="mt-1.5"
-            />
+            <div className="mt-1.5">
+              {/* Active-currency list only; the seam validates the same set. */}
+              <CurrencyCombobox
+                currencies={activeCurrencies}
+                value={currency}
+                onValueChange={setCurrency}
+                placeholder={
+                  currenciesLoading ? "Loading currencies…" : "Select currency..."
+                }
+                disabled={hasTransactions || checkingTxns || currenciesLoading}
+              />
+            </div>
+
           </FieldCell>
 
           <FieldCell>
