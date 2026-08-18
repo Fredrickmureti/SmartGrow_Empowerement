@@ -540,9 +540,10 @@ async function getFinancialContext(
     const payments = paymentsResult.data || [];
     const bills = billsResult.data || [];
     const products = productsResult.data || [];
-    const lowStockProducts = (lowStockResult.data || []).filter((p: any) => 
-      p.quantity_on_hand <= (p.reorder_level || 0)
-    );
+    const lowStockProducts = (lowStockResult.data || [])
+      .filter((p: any) => Number(p.stock_quantity ?? 0) <= Number(p.reorder_level ?? 0))
+      .slice(0, 50);
+
     let employees = employeesResult.data || [];
     let leaveRequests = leaveRequestsResult.data || [];
     const projects = projectsResult.data || [];
