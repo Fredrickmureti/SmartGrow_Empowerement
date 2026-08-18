@@ -1,137 +1,50 @@
-# Banking Domain Reconstruction — Authoritative Status
+# Banking Domain Reconstruction — Authoritative Status (verified handover)
 
-Wave: Finance → Banking (multi-tenant, multi-branch, country-agnostic).
-Target architecture: one server-owned write seam per concern.
+Wave: Finance → Banking. Target: one server-owned write seam per concern.
 
 ```text
-instruction (UI)        →  seam RPC  →  post_journal_entry_atomic
-                                     →  business_event_outbox
-ingestion (CSV / feed)  →  ONE normalization + dedup engine  →  bank_transactions
+instruction (UI)        →  seam RPC  →  post_journal_entry_atomic → business_event_outbox
+ingestion (CSV / feed)  →  bank_statement_import_batch (single engine)
 reconciliation          →  server-owned lifecycle; matches only, never mints payments (ADR 0123)
 ```
 
----
+## Phase 1 verification — CONFIRMED DONE
+Lifecycle enum, `lifecycle_status/activated_at/closed_at/closed_reason/opening_balance_je_id/row_version/bank_reported_balance/bank_balance_as_of`, derive trigger — all present in the live database.
 
-## Phase 1 — Account schema, lifecycle & provenance — VERIFIED DONE
+## Phase 2 verification — CONFIRMED DONE
+`bank_account_create/_update/_transition/_delete_draft/_reset_opening_balances` exist, all SECURITY DEFINER with `search_path=public`. `authenticated` holds no INSERT/UPDATE/DELETE on `bank_accounts`. No direct client writes remain.
 
-`bank_account_lifecycle_status` enum; `lifecycle_status`, `activated_at`,
-`closed_at`, `closed_reason`, `opening_balance_je_id`, `row_version`,
-`bank_reported_balance`, `bank_balance_as_of` on `bank_accounts`; trigger
-`_bank_account_derive_state`. Book balance and bank-reported balance are
-separate facts.
+## Phase 3 verification — CONFIRMED DONE (with a red ratchet)
+`bank_statement_import_batch`, `bank_transaction_fingerprint`, `bank_transaction_apply_rules` exist; `authenticated` has read-only on `bank_transactions` / `bank_statements`; `anon` has no table privilege on those three tables.
 
-## Phase 2 — Server-owned account write seam — VERIFIED DONE
+## Phase 4 verification — SUBSTANTIALLY DONE
+All six reconciliation seam functions exist, SECURITY DEFINER, `search_path=public`, EXECUTE limited to `authenticated`/`service_role`. Database check confirms the residual ADR-0123 question: **no reconciliation function inserts journal rows or mints payments** — `reconcile_bank_transaction_atomic`, `reconcile_bank_transfer_atomic`, `session_complete` and `session_writeoff` all route through `post_journal_entry_atomic`. That item is satisfied in fact; it still lacks a ratchet.
 
-`bank_account_create / _update / _transition / _delete_draft /
-_reset_opening_balances`, all `SECURITY DEFINER`. `authenticated` holds SELECT
-only on `bank_accounts`. Opening balance posts through
-`_bank_account_post_opening_balance` → `post_journal_entry_atomic`, idempotent
-via `opening_balance_je_id`. Ratchets: `banking-write-seam.test.ts`,
-`banking-ownership.test.ts`.
+## Defects found during this verification (NOT in the previous ledger)
 
-## Phase 3 — Statement ingestion convergence — DONE
+- **V1 — the previous "grants fixed" claim is only true for three tables.** `bank_reconciliation_matches`, `bank_reconciliation_rules`, `bank_reconciliation_writeoffs` and `bank_transaction_splits` still grant **full INSERT/UPDATE/DELETE to `anon`**. Same class of hole as D-A, left open on the siblings.
+- **V2 — `authenticated` still holds TRUNCATE** on `bank_accounts`, `bank_statements` and `bank_transactions`. A read-only role can destroy financial tables.
+- **V3 — seam RPCs are still EXECUTE-able by `anon`**: all five `bank_account_*` functions plus `bank_statement_import_batch`. `reconcile_bank_transaction_atomic`, `bank_transaction_fingerprint` and `bank_transaction_apply_rules` are executable by `PUBLIC`. D-B was fixed only for the newer reconciliation functions.
+- **V4 — a banking ratchet is currently failing.** `banking-ownership.test.ts` still asserts the old in-edge-function scope stamping that Phase 3 removed when `sync-bank-transactions` began delegating. 23/24 pass; the ledger's "12/12 pass, typecheck clean" is stale.
+- **V5 — reconciliation rules are written from the browser.** `useReconciliationRules` does raw insert/update/delete on `bank_reconciliation_rules`, the table that drives server-side categorization. Rule authorship has no server seam and no permission check.
+- **V6 — country-specific fixtures inside core Finance.** `BankAccountCreatePage` hardcodes named Kenyan test bank accounts, violating the country-agnostic rule.
 
-- `bank_statement_import_batch` is the only writer of `bank_transactions` /
-  `bank_statements`. Both the manual wizard and `sync-bank-transactions` call it.
-- Server-side dedup identity (`bank_transaction_fingerprint`, a byte-identical
-  SQL port of the browser FNV-1a hash) and server-side categorization
-  (`bank_transaction_apply_rules`).
-- Account-lifecycle gate, per-row fiscal-period gate (`rejected_rows`),
-  statement header bookkeeping and the `banking.statement.imported` event, all
-  in one transaction.
-- Defects D-A (anon write grants) and D-B (`PUBLIC`/`anon` EXECUTE on seam
-  RPCs) fixed for the banking tables and functions in the same migration.
-- Ratchet: `banking-ingestion-single-engine.test.ts`.
+## Remaining work, in execution order
 
-## Phase 4 — Reconciliation hardening — DONE (needs verification pass)
+**Phase 4c — close the privilege category, not the instances**
+Single migration: revoke all `anon` table privileges and `authenticated` TRUNCATE across every banking table (accounts, transactions, statements, sessions, items, matches, writeoffs, splits, rules); revoke `PUBLIC`/`anon` EXECUTE on every banking function and re-grant to `authenticated`/`service_role` only. Extend `banking-write-seam.test.ts` with a privilege ratchet covering the whole table/function family.
 
-Migration applied. Defects fixed: browser-orchestrated 5-round-trip lifecycle,
-client-computed cleared balance disagreeing with the stored generated
-`difference` (net-movement vs opening-inclusive), client-side GL posting of
-service charge / interest / write-off, client bulk flip of
-`bank_transactions.is_reconciled`, and unrestricted client categorization.
+**Phase 4d — reconciliation-rule write seam (V5)**
+`bank_reconciliation_rule_upsert` / `_delete` (SECURITY DEFINER, `assert_can_reconcile_bank`, business-scoped); migrate `useReconciliationRules` to the RPCs and delete the direct writes. Ratchet the no-mint / no-journal-insert property of the matching path (ADR-0123 proof).
 
-Server seam (all `SECURITY DEFINER`, `authenticated`+`service_role` EXECUTE only):
+**Phase 4e — repair the stale ratchet (V4)**
+Rewrite `banking-ownership.test.ts` to assert what is now true: the edge function delegates to `bank_statement_import_batch` and stamps no scope itself. Green banking suite + typecheck before moving on.
 
-- `bank_reconciliation_session_start(_bank_account_id, _statement_date, _opening_balance, _closing_balance, _adjustments jsonb)`
-  — validates statement date, fiscal-period lock, adjustment amounts and that
-  adjustment accounts belong to the org; refuses a second open session;
-  stamps org/business/branch from the parent account; emits
-  `banking.reconciliation.started`.
-- `bank_reconciliation_item_set(_session_id, _transaction_id, _cleared)` —
-  session must be in progress, line must belong to the same account, be dated
-  on or before the statement date and not already reconciled. Returns the
-  recomputed arithmetic.
-- `bank_reconciliation_session_writeoff(_session_id, _max_amount default 5.00)`
-  — server recomputes the difference, enforces the threshold, posts through
-  `post_journal_entry_atomic` (`source_subtype = 'writeoff'`), records
-  `writeoff_amount` / `writeoff_je_id`, single write-off per session.
-- `bank_reconciliation_session_complete(_session_id)` — re-checks balance,
-  posts service charge and interest through the canonical engine (idempotent on
-  `bank_recon` + session id + subtype), stamps cleared lines as reconciled, and
-  emits `banking.reconciliation.completed` — one transaction.
-- `bank_reconciliation_session_cancel(_session_id, _reason)` — keeps item rows
-  as provenance, downgrades them to `uncleared`, records cancellation actor and
-  reason.
-- `_bank_reconciliation_recompute` owns all arithmetic;
-  `reconciled_balance` is now the net cleared movement plus adjustments, which
-  makes the stored generated `difference` correct.
-- `bank_transaction_set_category(_transaction_ids[], _category, _confidence)` —
-  the categorization write seam, permission-checked per business.
+**Phase 5 — currency & FX correctness**
+Replace the free-text currency inputs on bank account create/edit with a `business_active_currencies`-backed selector (shared `CurrencyCombobox`/`useCurrencies`); remove the hardcoded Kenyan fixtures (V6); confirm every banking money display resolves through `@/services/fx/rateBook` with a missing rate rendering `—`; make ingestion/reconciliation reject rows whose currency differs from the parent account. Ratchet no-1:1-fallback for the banking surface.
 
-Privileges: `authenticated` has SELECT only on
-`bank_reconciliation_sessions` / `_items`; `anon` has nothing.
+**Phase 6 — SQL tests + ADR**
+`supabase/tests/` coverage: lifecycle guards, opening-balance atomicity/idempotency, row-version conflict, close refusal, concurrent-import dedup, reconciliation gates (period lock, second open session, cross-account line, write-off threshold, completion balance). Then an ADR for the banking write seams and a `mem://features/banking-domain` update.
 
-Client: `useReconciliationSessions` (RPC-only lifecycle, `postToGL` removed),
-`useReconciliationItems` (RPC clearing, server `calc`, `markAllReconciled`
-deleted), `ReconciliationWorkspace` (`onWriteOff` replaces `onUpdateBalance`,
-displays the server's cleared balance / difference), `useBankTransactions` and
-`BankFeeds` (categorization via RPC).
-
-Ratchet: `src/test/architecture/banking-reconciliation-seam.test.ts` — 12/12
-banking architecture tests pass; typecheck clean.
-
-Still open inside Phase 4 (carry into the verification pass):
-`bank_reconciliation_matches` and `reconcile_bank_transaction_atomic` /
-`unreconcile` still need an explicit ADR-0123 proof that matching never mints a
-payment outside `record_multi_invoice_payment` / `record_multi_bill_payment`,
-plus a ratchet asserting it.
-
----
-
-## ACTIVE PHASE → Phase 5 — Currency & FX correctness in Banking (PENDING)
-
-1. Replace the free-text currency input on bank account create/edit with a
-   `business_active_currencies`-backed selector.
-2. Confirm every banking money display resolves through
-   `@/services/fx/rateBook` — missing rate renders `—`, never 1:1, never a rate
-   literal (ADR 0136).
-3. Reconciliation and ingestion must reject rows whose currency differs from
-   the parent account's currency, or record the account currency explicitly.
-4. Ratchet the no-1:1-fallback rule for the banking surface.
-
-## Phase 6 — SQL tests + documentation (PENDING)
-
-`supabase/tests/` coverage for lifecycle guards, opening-balance atomicity and
-idempotency, row-version conflicts, close refusal, ingestion dedup under
-concurrent imports, and the reconciliation gates (period lock, second open
-session, cross-account line, write-off threshold, completion balance check).
-Then an ADR for the banking write seams.
-
----
-
-## Instructions for the next agent
-
-1. **Verify Phase 4 before writing new code.** Confirm in the live database
-   that the six new functions exist and are `SECURITY DEFINER` with
-   `search_path = public`; that `authenticated` has no INSERT/UPDATE/DELETE on
-   `bank_reconciliation_sessions` / `_items` and `anon` has no privilege; that
-   `_bank_reconciliation_recompute`'s net-movement definition agrees with the
-   generated `difference` column; and that a completed session's service
-   charge, interest and write-off entries are idempotent under retry. Run the
-   banking architecture tests and the typecheck.
-2. Close the residual Phase 4 item above (ADR-0123 proof + ratchet for
-   `bank_reconciliation_matches`) so the phase is coherent.
-3. Then resume at **Phase 5** in the order listed. Do not jump to Phase 6 or to
-   unrelated domains, and do not leave a partially migrated currency surface.
-4. Update this ledger at the end of every phase.
+## Next coherent step
+Phase 4c (the privilege migration), because it is the live security hole.
