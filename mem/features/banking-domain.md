@@ -62,3 +62,14 @@ type: feature
 - `bank_transaction_set_category(_transaction_ids[], _category, _confidence)` is
   the only categorization writer.
 - Ratchet: `src/test/architecture/banking-reconciliation-seam.test.ts`.
+
+## Rule authoring (Phase 4d)
+- `bank_reconciliation_rules` and `transaction_categorization_rules` are
+  seam-only: `bank_reconciliation_rule_upsert` / `_delete` and
+  `transaction_categorization_rule_upsert` / `_delete`. `authenticated` has
+  SELECT only; `anon`/`PUBLIC` have nothing on the tables or the functions.
+- The seams own scope stamping (org derived from business), the
+  `finance.reconcile_bank` gate, and cross-company checks on
+  bank_account_id / counterpart / target / offset accounts.
+- Ratchet: `src/test/architecture/banking-rule-authoring-seam.test.ts`.
+

@@ -90522,6 +90522,14 @@ export type Database = {
         }
         Returns: Json
       }
+      bank_reconciliation_rule_delete: {
+        Args: { _id: string }
+        Returns: undefined
+      }
+      bank_reconciliation_rule_upsert: {
+        Args: { _business_id: string; _id?: string; _payload: Json }
+        Returns: string
+      }
       bank_reconciliation_session_cancel: {
         Args: { _reason?: string; _session_id: string }
         Returns: Json
@@ -103892,6 +103900,14 @@ export type Database = {
       trailer_departure_blockers: {
         Args: { p_visit_id: string }
         Returns: Json
+      }
+      transaction_categorization_rule_delete: {
+        Args: { _id: string }
+        Returns: undefined
+      }
+      transaction_categorization_rule_upsert: {
+        Args: { _business_id: string; _id?: string; _payload: Json }
+        Returns: string
       }
       transfer_employee: {
         Args: {

@@ -88,38 +88,23 @@ export function useTransactionRules() {
   }, [fetchRules]);
 
   const createRule = async (input: CreateRuleInput): Promise<TransactionRule | null> => {
-    if (!currentOrg?.id || !currentBusiness?.id) {
+    if (!currentBusiness?.id) {
       toast.error("No active business selected");
       return null;
     }
 
     try {
       setIsSaving(true);
-      const { data, error } = await supabase
-        .from("transaction_categorization_rules")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          rule_name: input.rule_name,
-          description_pattern: input.description_pattern || null,
-          reference_pattern: input.reference_pattern || null,
-          min_amount: input.min_amount || null,
-          max_amount: input.max_amount || null,
-          transaction_type: input.transaction_type || "both",
-          target_category: input.target_category,
-          target_account_id: input.target_account_id || null,
-          priority: input.priority || 0,
-          is_active: input.is_active ?? true,
-        })
-        .select()
-        .single();
-
+      // Write seam: the server validates permission, scope and account ownership.
+      const { error } = await (supabase as any).rpc(
+        "transaction_categorization_rule_upsert",
+        { _business_id: currentBusiness.id, _payload: input, _id: null },
+      );
       if (error) throw error;
-      
-      const typedData = data as unknown as TransactionRule;
-      setRules((prev) => [typedData, ...prev]);
+
+      await fetchRules();
       toast.success("Rule created successfully");
-      return typedData;
+      return null;
     } catch (error) {
       console.error("Error creating rule:", error);
       toast.error("Failed to create rule");
@@ -133,29 +118,19 @@ export function useTransactionRules() {
     id: string,
     updates: Partial<CreateRuleInput>
   ): Promise<boolean> => {
-    if (!currentOrg?.id || !currentBusiness?.id) {
+    if (!currentBusiness?.id) {
       toast.error("No active business selected");
       return false;
     }
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("transaction_categorization_rules")
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
-
+      const { error } = await (supabase as any).rpc(
+        "transaction_categorization_rule_upsert",
+        { _business_id: currentBusiness.id, _payload: updates, _id: id },
+      );
       if (error) throw error;
 
-      setRules((prev) =>
-        prev.map((rule) =>
-          rule.id === id ? { ...rule, ...updates } : rule
-        )
-      );
+      await fetchRules();
       toast.success("Rule updated successfully");
       return true;
     } catch (error) {
@@ -168,19 +143,12 @@ export function useTransactionRules() {
   };
 
   const deleteRule = async (id: string): Promise<boolean> => {
-    if (!currentOrg?.id || !currentBusiness?.id) {
-      toast.error("No active business selected");
-      return false;
-    }
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("transaction_categorization_rules")
-        .delete()
-        .eq("id", id)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
-
+      const { error } = await (supabase as any).rpc(
+        "transaction_categorization_rule_delete",
+        { _id: id },
+      );
       if (error) throw error;
 
       setRules((prev) => prev.filter((rule) => rule.id !== id));
@@ -194,6 +162,7 @@ export function useTransactionRules() {
       setIsSaving(false);
     }
   };
+
 
   const toggleRuleActive = async (id: string, isActive: boolean): Promise<boolean> => {
     return updateRule(id, { is_active: isActive });
