@@ -88,6 +88,9 @@ export default function ContractCreatePage() {
   const [lines, setLines] = useState<ContractLineInput[]>([]);
   const [busy, setBusy] = useState(false);
 
+  // A contract in a foreign currency cannot be agreed at parity (ADR 0136).
+  const { missingRate } = useDescribedExchangeRate(currency, startDate);
+
   const addLine = useCallback(
     () =>
       setLines((ls) => [
