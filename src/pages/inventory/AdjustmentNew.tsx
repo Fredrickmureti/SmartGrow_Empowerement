@@ -282,16 +282,18 @@ export default function AdjustmentNew() {
     const next = [...items];
     next[index] = { ...next[index], [field]: value } as Item;
     if (field === "product_id" && typeof value === "string") {
-      // A different product means a different unit ladder and lot identity.
+      // A different product means a different unit ladder, lot identity AND
+      // a different valuation. The cost input belongs to the product, so it
+      // is always re-derived here — a stale 60 from the previously selected
+      // product must never survive onto the new line.
       next[index].packaging_id = null;
       next[index].pack_factor = null;
       next[index].pack_name = null;
       next[index].lot_number = "";
       next[index].expiry_date = "";
       const prod = inventoryProducts.find((p: any) => p.id === value) as any;
-      if (prod && prod.cost_price && !next[index].unit_cost) {
-        next[index].unit_cost = Number(prod.cost_price);
-      }
+      const cost = prod ? Number(prod.cost_price) : NaN;
+      next[index].unit_cost = Number.isFinite(cost) && cost > 0 ? cost : "";
     }
     setItems(next);
   };
