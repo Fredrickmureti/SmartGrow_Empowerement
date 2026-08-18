@@ -15,6 +15,7 @@ Project status lives in `.lovable/plan.md`; verify prior work before continuing.
 - [Salesperson performance](mem://features/salesperson-performance) — canonical projection and attribution rules
 - [Journal Voucher](mem://features/journal-voucher) — finance.journal_entry printing pipeline, action parity, draft stamping
 - [Vendor statement engine](mem://features/vendor-statement-engine) — AP ledger source, atomic upsert, durable send queue, download vs print, statement template routing
+- [Banking domain](mem://features/banking-domain) — bank account seam RPCs + lifecycle, and the single statement ingestion engine (fingerprint, rules, period/lifecycle gates)
 
 - [Supplier purchasing terms](mem://features/supplier-purchasing-terms) — conditions owned by supplier_item_terms; server price/tier/MOQ authorities, governed writes, PO price provenance
 - [WMS handling units](mem://features/wms-handling-units) — plate vs product packaging, mandatory row_version on every plate RPC, server-side UoM conversion, container capacity policy, quantity display seam
