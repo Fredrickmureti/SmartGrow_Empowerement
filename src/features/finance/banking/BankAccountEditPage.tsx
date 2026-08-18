@@ -64,6 +64,9 @@ export default function BankAccountEditPage() {
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [currency, setCurrency] = useState("");
+  const { currencies: activeCurrencies, isLoading: currenciesLoading } =
+    useBusinessActiveCurrencies();
+
   const [accountType, setAccountType] = useState("checking");
   const [glAccountId, setGlAccountId] = useState("");
   const [isActive, setIsActive] = useState(true);
