@@ -47,9 +47,16 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   const journalBooks = useJournalBooks();
   const reconRules = useReconciliationRules();
   const fx = useFxRevaluation();
-  const { allowed: canManageSettings } = useFinancePermission("finance.manage_settings");
-  const { allowed: canManageJe } = useFinancePermission("finance.manage_je");
-  const { allowed: canReconcile } = useFinancePermission("finance.reconcile_bank");
+  // One batched, cached round-trip for all three gates. While unresolved we
+  // disable inputs but never render a denial banner (tri-state contract).
+  const { permissions, isLoading: permLoading } = useFinancePermissions([
+    "finance.manage_settings",
+    "finance.manage_je",
+    "finance.reconcile_bank",
+  ]);
+  const canManageSettings = permissions["finance.manage_settings"];
+  const canManageJe = permissions["finance.manage_je"];
+  const canReconcile = permissions["finance.reconcile_bank"];
   const journalsReadOnly = !canManageSettings;
   const rulesReadOnly = !(canManageSettings || canReconcile);
   const fxReadOnly = !canManageJe;
