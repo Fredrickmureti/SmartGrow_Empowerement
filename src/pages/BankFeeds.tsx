@@ -150,21 +150,19 @@ export default function BankFeeds() {
 
   const handleBulkCategorize = async (category: string) => {
     if (selectedTransactions.length === 0) return;
-    if (!currentOrg?.id || !currentBusiness?.id) return;
 
     try {
-      // Phase 12 — defense-in-depth scope guards. RLS still enforces per-row
-      // branch isolation; these org+business filters cap the in() set so a
-      // selection that contains a stale id from another company is rejected
-      // server-side before any update lands.
-      const { error } = await supabase
-        .from('bank_transactions')
-        .update({ category, category_confidence: 1.0 })
-        .in('id', selectedTransactions)
-        .eq('organization_id', currentOrg.id)
-        .eq('business_id', currentBusiness.id);
+      // Phase 4 — bulk categorization goes through the same server-side write
+      // seam; the RPC asserts the finance permission for every business the
+      // selection touches, so a stale cross-company id cannot land.
+      const { error } = await (supabase as any).rpc('bank_transaction_set_category', {
+        _transaction_ids: selectedTransactions,
+        _category: category,
+        _confidence: 1.0,
+      });
 
       if (error) throw error;
+
 
       toast({
         title: "Bulk categorized",
