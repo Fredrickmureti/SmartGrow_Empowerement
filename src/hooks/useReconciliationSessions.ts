@@ -111,6 +111,15 @@ export function useReconciliationSessions(bankAccountId?: string) {
     if (currentOrg?.id) fetchSessions();
   }, [currentOrg?.id, currentBusiness?.id, scope.branchId, fetchSessions]);
 
+  /**
+   * Phase 4 (Banking reconstruction) — the reconciliation lifecycle is
+   * server-owned. The browser no longer inserts sessions, computes the
+   * cleared balance, or posts adjustment/write-off journal entries: each
+   * call below is a single SECURITY DEFINER RPC that applies the permission,
+   * account-lifecycle and fiscal-period gates and does its GL posting inside
+   * one transaction. Direct INSERT/UPDATE/DELETE on
+   * bank_reconciliation_sessions / _items is revoked from `authenticated`.
+   */
   const startSession = async (params: {
     bankAccountId: string;
     statementDate: string;
@@ -126,33 +135,24 @@ export function useReconciliationSessions(bankAccountId?: string) {
     if (!currentOrg?.id) return null;
     try {
       setIsSaving(true);
-      const { data: userData } = await supabase.auth.getUser();
-
-      const { data, error } = await supabase
-        .from("bank_reconciliation_sessions")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness?.id || null,
-          branch_id: scope.branchId ?? null,
-          bank_account_id: params.bankAccountId,
-          statement_date: params.statementDate,
-          opening_balance: params.openingBalance,
-          closing_balance: params.closingBalance,
-          reconciled_balance: 0,
-          status: "in_progress",
-          created_by: userData.user?.id || null,
-          service_charge_amount: params.serviceChargeAmount || null,
-          service_charge_date: params.serviceChargeDate || null,
-          service_charge_account_id: params.serviceChargeAccountId || null,
-          interest_earned_amount: params.interestEarnedAmount || null,
-          interest_earned_date: params.interestEarnedDate || null,
-          interest_earned_account_id: params.interestEarnedAccountId || null,
-        } as any)
-        .select()
-        .single();
+      const { data, error } = await (supabase as any).rpc("bank_reconciliation_session_start", {
+        _bank_account_id: params.bankAccountId,
+        _statement_date: params.statementDate,
+        _opening_balance: params.openingBalance,
+        _closing_balance: params.closingBalance,
+        _adjustments: {
+          service_charge_amount: params.serviceChargeAmount ?? null,
+          service_charge_date: params.serviceChargeDate ?? null,
+          service_charge_account_id: params.serviceChargeAccountId ?? null,
+          interest_earned_amount: params.interestEarnedAmount ?? null,
+          interest_earned_date: params.interestEarnedDate ?? null,
+          interest_earned_account_id: params.interestEarnedAccountId ?? null,
+        },
+      });
 
       if (error) throw error;
-      const session = data as unknown as ReconciliationSession;
+      const session = (data as any)?.session as ReconciliationSession | undefined;
+      if (!session) throw new Error("Reconciliation session was not returned by the server");
       setActiveSession(session);
       setSessions(prev => [session, ...prev]);
       toast.success("Reconciliation session started");
@@ -167,105 +167,37 @@ export function useReconciliationSessions(bankAccountId?: string) {
     }
   };
 
-  const updateSessionBalance = async (sessionId: string, reconciledBalance: number) => {
-    try {
-      const { error } = await supabase
-        .from("bank_reconciliation_sessions")
-        .update({ reconciled_balance: reconciledBalance, updated_at: new Date().toISOString() } as any)
-        .eq("id", sessionId);
-
-      if (error) throw error;
-
-      setActiveSession(prev => prev && prev.id === sessionId
-        ? { ...prev, reconciled_balance: reconciledBalance, difference: prev.closing_balance - prev.opening_balance - reconciledBalance }
-        : prev
-      );
-    } catch (error) {
-      console.error("Error updating session balance:", error);
-    }
-  };
-
   /**
-   * Post service charge and interest earned JEs to GL.
-   * Called during reconciliation completion.
+   * Write off a residual difference within the allowed threshold. The server
+   * recomputes the difference itself, posts the balancing JE through the
+   * canonical posting engine and records it on the session.
    */
-  const postReconciliationAdjustments = async (session: ReconciliationSession) => {
-    // Get the bank account's linked GL account
-    const { data: bankAccount } = await supabase
-      .from("bank_accounts")
-      .select("account_id")
-      .eq("id", session.bank_account_id)
-      .single();
-
-    const bankGLAccountId = bankAccount?.account_id;
-    if (!bankGLAccountId) {
-      console.warn("Bank account has no linked GL account; skipping service charge/interest JEs");
-      return;
-    }
-
-    // Post service charge JE: DR Service Charge Expense, CR Bank
-    const serviceAmount = session.service_charge_amount || 0;
-    if (serviceAmount > 0 && session.service_charge_account_id) {
-      await postToGL({
-        source_type: "bank_recon",
-        source_id: session.id,
-        source_subtype: "service_charge",
-        reference: `Recon-SC-${session.statement_date}`,
-        memo: `Bank service charge - Reconciliation ${session.statement_date}`,
-        entry_date: session.service_charge_date || session.statement_date,
-        entries: [
-          { account_id: session.service_charge_account_id, debit_amount: serviceAmount, credit_amount: 0, description: "Bank service charge" },
-          { account_id: bankGLAccountId, debit_amount: 0, credit_amount: serviceAmount, description: "Bank service charge" },
-        ],
-      });
-    }
-
-    // Post interest earned JE: DR Bank, CR Interest Income
-    const interestAmount = session.interest_earned_amount || 0;
-    if (interestAmount > 0 && session.interest_earned_account_id) {
-      await postToGL({
-        source_type: "bank_recon",
-        source_id: session.id,
-        source_subtype: "interest",
-        reference: `Recon-INT-${session.statement_date}`,
-        memo: `Interest earned - Reconciliation ${session.statement_date}`,
-        entry_date: session.interest_earned_date || session.statement_date,
-        entries: [
-          { account_id: bankGLAccountId, debit_amount: interestAmount, credit_amount: 0, description: "Interest earned" },
-          { account_id: session.interest_earned_account_id, debit_amount: 0, credit_amount: interestAmount, description: "Interest earned" },
-        ],
-      });
-    }
-  };
-
-  const completeSession = async (sessionId: string, _clearedTransactionIds?: string[], computedDifference?: number) => {
+  const writeOffSession = async (sessionId: string, maxAmount = 5.0) => {
     try {
       setIsSaving(true);
-      const { data: userData } = await supabase.auth.getUser();
+      const { data, error } = await (supabase as any).rpc("bank_reconciliation_session_writeoff", {
+        _session_id: sessionId,
+        _max_amount: maxAmount,
+      });
+      if (error) throw error;
+      await fetchSessions();
+      toast.success("Difference written off");
+      return data as Record<string, unknown>;
+    } catch (error) {
+      console.error("Error writing off difference:", error);
+      toast.error(mapReconcilePermErr(error) ?? "Failed to write off difference");
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-      const session = sessions.find(s => s.id === sessionId) || activeSession;
-      // Use workspace-computed difference if provided (avoids stale session state),
-      // fall back to session.difference for backward compatibility
-      const diff = computedDifference !== undefined ? computedDifference : (session?.difference ?? 0);
-      if (Math.abs(diff) > 0.01) {
-        toast.error(`Cannot complete: difference of ${diff.toFixed(2)} remains`);
-        return false;
-      }
-
-      // Post service charge / interest JEs to GL before marking complete
-      if (session) {
-        await postReconciliationAdjustments(session);
-      }
-
-      const { error } = await supabase
-        .from("bank_reconciliation_sessions")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          completed_by: userData.user?.id || null,
-        } as any)
-        .eq("id", sessionId);
-
+  const completeSession = async (sessionId: string) => {
+    try {
+      setIsSaving(true);
+      const { error } = await (supabase as any).rpc("bank_reconciliation_session_complete", {
+        _session_id: sessionId,
+      });
       if (error) throw error;
 
       setActiveSession(null);
@@ -281,14 +213,13 @@ export function useReconciliationSessions(bankAccountId?: string) {
     }
   };
 
-  const cancelSession = async (sessionId: string) => {
+  const cancelSession = async (sessionId: string, reason?: string) => {
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("bank_reconciliation_sessions")
-        .update({ status: "cancelled" } as any)
-        .eq("id", sessionId);
-
+      const { error } = await (supabase as any).rpc("bank_reconciliation_session_cancel", {
+        _session_id: sessionId,
+        _reason: reason ?? null,
+      });
       if (error) throw error;
       setActiveSession(null);
       await fetchSessions();
@@ -311,9 +242,10 @@ export function useReconciliationSessions(bankAccountId?: string) {
     canReconcile,
     scope,
     startSession,
-    updateSessionBalance,
+    writeOffSession,
     completeSession,
     cancelSession,
     fetchSessions,
   };
 }
+
