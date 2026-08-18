@@ -527,6 +527,17 @@ export default function AdjustmentNew() {
               (p: any) => p.id === item.product_id,
             ) as any;
             const baseLabel = productBaseLabelOrUnset(selProd);
+            const unitLabel = item.packaging_id
+              ? item.pack_name || "pack"
+              : baseLabel;
+            const baseEquivalent =
+              item.packaging_id && item.pack_factor
+                ? item.quantity_adjustment * item.pack_factor
+                : null;
+            const needsLot =
+              !!selProd?.is_lot_tracked && item.quantity_adjustment > 0;
+            const needsExpiry = needsLot && !!selProd?.is_expiry_tracked;
+
             return (
               <div
                 key={index}
