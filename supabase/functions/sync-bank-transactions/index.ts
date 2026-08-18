@@ -702,32 +702,16 @@ Deno.serve(async (req) => {
 
     console.log(`[Sync] Fetched ${transactions.length} transactions`)
 
-    let newCount = 0
-    let updatedCount = 0
-
+    // Provider feeds and manual file imports share ONE ingestion engine.
+    // This function's job ends at "fetch and classify"; the database owns
+    // persistence: dedup identity, lifecycle + fiscal-period gates, rule
+    // categorization, statement bookkeeping and the business event, all in
+    // a single transaction. Scope columns (business_id / branch_id) are
+    // derived server-side from the parent account, never trusted from here.
+    const rows: Record<string, unknown>[] = []
     for (const tx of transactions) {
-      const categorization = await categorizeTransaction(
-        supabase,
-        organization_id,
-        tx
-      )
-
-      const { data: existing } = await supabase
-        .from('bank_transactions')
-        .select('id')
-        .eq('bank_account_id', bank_account_id)
-        .eq('external_transaction_id', tx.external_transaction_id)
-        .maybeSingle()
-
-      // Stamp business_id + branch_id from the parent bank account so
-      // synced rows participate in branch-scoped reads. A DB trigger
-      // (enforce_bank_txn_scope_matches_account) also enforces this
-      // as a defence-in-depth layer.
-      const transactionData: Record<string, any> = {
-        organization_id,
-        business_id: (account as any).business_id ?? null,
-        branch_id: (account as any).branch_id ?? null,
-        bank_account_id,
+      const categorization = await categorizeTransaction(supabase, organization_id, tx)
+      rows.push({
         external_transaction_id: tx.external_transaction_id,
         transaction_date: tx.transaction_date,
         posting_date: tx.posting_date,
@@ -735,32 +719,41 @@ Deno.serve(async (req) => {
         reference: tx.reference,
         amount: tx.amount,
         balance_after: tx.balance_after,
-        transaction_type: tx.amount > 0 ? 'credit' : 'debit',
         category: categorization.category,
         category_confidence: categorization.confidence,
+        ai_suggested_category: categorization.ai_suggested ?? null,
+        ai_confidence: categorization.ai_suggested ? categorization.ai_confidence : null,
+        ai_reasoning: categorization.ai_suggested ? categorization.ai_reasoning : null,
         raw_data: tx.raw_data || tx,
-      }
-      
-      // Add AI fields if present
-      if (categorization.ai_suggested) {
-        transactionData.ai_suggested_category = categorization.ai_suggested
-        transactionData.ai_confidence = categorization.ai_confidence
-        transactionData.ai_reasoning = categorization.ai_reasoning
-      }
-
-      if (existing) {
-        await supabase
-          .from('bank_transactions')
-          .update(transactionData)
-          .eq('id', existing.id)
-        updatedCount++
-      } else {
-        await supabase
-          .from('bank_transactions')
-          .insert(transactionData)
-        newCount++
-      }
+      })
     }
+
+    let newCount = 0
+    let duplicateCount = 0
+    let rejectedCount = 0
+
+    if (rows.length > 0) {
+      const { data: importResult, error: importError } = await supabase.rpc(
+        'bank_statement_import_batch',
+        {
+          _bank_account_id: bank_account_id,
+          _rows: rows,
+          _statement: {
+            file_name: `${provider?.provider_code ?? 'feed'} ${fromDate}..${toDate}`,
+            file_hash: `feed_${bank_account_id}_${fromDate}_${toDate}`,
+            file_format: 'provider_feed',
+          },
+          _source: `feed:${provider?.provider_code ?? 'unknown'}`,
+        }
+      )
+
+      if (importError) throw importError
+
+      newCount = (importResult as any)?.inserted ?? 0
+      duplicateCount = (importResult as any)?.duplicates ?? 0
+      rejectedCount = (importResult as any)?.rejected ?? 0
+    }
+
 
     // Update account with latest sync info and balance if fetched
     const updateData: Record<string, any> = {
@@ -778,13 +771,14 @@ Deno.serve(async (req) => {
       .update(updateData)
       .eq('id', bank_account_id)
 
-    console.log(`[Sync] Completed: ${newCount} new, ${updatedCount} updated${newBalance !== null ? `, balance: ${newBalance}` : ''}`)
+    console.log(`[Sync] Completed: ${newCount} new, ${duplicateCount} duplicate, ${rejectedCount} rejected${newBalance !== null ? `, balance: ${newBalance}` : ''}`)
 
     return new Response(
       JSON.stringify({
         success: true,
         new_transactions: newCount,
-        updated_transactions: updatedCount,
+        duplicate_transactions: duplicateCount,
+        rejected_transactions: rejectedCount,
         total_fetched: transactions.length,
         balance_updated: newBalance !== null,
         new_balance: newBalance,
