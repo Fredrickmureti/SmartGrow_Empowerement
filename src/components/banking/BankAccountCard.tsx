@@ -85,38 +85,49 @@ export function BankAccountCard({
   const providerLogo = (account as any).platform_bank_providers?.logo_url;
   const hasProvider = !!account.provider_id;
 
+  // Phase 14: feed state comes from the connection + its latest run, never from
+  // the account row. `running` is a real run row, not an optimistic UI flag.
+  const feed = account.feed ?? null;
+  const isRunning = feed?.last_run_status === "running";
+  const lastSyncAt = feed?.last_success_at ?? feed?.last_run_at ?? null;
+  const feedError =
+    feed?.last_run_status === "failed" || feed?.status === "error"
+      ? feed?.last_error ?? feed?.last_run_error_code ?? "Last sync failed"
+      : null;
+
   const getSyncStatusBadge = () => {
-    switch (account.sync_status) {
-      case "synced":
-        return (
-          <Badge variant="outline" className="text-green-600 border-green-500">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Synced
-          </Badge>
-        );
-      case "syncing":
-        return (
-          <Badge variant="outline" className="text-blue-600 border-blue-500">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Syncing
-          </Badge>
-        );
-      case "error":
-        return (
-          <Badge variant="outline" className="text-destructive border-destructive/50">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Error
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline" className="text-muted-foreground">
-            <Clock className="h-3 w-3 mr-1" />
-            {hasProvider ? "Pending" : "Manual"}
-          </Badge>
-        );
+    if (isRunning) {
+      return (
+        <Badge variant="outline" className="text-blue-600 border-blue-500">
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          Syncing
+        </Badge>
+      );
     }
+    if (feedError) {
+      return (
+        <Badge variant="outline" className="text-destructive border-destructive/50">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Error
+        </Badge>
+      );
+    }
+    if (feed?.last_run_status === "succeeded" || feed?.last_success_at) {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-500">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Synced
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        <Clock className="h-3 w-3 mr-1" />
+        {feed ? "Pending" : hasProvider ? "Not connected" : "Manual"}
+      </Badge>
+    );
   };
+
 
   const renderBankLogo = () => {
     if (providerLogo && !logoError) {
