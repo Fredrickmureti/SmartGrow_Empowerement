@@ -151,6 +151,7 @@ export function LotPickerPopover({
 
   const primaryLabel = useMemo(() => {
     if (disabled) return "—";
+    if (missingContext) return "Select a warehouse";
     if (isLoading) return "Picking lot…";
     if (isError) return "Lot lookup failed";
     if (effective.length === 0) return "No stock";
@@ -159,7 +160,8 @@ export function LotPickerPopover({
     const tag = override !== null ? " · override" : " · FEFO";
     const pack = packLabel ? ` · ${packLabel}` : "";
     return `Lot ${first.lot_number}${exp}${pack}${tag}`;
-  }, [disabled, isLoading, isError, effective, override, packLabel]);
+  }, [disabled, missingContext, isLoading, isError, effective, override, packLabel]);
+
 
   if (disabled) {
     return (
