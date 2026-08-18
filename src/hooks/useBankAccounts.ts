@@ -7,6 +7,12 @@ import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import type { BankProvider } from "./useBankProviders";
 
+export type BankAccountLifecycleStatus =
+  | "draft"
+  | "active"
+  | "suspended"
+  | "closed";
+
 export interface BankAccount {
   id: string;
   organization_id: string;
@@ -29,6 +35,16 @@ export interface BankAccount {
   sync_from_date: string | null;
   created_at: string;
   updated_at: string;
+  /** Wave 1 lifecycle state machine — `is_active` is a derived read of this. */
+  lifecycle_status: BankAccountLifecycleStatus;
+  /** Optimistic-concurrency token; required by every mutator RPC. */
+  row_version: number;
+  opening_balance: number | null;
+  opening_balance_date: string | null;
+  /** Provenance: the opening-balance journal entry the server posted. */
+  opening_balance_je_id: string | null;
+  closed_at: string | null;
+  closed_reason: string | null;
   provider?: BankProvider;
 }
 
@@ -38,27 +54,26 @@ export interface CreateBankAccountData {
   account_number?: string;
   routing_number?: string;
   currency?: string;
-  current_balance?: number;
   opening_balance?: number;
   opening_balance_date?: string;
   account_type?: string;
-  account_id?: string;
+  account_id?: string | null;
   is_primary?: boolean;
-  is_active?: boolean;
   provider_id?: string;
   external_account_id?: string;
+  sync_from_date?: string;
+  auto_sync_enabled?: boolean;
+  sync_frequency?: string;
+  /** Create only: false parks the account in `draft` instead of activating it. */
+  activate?: boolean;
   /**
    * Optional explicit branch override. If omitted the active finance scope's
-   * branch is stamped (NULL when consolidated / "All branches"). The DB
-   * trigger `enforce_branch_business_match` validates the pairing.
+   * branch is stamped (NULL when consolidated / "All branches"). The server
+   * validates the pairing and derives `is_shared` from it.
    */
   branch_id?: string | null;
-  /**
-   * R5: is_shared must equal (branch_id IS NULL). DB CHECK
-   * `bank_accounts_shared_branch_consistency` enforces this.
-   */
-  is_shared?: boolean;
 }
+
 
 /**
  * Phase 11 — Banking. Branch-aware reads + business-level mutator gating.
