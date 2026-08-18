@@ -141,13 +141,18 @@ export default function BankAccountCreatePage() {
       ? [linkedGL, ...bankGLAccounts]
       : bankGLAccounts;
 
-  // Default to the company's base currency once the active list resolves.
+  // Default to the company's base currency — the same canonical context every
+  // other money-bearing document uses.
   useEffect(() => {
-    if (currency) return;
-    if (baseCurrency && activeCurrencies.some((c) => c.code === baseCurrency)) {
-      setCurrency(baseCurrency);
-    }
-  }, [currency, baseCurrency, activeCurrencies]);
+    if (!currency && baseCurrency) setCurrency(baseCurrency);
+  }, [currency, baseCurrency]);
+
+  // Display-only rate provenance. A non-base account whose opening balance
+  // must post has to have a rate on file, or the server would refuse anyway.
+  const { missingRate } = useDescribedExchangeRate(currency, openingBalanceDate);
+  const openingAmount = openingBalance ? parseFloat(openingBalance) : 0;
+  const blockedByMissingRate =
+    missingRate && Number.isFinite(openingAmount) && openingAmount !== 0;
 
   const handleSelectProvider = (provider: BankProvider) => {
     setSelectedProvider(provider);
