@@ -174,7 +174,34 @@ export function useBankAccounts() {
         .order("name");
 
       if (error) throw error;
-      setAccounts((data as unknown as BankAccount[]) || []);
+      const rows = (data as unknown as BankAccount[]) || [];
+
+      // Phase 7: balances are never read from the account row. They come from
+      // the server projection so statement and GL figures stay traceable.
+      const { data: positions, error: posError } = await supabase.rpc(
+        "bank_account_positions",
+        { _business_id: currentBusiness.id },
+      );
+      if (posError) {
+        console.error("Error resolving bank positions:", posError);
+      }
+      const byId = new Map<string, BankAccountPosition>(
+        ((positions ?? []) as Array<Record<string, unknown>>).map((p) => [
+          String(p.bank_account_id),
+          {
+            opening_balance: Number(p.opening_balance ?? 0),
+            statement_balance: Number(p.statement_balance ?? 0),
+            last_statement_line_date: (p.last_statement_line_date as string | null) ?? null,
+            gl_balance: p.gl_balance == null ? null : Number(p.gl_balance),
+            gl_shared: Boolean(p.gl_shared),
+            unreconciled_count: Number(p.unreconciled_count ?? 0),
+            unreconciled_amount: Number(p.unreconciled_amount ?? 0),
+            as_of: String(p.as_of ?? ""),
+          },
+        ]),
+      );
+
+      setAccounts(rows.map((a) => ({ ...a, position: byId.get(a.id) ?? null })));
     } catch (error: unknown) {
       console.error("Error fetching bank accounts:", error);
       toast.error("Failed to load bank accounts");
