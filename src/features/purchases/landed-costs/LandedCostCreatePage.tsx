@@ -46,6 +46,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import {
+  ExchangeRatePanel,
+  useDescribedExchangeRate,
+} from "@/components/finance/ExchangeRatePanel";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
