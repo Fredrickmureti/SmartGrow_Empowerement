@@ -40,6 +40,7 @@ import { AlertTriangle, Plus, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RecordFormShell, Section, FieldGrid } from "@/design-system";
 import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
+import { PackagingSelect } from "@/components/products/PackagingSelect";
 
 type Item = {
   product_id: string;
@@ -51,6 +52,8 @@ type Item = {
   packaging_id: string | null;
   /** Pack multiplier, kept only to render the "= N base" preview. */
   pack_factor: number | null;
+  /** Pack name, presentation only. */
+  pack_name: string | null;
   lot_number: string;
   expiry_date: string;
 };
@@ -62,6 +65,7 @@ const emptyItem = (): Item => ({
   notes: "",
   packaging_id: null,
   pack_factor: null,
+  pack_name: null,
   lot_number: "",
   expiry_date: "",
 });
@@ -281,6 +285,7 @@ export default function AdjustmentNew() {
       // A different product means a different unit ladder and lot identity.
       next[index].packaging_id = null;
       next[index].pack_factor = null;
+      next[index].pack_name = null;
       next[index].lot_number = "";
       next[index].expiry_date = "";
       const prod = inventoryProducts.find((p: any) => p.id === value) as any;
