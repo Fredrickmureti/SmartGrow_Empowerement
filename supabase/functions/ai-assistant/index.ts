@@ -8,6 +8,13 @@ import {
   UNRESOLVED_CURRENCY_CONTEXT,
   type WorkspaceCurrencyContext,
 } from "../_shared/workspaceCurrency.ts";
+import {
+  buildDataToolSpecs,
+  executeDataTool,
+  DATA_TOOLS_PROMPT,
+  type ToolScope,
+  type ToolSpec,
+} from "./dataTools.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1448,10 +1455,11 @@ function isKeyInCooldown(key: ApiKeyConfig, cooldownSeconds: number): boolean {
 // Make AI request with fallback support
 async function makeAIRequest(
   supabaseClient: any,
-  aiMessages: Array<{ role: string; content: string }>,
+  aiMessages: Array<Record<string, any>>,
   requestType: string,
   isStreaming: boolean,
-  settings: Record<string, string>
+  settings: Record<string, string>,
+  tools?: ToolSpec[]
 ): Promise<Response> {
   const { providers, keys } = await getAvailableProviders(supabaseClient);
   const fallbackEnabled = settings.fallback_enabled === "true";
@@ -1557,6 +1565,7 @@ async function makeAIRequest(
           messages: aiMessages,
           stream: isStreaming,
           temperature: requestType === "chat" ? temperature : 0.3,
+          ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
         }),
       });
 
@@ -1618,6 +1627,80 @@ async function makeAIRequest(
     JSON.stringify({ error: lastError || "AI service temporarily unavailable. Please try again later.", fallback_exhausted: true }),
     { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
+}
+
+/**
+ * Resolve the model's data questions BEFORE the answer is streamed.
+ *
+ * The assistant runs on the service-role key, so every read is scoped and
+ * column-allowlisted inside `dataTools.ts` — the model never composes SQL or a
+ * PostgREST filter string itself, and no tool can write. We run the tool
+ * rounds non-streaming and then hand the enriched transcript (including every
+ * tool result) to the normal streaming call, so the user sees a single answer
+ * that is grounded in rows actually read from their tenant.
+ */
+async function runDataToolLoop(
+  supabaseClient: any,
+  aiMessages: Array<Record<string, any>>,
+  settings: Record<string, string>,
+  scope: ToolScope,
+  currencySummary: Record<string, unknown>,
+  maxRounds = 4,
+): Promise<Array<Record<string, any>>> {
+  const tools = buildDataToolSpecs();
+  let working = [...aiMessages];
+
+  for (let round = 0; round < maxRounds; round++) {
+    let payload: any;
+    try {
+      const res = await makeAIRequest(supabaseClient, working, "chat", false, settings, tools);
+      if (!res.ok) return working; // provider unavailable: answer from the snapshot
+      payload = await res.json();
+    } catch (e) {
+      console.error("Tool loop request failed", e);
+      return working;
+    }
+
+    const message = payload?.choices?.[0]?.message;
+    const toolCalls = message?.tool_calls;
+    if (!message || !Array.isArray(toolCalls) || toolCalls.length === 0) return working;
+
+    working.push({
+      role: "assistant",
+      content: message.content ?? "",
+      tool_calls: toolCalls,
+    });
+
+    for (const call of toolCalls) {
+      let args: Record<string, any> = {};
+      try {
+        args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {};
+      } catch {
+        args = {};
+      }
+      let result: Record<string, unknown>;
+      try {
+        result = await executeDataTool(
+          supabaseClient,
+          call?.function?.name ?? "",
+          args,
+          scope,
+          currencySummary,
+        );
+      } catch (e) {
+        console.error("Tool execution failed", call?.function?.name, e);
+        result = { error: e instanceof Error ? e.message : "Tool execution failed" };
+      }
+      working.push({
+        role: "tool",
+        tool_call_id: call.id,
+        name: call?.function?.name ?? "unknown",
+        content: JSON.stringify(result).slice(0, 24000),
+      });
+    }
+  }
+
+  return working;
 }
 
 serve(async (req) => {
@@ -1780,13 +1863,14 @@ serve(async (req) => {
     if (type === "chat") {
       systemPrompt += "\n\n" + ROUTE_CATALOG_PROMPT;
       systemPrompt += "\n\n" + ACTION_BLOCK_PROTOCOL_PROMPT;
+      systemPrompt += "\n\n" + DATA_TOOLS_PROMPT;
       if (organizationId) {
         const diag = await buildPayrollDiagnostics(supabaseClient, organizationId, businessId);
         if (diag) systemPrompt += "\n\n" + diag;
       }
     }
     
-    let aiMessages: Array<{ role: string; content: string }> = [
+    let aiMessages: Array<Record<string, any>> = [
       { role: "system", content: systemPrompt }
     ];
 
@@ -1829,6 +1913,24 @@ serve(async (req) => {
       aiMessages.push({ 
         role: "user", 
         content: `Please analyze the following data:\n\n${JSON.stringify(data, null, 2)}` 
+      });
+    }
+
+    // Ground the answer in live, tenant-scoped rows before streaming it.
+    if (type === "chat" && organizationId) {
+      const scope: ToolScope = {
+        organizationId,
+        businessId: businessId ?? null,
+        branchId: branchId ?? null,
+        accessibleBranchIds,
+        isAdmin: isAdminRole(userRole),
+      };
+      aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, {
+        base_currency: currencyCtx.baseCurrency,
+        mixed_across_businesses: currencyCtx.mixed,
+        business_currencies: currencyCtx.businessCurrencies,
+        active_currencies: currencyCtx.activeCurrencies,
+        country: currencyCtx.country,
       });
     }
 
