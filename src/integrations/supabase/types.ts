@@ -95732,7 +95732,12 @@ export type Database = {
         Returns: Json
       }
       get_reconciliation_match_suggestions: {
-        Args: { _bank_account_id: string; _limit?: number; _org_id: string }
+        Args: {
+          _bank_account_id: string
+          _business_id: string
+          _limit?: number
+          _org_id: string
+        }
         Returns: Json
       }
       get_sales_dashboard_kpis: {

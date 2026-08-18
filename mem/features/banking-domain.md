@@ -107,3 +107,35 @@ type: feature
 - `anon` privileges on `journal_entries` / `journal_entry_lines` revoked —
   ADR-0123's posting monopoly cannot hold while those tables are publicly writable.
 - Ratchet: `src/test/architecture/banking-balance-provenance.test.ts`.
+
+## Matching seam (Wave 2, Phases 10–12)
+
+- One matching seam, proposal → confirmation:
+  `bank_match_propose(_txn_id, _allocations, _fee_amount, _match_type, _rule_id, _notes, _user_id)`
+  → `bank_match_confirm(_match_id, _user_id, _client_request_id)`, with
+  `bank_match_reject` and `bank_match_reverse` (the latter delegates to
+  `unreconcile_bank_transaction`). EXECUTE is `authenticated` + `service_role`.
+- `_allocations` is a jsonb array of
+  `{document_type: 'invoice'|'bill'|'account', document_id, amount, description?}`.
+  n:m allocations and partial settlement are the normal case; mixed
+  invoice/bill sets, cross-company documents, over-allocation beyond a
+  document's open amount, and a set that does not equal the bank line are all
+  refused (`BANK_MATCH_*` error codes).
+- A bank charge is the residual: `fee_amount` posts DR bank-fees / CR bank
+  through `post_journal_entry_atomic`. Allocations + fee must equal `abs(amount)`.
+- Confirmation never mints settlements itself: AR goes through
+  `record_multi_invoice_payment`, AP through `record_multi_bill_payment`,
+  classified movements through `post_journal_entry_atomic` (ADR-0123 intact).
+- Accounts resolve through `_resolve_canonical_default_account`
+  (`accounts_receivable`, `accounts_payable`, `bank_fees`); a bank account with
+  no linked GL account refuses (`BANK_ACCOUNT_NEEDS_GL`). No `detail_type` guessing.
+- FX: base-currency lines use rate 1; any other currency requires
+  `require_exchange_rate` for the transaction date — no hardcoded 1 (ADR-0136).
+- `apply_reconciliation_rules` proposes through the seam and only auto-confirms
+  when the confirmation succeeds; a failed auto-post stays a proposal with the
+  reason reported in `skipped`. It no longer writes matches directly and no
+  longer stashes lifecycle state in `bank_transactions.reconciled_type`.
+- `get_reconciliation_match_suggestions(_org_id, _business_id, _bank_account_id, _limit)`
+  is business-scoped; the org-only signature is gone.
+- `reconcile_bank_transaction_atomic` is a thin shim over propose+confirm and
+  refuses `_create_gl := false` (`BANK_MATCH_GL_IS_NOT_OPTIONAL`).
