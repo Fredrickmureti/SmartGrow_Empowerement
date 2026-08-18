@@ -192,59 +192,45 @@ export function useBankAccounts() {
     return null;
   };
 
+  /**
+   * Wave 1 write seam. The browser never writes `bank_accounts` directly:
+   * every mutation goes through a SECURITY DEFINER RPC that owns lifecycle
+   * invariants, currency validation, opening-balance posting through
+   * `post_journal_entry_atomic`, and optimistic concurrency.
+   */
+  const toPayload = (data: Partial<CreateBankAccountData>) => {
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v === undefined) continue;
+      payload[k] = v;
+    }
+    return payload;
+  };
+
   const createAccount = async (data: CreateBankAccountData) => {
-    if (!currentOrg?.id || !currentBusiness?.id) return;
+    if (!currentBusiness?.id) return;
 
     try {
       setIsSaving(true);
-
-      if (data.account_number && data.provider_id) {
-        const { data: existing } = await supabase
-          .from("bank_accounts")
-          .select("id, name")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("account_number", data.account_number)
-          .eq("provider_id", data.provider_id)
-          .maybeSingle();
-
-        if (existing) {
-          toast.error(`This account is already connected as "${existing.name}"`);
-          return;
-        }
-      }
-
       // Default branch_id to the active scope branch (NULL = company-wide).
       const branch_id = data.branch_id !== undefined ? data.branch_id : scope.branchId;
 
-      const { data: created, error } = await supabase
-        .from("bank_accounts")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          ...data,
-          branch_id,
-        })
-        .select("id")
-        .single();
+      const { data: created, error } = await supabase.rpc("bank_account_create", {
+        _business_id: currentBusiness.id,
+        _payload: toPayload({ ...data, branch_id }) as never,
+      });
 
       if (error) throw error;
       toast.success("Bank account added successfully");
       await fetchAccounts();
-      return created;
+      return created as unknown as BankAccount;
     } catch (error: unknown) {
       console.error("Error creating bank account:", error);
       const friendly = mapPermErr(error);
-      const msg = (error as { message?: string })?.message ?? "";
-      const code = (error as { code?: string })?.code ?? "";
+      const hint = (error as { hint?: string })?.hint ?? "";
       // G3 — duplicate-connection toasts deep-link to /banking so the user
       // can open the existing account instead of creating another.
-      if (
-        code === "23505" &&
-        (msg.includes("bank_accounts_external_unique") ||
-          msg.includes("bank_accounts_manual_unique") ||
-          msg.includes("bank_accounts_manual_no_provider_unique"))
-      ) {
+      if (hint === "BANK_ACCOUNT_ALREADY_CONNECTED") {
         toast.error(friendly ?? "This bank account is already connected.", {
           action: {
             label: "Open bank accounts",
@@ -262,16 +248,20 @@ export function useBankAccounts() {
     }
   };
 
-  const updateAccount = async (id: string, data: Partial<CreateBankAccountData>) => {
+  const updateAccount = async (
+    id: string,
+    data: Partial<CreateBankAccountData>,
+    rowVersion?: number,
+  ) => {
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("bank_accounts")
-        .update({
-          ...data,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const version =
+        rowVersion ?? accounts.find((a) => a.id === id)?.row_version ?? null;
+      const { error } = await supabase.rpc("bank_account_update", {
+        _id: id,
+        _row_version: version,
+        _payload: toPayload(data) as never,
+      });
 
       if (error) throw error;
       toast.success("Bank account updated successfully");
@@ -286,14 +276,56 @@ export function useBankAccounts() {
     }
   };
 
+  /** Lifecycle change: activate / suspend / close. Closure is guarded server-side. */
+  const transitionAccount = async (
+    id: string,
+    target: BankAccountLifecycleStatus,
+    reason?: string,
+  ) => {
+    try {
+      setIsSaving(true);
+      const version = accounts.find((a) => a.id === id)?.row_version ?? null;
+      const { error } = await supabase.rpc("bank_account_transition", {
+        _id: id,
+        _target: target,
+        _reason: reason ?? null,
+        _row_version: version,
+      });
+      if (error) throw error;
+      toast.success(
+        target === "closed"
+          ? "Bank account closed"
+          : target === "suspended"
+            ? "Bank account suspended"
+            : "Bank account activated",
+      );
+      await fetchAccounts();
+    } catch (error: unknown) {
+      console.error("Error changing bank account status:", error);
+      const friendly = mapPermErr(error);
+      toast.error(friendly ?? "Failed to change bank account status");
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Deletion only ever removes an untouched draft. An account with financial
+   * history is closed instead — the server refuses anything else.
+   */
   const deleteAccount = async (id: string) => {
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("bank_accounts")
-        .delete()
-        .eq("id", id);
-
+      const account = accounts.find((a) => a.id === id);
+      if (account && account.lifecycle_status !== "draft") {
+        await transitionAccount(id, "closed", "Removed from bank account list");
+        return;
+      }
+      const { error } = await supabase.rpc("bank_account_delete_draft", {
+        _id: id,
+        _row_version: account?.row_version ?? null,
+      });
       if (error) throw error;
       toast.success("Bank account deleted successfully");
       await fetchAccounts();
@@ -307,16 +339,16 @@ export function useBankAccounts() {
     }
   };
 
+  /**
+   * Sync is owned end-to-end by the `sync-bank-transactions` function: it
+   * stamps `sync_status` / `sync_error` with the service role. The browser
+   * only asks for the sync and re-reads the result.
+   */
   const syncTransactions = async (accountId: string) => {
     if (!currentOrg?.id) return;
 
     try {
       setIsSaving(true);
-
-      await supabase
-        .from("bank_accounts")
-        .update({ sync_status: "syncing", sync_error: null })
-        .eq("id", accountId);
 
       const { data, error } = await supabase.functions.invoke("sync-bank-transactions", {
         body: { bank_account_id: accountId, organization_id: currentOrg.id },
@@ -325,29 +357,19 @@ export function useBankAccounts() {
       if (error) throw error;
 
       if (data?.success) {
-        toast.success(`Synced ${data.transactionCount || 0} transactions`);
+        toast.success(`Synced ${data.new_transactions ?? 0} transactions`);
       } else {
         toast.error(data?.message || "Sync failed");
       }
-
-      await fetchAccounts();
     } catch (error: unknown) {
       console.error("Error syncing transactions:", error);
       toast.error("Failed to sync transactions");
-
-      await supabase
-        .from("bank_accounts")
-        .update({
-          sync_status: "error",
-          sync_error: error instanceof Error ? error.message : "Unknown error",
-        })
-        .eq("id", accountId);
-
-      await fetchAccounts();
     } finally {
+      await fetchAccounts();
       setIsSaving(false);
     }
   };
+
 
   // Stable identity to play nicely with downstream hooks/memos.
   const value = useMemo(
