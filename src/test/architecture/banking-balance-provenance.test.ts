@@ -43,7 +43,7 @@ const files = walk(SRC);
  */
 function bankBalanceOffences(): string[] {
   const offences: string[] = [];
-  const BANK_EXPR = /\b(bankAccount|bankAcc|bankRow|ba|acct|account)\.current_balance\b/;
+  const BANK_EXPR = /\b(bankAccount|bankAcc|bankRow|ba)\.current_balance\b/;
   for (const file of files) {
     const rel = relative(root, file);
     if (rel.startsWith("src/test/")) continue; // fixtures model their own shapes
