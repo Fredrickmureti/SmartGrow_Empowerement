@@ -378,23 +378,26 @@ async function getFinancialContext(
         .eq("is_active", true)
         .limit(20)),
 
-      // Products summary
+      // Products summary. NOTE: the physical columns are `unit_price` and
+      // `stock_quantity` — the older `selling_price`/`quantity_on_hand` names
+      // do not exist and made this whole query (and therefore the assistant's
+      // product knowledge) come back empty.
       biz(supabaseClient
         .from("products")
-        .select("id, name, sku, type, selling_price, quantity_on_hand, reorder_level, is_active")
+        .select("id, name, sku, type, unit_price, cost_price, stock_quantity, reorder_level, track_inventory, is_lot_tracked, is_expiry_tracked, is_serial_tracked, is_active")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
-        .limit(100)),
+        .limit(200)),
 
       // Low stock products
       biz(supabaseClient
         .from("products")
-        .select("id, name, sku, quantity_on_hand, reorder_level")
+        .select("id, name, sku, stock_quantity, reorder_level")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .eq("track_inventory", true)
-        .lte("quantity_on_hand", supabaseClient.rpc ? 0 : 10)
-        .limit(20)),
+        .limit(200)),
+
 
       // Employees
       biz(supabaseClient
