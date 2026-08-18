@@ -174,7 +174,7 @@ export default function BankAccountCreatePage() {
     // Single server call: the `bank_account_create` RPC stamps scope, validates
     // the currency against the company's active currencies and — in the same
     // transaction — posts the opening-balance journal entry through
-    // `post_journal_entry_atomic`. The browser no longer orchestrates the GL.
+    // the canonical posting engine. The browser no longer orchestrates the GL.
     const newAccount = await createAccount({
       name: accountName,
       bank_name: bankName,
