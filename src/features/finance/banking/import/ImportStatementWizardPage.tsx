@@ -194,165 +194,65 @@ export default function ImportStatementWizardPage() {
     setStep("preview");
   };
 
+  /**
+   * Ingestion is server-owned (ADR: one statement ingestion engine).
+   * The browser only hands over the parsed rows; the database assigns the
+   * dedup fingerprint, applies categorization rules, enforces the account
+   * lifecycle and fiscal-period locks, writes the statement header and its
+   * rows in ONE transaction, and emits the business event.
+   */
   const handleImport = async () => {
-    if (
-      !currentOrg?.id ||
-      !currentBusiness?.id ||
-      !selectedAccountId ||
-      finalTransactions.length === 0
-    )
-      return;
+    if (!selectedAccountId || finalTransactions.length === 0) return;
 
     setIsImporting(true);
-    let success = 0;
-    let failed = 0;
-    let duplicates = 0;
-
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const dates = finalTransactions.map((r) => r.date).filter(Boolean).sort();
+      const rows = finalTransactions.map((row) => ({
+        transaction_date: row.date,
+        description: row.description,
+        reference: row.reference || null,
+        amount: row.type === "credit" ? row.amount : -row.amount,
+        balance_after: row.balance ?? null,
+        raw_data: row.rawData || null,
+      }));
 
-      const { data: stmtData } = await supabase
-        .from("bank_statements")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          bank_account_id: selectedAccountId,
+      const { data, error } = await supabase.rpc("bank_statement_import_batch", {
+        _bank_account_id: selectedAccountId,
+        _rows: rows,
+        _statement: {
           file_name: file?.name || "manual_import",
           file_hash: fileHash || `batch_${Date.now()}`,
-          imported_by: userData.user?.id || null,
-          status: "processing",
-          period_start: dates[0] || null,
-          period_end: dates[dates.length - 1] || null,
-          transaction_count: finalTransactions.length,
-          ...(parsedStatement?.metadata?.openingBalance !== undefined
-            ? { opening_balance: parsedStatement.metadata.openingBalance }
-            : {}),
-          ...(parsedStatement?.metadata?.closingBalance !== undefined
-            ? { closing_balance: parsedStatement.metadata.closingBalance }
-            : {}),
-        })
-        .select("id")
-        .single();
+          file_format: parsedStatement?.format || null,
+          opening_balance: parsedStatement?.metadata?.openingBalance ?? null,
+          closing_balance: parsedStatement?.metadata?.closingBalance ?? null,
+        },
+        _source: "manual_import",
+      } as any);
 
-      const statementId = stmtData?.id || null;
+      if (error) throw error;
 
-      const BATCH_SIZE = 50;
-      for (
-        let batchStart = 0;
-        batchStart < finalTransactions.length;
-        batchStart += BATCH_SIZE
-      ) {
-        const batch = finalTransactions.slice(batchStart, batchStart + BATCH_SIZE);
-        const validRows: any[] = [];
+      const result = (data ?? {}) as {
+        inserted?: number;
+        duplicates?: number;
+        rejected?: number;
+        rejected_rows?: Array<{ row: number; reason: string }>;
+      };
 
-        for (let i = 0; i < batch.length; i++) {
-          const row = batch[i];
-          if (!row.date) {
-            failed++;
-            continue;
-          }
-          const signedAmount = row.type === "credit" ? row.amount : -row.amount;
-          const txHash = generateTransactionHash(
-            row.date,
-            row.description,
-            signedAmount,
-            row.reference,
-            selectedAccountId,
-          );
-          validRows.push({
-            organization_id: currentOrg.id,
-            business_id: currentBusiness.id,
-            bank_account_id: selectedAccountId,
-            external_transaction_id: txHash,
-            transaction_date: row.date,
-            description: row.description,
-            amount: signedAmount,
-            reference: row.reference || null,
-            transaction_type: row.type,
-            is_reconciled: false,
-            statement_id: statementId,
-            import_row_number: batchStart + i + 1,
-            balance_after: row.balance ?? null,
-            raw_data: row.rawData || null,
-          });
-        }
-
-        if (validRows.length > 0) {
-          const { data: insertedData, error: batchError } = await supabase
-            .from("bank_transactions")
-            .upsert(validRows, {
-              onConflict: "bank_account_id,external_transaction_id",
-              ignoreDuplicates: true,
-            })
-            .select("id");
-
-          if (batchError) {
-            console.error("Batch import error:", batchError);
-            failed += validRows.length;
-          } else {
-            const insertedCount = insertedData?.length || 0;
-            success += insertedCount;
-            duplicates += validRows.length - insertedCount;
-          }
-        }
+      const firstRejection = result.rejected_rows?.[0];
+      if (result.rejected && firstRejection) {
+        toast.warning(
+          `${result.rejected} row(s) skipped — ${firstRejection.reason}`,
+        );
       }
 
-      if (success > 0) {
-        try {
-          const { data: newTxns } = await supabase
-            .from("bank_transactions")
-            .select("id, description, reference, amount, transaction_type")
-            .eq("bank_account_id", selectedAccountId)
-            .eq("statement_id", statementId)
-            .is("category", null);
-
-          let categorized = 0;
-          for (const tx of newTxns || []) {
-            const match = applyRulesToTransaction(
-              tx.description,
-              tx.reference,
-              Math.abs(tx.amount),
-              tx.transaction_type as "credit" | "debit",
-            );
-            if (match) {
-              await supabase
-                .from("bank_transactions")
-                .update({
-                  category: match.category,
-                  category_confidence: match.confidence,
-                  lifecycle_status: "for_review",
-                } as any)
-                .eq("id", tx.id);
-              categorized++;
-            }
-          }
-          if (categorized > 0) {
-            toast.success(`${categorized} transaction(s) auto-categorized by rules`);
-          }
-        } catch (ruleError) {
-          console.error("Rule application error (non-fatal):", ruleError);
-        }
-      }
-
-      if (statementId) {
-        await supabase
-          .from("bank_statements")
-          .update({
-            status: "completed",
-            transaction_count: success,
-            failed_count: failed,
-            duplicate_count: duplicates,
-            file_format: parsedStatement?.format || null,
-          })
-          .eq("id", statementId);
-      }
-
-      setImportResult({ success, failed, duplicates });
+      setImportResult({
+        success: result.inserted ?? 0,
+        failed: result.rejected ?? 0,
+        duplicates: result.duplicates ?? 0,
+      });
       setStep("done");
     } catch (error) {
       console.error("Import error:", error);
-      toast.error("Failed to import transactions");
+      toast.error(normalizeError(error).message || "Failed to import transactions");
     } finally {
       setIsImporting(false);
     }
