@@ -32,6 +32,7 @@ const INVENTORY_PAGE = readFileSync(
   "src/pages/inventory/AdjustmentNew.tsx",
   "utf8",
 );
+const INVENTORY_LIST_PAGE = readFileSync("src/pages/Inventory.tsx", "utf8");
 const USE_INVENTORY = readFileSync("src/hooks/useInventory.ts", "utf8");
 const RECON_CARD = readFileSync(
   "src/components/finance/InventoryReconciliationCard.tsx",
@@ -124,9 +125,9 @@ describe("inventory adjustment ↔ GL integrity", () => {
   });
 
   it("Inventory page renders Reverse action + lifecycle badges", () => {
-    expect(INVENTORY_PAGE).toMatch(/ReverseAdjustmentDialog/);
-    expect(INVENTORY_PAGE).toMatch(/Reverses #/);
-    expect(INVENTORY_PAGE).toMatch(/Reversed by #/);
+    expect(INVENTORY_LIST_PAGE).toMatch(/ReverseAdjustmentDialog/);
+    expect(INVENTORY_LIST_PAGE).toMatch(/Reverses #/);
+    expect(INVENTORY_LIST_PAGE).toMatch(/Reversed by #/);
   });
 
   it("Reconciliation card surfaces missing-JE backfill", () => {
