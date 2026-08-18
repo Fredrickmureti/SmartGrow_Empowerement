@@ -69,15 +69,30 @@ describe("bank account write seam", () => {
     expect(create).toContain("bank_account");
   });
 
-  it("sync status is owned by the sync function, not the browser", () => {
+  it("feed state lives on the connection + its runs, never on the account row", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
-    expect(src).not.toMatch(/sync_status:\s*["'`]syncing["'`]/);
+    // The dropped columns must not come back as a second source of feed truth.
+    expect(src).not.toMatch(/\.(sync_status|sync_error|last_sync_at)\b/);
+    expect(src).not.toMatch(/(sync_status|sync_error):/);
+
+    expect(src).toContain("bank_feed_status");
+
+    const card = readFileSync(
+      join(root, "src/components/banking/BankAccountCard.tsx"),
+      "utf8",
+    );
+    expect(card).not.toMatch(/account\.(sync_status|sync_error|last_sync_at)/);
+
+    // The feed function opens an auditable run and ingests through the one engine.
     const fn = readFileSync(
       join(root, "supabase/functions/sync-bank-transactions/index.ts"),
       "utf8",
     );
-    expect(fn).toMatch(/sync_status:\s*'syncing'/);
+    expect(fn).toContain("bank_feed_run_start");
+    expect(fn).toContain("bank_statement_import_batch");
+    expect(fn).not.toMatch(/current_balance|sync_status/);
   });
+
 
   it("migration reset reverses the opening-balance entry via the RPC", () => {
     const src = readFileSync(join(root, "src/hooks/useMigrationSession.ts"), "utf8");

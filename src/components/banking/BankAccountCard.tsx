@@ -85,38 +85,49 @@ export function BankAccountCard({
   const providerLogo = (account as any).platform_bank_providers?.logo_url;
   const hasProvider = !!account.provider_id;
 
+  // Phase 14: feed state comes from the connection + its latest run, never from
+  // the account row. `running` is a real run row, not an optimistic UI flag.
+  const feed = account.feed ?? null;
+  const isRunning = feed?.last_run_status === "running";
+  const lastSyncAt = feed?.last_success_at ?? feed?.last_run_at ?? null;
+  const feedError =
+    feed?.last_run_status === "failed" || feed?.status === "error"
+      ? feed?.last_error ?? feed?.last_run_error_code ?? "Last sync failed"
+      : null;
+
   const getSyncStatusBadge = () => {
-    switch (account.sync_status) {
-      case "synced":
-        return (
-          <Badge variant="outline" className="text-green-600 border-green-500">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Synced
-          </Badge>
-        );
-      case "syncing":
-        return (
-          <Badge variant="outline" className="text-blue-600 border-blue-500">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Syncing
-          </Badge>
-        );
-      case "error":
-        return (
-          <Badge variant="outline" className="text-destructive border-destructive/50">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Error
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline" className="text-muted-foreground">
-            <Clock className="h-3 w-3 mr-1" />
-            {hasProvider ? "Pending" : "Manual"}
-          </Badge>
-        );
+    if (isRunning) {
+      return (
+        <Badge variant="outline" className="text-blue-600 border-blue-500">
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          Syncing
+        </Badge>
+      );
     }
+    if (feedError) {
+      return (
+        <Badge variant="outline" className="text-destructive border-destructive/50">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Error
+        </Badge>
+      );
+    }
+    if (feed?.last_run_status === "succeeded" || feed?.last_success_at) {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-500">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Synced
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        <Clock className="h-3 w-3 mr-1" />
+        {feed ? "Pending" : hasProvider ? "Not connected" : "Manual"}
+      </Badge>
+    );
   };
+
 
   const renderBankLogo = () => {
     if (providerLogo && !logoError) {
@@ -208,11 +219,18 @@ export function BankAccountCard({
             {getSyncStatusBadge()}
           </div>
 
-          {account.sync_error && (
+          {feedError && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-              <p className="text-sm text-destructive">{account.sync_error}</p>
+              <p className="text-sm text-destructive">{feedError}</p>
+              {feed?.consecutive_failures ? (
+                <p className="text-xs text-destructive/80 mt-1">
+                  {feed.consecutive_failures} consecutive failed run
+                  {feed.consecutive_failures === 1 ? "" : "s"}
+                </p>
+              ) : null}
             </div>
           )}
+
 
           {/* Per-account stats */}
           {(unreconciledCount !== undefined || lastReconciledDate) && (
@@ -232,19 +250,25 @@ export function BankAccountCard({
 
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              {account.last_sync_at 
-                ? `Last synced ${formatDistanceToNow(new Date(account.last_sync_at), { addSuffix: true })}`
-                : hasProvider ? "Never synced" : "Manual account"
-              }
+              {lastSyncAt
+                ? `Last synced ${formatDistanceToNow(new Date(lastSyncAt), { addSuffix: true })}`
+                : feed
+                  ? "Never synced"
+                  : hasProvider
+                    ? "Feed not connected"
+                    : "Manual account"}
+              {feed?.last_run_inserted != null && lastSyncAt
+                ? ` • ${feed.last_run_inserted} imported`
+                : ""}
             </span>
             {hasProvider && (
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={onSync}
-                disabled={isSyncing || account.sync_status === "syncing"}
+                disabled={isSyncing || isRunning}
               >
-                {(isSyncing || account.sync_status === "syncing") ? (
+                {(isSyncing || isRunning) ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
@@ -253,6 +277,7 @@ export function BankAccountCard({
               </Button>
             )}
           </div>
+
         </CardContent>
       </Card>
 

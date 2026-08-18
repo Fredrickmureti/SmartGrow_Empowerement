@@ -4499,7 +4499,6 @@ export type Database = {
           is_primary: boolean | null
           is_shared: boolean
           last_auto_sync_at: string | null
-          last_sync_at: string | null
           lifecycle_status: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name: string
           opening_balance: number | null
@@ -4510,10 +4509,8 @@ export type Database = {
           refresh_token_encrypted: string | null
           routing_number: string | null
           row_version: number
-          sync_error: string | null
           sync_frequency: string | null
           sync_from_date: string | null
-          sync_status: string | null
           token_expires_at: string | null
           updated_at: string
         }
@@ -4539,7 +4536,6 @@ export type Database = {
           is_primary?: boolean | null
           is_shared?: boolean
           last_auto_sync_at?: string | null
-          last_sync_at?: string | null
           lifecycle_status?: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name: string
           opening_balance?: number | null
@@ -4550,10 +4546,8 @@ export type Database = {
           refresh_token_encrypted?: string | null
           routing_number?: string | null
           row_version?: number
-          sync_error?: string | null
           sync_frequency?: string | null
           sync_from_date?: string | null
-          sync_status?: string | null
           token_expires_at?: string | null
           updated_at?: string
         }
@@ -4579,7 +4573,6 @@ export type Database = {
           is_primary?: boolean | null
           is_shared?: boolean
           last_auto_sync_at?: string | null
-          last_sync_at?: string | null
           lifecycle_status?: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name?: string
           opening_balance?: number | null
@@ -4590,10 +4583,8 @@ export type Database = {
           refresh_token_encrypted?: string | null
           routing_number?: string | null
           row_version?: number
-          sync_error?: string | null
           sync_frequency?: string | null
           sync_from_date?: string | null
-          sync_status?: string | null
           token_expires_at?: string | null
           updated_at?: string
         }
@@ -5926,82 +5917,6 @@ export type Database = {
           },
         ]
       }
-      bank_transaction_splits: {
-        Row: {
-          account_id: string
-          amount: number
-          bank_transaction_id: string
-          branch_id: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          id: string
-        }
-        Insert: {
-          account_id: string
-          amount: number
-          bank_transaction_id: string
-          branch_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-        }
-        Update: {
-          account_id?: string
-          amount?: number
-          bank_transaction_id?: string
-          branch_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bank_transaction_splits_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_transaction_splits_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "payroll_mapping_findings"
-            referencedColumns: ["account_id"]
-          },
-          {
-            foreignKeyName: "bank_transaction_splits_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_transaction_splits_bank_transaction_id_fkey"
-            columns: ["bank_transaction_id"]
-            isOneToOne: false
-            referencedRelation: "bank_transactions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_transaction_splits_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_transaction_splits_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-        ]
-      }
       bank_transactions: {
         Row: {
           ai_confidence: number | null
@@ -6036,7 +5951,6 @@ export type Database = {
           reconciled_entity_id: string | null
           reconciled_payment_id: string | null
           reconciled_type: string | null
-          reconciliation_session_id: string | null
           reference: string | null
           statement_id: string | null
           transaction_date: string
@@ -6076,7 +5990,6 @@ export type Database = {
           reconciled_entity_id?: string | null
           reconciled_payment_id?: string | null
           reconciled_type?: string | null
-          reconciliation_session_id?: string | null
           reference?: string | null
           statement_id?: string | null
           transaction_date: string
@@ -6116,7 +6029,6 @@ export type Database = {
           reconciled_entity_id?: string | null
           reconciled_payment_id?: string | null
           reconciled_type?: string | null
-          reconciliation_session_id?: string | null
           reference?: string | null
           statement_id?: string | null
           transaction_date?: string
@@ -6227,13 +6139,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_transactions_reconciliation_session_id_fkey"
-            columns: ["reconciliation_session_id"]
-            isOneToOne: false
-            referencedRelation: "reconciliation_sessions"
             referencedColumns: ["id"]
           },
           {
@@ -57089,140 +56994,6 @@ export type Database = {
           },
         ]
       }
-      reconciliation_sessions: {
-        Row: {
-          bank_account_id: string
-          branch_id: string | null
-          business_id: string
-          closing_book_balance: number | null
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          id: string
-          notes: string | null
-          opening_book_balance: number | null
-          organization_id: string
-          started_at: string
-          started_by: string | null
-          statement_id: string | null
-          status: string
-          total_reconciled: number | null
-          total_unreconciled: number | null
-          updated_at: string
-        }
-        Insert: {
-          bank_account_id: string
-          branch_id?: string | null
-          business_id: string
-          closing_book_balance?: number | null
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          id?: string
-          notes?: string | null
-          opening_book_balance?: number | null
-          organization_id: string
-          started_at?: string
-          started_by?: string | null
-          statement_id?: string | null
-          status?: string
-          total_reconciled?: number | null
-          total_unreconciled?: number | null
-          updated_at?: string
-        }
-        Update: {
-          bank_account_id?: string
-          branch_id?: string | null
-          business_id?: string
-          closing_book_balance?: number | null
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          id?: string
-          notes?: string | null
-          opening_book_balance?: number | null
-          organization_id?: string
-          started_at?: string
-          started_by?: string | null
-          statement_id?: string | null
-          status?: string
-          total_reconciled?: number | null
-          total_unreconciled?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reconciliation_sessions_bank_account_id_fkey"
-            columns: ["bank_account_id"]
-            isOneToOne: false
-            referencedRelation: "bank_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_sessions_statement_id_fkey"
-            columns: ["statement_id"]
-            isOneToOne: false
-            referencedRelation: "bank_statements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       recurring_invoice_definition_versions: {
         Row: {
           business_id: string | null
@@ -87278,7 +87049,6 @@ export type Database = {
           is_primary: boolean | null
           is_shared: boolean
           last_auto_sync_at: string | null
-          last_sync_at: string | null
           lifecycle_status: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name: string
           opening_balance: number | null
@@ -87289,10 +87059,8 @@ export type Database = {
           refresh_token_encrypted: string | null
           routing_number: string | null
           row_version: number
-          sync_error: string | null
           sync_frequency: string | null
           sync_from_date: string | null
-          sync_status: string | null
           token_expires_at: string | null
           updated_at: string
         }
@@ -90843,6 +90611,32 @@ export type Database = {
           _window_to: string
         }
         Returns: Json
+      }
+      bank_feed_status: {
+        Args: { _business_id: string }
+        Returns: {
+          auto_sync_enabled: boolean
+          bank_account_id: string
+          connection_id: string
+          consecutive_failures: number
+          last_error: string
+          last_run_at: string
+          last_run_duplicates: number
+          last_run_error_code: string
+          last_run_fetched: number
+          last_run_finished_at: string
+          last_run_id: string
+          last_run_inserted: number
+          last_run_rejected: number
+          last_run_started_at: string
+          last_run_status: string
+          last_run_window_from: string
+          last_run_window_to: string
+          last_success_at: string
+          provider_code: string
+          status: string
+          sync_frequency: string
+        }[]
       }
       bank_match_confirm: {
         Args: {
