@@ -5201,6 +5201,9 @@ export type Database = {
           bank_account_id: string
           branch_id: string | null
           business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           closing_balance: number
           completed_at: string | null
           completed_by: string | null
@@ -5222,11 +5225,16 @@ export type Database = {
           statement_date: string
           status: string
           updated_at: string
+          writeoff_amount: number
+          writeoff_je_id: string | null
         }
         Insert: {
           bank_account_id: string
           branch_id?: string | null
           business_id: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           closing_balance?: number
           completed_at?: string | null
           completed_by?: string | null
@@ -5248,11 +5256,16 @@ export type Database = {
           statement_date: string
           status?: string
           updated_at?: string
+          writeoff_amount?: number
+          writeoff_je_id?: string | null
         }
         Update: {
           bank_account_id?: string
           branch_id?: string | null
           business_id?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           closing_balance?: number
           completed_at?: string | null
           completed_by?: string | null
@@ -5274,6 +5287,8 @@ export type Database = {
           statement_date?: string
           status?: string
           updated_at?: string
+          writeoff_amount?: number
+          writeoff_je_id?: string | null
         }
         Relationships: [
           {
@@ -86978,6 +86993,60 @@ export type Database = {
         Returns: string
       }
       _bank_account_row: { Args: { _id: string }; Returns: Json }
+      _bank_reconciliation_assert_account: {
+        Args: { _bank_account_id: string }
+        Returns: {
+          access_token_encrypted: string | null
+          account_id: string | null
+          account_number: string | null
+          account_type: string | null
+          activated_at: string | null
+          auto_sync_enabled: boolean | null
+          bank_balance_as_of: string | null
+          bank_name: string | null
+          bank_reported_balance: number | null
+          branch_id: string | null
+          business_id: string
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          currency: string | null
+          current_balance: number | null
+          external_account_id: string | null
+          id: string
+          is_active: boolean | null
+          is_primary: boolean | null
+          is_shared: boolean
+          last_auto_sync_at: string | null
+          last_sync_at: string | null
+          lifecycle_status: Database["public"]["Enums"]["bank_account_lifecycle_status"]
+          name: string
+          opening_balance: number | null
+          opening_balance_date: string | null
+          opening_balance_je_id: string | null
+          organization_id: string
+          provider_id: string | null
+          refresh_token_encrypted: string | null
+          routing_number: string | null
+          row_version: number
+          sync_error: string | null
+          sync_frequency: string | null
+          sync_from_date: string | null
+          sync_status: string | null
+          token_expires_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bank_accounts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _bank_reconciliation_recompute: {
+        Args: { _session_id: string }
+        Returns: Json
+      }
       _confirm_invoice_core: {
         Args: {
           p_final_status?: string
@@ -90445,6 +90514,36 @@ export type Database = {
         Args: { _id: string; _payload: Json; _row_version: number }
         Returns: Json
       }
+      bank_reconciliation_item_set: {
+        Args: {
+          _cleared: boolean
+          _session_id: string
+          _transaction_id: string
+        }
+        Returns: Json
+      }
+      bank_reconciliation_session_cancel: {
+        Args: { _reason?: string; _session_id: string }
+        Returns: Json
+      }
+      bank_reconciliation_session_complete: {
+        Args: { _session_id: string }
+        Returns: Json
+      }
+      bank_reconciliation_session_start: {
+        Args: {
+          _adjustments?: Json
+          _bank_account_id: string
+          _closing_balance: number
+          _opening_balance: number
+          _statement_date: string
+        }
+        Returns: Json
+      }
+      bank_reconciliation_session_writeoff: {
+        Args: { _max_amount?: number; _session_id: string }
+        Returns: Json
+      }
       bank_statement_import_batch: {
         Args: {
           _bank_account_id: string
@@ -90475,6 +90574,14 @@ export type Database = {
           _txn_date: string
         }
         Returns: string
+      }
+      bank_transaction_set_category: {
+        Args: {
+          _category: string
+          _confidence?: number
+          _transaction_ids: string[]
+        }
+        Returns: Json
       }
       bill_payment_is_bank_reconciled: {
         Args: { _bill_payment_id: string }

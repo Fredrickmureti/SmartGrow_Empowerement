@@ -1,6 +1,6 @@
 ---
 name: Banking domain (accounts + statement ingestion)
-description: Bank account write seam RPCs, lifecycle, opening balances, and the single server-side statement ingestion engine with its dedup fingerprint and rule categorization
+description: Bank account write seam RPCs, lifecycle, opening balances, the single server-side statement ingestion engine (dedup fingerprint, rules), and the server-owned reconciliation lifecycle, arithmetic and GL posting
 type: feature
 ---
 
@@ -38,3 +38,27 @@ type: feature
   anonymous is refused. `anon` holds no privilege on any banking table.
 - Ratchets: `src/test/architecture/banking-write-seam.test.ts`,
   `src/test/architecture/banking-ingestion-single-engine.test.ts`.
+
+## Reconciliation (Phase 4)
+- Lifecycle is server-owned: `bank_reconciliation_session_start`,
+  `bank_reconciliation_item_set`, `bank_reconciliation_session_writeoff`,
+  `bank_reconciliation_session_complete`, `bank_reconciliation_session_cancel`.
+  `authenticated` has SELECT only on `bank_reconciliation_sessions` / `_items`;
+  `anon` has nothing.
+- `_bank_reconciliation_recompute` is the only arithmetic authority.
+  `reconciled_balance` = net cleared movement (credits +, debits −) − service
+  charge + interest + write-off, so the generated
+  `difference = (closing − opening) − reconciled_balance` is correct. Never let
+  the client store an opening-balance-inclusive figure.
+- Service charge / interest / write-off post via `post_journal_entry_atomic`
+  with `source_type='bank_recon'` and subtypes `service_charge` / `interest` /
+  `writeoff` — idempotent per session; never posted from the browser.
+- Gates: finance permission, account must be `active`, fiscal period unlocked
+  (statement date AND each adjustment date), one open session per account, a
+  cleared line must share the account, be dated ≤ statement date and not be
+  already reconciled, one write-off per session within the threshold (default 5.00).
+- Cancelling keeps item rows as provenance (status → `uncleared`) and records
+  `cancelled_at/by` + `cancel_reason`.
+- `bank_transaction_set_category(_transaction_ids[], _category, _confidence)` is
+  the only categorization writer.
+- Ratchet: `src/test/architecture/banking-reconciliation-seam.test.ts`.

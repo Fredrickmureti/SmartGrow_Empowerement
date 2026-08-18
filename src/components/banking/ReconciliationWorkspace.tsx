@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import type { ReconciliationSession } from "@/hooks/useReconciliationSessions";
 import { useBankTransactions, BankTransaction } from "@/hooks/useBankTransactions";
 import { useReconciliationItems } from "@/hooks/useReconciliationItems";
-import { useGLPosting } from "@/hooks/useGLPosting";
+
 import { useCurrency } from "@/hooks/useCurrency";
 import { toast } from "sonner";
 import {
@@ -27,21 +27,27 @@ import { formatDate, cn } from "@/lib/utils";
 
 interface ReconciliationWorkspaceProps {
   session: ReconciliationSession;
-  onComplete: (sessionId: string, clearedTransactionIds: string[], computedDifference?: number) => Promise<boolean>;
+  onComplete: (sessionId: string) => Promise<boolean>;
   onCancel: (sessionId: string) => Promise<boolean>;
-  onUpdateBalance: (sessionId: string, balance: number) => Promise<void>;
+  onWriteOff: (sessionId: string, maxAmount?: number) => Promise<unknown>;
 }
 
+/**
+ * Phase 4 (Banking reconstruction) — this workspace is a view over
+ * server-owned state. Clearing a line, writing off a residual difference and
+ * finishing the reconciliation are single RPCs; the cleared balance and the
+ * remaining difference are computed by the database and echoed back, so the
+ * figure the user approves is the figure that is stored and posted.
+ */
 export function ReconciliationWorkspace({
   session,
   onComplete,
   onCancel,
-  onUpdateBalance,
+  onWriteOff,
 }: ReconciliationWorkspaceProps) {
   const { formatCurrency } = useCurrency();
-  const { postToGL } = useGLPosting();
   const { transactions, isLoading: txLoading } = useBankTransactions({ bankAccountId: session.bank_account_id });
-  const { clearedIds, isLoading: itemsLoading, isSaving, toggleCleared, markAllReconciled } = useReconciliationItems(session.id);
+  const { clearedIds, calc, isLoading: itemsLoading, isSaving, toggleCleared } = useReconciliationItems(session.id);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCompleting, setIsCompleting] = useState(false);
   const [isWritingOff, setIsWritingOff] = useState(false);
@@ -82,22 +88,24 @@ export function ReconciliationWorkspace({
     toggleCleared(txId);
   }, [toggleCleared]);
 
-  // Calculate cleared balance
-  const clearedBalance = useMemo(() => {
+  // Optimistic local preview, used only until the server echoes its own
+  // figures back from the first cleared-item RPC of the session.
+  const localClearedBalance = useMemo(() => {
     let total = session.opening_balance;
     for (const tx of eligibleTransactions) {
       if (isCleared(tx)) {
         total += tx.transaction_type === "credit" ? Math.abs(tx.amount) : -Math.abs(tx.amount);
       }
     }
-    // Add service charge / interest if configured
-    total -= (session as any).service_charge_amount || 0;
-    total += (session as any).interest_earned_amount || 0;
+    total -= session.service_charge_amount || 0;
+    total += session.interest_earned_amount || 0;
+    total += session.writeoff_amount || 0;
     return total;
   }, [eligibleTransactions, isCleared, session]);
 
-  const difference = session.closing_balance - clearedBalance;
-  const isBalanced = Math.abs(difference) < 0.01;
+  const clearedBalance = calc ? calc.cleared_balance : localClearedBalance;
+  const difference = calc ? calc.difference : session.closing_balance - localClearedBalance;
+  const isBalanced = calc ? calc.is_balanced : Math.abs(difference) < 0.01;
 
   // Counts
   const clearedDebitCount = debits.filter(tx => isCleared(tx)).length;
@@ -114,47 +122,7 @@ export function ReconciliationWorkspace({
     }
     setIsWritingOff(true);
     try {
-      // Get bank GL account
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data: bankAccount } = await supabase
-        .from("bank_accounts")
-        .select("account_id")
-        .eq("id", session.bank_account_id)
-        .single();
-
-      if (!bankAccount?.account_id) {
-        toast.error("Bank account has no linked GL account");
-        return;
-      }
-
-      const writeOffAmount = Math.abs(difference);
-      // If difference > 0: statement shows more than books → DR Bank, CR Write-off (income)
-      // If difference < 0: statement shows less than books → DR Write-off (expense), CR Bank
-      const entries = difference > 0
-        ? [
-            { account_id: bankAccount.account_id, debit_amount: writeOffAmount, credit_amount: 0, description: "Reconciliation write-off" },
-            { account_id: session.service_charge_account_id!, debit_amount: 0, credit_amount: writeOffAmount, description: "Reconciliation write-off" },
-          ]
-        : [
-            { account_id: session.service_charge_account_id!, debit_amount: writeOffAmount, credit_amount: 0, description: "Reconciliation write-off" },
-            { account_id: bankAccount.account_id, debit_amount: 0, credit_amount: writeOffAmount, description: "Reconciliation write-off" },
-          ];
-
-      await postToGL({
-        source_type: "bank_recon",
-        source_id: session.id,
-        source_subtype: "writeoff",
-        reference: `Recon-WO-${session.statement_date}`,
-        memo: `Reconciliation write-off - ${formatCurrency(writeOffAmount)}`,
-        entry_date: session.statement_date,
-        entries,
-      });
-      toast.success(`Written off ${formatCurrency(writeOffAmount)} difference`);
-      // Update the session balance to account for the write-off
-      await onUpdateBalance(session.id, clearedBalance + difference);
-    } catch (error) {
-      console.error("Write-off failed:", error);
-      toast.error("Failed to write off difference");
+      await onWriteOff(session.id, WRITE_OFF_THRESHOLD);
     } finally {
       setIsWritingOff(false);
     }
@@ -163,13 +131,12 @@ export function ReconciliationWorkspace({
   const handleFinish = async () => {
     setIsCompleting(true);
     try {
-      await onUpdateBalance(session.id, clearedBalance);
-      await markAllReconciled();
-      await onComplete(session.id, Array.from(clearedIds), difference);
+      await onComplete(session.id);
     } finally {
       setIsCompleting(false);
     }
   };
+
 
   const renderTransactionRow = (tx: BankTransaction) => {
     const cleared = isCleared(tx);
