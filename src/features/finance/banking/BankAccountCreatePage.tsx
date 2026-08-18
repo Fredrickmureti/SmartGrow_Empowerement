@@ -2,7 +2,7 @@
  * BankAccountCreatePage — full-page `/finance/banking/accounts/new` route
  * replacement for `BankAccountSheet` in connect mode.
  *
- * Preserves the two-step provider-picker → details flow, the Jenga
+ * Preserves the two-step provider-picker → details flow, the generic
  * sandbox affordance, the atomic opening-balance JE post, and the branch
  * scope invariants. Composed on `RecordFormShell` for step 2 (details).
  * Step 1 (provider picker) is a slim standalone page that navigates
