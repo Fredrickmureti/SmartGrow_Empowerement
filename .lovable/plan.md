@@ -1,133 +1,124 @@
 # Banking Domain Reconstruction — Authoritative Status
 
-Domain: Enterprise Finance → Banking (multi-tenant, multi-branch, country-agnostic).
-Verdict from the audit: the domain was *data-capable* but not *architecturally
-trustworthy* — account mutations were browser-orchestrated, opening balances were
-posted in a second round trip (non-atomic), lifecycle was a boolean, there was no
-concurrency control, and statement ingestion existed twice (browser CSV import and
-the sync edge function) with two copies of normalization/dedup logic.
-
+Wave: Finance → Banking (multi-tenant, multi-branch, country-agnostic).
 Target architecture: one server-owned write seam per concern.
 
 ```text
-instruction (UI)  →  write seam RPC  →  posting engine (post_journal_entry_atomic)
+instruction (UI)        →  seam RPC  →  post_journal_entry_atomic
                                      →  business_event_outbox
-ingestion (CSV / feed)  →  one normalization + dedup engine  →  bank_transactions
-reconciliation  →  matches only, never mints payments (ADR 0123)
+ingestion (CSV / feed)  →  ONE normalization + dedup engine  →  bank_transactions
+reconciliation          →  matches only, never mints payments (ADR 0123)
 ```
 
 ---
 
-## Phase 1 — Account schema, lifecycle & provenance — DONE (verified)
+## Phase 1 — Account schema, lifecycle & provenance — VERIFIED DONE
 
-- `bank_account_lifecycle_status` enum: `draft | active | suspended | closed`.
-- `bank_accounts` gained `lifecycle_status`, `activated_at`, `closed_at`,
-  `closed_reason`, `opening_balance_je_id`, `row_version`,
-  `bank_reported_balance`, `bank_balance_as_of`.
-- Legacy `is_active` / balance columns backfilled; trigger
-  `aa_bank_account_derive_state` derives `is_active` and `is_shared`
-  (`is_shared ⇔ branch_id IS NULL`) and increments `row_version` on update.
-- Book balance vs bank-reported balance are now separate facts.
+Independently confirmed in the live database:
+`bank_account_lifecycle_status` enum exists; `bank_accounts` carries
+`lifecycle_status`, `activated_at`, `closed_at`, `closed_reason`,
+`opening_balance_je_id`, `row_version`, `bank_reported_balance`,
+`bank_balance_as_of`; trigger `_bank_account_derive_state` derives `is_active`
+and `is_shared` and bumps `row_version` on every update. Book balance and
+bank-reported balance are separate facts.
 
-Verified: migration applied, columns/enum present, generated Supabase types
-include the new fields, typecheck clean.
+## Phase 2 — Server-owned account write seam — VERIFIED DONE (with gaps, below)
 
-## Phase 2 — Server-owned write seam (monopoly) — DONE (verified)
+Confirmed present and `SECURITY DEFINER`: `bank_account_create`,
+`bank_account_update`, `bank_account_transition`, `bank_account_delete_draft`,
+`bank_account_reset_opening_balances`.
 
-SECURITY DEFINER RPCs, the only permitted mutators:
+Confirmed: `authenticated` holds only `SELECT/references/trigger` on
+`bank_accounts` — INSERT/UPDATE/DELETE are revoked, so the seam is a real
+monopoly. Opening balance posts through `_bank_account_post_opening_balance`,
+which calls `post_journal_entry_atomic` in the same transaction, is idempotent
+via `opening_balance_je_id`, refuses accounts with no GL link, and publishes
+`banking.account.opening_balance_posted`. (Correction to the prior log:
+`bank_account_create` does not call the posting engine directly — it delegates
+to that helper. Substantively as claimed.)
 
-| RPC | Owns |
-| --- | --- |
-| `bank_account_create` | creation, currency normalization/validation, advisory lock against duplicate connections, atomic opening-balance posting |
-| `bank_account_update` | field updates, optimistic concurrency via `_row_version`, accounting immutability once history exists |
-| `bank_account_transition` | lifecycle changes + guards (refuses close with unreconciled txns / open reconciliation session) |
-| `bank_account_delete_draft` | delete only untouched drafts |
-| `bank_account_reset_opening_balances` | migration reset that *voids* the JE instead of orphaning it |
+Ratchets `banking-write-seam.test.ts` + `banking-ownership.test.ts`: 12/12 pass.
+Repo scan: zero `.from("bank_accounts").insert/update/delete` in app code.
 
-- Opening balance posts through `post_journal_entry_atomic` in the **same
-  transaction** as the account row (ADR 0123 respected — no raw journal inserts).
-- `INSERT/UPDATE/DELETE` on `public.bank_accounts` revoked from `authenticated`.
-- `banking.account` topic registered in `business_event_topics`;
-  `banking.account.*` events emitted from the seam.
+### New defects found during verification (were NOT in the prior plan)
 
-Client convergence (all verified by typecheck + tests):
-`useBankAccounts` (RPC-only, exposes `transitionAccount`, maps
-`BANK_ACCOUNT_ALREADY_CONNECTED` / `BANK_ACCOUNT_VERSION_CONFLICT` hints),
-`BankAccountCreatePage` (no browser JE orchestration), `BankAccountEditPage`
-(row-versioned updates + transitions), `BranchOperations`,
-`BranchScopedSettings`, `MigrationStepBankBalances`, `useMigrationSession`.
-Sync status is written only by `supabase/functions/sync-bank-transactions`.
-
-Ratchets: `src/test/architecture/banking-write-seam.test.ts` (5 tests, incl. a
-repo-wide scan for direct `bank_accounts` writes) and updated
-`banking-ownership.test.ts` — 12/12 passing.
-
-Known pre-existing, unrelated failure: `business-scoped-queries.test.ts`
-(51 offenders across 35 non-banking files). Not introduced by this wave.
+- **D-A — the `anon` role holds full write privileges** (`arwdDxtm`) on
+  `bank_accounts`, `bank_transactions` and `bank_statements`. Phase 2 revoked
+  `authenticated` only. RLS is currently the sole barrier on financial tables
+  for unauthenticated callers; the grant itself must go.
+- **D-B — every banking seam RPC is `EXECUTE`-able by `PUBLIC` and `anon`.**
+  These are `SECURITY DEFINER` mutators. Compare
+  `reconcile_bank_transfer_atomic`, which is correctly scoped to
+  `authenticated`/`service_role`. Same treatment required.
+- **D-C — ingestion has no lifecycle or fiscal-period gate** on either path.
+- **D-D — statement import is not atomic.** The wizard inserts a
+  `bank_statements` row with `status: 'processing'`, then batch-upserts rows in
+  50-row chunks; any mid-batch failure leaves a stuck statement plus partial
+  transactions, and the browser then reports its own success/duplicate counts.
+- **D-E — dedup identity is computed in the browser** (`generateTransactionHash`,
+  a 64-bit FNV-1a variant in `src/lib/bankStatementParsers/index.ts`). The
+  client chooses the value that the `(bank_account_id, external_transaction_id)`
+  unique constraint keys on, so duplicate suppression is client-controlled.
 
 ---
 
-## ACTIVE PHASE → Phase 3 — Statement ingestion convergence (NOT STARTED)
+## ACTIVE PHASE → Phase 3 — Statement ingestion convergence
 
-One ingestion engine for both manual CSV import and automated feeds.
+Confirmed duplication: the wizard
+(`src/features/finance/banking/import/ImportStatementWizardPage.tsx:197-360`)
+parses, hashes, dedups, inserts the statement, batch-upserts transactions,
+applies categorization rules and stamps statement status entirely in the
+browser; `supabase/functions/sync-bank-transactions/index.ts:760` inserts
+canonical transactions through its own path. `bank_statement_import_batch`
+does not exist yet.
 
-Current duplication:
-- `src/features/finance/banking/import/ImportStatementWizardPage.tsx:160-360`
-  parses, hashes (`generateTransactionHash` from
-  `src/lib/bankStatementParsers/index.ts:251`), dedups, batch-inserts into
-  `bank_transactions`, and applies categorization rules **in the browser**.
-- `supabase/functions/sync-bank-transactions/index.ts` does the same work
-  server-side with its own dedup and scope stamping (R7).
+Work items, in order:
 
-Work items:
-1. Server-owned ingestion RPC (e.g. `bank_statement_import_batch`) taking a
-   normalized row array + `bank_statement_id`, performing hash dedup, scope
-   stamping from the parent account, and rule application in one transaction.
-   Must refuse ingestion into non-`active` accounts and into locked fiscal periods.
-2. Make the edge function delegate to the same RPC so hash/dedup semantics
-   cannot drift.
-3. Reduce the wizard to parse + preview + call the RPC; revoke
-   `bank_transactions` INSERT from `authenticated` once no client path inserts.
-4. Report ingested / skipped-duplicate / rejected counts back to the wizard UI.
-5. Ratchet: extend `banking-write-seam.test.ts` with a no-direct-
-   `bank_transactions`-insert scan, plus a test that both paths call one engine.
+1. `bank_statement_import_batch(_bank_account_id, _statement jsonb, _rows jsonb, _request_id text)`
+   — `SECURITY DEFINER`, one transaction, owning: account lookup + scope
+   stamping from the parent account, **server-side** row-hash derivation,
+   dedup against the unique key, rule application, statement upsert (keyed on
+   `file_hash` so a retry updates rather than duplicates), final statement
+   status, and a `banking.statement.imported` business event. Refuses
+   non-`active` accounts and locked fiscal periods.
+2. Move hash derivation into SQL as the single authority; the browser hash
+   becomes preview-only (or is deleted if nothing else needs it).
+3. Make `sync-bank-transactions` delegate its transaction write to the same RPC
+   so hash and dedup semantics cannot drift.
+4. Reduce the wizard to parse → map → preview → one RPC call, and render the
+   RPC's own ingested / duplicate / rejected counts.
+5. Revoke `INSERT/UPDATE/DELETE` on `bank_transactions` and `bank_statements`
+   from `authenticated` once no client path writes them; fix **D-A** and
+   **D-B** in the same migration.
+6. Extend `banking-write-seam.test.ts` with a no-direct-write scan for
+   `bank_transactions` / `bank_statements` and an assertion that both ingestion
+   paths call the one engine.
 
 ## Phase 4 — Reconciliation boundary hardening (PENDING)
 
-Assert (and test) that reconciliation only matches existing payments or delegates
-to `record_multi_invoice_payment` / `record_multi_bill_payment`, never mints
-payments (ADR 0123 §3). Audit `useReconciliationItems`,
-`bank_reconciliation_matches`, and writeoff paths for direct GL writes.
+Prove reconciliation only matches existing payments or delegates to
+`record_multi_invoice_payment` / `record_multi_bill_payment`, never mints them
+(ADR 0123 §3). Audit `useReconciliationItems`, `bank_reconciliation_matches`
+and the writeoff paths for direct GL writes; ratchet the result.
 
 ## Phase 5 — Currency & FX correctness in Banking (PENDING)
 
-Replace the free-text currency input with the registry-backed selector
-(`business_active_currencies`), and confirm every banking money display goes
-through `@/services/fx/rateBook` (missing rate → `—`, never 1:1).
+Replace the free-text currency input with a `business_active_currencies`-backed
+selector; confirm every banking money display resolves through
+`@/services/fx/rateBook` (missing rate → `—`, never 1:1).
 
-## Phase 6 — SQL-level tests + documentation (PENDING)
+## Phase 6 — SQL tests + documentation (PENDING)
 
-`supabase/tests/` coverage for lifecycle guards, opening-balance atomicity,
-row-version conflicts, and close refusal; then an ADR recording the
-"single bank-account write seam" decision and a `mem://features/banking-write-seam`
-memory entry.
+`supabase/tests/` coverage for lifecycle guards, opening-balance atomicity and
+idempotency, row-version conflicts, close refusal, and ingestion dedup under
+concurrent imports. Then an ADR for the single bank-account write seam and a
+`mem://features/banking-write-seam` entry.
 
 ---
 
 ## Instructions for the next agent
 
-1. **Verify Phases 1–2 before writing new code.** Do not trust this document alone.
-   - `npx vitest run src/test/architecture/banking-write-seam.test.ts src/test/architecture/banking-ownership.test.ts` → must be 12/12.
-   - Confirm grants: `bank_accounts` must have no `INSERT/UPDATE/DELETE` for
-     `authenticated` (`information_schema.role_table_grants`).
-   - Confirm the seam RPCs exist with `security definer` and that
-     `bank_account_create` posts the opening balance through
-     `post_journal_entry_atomic` (no raw journal inserts anywhere).
-   - Grep `src` for any `.from("bank_accounts").insert/update/delete` — must be zero.
-   - Typecheck must be clean (`tsgo`).
-2. **Then resume at Phase 3 (statement ingestion convergence)** — do not start
-   Phase 4/5/6 or unrelated domains first. Bring Phase 3 to a production-ready
-   state (server RPC + edge delegation + wizard reduced to preview + grants
-   revoked + ratchet) before moving on.
-3. Update this file at the end of every phase: what is implemented and verified,
-   what is pending, which phase is active, what comes next.
+Phases 1–2 are verified — do not re-litigate them. Resume at Phase 3 and carry
+it to a production-ready state (RPC + edge delegation + wizard reduced to
+preview + grants fixed including D-A/D-B + ratchet) before touching Phase 4–6.
+Update this ledger at the end of every phase.
