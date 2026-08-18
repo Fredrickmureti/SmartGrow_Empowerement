@@ -98,7 +98,13 @@ export function CurrencyCombobox({
               ))}
             </CommandGroup>
           </CommandList>
+          {footer && (
+            <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+              {footer}
+            </div>
+          )}
         </Command>
+
       </PopoverContent>
     </Popover>
   );
