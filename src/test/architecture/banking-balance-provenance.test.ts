@@ -36,23 +36,29 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const files = walk(SRC);
 
-/** Lines that touch a bank-account row's balance, ignoring `accounts.current_balance`. */
+/**
+ * Lines that read a *bank account* row's balance. The identically named
+ * chart-of-accounts column is trigger-maintained and legitimate, so only
+ * bank-account expressions and `bank_accounts` selects are offences.
+ */
 function bankBalanceOffences(): string[] {
   const offences: string[] = [];
+  const BANK_EXPR = /\b(bankAccount|bankAcc|bankRow|ba|acct|account)\.current_balance\b/;
   for (const file of files) {
-    const src = readFileSync(file, "utf8");
-    if (!src.includes("current_balance")) continue;
-    // Only bank-account contexts matter; the chart-of-accounts column of the
-    // same name is trigger-maintained and legitimate.
-    const isBankFile =
-      /bank_accounts|BankAccount|bankAccount/.test(src) && !/gift_card|GiftCard/.test(src);
-    if (!isBankFile) continue;
-    src.split("\n").forEach((line, i) => {
+    const rel = relative(root, file);
+    if (rel.startsWith("src/test/")) continue; // fixtures model their own shapes
+    const lines = readFileSync(file, "utf8").split("\n");
+    lines.forEach((line, i) => {
       if (!line.includes("current_balance")) return;
-      // `accounts` / `glAccount` reads are the CoA column, not the bank row.
-      if (/\b(gl|glAcc|glAccount|account|acc)\.(current_balance)/.test(line) && !/bankAccount\./.test(line)) return;
-      if (/from\("accounts"\)|\.from\('accounts'\)/.test(line)) return;
-      offences.push(`${relative(root, file)}:${i + 1}: ${line.trim()}`);
+      const trimmed = line.trim();
+      if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return;
+      // A `bank_accounts` select that still asks for the dropped column.
+      const isBankSelect =
+        /\.select\(/.test(line) &&
+        lines.slice(Math.max(0, i - 6), i + 1).some((l) => /from\(["']bank_accounts["']\)/.test(l));
+      // A property read off something clearly holding a bank-account row.
+      const isBankExpr = BANK_EXPR.test(line) && !/\bgl[A-Za-z]*\./.test(line);
+      if (isBankSelect || isBankExpr) offences.push(`${rel}:${i + 1}: ${trimmed}`);
     });
   }
   return offences;
