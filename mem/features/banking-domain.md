@@ -139,3 +139,32 @@ type: feature
   is business-scoped; the org-only signature is gone.
 - `reconcile_bank_transaction_atomic` is a thin shim over propose+confirm and
   refuses `_create_gl := false` (`BANK_MATCH_GL_IS_NOT_OPTIONAL`).
+
+## Wave 3 — verification, closure and where the invariants live
+
+- Account identity/lifecycle is now recorded in **ADR-0145**
+  (`docs/adr/0145-bank-account-is-a-server-owned-identity.md`): seam-only
+  mutation, `draft|active|suspended|closed`, activation requires a GL account
+  (`BANK_ACCOUNT_NEEDS_GL`), opening balance posts/reverses through
+  `post_journal_entry_atomic`, `row_version` optimistic concurrency,
+  `business_id` never re-parented, currency locked once history exists,
+  deletion only in `draft`.
+- Banking ADR set: **0123** (posting monopoly), **0141** (balance derived, never
+  stored), **0143** (feed is transport), **0144** (one matching seam), **0145**
+  (account identity). Numbers 0141/0142 collide with Supplier-purchasing ADRs —
+  cite banking ones by number *and* title; never renumber an accepted ADR.
+- SQL invariants live in `supabase/tests/` (7 banking suites, indexed in
+  `supabase/tests/README.md`) and run with `supabase db reset && supabase test db`.
+  There is no CI workflow in this repo, so they are a local/manual gate — the
+  Vitest architecture ratchets under `src/test/architecture/` are the automated one.
+- `src/test/architecture/reconciliation-business-level-gating.test.ts` was
+  rewritten: it used to grep "the latest migration mentioning
+  bank_reconciliation_sessions", which went red whenever a later wave redefined
+  a seam. It now resolves the **final** definition of each function across the
+  whole migration corpus and asserts the property (gated by
+  `assert_can_reconcile_bank` directly or via
+  `_bank_reconciliation_assert_account`, SECURITY DEFINER + pinned search_path,
+  branch-aware RLS, hook submits through seams only).
+- Rule of thumb for future ratchets: assert the *property of the final state*,
+  never the text of one migration file. A ratchet that fails on a correct
+  architecture trains engineers to ignore ratchets.
