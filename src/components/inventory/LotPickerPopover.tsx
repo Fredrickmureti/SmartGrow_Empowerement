@@ -88,6 +88,11 @@ export function LotPickerPopover({
   scannedLot = null,
   scannedExpiry = null,
 }: Props) {
+  // The FEFO query cannot run without a business + warehouse context. When
+  // either is missing the picker must say so — reporting "no lots available"
+  // for a question we never asked reads as an inventory problem.
+  const missingContext = !businessId || !warehouseId;
+
   const { data, isLoading, isError, error } = useFefoSuggestion({
     businessId,
     warehouseId,
@@ -95,6 +100,7 @@ export function LotPickerPopover({
     requiredQty,
     enabled: !disabled,
   });
+
 
   const [override, setOverride] = useState<FefoAllocation[] | null>(null);
 
@@ -145,6 +151,7 @@ export function LotPickerPopover({
 
   const primaryLabel = useMemo(() => {
     if (disabled) return "—";
+    if (missingContext) return "Select a warehouse";
     if (isLoading) return "Picking lot…";
     if (isError) return "Lot lookup failed";
     if (effective.length === 0) return "No stock";
@@ -153,7 +160,8 @@ export function LotPickerPopover({
     const tag = override !== null ? " · override" : " · FEFO";
     const pack = packLabel ? ` · ${packLabel}` : "";
     return `Lot ${first.lot_number}${exp}${pack}${tag}`;
-  }, [disabled, isLoading, isError, effective, override, packLabel]);
+  }, [disabled, missingContext, isLoading, isError, effective, override, packLabel]);
+
 
   if (disabled) {
     return (
@@ -220,10 +228,13 @@ export function LotPickerPopover({
             {effective.length === 0 && (
               <TableRow>
                 <TableCell colSpan={3} className="text-xs text-muted-foreground">
-                  No lots available in this warehouse.
+                  {missingContext
+                    ? "Select the warehouse this document issues stock from to see lots."
+                    : "No lots available in this warehouse."}
                 </TableCell>
               </TableRow>
             )}
+
             {effective.map((row) => (
               <TableRow key={row.lot_id}>
                 <TableCell className="text-xs font-mono">{row.lot_number}</TableCell>

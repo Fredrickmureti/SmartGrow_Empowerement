@@ -75,8 +75,15 @@ export async function confirmInvoiceAndPostGL(
     const rawMsg = error.message || "Unknown error";
     const looksLikeMappingIssue = /account|mapping|null value in column "account_id"|not.*configured/i.test(rawMsg);
     const hint = looksLikeMappingIssue ? " Check your account mappings." : "";
-    throw new Error(`Invoice confirmation failed: ${rawMsg}.${hint}`);
+    const wrapped = new Error(`Invoice confirmation failed: ${rawMsg}.${hint}`);
+    // Carry the Postgres SQLSTATE through so the shared error normalizer can
+    // surface our own RAISE EXCEPTION sentences instead of collapsing them
+    // into "An unexpected error occurred".
+    (wrapped as Error & { code?: string }).code =
+      (error as { code?: string }).code || "P0001";
+    throw wrapped;
   }
+
 
   const result = data as { success: boolean; journal_entry_id: string; stock_released?: boolean };
   if (!result?.success) {

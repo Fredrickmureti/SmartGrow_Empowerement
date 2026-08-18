@@ -457,6 +457,8 @@ export default function DeliveryNoteCreatePage() {
                     <OutboundLineTracking
                       productId={item.product_id ?? null}
                       quantity={item.quantity_delivered}
+                      warehouseId={warehouse.warehouseId}
+
                       onLotChange={(allocs) =>
                         patchLineItem(index, {
                           lot_number: lotNumberFromAllocations(allocs),
