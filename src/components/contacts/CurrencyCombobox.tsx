@@ -23,6 +23,10 @@ interface CurrencyComboboxProps {
   onValueChange: (code: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Shown when the search matches nothing in the supplied list. */
+  emptyMessage?: React.ReactNode;
+  /** Persistent hint rendered under the list (e.g. how to enable more codes). */
+  footer?: React.ReactNode;
 }
 
 export function CurrencyCombobox({
@@ -31,8 +35,11 @@ export function CurrencyCombobox({
   onValueChange,
   placeholder = "Select currency...",
   disabled = false,
+  emptyMessage = "No currency found.",
+  footer,
 }: CurrencyComboboxProps) {
   const [open, setOpen] = useState(false);
+
 
   const selected = useMemo(
     () => currencies.find((c) => c.code === value),
@@ -62,7 +69,12 @@ export function CurrencyCombobox({
         <Command>
           <CommandInput placeholder="Search currency..." />
           <CommandList className="max-h-[250px]">
-            <CommandEmpty>No currency found.</CommandEmpty>
+            <CommandEmpty>
+              <span className="block px-3 py-2 text-xs text-muted-foreground text-left">
+                {emptyMessage}
+              </span>
+            </CommandEmpty>
+
             <CommandGroup>
               {currencies.map((c) => (
                 <CommandItem
@@ -86,7 +98,13 @@ export function CurrencyCombobox({
               ))}
             </CommandGroup>
           </CommandList>
+          {footer && (
+            <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+              {footer}
+            </div>
+          )}
         </Command>
+
       </PopoverContent>
     </Popover>
   );

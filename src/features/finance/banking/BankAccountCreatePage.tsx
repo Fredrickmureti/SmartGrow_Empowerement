@@ -419,14 +419,35 @@ export default function BankAccountCreatePage() {
                     : "Select currency..."
                 }
                 disabled={currenciesLoading || activeCurrencies.length === 0}
+                emptyMessage={
+                  <>
+                    That currency isn’t activated for this company. Only
+                    currencies enabled in Settings → Company → Currencies can be
+                    used on a bank account.
+                  </>
+                }
+                footer={
+                  <>
+                    Showing the {activeCurrencies.length} currenc
+                    {activeCurrencies.length === 1 ? "y" : "ies"} activated for
+                    this company.{" "}
+                    <Link
+                      to="/settings/company?tab=currency"
+                      className="underline underline-offset-2"
+                    >
+                      Manage currencies
+                    </Link>
+                  </>
+                }
               />
             </div>
             {!currenciesLoading && activeCurrencies.length === 0 && (
               <p className="mt-1.5 text-xs text-muted-foreground">
                 No currencies are active for this company. Activate one in
-                Settings → Currencies first.
+                Settings → Company → Currencies first.
               </p>
             )}
+
           </FieldCell>
 
 
