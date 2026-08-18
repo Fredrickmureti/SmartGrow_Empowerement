@@ -771,13 +771,14 @@ Deno.serve(async (req) => {
       .update(updateData)
       .eq('id', bank_account_id)
 
-    console.log(`[Sync] Completed: ${newCount} new, ${updatedCount} updated${newBalance !== null ? `, balance: ${newBalance}` : ''}`)
+    console.log(`[Sync] Completed: ${newCount} new, ${duplicateCount} duplicate, ${rejectedCount} rejected${newBalance !== null ? `, balance: ${newBalance}` : ''}`)
 
     return new Response(
       JSON.stringify({
         success: true,
         new_transactions: newCount,
-        updated_transactions: updatedCount,
+        duplicate_transactions: duplicateCount,
+        rejected_transactions: rejectedCount,
         total_fetched: transactions.length,
         balance_updated: newBalance !== null,
         new_balance: newBalance,
