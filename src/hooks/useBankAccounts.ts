@@ -237,7 +237,52 @@ export function useBankAccounts() {
         ]),
       );
 
-      setAccounts(rows.map((a) => ({ ...a, position: byId.get(a.id) ?? null })));
+      // Phase 14: feed health is never read from the account row either. It
+      // comes from the connection + its latest run.
+      const { data: feeds, error: feedError } = await supabase.rpc(
+        "bank_feed_status",
+        { _business_id: currentBusiness.id },
+      );
+      if (feedError) {
+        console.error("Error resolving bank feed status:", feedError);
+      }
+      const feedById = new Map<string, BankFeedStatus>(
+        ((feeds ?? []) as Array<Record<string, unknown>>).map((f) => [
+          String(f.bank_account_id),
+          {
+            connection_id: String(f.connection_id),
+            provider_code: (f.provider_code as string | null) ?? null,
+            status: (f.status as string | null) ?? null,
+            auto_sync_enabled: (f.auto_sync_enabled as boolean | null) ?? null,
+            sync_frequency: (f.sync_frequency as string | null) ?? null,
+            last_success_at: (f.last_success_at as string | null) ?? null,
+            last_run_at: (f.last_run_at as string | null) ?? null,
+            last_error: (f.last_error as string | null) ?? null,
+            consecutive_failures: Number(f.consecutive_failures ?? 0),
+            last_run_id: (f.last_run_id as string | null) ?? null,
+            last_run_status: (f.last_run_status as string | null) ?? null,
+            last_run_started_at: (f.last_run_started_at as string | null) ?? null,
+            last_run_finished_at: (f.last_run_finished_at as string | null) ?? null,
+            last_run_window_from: (f.last_run_window_from as string | null) ?? null,
+            last_run_window_to: (f.last_run_window_to as string | null) ?? null,
+            last_run_fetched: f.last_run_fetched == null ? null : Number(f.last_run_fetched),
+            last_run_inserted: f.last_run_inserted == null ? null : Number(f.last_run_inserted),
+            last_run_duplicates:
+              f.last_run_duplicates == null ? null : Number(f.last_run_duplicates),
+            last_run_rejected: f.last_run_rejected == null ? null : Number(f.last_run_rejected),
+            last_run_error_code: (f.last_run_error_code as string | null) ?? null,
+          },
+        ]),
+      );
+
+      setAccounts(
+        rows.map((a) => ({
+          ...a,
+          position: byId.get(a.id) ?? null,
+          feed: feedById.get(a.id) ?? null,
+        })),
+      );
+
     } catch (error: unknown) {
       console.error("Error fetching bank accounts:", error);
       toast.error("Failed to load bank accounts");
