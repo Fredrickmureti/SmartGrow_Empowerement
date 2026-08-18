@@ -4493,7 +4493,6 @@ export type Database = {
           closed_reason: string | null
           created_at: string
           currency: string | null
-          current_balance: number | null
           external_account_id: string | null
           id: string
           is_active: boolean | null
@@ -4534,7 +4533,6 @@ export type Database = {
           closed_reason?: string | null
           created_at?: string
           currency?: string | null
-          current_balance?: number | null
           external_account_id?: string | null
           id?: string
           is_active?: boolean | null
@@ -4575,7 +4573,6 @@ export type Database = {
           closed_reason?: string | null
           created_at?: string
           currency?: string | null
-          current_balance?: number | null
           external_account_id?: string | null
           id?: string
           is_active?: boolean | null
@@ -87011,7 +87008,6 @@ export type Database = {
           closed_reason: string | null
           created_at: string
           currency: string | null
-          current_balance: number | null
           external_account_id: string | null
           id: string
           is_active: boolean | null
@@ -90496,6 +90492,21 @@ export type Database = {
       bank_account_delete_draft: {
         Args: { _id: string; _row_version?: number }
         Returns: undefined
+      }
+      bank_account_positions: {
+        Args: { _as_of?: string; _business_id: string }
+        Returns: {
+          as_of: string
+          bank_account_id: string
+          currency: string
+          gl_balance: number
+          gl_shared: boolean
+          last_statement_line_date: string
+          opening_balance: number
+          statement_balance: number
+          unreconciled_amount: number
+          unreconciled_count: number
+        }[]
       }
       bank_account_reset_opening_balances: {
         Args: { _business_id: string }
