@@ -593,18 +593,20 @@ export default function BankAccountCreatePage() {
           </div>
         )}
 
-      {isJengaProvider && selectedTestAccount && (
-        <Alert className="border-green-500/20 bg-green-500/10">
-          <Info className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-700 dark:text-green-400">
-            Ready to connect
+      {isSandboxProvider && (
+        <Alert className="border-amber-500/20 bg-amber-500/10">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-700 dark:text-amber-400">
+            Sandbox connection
           </AlertTitle>
-          <AlertDescription className="text-sm text-green-600 dark:text-green-300">
-            After connecting, click "Sync" on the account card to fetch the
+          <AlertDescription className="text-sm text-amber-600 dark:text-amber-300">
+            This provider is in sandbox mode. Enter the account details issued
+            by the provider, then click "Sync" on the account card to fetch the
             test balance and transactions.
           </AlertDescription>
         </Alert>
       )}
+
     </RecordFormShell>
   );
 }
