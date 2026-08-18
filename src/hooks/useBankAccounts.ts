@@ -13,6 +13,46 @@ export type BankAccountLifecycleStatus =
   | "suspended"
   | "closed";
 
+/**
+ * One row of `public.bank_account_positions()` — the only sanctioned answer to
+ * "how much money does this account hold". Every field is reproducible from
+ * source rows, so a figure on screen can always be traced back to a statement
+ * line or a posted journal line.
+ */
+export interface BankAccountPosition {
+  /** Opening balance recorded on the account. */
+  opening_balance: number;
+  /** Opening balance + every imported statement line up to `as_of`. */
+  statement_balance: number;
+  /** Date of the most recent statement line, or null when none imported. */
+  last_statement_line_date: string | null;
+  /**
+   * Posted-journal balance of the linked control account. `null` when the
+   * account has no GL link, or when several bank accounts share one control
+   * account and the balance therefore cannot be attributed to just this one.
+   */
+  gl_balance: number | null;
+  /** True when the control account is shared, which is why `gl_balance` is null. */
+  gl_shared: boolean;
+  unreconciled_count: number;
+  unreconciled_amount: number;
+  as_of: string;
+}
+
+/**
+ * The figure to display for an account, and where it came from. Returns `null`
+ * rather than a fabricated zero when nothing is resolvable — a missing balance
+ * is an absence, not zero (ADR-0136's rule applied to cash).
+ */
+export function resolveBankAccountBalance(
+  account: Pick<BankAccount, "position">,
+): { amount: number; source: "gl" | "statement" } | null {
+  const p = account.position;
+  if (!p) return null;
+  if (p.gl_balance != null) return { amount: Number(p.gl_balance), source: "gl" };
+  return { amount: Number(p.statement_balance ?? 0), source: "statement" };
+}
+
 export interface BankAccount {
   id: string;
   organization_id: string;
