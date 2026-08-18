@@ -227,31 +227,23 @@ BEGIN
     END IF;
 
     FOREACH v_role IN ARRAY ARRAY['anon','authenticated'] LOOP
-      IF EXISTS (
-        SELECT 1 FROM information_schema.role_table_grants
-        WHERE table_schema='public' AND table_name=t AND grantee=v_role
-          AND privilege_type IN ('INSERT','UPDATE','DELETE')
-      ) THEN
+      IF has_table_privilege(v_role, 'public.'||t, 'INSERT')
+         OR has_table_privilege(v_role, 'public.'||t, 'UPDATE')
+         OR has_table_privilege(v_role, 'public.'||t, 'DELETE') THEN
         RAISE EXCEPTION '% can write public.% directly; feed state is seam-owned', v_role, t;
       END IF;
     END LOOP;
 
-    IF EXISTS (
-      SELECT 1 FROM information_schema.role_table_grants
-      WHERE table_schema='public' AND table_name=t AND grantee='anon'
-    ) THEN
-      RAISE EXCEPTION 'anon has grants on public.%', t;
+    IF has_table_privilege('anon', 'public.'||t, 'SELECT') THEN
+      RAISE EXCEPTION 'anon can read public.%', t;
     END IF;
 
     -- The read model is SECURITY INVOKER, so the signed-in role needs
     -- table-level SELECT for RLS to be the thing that decides.
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.role_table_grants
-      WHERE table_schema='public' AND table_name=t AND grantee='authenticated'
-        AND privilege_type='SELECT'
-    ) THEN
+    IF NOT has_table_privilege('authenticated', 'public.'||t, 'SELECT') THEN
       RAISE EXCEPTION 'authenticated cannot SELECT public.%: bank_feed_status would be unreadable', t;
     END IF;
+
 
     IF NOT EXISTS (
       SELECT 1 FROM pg_policies
