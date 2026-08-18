@@ -87012,6 +87012,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      _bank_account_movement: {
+        Args: { _as_of: string; _bank_account_id: string; _session_id?: string }
+        Returns: {
+          cleared_count: number
+          cleared_net: number
+          last_line_date: string
+          net_amount: number
+          unreconciled_amount: number
+          unreconciled_count: number
+        }[]
+      }
       _bank_account_post_opening_balance: {
         Args: { _account_id: string }
         Returns: string
@@ -90587,6 +90598,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      bank_feed_dispatch_due: { Args: never; Returns: Json }
       bank_feed_run_fail: {
         Args: { _error_code: string; _error_message: string; _run_id: string }
         Returns: Json

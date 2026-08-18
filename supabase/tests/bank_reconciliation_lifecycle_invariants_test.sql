@@ -173,4 +173,96 @@ BEGIN
   END IF;
 END $$;
 
+
+-- ---------------------------------------------------------------------
+-- 6) Phase 18 — close semantics.
+--    (a) Completion no longer stamps the dropped per-transaction session
+--        column: a cleared line belongs to a session through the session's
+--        cleared items, and nowhere else.
+--    (b) A closed session is frozen: its statement figures cannot be edited
+--        and it cannot be reopened.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE v_src text;
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO v_src
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.proname='bank_reconciliation_session_complete';
+
+  IF v_src IS NULL THEN
+    RAISE EXCEPTION 'bank_reconciliation_session_complete is missing';
+  END IF;
+
+  IF v_src ~ 'reconciliation_session_id' THEN
+    RAISE EXCEPTION 'session completion writes the dropped bank_transactions.reconciliation_session_id column';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='bank_transactions'
+      AND column_name='reconciliation_session_id'
+  ) THEN
+    RAISE EXCEPTION 'regression: a second representation of session membership is back on bank_transactions';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'bank_reconciliation_session_freeze' AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'a completed reconciliation session is not frozen';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 7) Phase 18 — one movement projection.
+--    The cash position and the reconciliation recompute must derive bank
+--    movement from the same helper, or the two screens can disagree.
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='_bank_account_movement'
+  ) THEN
+    RAISE EXCEPTION 'the shared bank movement projection is missing';
+  END IF;
+
+  IF (SELECT pg_get_functiondef(p.oid) !~ '_bank_account_movement'
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+       WHERE n.nspname='public' AND p.proname='bank_account_positions') THEN
+    RAISE EXCEPTION 'bank_account_positions computes movement itself instead of using the shared projection';
+  END IF;
+
+  IF (SELECT pg_get_functiondef(p.oid) !~ '_bank_account_movement'
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+       WHERE n.nspname='public' AND p.proname='_bank_reconciliation_recompute') THEN
+    RAISE EXCEPTION 'reconciliation recompute computes movement itself instead of using the shared projection';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 8) Phase 18 — scheduled feed dispatch is server-owned.
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='bank_feed_dispatch_due'
+  ) THEN
+    RAISE EXCEPTION 'bank_feed_dispatch_due is missing: nothing schedules a feed';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a
+    WHERE p.proname='bank_feed_dispatch_due'
+      AND a.privilege_type='EXECUTE'
+      AND a.grantee IN (0,
+        (SELECT oid FROM pg_roles WHERE rolname='anon'),
+        (SELECT oid FROM pg_roles WHERE rolname='authenticated'))
+  ) THEN
+    RAISE EXCEPTION 'a client can trigger the scheduled feed dispatcher';
+  END IF;
+END $$;
+
 SELECT 'bank_reconciliation_lifecycle_invariants: ok' AS result;

@@ -34,9 +34,11 @@ import {
   Loader2,
   Star,
   Scale,
+  History,
   FileUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { BankFeedRunHistoryDialog } from "@/components/banking/BankFeedRunHistoryDialog";
 import { Link } from "react-router-dom";
 
 interface BankAccountCardProps {
@@ -65,6 +67,7 @@ export function BankAccountCard({
   const { formatCurrency } = useCurrency();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  const [runHistoryOpen, setRunHistoryOpen] = useState(false);
 
   // Phase 7: prefer the caller-supplied GL balance, then the server-derived
   // position. When neither resolves we render an em dash — a balance we cannot
@@ -183,6 +186,12 @@ export function BankAccountCard({
                     Reconcile
                   </Link>
                 </DropdownMenuItem>
+                {feed && (
+                  <DropdownMenuItem onClick={() => setRunHistoryOpen(true)}>
+                    <History className="h-4 w-4 mr-2" />
+                    Sync history
+                  </DropdownMenuItem>
+                )}
                 {onImport && (
                   <DropdownMenuItem onClick={onImport}>
                     <FileUp className="h-4 w-4 mr-2" />
@@ -280,6 +289,13 @@ export function BankAccountCard({
 
         </CardContent>
       </Card>
+
+      <BankFeedRunHistoryDialog
+        open={runHistoryOpen}
+        onOpenChange={setRunHistoryOpen}
+        bankAccountId={account.id}
+        accountName={account.name}
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
