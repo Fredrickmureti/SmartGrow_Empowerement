@@ -90428,6 +90428,10 @@ export type Database = {
         Args: { _id: string; _row_version?: number }
         Returns: undefined
       }
+      bank_account_reset_opening_balances: {
+        Args: { _business_id: string }
+        Returns: number
+      }
       bank_account_transition: {
         Args: {
           _id: string
