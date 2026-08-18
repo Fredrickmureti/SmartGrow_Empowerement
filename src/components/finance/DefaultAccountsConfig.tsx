@@ -732,16 +732,12 @@ export function DefaultAccountsConfig() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!permLoading && readOnly && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Read-only — your role lacks <code>finance.manage_settings</code>.
-              You can review current default GL mappings, but the database will
-              reject any changes (RLS).
-            </AlertDescription>
-          </Alert>
-        )}
+        <FinanceReadOnlyNotice
+          what="review the current default GL mappings"
+          permission="finance.manage_settings"
+          isLoading={permLoading}
+          readOnly={readOnly}
+        />
 
         {status.coreConfigured < status.coreTotal && (
           <Alert>

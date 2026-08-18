@@ -156,16 +156,12 @@ export function LockDatesCard() {
           </AlertDescription>
         </Alert>
 
-        {!permLoading && readOnly && (
-          <Alert variant="destructive">
-            <ShieldAlert className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Read-only — your role lacks <code>finance.manage_periods</code>.
-              Only finance advisors can change lock dates. The DB will reject
-              writes even if the form is bypassed.
-            </AlertDescription>
-          </Alert>
-        )}
+        <FinanceReadOnlyNotice
+          what="see the current lock dates"
+          permission="finance.manage_periods"
+          isLoading={permLoading}
+          readOnly={readOnly}
+        />
 
         {isLoading ? (
           <div className="flex justify-center py-6">
