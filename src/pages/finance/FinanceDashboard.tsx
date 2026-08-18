@@ -192,7 +192,10 @@ export default function FinanceDashboard() {
 
 
   // Bank stats
-  const totalBankBalance = bankAccountsList.reduce((s, a) => s + (a.current_balance || 0), 0);
+  const totalBankBalance = bankAccountsList.reduce(
+    (s, a) => s + (resolveBankAccountBalance(a)?.amount ?? 0),
+    0,
+  );
   const activeAccounts = bankAccountsList.filter(a => a.is_active);
 
   if (isLoading) {

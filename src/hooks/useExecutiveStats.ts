@@ -168,7 +168,7 @@ export function useExecutiveStats() {
       const bankP = applyBranch(
         supabase
           .from("bank_accounts")
-          .select("id, current_balance, is_active, account_id, branch_id")
+          .select("id, is_active, account_id, branch_id")
           .eq("organization_id", orgId)
           .eq("business_id", scope.businessId)
           .eq("is_active", true),

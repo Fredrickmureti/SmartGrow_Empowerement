@@ -185,7 +185,9 @@ export function BankAccountCard({
                 {glBalance != null ? "Book Balance (GL)" : "Balance"}
               </p>
               <p className="text-2xl font-bold">
-                {formatAmount(glBalance ?? account.current_balance ?? 0, account.currency || "USD")} // architecture-allow: display-only fallback
+                {displayBalance == null
+                  ? "—"
+                  : formatAmount(displayBalance, account.currency || "USD")}
               </p>
               {glBalance == null && account.account_id == null && (
                 <p className="text-xs text-amber-600 mt-0.5">⚠ No GL link — balance is not ledger-derived</p>
