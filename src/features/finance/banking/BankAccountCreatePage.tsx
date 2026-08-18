@@ -419,11 +419,10 @@ export default function BankAccountCreatePage() {
           <FieldCell>
             <Label>Currency *</Label>
             <div className="mt-1.5">
-              {/* Only currencies the business has activated. The server seam
-                  validates against the same set, so a free-text box could only
-                  ever produce a rejected write or an unpriced currency. */}
+              {/* The canonical catalogue. Coverage is a rate-book question,
+                  answered by the panel below — not by hiding currencies. */}
               <CurrencyCombobox
-                currencies={activeCurrencies}
+                currencies={currencies}
                 value={currency}
                 onValueChange={setCurrency}
                 placeholder={
@@ -431,37 +430,21 @@ export default function BankAccountCreatePage() {
                     ? "Loading currencies…"
                     : "Select currency..."
                 }
-                disabled={currenciesLoading || activeCurrencies.length === 0}
-                emptyMessage={
-                  <>
-                    That currency isn’t activated for this company. Only
-                    currencies enabled in Settings → Company → Currencies can be
-                    used on a bank account.
-                  </>
-                }
-                footer={
-                  <>
-                    Showing the {activeCurrencies.length} currenc
-                    {activeCurrencies.length === 1 ? "y" : "ies"} activated for
-                    this company.{" "}
-                    <Link
-                      to="/settings/company?tab=currency"
-                      className="underline underline-offset-2"
-                    >
-                      Manage currencies
-                    </Link>
-                  </>
-                }
+                disabled={currenciesLoading}
               />
             </div>
-            {!currenciesLoading && activeCurrencies.length === 0 && (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                No currencies are active for this company. Activate one in
-                Settings → Company → Currencies first.
-              </p>
-            )}
-
           </FieldCell>
+
+          <FieldCell>
+            <Label>Exchange rate</Label>
+            <ExchangeRatePanel
+              currency={currency}
+              onDate={openingBalanceDate}
+              baseHint="This account is in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book before saving — the opening balance cannot be posted at parity."
+            />
+          </FieldCell>
+
 
 
           <FieldCell>
