@@ -80,48 +80,51 @@ export function useReconciliationRules() {
     fetchRules();
   }, [fetchRules]);
 
+  // Write seam: `bank_reconciliation_rule_upsert` / `_delete` own permission,
+  // scope stamping and counterpart-account ownership. The browser only submits.
   const createRule = useCallback(
     async (rule: Omit<ReconciliationRule, "id" | "organization_id" | "business_id" | "match_count" | "last_matched_at" | "created_at" | "updated_at">) => {
-      if (!currentOrg?.id || !currentBusiness?.id) {
+      if (!currentBusiness?.id) {
         throw new Error("Select a company first");
       }
-      const { error } = await (supabase as any)
-        .from("bank_reconciliation_rules")
-        .insert({
-          ...rule,
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          created_by: user?.id ?? null,
-        });
+      const { error } = await (supabase as any).rpc("bank_reconciliation_rule_upsert", {
+        _business_id: currentBusiness.id,
+        _payload: rule,
+        _id: null,
+      });
       if (error) throw error;
       await fetchRules();
     },
-    [currentOrg?.id, currentBusiness?.id, user?.id, fetchRules],
+    [currentBusiness?.id, fetchRules],
   );
 
   const updateRule = useCallback(
     async (id: string, updates: Partial<ReconciliationRule>) => {
-      const { error } = await (supabase as any)
-        .from("bank_reconciliation_rules")
-        .update(updates)
-        .eq("id", id);
+      if (!currentBusiness?.id) {
+        throw new Error("Select a company first");
+      }
+      const { error } = await (supabase as any).rpc("bank_reconciliation_rule_upsert", {
+        _business_id: currentBusiness.id,
+        _payload: updates,
+        _id: id,
+      });
+      if (error) throw error;
+      await fetchRules();
+    },
+    [currentBusiness?.id, fetchRules],
+  );
+
+  const deleteRule = useCallback(
+    async (id: string) => {
+      const { error } = await (supabase as any).rpc("bank_reconciliation_rule_delete", {
+        _id: id,
+      });
       if (error) throw error;
       await fetchRules();
     },
     [fetchRules],
   );
 
-  const deleteRule = useCallback(
-    async (id: string) => {
-      const { error } = await (supabase as any)
-        .from("bank_reconciliation_rules")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-      await fetchRules();
-    },
-    [fetchRules],
-  );
 
   /**
    * Apply all active rules to the unreconciled transactions of a bank account.
