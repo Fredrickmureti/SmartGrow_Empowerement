@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
-import { useGLPosting } from "./useGLPosting";
+
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { toast } from "sonner";
