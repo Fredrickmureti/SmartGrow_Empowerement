@@ -112,6 +112,12 @@ export default function BankAccountEditPage() {
     setHydrated(true);
   }, [account, hydrated]);
 
+  // Rate provenance is shown as of the account's opening-balance date when it
+  // has one (that is the date the books were valued at), else today.
+  const rateDate =
+    (account as BankAccount & { opening_balance_date?: string | null } | null)
+      ?.opening_balance_date || new Date().toISOString().split("T")[0];
+
   const originalBranchScope = account?.branch_id ?? "__all__";
   const branchChanged = branchScope !== originalBranchScope;
   const requiresReattributeConfirm = branchChanged && hasTransactions;
