@@ -196,7 +196,7 @@ export default function AdjustmentNew() {
     if (!productId) {
       if (items.length === 0) {
         setItems([
-          { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+          emptyItem(),
         ]);
       }
       return;
@@ -208,7 +208,7 @@ export default function AdjustmentNew() {
       // the banner below explain what happened.
       if (items.length === 0) {
         setItems([
-          { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+          emptyItem(),
         ]);
       }
       return;
@@ -221,10 +221,9 @@ export default function AdjustmentNew() {
         ? prev
         : [
             {
+              ...emptyItem(),
               product_id: productId,
-              quantity_adjustment: 0,
               unit_cost: prefilledCost,
-              notes: "",
             },
           ],
     );
@@ -285,7 +284,7 @@ export default function AdjustmentNew() {
   const addItem = () =>
     setItems([
       ...items,
-      { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+      emptyItem(),
     ]);
 
   const removeItem = (index: number) =>
