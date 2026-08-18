@@ -17,14 +17,17 @@ import { describe, it, expect } from "vitest";
 const root = process.cwd();
 
 describe("banking ownership architecture", () => {
-  it("sync-bank-transactions stamps business_id and branch_id on inserts (R7)", () => {
+  it("sync-bank-transactions delegates scope stamping to the ingestion engine (R7)", () => {
     const src = readFileSync(
       join(root, "supabase/functions/sync-bank-transactions/index.ts"),
       "utf8",
     );
-    expect(src).toMatch(/business_id:\s*\(account as any\)\.business_id/);
-    expect(src).toMatch(/branch_id:\s*\(account as any\)\.branch_id/);
+    // Phase 3 moved scope stamping into `bank_statement_import_batch`; the feed
+    // must not insert bank_transactions itself.
+    expect(src).toContain("bank_statement_import_batch");
+    expect(src).not.toMatch(/\.from\(\s*["'`]bank_transactions["'`]\s*\)[\s\S]{0,200}?\.insert\(/);
   });
+
 
   it("useBankAccounts maps the write-seam HINTs (R1/R2/R5)", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
