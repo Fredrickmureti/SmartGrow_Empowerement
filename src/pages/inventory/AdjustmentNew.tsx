@@ -332,6 +332,29 @@ export default function AdjustmentNew() {
       );
       return;
     }
+    // Lot / serial identity — mirrors the server contract so the operator
+    // finds out before a round-trip. The server remains authoritative.
+    for (const i of filtered) {
+      const prod = inventoryProducts.find(
+        (p: any) => p.id === i.product_id,
+      ) as any;
+      if (prod?.is_serial_tracked) {
+        toast.error(
+          `"${prod.name}" is serial-tracked. Use the serial workflow — serials cannot be captured on this form yet.`,
+        );
+        return;
+      }
+      if (
+        prod?.is_lot_tracked &&
+        i.quantity_adjustment > 0 &&
+        !i.lot_number.trim()
+      ) {
+        toast.error(
+          `"${prod.name}" is lot-tracked. Enter the lot / batch number for the stock you are adding.`,
+        );
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       await createStockAdjustment.mutateAsync({
@@ -339,7 +362,14 @@ export default function AdjustmentNew() {
         notes,
         items: filtered.map((i) => ({
           product_id: i.product_id,
+          // When a pack is chosen the entered number is a PACK count: it is
+          // sent as display_quantity and converted to base units server-side
+          // by `_uom_normalize_adj_line`. Never multiply here.
           quantity_adjustment: i.quantity_adjustment,
+          display_quantity: i.packaging_id ? i.quantity_adjustment : null,
+          packaging_id: i.packaging_id,
+          lot_number: i.lot_number.trim() || null,
+          expiry_date: i.expiry_date || null,
           unit_cost:
             typeof i.unit_cost === "number" ? i.unit_cost : Number(i.unit_cost),
           notes: i.notes,
