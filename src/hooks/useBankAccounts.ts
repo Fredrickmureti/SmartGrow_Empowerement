@@ -107,11 +107,12 @@ export interface BankAccount {
   external_account_id: string | null;
   /**
    * Phase 14 — feed health, derived from `bank_feed_connections` + the latest
-   * `bank_feed_runs` row via `bank_feed_status()`. The old
-   * `bank_accounts.sync_status` / `sync_error` / `last_sync_at` columns were
-   * removed: feed state has exactly one representation, the connection and its
-   * run history, so every imported line traces to a run.
+   * `bank_feed_runs` row via `bank_feed_status()`. The old per-account sync
+   * status / error / last-sync columns on the bank account row were dropped:
+   * feed state has exactly one representation, the connection and its run
+   * history, so every imported line traces to a run.
    */
+
   feed?: BankFeedStatus | null;
 
   sync_from_date: string | null;
