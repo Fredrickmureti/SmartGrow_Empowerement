@@ -53,7 +53,37 @@ export function resolveBankAccountBalance(
   return { amount: Number(p.statement_balance ?? 0), source: "statement" };
 }
 
+/**
+ * One row of `public.bank_feed_status()` — the only sanctioned answer to
+ * "is this account's feed healthy and when did it last run". Connection-level
+ * health plus the counts of the most recent run, so a number on screen traces
+ * back to an auditable run row.
+ */
+export interface BankFeedStatus {
+  connection_id: string;
+  provider_code: string | null;
+  status: string | null;
+  auto_sync_enabled: boolean | null;
+  sync_frequency: string | null;
+  last_success_at: string | null;
+  last_run_at: string | null;
+  last_error: string | null;
+  consecutive_failures: number;
+  last_run_id: string | null;
+  last_run_status: string | null;
+  last_run_started_at: string | null;
+  last_run_finished_at: string | null;
+  last_run_window_from: string | null;
+  last_run_window_to: string | null;
+  last_run_fetched: number | null;
+  last_run_inserted: number | null;
+  last_run_duplicates: number | null;
+  last_run_rejected: number | null;
+  last_run_error_code: string | null;
+}
+
 export interface BankAccount {
+
   id: string;
   organization_id: string;
   business_id: string | null;
