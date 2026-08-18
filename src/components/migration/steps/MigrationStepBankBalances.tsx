@@ -101,14 +101,16 @@ export function MigrationStepBankBalances({ onComplete, onSkip }: Props) {
       unmatchedCount: parsedRows.filter(r => r.status === "unmatched").length,
       importRow: async (row) => {
         // C-8: stop writing accounts.current_balance directly.
-        // Set the bank account's opening_balance metadata; the GL balance is
-        // posted via the canonical opening-balance JE flow (Trial Balance step
-        // or the bank-account connect sheet post_journal_entry_atomic call).
-        const { error } = await supabase
-          .from("bank_accounts")
-          .update({ opening_balance: row.openingBalance })
-          .eq("id", row.matchedBankAccountId!);
+        // Wave 1: opening_balance is set through the bank-account write seam,
+        // which posts the opening-balance journal entry itself when the
+        // account carries a Chart-of-Accounts link.
+        const { error } = await supabase.rpc("bank_account_update", {
+          _id: row.matchedBankAccountId!,
+          _row_version: null,
+          _payload: { opening_balance: row.openingBalance } as never,
+        });
         if (error) throw error;
+
       },
       getRowLabel: (row) => row.accountName,
       onSuccess: () => {
