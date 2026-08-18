@@ -568,12 +568,12 @@ export default function AdjustmentNew() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[7rem_8rem_1fr]">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[7rem_10rem_8rem_1fr]">
                   <div>
                     <Label className="mb-1 block text-xs text-muted-foreground">
                       Qty (+/-){" "}
                       <span className="text-muted-foreground/70">
-                        [{baseLabel}]
+                        [{unitLabel}]
                       </span>
                     </Label>
                     <Input
@@ -586,13 +586,40 @@ export default function AdjustmentNew() {
                           parseFloat(e.target.value) || 0,
                         )
                       }
-                      placeholder={`Qty in ${baseLabel}`}
+                      placeholder={`Qty in ${unitLabel}`}
                     />
+                    {baseEquivalent !== null && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        = {baseEquivalent} {baseLabel} (converted on the server)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label className="mb-1 block text-xs text-muted-foreground">
-                      Unit cost *
+                      Unit
                     </Label>
+                    <PackagingSelect
+                      productId={item.product_id || null}
+                      value={item.packaging_id}
+                      onChange={(packagingId, qtyInBaseUom) => {
+                        const pack = null;
+                        patchItem(index, {
+                          packaging_id: packagingId,
+                          pack_factor: qtyInBaseUom,
+                          pack_name: pack,
+                        });
+                      }}
+                      disabled={!item.product_id}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Stocked in {baseLabel}.
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs text-muted-foreground">
+                      Unit cost * <span className="text-muted-foreground/70">[per {baseLabel}]</span>
+                    </Label>
+
                     <Input
                       type="number"
                       step="0.0001"
