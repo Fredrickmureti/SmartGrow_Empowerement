@@ -107,38 +107,10 @@ export default function LandedCostCreatePage() {
     if (!currency && baseCurrency) setCurrency(baseCurrency);
   }, [baseCurrency, currency]);
 
-  // Display only. The authoritative rate is resolved and stamped server-side
-  // on insert; this call just shows the operator what the rate book holds
-  // (and its provenance) for the chosen currency and date.
-  const { data: fxRate, isLoading: fxLoading } = useQuery({
-    queryKey: [
-      "landed-cost-fx-describe",
-      currentOrg?.id,
-      currentBusiness?.id,
-      currency,
-      voucherDate,
-    ],
-    enabled:
-      !!currentOrg?.id && !!currentBusiness?.id && !!currency && !!voucherDate,
-    queryFn: async (): Promise<DescribedRate | null> => {
-      const { data, error } = await supabase.rpc("describe_exchange_rate", {
-        p_org_id: currentOrg!.id,
-        p_business_id: currentBusiness!.id,
-        p_currency: currency,
-        p_on_date: voucherDate,
-      });
-      if (error) throw error;
-      const row = (data as DescribedRate[] | null)?.[0];
-      return row ?? null;
-    },
-  });
+  // Display only, through the one shared FX seam. The authoritative rate is
+  // resolved and stamped server-side on insert.
+  const { missingRate } = useDescribedExchangeRate(currency, voucherDate);
 
-  const missingRate =
-    !!currency &&
-    !!baseCurrency &&
-    currency !== baseCurrency &&
-    !fxLoading &&
-    !fxRate;
 
   const addCharge = () => {
     const first = types[0];
