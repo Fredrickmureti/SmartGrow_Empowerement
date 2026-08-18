@@ -110,6 +110,12 @@ interface Props {
    * Supplies the units the product may be sold in. MUST be `useCallback`-stable.
    */
   unitsFor?: (productId: string | null | undefined) => PricedLineUnits | null;
+  /**
+   * Warehouse the document issues stock from (`invoices.warehouse_id`). The
+   * lot/serial pickers MUST resolve availability against this warehouse — the
+   * branch default is only a fallback and is frequently unset.
+   */
+  warehouseId?: string | null;
 }
 
 function InvoiceLineRowInner({
@@ -126,6 +132,8 @@ function InvoiceLineRowInner({
   onProductSelect,
   onUpdate,
   unitsFor,
+  warehouseId,
+
 }: Props) {
   const cell = (columnId: string) => {
     switch (columnId) {
