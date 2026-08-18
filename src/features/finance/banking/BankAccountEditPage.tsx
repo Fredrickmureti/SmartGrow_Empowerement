@@ -17,7 +17,8 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useBranch } from "@/contexts/BranchContext";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
-import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+import { useCurrencies } from "@/hooks/useCurrencies";
+import { ExchangeRatePanel } from "@/components/finance/ExchangeRatePanel";
 
 import {
   BANK_ACCOUNT_TYPES,
@@ -67,8 +68,8 @@ export default function BankAccountEditPage() {
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [currency, setCurrency] = useState("");
-  const { currencies: activeCurrencies, isLoading: currenciesLoading } =
-    useBusinessActiveCurrencies();
+  // Canonical catalogue, same as every other money-bearing document.
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
 
   const [accountType, setAccountType] = useState("checking");
   const [glAccountId, setGlAccountId] = useState("");
@@ -110,6 +111,12 @@ export default function BankAccountEditPage() {
     setReattributeConfirmed(false);
     setHydrated(true);
   }, [account, hydrated]);
+
+  // Rate provenance is shown as of the account's opening-balance date when it
+  // has one (that is the date the books were valued at), else today.
+  const rateDate =
+    (account as BankAccount & { opening_balance_date?: string | null } | null)
+      ?.opening_balance_date || new Date().toISOString().split("T")[0];
 
   const originalBranchScope = account?.branch_id ?? "__all__";
   const branchChanged = branchScope !== originalBranchScope;
@@ -250,9 +257,9 @@ export default function BankAccountEditPage() {
               )}
             </Label>
             <div className="mt-1.5">
-              {/* Active-currency list only; the seam validates the same set. */}
+              {/* Canonical catalogue; rate coverage is shown, not hidden. */}
               <CurrencyCombobox
-                currencies={activeCurrencies}
+                currencies={currencies}
                 value={currency}
                 onValueChange={setCurrency}
                 placeholder={
@@ -261,8 +268,18 @@ export default function BankAccountEditPage() {
                 disabled={hasTransactions || checkingTxns || currenciesLoading}
               />
             </div>
-
           </FieldCell>
+
+          <FieldCell>
+            <Label>Exchange rate</Label>
+            <ExchangeRatePanel
+              currency={currency}
+              onDate={rateDate}
+              baseHint="This account is in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book so this account's activity can be valued."
+            />
+          </FieldCell>
+
 
           <FieldCell>
             <Label>Account type</Label>

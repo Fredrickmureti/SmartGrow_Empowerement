@@ -57,7 +57,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
-import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+import { useCurrencies } from "@/hooks/useCurrencies";
+import {
+  ExchangeRatePanel,
+  useDescribedExchangeRate,
+} from "@/components/finance/ExchangeRatePanel";
 
 
 
@@ -92,8 +96,11 @@ export default function BankAccountCreatePage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedProvider, setSelectedProvider] = useState<BankProvider | null>(null);
-  const { currencies: activeCurrencies, baseCurrency, isLoading: currenciesLoading } =
-    useBusinessActiveCurrencies();
+  // The full canonical catalogue — the same source every other money-bearing
+  // document uses. Coverage is expressed by the rate book, not by hiding
+  // currencies from the operator.
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
+  const baseCurrency = currentBusiness?.base_currency ?? "";
 
 
   const [accountName, setAccountName] = useState("");
@@ -134,13 +141,18 @@ export default function BankAccountCreatePage() {
       ? [linkedGL, ...bankGLAccounts]
       : bankGLAccounts;
 
-  // Default to the company's base currency once the active list resolves.
+  // Default to the company's base currency — the same canonical context every
+  // other money-bearing document uses.
   useEffect(() => {
-    if (currency) return;
-    if (baseCurrency && activeCurrencies.some((c) => c.code === baseCurrency)) {
-      setCurrency(baseCurrency);
-    }
-  }, [currency, baseCurrency, activeCurrencies]);
+    if (!currency && baseCurrency) setCurrency(baseCurrency);
+  }, [currency, baseCurrency]);
+
+  // Display-only rate provenance. A non-base account whose opening balance
+  // must post has to have a rate on file, or the server would refuse anyway.
+  const { missingRate } = useDescribedExchangeRate(currency, openingBalanceDate);
+  const openingAmount = openingBalance ? parseFloat(openingBalance) : 0;
+  const blockedByMissingRate =
+    missingRate && Number.isFinite(openingAmount) && openingAmount !== 0;
 
   const handleSelectProvider = (provider: BankProvider) => {
     setSelectedProvider(provider);
@@ -215,7 +227,8 @@ export default function BankAccountCreatePage() {
   const submitDisabled =
     !accountName ||
     !glAccountId ||
-    !currency.trim();
+    !currency.trim() ||
+    blockedByMissingRate;
 
 
   /* ---------- Step 1: provider picker ------------------------------- */
@@ -406,11 +419,10 @@ export default function BankAccountCreatePage() {
           <FieldCell>
             <Label>Currency *</Label>
             <div className="mt-1.5">
-              {/* Only currencies the business has activated. The server seam
-                  validates against the same set, so a free-text box could only
-                  ever produce a rejected write or an unpriced currency. */}
+              {/* The canonical catalogue. Coverage is a rate-book question,
+                  answered by the panel below — not by hiding currencies. */}
               <CurrencyCombobox
-                currencies={activeCurrencies}
+                currencies={currencies}
                 value={currency}
                 onValueChange={setCurrency}
                 placeholder={
@@ -418,37 +430,21 @@ export default function BankAccountCreatePage() {
                     ? "Loading currencies…"
                     : "Select currency..."
                 }
-                disabled={currenciesLoading || activeCurrencies.length === 0}
-                emptyMessage={
-                  <>
-                    That currency isn’t activated for this company. Only
-                    currencies enabled in Settings → Company → Currencies can be
-                    used on a bank account.
-                  </>
-                }
-                footer={
-                  <>
-                    Showing the {activeCurrencies.length} currenc
-                    {activeCurrencies.length === 1 ? "y" : "ies"} activated for
-                    this company.{" "}
-                    <Link
-                      to="/settings/company?tab=currency"
-                      className="underline underline-offset-2"
-                    >
-                      Manage currencies
-                    </Link>
-                  </>
-                }
+                disabled={currenciesLoading}
               />
             </div>
-            {!currenciesLoading && activeCurrencies.length === 0 && (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                No currencies are active for this company. Activate one in
-                Settings → Company → Currencies first.
-              </p>
-            )}
-
           </FieldCell>
+
+          <FieldCell>
+            <Label>Exchange rate</Label>
+            <ExchangeRatePanel
+              currency={currency}
+              onDate={openingBalanceDate}
+              baseHint="This account is in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book before saving — the opening balance cannot be posted at parity."
+            />
+          </FieldCell>
+
 
 
           <FieldCell>
