@@ -348,43 +348,20 @@ export default function BankAccountCreatePage() {
           </div>
         </div>
 
-        {isJengaProvider && (
-          <>
-            <Alert className="mt-4 border-amber-500/20 bg-amber-500/10">
-              <TestTube className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-700 dark:text-amber-400">
-                Sandbox mode
-              </AlertTitle>
-              <AlertDescription className="text-sm text-amber-600 dark:text-amber-300">
-                You're using Jenga's sandbox environment. Use one of the
-                pre-configured test accounts below.
-              </AlertDescription>
-            </Alert>
-            <div className="mt-4">
-              <Label>Select test account</Label>
-              <Select
-                value={selectedTestAccount}
-                onValueChange={setSelectedTestAccount}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Choose a Jenga test account…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JENGA_TEST_ACCOUNTS.map((acc) => (
-                    <SelectItem key={acc.accountNumber} value={acc.accountNumber}>
-                      <div className="flex items-center gap-2">
-                        <span>{acc.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({acc.accountNumber} - {acc.currency})
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
+        {isSandboxProvider && (
+          <Alert className="mt-4 border-amber-500/20 bg-amber-500/10">
+            <TestTube className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-700 dark:text-amber-400">
+              Sandbox mode
+            </AlertTitle>
+            <AlertDescription className="text-sm text-amber-600 dark:text-amber-300">
+              This provider is configured against its sandbox environment.
+              Enter the account details issued to you by the provider — no test
+              accounts are bundled with the product.
+            </AlertDescription>
+          </Alert>
         )}
+
       </Section>
 
       <Section title="Account details">
