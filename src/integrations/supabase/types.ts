@@ -90445,6 +90445,37 @@ export type Database = {
         Args: { _id: string; _payload: Json; _row_version: number }
         Returns: Json
       }
+      bank_statement_import_batch: {
+        Args: {
+          _bank_account_id: string
+          _rows: Json
+          _source?: string
+          _statement?: Json
+        }
+        Returns: Json
+      }
+      bank_transaction_apply_rules: {
+        Args: {
+          _amount: number
+          _bank_account_id: string
+          _business_id: string
+          _description: string
+          _organization_id: string
+          _reference: string
+          _transaction_type: string
+        }
+        Returns: Json
+      }
+      bank_transaction_fingerprint: {
+        Args: {
+          _amount: number
+          _bank_account_id: string
+          _description: string
+          _reference: string
+          _txn_date: string
+        }
+        Returns: string
+      }
       bill_payment_is_bank_reconciled: {
         Args: { _bill_payment_id: string }
         Returns: boolean
