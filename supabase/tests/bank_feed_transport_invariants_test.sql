@@ -242,8 +242,26 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'anon has grants on public.%', t;
     END IF;
+
+    -- The read model is SECURITY INVOKER, so the signed-in role needs
+    -- table-level SELECT for RLS to be the thing that decides.
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.role_table_grants
+      WHERE table_schema='public' AND table_name=t AND grantee='authenticated'
+        AND privilege_type='SELECT'
+    ) THEN
+      RAISE EXCEPTION 'authenticated cannot SELECT public.%: bank_feed_status would be unreadable', t;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname='public' AND tablename=t AND cmd='SELECT'
+    ) THEN
+      RAISE EXCEPTION 'public.% has no SELECT policy', t;
+    END IF;
   END LOOP;
 END $$;
+
 
 -- ---------------------------------------------------------------------
 -- 7) Ingestion identity stays in the database: one engine, deterministic
