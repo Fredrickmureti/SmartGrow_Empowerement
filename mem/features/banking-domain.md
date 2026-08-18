@@ -87,3 +87,23 @@ type: feature
   (`BANK_TRANSFER_CURRENCY_MISMATCH`) — a 1:1 mirror would misstate FX.
 - Ratchet: `src/test/architecture/banking-currency-integrity.test.ts`
   (combobox usage, no country fixtures, no 1:1 rate fallback).
+
+## Cash position & lifecycle integrity (Phase 7)
+- `bank_accounts.current_balance` is **dropped** (ADR-0141). Nothing maintained
+  it and every rendered value was untraceable. Never reintroduce a stored
+  running total on a bank account.
+- `bank_account_positions(_business_id, _as_of)` (SECURITY INVOKER, EXECUTE to
+  `authenticated`/`service_role`) is the only source of a bank balance:
+  `opening_balance`, `statement_balance`, `last_statement_line_date`,
+  `gl_balance`, `gl_shared`, `unreconciled_count`, `unreconciled_amount`.
+  `gl_balance` is NULL when several accounts share one control account —
+  the balance cannot be attributed, so it is not shown.
+- Client contract: `useBankAccounts` merges the projection onto each row as
+  `position`; `resolveBankAccountBalance()` returns `{amount, source:'gl'|'statement'}`
+  or **null**. Null renders `—` (ADR-0136 rule applied to cash), never 0.
+- D-8 closed: `bank_account_create` refuses `activate=true` without a linked GL
+  account (`BANK_ACCOUNT_NEEDS_GL`), matching `bank_account_transition`. A draft
+  no longer posts its opening balance; activation does.
+- `anon` privileges on `journal_entries` / `journal_entry_lines` revoked —
+  ADR-0123's posting monopoly cannot hold while those tables are publicly writable.
+- Ratchet: `src/test/architecture/banking-balance-provenance.test.ts`.
