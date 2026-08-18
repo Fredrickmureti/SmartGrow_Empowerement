@@ -314,34 +314,14 @@ export default function LandedCostCreatePage() {
           </FieldCell>
           <FieldCell>
             <Label>Exchange rate</Label>
-            {currency === baseCurrency ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Charges are already in the base currency — no conversion applies.
-              </p>
-            ) : fxLoading ? (
-              <p className="mt-1 text-xs text-muted-foreground">Resolving rate…</p>
-            ) : fxRate ? (
-              <div className="text-sm">
-                <div className="font-medium">
-                  1 {currency} = {Number(fxRate.rate).toLocaleString(undefined, {
-                    maximumFractionDigits: 6,
-                  })}{" "}
-                  {baseCurrency}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Source: {RATE_SOURCE_LABEL[fxRate.source ?? ""] ?? fxRate.source}
-                  {" · Effective: "}
-                  {fxRate.effective_date}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-1 text-xs text-destructive">
-                No rate on file for {currency} → {baseCurrency} on {voucherDate}.
-                Publish or override a rate in the rate book before saving — the
-                voucher cannot be valued at parity.
-              </p>
-            )}
+            <ExchangeRatePanel
+              currency={currency}
+              onDate={voucherDate}
+              baseHint="Charges are already in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book before saving — the voucher cannot be valued at parity."
+            />
           </FieldCell>
+
 
           <FieldCell>
             <Label>Default allocation basis</Label>
