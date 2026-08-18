@@ -8,6 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
+import { useBusiness } from "./useBusiness";
 
 export interface ReconciliationSuggestion {
   bank_transaction_id: string;
@@ -27,14 +28,16 @@ export interface ReconciliationSuggestion {
 
 export function useReconciliationSuggestions(bankAccountId?: string) {
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusiness();
 
   return useQuery({
-    queryKey: ["reconciliation-suggestions", currentOrg?.id, bankAccountId],
+    queryKey: ["reconciliation-suggestions", currentOrg?.id, currentBusiness?.id, bankAccountId],
     queryFn: async (): Promise<ReconciliationSuggestion[]> => {
-      if (!currentOrg?.id || !bankAccountId) return [];
+      if (!currentOrg?.id || !currentBusiness?.id || !bankAccountId) return [];
 
       const { data, error } = await supabase.rpc("get_reconciliation_match_suggestions", {
         _org_id: currentOrg.id,
+        _business_id: currentBusiness.id,
         _bank_account_id: bankAccountId,
         _limit: 50,
       });
@@ -42,7 +45,7 @@ export function useReconciliationSuggestions(bankAccountId?: string) {
       if (error) throw error;
       return (data as unknown as ReconciliationSuggestion[]) || [];
     },
-    enabled: !!currentOrg?.id && !!bankAccountId,
+    enabled: !!currentOrg?.id && !!currentBusiness?.id && !!bankAccountId,
     staleTime: 30_000,
   });
 }
