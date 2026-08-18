@@ -2,10 +2,12 @@
  * Banking Wave 1 (Phase 5) — currency integrity on the banking surface.
  *
  * Invariants ratcheted here:
- *   1. A bank account's currency is chosen from the company's *active*
- *      currency list (`useBusinessActiveCurrencies` + `CurrencyCombobox`),
- *      never typed as free text. A free-text box can only ever produce a
- *      rejected write or an unpriced currency.
+ *   1. A bank account's currency is chosen from the canonical catalogue
+ *      (`useCurrencies` + `CurrencyCombobox`) — the same picker Landed Cost
+ *      uses — never typed as free text, and never narrowed to a private
+ *      per-surface list. Rate coverage is answered by `ExchangeRatePanel`,
+ *      which shows the resolved rate and its provenance, not by hiding
+ *      currencies from the operator.
  *   2. No country-specific bank fixtures live in core Finance (the platform is
  *      country-agnostic; Kenyan Equity/Jenga test accounts were removed).
  *   3. No banking file converts money at a hardcoded 1:1 or a rate literal —
