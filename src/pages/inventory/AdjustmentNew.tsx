@@ -43,10 +43,29 @@ import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
 
 type Item = {
   product_id: string;
+  /** Quantity in the unit chosen below (pack or base). Never converted here. */
   quantity_adjustment: number;
   unit_cost: number | "";
   notes: string;
+  /** Chosen pack (null = base unit). Sent as intent; the server converts. */
+  packaging_id: string | null;
+  /** Pack multiplier, kept only to render the "= N base" preview. */
+  pack_factor: number | null;
+  lot_number: string;
+  expiry_date: string;
 };
+
+const emptyItem = (): Item => ({
+  product_id: "",
+  quantity_adjustment: 0,
+  unit_cost: "",
+  notes: "",
+  packaging_id: null,
+  pack_factor: null,
+  lot_number: "",
+  expiry_date: "",
+});
+
 
 /**
  * The product the caller deep-linked to. Resolved from the database rather
