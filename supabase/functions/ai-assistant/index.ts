@@ -804,7 +804,7 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
   if (lowStockProducts.length > 0) {
     prompt += `\n**Low Stock Alert:**\n`;
     lowStockProducts.slice(0, 10).forEach((p: any) => {
-      prompt += `- ${p.name} (SKU: ${p.sku || 'N/A'}): ${p.quantity_on_hand} units (reorder at ${p.reorder_level || 0})\n`;
+      prompt += `- ${p.name} (SKU: ${p.sku || 'N/A'}): ${p.stock_quantity ?? 0} units (reorder at ${p.reorder_level || 0})\n`;
     });
     if (lowStockProducts.length > 10) {
       prompt += `  ...and ${lowStockProducts.length - 10} more items\n`;
