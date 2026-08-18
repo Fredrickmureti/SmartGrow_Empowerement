@@ -178,19 +178,40 @@ export function useBankAccounts() {
     if (code === "42501") {
       return "You don't have permission to perform this action on bank accounts.";
     }
-    // R1/R2 — duplicate connection guards
-    if (code === "23505" && msg.includes("bank_accounts_external_unique")) {
-      return "This bank account is already connected for this business. Open the existing account to manage it instead of adding a duplicate.";
+    // Wave 1 — the write-seam RPCs raise typed HINTs; prefer them over
+    // constraint-name sniffing, which only worked for direct table writes.
+    const hint = (error as { hint?: string })?.hint ?? "";
+    if (hint === "BANK_ACCOUNT_ALREADY_CONNECTED") {
+      return "This bank account is already connected for this company. Open the existing account to manage it instead of adding a duplicate.";
     }
-    if (code === "23505" && msg.includes("bank_accounts_manual_unique")) {
-      return "A manual bank account with this number already exists for this provider. Open it instead of adding a duplicate.";
+    if (hint === "BANK_ACCOUNT_VERSION_CONFLICT") {
+      return "This bank account was changed by someone else while you were editing. Reload and try again.";
     }
-    // R5 — is_shared / branch_id consistency
+    if (hint === "BANK_ACCOUNT_ACCOUNTING_LOCKED") {
+      return "Currency, ledger account and opening balance are fixed once this account has posted activity. Post a correcting journal entry instead.";
+    }
+    if (hint === "BANK_ACCOUNT_UNRECONCILED" || hint === "BANK_ACCOUNT_OPEN_RECONCILIATION") {
+      return msg || "Finish reconciling this account before closing it.";
+    }
+    if (hint === "BANK_ACCOUNT_NOT_DELETABLE") {
+      return "This bank account has financial history and cannot be deleted. Close it instead.";
+    }
+    if (hint === "BANK_ACCOUNT_NEEDS_GL" || hint === "BANK_OPENING_BALANCE_NEEDS_GL") {
+      return msg || "Link a Chart-of-Accounts entry before activating this bank account.";
+    }
+    if (hint === "BANK_ACCOUNT_INVALID_TRANSITION" || hint === "BANK_ACCOUNT_CLOSED") {
+      return msg || "That status change isn't allowed for this bank account.";
+    }
+    // Legacy constraint messages (older rows / service-role paths).
+    if (code === "23505") {
+      return "This bank account is already connected for this company.";
+    }
     if (code === "23514" && msg.includes("bank_accounts_shared_branch_consistency")) {
       return "Shared-across-branches accounts cannot also be tagged to a single branch. Pick one.";
     }
     return null;
   };
+
 
   /**
    * Wave 1 write seam. The browser never writes `bank_accounts` directly:
