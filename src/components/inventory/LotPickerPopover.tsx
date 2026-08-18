@@ -228,10 +228,13 @@ export function LotPickerPopover({
             {effective.length === 0 && (
               <TableRow>
                 <TableCell colSpan={3} className="text-xs text-muted-foreground">
-                  No lots available in this warehouse.
+                  {missingContext
+                    ? "Select the warehouse this document issues stock from to see lots."
+                    : "No lots available in this warehouse."}
                 </TableCell>
               </TableRow>
             )}
+
             {effective.map((row) => (
               <TableRow key={row.lot_id}>
                 <TableCell className="text-xs font-mono">{row.lot_number}</TableCell>
