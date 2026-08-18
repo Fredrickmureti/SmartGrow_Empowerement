@@ -16,6 +16,9 @@ import { useBankAccounts, type BankAccount } from "@/hooks/useBankAccounts";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBranch } from "@/contexts/BranchContext";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+
 import {
   BANK_ACCOUNT_TYPES,
   filterGLAccountsForBankType,
