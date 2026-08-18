@@ -78,7 +78,6 @@ export default function ImportStatementWizardPage() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { accounts: bankAccounts } = useBankAccounts();
-  const { applyRulesToTransaction } = useTransactionRules();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<StepId>("upload");
