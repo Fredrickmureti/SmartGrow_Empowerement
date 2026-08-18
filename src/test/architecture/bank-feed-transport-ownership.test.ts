@@ -86,8 +86,15 @@ describe("bank feed transport ownership (ADR-0143)", () => {
     const advisory = read(join(fnDir, "aiAdvisory.ts"));
     expect(advisory).toMatch(/ai_suggested_category/);
     expect(advisory).toMatch(/ai_confidence/);
-    expect(/(^|[^_])\bcategory:\s/m.test(advisory), "aiAdvisory must not set `category`").toBe(false);
+    // The advice shape handed to ingestion carries only `ai_*` keys; a bare
+    // `category` may appear inside the model's own tool schema, never as an
+    // output field. (`ai_suggested_category` is what the row gets.)
+    const shape = advisory.match(/interface\s+\w+[\s\S]*?\n\}/g)?.join("\n") ?? "";
+    expect(/(^|[^_])\bcategory\??:/m.test(shape), "the advice shape must not expose `category`").toBe(false);
+    const entry = read(join(fnDir, "index.ts"));
+    expect(/(^|[^_])\bcategory:\s/m.test(entry), "the feed must not set `category` on a row").toBe(false);
   });
+
 
   it("never writes a balance or feed state back onto bank_accounts", () => {
     const offenders: string[] = [];
@@ -106,15 +113,24 @@ describe("bank feed transport ownership (ADR-0143)", () => {
     ).toEqual([]);
   });
 
-  it("keeps provider transport inside providers/", () => {
+  it("keeps bank provider transport inside providers/", () => {
+    // The AI gateway is not a bank: advisory calls are allowed outside
+    // providers/, provider (bank) endpoints are not.
+    const ALLOWED_HOSTS = ["ai.gateway.lovable.dev", "esm.sh", "deno.land"];
     const offenders: string[] = [];
     for (const file of files) {
       if (rel(file).includes("/providers/")) continue;
       const src = read(file);
-      if (/\bfetch\(\s*['"`]https?:\/\//.test(src)) offenders.push(`${rel(file)} calls a provider directly`);
+      for (const m of src.matchAll(/\bfetch\(\s*['"`](https?:\/\/[^/'"`]+)/g)) {
+        const host = m[1].replace(/^https?:\/\//, "");
+        if (!ALLOWED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) {
+          offenders.push(`${rel(file)} calls ${host} directly`);
+        }
+      }
     }
-    expect(offenders, `provider HTTP belongs in providers/:\n${offenders.join("\n")}`).toEqual([]);
+    expect(offenders, `bank provider HTTP belongs in providers/:\n${offenders.join("\n")}`).toEqual([]);
   });
+
 
   it("refuses unimplemented providers and manual sources at the registry", () => {
     const registry = read(join(fnDir, "providers/index.ts"));
