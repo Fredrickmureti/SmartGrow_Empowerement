@@ -61,7 +61,8 @@ describe("banking ownership architecture", () => {
     expect(src).toContain("branchSelectorLocked");
     expect(src).toContain("requiresReattributeConfirm");
     expect(src).toContain("reattributeConfirmed");
-    expect(src).toMatch(/is_shared:\s*resolvedBranchId === null/);
+    // is_shared is derived server-side from branch_id.
+    expect(src).toMatch(/branch_id:\s*resolvedBranchId/);
   });
 
   it("StartReconciliationPage surfaces Resume CTA for an existing open session (G2)", () => {
@@ -76,7 +77,7 @@ describe("banking ownership architecture", () => {
 
   it("useBankAccounts duplicate toast deep-links to /banking (G3)", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
-    expect(src).toContain("bank_accounts_manual_no_provider_unique");
+    expect(src).toContain("BANK_ACCOUNT_ALREADY_CONNECTED");
     expect(src).toMatch(/label:\s*"Open bank accounts"/);
   });
 });
