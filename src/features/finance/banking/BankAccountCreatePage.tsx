@@ -96,8 +96,11 @@ export default function BankAccountCreatePage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedProvider, setSelectedProvider] = useState<BankProvider | null>(null);
-  const { currencies: activeCurrencies, baseCurrency, isLoading: currenciesLoading } =
-    useBusinessActiveCurrencies();
+  // The full canonical catalogue — the same source every other money-bearing
+  // document uses. Coverage is expressed by the rate book, not by hiding
+  // currencies from the operator.
+  const { currencies, isLoading: currenciesLoading } = useCurrencies();
+  const baseCurrency = currentBusiness?.base_currency ?? "";
 
 
   const [accountName, setAccountName] = useState("");
