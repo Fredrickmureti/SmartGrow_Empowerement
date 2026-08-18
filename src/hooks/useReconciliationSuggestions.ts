@@ -8,7 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
-import { useBusiness } from "./useBusiness";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 export interface ReconciliationSuggestion {
   bank_transaction_id: string;
@@ -28,7 +28,7 @@ export interface ReconciliationSuggestion {
 
 export function useReconciliationSuggestions(bankAccountId?: string) {
   const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusiness();
+  const { currentBusiness } = useBusinesses();
 
   return useQuery({
     queryKey: ["reconciliation-suggestions", currentOrg?.id, currentBusiness?.id, bankAccountId],
