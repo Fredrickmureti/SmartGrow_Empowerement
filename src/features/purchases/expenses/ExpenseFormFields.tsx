@@ -383,8 +383,18 @@ export function ExpenseFormFields({
             <CurrencySelect
               value={value.currency || baseCurrency}
               onChange={(c) => onChange({ currency: c })}
+              disabled={disabled}
+            />
+            {/* Same FX seam as every other money document — the rate book is
+                shown, never guessed, and never 1:1 (ADR 0136). */}
+            <ExchangeRatePanel
+              currency={value.currency || baseCurrency}
+              onDate={value.expense_date}
+              baseHint="This expense is in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book before saving — the expense cannot be valued at parity."
             />
           </div>
+
 
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="description">Description *</Label>
