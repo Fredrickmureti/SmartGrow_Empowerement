@@ -128,11 +128,13 @@ export function MigrationStepBankBalances({ onComplete, onSkip }: Props) {
       let updated = 0;
       for (const [accountId, balance] of Object.entries(manualEdits)) {
         // C-8: opening_balance only — never directly mutate current_balance.
-        const { error } = await supabase
-          .from("bank_accounts")
-          .update({ opening_balance: balance })
-          .eq("id", accountId);
+        const { error } = await supabase.rpc("bank_account_update", {
+          _id: accountId,
+          _row_version: null,
+          _payload: { opening_balance: balance } as never,
+        });
         if (error) throw error;
+
         updated++;
       }
 
