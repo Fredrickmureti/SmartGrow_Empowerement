@@ -107,7 +107,7 @@ export default function BankReconciliation() {
 
   const { accounts: bankAccounts } = useBankAccounts();
   const { transactions, isLoading, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
-  const { activeSession, startSession, updateSessionBalance, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
+  const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
   const { data: matchSuggestions = [], isLoading: suggestionsLoading } = useReconciliationSuggestions(selectedAccount !== "all" ? selectedAccount : undefined);
 
   // Filter transactions
