@@ -1,97 +1,74 @@
 # Finance Wave 2 — Banking, Bank Feeds & Reconciliation (execution ledger)
 
-## Verified this session
+## Verification of the previous engineer's claims (this session)
 
-- **Phase 10–12 (matching seam)** — `bank_match_propose/confirm/reject/reverse`
-  exist; `reconcile_bank_transaction_atomic` is a shim; settlement delegates to
-  `record_multi_invoice_payment` / `record_multi_bill_payment`; GL only through
-  `post_journal_entry_atomic`.
-- **Phase 13 (SQL invariant tests)** — present:
-  `bank_matching_seam_invariants_test.sql`, plus lifecycle, ingestion, ownership
-  and privilege-ratchet suites. Counted as done; will be re-run as part of the
-  Phase 14 close-out rather than rewritten.
-- **Phase 14 database half — genuinely applied.** `bank_feed_connections` (19
-  cols) and `bank_feed_runs` (21 cols) exist. Seams
-  `bank_feed_connection_resolve`, `bank_feed_run_start`, `bank_feed_run_finish`,
-  `bank_feed_run_fail` exist, all SECURITY DEFINER. `run_start` refuses a second
-  in-flight run (`BANK_FEED_RUN_IN_FLIGHT`) and refuses `needs_reauth`;
-  `run_fail` escalates to `needs_reauth`/`error` and counts consecutive
-  failures; `run_finish` is idempotent and marks `partial` when rows were
-  rejected. Row counts are 0 — nothing has exercised them yet.
-- **Phase 14 edge half — NOT done.** `providers/types.ts` (adapter contract) and
-  `providers/jenga.ts` exist, but `sync-bank-transactions/index.ts` is
-  untouched (796 lines): it still contains its own inline Jenga fetchers with
-  `Date.now()/Math.random()` external IDs (dedup-defeating), its own
-  `transaction_categorization_rules` engine in Deno, and it still writes
-  `bank_accounts.current_balance` — a column dropped by D-7, so the sync errors
-  at runtime today. `providers/index.ts` does not exist, so nothing routes to
-  the new adapter.
-- **Phase 15 targets are empty and safe to drop**: `bank_transaction_splits` 0
-  rows, `bank_reconciliation_sessions` 0 rows, legacy `reconciliation_sessions`
-  table still present.
-- `platform_bank_providers` carries 10 provider codes (absa, coop_connect,
-  dtb_astra, im_bank, jenga, kcb_buni, manual, ncba, stanbic, stanchart); only
-  Jenga has an adapter.
-- `bank_statement_import_batch` does **not** apply
-  `transaction_categorization_rules`. The previous engineer's note ("let the DB
-  apply rules") is wrong as stated — dropping the Deno rule engine without a
-  server-side replacement would silently remove categorization.
+Checked against the live database catalog and the test suite, not the notes:
 
-## Remaining work
+- **Phases 10–17 hold.** `banking-*` / `bank-*` architecture tests: 62 passing,
+  1 failing — `bank-export-template-metadata.test.ts`, a localization-pack
+  concern outside this wave and failing before it.
+- `bank_accounts` has none of `sync_status`, `sync_error`, `last_sync_at`,
+  `current_balance` — feed state and cash position have one home each.
+- `bank_feed_status(uuid)` exists and is SECURITY INVOKER; `bank_account_positions(uuid, date)` exists.
+- `sync-bank-transactions` is 259 lines, transport only, with `providers/index.ts`
+  registry + `providers/jenga.ts` + `aiAdvisory.ts`.
+- `bank_reconciliation_session_complete` is SECURITY DEFINER, takes the session
+  `FOR UPDATE`, refuses a locked period, refuses an unexplained difference
+  (> 0.01) and posts service charge / interest through `post_journal_entry_atomic`.
+- No bank-feed entry exists in `cron.job` — scheduled sync is genuinely absent.
 
-### Phase 14a — provider registry
-`providers/index.ts`: map `provider_code` → adapter. Jenga resolves to the new
-adapter; the other nine raise `FeedError('BANK_FEED_UNSUPPORTED_PROVIDER')`.
-`manual` is not a feed provider and is refused at the registry.
+Conclusion: resume at Phase 18 as the previous ledger states. No rework of
+Phases 10–17 is warranted.
 
-### Phase 14b — categorization owner (blocks 14c)
-Move rule categorization server-side so the edge function can stop owning it:
-add `bank_transaction_categorize_batch` (or fold the rule pass into
-`bank_statement_import_batch`) applying `transaction_categorization_rules` by
-description/reference pattern, amount band and transaction type, writing
-`category` + `category_confidence`. Deterministic, no AI. The edge function then
-supplies only the AI advisory fields (`ai_suggested_category`, `ai_confidence`,
-`ai_reasoning`), which stay advisory and never drive accounting.
+## Phase 18 — reconciliation close & feed observability
 
-### Phase 14c — rewrite `sync-bank-transactions/index.ts` as transport only
-Sequence: authorize caller → `bank_feed_run_start` → registry lookup → adapter
-fetch for the run window → `bank_statement_import_batch` → optional AI advisory
-pass → `bank_feed_run_finish`, with every `FeedError` and unexpected throw
-routed to `bank_feed_run_fail` with its code. Delete the inline Jenga fetchers,
-the Deno rule engine, and the `bank_accounts.current_balance` write. Cash
-position stays derived via `bank_account_positions` (ADR-0141); a
-provider-reported balance is recorded on the run/statement as evidence only.
-`BANK_FEED_RUN_IN_FLIGHT` returns a conflict rather than a retry storm.
+### 18.1 Close is a proven seam
+`bank_reconciliation_lifecycle_invariants_test.sql` (176 lines) does not yet
+assert the close semantics. Extend it to prove, against routine bodies and live
+behaviour:
+- completion refuses while the recomputed difference is unexplained, and
+  refuses a locked period (both for the statement date and the adjustment dates);
+- the closing/statement balance the session closed against is pinned on the
+  session and cannot drift afterwards;
+- completion is idempotent — a second call on a completed session is refused
+  with `BANK_RECON_SESSION_CLOSED`, never double-posts the service-charge or
+  interest journal (source identity is the guard);
+- reversal/cancel is only reachable through `bank_reconciliation_session_cancel`,
+  never a direct write.
+If a claim above turns out not to hold in the routine, fix the routine in the
+same phase rather than weakening the test.
 
-### Phase 14d — feed observability in the UI
-Surface connection status, last success, last error and last run counts on the
-bank account cards / banking page from `bank_feed_connections` +
-`bank_feed_runs` (read-only, RLS-scoped). No client-side feed logic.
+### 18.2 One statement-balance projection
+The session report and `bank_account_positions` (ADR-0141) must agree by
+construction. Introduce a single "balance at as-of date" projection and make
+both consume it; `_bank_reconciliation_recompute` stops computing its own
+variant. Add an invariant test asserting the two agree for the same account and
+date.
 
-### Phase 15 — orphan removal
-Drop `bank_transaction_splits`, `bank_reconciliation_sessions` and legacy
-`reconciliation_sessions` (all empty), plus stale types/hooks. Confirm no reader
-remains first. A split bank line has exactly one representation: allocations on
-the matching seam.
+### 18.3 Feed observability on the banking page
+`bank_feed_status` is already consumed by `useBankAccounts` / `BankAccountCard`.
+Add read-only run history (window, fetched/inserted/duplicate/rejected counts,
+error code, trigger source) from `bank_feed_runs`, surfaced per account. No new
+state, no client-side feed logic, RLS decides visibility.
 
-### Phase 16 — ADR + ratchets
-ADR for the matching seam (propose/confirm, no minting, fee residual, FX
-refusal) and for feed transport (adapters normalize, seams persist). Ratchet
-tests: no direct `bank_reconciliation_matches` write from app/edge code; no edge
-function writes `bank_transactions` directly; every `platform_bank_providers`
-code resolves through the registry; `bank_accounts.current_balance` stays gone
-(existing provenance test extended to edge functions).
+### 18.4 Scheduled sync
+One cron entry point that fans out over connections with `auto_sync_enabled`,
+invoking the existing transport function per connection. Concurrency safety
+comes only from the existing partial unique index →
+`BANK_FEED_RUN_IN_FLIGHT`; no second scheduler, no second concurrency
+mechanism, no retry storm (an in-flight run is skipped, not retried).
 
-### Phase 17 — feed test coverage
-SQL: `run_start` refuses concurrent runs and `needs_reauth`; `run_fail`
-escalates status; `run_finish` idempotent and `partial` on rejects; connection
-resolve is business-scoped and refuses unscoped accounts. Deno: adapter
-normalization is deterministic, external IDs are stable across two fetches of
-the same window, unsupported provider fails fast.
+## Rules that hold for this wave
 
-## Technical notes
+- Server-authoritative: no accounting decision in a browser or in Deno.
+- Feed state lives only on the connection and its runs; a balance is derived.
+- AI stays advisory.
+- Every new seam is SECURITY DEFINER with a pinned `search_path`, never
+  anon-executable; every new public table ships GRANTs in its migration.
+- Delegate to the canonical FX, CoA, journal, fiscal-period and payment engines;
+  do not rebuild them.
 
-- Adapters are pure transport: no DB access, no categorization, no ledger.
-- Seams stay `service_role`-only; the browser never calls them.
-- Core feed engine stays country-agnostic — Kenya/Jenga specifics live only in
-  `providers/jenga.ts`.
+## Out of scope
+
+`bank-export-template-metadata.test.ts` (localization pack). Recorded, not fixed
+here.
