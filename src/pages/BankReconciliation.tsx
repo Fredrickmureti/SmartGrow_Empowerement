@@ -282,8 +282,9 @@ export default function BankReconciliation() {
             session={activeSession}
             onComplete={completeSession}
             onCancel={cancelSession}
-            onUpdateBalance={updateSessionBalance}
+            onWriteOff={writeOffSession}
           />
+
         ) : (
           <>
             {/* Summary Cards */}
