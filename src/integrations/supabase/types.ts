@@ -4482,10 +4482,15 @@ export type Database = {
           account_id: string | null
           account_number: string | null
           account_type: string | null
+          activated_at: string | null
           auto_sync_enabled: boolean | null
+          bank_balance_as_of: string | null
           bank_name: string | null
+          bank_reported_balance: number | null
           branch_id: string | null
           business_id: string
+          closed_at: string | null
+          closed_reason: string | null
           created_at: string
           currency: string | null
           current_balance: number | null
@@ -4496,13 +4501,16 @@ export type Database = {
           is_shared: boolean
           last_auto_sync_at: string | null
           last_sync_at: string | null
+          lifecycle_status: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name: string
           opening_balance: number | null
           opening_balance_date: string | null
+          opening_balance_je_id: string | null
           organization_id: string
           provider_id: string | null
           refresh_token_encrypted: string | null
           routing_number: string | null
+          row_version: number
           sync_error: string | null
           sync_frequency: string | null
           sync_from_date: string | null
@@ -4515,10 +4523,15 @@ export type Database = {
           account_id?: string | null
           account_number?: string | null
           account_type?: string | null
+          activated_at?: string | null
           auto_sync_enabled?: boolean | null
+          bank_balance_as_of?: string | null
           bank_name?: string | null
+          bank_reported_balance?: number | null
           branch_id?: string | null
           business_id: string
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string
           currency?: string | null
           current_balance?: number | null
@@ -4529,13 +4542,16 @@ export type Database = {
           is_shared?: boolean
           last_auto_sync_at?: string | null
           last_sync_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name: string
           opening_balance?: number | null
           opening_balance_date?: string | null
+          opening_balance_je_id?: string | null
           organization_id: string
           provider_id?: string | null
           refresh_token_encrypted?: string | null
           routing_number?: string | null
+          row_version?: number
           sync_error?: string | null
           sync_frequency?: string | null
           sync_from_date?: string | null
@@ -4548,10 +4564,15 @@ export type Database = {
           account_id?: string | null
           account_number?: string | null
           account_type?: string | null
+          activated_at?: string | null
           auto_sync_enabled?: boolean | null
+          bank_balance_as_of?: string | null
           bank_name?: string | null
+          bank_reported_balance?: number | null
           branch_id?: string | null
           business_id?: string
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string
           currency?: string | null
           current_balance?: number | null
@@ -4562,13 +4583,16 @@ export type Database = {
           is_shared?: boolean
           last_auto_sync_at?: string | null
           last_sync_at?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["bank_account_lifecycle_status"]
           name?: string
           opening_balance?: number | null
           opening_balance_date?: string | null
+          opening_balance_je_id?: string | null
           organization_id?: string
           provider_id?: string | null
           refresh_token_encrypted?: string | null
           routing_number?: string | null
+          row_version?: number
           sync_error?: string | null
           sync_frequency?: string | null
           sync_from_date?: string | null
@@ -4632,6 +4656,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_opening_balance_je_id_fkey"
+            columns: ["opening_balance_je_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_opening_balance_je_id_fkey"
+            columns: ["opening_balance_je_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_opening_balance_je_id_fkey"
+            columns: ["opening_balance_je_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_opening_balance_je_id_fkey"
+            columns: ["opening_balance_je_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_opening_balance_je_id_fkey"
+            columns: ["opening_balance_je_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_opening_balance_je_id_fkey"
+            columns: ["opening_balance_je_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bank_accounts_organization_id_fkey"
@@ -106950,6 +107016,7 @@ export type Database = {
         | "withdrawn"
       ar_dispute_status: "open" | "resolved" | "rejected"
       ar_promise_status: "open" | "kept" | "broken" | "cancelled"
+      bank_account_lifecycle_status: "draft" | "active" | "suspended" | "closed"
       bill_match_exception_state:
         | "none"
         | "pending_review"
@@ -108131,6 +108198,7 @@ export const Constants = {
       ],
       ar_dispute_status: ["open", "resolved", "rejected"],
       ar_promise_status: ["open", "kept", "broken", "cancelled"],
+      bank_account_lifecycle_status: ["draft", "active", "suspended", "closed"],
       bill_match_exception_state: [
         "none",
         "pending_review",
