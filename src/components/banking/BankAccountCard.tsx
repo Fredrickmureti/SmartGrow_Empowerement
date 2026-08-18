@@ -219,11 +219,18 @@ export function BankAccountCard({
             {getSyncStatusBadge()}
           </div>
 
-          {account.sync_error && (
+          {feedError && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-              <p className="text-sm text-destructive">{account.sync_error}</p>
+              <p className="text-sm text-destructive">{feedError}</p>
+              {feed?.consecutive_failures ? (
+                <p className="text-xs text-destructive/80 mt-1">
+                  {feed.consecutive_failures} consecutive failed run
+                  {feed.consecutive_failures === 1 ? "" : "s"}
+                </p>
+              ) : null}
             </div>
           )}
+
 
           {/* Per-account stats */}
           {(unreconciledCount !== undefined || lastReconciledDate) && (
