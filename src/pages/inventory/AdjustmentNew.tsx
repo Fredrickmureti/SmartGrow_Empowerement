@@ -649,6 +649,49 @@ export default function AdjustmentNew() {
                     />
                   </div>
                 </div>
+                {selProd?.is_serial_tracked && (
+                  <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+                    "{selProd.name}" is serial-tracked. Serial numbers must be
+                    captured through the serial workflow — this line cannot be
+                    submitted here.
+                  </p>
+                )}
+                {needsLot && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="mb-1 block text-xs text-muted-foreground">
+                        Lot / batch number *
+                      </Label>
+                      <Input
+                        value={item.lot_number}
+                        onChange={(e) =>
+                          updateItem(index, "lot_number", e.target.value)
+                        }
+                        placeholder="e.g. B-2408-01"
+                      />
+                    </div>
+                    {needsExpiry && (
+                      <div>
+                        <Label className="mb-1 block text-xs text-muted-foreground">
+                          Expiry date
+                        </Label>
+                        <Input
+                          type="date"
+                          value={item.expiry_date}
+                          onChange={(e) =>
+                            updateItem(index, "expiry_date", e.target.value)
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selProd?.is_lot_tracked && item.quantity_adjustment < 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Lots are picked automatically (earliest expiry first) when
+                    stock is removed.
+                  </p>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
