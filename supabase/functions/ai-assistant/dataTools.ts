@@ -368,8 +368,83 @@ export function buildDataToolSpecs(): ToolSpec[] {
         parameters: { type: "object", properties: {} },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "count_rows",
+        description:
+          "Exact row count for one allowed table with the same structured filters as query_data. Use this before listing anything so you can say how many records exist instead of guessing or presenting a truncated list as complete.",
+        parameters: {
+          type: "object",
+          properties: {
+            table: { type: "string" },
+            filters: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  column: { type: "string" },
+                  op: { type: "string", enum: OPS as unknown as string[] },
+                  value: {},
+                },
+                required: ["column", "op"],
+              },
+            },
+          },
+          required: ["table"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_inventory_overview",
+        description:
+          "Complete live inventory picture: product/SKU counts, on-hand and stock valuation (org-wide and per warehouse), the highest-value products, low-stock and out-of-stock items, lot/expiry tracking coverage, lots expiring soon and already expired, and recent stock movement activity. Call this for ANY broad inventory, stock-value or expiry question.",
+        parameters: {
+          type: "object",
+          properties: {
+            warehouse_id: { type: "string", description: "Optional: restrict warehouse figures to one warehouse." },
+            expiring_within_days: { type: "number", description: "Expiry horizon in days (default 90)." },
+            top_n: { type: "number", description: "How many products to list in the ranked sections (default 15, max 50)." },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_products",
+        description:
+          "The full product catalogue with stock, cost, valuation, tracking flags and unit of measure. Returns EVERY matching product (no small cap), so use it when the user asks for all products, a product list, or to find a product by name/SKU.",
+        parameters: {
+          type: "object",
+          properties: {
+            search: { type: "string", description: "Optional name or SKU fragment." },
+            only_tracked: { type: "boolean", description: "Only inventory-tracked products." },
+            include_inactive: { type: "boolean", description: "Include inactive/archived products (default false)." },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_product_inventory",
+        description:
+          "Everything about ONE product: identity, base unit and pack conversions, tracking flags, on-hand and available per warehouse and per location, every lot/batch with expiry and remaining quantity, serials, valuation, and the most recent stock movements. Use this whenever the user names a specific product.",
+        parameters: {
+          type: "object",
+          properties: {
+            product_id: { type: "string", description: "Product uuid, when known." },
+            search: { type: "string", description: "Product name or SKU when the id is unknown." },
+          },
+        },
+      },
+    },
   ];
 }
+
 
 function applyScope(query: any, spec: TableSpec, scope: ToolScope) {
   query = query.eq(spec.orgColumn, scope.organizationId);
