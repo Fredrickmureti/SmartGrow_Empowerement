@@ -118,8 +118,8 @@ export default function BankAccountCreatePage() {
     return [MANUAL_PROVIDER_OPTION, ...live];
   }, [providers]);
 
-  const isJengaProvider =
-    selectedProvider?.provider_code === "jenga" && selectedProvider?.is_sandbox;
+  const isSandboxProvider =
+    !!selectedProvider?.is_sandbox && selectedProvider?.provider_code !== "manual";
   const isManualProvider = selectedProvider?.provider_code === "manual";
 
   const strictGL = filterGLAccountsForBankType(glAccounts || [], accountType);
@@ -135,19 +135,13 @@ export default function BankAccountCreatePage() {
       ? [linkedGL, ...bankGLAccounts]
       : bankGLAccounts;
 
+  // Default to the company's base currency once the active list resolves.
   useEffect(() => {
-    if (selectedTestAccount && useTestAccount) {
-      const testAcc = JENGA_TEST_ACCOUNTS.find(
-        (a) => a.accountNumber === selectedTestAccount,
-      );
-      if (testAcc) {
-        setAccountNumber(testAcc.accountNumber);
-        setCurrency(testAcc.currency);
-        setAccountName(testAcc.label);
-        setBankName("Equity Bank");
-      }
+    if (currency) return;
+    if (baseCurrency && activeCurrencies.some((c) => c.code === baseCurrency)) {
+      setCurrency(baseCurrency);
     }
-  }, [selectedTestAccount, useTestAccount]);
+  }, [currency, baseCurrency, activeCurrencies]);
 
   const handleSelectProvider = (provider: BankProvider) => {
     setSelectedProvider(provider);
@@ -156,11 +150,9 @@ export default function BankAccountCreatePage() {
         provider.provider_name.replace(" API", "").replace(" (Equity Bank)", ""),
       );
     }
-    if (provider.provider_code === "jenga" && provider.is_sandbox) {
-      setUseTestAccount(true);
-    }
     setStep(2);
   };
+
 
   const submit = useRecordFormSubmit<any>({
     entityLabel: "Bank account",
