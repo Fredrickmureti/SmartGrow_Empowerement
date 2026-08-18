@@ -13,6 +13,13 @@ const RESOLVER = "supabase/functions/_shared/workspaceCurrency.ts";
 
 const read = (p: string) => readFileSync(p, "utf8");
 
+/** Strip comments and template literals so prose about USD isn't a match. */
+const code = (p: string) =>
+  read(p)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "")
+    .replace(/`[\s\S]*?`/g, "``");
+
 describe("AI assistant workspace currency", () => {
   it("has the shared server-side currency resolver", () => {
     expect(existsSync(RESOLVER)).toBe(true);
@@ -20,7 +27,7 @@ describe("AI assistant workspace currency", () => {
     expect(src).toContain("businesses");
     expect(src).toContain("base_currency");
     // The resolver itself must not invent a currency.
-    expect(src).not.toMatch(/\|\|\s*['"]USD['"]/);
+    expect(code(RESOLVER)).not.toMatch(/['"]USD['"]/);
   });
 
   it("never reads base_currency off organizations", () => {
@@ -30,9 +37,8 @@ describe("AI assistant workspace currency", () => {
 
   it("has no literal currency fallback", () => {
     for (const f of [ASSISTANT, RESOLVER]) {
-      const src = read(f);
-      expect(src, `${f} must not fall back to a currency literal`).not.toMatch(
-        /\|\|\s*['"][A-Z]{3}['"]|\?\?\s*['"][A-Z]{3}['"]|=\s*['"]USD['"]/,
+      expect(code(f), `${f} must not fall back to a currency literal`).not.toMatch(
+        /['"](USD|EUR|GBP|KES)['"]/,
       );
     }
   });
