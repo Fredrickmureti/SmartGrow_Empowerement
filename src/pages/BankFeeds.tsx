@@ -109,17 +109,15 @@ export default function BankFeeds() {
   };
 
   const handleCategorize = async (transactionId: string, category: string) => {
-    if (!currentOrg?.id || !currentBusiness?.id) return;
     try {
-      // Phase 12 — defense-in-depth scope guards. RLS enforces branch
-      // isolation at the DB level; these explicit org+business filters make
-      // it impossible for a stale id to escape the active company.
-      const { error } = await supabase
-        .from('bank_transactions')
-        .update({ category, category_confidence: 1.0 })
-        .eq('id', transactionId)
-        .eq('organization_id', currentOrg.id)
-        .eq('business_id', currentBusiness.id);
+      // Phase 4 — categorization runs through the server-side write seam.
+      // `authenticated` has no UPDATE on bank_transactions any more; the RPC
+      // re-checks the finance permission for the owning business.
+      const { error } = await (supabase as any).rpc('bank_transaction_set_category', {
+        _transaction_ids: [transactionId],
+        _category: category,
+        _confidence: 1.0,
+      });
 
       if (error) throw error;
 
@@ -129,6 +127,7 @@ export default function BankFeeds() {
       toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
     }
   };
+
 
   const handleCreateRule = async (tx: any) => {
     // Extract a pattern from the description (first meaningful word)
