@@ -64042,6 +64042,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "stock_lots_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "stock_lots_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
