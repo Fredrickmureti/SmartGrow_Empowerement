@@ -250,19 +250,25 @@ export function BankAccountCard({
 
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              {account.last_sync_at 
-                ? `Last synced ${formatDistanceToNow(new Date(account.last_sync_at), { addSuffix: true })}`
-                : hasProvider ? "Never synced" : "Manual account"
-              }
+              {lastSyncAt
+                ? `Last synced ${formatDistanceToNow(new Date(lastSyncAt), { addSuffix: true })}`
+                : feed
+                  ? "Never synced"
+                  : hasProvider
+                    ? "Feed not connected"
+                    : "Manual account"}
+              {feed?.last_run_inserted != null && lastSyncAt
+                ? ` • ${feed.last_run_inserted} imported`
+                : ""}
             </span>
             {hasProvider && (
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={onSync}
-                disabled={isSyncing || account.sync_status === "syncing"}
+                disabled={isSyncing || isRunning}
               >
-                {(isSyncing || account.sync_status === "syncing") ? (
+                {(isSyncing || isRunning) ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
@@ -271,6 +277,7 @@ export function BankAccountCard({
               </Button>
             )}
           </div>
+
         </CardContent>
       </Card>
 
