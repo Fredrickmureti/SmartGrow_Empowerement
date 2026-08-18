@@ -378,23 +378,26 @@ async function getFinancialContext(
         .eq("is_active", true)
         .limit(20)),
 
-      // Products summary
+      // Products summary. NOTE: the physical columns are `unit_price` and
+      // `stock_quantity` — the older `selling_price`/`quantity_on_hand` names
+      // do not exist and made this whole query (and therefore the assistant's
+      // product knowledge) come back empty.
       biz(supabaseClient
         .from("products")
-        .select("id, name, sku, type, selling_price, quantity_on_hand, reorder_level, is_active")
+        .select("id, name, sku, type, unit_price, cost_price, stock_quantity, reorder_level, track_inventory, is_lot_tracked, is_expiry_tracked, is_serial_tracked, is_active")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
-        .limit(100)),
+        .limit(200)),
 
       // Low stock products
       biz(supabaseClient
         .from("products")
-        .select("id, name, sku, quantity_on_hand, reorder_level")
+        .select("id, name, sku, stock_quantity, reorder_level")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .eq("track_inventory", true)
-        .lte("quantity_on_hand", supabaseClient.rpc ? 0 : 10)
-        .limit(20)),
+        .limit(200)),
+
 
       // Employees
       biz(supabaseClient
@@ -537,9 +540,10 @@ async function getFinancialContext(
     const payments = paymentsResult.data || [];
     const bills = billsResult.data || [];
     const products = productsResult.data || [];
-    const lowStockProducts = (lowStockResult.data || []).filter((p: any) => 
-      p.quantity_on_hand <= (p.reorder_level || 0)
-    );
+    const lowStockProducts = (lowStockResult.data || [])
+      .filter((p: any) => Number(p.stock_quantity ?? 0) <= Number(p.reorder_level ?? 0))
+      .slice(0, 50);
+
     let employees = employeesResult.data || [];
     let leaveRequests = leaveRequestsResult.data || [];
     const projects = projectsResult.data || [];
@@ -800,7 +804,7 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
   if (lowStockProducts.length > 0) {
     prompt += `\n**Low Stock Alert:**\n`;
     lowStockProducts.slice(0, 10).forEach((p: any) => {
-      prompt += `- ${p.name} (SKU: ${p.sku || 'N/A'}): ${p.quantity_on_hand} units (reorder at ${p.reorder_level || 0})\n`;
+      prompt += `- ${p.name} (SKU: ${p.sku || 'N/A'}): ${p.stock_quantity ?? 0} units (reorder at ${p.reorder_level || 0})\n`;
     });
     if (lowStockProducts.length > 10) {
       prompt += `  ...and ${lowStockProducts.length - 10} more items\n`;
