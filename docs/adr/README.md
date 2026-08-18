@@ -41,7 +41,7 @@ Collided numbers, disambiguated by title:
 | #    | Files |
 | ---- | ----- |
 | 0141 | [A bank balance is derived, never stored](./0141-bank-cash-position-is-derived-never-stored.md) · [Purchasing terms belong to the supplier-product relationship](./0141-supplier-owned-purchasing-terms.md) |
-| 0142 | [Supplier purchasing conditions](./0142-supplier-purchasing-conditions.md) · see the directory listing for the Banking-wave sibling |
+| 0142 | [Single balance: availability vs reservation](./0142-inventory-single-balance-availability-reservation.md) · [Supplier purchasing conditions](./0142-supplier-purchasing-conditions.md) |
 
 ## Format
 
