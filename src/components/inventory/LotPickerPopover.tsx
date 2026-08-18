@@ -88,6 +88,11 @@ export function LotPickerPopover({
   scannedLot = null,
   scannedExpiry = null,
 }: Props) {
+  // The FEFO query cannot run without a business + warehouse context. When
+  // either is missing the picker must say so — reporting "no lots available"
+  // for a question we never asked reads as an inventory problem.
+  const missingContext = !businessId || !warehouseId;
+
   const { data, isLoading, isError, error } = useFefoSuggestion({
     businessId,
     warehouseId,
@@ -95,6 +100,7 @@ export function LotPickerPopover({
     requiredQty,
     enabled: !disabled,
   });
+
 
   const [override, setOverride] = useState<FefoAllocation[] | null>(null);
 
