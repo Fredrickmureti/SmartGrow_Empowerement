@@ -171,12 +171,15 @@ export default function BankAccountCreatePage() {
   const runConnect = async () => {
     if (!selectedProvider) return;
     const resolvedBranchId = branchScope === "__all__" ? null : branchScope;
+    // Single server call: the `bank_account_create` RPC stamps scope, validates
+    // the currency against the company's active currencies and — in the same
+    // transaction — posts the opening-balance journal entry through
+    // the canonical posting engine. The browser no longer orchestrates the GL.
     const newAccount = await createAccount({
       name: accountName,
       bank_name: bankName,
       account_number: accountNumber,
       currency,
-      current_balance: openingBalance ? parseFloat(openingBalance) : 0,
       opening_balance: openingBalance ? parseFloat(openingBalance) : 0,
       opening_balance_date: isManualProvider ? openingBalanceDate : undefined,
       account_type: accountType,
@@ -188,76 +191,10 @@ export default function BankAccountCreatePage() {
           : undefined,
       external_account_id: accountNumber || undefined,
       branch_id: resolvedBranchId,
-      // R5: is_shared mirrors branch_id presence — DB CHECK enforces this.
-      is_shared: resolvedBranchId === null,
-    } as any);
-
-    // Opening-balance JE via the canonical atomic RPC.
-    const parsedBalance = openingBalance ? parseFloat(openingBalance) : 0;
-    if (glAccountId && parsedBalance > 0 && newAccount?.id) {
-      try {
-        const equityAccount = glAccounts?.find(
-          (a) =>
-            a.account_type === "equity" &&
-            (a.detail_type === "opening_balance_equity" ||
-              a.name.toLowerCase().includes("opening balance")),
-        );
-        if (equityAccount) {
-          const { data: userData } = await supabase.auth.getUser();
-          const { data: bankAcct } = await supabase
-            .from("bank_accounts")
-            .select("organization_id, business_id")
-            .eq("id", newAccount.id)
-            .single();
-          const orgId = bankAcct?.organization_id;
-          if (orgId) {
-            const entryDate = isManualProvider
-              ? openingBalanceDate
-              : new Date().toISOString().split("T")[0];
-            const { error: rpcError } = await supabase.rpc(
-              "post_journal_entry_atomic",
-              {
-                _org_id: orgId,
-                _business_id: bankAcct?.business_id ?? null,
-                _entry_number: null,
-                _entry_date: entryDate,
-                _reference: `OB-BANK-${newAccount.id.slice(0, 8)}`,
-                _description: `Opening balance - ${accountName}`,
-                _source_type: "opening_balance",
-                _source_id: newAccount.id,
-                _source_subtype: "main",
-                _created_by: userData.user?.id ?? null,
-                _is_closing: false,
-                _is_adjusting: false,
-                _lines: [
-                  {
-                    account_id: glAccountId,
-                    debit: parsedBalance,
-                    credit: 0,
-                    description: `Opening balance - ${accountName}`,
-                  },
-                  {
-                    account_id: equityAccount.id,
-                    debit: 0,
-                    credit: parsedBalance,
-                    description: `Opening balance - ${accountName}`,
-                  },
-                ],
-              } as any,
-            );
-            if (rpcError)
-              console.warn(
-                "Opening balance JE creation failed (non-blocking):",
-                rpcError,
-              );
-          }
-        }
-      } catch (e) {
-        console.warn("Opening balance JE creation failed (non-blocking):", e);
-      }
-    }
+    });
     return newAccount;
   };
+
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();

@@ -26,12 +26,13 @@ describe("banking ownership architecture", () => {
     expect(src).toMatch(/branch_id:\s*\(account as any\)\.branch_id/);
   });
 
-  it("useBankAccounts maps the new DB friendly errors (R1/R2/R5)", () => {
+  it("useBankAccounts maps the write-seam HINTs (R1/R2/R5)", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
-    expect(src).toContain("bank_accounts_external_unique");
-    expect(src).toContain("bank_accounts_manual_unique");
+    expect(src).toContain("BANK_ACCOUNT_ALREADY_CONNECTED");
+    expect(src).toContain("BANK_ACCOUNT_VERSION_CONFLICT");
     expect(src).toContain("bank_accounts_shared_branch_consistency");
   });
+
 
   it("useReconciliationSessions maps the open-session unique violation (R4)", () => {
     const src = readFileSync(
@@ -47,8 +48,10 @@ describe("banking ownership architecture", () => {
       "utf8",
     );
     expect(src).toContain("branchSelectorLocked");
-    expect(src).toContain("is_shared");
+    // is_shared is derived server-side from branch_id; the page only sends branch_id.
+    expect(src).toContain("branch_id: resolvedBranchId");
   });
+
 
   it("BankAccountEditPage enforces branch lock + re-attribute confirmation (G1)", () => {
     const src = readFileSync(
@@ -58,7 +61,8 @@ describe("banking ownership architecture", () => {
     expect(src).toContain("branchSelectorLocked");
     expect(src).toContain("requiresReattributeConfirm");
     expect(src).toContain("reattributeConfirmed");
-    expect(src).toMatch(/is_shared:\s*resolvedBranchId === null/);
+    // is_shared is derived server-side from branch_id.
+    expect(src).toMatch(/branch_id:\s*resolvedBranchId/);
   });
 
   it("StartReconciliationPage surfaces Resume CTA for an existing open session (G2)", () => {
@@ -73,7 +77,7 @@ describe("banking ownership architecture", () => {
 
   it("useBankAccounts duplicate toast deep-links to /banking (G3)", () => {
     const src = readFileSync(join(root, "src/hooks/useBankAccounts.ts"), "utf8");
-    expect(src).toContain("bank_accounts_manual_no_provider_unique");
+    expect(src).toContain("BANK_ACCOUNT_ALREADY_CONNECTED");
     expect(src).toMatch(/label:\s*"Open bank accounts"/);
   });
 });

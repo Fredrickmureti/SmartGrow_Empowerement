@@ -100,12 +100,14 @@ export function BranchOperations({ branchId, branchName, businessId }: BranchOpe
       if (!currentOrg?.id || !businessId) {
         throw new Error("No branch company selected");
       }
-      const { error } = await supabase
-        .from("bank_accounts")
-        .update({ branch_id: newBranchId })
-        .eq("id", id)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", businessId);
+      // Wave 1: bank accounts are only mutated through the server write seam,
+      // which re-validates branch/company coherence and permissions.
+      const { error } = await supabase.rpc("bank_account_update", {
+        _id: id,
+        _row_version: null,
+        _payload: { branch_id: newBranchId } as never,
+      });
+
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {

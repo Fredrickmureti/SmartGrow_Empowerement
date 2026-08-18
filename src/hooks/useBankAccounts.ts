@@ -7,6 +7,12 @@ import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import type { BankProvider } from "./useBankProviders";
 
+export type BankAccountLifecycleStatus =
+  | "draft"
+  | "active"
+  | "suspended"
+  | "closed";
+
 export interface BankAccount {
   id: string;
   organization_id: string;
@@ -29,6 +35,16 @@ export interface BankAccount {
   sync_from_date: string | null;
   created_at: string;
   updated_at: string;
+  /** Wave 1 lifecycle state machine — `is_active` is a derived read of this. */
+  lifecycle_status: BankAccountLifecycleStatus;
+  /** Optimistic-concurrency token; required by every mutator RPC. */
+  row_version: number;
+  opening_balance: number | null;
+  opening_balance_date: string | null;
+  /** Provenance: the opening-balance journal entry the server posted. */
+  opening_balance_je_id: string | null;
+  closed_at: string | null;
+  closed_reason: string | null;
   provider?: BankProvider;
 }
 
@@ -38,27 +54,26 @@ export interface CreateBankAccountData {
   account_number?: string;
   routing_number?: string;
   currency?: string;
-  current_balance?: number;
   opening_balance?: number;
   opening_balance_date?: string;
   account_type?: string;
-  account_id?: string;
+  account_id?: string | null;
   is_primary?: boolean;
-  is_active?: boolean;
   provider_id?: string;
   external_account_id?: string;
+  sync_from_date?: string;
+  auto_sync_enabled?: boolean;
+  sync_frequency?: string;
+  /** Create only: false parks the account in `draft` instead of activating it. */
+  activate?: boolean;
   /**
    * Optional explicit branch override. If omitted the active finance scope's
-   * branch is stamped (NULL when consolidated / "All branches"). The DB
-   * trigger `enforce_branch_business_match` validates the pairing.
+   * branch is stamped (NULL when consolidated / "All branches"). The server
+   * validates the pairing and derives `is_shared` from it.
    */
   branch_id?: string | null;
-  /**
-   * R5: is_shared must equal (branch_id IS NULL). DB CHECK
-   * `bank_accounts_shared_branch_consistency` enforces this.
-   */
-  is_shared?: boolean;
 }
+
 
 /**
  * Phase 11 — Banking. Branch-aware reads + business-level mutator gating.
@@ -163,73 +178,80 @@ export function useBankAccounts() {
     if (code === "42501") {
       return "You don't have permission to perform this action on bank accounts.";
     }
-    // R1/R2 — duplicate connection guards
-    if (code === "23505" && msg.includes("bank_accounts_external_unique")) {
-      return "This bank account is already connected for this business. Open the existing account to manage it instead of adding a duplicate.";
+    // Wave 1 — the write-seam RPCs raise typed HINTs; prefer them over
+    // constraint-name sniffing, which only worked for direct table writes.
+    const hint = (error as { hint?: string })?.hint ?? "";
+    if (hint === "BANK_ACCOUNT_ALREADY_CONNECTED") {
+      return "This bank account is already connected for this company. Open the existing account to manage it instead of adding a duplicate.";
     }
-    if (code === "23505" && msg.includes("bank_accounts_manual_unique")) {
-      return "A manual bank account with this number already exists for this provider. Open it instead of adding a duplicate.";
+    if (hint === "BANK_ACCOUNT_VERSION_CONFLICT") {
+      return "This bank account was changed by someone else while you were editing. Reload and try again.";
     }
-    // R5 — is_shared / branch_id consistency
+    if (hint === "BANK_ACCOUNT_ACCOUNTING_LOCKED") {
+      return "Currency, ledger account and opening balance are fixed once this account has posted activity. Post a correcting journal entry instead.";
+    }
+    if (hint === "BANK_ACCOUNT_UNRECONCILED" || hint === "BANK_ACCOUNT_OPEN_RECONCILIATION") {
+      return msg || "Finish reconciling this account before closing it.";
+    }
+    if (hint === "BANK_ACCOUNT_NOT_DELETABLE") {
+      return "This bank account has financial history and cannot be deleted. Close it instead.";
+    }
+    if (hint === "BANK_ACCOUNT_NEEDS_GL" || hint === "BANK_OPENING_BALANCE_NEEDS_GL") {
+      return msg || "Link a Chart-of-Accounts entry before activating this bank account.";
+    }
+    if (hint === "BANK_ACCOUNT_INVALID_TRANSITION" || hint === "BANK_ACCOUNT_CLOSED") {
+      return msg || "That status change isn't allowed for this bank account.";
+    }
+    // Legacy constraint messages (older rows / service-role paths).
+    if (code === "23505") {
+      return "This bank account is already connected for this company.";
+    }
     if (code === "23514" && msg.includes("bank_accounts_shared_branch_consistency")) {
       return "Shared-across-branches accounts cannot also be tagged to a single branch. Pick one.";
     }
     return null;
   };
 
+
+  /**
+   * Wave 1 write seam. The browser never writes `bank_accounts` directly:
+   * every mutation goes through a SECURITY DEFINER RPC that owns lifecycle
+   * invariants, currency validation, opening-balance posting through
+   * `post_journal_entry_atomic`, and optimistic concurrency.
+   */
+  const toPayload = (data: Partial<CreateBankAccountData>) => {
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v === undefined) continue;
+      payload[k] = v;
+    }
+    return payload;
+  };
+
   const createAccount = async (data: CreateBankAccountData) => {
-    if (!currentOrg?.id || !currentBusiness?.id) return;
+    if (!currentBusiness?.id) return;
 
     try {
       setIsSaving(true);
-
-      if (data.account_number && data.provider_id) {
-        const { data: existing } = await supabase
-          .from("bank_accounts")
-          .select("id, name")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("account_number", data.account_number)
-          .eq("provider_id", data.provider_id)
-          .maybeSingle();
-
-        if (existing) {
-          toast.error(`This account is already connected as "${existing.name}"`);
-          return;
-        }
-      }
-
       // Default branch_id to the active scope branch (NULL = company-wide).
       const branch_id = data.branch_id !== undefined ? data.branch_id : scope.branchId;
 
-      const { data: created, error } = await supabase
-        .from("bank_accounts")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          ...data,
-          branch_id,
-        })
-        .select("id")
-        .single();
+      const { data: created, error } = await supabase.rpc("bank_account_create", {
+        _business_id: currentBusiness.id,
+        _payload: toPayload({ ...data, branch_id }) as never,
+      });
 
       if (error) throw error;
       toast.success("Bank account added successfully");
       await fetchAccounts();
-      return created;
+      return created as unknown as BankAccount;
     } catch (error: unknown) {
       console.error("Error creating bank account:", error);
       const friendly = mapPermErr(error);
-      const msg = (error as { message?: string })?.message ?? "";
-      const code = (error as { code?: string })?.code ?? "";
+      const hint = (error as { hint?: string })?.hint ?? "";
       // G3 — duplicate-connection toasts deep-link to /banking so the user
       // can open the existing account instead of creating another.
-      if (
-        code === "23505" &&
-        (msg.includes("bank_accounts_external_unique") ||
-          msg.includes("bank_accounts_manual_unique") ||
-          msg.includes("bank_accounts_manual_no_provider_unique"))
-      ) {
+      if (hint === "BANK_ACCOUNT_ALREADY_CONNECTED") {
         toast.error(friendly ?? "This bank account is already connected.", {
           action: {
             label: "Open bank accounts",
@@ -247,16 +269,20 @@ export function useBankAccounts() {
     }
   };
 
-  const updateAccount = async (id: string, data: Partial<CreateBankAccountData>) => {
+  const updateAccount = async (
+    id: string,
+    data: Partial<CreateBankAccountData>,
+    rowVersion?: number,
+  ) => {
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("bank_accounts")
-        .update({
-          ...data,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const version =
+        rowVersion ?? accounts.find((a) => a.id === id)?.row_version ?? null;
+      const { error } = await supabase.rpc("bank_account_update", {
+        _id: id,
+        _row_version: version,
+        _payload: toPayload(data) as never,
+      });
 
       if (error) throw error;
       toast.success("Bank account updated successfully");
@@ -271,14 +297,56 @@ export function useBankAccounts() {
     }
   };
 
+  /** Lifecycle change: activate / suspend / close. Closure is guarded server-side. */
+  const transitionAccount = async (
+    id: string,
+    target: BankAccountLifecycleStatus,
+    reason?: string,
+  ) => {
+    try {
+      setIsSaving(true);
+      const version = accounts.find((a) => a.id === id)?.row_version ?? null;
+      const { error } = await supabase.rpc("bank_account_transition", {
+        _id: id,
+        _target: target,
+        _reason: reason ?? null,
+        _row_version: version,
+      });
+      if (error) throw error;
+      toast.success(
+        target === "closed"
+          ? "Bank account closed"
+          : target === "suspended"
+            ? "Bank account suspended"
+            : "Bank account activated",
+      );
+      await fetchAccounts();
+    } catch (error: unknown) {
+      console.error("Error changing bank account status:", error);
+      const friendly = mapPermErr(error);
+      toast.error(friendly ?? "Failed to change bank account status");
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Deletion only ever removes an untouched draft. An account with financial
+   * history is closed instead — the server refuses anything else.
+   */
   const deleteAccount = async (id: string) => {
     try {
       setIsSaving(true);
-      const { error } = await supabase
-        .from("bank_accounts")
-        .delete()
-        .eq("id", id);
-
+      const account = accounts.find((a) => a.id === id);
+      if (account && account.lifecycle_status !== "draft") {
+        await transitionAccount(id, "closed", "Removed from bank account list");
+        return;
+      }
+      const { error } = await supabase.rpc("bank_account_delete_draft", {
+        _id: id,
+        _row_version: account?.row_version ?? null,
+      });
       if (error) throw error;
       toast.success("Bank account deleted successfully");
       await fetchAccounts();
@@ -292,16 +360,16 @@ export function useBankAccounts() {
     }
   };
 
+  /**
+   * Sync is owned end-to-end by the `sync-bank-transactions` function: it
+   * stamps `sync_status` / `sync_error` with the service role. The browser
+   * only asks for the sync and re-reads the result.
+   */
   const syncTransactions = async (accountId: string) => {
     if (!currentOrg?.id) return;
 
     try {
       setIsSaving(true);
-
-      await supabase
-        .from("bank_accounts")
-        .update({ sync_status: "syncing", sync_error: null })
-        .eq("id", accountId);
 
       const { data, error } = await supabase.functions.invoke("sync-bank-transactions", {
         body: { bank_account_id: accountId, organization_id: currentOrg.id },
@@ -310,29 +378,19 @@ export function useBankAccounts() {
       if (error) throw error;
 
       if (data?.success) {
-        toast.success(`Synced ${data.transactionCount || 0} transactions`);
+        toast.success(`Synced ${data.new_transactions ?? 0} transactions`);
       } else {
         toast.error(data?.message || "Sync failed");
       }
-
-      await fetchAccounts();
     } catch (error: unknown) {
       console.error("Error syncing transactions:", error);
       toast.error("Failed to sync transactions");
-
-      await supabase
-        .from("bank_accounts")
-        .update({
-          sync_status: "error",
-          sync_error: error instanceof Error ? error.message : "Unknown error",
-        })
-        .eq("id", accountId);
-
-      await fetchAccounts();
     } finally {
+      await fetchAccounts();
       setIsSaving(false);
     }
   };
+
 
   // Stable identity to play nicely with downstream hooks/memos.
   const value = useMemo(
@@ -344,6 +402,8 @@ export function useBankAccounts() {
       fetchAccounts,
       createAccount,
       updateAccount,
+      transitionAccount,
+
       deleteAccount,
       syncTransactions,
     }),
