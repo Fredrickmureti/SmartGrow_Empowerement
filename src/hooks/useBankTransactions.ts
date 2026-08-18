@@ -252,19 +252,20 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
     }
   };
 
+  /**
+   * Phase 4 (Banking reconstruction) — categorization is a server-side write
+   * seam. `authenticated` no longer holds UPDATE on bank_transactions, so the
+   * RPC is the only path: it re-checks the finance permission per business
+   * and stamps the confidence alongside the category.
+   */
   const updateCategory = async (transactionId: string, category: string) => {
-    if (!currentOrg?.id || !currentBusiness?.id) return;
     try {
       setIsSaving(true);
-      // Phase 12: defense-in-depth scope guards. RLS already prevents cross-
-      // branch writes, but explicit org+business filters make it impossible
-      // for a stale id to escape the active company.
-      const { error } = await supabase
-        .from("bank_transactions")
-        .update({ category })
-        .eq("id", transactionId)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
+      const { error } = await (supabase as any).rpc("bank_transaction_set_category", {
+        _transaction_ids: [transactionId],
+        _category: category,
+        _confidence: 1.0,
+      });
 
       if (error) throw error;
       toast.success("Category updated");
@@ -278,6 +279,7 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
       setIsSaving(false);
     }
   };
+
 
   /**
    * Auto-match with deterministic matching FIRST, then AI fallback.
