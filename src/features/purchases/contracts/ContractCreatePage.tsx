@@ -174,7 +174,7 @@ export default function ContractCreatePage() {
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <Button size="sm" onClick={handleSubmit} disabled={busy}>
+            <Button size="sm" onClick={handleSubmit} disabled={busy || missingRate}>
               Create draft
             </Button>
           </ActionBar>
