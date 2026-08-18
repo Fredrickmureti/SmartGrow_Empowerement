@@ -575,7 +575,9 @@ export default function InvoiceCreatePage() {
             renderRow={(item, index, layout) => (
               <InvoiceLineRow
                   unitsFor={unitsFor}
+                warehouseId={warehouse.warehouseId}
                 index={index}
+
                 item={item}
                 products={products}
                 layout={layout}

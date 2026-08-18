@@ -498,7 +498,9 @@ export default function InvoiceEditPage() {
               renderRow={(item, index, layout) => (
                 <InvoiceLineRow
                   unitsFor={unitsFor}
+                  warehouseId={(invoice as any)?.warehouse_id ?? null}
                   index={index}
+
                   item={item}
                   products={products}
                   layout={layout}

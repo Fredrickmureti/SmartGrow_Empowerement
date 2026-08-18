@@ -249,6 +249,8 @@ function InvoiceLineRowInner({
           <OutboundLineTracking
             productId={item.product_id ?? null}
             quantity={item.quantity}
+            warehouseId={warehouseId ?? null}
+
             onLotChange={(allocs) =>
               onUpdate(index, { lot_number: lotNumberFromAllocations(allocs) })
             }
