@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { BankAccount } from "@/hooks/useBankAccounts";
+import { BankAccount, resolveBankAccountBalance } from "@/hooks/useBankAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { getBankAccountTypeLabel } from "@/lib/bankAccountTypes";
 import {
@@ -182,7 +182,7 @@ export function BankAccountCard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">
-                {glBalance != null ? "Book Balance (GL)" : "Balance"}
+                {balanceLabel}
               </p>
               <p className="text-2xl font-bold">
                 {displayBalance == null

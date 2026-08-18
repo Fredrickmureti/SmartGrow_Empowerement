@@ -12,7 +12,7 @@ import {
   PiggyBank, ArrowRightLeft,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useBankAccounts } from "@/hooks/useBankAccounts";
+import { useBankAccounts, resolveBankAccountBalance } from "@/hooks/useBankAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
