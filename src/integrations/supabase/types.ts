@@ -86973,6 +86973,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      _bank_account_post_opening_balance: {
+        Args: { _account_id: string }
+        Returns: string
+      }
+      _bank_account_row: { Args: { _id: string }; Returns: Json }
       _confirm_invoice_core: {
         Args: {
           p_final_status?: string
@@ -90415,6 +90420,27 @@ export type Database = {
         Returns: Json
       }
       backfill_opening_inventory_gl: { Args: { p_org: string }; Returns: Json }
+      bank_account_create: {
+        Args: { _business_id: string; _payload: Json }
+        Returns: Json
+      }
+      bank_account_delete_draft: {
+        Args: { _id: string; _row_version?: number }
+        Returns: undefined
+      }
+      bank_account_transition: {
+        Args: {
+          _id: string
+          _reason?: string
+          _row_version?: number
+          _target: Database["public"]["Enums"]["bank_account_lifecycle_status"]
+        }
+        Returns: Json
+      }
+      bank_account_update: {
+        Args: { _id: string; _payload: Json; _row_version: number }
+        Returns: Json
+      }
       bill_payment_is_bank_reconciled: {
         Args: { _bill_payment_id: string }
         Returns: boolean
