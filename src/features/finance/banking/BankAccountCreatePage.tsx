@@ -224,8 +224,8 @@ export default function BankAccountCreatePage() {
   const submitDisabled =
     !accountName ||
     !glAccountId ||
-    !currency.trim() ||
-    (isJengaProvider && !selectedTestAccount);
+    !currency.trim();
+
 
   /* ---------- Step 1: provider picker ------------------------------- */
   if (step === 1) {
