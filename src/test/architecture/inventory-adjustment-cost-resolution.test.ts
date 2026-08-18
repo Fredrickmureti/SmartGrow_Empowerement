@@ -26,7 +26,13 @@ const WAVE2 = readFileSync(
   "supabase/migrations/20260521011736_9387f876-cd18-4a92-a35d-19b7270ee600.sql",
   "utf8",
 );
-const INVENTORY_PAGE = readFileSync("src/pages/Inventory.tsx", "utf8");
+// The adjustment create surface moved from the Inventory dialog to the
+// routed page /inventory-app/adjustments/new (RecordFormShell).
+const INVENTORY_PAGE = readFileSync(
+  "src/pages/inventory/AdjustmentNew.tsx",
+  "utf8",
+);
+const INVENTORY_LIST_PAGE = readFileSync("src/pages/Inventory.tsx", "utf8");
 const USE_INVENTORY = readFileSync("src/hooks/useInventory.ts", "utf8");
 const RECON_CARD = readFileSync(
   "src/components/finance/InventoryReconciliationCard.tsx",
@@ -56,7 +62,7 @@ describe("inventory adjustment ↔ GL integrity", () => {
     expect(MIGRATION).toMatch(/movement_type IN \('receipt', 'purchase', 'adjustment'\)/);
   });
 
-  it("Inventory adjustment dialog captures unit_cost per line", () => {
+  it("Adjustment create page captures unit_cost per line", () => {
     // The line model carries unit_cost, the input is rendered, and the
     // submit handler refuses to submit when it's missing.
     expect(INVENTORY_PAGE).toMatch(/unit_cost:\s*number\s*\|\s*""/);
@@ -64,7 +70,7 @@ describe("inventory adjustment ↔ GL integrity", () => {
     expect(INVENTORY_PAGE).toMatch(/Enter a unit cost for/);
   });
 
-  it("Inventory adjustment dialog uses a reason enum, not free text", () => {
+  it("Adjustment create page uses a reason enum, not free text", () => {
     expect(INVENTORY_PAGE).toMatch(/Select adjustment reason/);
     expect(INVENTORY_PAGE).toMatch(/value="shrinkage"/);
     expect(INVENTORY_PAGE).toMatch(/value="found_stock"/);
@@ -119,9 +125,9 @@ describe("inventory adjustment ↔ GL integrity", () => {
   });
 
   it("Inventory page renders Reverse action + lifecycle badges", () => {
-    expect(INVENTORY_PAGE).toMatch(/ReverseAdjustmentDialog/);
-    expect(INVENTORY_PAGE).toMatch(/Reverses #/);
-    expect(INVENTORY_PAGE).toMatch(/Reversed by #/);
+    expect(INVENTORY_LIST_PAGE).toMatch(/ReverseAdjustmentDialog/);
+    expect(INVENTORY_LIST_PAGE).toMatch(/Reverses #/);
+    expect(INVENTORY_LIST_PAGE).toMatch(/Reversed by #/);
   });
 
   it("Reconciliation card surfaces missing-JE backfill", () => {

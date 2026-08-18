@@ -40,13 +40,36 @@ import { AlertTriangle, Plus, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { RecordFormShell, Section, FieldGrid } from "@/design-system";
 import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
+import { PackagingSelect } from "@/components/products/PackagingSelect";
 
 type Item = {
   product_id: string;
+  /** Quantity in the unit chosen below (pack or base). Never converted here. */
   quantity_adjustment: number;
   unit_cost: number | "";
   notes: string;
+  /** Chosen pack (null = base unit). Sent as intent; the server converts. */
+  packaging_id: string | null;
+  /** Pack multiplier, kept only to render the "= N base" preview. */
+  pack_factor: number | null;
+  /** Pack name, presentation only. */
+  pack_name: string | null;
+  lot_number: string;
+  expiry_date: string;
 };
+
+const emptyItem = (): Item => ({
+  product_id: "",
+  quantity_adjustment: 0,
+  unit_cost: "",
+  notes: "",
+  packaging_id: null,
+  pack_factor: null,
+  pack_name: null,
+  lot_number: "",
+  expiry_date: "",
+});
+
 
 /**
  * The product the caller deep-linked to. Resolved from the database rather
@@ -177,7 +200,7 @@ export default function AdjustmentNew() {
     if (!productId) {
       if (items.length === 0) {
         setItems([
-          { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+          emptyItem(),
         ]);
       }
       return;
@@ -189,7 +212,7 @@ export default function AdjustmentNew() {
       // the banner below explain what happened.
       if (items.length === 0) {
         setItems([
-          { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+          emptyItem(),
         ]);
       }
       return;
@@ -202,10 +225,9 @@ export default function AdjustmentNew() {
         ? prev
         : [
             {
+              ...emptyItem(),
               product_id: productId,
-              quantity_adjustment: 0,
               unit_cost: prefilledCost,
-              notes: "",
             },
           ],
     );
@@ -247,14 +269,25 @@ export default function AdjustmentNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryProducts]);
 
+  const patchItem = (index: number, patch: Partial<Item>) =>
+    setItems((prev) =>
+      prev.map((it, i) => (i === index ? { ...it, ...patch } : it)),
+    );
+
   const updateItem = (
     index: number,
     field: keyof Item,
-    value: string | number,
+    value: string | number | null,
   ) => {
     const next = [...items];
     next[index] = { ...next[index], [field]: value } as Item;
     if (field === "product_id" && typeof value === "string") {
+      // A different product means a different unit ladder and lot identity.
+      next[index].packaging_id = null;
+      next[index].pack_factor = null;
+      next[index].pack_name = null;
+      next[index].lot_number = "";
+      next[index].expiry_date = "";
       const prod = inventoryProducts.find((p: any) => p.id === value) as any;
       if (prod && prod.cost_price && !next[index].unit_cost) {
         next[index].unit_cost = Number(prod.cost_price);
@@ -263,10 +296,11 @@ export default function AdjustmentNew() {
     setItems(next);
   };
 
+
   const addItem = () =>
     setItems([
       ...items,
-      { product_id: "", quantity_adjustment: 0, unit_cost: "", notes: "" },
+      emptyItem(),
     ]);
 
   const removeItem = (index: number) =>
@@ -303,6 +337,29 @@ export default function AdjustmentNew() {
       );
       return;
     }
+    // Lot / serial identity — mirrors the server contract so the operator
+    // finds out before a round-trip. The server remains authoritative.
+    for (const i of filtered) {
+      const prod = inventoryProducts.find(
+        (p: any) => p.id === i.product_id,
+      ) as any;
+      if (prod?.is_serial_tracked) {
+        toast.error(
+          `"${prod.name}" is serial-tracked. Use the serial workflow — serials cannot be captured on this form yet.`,
+        );
+        return;
+      }
+      if (
+        prod?.is_lot_tracked &&
+        i.quantity_adjustment > 0 &&
+        !i.lot_number.trim()
+      ) {
+        toast.error(
+          `"${prod.name}" is lot-tracked. Enter the lot / batch number for the stock you are adding.`,
+        );
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       await createStockAdjustment.mutateAsync({
@@ -310,7 +367,14 @@ export default function AdjustmentNew() {
         notes,
         items: filtered.map((i) => ({
           product_id: i.product_id,
+          // When a pack is chosen the entered number is a PACK count: it is
+          // sent as display_quantity and converted to base units server-side
+          // by `_uom_normalize_adj_line`. Never multiply here.
           quantity_adjustment: i.quantity_adjustment,
+          display_quantity: i.packaging_id ? i.quantity_adjustment : null,
+          packaging_id: i.packaging_id,
+          lot_number: i.lot_number.trim() || null,
+          expiry_date: i.expiry_date || null,
           unit_cost:
             typeof i.unit_cost === "number" ? i.unit_cost : Number(i.unit_cost),
           notes: i.notes,
@@ -421,11 +485,9 @@ export default function AdjustmentNew() {
                       onClick={() => {
                         setItems((prev) => {
                           const idx = prev.findIndex((i) => !i.product_id);
-                          const line = {
+                          const line: Item = {
+                            ...emptyItem(),
                             product_id: v.id,
-                            quantity_adjustment: 0,
-                            unit_cost: "" as number | "",
-                            notes: "",
                           };
                           if (idx === -1) return [...prev, line];
                           const next = [...prev];
@@ -468,6 +530,17 @@ export default function AdjustmentNew() {
               (p: any) => p.id === item.product_id,
             ) as any;
             const baseLabel = productBaseLabelOrUnset(selProd);
+            const unitLabel = item.packaging_id
+              ? item.pack_name || "pack"
+              : baseLabel;
+            const baseEquivalent =
+              item.packaging_id && item.pack_factor
+                ? item.quantity_adjustment * item.pack_factor
+                : null;
+            const needsLot =
+              !!selProd?.is_lot_tracked && item.quantity_adjustment > 0;
+            const needsExpiry = needsLot && !!selProd?.is_expiry_tracked;
+
             return (
               <div
                 key={index}
@@ -493,12 +566,12 @@ export default function AdjustmentNew() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[7rem_8rem_1fr]">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[7rem_10rem_8rem_1fr]">
                   <div>
                     <Label className="mb-1 block text-xs text-muted-foreground">
                       Qty (+/-){" "}
                       <span className="text-muted-foreground/70">
-                        [{baseLabel}]
+                        [{unitLabel}]
                       </span>
                     </Label>
                     <Input
@@ -511,13 +584,39 @@ export default function AdjustmentNew() {
                           parseFloat(e.target.value) || 0,
                         )
                       }
-                      placeholder={`Qty in ${baseLabel}`}
+                      placeholder={`Qty in ${unitLabel}`}
                     />
+                    {baseEquivalent !== null && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        = {baseEquivalent} {baseLabel} (converted on the server)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label className="mb-1 block text-xs text-muted-foreground">
-                      Unit cost *
+                      Unit
                     </Label>
+                    <PackagingSelect
+                      productId={item.product_id || null}
+                      value={item.packaging_id}
+                      onChange={(packagingId, qtyInBaseUom, packName) =>
+                        patchItem(index, {
+                          packaging_id: packagingId,
+                          pack_factor: qtyInBaseUom,
+                          pack_name: packName ?? null,
+                        })
+                      }
+                      disabled={!item.product_id}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Stocked in {baseLabel}.
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs text-muted-foreground">
+                      Unit cost * <span className="text-muted-foreground/70">[per {baseLabel}]</span>
+                    </Label>
+
                     <Input
                       type="number"
                       step="0.0001"
@@ -548,6 +647,49 @@ export default function AdjustmentNew() {
                     />
                   </div>
                 </div>
+                {selProd?.is_serial_tracked && (
+                  <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+                    "{selProd.name}" is serial-tracked. Serial numbers must be
+                    captured through the serial workflow — this line cannot be
+                    submitted here.
+                  </p>
+                )}
+                {needsLot && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="mb-1 block text-xs text-muted-foreground">
+                        Lot / batch number *
+                      </Label>
+                      <Input
+                        value={item.lot_number}
+                        onChange={(e) =>
+                          updateItem(index, "lot_number", e.target.value)
+                        }
+                        placeholder="e.g. B-2408-01"
+                      />
+                    </div>
+                    {needsExpiry && (
+                      <div>
+                        <Label className="mb-1 block text-xs text-muted-foreground">
+                          Expiry date
+                        </Label>
+                        <Input
+                          type="date"
+                          value={item.expiry_date}
+                          onChange={(e) =>
+                            updateItem(index, "expiry_date", e.target.value)
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selProd?.is_lot_tracked && item.quantity_adjustment < 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Lots are picked automatically (earliest expiry first) when
+                    stock is removed.
+                  </p>
+                )}
                 <Button
                   type="button"
                   variant="ghost"

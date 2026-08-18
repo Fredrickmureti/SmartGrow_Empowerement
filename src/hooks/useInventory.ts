@@ -100,6 +100,22 @@ export interface CreateStockAdjustmentInput {
     quantity_adjustment: number;
     unit_cost?: number;
     notes?: string;
+    /**
+     * Unit-of-measure provenance. The client sends INTENT only —
+     * `packaging_id` + `display_quantity` (or `display_uom_id`). The base
+     * quantity is derived server-side by `_uom_normalize_adj_line`; never
+     * multiply a pack factor here (ADR 0023 / mem: multi-unit-inventory).
+     */
+    packaging_id?: string | null;
+    display_uom_id?: string | null;
+    display_quantity?: number | null;
+    /** Lot / batch identity. Required by the server for positive adjustments
+     * on lot-tracked products; negative lines are resolved FEFO. */
+    lot_number?: string | null;
+    serial_number?: string | null;
+    /** Expiry of a newly registered lot (expiry-tracked products). */
+    expiry_date?: string | null;
+    lot_allocations?: unknown[] | null;
   }[];
 }
 
@@ -368,6 +384,13 @@ export function useInventory() {
               quantity_adjustment: i.quantity_adjustment,
               unit_cost: i.unit_cost,
               notes: i.notes,
+              packaging_id: i.packaging_id ?? null,
+              display_uom_id: i.display_uom_id ?? null,
+              display_quantity: i.display_quantity ?? null,
+              lot_number: i.lot_number ?? null,
+              serial_number: i.serial_number ?? null,
+              expiry_date: i.expiry_date ?? null,
+              lot_allocations: i.lot_allocations ?? null,
             })),
           },
           p_user_id: userId,
