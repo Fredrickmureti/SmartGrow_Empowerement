@@ -48,8 +48,10 @@ describe("banking ownership architecture", () => {
       "utf8",
     );
     expect(src).toContain("branchSelectorLocked");
-    expect(src).toContain("is_shared");
+    // is_shared is derived server-side from branch_id; the page only sends branch_id.
+    expect(src).toContain("branch_id: resolvedBranchId");
   });
+
 
   it("BankAccountEditPage enforces branch lock + re-attribute confirmation (G1)", () => {
     const src = readFileSync(
