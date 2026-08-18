@@ -1,4 +1,4 @@
-# Finance Wave 1 — Banking Domain Reconstruction (authoritative status)
+# Finance Wave 1 — Banking Domain Reconstruction (execution ledger)
 
 Seam model:
 
@@ -8,72 +8,68 @@ ingestion (CSV / feed)  →  bank_statement_import_batch (single engine)
 reconciliation          →  server-owned lifecycle; matches only, never mints payments (ADR 0123)
 ```
 
-## Completed and verified
+## Phase 1 verification of the previous engineer's claims — RESULT
 
-- **Phase 1 — schema/lifecycle.** `bank_account_lifecycle_status`, `row_version`,
-  `opening_balance_je_id`, derive trigger. Verified live.
-- **Phase 2 — bank account write seams.** `bank_account_create/_update/_transition/
-  _delete_draft/_reset_opening_balances`, all SECURITY DEFINER, `search_path=public`.
-  `authenticated` has SELECT only. Verified live.
-- **Phase 3 — single ingestion engine.** `bank_statement_import_batch` +
-  `bank_transaction_fingerprint` + `bank_transaction_apply_rules`; wizard and
-  `sync-bank-transactions` both delegate. Verified live.
-- **Phase 4 — reconciliation lifecycle.** Six seam functions; arithmetic owned by
-  `_bank_reconciliation_recompute`; all GL effects via `post_journal_entry_atomic`
-  (ADR-0123 satisfied in fact, verified by reading each function body).
-- **Phase 4c — privilege closure.** All `anon`/`PUBLIC` table privileges revoked
-  across the banking family (accounts, transactions, statements, sessions, items,
-  matches, writeoffs, splits, rules); `authenticated` TRUNCATE revoked; banking
-  function EXECUTE restricted to `authenticated`/`service_role`.
-- **Phase 4d — rule authoring seam.** `bank_reconciliation_rule_upsert/_delete` and
-  `transaction_categorization_rule_upsert/_delete`; `useReconciliationRules` and
-  `useTransactionRules` migrated off direct writes; table writes revoked.
-  Ratchet: `banking-rule-authoring-seam.test.ts`.
-- **Phase 4e — stale ratchet repaired.** `banking-ownership.test.ts` now asserts
-  the delegation model. Banking suite green (15/15 across three files), typecheck clean.
-- **Phase 5 — currency & FX correctness (THIS WAVE, DONE).**
-  - `useBusinessActiveCurrencies` hook (system catalogue ∩ `business_active_currencies`,
-    falling back to `businesses.base_currency`).
-  - `BankAccountCreatePage` / `BankAccountEditPage`: free-text currency inputs replaced
-    with the shared `CurrencyCombobox`; edit stays locked once the account has history.
-  - Hardcoded Kenyan Jenga/Equity test fixtures removed; sandbox handling is now a
-    generic provider notice.
-  - Migration: `bank_statement_import_batch` rejects rows whose currency differs from
-    the parent account (reported in `rejected_rows`) and stamps `original_currency`;
-    `reconcile_bank_transfer_atomic` refuses cross-currency matches
-    (`BANK_TRANSFER_CURRENCY_MISMATCH`). EXECUTE re-restricted after redefinition.
-  - Ratchet: `src/test/architecture/banking-currency-integrity.test.ts`.
-  - Memory updated: `mem/features/banking-domain.md`.
+Re-verified directly against the live database and the codebase, not the ledger.
 
-## Currently active phase
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Phases 1–2 account lifecycle + write seams | Confirmed | all five `bank_account_*` functions exist, `prosecdef = true` |
+| Phase 3 single ingestion engine | Confirmed | `bank_statement_import_batch` / `_fingerprint` / `_apply_rules` present; both callers delegate |
+| Phase 4 reconciliation lifecycle, no minting | Confirmed | six seam functions present, GL effects routed to `post_journal_entry_atomic` |
+| Phase 4c privilege closure | Confirmed | every banking table ACL is `authenticated=rxtm` only — no INSERT/UPDATE/DELETE, no TRUNCATE, no `anon`/`PUBLIC`; every banking function EXECUTE is `authenticated` + `service_role` only |
+| Phase 4d rule authoring seam | Confirmed | upsert/delete RPCs present; no direct table writes in app code |
+| Phase 5 currency & FX | Confirmed | import batch rejects rows whose currency ≠ account currency and stamps `original_currency`; `reconcile_bank_transfer_atomic` raises `BANK_TRANSFER_CURRENCY_MISMATCH`; both pages use `CurrencyCombobox` + `useBusinessActiveCurrencies` |
+| "Banking suite green (15/15)" | Stale but conservative | actual: 7 files, 40 tests, all passing |
 
-None — Phase 5 is closed. Phase 6 is next and not started.
+No claim was found false. The ledger understated test coverage; nothing was overstated.
 
-## Pending
+## Defect found during this verification (new, not in the previous ledger)
 
-**Phase 6 — SQL tests + ADR (next milestone).**
-1. `supabase/tests/` coverage: lifecycle guards; opening-balance atomicity and
-   idempotency; `row_version` conflict; close refusal with open items; concurrent
-   import dedup; reconciliation gates (period lock, second open session, cross-account
-   line, write-off threshold, completion balance); currency-mismatch rejection on
-   import; cross-currency transfer refusal.
-2. ADR documenting the banking write seams (accounts, ingestion, reconciliation,
-   rule authoring) and the ADR-0123 no-mint property.
-3. Final privilege re-verification sweep after all Phase 5/6 function redefinitions
-   (a `CREATE OR REPLACE` can restore default EXECUTE — check every banking function
-   again at the end).
+**D-7 — `bank_accounts.current_balance` is orphaned truth.** The column is
+selected and rendered by `useBankAccounts`, but **no database function, trigger
+or seam ever writes it** (confirmed: zero `pg_proc` bodies reference it
+alongside bank accounts). Every displayed cash figure sourced from it is
+unreproducible and cannot be traced by an auditor — a direct §26 provenance
+violation. Cash position must derive from canonical state (the GL control
+account and/or cleared bank transactions), not from a denormalized column
+nobody maintains.
 
-## Instructions for the next agent
+## Remaining work
 
-1. **Verify before you build.** Re-run
-   `bunx vitest run src/test/architecture/banking-*.test.ts` and a typecheck. Then
-   query `pg_proc`/`information_schema.role_table_grants` for the banking family and
-   confirm: no `anon`/`PUBLIC` privilege on any banking table or function, no
-   `authenticated` TRUNCATE, no `authenticated` INSERT/UPDATE/DELETE on
-   `bank_transactions`, `bank_statements`, `bank_reconciliation_*`,
-   `transaction_categorization_rules`.
-2. Confirm the Phase 5 guards actually fire (currency mismatch on import; cross-currency
-   transfer refusal) rather than trusting this document.
-3. **Then resume at Phase 6**, in the order listed above. Do not start unrelated Finance
-   areas (AP/AR, fixed assets, reporting) until Phase 6 closes the banking wave with
-   SQL tests and an ADR.
+**Phase 6 — SQL tests (`supabase/tests/`).** One test file per invariant class:
+1. Lifecycle: illegal transitions refused; `row_version` conflict raises; draft delete only in draft.
+2. Opening balance: posts exactly one JE, idempotent on repeat, refused in a locked period, reset reverses through the engine.
+3. Ingestion: concurrent import dedup (same fingerprint → one row), locked period → `rejected_rows`, non-active account refused, currency mismatch rejected.
+4. Reconciliation: second open session refused, cross-account line refused, line dated after statement refused, write-off threshold, completion balance gate, cancel keeps provenance.
+5. Cross-currency transfer refusal (`BANK_TRANSFER_CURRENCY_MISMATCH`).
+6. Privilege ratchet in SQL: assert no `anon`/`PUBLIC` privilege on the banking table/function family (defends against a future `CREATE OR REPLACE` restoring default EXECUTE).
+
+**Phase 7 — cash-position provenance (D-7).**
+- Introduce one canonical read: a server-side projection (SQL function or view)
+  returning per-account book balance from the GL control account and cleared
+  bank movement, with `as_of`.
+- Migrate `useBankAccounts` and any dashboard/executive consumer off
+  `current_balance`; then drop the column (or make it a generated/derived read)
+  so no second source of truth survives — no legacy fallback path.
+- Ratchet: no application file reads `current_balance`.
+
+**Phase 8 — ADR + memory.**
+ADR documenting the banking write seams (accounts, ingestion, reconciliation,
+rule authoring), the ADR-0123 no-mint property, the currency-integrity rule,
+and the single cash-position projection. Update `mem/features/banking-domain.md`.
+
+**Phase 9 — closing sweep.** Re-run the banking suite + typecheck, then re-query
+`pg_proc.proacl` and `pg_class.relacl` for the whole banking family after every
+Phase 6–8 redefinition.
+
+## Explicitly out of scope for this wave
+
+AP/AR, fixed assets, budgets, reporting redesign. Banking dependencies
+(currency, FX, COA, posting engine, fiscal periods, events) are followed only as
+far as Banking's correctness requires; all of them already have canonical
+engines and are consumed, not duplicated.
+
+## Next coherent step
+
+Phase 6.1–6.3 (lifecycle, opening balance, ingestion SQL tests).
