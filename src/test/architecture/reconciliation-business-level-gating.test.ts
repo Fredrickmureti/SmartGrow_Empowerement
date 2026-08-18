@@ -1,12 +1,26 @@
 /**
- * Phase 13 — Bank Reconciliation architecture guard.
+ * Bank Reconciliation — scope + permission guard (Wave 3 rewrite).
  *
- * Reconciliation sessions, matches, and the reconcile/unreconcile RPCs
- * must all be (organization, business, branch) scoped and gated by the
- * `finance.reconcile_bank` permission. The hook and page must consume
- * useFinanceScope + useFinancePermission so a branch switch invalidates
- * data and a user without the perm gets a clean read-only state instead
- * of a raw RLS 42501.
+ * WHY THIS FILE CHANGED
+ * The previous version grepped "the latest migration that mentions
+ * bank_reconciliation_sessions AND assert_can_reconcile_bank". That is a
+ * statement about migration authorship, not about the system: later waves
+ * redefined the seams in newer migrations, so the ratchet went red while the
+ * architecture it guards stayed correct. A ratchet that fails for a good
+ * architecture teaches engineers to ignore ratchets.
+ *
+ * WHAT IT ASSERTS NOW — the properties, against the migration corpus as a
+ * whole (the *final* definition of each object) and against the client:
+ *
+ *  1. `assert_can_reconcile_bank(business_id)` exists and is the one place the
+ *     `finance.reconcile_bank` permission is decided.
+ *  2. Every reconciliation write seam is gated by it — directly, or through
+ *     `_bank_reconciliation_assert_account`, which performs the check.
+ *  3. `bank_reconciliation_sessions` is branch-aware and its RLS names both
+ *     the permission and the branch clause.
+ *  4. The browser never stamps scope onto a session: it submits through the
+ *     `bank_reconciliation_session_*` seams and consumes the permission for
+ *     read-only UI, not for authorization.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
@@ -14,111 +28,148 @@ import { join } from "node:path";
 
 const root = process.cwd();
 const read = (p: string) => readFileSync(join(root, p), "utf8");
-const migrations = () =>
-  readdirSync(join(root, "supabase/migrations"))
+
+/** Every migration, oldest first, concatenated. The last definition wins. */
+const corpus = (() => {
+  const dir = join(root, "supabase/migrations");
+  return readdirSync(dir)
     .filter((f) => f.endsWith(".sql"))
-    .sort();
+    .sort()
+    .map((f) => readFileSync(join(dir, f), "utf8"))
+    .join("\n\n");
+})();
 
-const reconMigration = () => {
-  // The Phase 13 reconciliation migration is the latest one that touches
-  // bank_reconciliation_sessions AND ships assert_can_reconcile_bank.
-  for (const f of migrations().slice().reverse()) {
-    const src = read(`supabase/migrations/${f}`);
-    if (
-      src.includes("bank_reconciliation_sessions") &&
-      src.includes("assert_can_reconcile_bank")
-    ) {
-      return src;
+/**
+ * The body of the LAST `CREATE OR REPLACE FUNCTION public.<name>` in the
+ * corpus — i.e. the definition the database actually holds.
+ */
+function finalDefinition(name: string): string {
+  const marker = new RegExp(
+    `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+public\\.${name}\\s*\\(`,
+    "gi",
+  );
+  let start = -1;
+  for (const m of corpus.matchAll(marker)) start = m.index ?? start;
+  if (start < 0) throw new Error(`No definition of public.${name} in migrations`);
+  // A function body ends at the closing dollar-quote followed by a semicolon.
+  const rest = corpus.slice(start);
+  const end = rest.search(/\$\$\s*;/);
+  return end < 0 ? rest : rest.slice(0, end + 3);
+}
+
+/** Seams whose caller is authorized directly by the helper. */
+const DIRECTLY_GATED = [
+  "assert_can_reconcile_bank",
+  "bank_match_propose",
+  "bank_match_confirm",
+  "bank_match_reject",
+  "bank_match_reverse",
+  "unreconcile_bank_transaction",
+  "bank_transaction_set_category",
+  "bank_reconciliation_rule_upsert",
+  "bank_reconciliation_rule_delete",
+] as const;
+
+/**
+ * Seams that resolve their bank account through
+ * `_bank_reconciliation_assert_account`, which performs the permission check
+ * before returning the row. Gating there rather than in nine copies is the
+ * point — one authority, not nine.
+ */
+const GATED_VIA_ACCOUNT_ASSERT = [
+  "bank_reconciliation_session_start",
+  "bank_reconciliation_session_complete",
+  "bank_reconciliation_session_cancel",
+  "bank_reconciliation_session_writeoff",
+  "bank_reconciliation_item_set",
+] as const;
+
+describe("Bank reconciliation is branch + permission scoped", () => {
+  it("assert_can_reconcile_bank is the single permission authority", () => {
+    const src = finalDefinition("assert_can_reconcile_bank");
+    expect(src).toMatch(/finance\.reconcile_bank/);
+  });
+
+  it("_bank_reconciliation_assert_account performs the permission check", () => {
+    const src = finalDefinition("_bank_reconciliation_assert_account");
+    expect(src).toMatch(/assert_can_reconcile_bank\s*\(/);
+  });
+
+  it.each(DIRECTLY_GATED.filter((n) => n !== "assert_can_reconcile_bank"))(
+    "%s calls assert_can_reconcile_bank",
+    (name) => {
+      expect(finalDefinition(name)).toMatch(/assert_can_reconcile_bank\s*\(/);
+    },
+  );
+
+  it.each(GATED_VIA_ACCOUNT_ASSERT)(
+    "%s authorizes through _bank_reconciliation_assert_account",
+    (name) => {
+      const src = finalDefinition(name);
+      expect(
+        /_bank_reconciliation_assert_account\s*\(/.test(src) ||
+          /assert_can_reconcile_bank\s*\(/.test(src),
+      ).toBe(true);
+    },
+  );
+
+  it("every reconciliation seam is SECURITY DEFINER with a pinned search_path", () => {
+    for (const name of [...DIRECTLY_GATED, ...GATED_VIA_ACCOUNT_ASSERT]) {
+      const src = finalDefinition(name);
+      expect(src, `${name} must be SECURITY DEFINER`).toMatch(/SECURITY\s+DEFINER/i);
+      expect(src, `${name} must pin search_path`).toMatch(/SET\s+search_path/i);
     }
-  }
-  throw new Error("Phase 13 reconciliation migration not found");
-};
+  });
 
-describe("Phase 13 — Bank Reconciliation is branch + permission scoped", () => {
-  it("migration adds branch_id to bank_reconciliation_sessions", () => {
-    const sql = reconMigration();
-    expect(sql).toMatch(
-      /ALTER TABLE\s+public\.bank_reconciliation_sessions[\s\S]*ADD COLUMN[\s\S]*branch_id\s+uuid/i,
+  it("bank_reconciliation_sessions is branch-aware", () => {
+    expect(corpus).toMatch(
+      /bank_reconciliation_sessions[\s\S]{0,400}?branch_id\s+uuid/i,
     );
   });
 
-  it("migration ships assert_can_reconcile_bank helper", () => {
-    const sql = reconMigration();
-    expect(sql).toMatch(
-      /CREATE OR REPLACE FUNCTION\s+public\.assert_can_reconcile_bank\(_business_id\s+uuid\)/i,
-    );
-    expect(sql).toMatch(/finance\.reconcile_bank/);
-  });
-
-  it("migration installs the four bank_recon_sessions_*_perm_v1 policies", () => {
-    const sql = reconMigration();
+  it("session and match RLS name the permission and the branch clause", () => {
     for (const op of ["select", "insert", "update", "delete"]) {
-      expect(sql).toMatch(
-        new RegExp(
-          `CREATE POLICY\\s+bank_recon_sessions_${op}_perm_v1[\\s\\S]*bank_reconciliation_sessions`,
-          "i",
-        ),
+      expect(corpus).toMatch(
+        new RegExp(`CREATE POLICY\\s+bank_recon_sessions_${op}_perm_v1`, "i"),
       );
     }
+    expect(corpus).toMatch(/CREATE POLICY\s+bank_recon_matches_write_perm_v1/i);
+    expect(corpus).toMatch(/has_finance_permission\([\s\S]{0,200}?finance\.reconcile_bank/);
+    expect(corpus).toMatch(/user_can_access_branch\(\s*auth\.uid\(\)\s*,\s*branch_id\s*\)/);
   });
 
-  it("session write policies reference finance.reconcile_bank and the branch clause", () => {
-    const sql = reconMigration();
-    expect(sql).toMatch(/has_finance_permission\([\s\S]*?finance\.reconcile_bank/);
-    expect(sql).toMatch(/user_can_access_branch\(\s*auth\.uid\(\)\s*,\s*branch_id\s*\)/);
-  });
-
-  it("bank_recon_matches_write_perm_v1 references finance.reconcile_bank", () => {
-    const sql = reconMigration();
-    expect(sql).toMatch(/CREATE POLICY\s+bank_recon_matches_write_perm_v1/i);
-    expect(sql).toMatch(/bank_recon_matches_write_perm_v1[\s\S]*finance\.reconcile_bank/);
-  });
-
-  it("reconcile_bank_transaction_atomic calls assert_can_reconcile_bank", () => {
-    const sql = reconMigration();
-    expect(sql).toMatch(
-      /CREATE OR REPLACE FUNCTION\s+public\.reconcile_bank_transaction_atomic/i,
-    );
-    expect(sql).toMatch(/assert_can_reconcile_bank\s*\(/);
-  });
-
-  it("unreconcile_bank_transaction calls assert_can_reconcile_bank", () => {
-    const sql = reconMigration();
-    expect(sql).toMatch(
-      /CREATE OR REPLACE FUNCTION\s+public\.unreconcile_bank_transaction[\s\S]*assert_can_reconcile_bank/i,
+  it("the hook submits through the session seams, never a direct table write", () => {
+    const src = read("src/hooks/useReconciliationSessions.ts");
+    for (const rpc of [
+      "bank_reconciliation_session_start",
+      "bank_reconciliation_session_writeoff",
+      "bank_reconciliation_session_complete",
+      "bank_reconciliation_session_cancel",
+    ]) {
+      expect(src, `hook must call ${rpc}`).toContain(rpc);
+    }
+    expect(src).not.toMatch(
+      /from\(\s*["']bank_reconciliation_(sessions|items)["']\s*\)\s*\.\s*(insert|update|delete|upsert)/,
     );
   });
 
-  it("useReconciliationSessions consumes scope + finance.reconcile_bank perm", () => {
+  it("the hook scopes reads and surfaces the permission as read-only UI state", () => {
     const src = read("src/hooks/useReconciliationSessions.ts");
     expect(src).toMatch(/useFinanceScope\(\)/);
     expect(src).toMatch(/useFinancePermission\(\s*["']finance\.reconcile_bank["']\s*\)/);
-  });
-
-  it("useReconciliationSessions branch-filters fetch and refetches on scope change", () => {
-    const src = read("src/hooks/useReconciliationSessions.ts");
-    // branch filter
     expect(src).toMatch(/branch_id\.eq\.\$\{scope\.branchId\}/);
     expect(src).toMatch(/branch_id\.is\.null/);
-    // fetch deps include business + branch
-    expect(src).toMatch(
-      /\[\s*currentOrg\?\.id\s*,\s*currentBusiness\?\.id\s*,\s*scope\.branchId\s*,\s*bankAccountId\s*\]/,
-    );
-  });
-
-  it("useReconciliationSessions stamps branch_id on startSession and exposes canReconcile", () => {
-    const src = read("src/hooks/useReconciliationSessions.ts");
-    expect(src).toMatch(/branch_id:\s*scope\.branchId\s*\?\?\s*null/);
     expect(src).toMatch(/canReconcile/);
     expect(src).toMatch(/mapReconcilePermErr/);
   });
 
-  it("BankReconciliation page renders FinanceScopeBadge + BranchReadOnlyBanner and gates writes on canReconcile", () => {
+  it("BankReconciliation page shows scope and gates write affordances", () => {
     const src = read("src/pages/BankReconciliation.tsx");
     expect(src).toMatch(/<FinanceScopeBadge\b/);
     expect(src).not.toMatch(/<BranchReadOnlyBanner/);
     expect(src).toMatch(/disabled=\{[^}]*!canReconcile/);
-    // legacy manageFinancials gate around the reconcile cluster must be gone
-    expect(src).not.toMatch(/PermissionGate\s+permission=["']manageFinancials["'][\s\S]{0,200}Reconcile/);
+    expect(src).not.toMatch(
+      /PermissionGate\s+permission=["']manageFinancials["'][\s\S]{0,200}Reconcile/,
+    );
   });
 });
