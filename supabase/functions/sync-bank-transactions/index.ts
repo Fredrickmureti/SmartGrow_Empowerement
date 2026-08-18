@@ -1,797 +1,259 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { encode as base64Encode } from "https://deno.land/std@0.208.0/encoding/base64.ts"
+// Bank feed sync — TRANSPORT ONLY.
+//
+// This function owns nothing accounting-shaped. Its whole job is:
+//   1. open a run through `bank_feed_run_start` (the seam resolves/creates the
+//      connection, refuses a second in-flight run and refuses a dead consent),
+//   2. ask the provider adapter for normalized lines in the run window,
+//   3. hand those lines to `bank_statement_import_batch` — the single ingestion
+//      engine, which owns dedup identity, the lifecycle and fiscal-period
+//      gates, deterministic rule categorization, statement bookkeeping and the
+//      business event,
+//   4. close the run with `bank_feed_run_finish`, or record why it broke with
+//      `bank_feed_run_fail`.
+//
+// Explicitly NOT here: categorization rules (the database owns them), cash
+// balances (derived — ADR-0141, `bank_account_positions`), any write to
+// `bank_transactions`, and any provider-specific logic (that lives in
+// `providers/*`).
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveAdapter } from './providers/index.ts';
+import {
+  BankProviderConfig,
+  FeedAccount,
+  FeedError,
+  FeedWindow,
+  NormalizedFeedLine,
+} from './providers/types.ts';
+import { annotateLines } from './aiAdvisory.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
-interface BankProvider {
-  id: string
-  provider_code: string
-  provider_name: string
-  api_base_url: string | null
-  api_key_encrypted: string | null
-  api_secret_encrypted: string | null
-  merchant_code: string | null
-  public_key: string | null
-  private_key_encrypted: string | null
-  is_sandbox: boolean
-  config: Record<string, any>
+const DEFAULT_LOOKBACK_DAYS = 30;
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
-interface BankAccount {
-  id: string
-  organization_id: string
-  name: string
-  bank_name: string | null
-  account_number: string | null
-  external_account_id: string | null
-  provider_id: string | null
-  access_token_encrypted: string | null
-  refresh_token_encrypted: string | null
-  sync_from_date: string | null
-  currency: string
-}
-
-interface JengaTransaction {
-  reference: string
-  date: string
-  description: string
-  amount: string
-  serial: string
-  postedDateTime: string
-  type: string
-  runningBalance: {
-    currency: string
-    amount: number
-  }
-}
-
-// Generate signature for Jenga API using private key
-async function generateJengaSignature(data: string, privateKey: string): Promise<string> {
-  try {
-    // Import the private key
-    const pemContent = privateKey
-      .replace('-----BEGIN PRIVATE KEY-----', '')
-      .replace('-----END PRIVATE KEY-----', '')
-      .replace('-----BEGIN RSA PRIVATE KEY-----', '')
-      .replace('-----END RSA PRIVATE KEY-----', '')
-      .replace(/\s/g, '')
-    
-    const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0))
-    
-    const cryptoKey = await crypto.subtle.importKey(
-      'pkcs8',
-      binaryKey,
-      {
-        name: 'RSASSA-PKCS1-v1_5',
-        hash: 'SHA-256',
-      },
-      false,
-      ['sign']
-    )
-    
-    // Sign the data
-    const encoder = new TextEncoder()
-    const dataBuffer = encoder.encode(data)
-    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, dataBuffer)
-    
-    return base64Encode(new Uint8Array(signature))
-  } catch (error) {
-    console.error('[Jenga] Signature generation error:', error)
-    throw new Error('Failed to generate signature')
-  }
-}
-
-// Get Jenga OAuth token
-async function getJengaAccessToken(
-  provider: BankProvider
-): Promise<string | null> {
-  const baseUrl = provider.is_sandbox 
-    ? 'https://uat.finserve.africa' 
-    : 'https://api.finserve.africa'
-  
-  const tokenUrl = `${baseUrl}/authentication/api/v3/authenticate/merchant`
-  
-  console.log(`[Jenga] Getting access token from ${tokenUrl}`)
-  
-  try {
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Api-Key': provider.api_key_encrypted || '',
-      },
-      body: JSON.stringify({
-        merchantCode: provider.merchant_code,
-        consumerSecret: provider.api_secret_encrypted,
-      }),
-    })
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[Jenga] Token error: ${response.status} - ${errorText}`)
-      return null
-    }
-    
-    const data = await response.json()
-    console.log('[Jenga] Token obtained successfully')
-    return data.accessToken || data.access_token
-  } catch (error) {
-    console.error('[Jenga] Token fetch error:', error)
-    return null
-  }
-}
-
-// Fetch account balance from Jenga
-async function fetchJengaAccountBalance(
-  provider: BankProvider,
-  account: BankAccount,
-  accessToken: string
-): Promise<number | null> {
-  const baseUrl = provider.is_sandbox 
-    ? 'https://uat.finserve.africa' 
-    : 'https://api.finserve.africa'
-  
-  const countryCode = 'KE'
-  const accountNumber = account.account_number || account.external_account_id || ''
-  
-  // Signature: countryCode + accountId
-  const signatureData = `${countryCode}${accountNumber}`
-  
-  console.log(`[Jenga] Fetching balance for account ${accountNumber}`)
-  console.log(`[Jenga] Signature data: ${signatureData}`)
-  
-  try {
-    let signature = ''
-    if (provider.private_key_encrypted) {
-      signature = await generateJengaSignature(signatureData, provider.private_key_encrypted)
-    }
-    
-    const balanceUrl = `${baseUrl}/v3-apis/account-api/v3.0/accounts/balances/${countryCode}/${accountNumber}`
-    console.log(`[Jenga] Balance URL: ${balanceUrl}`)
-    
-    const response = await fetch(
-      balanceUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'signature': signature,
-        },
-      }
-    )
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[Jenga] Balance error: ${response.status} - ${errorText}`)
-      return null
-    }
-    
-    const data = await response.json()
-    console.log('[Jenga] Balance response:', JSON.stringify(data))
-    
-    // Handle different response structures
-    if (data.data?.balances) {
-      // Find available balance
-      const availableBalance = data.data.balances.find((b: any) => b.type === 'Available')
-      return availableBalance?.amount || data.data.balances[0]?.amount || null
-    }
-    
-    return data.balance || data.availableBalance || null
-  } catch (error) {
-    console.error('[Jenga] Balance fetch error:', error)
-    return null
-  }
-}
-
-// Fetch transactions from Jenga (Account Full Statement)
-async function fetchJengaTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[Jenga] Fetching transactions for account ${account.account_number}`)
-  console.log(`[Jenga] Date range: ${fromDate} to ${toDate}`)
-  console.log(`[Jenga] Using merchant code: ${provider.merchant_code}`)
-  
-  // Get access token first
-  const accessToken = await getJengaAccessToken(provider)
-  if (!accessToken) {
-    console.error('[Jenga] Failed to get access token')
-    return []
-  }
-  
-  const baseUrl = provider.is_sandbox 
-    ? 'https://uat.finserve.africa' 
-    : 'https://api.finserve.africa'
-  
-  const countryCode = 'KE'
-  const accountNumber = account.account_number || account.external_account_id || ''
-  
-  // Signature for account statement: accountNumber + countryCode + toDate
-  const signatureData = `${accountNumber}${countryCode}${toDate}`
-  
-  try {
-    let signature = ''
-    if (provider.private_key_encrypted) {
-      signature = await generateJengaSignature(signatureData, provider.private_key_encrypted)
-    }
-    
-    const statementUrl = `${baseUrl}/v3-apis/account-api/v3.0/accounts/fullStatement`
-    console.log(`[Jenga] Full statement URL: ${statementUrl}`)
-    
-    const response = await fetch(
-      statementUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'signature': signature,
-        },
-        body: JSON.stringify({
-          countryCode,
-          accountNumber,
-          fromDate,
-          toDate,
-        }),
-      }
-    )
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[Jenga] Statement error: ${response.status} - ${errorText}`)
-      
-      // Try mini statement as fallback
-      return await fetchJengaMiniStatement(provider, account, accessToken, baseUrl)
-    }
-    
-    const data = await response.json()
-    console.log('[Jenga] Statement response received')
-    
-    // Transform Jenga transactions to our format
-    const transactions = (data.data?.transactions || data.transactions || []).map((tx: JengaTransaction) => ({
-      external_transaction_id: tx.reference || tx.serial || `jenga_${Date.now()}_${Math.random()}`,
-      transaction_date: tx.date || tx.postedDateTime,
-      posting_date: tx.postedDateTime || tx.date,
-      description: tx.description,
-      reference: tx.reference,
-      amount: parseFloat(tx.amount) * (tx.type === 'Debit' ? -1 : 1),
-      balance_after: tx.runningBalance?.amount,
-      raw_data: tx,
-    }))
-    
-    return transactions
-  } catch (error) {
-    console.error('[Jenga] Statement fetch error:', error)
-    return []
-  }
-}
-
-// Fetch mini statement as fallback
-async function fetchJengaMiniStatement(
-  provider: BankProvider,
-  account: BankAccount,
-  accessToken: string,
-  baseUrl: string
-): Promise<any[]> {
-  console.log('[Jenga] Trying mini statement as fallback')
-  
-  const countryCode = 'KE'
-  const accountNumber = account.account_number || account.external_account_id || ''
-  
-  // Signature for mini statement: countryCode + accountNumber
-  const signatureData = `${countryCode}${accountNumber}`
-  
-  try {
-    let signature = ''
-    if (provider.private_key_encrypted) {
-      signature = await generateJengaSignature(signatureData, provider.private_key_encrypted)
-    }
-    
-    const miniStatementUrl = `${baseUrl}/v3-apis/account-api/v3.0/accounts/miniStatement/${countryCode}/${accountNumber}`
-    console.log(`[Jenga] Mini statement URL: ${miniStatementUrl}`)
-    
-    const response = await fetch(
-      miniStatementUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'signature': signature,
-        },
-      }
-    )
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[Jenga] Mini statement error: ${response.status} - ${errorText}`)
-      return []
-    }
-    
-    const data = await response.json()
-    console.log('[Jenga] Mini statement response received')
-    
-    const transactions = (data.data?.transactions || data.transactions || []).map((tx: any) => ({
-      external_transaction_id: tx.reference || tx.chequeNumber || `jenga_mini_${Date.now()}_${Math.random()}`,
-      transaction_date: tx.date,
-      posting_date: tx.date,
-      description: tx.description,
-      reference: tx.reference,
-      amount: parseFloat(tx.amount) * (tx.type === 'Debit' ? -1 : 1),
-      balance_after: null,
-      raw_data: tx,
-    }))
-    
-    return transactions
-  } catch (error) {
-    console.error('[Jenga] Mini statement error:', error)
-    return []
-  }
-}
-
-// Other bank providers - placeholder implementations
-async function fetchKCBTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[KCB BUNI] Fetching transactions for account ${account.account_number}`)
-  console.log(`[KCB BUNI] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement KCB BUNI API integration
-  return []
-}
-
-async function fetchCoopTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[Co-op Connect] Fetching transactions for account ${account.account_number}`)
-  console.log(`[Co-op Connect] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement Co-op Connect API integration
-  return []
-}
-
-async function fetchNCBATransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[NCBA] Fetching transactions for account ${account.account_number}`)
-  console.log(`[NCBA] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement NCBA Open Banking API integration
-  return []
-}
-
-async function fetchAbsaTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[Absa] Fetching transactions for account ${account.account_number}`)
-  console.log(`[Absa] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement Absa Open Banking API integration
-  return []
-}
-
-async function fetchStanChartTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[StanChart] Fetching transactions for account ${account.account_number}`)
-  console.log(`[StanChart] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement Standard Chartered API integration
-  return []
-}
-
-async function fetchIMBankTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[I&M Bank] Fetching transactions for account ${account.account_number}`)
-  console.log(`[I&M Bank] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement I&M Bank API integration
-  return []
-}
-
-async function fetchStanbicTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[Stanbic] Fetching transactions for account ${account.account_number}`)
-  console.log(`[Stanbic] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement Stanbic API integration
-  return []
-}
-
-async function fetchDTBAstraTransactions(
-  provider: BankProvider,
-  account: BankAccount,
-  fromDate: string,
-  toDate: string
-): Promise<any[]> {
-  console.log(`[DTB Astra] Fetching transactions for account ${account.account_number}`)
-  console.log(`[DTB Astra] Date range: ${fromDate} to ${toDate}`)
-  // TODO: Implement DTB via Astra Africa API integration
-  return []
-}
-
-// Categorize transaction based on rules
-async function categorizeTransaction(
-  supabase: any,
-  organizationId: string,
-  transaction: any
-): Promise<{ category: string; confidence: number; ai_suggested?: string; ai_confidence?: number; ai_reasoning?: string }> {
-  try {
-    const { data: rules } = await supabase
-      .from('transaction_categorization_rules')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .eq('is_active', true)
-      .order('priority', { ascending: false })
-
-    if (rules && rules.length > 0) {
-      for (const rule of rules) {
-        if (rule.transaction_type !== 'both' && rule.transaction_type !== transaction.transaction_type) {
-          continue
-        }
-
-        if (rule.min_amount && Math.abs(transaction.amount) < rule.min_amount) {
-          continue
-        }
-        if (rule.max_amount && Math.abs(transaction.amount) > rule.max_amount) {
-          continue
-        }
-
-        if (rule.description_pattern) {
-          const pattern = new RegExp(rule.description_pattern, 'i')
-          if (pattern.test(transaction.description)) {
-            return { category: rule.target_category, confidence: 0.9 }
-          }
-        }
-
-        if (rule.reference_pattern && transaction.reference) {
-          const pattern = new RegExp(rule.reference_pattern, 'i')
-          if (pattern.test(transaction.reference)) {
-            return { category: rule.target_category, confidence: 0.85 }
-          }
-        }
-      }
-    }
-
-    // No rule matched - try AI categorization
-    const aiResult = await getAICategorization(transaction)
-    if (aiResult) {
-      return {
-        category: aiResult.category,
-        confidence: aiResult.confidence,
-        ai_suggested: aiResult.category,
-        ai_confidence: aiResult.confidence,
-        ai_reasoning: aiResult.reasoning,
-      }
-    }
-  } catch (error) {
-    console.log('[Categorize] Error during categorization:', error)
-  }
-
-  return { category: 'Uncategorized', confidence: 0 }
-}
-
-// AI-powered categorization using Lovable AI Gateway
-async function getAICategorization(
-  transaction: any
-): Promise<{ category: string; confidence: number; reasoning: string } | null> {
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
-  if (!LOVABLE_API_KEY) {
-    console.log('[AI] No LOVABLE_API_KEY configured, skipping AI categorization')
-    return null
-  }
-
-  try {
-    const prompt = `Categorize this bank transaction:
-Description: ${transaction.description}
-Amount: ${transaction.amount}
-Type: ${transaction.amount > 0 ? 'credit (money in)' : 'debit (money out)'}
-Reference: ${transaction.reference || 'N/A'}
-
-Choose the most appropriate category from this list:
-- Office Supplies
-- Travel & Transportation
-- Meals & Entertainment
-- Professional Services
-- Software & Subscriptions
-- Utilities
-- Marketing & Advertising
-- Equipment & Hardware
-- Insurance
-- Rent & Facilities
-- Bank & Finance Charges
-- Payroll & Wages
-- Sales Revenue
-- Customer Payment
-- Refund
-- Transfer
-- Other`
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a financial categorization assistant. Analyze bank transactions and categorize them accurately.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'categorize_transaction',
-              description: 'Categorize a bank transaction',
-              parameters: {
-                type: 'object',
-                properties: {
-                  category: {
-                    type: 'string',
-                    description: 'The category for this transaction',
-                  },
-                  confidence: {
-                    type: 'number',
-                    description: 'Confidence score between 0 and 1',
-                  },
-                  reasoning: {
-                    type: 'string',
-                    description: 'Brief explanation for the categorization',
-                  },
-                },
-                required: ['category', 'confidence', 'reasoning'],
-              },
-            },
-          },
-        ],
-        tool_choice: { type: 'function', function: { name: 'categorize_transaction' } },
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('[AI] Gateway error:', response.status)
-      return null
-    }
-
-    const data = await response.json()
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0]
-    
-    if (toolCall?.function?.arguments) {
-      const result = JSON.parse(toolCall.function.arguments)
-      console.log('[AI] Categorized as:', result.category, 'confidence:', result.confidence)
-      return {
-        category: result.category,
-        confidence: Math.min(Math.max(result.confidence, 0), 1),
-        reasoning: result.reasoning,
-      }
-    }
-  } catch (error) {
-    console.error('[AI] Categorization error:', error)
-  }
-
-  return null
+function resolveWindow(
+  runFrom: string | null,
+  runTo: string | null,
+  syncFrom: string | null,
+): FeedWindow {
+  const to = runTo ?? isoDay(new Date());
+  const from =
+    runFrom ??
+    syncFrom ??
+    isoDay(new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000));
+  return { from, to };
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  let runId: string | null = null;
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const body = await req.json().catch(() => ({}));
+    const bankAccountId: string | undefined = body?.bank_account_id;
+    const organizationId: string | undefined = body?.organization_id;
+    const triggerSource: string = body?.trigger_source ?? 'manual';
 
-    const { bank_account_id, organization_id } = await req.json()
-
-    if (!bank_account_id || !organization_id) {
-      return new Response(
-        JSON.stringify({ error: 'bank_account_id and organization_id are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!bankAccountId || !organizationId) {
+      return json({ error: 'bank_account_id and organization_id are required' }, 400);
     }
 
     // ─── Subscription entitlement check ───
-    const { checkAppEntitlement, entitlementDeniedResponse } = await import("../_shared/entitlementCheck.ts");
-    const entResult = await checkAppEntitlement(supabase, organization_id, "banking");
+    const { checkAppEntitlement, entitlementDeniedResponse } = await import(
+      '../_shared/entitlementCheck.ts'
+    );
+    const entResult = await checkAppEntitlement(supabase, organizationId, 'banking');
     if (!entResult.allowed) return entitlementDeniedResponse(entResult, corsHeaders);
 
-    console.log(`[Sync] Starting sync for bank account: ${bank_account_id}`)
+    // ── 1. Open the run. The seam owns connection identity and concurrency. ──
+    const { data: startData, error: startError } = await supabase.rpc('bank_feed_run_start', {
+      _bank_account_id: bankAccountId,
+      _window_from: body?.window_from ?? null,
+      _window_to: body?.window_to ?? null,
+      _trigger_source: triggerSource,
+      _user_id: body?.user_id ?? null,
+    });
 
-    await supabase
-      .from('bank_accounts')
-      .update({ sync_status: 'syncing', sync_error: null })
-      .eq('id', bank_account_id)
+    if (startError) {
+      const message = startError.message ?? 'Failed to start bank feed run';
+      if (message.includes('BANK_FEED_RUN_IN_FLIGHT')) {
+        return json({ error: 'A sync is already running for this account.', code: 'BANK_FEED_RUN_IN_FLIGHT' }, 409);
+      }
+      if (message.includes('BANK_FEED_NEEDS_REAUTH')) {
+        return json({ error: 'This bank connection needs to be re-authorised.', code: 'BANK_FEED_NEEDS_REAUTH' }, 409);
+      }
+      return json({ error: message }, 400);
+    }
 
+    const run = startData as {
+      run_id: string;
+      connection_id: string;
+      provider_code: string | null;
+      window_from: string | null;
+      window_to: string | null;
+    };
+    runId = run.run_id;
+
+    // ── 2. Fetch through the provider adapter. ──
     const { data: account, error: accountError } = await supabase
       .from('bank_accounts')
       .select('*, platform_bank_providers(*)')
-      .eq('id', bank_account_id)
-      .single()
+      .eq('id', bankAccountId)
+      .single();
 
     if (accountError || !account) {
-      console.error('[Sync] Account not found:', accountError)
-      await supabase
-        .from('bank_accounts')
-        .update({ sync_status: 'error', sync_error: 'Account not found' })
-        .eq('id', bank_account_id)
-      
-      return new Response(
-        JSON.stringify({ error: 'Bank account not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      throw new FeedError('BANK_FEED_TRANSPORT', 'Bank account not found');
     }
 
-    const provider = account.platform_bank_providers as BankProvider | null
-
-    const toDate = new Date().toISOString().split('T')[0]
-    const fromDate = account.sync_from_date || 
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
-    let transactions: any[] = []
-    let newBalance: number | null = null
-
-    if (provider) {
-      switch (provider.provider_code) {
-        case 'jenga':
-          // First try to get balance
-          const accessToken = await getJengaAccessToken(provider)
-          if (accessToken) {
-            newBalance = await fetchJengaAccountBalance(provider, account, accessToken)
-            console.log(`[Jenga] Fetched balance: ${newBalance}`)
-          }
-          transactions = await fetchJengaTransactions(provider, account, fromDate, toDate)
-          break
-        case 'kcb_buni':
-          transactions = await fetchKCBTransactions(provider, account, fromDate, toDate)
-          break
-        case 'coop_connect':
-          transactions = await fetchCoopTransactions(provider, account, fromDate, toDate)
-          break
-        case 'ncba':
-          transactions = await fetchNCBATransactions(provider, account, fromDate, toDate)
-          break
-        case 'absa':
-          transactions = await fetchAbsaTransactions(provider, account, fromDate, toDate)
-          break
-        case 'stanchart':
-          transactions = await fetchStanChartTransactions(provider, account, fromDate, toDate)
-          break
-        case 'im_bank':
-          transactions = await fetchIMBankTransactions(provider, account, fromDate, toDate)
-          break
-        case 'stanbic':
-          transactions = await fetchStanbicTransactions(provider, account, fromDate, toDate)
-          break
-        case 'dtb_astra':
-          transactions = await fetchDTBAstraTransactions(provider, account, fromDate, toDate)
-          break
-        default:
-          console.log(`[Sync] Unknown provider: ${provider.provider_code}`)
-      }
-    } else {
-      console.log('[Sync] No provider configured for this account - manual import only')
+    const provider = account.platform_bank_providers as BankProviderConfig | null;
+    if (!provider) {
+      throw new FeedError(
+        'BANK_FEED_UNSUPPORTED_PROVIDER',
+        'This bank account has no feed provider configured; import a statement instead.',
+      );
     }
 
-    console.log(`[Sync] Fetched ${transactions.length} transactions`)
+    const adapter = resolveAdapter(run.provider_code ?? provider.provider_code);
+    const window = resolveWindow(run.window_from, run.window_to, account.sync_from_date ?? null);
 
-    // Provider feeds and manual file imports share ONE ingestion engine.
-    // This function's job ends at "fetch and classify"; the database owns
-    // persistence: dedup identity, lifecycle + fiscal-period gates, rule
-    // categorization, statement bookkeeping and the business event, all in
-    // a single transaction. Scope columns (business_id / branch_id) are
-    // derived server-side from the parent account, never trusted from here.
-    const rows: Record<string, unknown>[] = []
-    for (const tx of transactions) {
-      const categorization = await categorizeTransaction(supabase, organization_id, tx)
-      rows.push({
-        external_transaction_id: tx.external_transaction_id,
-        transaction_date: tx.transaction_date,
-        posting_date: tx.posting_date,
-        description: tx.description,
-        reference: tx.reference,
-        amount: tx.amount,
-        balance_after: tx.balance_after,
-        category: categorization.category,
-        category_confidence: categorization.confidence,
-        ai_suggested_category: categorization.ai_suggested ?? null,
-        ai_confidence: categorization.ai_suggested ? categorization.ai_confidence : null,
-        ai_reasoning: categorization.ai_suggested ? categorization.ai_reasoning : null,
-        raw_data: tx.raw_data || tx,
-      })
-    }
+    const feedAccount: FeedAccount = {
+      id: account.id,
+      organization_id: account.organization_id,
+      name: account.name,
+      bank_name: account.bank_name ?? null,
+      account_number: account.account_number ?? null,
+      external_account_id: account.external_account_id ?? null,
+      provider_id: account.provider_id ?? null,
+      access_token_encrypted: account.access_token_encrypted ?? null,
+      refresh_token_encrypted: account.refresh_token_encrypted ?? null,
+      sync_from_date: account.sync_from_date ?? null,
+      currency: account.currency,
+    };
 
-    let newCount = 0
-    let duplicateCount = 0
-    let rejectedCount = 0
+    const fetched = await adapter(provider, feedAccount, window);
+    const lines: NormalizedFeedLine[] = fetched.lines ?? [];
 
-    if (rows.length > 0) {
+    // ── 3. Persist through the one ingestion engine. ──
+    // Advisory AI hints only; `category` is left for the database rules.
+    const advice = await annotateLines(lines);
+
+    let inserted = 0;
+    let duplicates = 0;
+    let rejected = 0;
+    let statementId: string | null = null;
+
+    if (lines.length > 0) {
+      const rows = lines.map((line) => ({
+        external_transaction_id: line.external_transaction_id,
+        transaction_date: line.transaction_date,
+        posting_date: line.posting_date,
+        description: line.description,
+        reference: line.reference,
+        amount: line.amount,
+        balance_after: line.balance_after,
+        raw_data: line.raw_data,
+        ...(advice.get(line.external_transaction_id) ?? {}),
+      }));
+
       const { data: importResult, error: importError } = await supabase.rpc(
         'bank_statement_import_batch',
         {
-          _bank_account_id: bank_account_id,
+          _bank_account_id: bankAccountId,
           _rows: rows,
           _statement: {
-            file_name: `${provider?.provider_code ?? 'feed'} ${fromDate}..${toDate}`,
-            file_hash: `feed_${bank_account_id}_${fromDate}_${toDate}`,
+            file_name: `${run.provider_code ?? 'feed'} ${window.from}..${window.to}`,
+            // Stable per (account, window, run): re-running a window updates the
+            // same statement header instead of littering new ones.
+            file_hash: `feed_${bankAccountId}_${window.from}_${window.to}`,
             file_format: 'provider_feed',
+            // Provider-reported closing balance is evidence, not a stored balance.
+            closing_balance: fetched.reportedBalance ?? null,
           },
-          _source: `feed:${provider?.provider_code ?? 'unknown'}`,
-        }
-      )
+          _source: `feed:${run.provider_code ?? 'unknown'}`,
+        },
+      );
 
-      if (importError) throw importError
+      if (importError) {
+        throw new FeedError(
+          'BANK_FEED_TRANSPORT',
+          `Ingestion refused the batch: ${importError.message}`,
+        );
+      }
 
-      newCount = (importResult as any)?.inserted ?? 0
-      duplicateCount = (importResult as any)?.duplicates ?? 0
-      rejectedCount = (importResult as any)?.rejected ?? 0
+      const result = importResult as {
+        statement_id?: string;
+        inserted?: number;
+        duplicates?: number;
+        rejected?: number;
+      } | null;
+      inserted = result?.inserted ?? 0;
+      duplicates = result?.duplicates ?? 0;
+      rejected = result?.rejected ?? 0;
+      statementId = result?.statement_id ?? null;
     }
 
+    // ── 4. Close the run. ──
+    const { error: finishError } = await supabase.rpc('bank_feed_run_finish', {
+      _run_id: runId,
+      _fetched: lines.length,
+      _inserted: inserted,
+      _duplicates: duplicates,
+      _rejected: rejected,
+      _statement_id: statementId,
+    });
+    if (finishError) throw finishError;
 
-    // Update account with latest sync info and balance if fetched
-    const updateData: Record<string, any> = {
-      sync_status: 'synced',
-      last_sync_at: new Date().toISOString(),
-      sync_error: null,
-    }
-    
-    if (newBalance !== null) {
-      updateData.current_balance = newBalance
-    }
-
-    await supabase
-      .from('bank_accounts')
-      .update(updateData)
-      .eq('id', bank_account_id)
-
-    console.log(`[Sync] Completed: ${newCount} new, ${duplicateCount} duplicate, ${rejectedCount} rejected${newBalance !== null ? `, balance: ${newBalance}` : ''}`)
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        new_transactions: newCount,
-        duplicate_transactions: duplicateCount,
-        rejected_transactions: rejectedCount,
-        total_fetched: transactions.length,
-        balance_updated: newBalance !== null,
-        new_balance: newBalance,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-
+    return json({
+      success: true,
+      run_id: runId,
+      connection_id: run.connection_id,
+      window,
+      total_fetched: lines.length,
+      new_transactions: inserted,
+      duplicate_transactions: duplicates,
+      rejected_transactions: rejected,
+      statement_id: statementId,
+      reported_balance: fetched.reportedBalance ?? null,
+    });
   } catch (error) {
-    console.error('[Sync] Error:', error)
-    
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    const code =
+      error instanceof FeedError ? error.code : 'BANK_FEED_TRANSPORT';
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[Sync] ${code}: ${message}`);
+
+    if (runId) {
+      // A failed run must never stay "running" — the connection state and the
+      // failure counter are what make a broken feed observable.
+      const { error: failError } = await supabase.rpc('bank_feed_run_fail', {
+        _run_id: runId,
+        _error_code: code,
+        _error_message: message,
+      });
+      if (failError) console.error('[Sync] could not record failure:', failError.message);
+    }
+
+    const status = code === 'BANK_FEED_UNSUPPORTED_PROVIDER' ? 422 : code === 'BANK_FEED_AUTH' ? 401 : 502;
+    return json({ error: message, code, run_id: runId }, status);
   }
-})
+});
