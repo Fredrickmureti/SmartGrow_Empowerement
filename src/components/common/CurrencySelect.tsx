@@ -17,8 +17,10 @@ interface CurrencySelectProps {
 export function CurrencySelect({ value, onChange, disabled, className }: CurrencySelectProps) {
   const { currencies, baseCurrency, isLoading } = useCurrency();
 
-  // Default to base currency if no value
-  const selectedValue = value || baseCurrency || "USD"; // architecture-allow: display-only fallback
+  // Default to the business base currency. No currency literal: if the base
+  // currency is unknown the picker stays empty and shows its placeholder
+  // rather than inventing a currency for the operator (ADR 0135/0136).
+  const selectedValue = value || baseCurrency || "";
 
   return (
     <div className={className}>

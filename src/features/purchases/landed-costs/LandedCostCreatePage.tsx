@@ -46,6 +46,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import {
+  ExchangeRatePanel,
+  useDescribedExchangeRate,
+} from "@/components/finance/ExchangeRatePanel";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -64,21 +68,6 @@ const BASES: { value: LandedCostBasis; label: string; hint: string }[] = [
   { value: "manual", label: "Manual", hint: "Amounts entered per line after allocation." },
 ];
 
-/** Shape returned by the canonical `public.describe_exchange_rate`. */
-interface DescribedRate {
-  rate: number;
-  source: string | null;
-  provider_key: string | null;
-  effective_date: string;
-  scope: string | null;
-}
-
-const RATE_SOURCE_LABEL: Record<string, string> = {
-  base: "Base currency",
-  override: "Tenant override",
-  manual: "Manual entry",
-  provider: "Platform",
-};
 
 
 interface ChargeLine {
@@ -122,38 +111,10 @@ export default function LandedCostCreatePage() {
     if (!currency && baseCurrency) setCurrency(baseCurrency);
   }, [baseCurrency, currency]);
 
-  // Display only. The authoritative rate is resolved and stamped server-side
-  // on insert; this call just shows the operator what the rate book holds
-  // (and its provenance) for the chosen currency and date.
-  const { data: fxRate, isLoading: fxLoading } = useQuery({
-    queryKey: [
-      "landed-cost-fx-describe",
-      currentOrg?.id,
-      currentBusiness?.id,
-      currency,
-      voucherDate,
-    ],
-    enabled:
-      !!currentOrg?.id && !!currentBusiness?.id && !!currency && !!voucherDate,
-    queryFn: async (): Promise<DescribedRate | null> => {
-      const { data, error } = await supabase.rpc("describe_exchange_rate", {
-        p_org_id: currentOrg!.id,
-        p_business_id: currentBusiness!.id,
-        p_currency: currency,
-        p_on_date: voucherDate,
-      });
-      if (error) throw error;
-      const row = (data as DescribedRate[] | null)?.[0];
-      return row ?? null;
-    },
-  });
+  // Display only, through the one shared FX seam. The authoritative rate is
+  // resolved and stamped server-side on insert.
+  const { missingRate } = useDescribedExchangeRate(currency, voucherDate);
 
-  const missingRate =
-    !!currency &&
-    !!baseCurrency &&
-    currency !== baseCurrency &&
-    !fxLoading &&
-    !fxRate;
 
   const addCharge = () => {
     const first = types[0];
@@ -314,34 +275,14 @@ export default function LandedCostCreatePage() {
           </FieldCell>
           <FieldCell>
             <Label>Exchange rate</Label>
-            {currency === baseCurrency ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Charges are already in the base currency — no conversion applies.
-              </p>
-            ) : fxLoading ? (
-              <p className="mt-1 text-xs text-muted-foreground">Resolving rate…</p>
-            ) : fxRate ? (
-              <div className="text-sm">
-                <div className="font-medium">
-                  1 {currency} = {Number(fxRate.rate).toLocaleString(undefined, {
-                    maximumFractionDigits: 6,
-                  })}{" "}
-                  {baseCurrency}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Source: {RATE_SOURCE_LABEL[fxRate.source ?? ""] ?? fxRate.source}
-                  {" · Effective: "}
-                  {fxRate.effective_date}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-1 text-xs text-destructive">
-                No rate on file for {currency} → {baseCurrency} on {voucherDate}.
-                Publish or override a rate in the rate book before saving — the
-                voucher cannot be valued at parity.
-              </p>
-            )}
+            <ExchangeRatePanel
+              currency={currency}
+              onDate={voucherDate}
+              baseHint="Charges are already in the base currency — no conversion applies."
+              missingHint="Publish or override a rate in the rate book before saving — the voucher cannot be valued at parity."
+            />
           </FieldCell>
+
 
           <FieldCell>
             <Label>Default allocation basis</Label>

@@ -31,6 +31,10 @@ import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import { useCurrencyContext } from "@/contexts/CurrencyContext";
 import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import {
+  ExchangeRatePanel,
+  useDescribedExchangeRate,
+} from "@/components/finance/ExchangeRatePanel";
 import { useProducts } from "@/hooks/useProducts";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -83,6 +87,9 @@ export default function ContractCreatePage() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ContractLineInput[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // A contract in a foreign currency cannot be agreed at parity (ADR 0136).
+  const { missingRate } = useDescribedExchangeRate(currency, startDate);
 
   const addLine = useCallback(
     () =>
@@ -167,7 +174,7 @@ export default function ContractCreatePage() {
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <Button size="sm" onClick={handleSubmit} disabled={busy}>
+            <Button size="sm" onClick={handleSubmit} disabled={busy || missingRate}>
               Create draft
             </Button>
           </ActionBar>
@@ -233,6 +240,15 @@ export default function ContractCreatePage() {
                 value={currency}
                 onValueChange={setCurrency}
                 placeholder="Search currency..."
+              />
+            </div>
+            <div>
+              <Label>Exchange rate</Label>
+              <ExchangeRatePanel
+                currency={currency}
+                onDate={startDate}
+                baseHint="Agreed prices are in the base currency — no conversion applies."
+                missingHint="Publish or override a rate in the rate book before saving — contract ceilings cannot be valued at parity."
               />
             </div>
             <div>
