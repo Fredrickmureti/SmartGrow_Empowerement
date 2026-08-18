@@ -485,11 +485,9 @@ export default function AdjustmentNew() {
                       onClick={() => {
                         setItems((prev) => {
                           const idx = prev.findIndex((i) => !i.product_id);
-                          const line = {
+                          const line: Item = {
+                            ...emptyItem(),
                             product_id: v.id,
-                            quantity_adjustment: 0,
-                            unit_cost: "" as number | "",
-                            notes: "",
                           };
                           if (idx === -1) return [...prev, line];
                           const next = [...prev];
