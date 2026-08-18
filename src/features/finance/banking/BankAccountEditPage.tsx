@@ -48,8 +48,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 export default function BankAccountEditPage() {
   const { id: accountId = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { accounts: bankAccounts, updateAccount } =
+  const { accounts: bankAccounts, updateAccount, transitionAccount } =
     useBankAccounts();
+
   const { accounts: glAccounts, isLoading: glLoading } = useAccounts();
   const scope = useFinanceScope();
   const { branches } = useBranch();
