@@ -227,7 +227,8 @@ export default function BankAccountCreatePage() {
   const submitDisabled =
     !accountName ||
     !glAccountId ||
-    !currency.trim();
+    !currency.trim() ||
+    blockedByMissingRate;
 
 
   /* ---------- Step 1: provider picker ------------------------------- */
