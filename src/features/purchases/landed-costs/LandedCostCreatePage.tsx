@@ -64,21 +64,6 @@ const BASES: { value: LandedCostBasis; label: string; hint: string }[] = [
   { value: "manual", label: "Manual", hint: "Amounts entered per line after allocation." },
 ];
 
-/** Shape returned by the canonical `public.describe_exchange_rate`. */
-interface DescribedRate {
-  rate: number;
-  source: string | null;
-  provider_key: string | null;
-  effective_date: string;
-  scope: string | null;
-}
-
-const RATE_SOURCE_LABEL: Record<string, string> = {
-  base: "Base currency",
-  override: "Tenant override",
-  manual: "Manual entry",
-  provider: "Platform",
-};
 
 
 interface ChargeLine {
