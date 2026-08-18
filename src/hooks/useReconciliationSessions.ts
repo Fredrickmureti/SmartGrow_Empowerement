@@ -76,7 +76,7 @@ export function useReconciliationSessions(bankAccountId?: string) {
   const [isSaving, setIsSaving] = useState(false);
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  const { postToGL } = useGLPosting();
+  
   const scope = useFinanceScope();
   const { allowed: canReconcile } = useFinancePermission("finance.reconcile_bank");
 
