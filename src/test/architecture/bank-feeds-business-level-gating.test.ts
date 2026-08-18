@@ -37,11 +37,15 @@ describe("Phase 12 — Bank Feeds is branch-scoped end-to-end", () => {
     );
   });
 
-  it("useBankTransactions categorize updates carry explicit org+business filters", () => {
+  it("useBankTransactions categorizes through the server seam, never a direct update", () => {
     const src = read("src/hooks/useBankTransactions.ts");
-    // updateCategory must scope by org+business in addition to id
-    expect(src).toMatch(/\.update\(\{ category \}\)[\s\S]{0,300}\.eq\(["']organization_id["'],\s*currentOrg\.id\)[\s\S]{0,200}\.eq\(["']business_id["'],\s*currentBusiness\.id\)/);
+    // Categorization is server-owned (`bank_transaction_set_category`), which
+    // derives org/business scope itself — a client-side `.update({ category })`
+    // would bypass the seam and its audit trail.
+    expect(src).toMatch(/rpc\(\s*["']bank_transaction_set_category["']/);
+    expect(src).not.toMatch(/from\(\s*["']bank_transactions["']\s*\)[\s\S]{0,200}?\.update\(/);
   });
+
 
   it("useBankTransactions maps RLS / 42501 errors to a friendly bank-feed message", () => {
     const src = read("src/hooks/useBankTransactions.ts");
@@ -61,17 +65,14 @@ describe("Phase 12 — Bank Feeds is branch-scoped end-to-end", () => {
     expect(src).toMatch(/scope\.scopeLabel/);
   });
 
-  it("BankFeeds.tsx categorize + bulk-categorize stamp explicit org+business filters", () => {
+  it("BankFeeds.tsx categorize + bulk-categorize go through the server seam", () => {
     const src = read("src/pages/BankFeeds.tsx");
-    // handleCategorize
-    expect(src).toMatch(
-      /\.update\(\{ category, category_confidence: 1\.0 \}\)[\s\S]{0,400}\.eq\(['"]id['"],\s*transactionId\)[\s\S]{0,400}\.eq\(['"]organization_id['"],\s*currentOrg\.id\)[\s\S]{0,400}\.eq\(['"]business_id['"],\s*currentBusiness\.id\)/,
-    );
-    // handleBulkCategorize uses .in('id', selectedTransactions) followed by org+business eq
-    expect(src).toMatch(
-      /\.in\(['"]id['"],\s*selectedTransactions\)[\s\S]{0,400}\.eq\(['"]organization_id['"],\s*currentOrg\.id\)[\s\S]{0,400}\.eq\(['"]business_id['"],\s*currentBusiness\.id\)/,
-    );
+    // Both the single and the bulk path call `bank_transaction_set_category`;
+    // the seam owns scope, permission and the audit trail.
+    expect(src.match(/rpc\(\s*['"]bank_transaction_set_category['"]/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(src).not.toMatch(/from\(\s*['"]bank_transactions['"]\s*\)[\s\S]{0,200}?\.update\(/);
   });
+
 
   it("Phase 12 migration ships get_bank_transactions_paginated with branch derived from bank_accounts", () => {
     const matches = listMigrations();
