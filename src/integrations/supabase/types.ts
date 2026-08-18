@@ -4733,6 +4733,216 @@ export type Database = {
           },
         ]
       }
+      bank_feed_connections: {
+        Row: {
+          auto_sync_enabled: boolean
+          bank_account_id: string
+          business_id: string
+          config: Json
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          external_account_id: string | null
+          id: string
+          last_error: string | null
+          last_run_at: string | null
+          last_success_at: string | null
+          organization_id: string
+          provider_code: string
+          provider_id: string | null
+          status: string
+          sync_frequency: string
+          sync_from_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          auto_sync_enabled?: boolean
+          bank_account_id: string
+          business_id: string
+          config?: Json
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          organization_id: string
+          provider_code: string
+          provider_id?: string | null
+          status?: string
+          sync_frequency?: string
+          sync_from_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auto_sync_enabled?: boolean
+          bank_account_id?: string
+          business_id?: string
+          config?: Json
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          organization_id?: string
+          provider_code?: string
+          provider_id?: string | null
+          status?: string
+          sync_frequency?: string
+          sync_from_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_feed_connections_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_feed_connections_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_feed_connections_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_feed_connections_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
+      bank_feed_runs: {
+        Row: {
+          bank_account_id: string
+          business_id: string
+          connection_id: string
+          created_at: string
+          duplicate_count: number
+          error_code: string | null
+          error_message: string | null
+          fetched_count: number
+          finished_at: string | null
+          id: string
+          inserted_count: number
+          organization_id: string
+          rejected_count: number
+          started_at: string
+          started_by: string | null
+          statement_id: string | null
+          status: string
+          trigger_source: string
+          updated_at: string
+          window_from: string | null
+          window_to: string | null
+        }
+        Insert: {
+          bank_account_id: string
+          business_id: string
+          connection_id: string
+          created_at?: string
+          duplicate_count?: number
+          error_code?: string | null
+          error_message?: string | null
+          fetched_count?: number
+          finished_at?: string | null
+          id?: string
+          inserted_count?: number
+          organization_id: string
+          rejected_count?: number
+          started_at?: string
+          started_by?: string | null
+          statement_id?: string | null
+          status?: string
+          trigger_source?: string
+          updated_at?: string
+          window_from?: string | null
+          window_to?: string | null
+        }
+        Update: {
+          bank_account_id?: string
+          business_id?: string
+          connection_id?: string
+          created_at?: string
+          duplicate_count?: number
+          error_code?: string | null
+          error_message?: string | null
+          fetched_count?: number
+          finished_at?: string | null
+          id?: string
+          inserted_count?: number
+          organization_id?: string
+          rejected_count?: number
+          started_at?: string
+          started_by?: string | null
+          statement_id?: string | null
+          status?: string
+          trigger_source?: string
+          updated_at?: string
+          window_from?: string | null
+          window_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_feed_runs_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_feed_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_feed_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_feed_runs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_feed_runs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_feed_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_feed_runs_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_reconciliation_items: {
         Row: {
           branch_id: string | null
@@ -90577,6 +90787,61 @@ export type Database = {
       }
       bank_account_update: {
         Args: { _id: string; _payload: Json; _row_version: number }
+        Returns: Json
+      }
+      bank_feed_connection_resolve: {
+        Args: { _bank_account_id: string; _user_id?: string }
+        Returns: {
+          auto_sync_enabled: boolean
+          bank_account_id: string
+          business_id: string
+          config: Json
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          external_account_id: string | null
+          id: string
+          last_error: string | null
+          last_run_at: string | null
+          last_success_at: string | null
+          organization_id: string
+          provider_code: string
+          provider_id: string | null
+          status: string
+          sync_frequency: string
+          sync_from_date: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bank_feed_connections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      bank_feed_run_fail: {
+        Args: { _error_code: string; _error_message: string; _run_id: string }
+        Returns: Json
+      }
+      bank_feed_run_finish: {
+        Args: {
+          _duplicates: number
+          _fetched: number
+          _inserted: number
+          _rejected: number
+          _run_id: string
+          _statement_id?: string
+        }
+        Returns: Json
+      }
+      bank_feed_run_start: {
+        Args: {
+          _bank_account_id: string
+          _trigger_source?: string
+          _user_id?: string
+          _window_from: string
+          _window_to: string
+        }
         Returns: Json
       }
       bank_match_confirm: {
