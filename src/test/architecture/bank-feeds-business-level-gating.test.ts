@@ -37,11 +37,15 @@ describe("Phase 12 — Bank Feeds is branch-scoped end-to-end", () => {
     );
   });
 
-  it("useBankTransactions categorize updates carry explicit org+business filters", () => {
+  it("useBankTransactions categorizes through the server seam, never a direct update", () => {
     const src = read("src/hooks/useBankTransactions.ts");
-    // updateCategory must scope by org+business in addition to id
-    expect(src).toMatch(/\.update\(\{ category \}\)[\s\S]{0,300}\.eq\(["']organization_id["'],\s*currentOrg\.id\)[\s\S]{0,200}\.eq\(["']business_id["'],\s*currentBusiness\.id\)/);
+    // Categorization is server-owned (`bank_transaction_set_category`), which
+    // derives org/business scope itself — a client-side `.update({ category })`
+    // would bypass the seam and its audit trail.
+    expect(src).toMatch(/rpc\(\s*["']bank_transaction_set_category["']/);
+    expect(src).not.toMatch(/from\(\s*["']bank_transactions["']\s*\)[\s\S]{0,200}?\.update\(/);
   });
+
 
   it("useBankTransactions maps RLS / 42501 errors to a friendly bank-feed message", () => {
     const src = read("src/hooks/useBankTransactions.ts");
