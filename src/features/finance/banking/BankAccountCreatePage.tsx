@@ -94,8 +94,9 @@ export default function BankAccountCreatePage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedProvider, setSelectedProvider] = useState<BankProvider | null>(null);
-  const [useTestAccount, setUseTestAccount] = useState(false);
-  const [selectedTestAccount, setSelectedTestAccount] = useState<string>("");
+  const { currencies: activeCurrencies, baseCurrency, isLoading: currenciesLoading } =
+    useBusinessActiveCurrencies();
+
 
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
