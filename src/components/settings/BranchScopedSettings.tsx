@@ -97,12 +97,13 @@ export function BranchScopedSettings({ branchId, branchName }: BranchScopedSetti
       if (!currentOrg?.id || !currentBusiness?.id) {
         throw new Error("No active company selected");
       }
-      const { error } = await supabase
-        .from("bank_accounts")
-        .update({ branch_id: newBranchId })
-        .eq("id", id)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
+      // Wave 1: bank accounts are only mutated through the server write seam.
+      const { error } = await supabase.rpc("bank_account_update", {
+        _id: id,
+        _row_version: null,
+        _payload: { branch_id: newBranchId } as never,
+      });
+
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
