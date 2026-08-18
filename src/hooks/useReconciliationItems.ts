@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface ReconciliationItem {
   id: string;
@@ -11,15 +12,32 @@ export interface ReconciliationItem {
 }
 
 /**
- * Hook to persist reconciliation cleared items in the DB.
- * Replaces the ephemeral React useState<Set<string>> pattern.
+ * Server-computed reconciliation arithmetic, returned by every mutating RPC.
+ * The browser never derives these numbers itself any more.
+ */
+export interface ReconciliationCalc {
+  session_id: string;
+  cleared_count: number;
+  cleared_movement: number;
+  reconciled_balance: number;
+  cleared_balance: number;
+  difference: number;
+  is_balanced: boolean;
+}
+
+/**
+ * Phase 4 (Banking reconstruction) — cleared items are written by the
+ * `bank_reconciliation_item_set` RPC, never by the browser. The RPC validates
+ * that the session is still in progress, that the line belongs to the same
+ * bank account, that it is dated on or before the statement date and that it
+ * is not already reconciled, then returns the recomputed session arithmetic.
  */
 export function useReconciliationItems(sessionId: string | null) {
   const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
+  const [calc, setCalc] = useState<ReconciliationCalc | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load cleared items for this session from DB
   const loadItems = useCallback(async () => {
     if (!sessionId) return;
     try {
@@ -44,77 +62,43 @@ export function useReconciliationItems(sessionId: string | null) {
     loadItems();
   }, [loadItems]);
 
-  // Toggle a transaction's cleared status, persisting to DB
   const toggleCleared = useCallback(async (transactionId: string) => {
     if (!sessionId) return;
-    const isCurrentlyCleared = clearedIds.has(transactionId);
+    const nextCleared = !clearedIds.has(transactionId);
     setIsSaving(true);
 
     try {
-      if (isCurrentlyCleared) {
-        // Remove (delete the row)
-        await supabase
-          .from("bank_reconciliation_items")
-          .delete()
-          .eq("session_id", sessionId)
-          .eq("transaction_id", transactionId);
+      const { data, error } = await (supabase as any).rpc("bank_reconciliation_item_set", {
+        _session_id: sessionId,
+        _transaction_id: transactionId,
+        _cleared: nextCleared,
+      });
+      if (error) throw error;
 
-        setClearedIds(prev => {
-          const next = new Set(prev);
-          next.delete(transactionId);
-          return next;
-        });
-      } else {
-        // Insert as cleared
-        const { data: userData } = await supabase.auth.getUser();
-        await supabase
-          .from("bank_reconciliation_items")
-          .upsert({
-            session_id: sessionId,
-            transaction_id: transactionId,
-            status: "cleared",
-            cleared_at: new Date().toISOString(),
-            cleared_by: userData.user?.id || null,
-          } as any, { onConflict: "session_id,transaction_id" });
-
-        setClearedIds(prev => new Set(prev).add(transactionId));
-      }
+      setClearedIds(prev => {
+        const next = new Set(prev);
+        if (nextCleared) next.add(transactionId);
+        else next.delete(transactionId);
+        return next;
+      });
+      if (data) setCalc(data as ReconciliationCalc);
     } catch (error) {
       console.error("Error toggling reconciliation item:", error);
-      // Revert optimistic update
+      const msg = (error as { message?: string })?.message ?? "";
+      toast.error(msg || "Failed to update cleared status");
+      // Server rejected the change — resync from the source of truth.
       loadItems();
     } finally {
       setIsSaving(false);
     }
   }, [sessionId, clearedIds, loadItems]);
 
-  // Batch mark all cleared items as reconciled in bank_transactions
-  const markAllReconciled = useCallback(async () => {
-    if (!sessionId || clearedIds.size === 0) return;
-
-    const ids = Array.from(clearedIds);
-    const { error } = await supabase
-      .from("bank_transactions")
-      .update({
-        is_reconciled: true,
-        reconciled_at: new Date().toISOString(),
-        lifecycle_status: "reconciled",
-        reconciliation_session_id: sessionId,
-      } as any)
-      .in("id", ids);
-
-    if (error) {
-      console.error("Error marking transactions reconciled:", error);
-      throw error;
-    }
-  }, [sessionId, clearedIds]);
-
   return {
     clearedIds,
+    calc,
     isLoading,
     isSaving,
     toggleCleared,
-    markAllReconciled,
     reload: loadItems,
   };
 }
