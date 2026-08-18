@@ -16,6 +16,9 @@ import { useBankAccounts, type BankAccount } from "@/hooks/useBankAccounts";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBranch } from "@/contexts/BranchContext";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+
 import {
   BANK_ACCOUNT_TYPES,
   filterGLAccountsForBankType,
@@ -64,6 +67,9 @@ export default function BankAccountEditPage() {
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [currency, setCurrency] = useState("");
+  const { currencies: activeCurrencies, isLoading: currenciesLoading } =
+    useBusinessActiveCurrencies();
+
   const [accountType, setAccountType] = useState("checking");
   const [glAccountId, setGlAccountId] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -243,14 +249,19 @@ export default function BankAccountEditPage() {
                 </Tooltip>
               )}
             </Label>
-            <Input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              maxLength={3}
-              placeholder="e.g. USD"
-              disabled={hasTransactions || checkingTxns}
-              className="mt-1.5"
-            />
+            <div className="mt-1.5">
+              {/* Active-currency list only; the seam validates the same set. */}
+              <CurrencyCombobox
+                currencies={activeCurrencies}
+                value={currency}
+                onValueChange={setCurrency}
+                placeholder={
+                  currenciesLoading ? "Loading currencies…" : "Select currency..."
+                }
+                disabled={hasTransactions || checkingTxns || currenciesLoading}
+              />
+            </div>
+
           </FieldCell>
 
           <FieldCell>

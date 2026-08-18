@@ -2,7 +2,7 @@
  * BankAccountCreatePage — full-page `/finance/banking/accounts/new` route
  * replacement for `BankAccountSheet` in connect mode.
  *
- * Preserves the two-step provider-picker → details flow, the Jenga
+ * Preserves the two-step provider-picker → details flow, the generic
  * sandbox affordance, the atomic opening-balance JE post, and the branch
  * scope invariants. Composed on `RecordFormShell` for step 2 (details).
  * Step 1 (provider picker) is a slim standalone page that navigates
@@ -56,12 +56,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const JENGA_TEST_ACCOUNTS = [
-  { label: "Equity Kenya Test 1", accountNumber: "1100194977404", bankCode: "68", currency: "KES", country: "KE" },
-  { label: "Equity Kenya Test 2", accountNumber: "0020100014605", bankCode: "68", currency: "KES", country: "KE" },
-  { label: "Equity Kenya Test 3", accountNumber: "1450160649886", bankCode: "68", currency: "KES", country: "KE" },
-  { label: "Equity Kenya USD", accountNumber: "0810178838044", bankCode: "68", currency: "USD", country: "KE" },
-];
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import { useBusinessActiveCurrencies } from "@/hooks/useBusinessActiveCurrencies";
+
+
 
 const MANUAL_PROVIDER_OPTION = {
   id: "__manual__",
@@ -94,8 +92,9 @@ export default function BankAccountCreatePage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedProvider, setSelectedProvider] = useState<BankProvider | null>(null);
-  const [useTestAccount, setUseTestAccount] = useState(false);
-  const [selectedTestAccount, setSelectedTestAccount] = useState<string>("");
+  const { currencies: activeCurrencies, baseCurrency, isLoading: currenciesLoading } =
+    useBusinessActiveCurrencies();
+
 
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -118,8 +117,8 @@ export default function BankAccountCreatePage() {
     return [MANUAL_PROVIDER_OPTION, ...live];
   }, [providers]);
 
-  const isJengaProvider =
-    selectedProvider?.provider_code === "jenga" && selectedProvider?.is_sandbox;
+  const isSandboxProvider =
+    !!selectedProvider?.is_sandbox && selectedProvider?.provider_code !== "manual";
   const isManualProvider = selectedProvider?.provider_code === "manual";
 
   const strictGL = filterGLAccountsForBankType(glAccounts || [], accountType);
@@ -135,19 +134,13 @@ export default function BankAccountCreatePage() {
       ? [linkedGL, ...bankGLAccounts]
       : bankGLAccounts;
 
+  // Default to the company's base currency once the active list resolves.
   useEffect(() => {
-    if (selectedTestAccount && useTestAccount) {
-      const testAcc = JENGA_TEST_ACCOUNTS.find(
-        (a) => a.accountNumber === selectedTestAccount,
-      );
-      if (testAcc) {
-        setAccountNumber(testAcc.accountNumber);
-        setCurrency(testAcc.currency);
-        setAccountName(testAcc.label);
-        setBankName("Equity Bank");
-      }
+    if (currency) return;
+    if (baseCurrency && activeCurrencies.some((c) => c.code === baseCurrency)) {
+      setCurrency(baseCurrency);
     }
-  }, [selectedTestAccount, useTestAccount]);
+  }, [currency, baseCurrency, activeCurrencies]);
 
   const handleSelectProvider = (provider: BankProvider) => {
     setSelectedProvider(provider);
@@ -156,11 +149,9 @@ export default function BankAccountCreatePage() {
         provider.provider_name.replace(" API", "").replace(" (Equity Bank)", ""),
       );
     }
-    if (provider.provider_code === "jenga" && provider.is_sandbox) {
-      setUseTestAccount(true);
-    }
     setStep(2);
   };
+
 
   const submit = useRecordFormSubmit<any>({
     entityLabel: "Bank account",
@@ -224,8 +215,8 @@ export default function BankAccountCreatePage() {
   const submitDisabled =
     !accountName ||
     !glAccountId ||
-    !currency.trim() ||
-    (isJengaProvider && !selectedTestAccount);
+    !currency.trim();
+
 
   /* ---------- Step 1: provider picker ------------------------------- */
   if (step === 1) {
@@ -348,43 +339,20 @@ export default function BankAccountCreatePage() {
           </div>
         </div>
 
-        {isJengaProvider && (
-          <>
-            <Alert className="mt-4 border-amber-500/20 bg-amber-500/10">
-              <TestTube className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-700 dark:text-amber-400">
-                Sandbox mode
-              </AlertTitle>
-              <AlertDescription className="text-sm text-amber-600 dark:text-amber-300">
-                You're using Jenga's sandbox environment. Use one of the
-                pre-configured test accounts below.
-              </AlertDescription>
-            </Alert>
-            <div className="mt-4">
-              <Label>Select test account</Label>
-              <Select
-                value={selectedTestAccount}
-                onValueChange={setSelectedTestAccount}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Choose a Jenga test account…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JENGA_TEST_ACCOUNTS.map((acc) => (
-                    <SelectItem key={acc.accountNumber} value={acc.accountNumber}>
-                      <div className="flex items-center gap-2">
-                        <span>{acc.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({acc.accountNumber} - {acc.currency})
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
+        {isSandboxProvider && (
+          <Alert className="mt-4 border-amber-500/20 bg-amber-500/10">
+            <TestTube className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-700 dark:text-amber-400">
+              Sandbox mode
+            </AlertTitle>
+            <AlertDescription className="text-sm text-amber-600 dark:text-amber-300">
+              This provider is configured against its sandbox environment.
+              Enter the account details issued to you by the provider — no test
+              accounts are bundled with the product.
+            </AlertDescription>
+          </Alert>
         )}
+
       </Section>
 
       <Section title="Account details">
@@ -415,9 +383,6 @@ export default function BankAccountCreatePage() {
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
               placeholder="Enter your account number"
-              disabled={
-                isJengaProvider && useTestAccount && !!selectedTestAccount
-              }
               className="mt-1.5"
             />
           </FieldCell>
@@ -439,18 +404,31 @@ export default function BankAccountCreatePage() {
           </FieldCell>
 
           <FieldCell>
-            <Label>Currency</Label>
-            <Input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              maxLength={3}
-              placeholder="KES"
-              disabled={
-                isJengaProvider && useTestAccount && !!selectedTestAccount
-              }
-              className="mt-1.5"
-            />
+            <Label>Currency *</Label>
+            <div className="mt-1.5">
+              {/* Only currencies the business has activated. The server seam
+                  validates against the same set, so a free-text box could only
+                  ever produce a rejected write or an unpriced currency. */}
+              <CurrencyCombobox
+                currencies={activeCurrencies}
+                value={currency}
+                onValueChange={setCurrency}
+                placeholder={
+                  currenciesLoading
+                    ? "Loading currencies…"
+                    : "Select currency..."
+                }
+                disabled={currenciesLoading || activeCurrencies.length === 0}
+              />
+            </div>
+            {!currenciesLoading && activeCurrencies.length === 0 && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                No currencies are active for this company. Activate one in
+                Settings → Currencies first.
+              </p>
+            )}
           </FieldCell>
+
 
           <FieldCell>
             <Label>Opening balance</Label>
@@ -584,7 +562,7 @@ export default function BankAccountCreatePage() {
 
       {selectedProvider &&
         selectedProvider.provider_code !== "manual" &&
-        !isJengaProvider && (
+        !isSandboxProvider && (
           <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
             <p className="text-sm text-blue-700 dark:text-blue-400">
               <strong>Note:</strong> After connecting, transactions will be
@@ -593,18 +571,20 @@ export default function BankAccountCreatePage() {
           </div>
         )}
 
-      {isJengaProvider && selectedTestAccount && (
-        <Alert className="border-green-500/20 bg-green-500/10">
-          <Info className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-700 dark:text-green-400">
-            Ready to connect
+      {isSandboxProvider && (
+        <Alert className="border-amber-500/20 bg-amber-500/10">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-700 dark:text-amber-400">
+            Sandbox connection
           </AlertTitle>
-          <AlertDescription className="text-sm text-green-600 dark:text-green-300">
-            After connecting, click "Sync" on the account card to fetch the
+          <AlertDescription className="text-sm text-amber-600 dark:text-amber-300">
+            This provider is in sandbox mode. Enter the account details issued
+            by the provider, then click "Sync" on the account card to fetch the
             test balance and transactions.
           </AlertDescription>
         </Alert>
       )}
+
     </RecordFormShell>
   );
 }
