@@ -2,10 +2,12 @@
  * Banking Wave 1 (Phase 5) — currency integrity on the banking surface.
  *
  * Invariants ratcheted here:
- *   1. A bank account's currency is chosen from the company's *active*
- *      currency list (`useBusinessActiveCurrencies` + `CurrencyCombobox`),
- *      never typed as free text. A free-text box can only ever produce a
- *      rejected write or an unpriced currency.
+ *   1. A bank account's currency is chosen from the canonical catalogue
+ *      (`useCurrencies` + `CurrencyCombobox`) — the same picker Landed Cost
+ *      uses — never typed as free text, and never narrowed to a private
+ *      per-surface list. Rate coverage is answered by `ExchangeRatePanel`,
+ *      which shows the resolved rate and its provenance, not by hiding
+ *      currencies from the operator.
  *   2. No country-specific bank fixtures live in core Finance (the platform is
  *      country-agnostic; Kenyan Equity/Jenga test accounts were removed).
  *   3. No banking file converts money at a hardcoded 1:1 or a rate literal —
@@ -35,14 +37,21 @@ function walk(dir: string, out: string[] = []): string[] {
 const bankingFiles = walk(BANKING_DIR);
 
 describe("banking currency integrity (Phase 5)", () => {
-  it("bank account create/edit pick currency from the active catalogue", () => {
+  it("bank account create/edit pick currency from the canonical catalogue", () => {
     for (const page of ["BankAccountCreatePage.tsx", "BankAccountEditPage.tsx"]) {
       const src = readFileSync(join(BANKING_DIR, page), "utf8");
       expect(src, `${page} must use CurrencyCombobox`).toContain(
         "CurrencyCombobox",
       );
-      expect(src, `${page} must source the active currency list`).toContain(
-        "useBusinessActiveCurrencies",
+      expect(src, `${page} must source the canonical catalogue`).toContain(
+        "useCurrencies",
+      );
+      expect(
+        src.includes("useBusinessActiveCurrencies"),
+        `${page} must not narrow the catalogue to a private active list`,
+      ).toBe(false);
+      expect(src, `${page} must show rate provenance`).toContain(
+        "ExchangeRatePanel",
       );
       // A free-text currency box is the regression this guards.
       expect(

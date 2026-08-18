@@ -86971,6 +86971,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _assert_currency_is_active: {
+        Args: { _code: string }
+        Returns: undefined
+      }
       _assert_expense_account_postable: {
         Args: { p_account_id: string; p_label: string }
         Returns: undefined
