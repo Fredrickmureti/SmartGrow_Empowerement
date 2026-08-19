@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import type { BankProvider } from "./useBankProviders";
+import { safeQueryRetry, type NormalizedError } from "@/services/resilience";
 
 export type BankAccountLifecycleStatus =
   | "draft"
