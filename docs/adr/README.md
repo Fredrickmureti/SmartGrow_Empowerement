@@ -34,7 +34,7 @@ they are — an accepted ADR is immutable, and renaming one silently breaks ever
 citation of it in code comments, tests and memory files. The numbers are burnt:
 never reuse them, cite a collided ADR by number *and* title, and always allocate
 the next number by listing `docs/adr/` rather than by memory. The highest
-allocated number is **0145**.
+allocated number is **0147**.
 
 Collided numbers, disambiguated by title:
 
