@@ -87119,6 +87119,10 @@ export type Database = {
         Args: { _business_id: string }
         Returns: undefined
       }
+      _assert_inventory_report_access: {
+        Args: { _branch_id?: string; _business_id: string }
+        Returns: undefined
+      }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
       _assert_reset_permission: { Args: { org_id: string }; Returns: undefined }
       _assert_supplier_purchasable: {
@@ -101571,6 +101575,63 @@ export type Database = {
           new_number: string
           old_number: string
           sales_return_id: string
+        }[]
+      }
+      report_inventory_valuation_as_of: {
+        Args: {
+          p_as_of?: string
+          p_branch?: string
+          p_business: string
+          p_category?: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_product?: string
+          p_warehouse?: string
+        }
+        Returns: {
+          avg_unit_cost: number
+          branch_id: string
+          category_id: string
+          layer_count: number
+          oldest_receipt_at: string
+          product_id: string
+          product_name: string
+          qty_on_hand: number
+          sku: string
+          total_rows: number
+          total_value: number
+          warehouse_id: string
+          warehouse_name: string
+        }[]
+      }
+      report_stock_ledger: {
+        Args: {
+          p_branch?: string
+          p_business: string
+          p_category?: string
+          p_date_from: string
+          p_date_to: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_product?: string
+          p_warehouse?: string
+        }
+        Returns: {
+          branch_id: string
+          category_id: string
+          closing_qty: number
+          movement_count: number
+          opening_qty: number
+          product_id: string
+          product_name: string
+          qty_in: number
+          qty_out: number
+          sku: string
+          total_rows: number
+          warehouse_id: string
+          warehouse_name: string
         }[]
       }
       request_app_access: {
