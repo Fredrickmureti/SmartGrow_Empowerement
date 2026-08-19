@@ -1,11 +1,22 @@
+/**
+ * Inventory Valuation — the value ledger, AS AT a date.
+ *
+ * Phase 3 of the inventory reporting wave. Before this rebuild the page
+ * multiplied *live* on-hand by *today's* AVCO, so no historical or period-end
+ * figure it produced was correct and it could never tie to the GL.
+ *
+ * It now reads `public.report_inventory_valuation_as_of()` — the same RPC the
+ * export path (`_shared/reports/inventoryData.ts`, registry key
+ * `inventory_valuation`) uses — which reconstructs value from cost-layer
+ * receipts less consumptions up to the reporting date, and enforces business /
+ * branch authorization server-side. Screen and PDF are, by construction, the
+ * same dataset.
+ */
 import { useState, useMemo, useCallback } from "react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,357 +26,211 @@ import {
   type ReportRow,
 } from "@/design-system/reports";
 import { Label } from "@/components/ui/label";
-import { DollarSign, TrendingUp, Package, ArrowUp, ArrowDown } from "lucide-react";
+import { DollarSign, Package, Layers } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { BranchScopeToggle, type BranchScope } from "@/components/reports/BranchScopeToggle";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
-import { formatBaseQtyAsPacks, type PackForRollup } from "@/lib/packagingRollup";
-import { useLandedCostValuationAttribution } from "@/features/purchases/landed-costs/useLandedCostReporting";
-
+import { format } from "date-fns";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { useInventoryValuationAsOf } from "@/hooks/inventory/useInventoryReportRpcs";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+
 function InventoryValuationReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
-  const { products, isLoading: productsLoading } = useProducts();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
 
-  const [periodStart, setPeriodStart] = useState(() => format(startOfMonth(subMonths(new Date(), 0)), "yyyy-MM-dd"));
-  const [periodEnd, setPeriodEnd] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const [asOf, setAsOf] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [scope, setScope] = useState<BranchScope>(currentBranch ? "branch" : "company");
   const effectiveBranchId = scope === "branch" ? currentBranch?.id ?? null : null;
 
-  const isLoading = productsLoading || !currencyReady;
-  const orgId = currentOrg?.id;
-  const bizId = currentBusiness?.id;
+  const orgId = currentOrg?.id ?? null;
+  const bizId = currentBusiness?.id ?? null;
 
-  // Fetch movements within the period for each product
-  const { data: periodMovements = [] } = useQuery({
-    queryKey: ["valuation-movements", orgId, bizId, effectiveBranchId, periodStart, periodEnd],
-    queryFn: async () => {
-      if (!orgId || !bizId) return [];
-      let query = supabase
-        .from("stock_movements")
-        .select("product_id, movement_type, quantity, unit_cost")
-        .eq("organization_id", orgId)
-        .eq("business_id", bizId)
-        .gte("movement_date", periodStart)
-        .lte("movement_date", periodEnd + "T23:59:59");
-      if (effectiveBranchId) query = query.eq("branch_id", effectiveBranchId);
-      
-      const allRows: any[] = [];
-      let from = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await query.range(from, from + 999);
-        if (error) throw error;
-        allRows.push(...(data || []));
-        hasMore = (data || []).length === 1000;
-        from += 1000;
-      }
-      return allRows;
-    },
-    enabled: !!orgId && !!bizId,
+  const {
+    data: rows = [],
+    isLoading: rowsLoading,
+    error,
+  } = useInventoryValuationAsOf({
+    orgId,
+    businessId: bizId,
+    asOf,
+    filters: { branchId: effectiveBranchId },
   });
 
-  // Stage 9 (zero-trust audit): aggregate current quantity from warehouse_stock
-  // (the per-branch source of truth) instead of products.stock_quantity (the
-  // company-wide cached aggregate). This makes per-branch valuation correct.
-  const { data: stockByProduct = new Map<string, number>() } = useQuery({
-    queryKey: ["valuation-stock", orgId, bizId, effectiveBranchId],
-    queryFn: async () => {
-      if (!orgId || !bizId) return new Map<string, number>();
-      let query = supabase
-        .from("warehouse_stock")
-        .select("product_id, quantity, branch_id")
-        .eq("organization_id", orgId)
-        .eq("business_id", bizId);
-      if (effectiveBranchId) query = query.eq("branch_id", effectiveBranchId);
+  const isLoading = rowsLoading || !currencyReady;
 
-      const allRows: any[] = [];
-      let from = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await query.range(from, from + 999);
-        if (error) throw error;
-        allRows.push(...(data || []));
-        hasMore = (data || []).length === 1000;
-        from += 1000;
-      }
-      const map = new Map<string, number>();
-      for (const r of allRows) {
-        map.set(r.product_id, (map.get(r.product_id) ?? 0) + Number(r.quantity ?? 0));
-      }
-      return map;
-    },
-    enabled: !!orgId && !!bizId,
-  });
-
-  // Packaging definitions for the pack-rollup column. Lets us show
-  // "120 (5 Carton)" instead of just "120 pcs" on busy product rows.
-  const { byProduct: landedCostByProduct } = useLandedCostValuationAttribution();
-
-  const { data: packsByProduct = new Map<string, PackForRollup[]>() } = useQuery({
-    queryKey: ["valuation-packs", orgId, bizId],
-    queryFn: async () => {
-      if (!orgId || !bizId) return new Map<string, PackForRollup[]>();
-      const { data, error } = await supabase
-        .from("product_packaging")
-        .select("product_id, name, qty_in_base_uom")
-        .eq("organization_id", orgId)
-        .eq("business_id", bizId);
-      if (error) throw error;
-      const map = new Map<string, PackForRollup[]>();
-      for (const r of data ?? []) {
-        const arr = map.get(r.product_id) ?? [];
-        arr.push({ name: r.name, qty_in_base_uom: Number(r.qty_in_base_uom ?? 0) });
-        map.set(r.product_id, arr);
-      }
-      return map;
-    },
-    enabled: !!orgId && !!bizId,
-  });
-
-  const physicalProducts = useMemo(
-    () => products.filter((p) => p.type === "product" && p.is_active),
-    [products]
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (acc, r) => {
+          acc.qty += Number(r.qty_on_hand ?? 0);
+          acc.value += Number(r.total_value ?? 0);
+          acc.layers += Number(r.layer_count ?? 0);
+          return acc;
+        },
+        { qty: 0, value: 0, layers: 0 },
+      ),
+    [rows],
   );
 
-  const valuationData = useMemo(() => {
-    // Group movements by product
-    const movementsByProduct = new Map<string, { inQty: number; inValue: number; outQty: number; outValue: number }>();
-    for (const m of periodMovements) {
-      const entry = movementsByProduct.get(m.product_id) || { inQty: 0, inValue: 0, outQty: 0, outValue: 0 };
-      const cost = m.unit_cost || 0;
-      if (m.quantity > 0) {
-        entry.inQty += m.quantity;
-        entry.inValue += m.quantity * cost;
-      } else {
-        entry.outQty += Math.abs(m.quantity);
-        entry.outValue += Math.abs(m.quantity) * cost;
-      }
-      movementsByProduct.set(m.product_id, entry);
-    }
-
-    const rows = physicalProducts.map((p) => {
-      const costPrice = p.cost_price || 0;
-      const currentQty = stockByProduct.get(p.id) ?? 0;
-      const movements = movementsByProduct.get(p.id) || { inQty: 0, inValue: 0, outQty: 0, outValue: 0 };
-      const closingValue = currentQty * costPrice;
-
-      return {
-        id: p.id,
-        name: p.name,
-        sku: p.sku || "",
-        costPrice,
-        currentQty,
-        closingValue,
-        inQty: movements.inQty,
-        inValue: movements.inValue,
-        outQty: movements.outQty,
-        outValue: movements.outValue,
-      };
-    });
-
-    const totalClosing = rows.reduce((s, r) => s + r.closingValue, 0);
-    const totalIn = rows.reduce((s, r) => s + r.inValue, 0);
-    const totalOut = rows.reduce((s, r) => s + r.outValue, 0);
-
-    return { rows: rows.sort((a, b) => b.closingValue - a.closingValue), totalClosing, totalIn, totalOut };
-  }, [physicalProducts, periodMovements, stockByProduct]);
-
-  const valuationColumns = useMemo<ReportColumn[]>(
+  // Same keys, headers and order as the server column spec
+  // (`columnSpecs.ts` → `inventory_valuation`).
+  const columns = useMemo<ReportColumn[]>(
     () => [
-      { key: "product", header: "Product" },
+      { key: "product_name", header: "Product" },
       { key: "sku", header: "SKU" },
-      { key: "qty", header: "Qty", format: "number" },
-      {
-        key: "packRollup",
-        header: "Pack rollup",
-        render: (row) => (
-          <span className="text-muted-foreground text-xs">{String(row.values?.packRollup ?? "")}</span>
-        ),
-      },
-      { key: "cost", header: "Unit Cost", format: "currency" },
-      { key: "closing_value", header: "Closing Value", format: "currency" },
-      {
-        key: "landedCostUplift",
-        header: "Landed cost in unit cost",
-        align: "right",
-        render: (row) => {
-          const uplift = Number(row.values?.landedCostUplift ?? 0);
-          if (!uplift) return <span className="text-muted-foreground">—</span>;
-          const before = row.values?.landedCostUnitBefore;
-          const after = row.values?.landedCostUnitAfter;
-          return (
-            <span title={
-              before !== null && after !== null
-                ? `Unit cost ${before} → ${after} after landed cost`
-                : undefined
-            }>
-              {formatCurrency(uplift)}
-            </span>
-          );
-        },
-      },
-      {
-        key: "inQty",
-        header: "In",
-        align: "right",
-        render: (row) => {
-          const qty = Number(row.values?.inQty ?? 0);
-          return <span className="text-success">{qty > 0 ? `+${qty}` : "—"}</span>;
-        },
-      },
-      {
-        key: "outQty",
-        header: "Out",
-        align: "right",
-        render: (row) => {
-          const qty = Number(row.values?.outQty ?? 0);
-          return <span className="text-destructive">{qty > 0 ? `-${qty}` : "—"}</span>;
-        },
-      },
+      { key: "warehouse_name", header: "Warehouse" },
+      { key: "qty_on_hand", header: "Qty on Hand", format: "number", align: "right" },
+      { key: "avg_unit_cost", header: "Avg Unit Cost", format: "currency", align: "right" },
+      { key: "total_value", header: "Total Value", format: "currency", align: "right" },
+      { key: "oldest_receipt_at", header: "Oldest Receipt", format: "date" },
+      { key: "layer_count", header: "Layers", format: "number", align: "right" },
     ],
     [],
   );
 
-  const valuationRows = useMemo<ReportRow[]>(
-    () =>
-      valuationData.rows.slice(0, 100).map((row) => ({
-        id: row.id,
-        values: {
-          product: row.name,
-          sku: row.sku || null,
-          qty: row.currentQty,
-          packRollup: formatBaseQtyAsPacks(row.currentQty, packsByProduct.get(row.id) ?? [], "ea"),
-          cost: row.costPrice,
-          closing_value: row.closingValue,
-          inQty: row.inQty,
-          outQty: row.outQty,
-          landedCostUplift: landedCostByProduct.get(row.id)?.uplift_amount ?? 0,
-          landedCostUnitBefore: landedCostByProduct.get(row.id)?.unit_cost_before ?? null,
-          landedCostUnitAfter: landedCostByProduct.get(row.id)?.unit_cost_after ?? null,
-        },
-      })),
-    [valuationData.rows, packsByProduct, landedCostByProduct],
-  );
-
-  const getExportConfig = useCallback((): ExportConfig => {
-    const exportRows: ExportRow[] = valuationData.rows.map((r) => ({
-      product: r.name,
-      sku: r.sku,
-      qty: r.currentQty,
-      cost: r.costPrice,
-      closing_value: r.closingValue,
-      in_qty: r.inQty,
-      in_value: r.inValue,
-      out_qty: r.outQty,
-      out_value: r.outValue,
+  const reportRows = useMemo<ReportRow[]>(() => {
+    const detail: ReportRow[] = rows.map((r, i) => ({
+      id: `${r.product_id}-${r.warehouse_id ?? "all"}-${i}`,
+      kind: "detail",
+      values: {
+        product_name: r.product_name ?? "",
+        sku: r.sku ?? null,
+        warehouse_name: r.warehouse_name ?? "—",
+        qty_on_hand: Number(r.qty_on_hand ?? 0),
+        avg_unit_cost: Number(r.avg_unit_cost ?? 0),
+        total_value: Number(r.total_value ?? 0),
+        oldest_receipt_at: r.oldest_receipt_at ? String(r.oldest_receipt_at).slice(0, 10) : null,
+        layer_count: Number(r.layer_count ?? 0),
+      },
     }));
-    exportRows.push({
-      product: "TOTAL",
-      sku: null,
-      qty: null,
-      cost: null,
-      closing_value: valuationData.totalClosing,
-      in_qty: null,
-      in_value: valuationData.totalIn,
-      out_qty: null,
-      out_value: valuationData.totalOut,
-      _isGrandTotal: true,
+
+    if (detail.length === 0) return detail;
+
+    detail.push({
+      id: "grand-total",
+      kind: "grandTotal",
+      label: "Total",
+      values: {
+        product_name: "Total",
+        sku: null,
+        warehouse_name: null,
+        qty_on_hand: totals.qty,
+        avg_unit_cost: null,
+        total_value: totals.value,
+        oldest_receipt_at: null,
+        layer_count: totals.layers,
+      },
     });
-    return {
-      title: "Inventory Valuation Report",
-      formatProfile: "financial",
-      companyName: currentOrg?.name || "",
-      columns: [
-        { key: "product", header: "Product", width: 25 },
-        { key: "sku", header: "SKU", width: 12 },
-        { key: "qty", header: "Qty", width: 8, format: "number", align: "right" },
-        { key: "cost", header: "Unit Cost", width: 12, format: "currency", align: "right" },
-        { key: "closing_value", header: "Closing Value", width: 15, format: "currency", align: "right" },
-        { key: "in_qty", header: "In Qty", width: 8, format: "number", align: "right" },
-        { key: "in_value", header: "In Value", width: 12, format: "currency", align: "right" },
-        { key: "out_qty", header: "Out Qty", width: 8, format: "number", align: "right" },
-        { key: "out_value", header: "Out Value", width: 12, format: "currency", align: "right" },
-      ],
-      rows: exportRows,
+    return detail;
+  }, [rows, totals]);
+
+  /**
+   * Server-built export: `reportType` + org + period send `render-report`
+   * down the same RPC path, so the PDF/CSV/XLSX contains the full dataset
+   * and cannot drift from the screen.
+   */
+  const getExportConfig = useCallback(
+    (): ExportConfig => ({
+      title: "Inventory Valuation",
+      reportType: "inventory_valuation",
+      organizationId: orgId ?? undefined,
+      businessId: bizId ?? undefined,
+      branchId: effectiveBranchId,
+      asOf,
+      dateFrom: asOf,
+      dateTo: asOf,
+      filters: { branchId: effectiveBranchId, asOf },
+      columns: [],
+      rows: [],
       sheetName: "Valuation",
       currency: baseCurrency,
-    };
-  }, [valuationData, currentOrg, baseCurrency]);
+    }) as ExportConfig,
+    [orgId, bizId, effectiveBranchId, asOf, baseCurrency],
+  );
 
   return (
     <ReportPageLayout
-      title="Inventory Valuation Report"
-      description={`Period: ${format(new Date(periodStart), "MMM d, yyyy")} — ${format(new Date(periodEnd), "MMM d, yyyy")}`}
+      title="Inventory Valuation"
+      description={`Valued from cost layers as at ${format(new Date(asOf), "MMM d, yyyy")}`}
       isLoading={isLoading}
-      isEmpty={physicalProducts.length === 0}
-      emptyMessage="No products found"
+      error={(error as Error) ?? null}
+      isEmpty={!isLoading && rows.length === 0}
+      emptyMessage="No inventory value as at this date"
       getExportConfig={getExportConfig}
       filters={
         <div className="flex flex-wrap gap-3 items-end">
           <div className="space-y-1">
-            <Label className="text-xs">From</Label>
-            <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-auto" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">To</Label>
-            <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-auto" />
+            <Label className="text-xs">As at</Label>
+            <Input
+              type="date"
+              value={asOf}
+              onChange={(e) => setAsOf(e.target.value)}
+              className="w-auto"
+            />
           </div>
           <BranchScopeToggle value={scope} onChange={setScope} />
         </div>
       }
-      headerActions={<RefreshButton queryKeyPrefixes={[["valuation-movements"] as const]} tooltip="Refresh" />}
+      headerActions={
+        <RefreshButton
+          queryKeyPrefixes={[["inventory-valuation-as-of"] as const]}
+          tooltip="Refresh"
+        />
+      }
     >
       <div className="space-y-6">
         <div className="stats-grid grid-cols-1 sm:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Closing Inventory Value</CardTitle>
+              <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(valuationData.totalClosing, baseCurrency)}</div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(totals.value, baseCurrency)}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Period Inbound Value</CardTitle>
-              <ArrowUp className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium">Quantity on Hand</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(valuationData.totalIn, baseCurrency)}</div>
+              <div className="text-2xl font-bold">{totals.qty.toLocaleString()}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Period Outbound Value</CardTitle>
-              <ArrowDown className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-medium">Open Cost Layers</CardTitle>
+              <Layers className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{formatCurrency(valuationData.totalOut, baseCurrency)}</div>
+              <div className="text-2xl font-bold">{totals.layers.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
 
-        <ReportSurface title="Product Valuation" subtitle="Current stock value by product" profile="operational">
+        <ReportSurface
+          title="Inventory Valuation"
+          subtitle={`Cost-layer value as at ${asOf} · ${rows.length} line(s)`}
+          profile="financial"
+        >
           <ReportTable
-            columns={valuationColumns}
-            rows={valuationRows}
+            columns={columns}
+            rows={reportRows}
             currency={baseCurrency}
-            caption="Product valuation"
-            emptyMessage="No products found"
+            caption="Inventory valuation as at date"
+            emptyMessage="No inventory value as at this date"
           />
         </ReportSurface>
       </div>
     </ReportPageLayout>
   );
 }
-
 
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
