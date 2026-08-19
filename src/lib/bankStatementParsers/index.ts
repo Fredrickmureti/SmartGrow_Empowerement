@@ -167,7 +167,11 @@ export function applyColumnMapping(
         rawData,
       };
     })
-    .filter(row => row.date && row.description && row.amount >= 0);
+    // A zero-amount row (typically the "Opening balance" / carry-forward line,
+    // which carries a Balance but neither a Credit nor a Debit) is statement
+    // metadata, not bank activity — importing it creates a line that can never
+    // be reconciled, and the ERP already holds its own opening balance.
+    .filter(row => row.date && row.description && row.amount > 0);
 }
 
 /**
