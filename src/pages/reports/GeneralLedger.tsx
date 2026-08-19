@@ -201,11 +201,21 @@ function GeneralLedgerInner() {
       });
     }
     if (out.length > 0) {
+      // The grand total is a debit = credit proof across every account in
+      // scope, so a summed "balance" is meaningless there — it nets to nil.
+      // The one case where the cell carries information is a single-account
+      // run: then it is that account's closing balance. Otherwise it stays
+      // genuinely empty rather than printing a figure nobody can tie out.
+      const accts = data?.accounts || [];
       out.push({
         id: "grand-total",
         kind: "grandTotal",
         label: "GRAND TOTAL",
-        values: { debit: data?.grandTotals.debits || 0, credit: data?.grandTotals.credits || 0 },
+        values: {
+          debit: data?.grandTotals.debits || 0,
+          credit: data?.grandTotals.credits || 0,
+          balance: accts.length === 1 ? accts[0].closing_balance : null,
+        },
       });
     }
     return out;

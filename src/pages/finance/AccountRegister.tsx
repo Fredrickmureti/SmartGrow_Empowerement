@@ -155,17 +155,73 @@ function AccountRegisterInner() {
       { key: "balance", header: "Balance", width: 16, format: "currency", align: "right" },
     ];
 
-    const rows: ExportRow[] = transactionsWithBalance.map(t => ({
-      date: t.entry_date ? format(new Date(t.entry_date), "yyyy-MM-dd") : "",
-      entry: t.entry_number || "",
-      description: t.description || "",
-      debit: t.debit_amount || 0,
-      credit: t.credit_amount || 0,
-      balance: t.runningBalance,
-    }));
+    // A register is a running record: it MUST state where the account stood
+    // before the period (balance brought forward), what moved, and where it
+    // stands after (balance carried forward). The b/f, movement totals and
+    // c/f figures come from the ledger's own full-period computation — never
+    // from the search-filtered subset — so a filtered print can never be
+    // mistaken for the whole ledger.
+    const openingBalance = accountData?.opening_balance || 0;
+    const closingBalance = accountData?.closing_balance || 0;
+    const periodDebits = accountData?.total_debits || 0;
+    const periodCredits = accountData?.total_credits || 0;
+    const isFiltered = searchQuery.trim().length > 0;
+
+    const rows: ExportRow[] = [
+      {
+        _kind: "note",
+        date: "",
+        entry: "",
+        description: "Balance brought forward",
+        debit: null,
+        credit: null,
+        balance: openingBalance,
+      },
+      ...transactionsWithBalance.map(t => ({
+        _kind: "detail",
+        date: t.entry_date ? format(new Date(t.entry_date), "yyyy-MM-dd") : "",
+        entry: t.entry_number || "",
+        description: t.description || "",
+        debit: t.debit_amount || 0,
+        credit: t.credit_amount || 0,
+        balance: t.runningBalance,
+      })),
+      {
+        _kind: "major_total",
+        date: "",
+        entry: "",
+        description: "Total movement for period",
+        debit: periodDebits,
+        credit: periodCredits,
+        balance: null,
+      },
+      {
+        _kind: "grand_total",
+        date: "",
+        entry: "",
+        description: "Balance carried forward",
+        debit: null,
+        credit: null,
+        balance: closingBalance,
+      },
+    ];
+
+    if (isFiltered) {
+      rows.push({
+        _kind: "note",
+        date: "",
+        entry: "",
+        description:
+          `Filtered view: only lines matching "${searchQuery.trim()}" are listed. ` +
+          "Balances and movement totals are for the full period.",
+        debit: null,
+        credit: null,
+        balance: null,
+      });
+    }
 
     return {
-      title: `Account Register: ${account?.code} - ${account?.name}`,
+      title: `Account Register: ${account?.code} - ${account?.name}${isFiltered ? " (filtered)" : ""}`,
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
@@ -174,7 +230,16 @@ function AccountRegisterInner() {
       sheetName: "Account Register",
       currency: baseCurrency,
     };
-  }, [transactionsWithBalance, account, dateFrom, dateTo, currentOrg, baseCurrency]);
+  }, [
+    transactionsWithBalance,
+    accountData,
+    searchQuery,
+    account,
+    dateFrom,
+    dateTo,
+    currentOrg,
+    baseCurrency,
+  ]);
 
   if (!accountId) {
     return (
