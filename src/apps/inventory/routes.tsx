@@ -385,6 +385,18 @@ export function InventoryApp() {
           }
         />
 
+        {/* Stock Ledger (quantity ledger) — Phase 4 */}
+        <Route
+          path="reports/ledger"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Stock Ledger">
+                <StockLedgerReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Stock Aging Report */}
         <Route
           path="reports/aging"
