@@ -415,10 +415,18 @@ export default function Banking() {
           </TabsContent>
 
           <TabsContent value="transactions">
-            <TransactionsList 
-              transactions={transactions || []} 
-              isLoading={transactionsLoading}
-            />
+            {transactionsError && !transactionsLoading ? (
+              <BankingLoadError
+                error={transactionsError}
+                what="transactions"
+                onRetry={() => fetchTransactions()}
+              />
+            ) : (
+              <TransactionsList
+                transactions={transactions || []}
+                isLoading={transactionsLoading}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>
