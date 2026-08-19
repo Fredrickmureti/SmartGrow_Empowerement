@@ -249,4 +249,76 @@ BEGIN
 END
 $deny$;
 
+-- ── 10. Phase 6b: the subledger composition must be built from the SAME
+--        authoritative layer valuation as the reconciliation total, so its
+--        value column sums to subledger_value at the same date.
+DO $comp$
+DECLARE
+  v_org        uuid;
+  v_business   uuid;
+  v_subledger  numeric;
+  v_composed   numeric;
+BEGIN
+  SELECT organization_id, id INTO v_org, v_business
+  FROM public.businesses
+  WHERE id IN (SELECT DISTINCT business_id FROM public.cost_layers WHERE business_id IS NOT NULL)
+  LIMIT 1;
+
+  IF v_org IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: no cost layers to compose';
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(sum(subledger_value), 0) INTO v_subledger
+  FROM public.reconcile_inventory_subledger_to_gl(v_org, v_business, current_date);
+
+  SELECT COALESCE(sum(value), 0) INTO v_composed
+  FROM public.list_inventory_subledger_composition(v_org, v_business, current_date, 5000);
+
+  IF abs(v_subledger - v_composed) > 0.01 THEN
+    RAISE EXCEPTION 'COMPOSITION FAIL: composition total % <> subledger value %',
+      v_composed, v_subledger;
+  END IF;
+  RAISE NOTICE 'COMPOSITION PASS: composition explains the subledger figure exactly';
+
+  -- Composition rows may only carry layer-derived bases.
+  IF EXISTS (
+    SELECT 1 FROM public.list_inventory_subledger_composition(v_org, v_business, current_date, 5000)
+     WHERE cost_basis NOT IN ('cost_layer','zero_cost_layer','negative_layer','unlayered')
+  ) THEN
+    RAISE EXCEPTION 'COMPOSITION FAIL: an AVCO / product-cost basis survives in the composition';
+  END IF;
+END
+$comp$;
+
+-- ── 11. Phase 6b: company scope is an authorization boundary on the
+--        integrity helpers, not an optional filter.
+DO $scope$
+DECLARE
+  v_org uuid;
+BEGIN
+  SELECT organization_id INTO v_org FROM public.businesses LIMIT 1;
+  IF v_org IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: no businesses';
+    RETURN;
+  END IF;
+
+  BEGIN
+    PERFORM * FROM public.list_inventory_subledger_composition(v_org, NULL, current_date, 10);
+    RAISE EXCEPTION 'RATCHET: composition accepted a null company';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'RATCHET:%' THEN RAISE; END IF;
+    RAISE NOTICE 'SCOPE PASS: composition requires a company (%)', SQLERRM;
+  END;
+
+  BEGIN
+    PERFORM * FROM public.list_negative_stock_positions(v_org, NULL);
+    RAISE EXCEPTION 'RATCHET: negative-stock listing accepted a null company';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'RATCHET:%' THEN RAISE; END IF;
+    RAISE NOTICE 'SCOPE PASS: negative-stock listing requires a company (%)', SQLERRM;
+  END;
+END
+$scope$;
+
 ROLLBACK;
