@@ -449,9 +449,11 @@ function AccountRegisterInner() {
 
 export default function AccountRegister() {
   return (
-    <ReportFilterProvider>
-      <AccountRegisterInner />
-    </ReportFilterProvider>
+    <CompanyScopeGate reportName="The account register">
+      <ReportFilterProvider>
+        <AccountRegisterInner />
+      </ReportFilterProvider>
+    </CompanyScopeGate>
   );
 }
 
