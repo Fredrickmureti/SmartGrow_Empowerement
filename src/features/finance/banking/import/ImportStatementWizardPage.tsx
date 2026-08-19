@@ -99,6 +99,7 @@ export default function ImportStatementWizardPage() {
     success: number;
     failed: number;
     duplicates: number;
+    rejectedRows: Array<{ row: number; reason: string }>;
   } | null>(null);
   const [duplicateCount, setDuplicateCount] = useState(0);
 
@@ -249,6 +250,7 @@ export default function ImportStatementWizardPage() {
         success: result.inserted ?? 0,
         failed: result.rejected ?? 0,
         duplicates: result.duplicates ?? 0,
+        rejectedRows: result.rejected_rows ?? [],
       });
       setStep("done");
     } catch (error) {
