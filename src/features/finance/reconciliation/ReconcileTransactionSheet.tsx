@@ -84,11 +84,24 @@ export function ReconcileTransactionSheet({
   const { bills } = useBills();
   const { expenses } = useExpenses();
   const { accounts: glAccounts } = useAccounts();
+  const { currencyOf, formatBankAmount, formatDocumentAmount } = useBankMoney();
 
   if (!transaction) return null;
 
   const isCredit = transaction.transaction_type === "credit";
   const transactionAmount = Math.abs(transaction.amount);
+
+  /**
+   * The bank line is denominated in its account's currency. A document can
+   * only settle it when it is held in the same currency — settling across
+   * currencies needs a rate and an FX difference, which the client may not
+   * invent (ADR 0136). Mismatched candidates stay visible (so an operator can
+   * see why their invoice is not offered) but are not selectable.
+   */
+  const txnCurrency = currencyOf(transaction.bank_account_id);
+  const formatTxn = (amount: number) => formatBankAmount(amount, transaction.bank_account_id);
+  const currencyMatches = (documentCurrency?: string | null) =>
+    txnCurrency != null && (documentCurrency ?? null) === txnCurrency;
 
   const incomeExpenseAccounts =
     glAccounts?.filter(
@@ -125,6 +138,7 @@ export function ReconcileTransactionSheet({
     }) || [];
 
   const selectedInvoiceTotal = matchingInvoices
+
     .filter((inv) => selectedInvoiceIds.includes(inv.id))
     .reduce((sum, inv) => sum + Math.min(inv.total - (inv.amount_paid || 0), transactionAmount), 0);
 
