@@ -164,8 +164,8 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
               <ul className="list-disc pl-4">
                 {dataQuality.fallback > 0 && (
                   <li>
-                    {dataQuality.fallback} position(s) hold quantity with no cost layer, so no
-                    moving-average cost exists yet.
+                    {dataQuality.fallback} position(s) hold quantity with no cost layer, so the
+                    layer ledger cannot value them.
                   </li>
                 )}
                 {dataQuality.zero > 0 && (
