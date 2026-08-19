@@ -31,6 +31,17 @@ const fmt = (n: number) =>
 const qty = (n: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n ?? 0);
 
+/**
+ * Phase 6b: every basis here is layer-derived. "Unlayered" means the layer
+ * ledger cannot value the position at all — it is never estimated from AVCO.
+ */
+const COST_BASIS_LABEL: Record<string, string> = {
+  cost_layer: "Cost layer",
+  zero_cost_layer: "Zero-cost layer",
+  negative_layer: "Negative layer",
+  unlayered: "No cost layer",
+};
+
 export interface InventoryReconciliationCardProps {
   /** Reconcile as at this date (ISO). Defaults to today. */
   asOf?: string;
