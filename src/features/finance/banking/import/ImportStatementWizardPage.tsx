@@ -497,9 +497,9 @@ export default function ImportStatementWizardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {headers.map((h, i) => (
-                    <TableHead key={i} className="whitespace-nowrap">
-                      {h}
+                  {columns.map((col) => (
+                    <TableHead key={col.key} className="whitespace-nowrap">
+                      {col.key}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -507,13 +507,14 @@ export default function ImportStatementWizardPage() {
               <TableBody>
                 {rawRows.slice(0, 3).map((row, i) => (
                   <TableRow key={i}>
-                    {row.map((cell, j) => (
-                      <TableCell key={j} className="whitespace-nowrap">
-                        {cell}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="whitespace-nowrap">
+                        {row[col.index] ?? ""}
                       </TableCell>
                     ))}
                   </TableRow>
                 ))}
+
               </TableBody>
             </Table>
           </div>
