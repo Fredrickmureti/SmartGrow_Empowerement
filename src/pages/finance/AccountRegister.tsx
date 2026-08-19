@@ -252,13 +252,16 @@ function AccountRegisterInner() {
         </div>
       }
       filters={
-        <ReportFilters
-          dateMode="range"
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onDateFromChange={setDateFrom}
-          onDateToChange={setDateTo}
-        />
+        <div className="flex flex-wrap items-end gap-3">
+          <ReportFilters
+            dateMode="range"
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+          />
+          <ReportBranchFilter reportKind="general_ledger" />
+        </div>
       }
     >
       {/* Account Summary */}
