@@ -423,7 +423,9 @@ export function ReconcileTransactionSheet({
               </Button>
               <Button
                 onClick={handleReconcile}
-                disabled={!hasSelection || isSubmitting || isManualIncomplete}
+                disabled={
+                  !hasSelection || isSubmitting || isManualIncomplete || !documentsBalanceLine
+                }
               >
                 <Check className="mr-2 h-4 w-4" />
                 {isSubmitting ? "Reconciling…" : "Reconcile"}
