@@ -101,6 +101,11 @@ export interface BackfillResult {
   entry_date?: string;
   total_posted?: number;
   total?: number;
+  /** Basis of the posted amount. Product cost only — these positions have no layers. */
+  basis?: "product_cost_estimate";
+  /** Drift measured on the authoritative layer basis; the posting is capped at it. */
+  layer_basis_drift?: number;
+  estimated_total?: number;
   debit_account_id?: string;
   credit_account_id?: string;
 }
