@@ -319,6 +319,23 @@ export function ReconcileTransactionSheet({
       return;
     }
 
+    // Clearing money already recorded: the receipt is deposited in full, and
+    // nothing new is settled (ADR-0147 §1).
+    if (selectedRecorded) {
+      await submit({
+        reconciled_type: selectedRecorded.kind,
+        allocations: [
+          {
+            document_type: selectedRecorded.kind,
+            document_id: selectedRecorded.id,
+            amount: selectedRecorded.amount,
+          },
+        ],
+        category: selectedRecorded.partyName ?? undefined,
+      });
+      return;
+    }
+
     if (selectedInvoiceIds.length > 0) {
       await submit({
         reconciled_type: "invoice",
@@ -336,7 +353,7 @@ export function ReconcileTransactionSheet({
     }
 
     if (selectedMatch?.type === "manual") {
-      if (!offsetAccountId) return;
+      if (!offsetAccountId || isHoldingOffset) return;
       await submit({
         reconciled_type: "manual",
         category: manualDescription || transaction.description,
@@ -357,9 +374,24 @@ export function ReconcileTransactionSheet({
   const hasSelection =
     chosenCandidateIndex !== null ||
     selectedMatch ||
+    selectedRecordedId !== null ||
     selectedInvoiceIds.length > 0 ||
     selectedBillIds.length > 0;
-  const isManualIncomplete = selectedMatch?.type === "manual" && !offsetAccountId;
+  const isManualIncomplete =
+    selectedMatch?.type === "manual" && (!offsetAccountId || isHoldingOffset);
+
+  /**
+   * The seam refuses a match whose allocations do not equal the bank line
+   * (`_bank_match_validate`, amount law). Gate the submit on the same law so the
+   * operator learns it here rather than from a raw error after pressing
+   * Reconcile.
+   */
+  const documentsBalanceLine =
+    selectedInvoiceIds.length > 0
+      ? Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01
+      : selectedBillIds.length > 0
+        ? Math.abs(selectedBillTotal - transactionAmount) < 0.01
+        : true;
 
   return (
     <DetailSheet
