@@ -52,13 +52,17 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currenciesLoaded, setCurrenciesLoaded] = useState(false);
 
-  // Initialize baseCurrency from localStorage for instant access (no flash)
+  // Seed from the last-known business currency for instant access (no flash).
+  // There is deliberately NO literal fallback: an unknown base currency is an
+  // absence (empty string) that renders unsymbolled, never a silent "USD"
+  // stamped onto a KES/EUR workspace (ADR 0136).
   const [baseCurrency, setBaseCurrency] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem(STORAGE_KEY) || "USD";
+      return localStorage.getItem(STORAGE_KEY) || "";
     }
-    return "USD";
+    return "";
   });
+
 
   // Sync baseCurrency when current business loads/changes (Phase-7: business is source of truth)
   useEffect(() => {
