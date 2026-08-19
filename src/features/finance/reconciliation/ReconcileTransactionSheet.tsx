@@ -348,28 +348,40 @@ export function ReconcileTransactionSheet({
               <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
                 {matchingInvoices.map((invoice) => {
                   const remaining = invoice.total - (invoice.amount_paid || 0);
-                  const isExactMatch = Math.abs(remaining - transactionAmount) < 0.01;
+                  const sameCurrency = currencyMatches((invoice as any).currency);
+                  const isExactMatch =
+                    sameCurrency && Math.abs(remaining - transactionAmount) < 0.01;
                   const isSelected = selectedInvoiceIds.includes(invoice.id);
                   return (
                     <Label
                       key={invoice.id}
                       className={cn(
-                        "flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50",
+                        "flex items-center justify-between gap-3 rounded-lg border p-3",
+                        sameCurrency
+                          ? "cursor-pointer hover:bg-muted/50"
+                          : "cursor-not-allowed opacity-60",
                         isSelected && "border-primary bg-primary/5",
                       )}
                       onClick={(e) => {
                         e.preventDefault();
+                        if (!sameCurrency) return;
                         toggleInvoiceSelection(invoice.id);
                       }}
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <Checkbox checked={isSelected} />
+                        <Checkbox checked={isSelected} disabled={!sameCurrency} />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium">{invoice.invoice_number}</span>
                             {isExactMatch && (
                               <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
                                 Exact
+                              </Badge>
+                            )}
+                            {!sameCurrency && (
+                              <Badge variant="outline" className="text-xs">
+                                {(invoice as any).currency ?? "No currency"} — cannot settle a{" "}
+                                {txnCurrency ?? "—"} line
                               </Badge>
                             )}
                           </div>
@@ -379,10 +391,15 @@ export function ReconcileTransactionSheet({
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-medium tabular-nums">{formatCurrency(remaining)}</p>
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatDocumentAmount(remaining, (invoice as any).currency)}
+                        </p>
                         <p className="text-xs text-muted-foreground">Outstanding</p>
                       </div>
                     </Label>
+                  );
+                })}
+
                   );
                 })}
               </div>
