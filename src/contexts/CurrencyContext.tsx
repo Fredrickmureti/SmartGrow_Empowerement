@@ -121,7 +121,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     (amount: number, currencyCode?: string): string => {
       const code = currencyCode || baseCurrency;
       const currency = currencies.find((c) => c.code === code);
-      
+
+      // No authoritative currency yet: render the number unsymbolled rather
+      // than borrowing a currency the amount does not belong to.
+      if (!code) return amount.toFixed(2);
+
       try {
         return new Intl.NumberFormat(undefined, {
           style: "currency",
@@ -137,6 +141,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     },
     [baseCurrency, currencies]
   );
+
 
   const getCurrencySymbol = useCallback(
     (currencyCode?: string): string => {
