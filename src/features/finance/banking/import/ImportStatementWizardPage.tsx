@@ -57,8 +57,10 @@ import {
   generateTransactionHash,
   type ParsedBankTransaction,
   type ParsedStatement,
+  type ParsedStatementColumn,
   type ColumnMapping,
 } from "@/lib/bankStatementParsers";
+
 import { normalizeError } from "@/services/resilience";
 
 const STEPS: WizardStep[] = [
