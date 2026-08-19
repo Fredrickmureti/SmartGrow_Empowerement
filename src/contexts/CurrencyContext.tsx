@@ -207,8 +207,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const isReady = useMemo(() => {
     if (baseCurrency) return true;
     return currenciesLoaded;
+  }, [baseCurrency, currenciesLoaded]);
 
-  }, [currenciesLoaded]);
 
   const value = useMemo(
     () => ({
