@@ -133,3 +133,67 @@ describe("applyColumnMapping over detected columns", () => {
     expect(applyColumnMapping(cols, rows, { date: "", description: "", amount: "", reference: "" }, "acct-1")).toEqual([]);
   });
 });
+
+describe("amount normalization across statement layouts", () => {
+  it("excludes the opening-balance row (Balance only, no credit/debit)", () => {
+    const cols = columnsOf(meridianRows);
+    const txns = applyColumnMapping(
+      cols,
+      meridianRows.slice(4),
+      { date: "Date", description: "Description", amount: "", reference: "", credit: "Credit", debit: "Debit", balance: "Balance" },
+      "acct-1",
+    );
+    expect(txns.some((t) => t.description === "Opening balance")).toBe(false);
+    expect(txns).toHaveLength(3);
+  });
+
+  it("normalizes Withdrawal/Deposit and Money Out/Money In to the same signed model", () => {
+    const layouts: Array<{ rows: string[][]; credit: string; debit: string }> = [
+      {
+        rows: [
+          ["Date", "Description", "Withdrawal", "Deposit"],
+          ["2026-08-05", "Deposit", "", "1670.40"],
+          ["2026-08-07", "Charge", "350.00", ""],
+        ],
+        credit: "Deposit",
+        debit: "Withdrawal",
+      },
+      {
+        rows: [
+          ["Date", "Description", "Money Out", "Money In"],
+          ["2026-08-05", "Deposit", "", "1670.40"],
+          ["2026-08-07", "Charge", "350.00", ""],
+        ],
+        credit: "Money In",
+        debit: "Money Out",
+      },
+    ];
+
+    for (const { rows, credit, debit } of layouts) {
+      const txns = applyColumnMapping(
+        columnsOf(rows),
+        rows.slice(1),
+        { date: "Date", description: "Description", amount: "", reference: "", credit, debit },
+        "acct-1",
+      );
+      expect(txns.map((t) => [t.type, t.amount])).toEqual([
+        ["credit", 1670.4],
+        ["debit", 350],
+      ]);
+    }
+  });
+
+  it("never treats the balance column as the transaction amount", () => {
+    const cols = columnsOf(meridianRows);
+    const txns = applyColumnMapping(
+      cols,
+      meridianRows.slice(4),
+      { date: "Date", description: "Description", amount: "", reference: "", credit: "Credit", debit: "Debit", balance: "Balance" },
+      "acct-1",
+    );
+    for (const t of txns) {
+      expect(t.amount).not.toBe(t.balance);
+    }
+    expect(txns.find((t) => t.description.includes("Mureti"))!.amount).toBeCloseTo(1670.4, 2);
+  });
+});
