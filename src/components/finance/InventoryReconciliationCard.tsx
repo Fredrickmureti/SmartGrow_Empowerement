@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/card";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import {
-  useBackfillOpeningInventory,
-  useDetectNegativeAssets,
+  useInventoryDriftExplanation,
   useInventoryReconciliation,
+  useInventorySubledgerComposition,
+  useNegativeStockPositions,
 } from "@/hooks/finance/useInventoryReconciliation";
+import { OpeningInventoryBackfillDialog } from "./OpeningInventoryBackfillDialog";
 import {
   useAdjustmentBackfillHistory,
   useBackfillAdjustmentJE,
@@ -26,12 +28,33 @@ import {
 const fmt = (n: number) =>
   new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n ?? 0);
 
-export function InventoryReconciliationCard() {
-  const { data: rows = [], isLoading, refetch, isFetching } = useInventoryReconciliation();
-  const backfill = useBackfillOpeningInventory();
-  const detect = useDetectNegativeAssets();
+const qty = (n: number) =>
+  new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n ?? 0);
+
+export interface InventoryReconciliationCardProps {
+  /** Reconcile as at this date (ISO). Defaults to today. */
+  asOf?: string;
+}
+
+export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCardProps = {}) {
+  const { data: rows = [], isLoading, refetch, isFetching } = useInventoryReconciliation(asOf);
+  const [showNegative, setShowNegative] = useState(false);
+  const [showComposition, setShowComposition] = useState(false);
+  const [backfillOpen, setBackfillOpen] = useState(false);
 
   const hasDrift = rows.some((r) => Math.abs(r.drift) > 0.01);
+  const dataQuality = rows.reduce(
+    (acc, r) => ({
+      fallback: acc.fallback + (r.fallback_cost_lines ?? 0),
+      zero: acc.zero + (r.zero_cost_lines ?? 0),
+      negative: acc.negative + (r.negative_qty_lines ?? 0),
+    }),
+    { fallback: 0, zero: 0, negative: 0 },
+  );
+
+  const negative = useNegativeStockPositions(showNegative);
+  const composition = useInventorySubledgerComposition(showComposition);
+  const explanation = useInventoryDriftExplanation(asOf, hasDrift);
 
   return (
     <Card>
@@ -48,9 +71,10 @@ export function InventoryReconciliationCard() {
               )}
             </CardTitle>
             <CardDescription className="text-xs">
-              Stock at cost (Σ warehouse_stock × cost_price) compared against the GL closing
-              balance of the Inventory control account. A non-zero drift means an opening or
-              revaluation journal is missing.
+              Stock on hand valued at moving-average cost (per warehouse) compared against the
+              posted GL closing balance of the Inventory control account
+              {asOf ? ` as at ${asOf}` : ""}. A non-zero drift means a journal is missing,
+              mis-dated, or posted to the wrong account.
             </CardDescription>
           </div>
           <div className="flex gap-2 shrink-0 flex-wrap">
@@ -61,19 +85,15 @@ export function InventoryReconciliationCard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => detect.mutate()}
-              disabled={detect.isPending}
+              onClick={() => setShowNegative((v) => !v)}
             >
-              Scan negative assets
+              {showNegative ? "Hide negative stock" : "Scan negative stock"}
             </Button>
-            <Button
-              size="sm"
-              onClick={() => backfill.mutate()}
-              disabled={!hasDrift || backfill.isPending}
-            >
-              {backfill.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Post opening inventory
-            </Button>
+            <PermissionGate permission="manageFinancials">
+              <Button size="sm" onClick={() => setBackfillOpen(true)} disabled={!hasDrift}>
+                Post opening inventory
+              </Button>
+            </PermissionGate>
           </div>
         </div>
       </CardHeader>
@@ -134,11 +154,190 @@ export function InventoryReconciliationCard() {
           </Alert>
         )}
 
+        {/* Valuation-basis transparency: an agreeing total built on guessed
+            costs is not a clean reconciliation, so say so either way. */}
+        {rows.length > 0 && (dataQuality.fallback > 0 || dataQuality.zero > 0 || dataQuality.negative > 0) && (
+          <Alert variant={dataQuality.zero > 0 || dataQuality.negative > 0 ? "destructive" : "default"}>
+            <FileWarning className="h-4 w-4" />
+            <AlertDescription className="text-xs space-y-1">
+              <div className="font-medium">Valuation basis exceptions</div>
+              <ul className="list-disc pl-4">
+                {dataQuality.fallback > 0 && (
+                  <li>
+                    {dataQuality.fallback} position(s) valued at product cost price because no
+                    moving-average cost exists yet.
+                  </li>
+                )}
+                {dataQuality.zero > 0 && (
+                  <li>{dataQuality.zero} position(s) have stock but zero cost — understating the subledger.</li>
+                )}
+                {dataQuality.negative > 0 && (
+                  <li>{dataQuality.negative} position(s) hold negative quantity — impossible on hand.</li>
+                )}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Difference explained — an audit report must attribute drift, not
+            just report it. */}
+        {hasDrift && (
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="text-sm font-semibold">Difference explained</div>
+            {explanation.isLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Attributing drift…
+              </div>
+            ) : !explanation.data ? (
+              <p className="text-xs text-muted-foreground italic">No attribution available.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {(explanation.data.components ?? []).map((c) => (
+                    <tr key={c.code} className="border-t">
+                      <td className="py-1.5 pr-4">
+                        {c.label}
+                        {c.count != null ? (
+                          <span className="text-xs text-muted-foreground"> ({c.count})</span>
+                        ) : null}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">{fmt(c.amount)}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t font-semibold">
+                    <td className="py-1.5 pr-4">Unexplained residual</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {fmt(explanation.data.unexplained)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Negative stock — read-only detection. Never writes findings. */}
+        {showNegative && (
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="text-sm font-semibold">Negative stock positions</div>
+            {negative.isLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Scanning…
+              </div>
+            ) : (negative.data ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No negative stock positions found. Nothing to remediate.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted-foreground">
+                      <th className="py-1.5 pr-4">Product</th>
+                      <th className="py-1.5 pr-4">Warehouse</th>
+                      <th className="py-1.5 pr-4 text-right">Qty</th>
+                      <th className="py-1.5 pr-4 text-right">Unit cost</th>
+                      <th className="py-1.5 text-right">Valuation impact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(negative.data ?? []).map((n) => (
+                      <tr key={`${n.product_id}-${n.warehouse_id}`} className="border-t">
+                        <td className="py-1.5 pr-4">
+                          <div className="font-medium">{n.product_name}</div>
+                          <div className="text-xs text-muted-foreground">{n.sku}</div>
+                        </td>
+                        <td className="py-1.5 pr-4">{n.warehouse_name ?? "—"}</td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums text-destructive">
+                          {qty(n.quantity)}
+                        </td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums">{fmt(n.unit_cost)}</td>
+                        <td className="py-1.5 text-right tabular-nums">{fmt(n.valuation_impact)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Subledger composition — defends the subledger figure line by line. */}
+        {rows.length > 0 && (
+          <div className="rounded-md border p-3 space-y-2">
+            <button
+              type="button"
+              className="flex items-center gap-2 text-sm font-semibold"
+              onClick={() => setShowComposition((v) => !v)}
+              aria-expanded={showComposition}
+            >
+              {showComposition ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              Subledger composition
+            </button>
+            {showComposition ? (
+              composition.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading positions…
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="py-1.5 pr-4">Product</th>
+                        <th className="py-1.5 pr-4">Warehouse</th>
+                        <th className="py-1.5 pr-4 text-right">Qty</th>
+                        <th className="py-1.5 pr-4 text-right">Unit cost</th>
+                        <th className="py-1.5 pr-4">Basis</th>
+                        <th className="py-1.5 text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(composition.data ?? []).map((c) => (
+                        <tr key={`${c.product_id}-${c.warehouse_id}`} className="border-t">
+                          <td className="py-1.5 pr-4">
+                            <div className="font-medium">{c.product_name}</div>
+                            <div className="text-xs text-muted-foreground">{c.sku}</div>
+                          </td>
+                          <td className="py-1.5 pr-4">{c.warehouse_name ?? "—"}</td>
+                          <td className="py-1.5 pr-4 text-right tabular-nums">{qty(c.quantity)}</td>
+                          <td className="py-1.5 pr-4 text-right tabular-nums">{fmt(c.unit_cost)}</td>
+                          <td className="py-1.5 pr-4">
+                            <Badge variant={c.cost_basis === "avco" ? "outline" : "secondary"}>
+                              {c.cost_basis === "avco"
+                                ? "AVCO"
+                                : c.cost_basis === "product_cost"
+                                  ? "Product cost"
+                                  : "No cost"}
+                            </Badge>
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">{fmt(c.value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : null}
+          </div>
+        )}
+
         <MissingAdjustmentJournalsSection />
       </CardContent>
+
+      <OpeningInventoryBackfillDialog
+        open={backfillOpen}
+        onOpenChange={setBackfillOpen}
+        asOf={asOf}
+      />
     </Card>
   );
 }
+
 
 /**
  * G10 — surfaces approved stock adjustments that have NO journal entry
