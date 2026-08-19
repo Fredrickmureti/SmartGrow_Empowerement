@@ -252,74 +252,156 @@ async function loadBankAccounts(
     console.warn("[banking] positions unresolved:", posRes.error.kind);
   }
   const byId = new Map<string, BankAccountPosition>(
-        ((positions ?? []) as Array<Record<string, unknown>>).map((p) => [
-          String(p.bank_account_id),
-          {
-            opening_balance: Number(p.opening_balance ?? 0),
-            statement_balance: Number(p.statement_balance ?? 0),
-            last_statement_line_date: (p.last_statement_line_date as string | null) ?? null,
-            gl_balance: p.gl_balance == null ? null : Number(p.gl_balance),
-            gl_shared: Boolean(p.gl_shared),
-            unreconciled_count: Number(p.unreconciled_count ?? 0),
-            unreconciled_amount: Number(p.unreconciled_amount ?? 0),
-            as_of: String(p.as_of ?? ""),
-          },
-        ]),
-      );
+    ((positions ?? []) as Array<Record<string, unknown>>).map((p) => [
+      String(p.bank_account_id),
+      {
+        opening_balance: Number(p.opening_balance ?? 0),
+        statement_balance: Number(p.statement_balance ?? 0),
+        last_statement_line_date: (p.last_statement_line_date as string | null) ?? null,
+        gl_balance: p.gl_balance == null ? null : Number(p.gl_balance),
+        gl_shared: Boolean(p.gl_shared),
+        unreconciled_count: Number(p.unreconciled_count ?? 0),
+        unreconciled_amount: Number(p.unreconciled_amount ?? 0),
+        as_of: String(p.as_of ?? ""),
+      },
+    ]),
+  );
 
-      // Phase 14: feed health is never read from the account row either. It
-      // comes from the connection + its latest run.
-      const { data: feeds, error: feedError } = await supabase.rpc(
-        "bank_feed_status",
-        { _business_id: currentBusiness.id },
-      );
-      if (feedError) {
-        console.error("Error resolving bank feed status:", feedError);
-      }
-      const feedById = new Map<string, BankFeedStatus>(
-        ((feeds ?? []) as Array<Record<string, unknown>>).map((f) => [
-          String(f.bank_account_id),
-          {
-            connection_id: String(f.connection_id),
-            provider_code: (f.provider_code as string | null) ?? null,
-            status: (f.status as string | null) ?? null,
-            auto_sync_enabled: (f.auto_sync_enabled as boolean | null) ?? null,
-            sync_frequency: (f.sync_frequency as string | null) ?? null,
-            last_success_at: (f.last_success_at as string | null) ?? null,
-            last_run_at: (f.last_run_at as string | null) ?? null,
-            last_error: (f.last_error as string | null) ?? null,
-            consecutive_failures: Number(f.consecutive_failures ?? 0),
-            last_run_id: (f.last_run_id as string | null) ?? null,
-            last_run_status: (f.last_run_status as string | null) ?? null,
-            last_run_started_at: (f.last_run_started_at as string | null) ?? null,
-            last_run_finished_at: (f.last_run_finished_at as string | null) ?? null,
-            last_run_window_from: (f.last_run_window_from as string | null) ?? null,
-            last_run_window_to: (f.last_run_window_to as string | null) ?? null,
-            last_run_fetched: f.last_run_fetched == null ? null : Number(f.last_run_fetched),
-            last_run_inserted: f.last_run_inserted == null ? null : Number(f.last_run_inserted),
-            last_run_duplicates:
-              f.last_run_duplicates == null ? null : Number(f.last_run_duplicates),
-            last_run_rejected: f.last_run_rejected == null ? null : Number(f.last_run_rejected),
-            last_run_error_code: (f.last_run_error_code as string | null) ?? null,
-          },
-        ]),
-      );
+  // Phase 14: feed health is never read from the account row either. It
+  // comes from the connection + its latest run.
+  const feeds = feedRes.data;
+  if (feedRes.error) {
+    console.warn("[banking] feed status unresolved:", feedRes.error.kind);
+  }
+  const feedById = new Map<string, BankFeedStatus>(
+    ((feeds ?? []) as Array<Record<string, unknown>>).map((f) => [
+      String(f.bank_account_id),
+      {
+        connection_id: String(f.connection_id),
+        provider_code: (f.provider_code as string | null) ?? null,
+        status: (f.status as string | null) ?? null,
+        auto_sync_enabled: (f.auto_sync_enabled as boolean | null) ?? null,
+        sync_frequency: (f.sync_frequency as string | null) ?? null,
+        last_success_at: (f.last_success_at as string | null) ?? null,
+        last_run_at: (f.last_run_at as string | null) ?? null,
+        last_error: (f.last_error as string | null) ?? null,
+        consecutive_failures: Number(f.consecutive_failures ?? 0),
+        last_run_id: (f.last_run_id as string | null) ?? null,
+        last_run_status: (f.last_run_status as string | null) ?? null,
+        last_run_started_at: (f.last_run_started_at as string | null) ?? null,
+        last_run_finished_at: (f.last_run_finished_at as string | null) ?? null,
+        last_run_window_from: (f.last_run_window_from as string | null) ?? null,
+        last_run_window_to: (f.last_run_window_to as string | null) ?? null,
+        last_run_fetched: f.last_run_fetched == null ? null : Number(f.last_run_fetched),
+        last_run_inserted: f.last_run_inserted == null ? null : Number(f.last_run_inserted),
+        last_run_duplicates:
+          f.last_run_duplicates == null ? null : Number(f.last_run_duplicates),
+        last_run_rejected: f.last_run_rejected == null ? null : Number(f.last_run_rejected),
+        last_run_error_code: (f.last_run_error_code as string | null) ?? null,
+      },
+    ]),
+  );
 
-      setAccounts(
-        rows.map((a) => ({
-          ...a,
-          position: byId.get(a.id) ?? null,
-          feed: feedById.get(a.id) ?? null,
-        })),
-      );
+  return {
+    accounts: rows.map((a) => ({
+      ...a,
+      position: byId.get(a.id) ?? null,
+      feed: feedById.get(a.id) ?? null,
+    })),
+    error: null,
+  };
+}
 
-    } catch (error: unknown) {
-      console.error("Error fetching bank accounts:", error);
-      toast.error("Failed to load bank accounts");
-    } finally {
-      setIsLoading(false);
+/** Deduped entry point: joins an in-flight load, or a very recent one. */
+function getBankAccounts(
+  orgId: string,
+  businessId: string,
+  branchId: string | null,
+  force = false,
+): Promise<BankAccountsLoad> {
+  const key = `${orgId}:${businessId}:${branchId ?? "all"}`;
+  if (force) {
+    accountsCache.delete(key);
+    accountsInflight.delete(key);
+  } else {
+    const inflight = accountsInflight.get(key);
+    if (inflight) return inflight;
+    const cached = accountsCache.get(key);
+    if (cached && Date.now() - cached.at < ACCOUNTS_TTL_MS) {
+      return Promise.resolve(cached.value);
     }
-  }, [currentOrg?.id, currentBusiness?.id, scope.branchId]);
+  }
+
+  const promise = loadBankAccounts(orgId, businessId, branchId)
+    .then((value) => {
+      // Only successful loads are cached — a failure must be retryable now.
+      if (!value.error) accountsCache.set(key, { at: Date.now(), value });
+      return value;
+    })
+    .finally(() => {
+      accountsInflight.delete(key);
+    });
+
+  accountsInflight.set(key, promise);
+  return promise;
+}
+
+export function useBankAccounts() {
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  /** Normalized load failure — rendered inline by the surface, never toasted. */
+  const [loadError, setLoadError] = useState<NormalizedError | null>(null);
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const scope = useFinanceScope();
+  const { allowed: canManage } = useFinancePermission("finance.manage_bank_accounts");
+
+  const lastOrgIdRef = useRef<string | null>(null);
+  const lastBusinessIdRef = useRef<string | null>(null);
+  const lastBranchIdRef = useRef<string | null>(null);
+  const hasFetchedRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const fetchAccounts = useCallback(
+    async (force = false) => {
+      // Scope readiness gate: never fire against a half-hydrated context.
+      if (!currentOrg?.id || !currentBusiness?.id) {
+        setAccounts([]);
+        setLoadError(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      const result = await getBankAccounts(
+        currentOrg.id,
+        currentBusiness.id,
+        scope.branchId ?? null,
+        force,
+      );
+      if (!mountedRef.current) return;
+
+      if (result.error) {
+        console.error("[banking] accounts load failed:", result.error.kind, result.error.cause);
+        setLoadError(result.error);
+        setIsLoading(false);
+        return;
+      }
+      setAccounts(result.accounts);
+      setLoadError(null);
+      setIsLoading(false);
+    },
+    [currentOrg?.id, currentBusiness?.id, scope.branchId],
+  );
+
 
   useEffect(() => {
     const orgId = currentOrg?.id ?? null;
