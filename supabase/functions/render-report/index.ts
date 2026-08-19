@@ -64,6 +64,12 @@ import {
   type ProjectReportKey,
   type ProjectFilters,
 } from "../_shared/reports/projectsData.ts";
+import {
+  buildInventoryReport,
+  type InventoryReportKey,
+  type InventoryFilters,
+} from "../_shared/reports/inventoryData.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
