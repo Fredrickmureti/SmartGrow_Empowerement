@@ -1,7 +1,9 @@
 # Inventory / Stock Reporting Wave — authoritative status
 
-**Currently active phase:** Phase 5 — Stock Aging on cost layers (not started).
-**Last completed:** Phase 4 — Stock Ledger page (implemented and verified).
+**Currently active phase:** Phase 6 — Integrity + Inventory⇄GL reconciliation
+(not started).
+**Last completed:** Phase 5 — Stock Aging on cost layers (implemented and
+verified).
 
 ## Completed and verified
 
@@ -50,19 +52,43 @@ Both pages now type their export as `ServerBuildConfig` (no casts).
 - `supabase/tests/inventory_reporting_ratchet_test.sql` still needs a psql
   session; this sandbox has no `PGHOST`, so run it from the SQL editor.
 
-## Pending
+**Phase 5 — Stock Aging page (DONE).**
+New RPC `public.report_inventory_aging_as_of(p_org, p_business, p_as_of,
+p_branch, p_warehouse, p_product, p_category, p_limit, p_offset)`: ages each
+*remaining cost layer* by its own `received_at` at the as-of date into
+0–30 / 31–60 / 61–90 / 90+ buckets, returning qty + value per bucket,
+`qty_on_hand`, `total_value`, `oldest_receipt_at`, `layer_count` and
+`total_rows`. Same security shape as Phase 1 (SECURITY DEFINER, pinned
+`search_path`, `_assert_org_member` + `_assert_inventory_report_access`,
+`can_access_branch` row guard, EXECUTE revoked from PUBLIC/anon, granted to
+`authenticated` + `service_role` only — verified via `has_function_privilege`).
+Server side: `inventory_aging` key in `columnSpecs.ts`, builder branch in
+`_shared/reports/inventoryData.ts`, dispatch added in
+`render-report/index.ts`. Client side:
+`src/pages/reports/StockAgingReport.tsx` fully rebuilt on
+`useInventoryAgingAsOf` (`useInventoryReportRpcs.ts`, paged on `total_rows`) —
+no more "age the product by its last inbound movement × current cost price".
+Registered as `stock-aging` at `/inventory-app/reports/aging` (route and
+sidebar entry already existed); server-built export with
+`reportType: "inventory_aging"`.
+Because the aging buckets are exhaustive and disjoint over the SAME
+`qty_as_of × unit_cost` layer arithmetic the valuation RPC uses, bucket values
+sum to `total_value`, which ties to Inventory Valuation at the same date.
 
-**Phase 5 (NEXT) — Stock Aging.** `src/pages/reports/StockAgingReport.tsx`
-currently ages the product, not the cost layer. Add a
-`report_inventory_aging_as_of(p_org, p_business, p_as_of, p_branch,
-p_warehouse, p_product, p_category, p_limit, p_offset)` RPC that buckets each
-remaining cost layer by `received_at` age (0–30 / 31–60 / 61–90 / 90+),
-returning qty and value per bucket plus `total_rows`; mirror the Phase 1
-security shape (SECURITY DEFINER, pinned `search_path`,
-`_assert_inventory_report_access`, no `anon` grant). Add an `inventory_aging`
-key to `columnSpecs.ts` and a builder branch in `inventoryData.ts`, then
-rebuild the page on the same hook/engine pattern as Phases 3–4 and register it.
-Aging totals must tie to Inventory Valuation total value at the same date.
+### Verification evidence for Phase 5
+- `tsgo --noEmit -p tsconfig.app.json`: clean.
+- Guards pass: routing parity, nav-registry, registry key coverage, single
+  engine, data-source contract, filter-provider wrap, layout coverage,
+  aging-single-source, module-report-screens (120 tests).
+- Grant state confirmed: anon `false`, authenticated `true`, service_role
+  `true`, `prosecdef = true`, `search_path = public`.
+- Still outstanding (environmental, not a defect):
+  `supabase/tests/inventory_reporting_ratchet_test.sql` needs a psql session;
+  this sandbox has no `PGHOST`, and `read_query` cannot execute the reporting
+  RPCs (EXECUTE is intentionally restricted to authenticated/service_role), so
+  run the tie-out from the SQL editor as a signed-in user.
+
+## Pending
 
 **Phase 6 — Integrity + Inventory⇄GL reconciliation** onto the unified engine
 with a single reconciliation RPC signature.
@@ -71,19 +97,25 @@ with a single reconciliation RPC signature.
 
 ## Instructions for the next agent
 
-1. **Verify Phases 3–4 before writing anything new.** Read
+1. **Verify Phases 3–5 before writing anything new.** Read
    `src/hooks/inventory/useInventoryReportRpcs.ts`,
-   `src/pages/reports/InventoryValuationReport.tsx` and
-   `src/pages/reports/StockLedgerReport.tsx`. Confirm: no client-side value
-   derivation, paging honours `total_rows`, exports are server-built
-   (`reportType` + org + period, empty `rows`/`columns`), both pages are in
-   `REPORT_REGISTRY`, routed, and reachable from the Inventory sidebar.
-2. **Confirm the numbers tie.** In the SQL editor, run
-   `supabase/tests/inventory_reporting_ratchet_test.sql` and check the tie-out
-   notice (ledger closing qty == valuation qty on hand). Investigate any
-   TIE-OUT warning before adding a new report.
-3. **Then resume at Phase 5** exactly as specified above. Do not start Phase 6
-   or 7, and do not detour into the unrelated pre-existing test failures listed
+   `src/pages/reports/InventoryValuationReport.tsx`,
+   `src/pages/reports/StockLedgerReport.tsx` and
+   `src/pages/reports/StockAgingReport.tsx`. Confirm: no client-side value
+   derivation (no `qty × cost_price`, no `warehouse_stock`/`products.
+   stock_quantity` reads), paging honours `total_rows`, exports are
+   server-built (`reportType` + org + period, empty `rows`/`columns`), all
+   three pages are in `REPORT_REGISTRY`, routed, and reachable from the
+   Inventory sidebar. Confirm the aging RPC is still anon-denied.
+2. **Confirm the numbers tie.** In the SQL editor, signed in as a real user,
+   run `supabase/tests/inventory_reporting_ratchet_test.sql` and additionally
+   check that, for the same business and date,
+   `sum(total_value)` from `report_inventory_aging_as_of` equals
+   `sum(total_value)` from `report_inventory_valuation_as_of`, and that the
+   four aging buckets sum to that same total. Extend the ratchet test with
+   this aging assertion. Investigate any TIE-OUT warning before continuing.
+3. **Then resume at Phase 6** exactly as specified below. Do not start Phase 7,
+   and do not detour into the unrelated pre-existing test failures listed
    above.
 4. **Update this file** as each phase closes: what is verified, what is
    pending, active phase, next phase.
