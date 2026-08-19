@@ -228,4 +228,274 @@ BEGIN
   END IF;
 END $$;
 
+
+-- ---------------------------------------------------------------------
+-- 6) BEHAVIOURAL 10.1 + 10.2 — an explained line is not a question, and a
+--    reserved document is never offered twice.
+--    Uses live rows, proves the behaviour, then rolls itself back.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  v_biz uuid; v_txn uuid; v_txn2 uuid; v_pay uuid; v_amt numeric;
+  v_match uuid; v_res jsonb;
+BEGIN
+  SELECT p.business_id, p.id, p.amount, t.id
+    INTO v_biz, v_pay, v_amt, v_txn
+    FROM public.payments p
+    JOIN public.bank_transactions t
+      ON t.business_id = p.business_id
+     AND COALESCE(t.is_reconciled, false) = false
+     AND abs(t.amount) = p.amount
+     AND COALESCE(t.transaction_type, CASE WHEN t.amount >= 0 THEN 'credit' ELSE 'debit' END) = 'credit'
+    JOIN public.bank_accounts ba ON ba.id = t.bank_account_id
+   WHERE COALESCE(p.status, 'completed') NOT IN ('voided','cancelled')
+     AND p.deposit_account_id IS NOT NULL
+     AND ba.account_id IS NOT NULL
+     AND p.deposit_account_id <> ba.account_id
+     AND public.is_period_open(p.business_id, t.transaction_date)
+     AND NOT EXISTS (
+       SELECT 1 FROM public.bank_reconciliation_matches m
+        WHERE m.bank_transaction_id = t.id AND m.status IN ('proposed','confirmed'))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.bank_reconciliation_matches m
+        WHERE m.status IN ('proposed','confirmed')
+          AND m.allocations @> jsonb_build_array(
+                jsonb_build_object('document_type','payment','document_id', p.id::text)))
+   ORDER BY t.transaction_date DESC
+   LIMIT 1;
+
+  IF v_txn IS NULL THEN
+    RAISE NOTICE '10.1/10.2 skipped — no undeposited-receipt fixture present';
+    RETURN;
+  END IF;
+
+  -- A second unreconciled inflow of the same amount, to prove the reservation.
+  SELECT t.id INTO v_txn2
+    FROM public.bank_transactions t
+   WHERE t.business_id = v_biz AND t.id <> v_txn
+     AND COALESCE(t.is_reconciled, false) = false
+     AND abs(t.amount) = v_amt
+     AND COALESCE(t.transaction_type, CASE WHEN t.amount >= 0 THEN 'credit' ELSE 'debit' END) = 'credit'
+   LIMIT 1;
+
+  v_match := (public.bank_match_propose(
+    _txn_id := v_txn,
+    _allocations := jsonb_build_array(jsonb_build_object(
+      'document_type','payment','document_id', v_pay, 'amount', v_amt)),
+    _fee_amount := 0, _match_type := 'manual', _rule_id := NULL,
+    _notes := 'behavioural 10.1', _user_id := NULL)->>'match_id')::uuid;
+
+  -- (a) the proposed line answers `proposed`, offers nothing, names its match
+  v_res := public.bank_match_candidates(v_txn, 10);
+  IF v_res->>'tier' <> 'proposed' THEN
+    RAISE EXCEPTION '10.1: a line carrying a proposal reported tier % instead of proposed', v_res->>'tier';
+  END IF;
+  IF jsonb_array_length(COALESCE(v_res->'candidates','[]'::jsonb)) <> 0 THEN
+    RAISE EXCEPTION '10.1: a line with an open proposal still received % speculative candidate(s)',
+      jsonb_array_length(v_res->'candidates');
+  END IF;
+  IF (v_res->>'existing_match_id')::uuid IS DISTINCT FROM v_match THEN
+    RAISE EXCEPTION '10.1: the open decision was not surfaced to the client';
+  END IF;
+
+  -- (b) the reserved receipt cannot be offered on another line
+  IF v_txn2 IS NOT NULL THEN
+    v_res := public.bank_match_candidates(v_txn2, 10);
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(COALESCE(v_res->'candidates','[]'::jsonb)) c,
+                    jsonb_array_elements(COALESCE(c->'allocations','[]'::jsonb)) a
+       WHERE a->>'document_id' = v_pay::text
+    ) THEN
+      RAISE EXCEPTION '10.2: a receipt already spoken for was offered on a second bank line';
+    END IF;
+  END IF;
+
+  -- (c) once confirmed the line is settled, still with no candidates
+  PERFORM public.bank_match_confirm(v_match, NULL, 'behavioural:' || v_txn::text);
+  v_res := public.bank_match_candidates(v_txn, 10);
+  IF v_res->>'tier' <> 'settled' THEN
+    RAISE EXCEPTION '10.1: a reconciled line reported tier % instead of settled', v_res->>'tier';
+  END IF;
+  IF jsonb_array_length(COALESCE(v_res->'candidates','[]'::jsonb)) <> 0 THEN
+    RAISE EXCEPTION '10.1: a settled line was re-offered as a suggestion';
+  END IF;
+
+  RAISE NOTICE '10.1/10.2 hold (explained lines answer settled/proposed; reserved documents are not re-offered)';
+  RAISE EXCEPTION 'rollback: behavioural block complete';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM <> 'rollback: behavioural block complete' THEN RAISE; END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 7) BEHAVIOURAL 10.4 + 10.5 — a rules sweep is idempotent, and a rule race
+--    is an ambiguity that posts nothing.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  v_ba record; v_txn record; v_acct_a uuid; v_acct_b uuid;
+  v_r1 uuid; v_r2 uuid; v_res jsonb; v_before int; v_after int;
+BEGIN
+  SELECT ba.* INTO v_ba
+    FROM public.bank_accounts ba
+   WHERE ba.account_id IS NOT NULL
+     AND EXISTS (
+       SELECT 1 FROM public.bank_transactions t
+        WHERE t.bank_account_id = ba.id
+          AND COALESCE(t.is_reconciled, false) = false
+          AND public.is_period_open(t.business_id, t.transaction_date)
+          AND NOT EXISTS (SELECT 1 FROM public.bank_reconciliation_matches m
+                           WHERE m.bank_transaction_id = t.id
+                             AND m.status IN ('proposed','confirmed')))
+   ORDER BY ba.created_at LIMIT 1;
+
+  IF v_ba.id IS NULL THEN
+    RAISE NOTICE '10.4/10.5 skipped — no bank account with an open unexplained line';
+    RETURN;
+  END IF;
+
+  SELECT t.* INTO v_txn
+    FROM public.bank_transactions t
+   WHERE t.bank_account_id = v_ba.id
+     AND COALESCE(t.is_reconciled, false) = false
+     AND public.is_period_open(t.business_id, t.transaction_date)
+     AND NOT EXISTS (SELECT 1 FROM public.bank_reconciliation_matches m
+                      WHERE m.bank_transaction_id = t.id
+                        AND m.status IN ('proposed','confirmed'))
+   ORDER BY t.transaction_date LIMIT 1;
+
+  SELECT id INTO v_acct_a FROM public.accounts
+   WHERE business_id = v_ba.business_id AND COALESCE(is_active, true) ORDER BY code LIMIT 1;
+  SELECT id INTO v_acct_b FROM public.accounts
+   WHERE business_id = v_ba.business_id AND COALESCE(is_active, true) AND id <> v_acct_a
+   ORDER BY code DESC LIMIT 1;
+
+  IF v_acct_a IS NULL OR v_acct_b IS NULL THEN
+    RAISE NOTICE '10.4/10.5 skipped — fewer than two counterpart accounts available';
+    RETURN;
+  END IF;
+
+  -- Two active rules, equal priority, different counterparts: a genuine race.
+  INSERT INTO public.bank_reconciliation_rules
+    (organization_id, business_id, bank_account_id, name, priority, is_active,
+     amount_sign, counterpart_account_id, auto_post)
+  VALUES (v_ba.organization_id, v_ba.business_id, v_ba.id, 'behavioural rule A', 10, true,
+          'any', v_acct_a, true)
+  RETURNING id INTO v_r1;
+  INSERT INTO public.bank_reconciliation_rules
+    (organization_id, business_id, bank_account_id, name, priority, is_active,
+     amount_sign, counterpart_account_id, auto_post)
+  VALUES (v_ba.organization_id, v_ba.business_id, v_ba.id, 'behavioural rule B', 10, true,
+          'any', v_acct_b, true)
+  RETURNING id INTO v_r2;
+
+  SELECT count(*) INTO v_before FROM public.bank_reconciliation_matches
+   WHERE bank_transaction_id = v_txn.id;
+
+  v_res := public.apply_reconciliation_rules(v_ba.id, NULL, 50);
+
+  IF NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(COALESCE(v_res->'skipped','[]'::jsonb)) s
+     WHERE s->>'reason' = 'AMBIGUOUS_RULE_MATCH'
+  ) THEN
+    RAISE EXCEPTION '10.5: two equally-ranked rules did not raise AMBIGUOUS_RULE_MATCH (%)', v_res;
+  END IF;
+
+  SELECT count(*) INTO v_after FROM public.bank_reconciliation_matches
+   WHERE bank_transaction_id = v_txn.id;
+  IF v_after <> v_before THEN
+    RAISE EXCEPTION '10.5: an ambiguous rule race still produced % match row(s)', v_after - v_before;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.bank_reconciliation_matches m
+     WHERE m.rule_id IN (v_r1, v_r2) AND m.status = 'confirmed'
+  ) THEN
+    RAISE EXCEPTION '10.5: an ambiguous rule auto-posted';
+  END IF;
+
+  -- Resolve the race, then prove the sweep is idempotent.
+  UPDATE public.bank_reconciliation_rules SET is_active = false, auto_post = false WHERE id = v_r2;
+  UPDATE public.bank_reconciliation_rules SET auto_post = false WHERE id = v_r1;
+
+  PERFORM public.apply_reconciliation_rules(v_ba.id, NULL, 50);
+  SELECT count(*) INTO v_before FROM public.bank_reconciliation_matches WHERE rule_id = v_r1;
+  PERFORM public.apply_reconciliation_rules(v_ba.id, NULL, 50);
+  SELECT count(*) INTO v_after FROM public.bank_reconciliation_matches WHERE rule_id = v_r1;
+
+  IF v_after <> v_before THEN
+    RAISE EXCEPTION '10.4: a replayed sweep created % duplicate proposal(s)', v_after - v_before;
+  END IF;
+
+  RAISE NOTICE '10.4/10.5 hold (a rule race is refused and posts nothing; a replayed sweep proposes once)';
+  RAISE EXCEPTION 'rollback: behavioural block complete';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM <> 'rollback: behavioural block complete' THEN RAISE; END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 8) BEHAVIOURAL 10.3 — several receipt combinations for one deposit surface
+--    as several candidates, and the tier is `ambiguous`.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  v_ba record; v_txn uuid; v_pair record; v_res jsonb; v_tops int;
+BEGIN
+  SELECT ba.* INTO v_ba FROM public.bank_accounts ba
+   WHERE ba.account_id IS NOT NULL ORDER BY ba.created_at LIMIT 1;
+  IF v_ba.id IS NULL THEN
+    RAISE NOTICE '10.3 skipped — no bank account with a GL account';
+    RETURN;
+  END IF;
+
+  -- Two disjoint receipt pairs with the same total: the deposit is genuinely
+  -- explainable in more than one way.
+  WITH pool AS (
+    SELECT p.id, p.amount
+      FROM public.payments p
+     WHERE p.business_id = v_ba.business_id
+       AND p.deposit_account_id IS NOT NULL
+       AND p.deposit_account_id <> v_ba.account_id
+       AND COALESCE(p.status,'completed') NOT IN ('voided','cancelled')
+       AND NOT EXISTS (
+         SELECT 1 FROM public.bank_reconciliation_matches m
+          WHERE m.status IN ('proposed','confirmed')
+            AND m.allocations @> jsonb_build_array(
+                  jsonb_build_object('document_type','payment','document_id', p.id::text)))
+     LIMIT 40
+  ), pairs AS (
+    SELECT a.id AS a1, b.id AS a2, a.amount + b.amount AS total
+      FROM pool a JOIN pool b ON a.id < b.id
+  )
+  SELECT total, count(*) AS combos INTO v_pair
+    FROM pairs GROUP BY total HAVING count(*) > 1
+   ORDER BY count(*) DESC LIMIT 1;
+
+  IF v_pair.total IS NULL THEN
+    RAISE NOTICE '10.3 skipped — no deposit is explainable by two different receipt pairs';
+    RETURN;
+  END IF;
+
+  INSERT INTO public.bank_transactions
+    (organization_id, business_id, bank_account_id, branch_id, transaction_date,
+     amount, transaction_type, description, is_reconciled)
+  VALUES (v_ba.organization_id, v_ba.business_id, v_ba.id, v_ba.branch_id, CURRENT_DATE,
+          v_pair.total, 'credit', 'behavioural 10.3 deposit', false)
+  RETURNING id INTO v_txn;
+
+  v_res := public.bank_match_candidates(v_txn, 10);
+
+  IF jsonb_array_length(COALESCE(v_res->'candidates','[]'::jsonb)) < 2 THEN
+    RAISE EXCEPTION '10.3: % combinations collapsed into % candidate(s)',
+      v_pair.combos, jsonb_array_length(COALESCE(v_res->'candidates','[]'::jsonb));
+  END IF;
+  IF v_res->>'tier' <> 'ambiguous' THEN
+    RAISE EXCEPTION '10.3: a deposit with several explanations reported tier % instead of ambiguous',
+      v_res->>'tier';
+  END IF;
+
+  RAISE NOTICE '10.3 holds (competing combinations surface and the line is ambiguous)';
+  RAISE EXCEPTION 'rollback: behavioural block complete';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM <> 'rollback: behavioural block complete' THEN RAISE; END IF;
+END $$;
+
 SELECT 'bank_match_automation_invariants: ok' AS result;

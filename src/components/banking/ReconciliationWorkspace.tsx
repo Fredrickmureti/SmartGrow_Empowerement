@@ -107,6 +107,13 @@ export function ReconciliationWorkspace({
   const difference = calc ? calc.difference : session.closing_balance - localClearedBalance;
   const isBalanced = calc ? calc.is_balanced : Math.abs(difference) < 0.01;
 
+  // F18 — the ledger leg. The server compares the cleared statement movement
+  // with the bank GL account's posted movement; a divergence means a cleared
+  // line was posted somewhere else, and completion will be refused.
+  const tieout = calc?.gl_tieout ?? null;
+  const glDivergence = tieout?.checked ? (tieout.divergence ?? 0) : null;
+  const glDiverged = glDivergence !== null && Math.abs(glDivergence) > 0.01;
+
   // Counts
   const clearedDebitCount = debits.filter(tx => isCleared(tx)).length;
   const clearedCreditCount = credits.filter(tx => isCleared(tx)).length;
@@ -237,6 +244,38 @@ export function ReconciliationWorkspace({
               </div>
             </>
           )}
+
+          {/* F18 — the ledger tie-out, so the statement is checked against the books */}
+          {tieout?.checked && (
+            <>
+              <Separator className="my-3" />
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Cleared movement:</span>
+                  <span className="font-medium tabular-nums">{formatCurrency(tieout.cleared_movement)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Bank ledger movement:</span>
+                  <span className="font-medium tabular-nums">{formatCurrency(tieout.gl_movement ?? 0)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Ledger divergence:</span>
+                  <span className={cn("font-semibold tabular-nums", glDiverged ? "text-destructive" : "text-green-600")}>
+                    {formatCurrency(glDivergence ?? 0)}
+                  </span>
+                </div>
+              </div>
+              {glDiverged && (
+                <p className="mt-2 text-xs text-destructive">
+                  The cleared lines don&apos;t agree with this bank account&apos;s ledger movement
+                  {tieout.cleared_without_posting > 0
+                    ? ` — ${tieout.cleared_without_posting} cleared line(s) have no posted settlement behind them.`
+                    : " — a cleared line is posted to another account."}{" "}
+                  Fix those lines before finishing; the server will refuse to complete until they agree.
+                </p>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -319,7 +358,12 @@ export function ReconciliationWorkspace({
         <CardContent className="pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {isBalanced ? (
+              {glDiverged ? (
+                <Badge variant="outline" className="text-destructive border-destructive/30">
+                  <XCircle className="mr-1 h-3 w-3" />
+                  Ledger divergence: {formatCurrency(glDivergence ?? 0)}
+                </Badge>
+              ) : isBalanced ? (
                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
                   Balanced — Ready to finish
@@ -351,7 +395,8 @@ export function ReconciliationWorkspace({
               )}
               <Button
                 onClick={handleFinish}
-                disabled={!isBalanced || isCompleting}
+                disabled={!isBalanced || glDiverged || isCompleting}
+                title={glDiverged ? "The cleared lines disagree with the bank ledger — resolve the divergence first." : undefined}
               >
                 {isCompleting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

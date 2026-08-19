@@ -115,4 +115,38 @@ describe("bank reconciliation write seam", () => {
       );
     }
   });
+  /**
+   * Phase 11.5 — closure is falsifiable and reversible only through the audited
+   * seam. The workspace must show the ledger tie-out and refuse to finish while
+   * the cleared lines disagree with the bank GL; reopening must be a reasoned
+   * RPC call, never a client status flip.
+   */
+  it("the workspace surfaces the GL tie-out and gates completion on it", () => {
+    const src = readFileSync(
+      join(root, "src/components/banking/ReconciliationWorkspace.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("gl_tieout");
+    expect(src).toContain("glDiverged");
+    expect(/disabled=\{!isBalanced \|\| glDiverged \|\| isCompleting\}/.test(src)).toBe(true);
+  });
+
+  it("reopening a completed reconciliation is an audited RPC with a reason", () => {
+    const hook = readFileSync(join(root, "src/hooks/useReconciliationSessions.ts"), "utf8");
+    expect(hook).toContain("bank_reconciliation_session_reopen");
+
+    const ui = readFileSync(
+      join(root, "src/components/banking/CompletedReconciliations.tsx"),
+      "utf8",
+    );
+    // the operator cannot reopen without typing a reason
+    expect(ui).toContain("reason.trim().length === 0");
+    expect(ui).toContain("onReopen");
+    // and never touches the session row itself
+    expect(ui).not.toMatch(writeCall("bank_reconciliation_sessions"));
+
+    const page = readFileSync(join(root, "src/pages/BankReconciliation.tsx"), "utf8");
+    expect(page).toContain("CompletedReconciliations");
+    expect(page).toContain("onReopen={reopenSession}");
+  });
 });

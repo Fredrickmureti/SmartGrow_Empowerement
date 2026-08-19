@@ -48,6 +48,7 @@ import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/Rec
 
 import { TransferReconcileSheet } from "@/features/finance/reconciliation/TransferReconcileSheet";
 import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWorkspace";
+import { CompletedReconciliations } from "@/components/banking/CompletedReconciliations";
 import { ImportHistoryTab } from "@/components/banking/ImportHistoryTab";
 import { ReconciliationHistoryTab } from "@/components/banking/ReconciliationHistoryTab";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
@@ -112,7 +113,7 @@ export default function BankReconciliation() {
   // account's currency, never in a formatter default (ADR 0136).
   const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, loadError, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
-  const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
+  const { sessions, activeSession, startSession, writeOffSession, completeSession, cancelSession, reopenSession, isSaving: isSessionSaving, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((tx) => {
@@ -312,6 +313,14 @@ export default function BankReconciliation() {
 
         ) : (
           <>
+            {/* F17 — a closed reconciliation is reopened here, with a reason */}
+            <CompletedReconciliations
+              sessions={sessions}
+              canReconcile={canReconcile}
+              isSaving={isSessionSaving}
+              onReopen={reopenSession}
+            />
+
             {/* Summary Cards */}
             <div className="stats-grid grid-cols-1 sm:grid-cols-3">
               <Card>
