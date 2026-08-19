@@ -437,6 +437,16 @@ export default function BankReconciliation() {
                                 <Loader2 className="h-6 w-6 mx-auto animate-spin text-muted-foreground" />
                               </TableCell>
                             </TableRow>
+                          ) : loadError ? (
+                            <TableRow>
+                              <TableCell colSpan={8} className="p-4">
+                                <BankingLoadError
+                                  error={loadError}
+                                  what="transactions"
+                                  onRetry={() => fetchTransactions()}
+                                />
+                              </TableCell>
+                            </TableRow>
                           ) : paginatedTransactions.length === 0 ? (
                             <TableRow>
                               <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
