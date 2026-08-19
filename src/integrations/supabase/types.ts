@@ -78066,6 +78066,102 @@ export type Database = {
           },
         ]
       }
+      accounting_integrity_findings_stock_negative: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          detected_at: string | null
+          entity_id: string | null
+          entity_ref: string | null
+          entity_type: string | null
+          evidence: Json | null
+          finding_code: string | null
+          finding_detail: string | null
+          finding_title: string | null
+          id: string | null
+          organization_id: string | null
+          severity: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_stock_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_product_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_product_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_product_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "v_supplier_coverage"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
       accounting_integrity_findings_supplemental: {
         Row: {
           branch_id: string | null
@@ -90555,7 +90651,15 @@ export type Database = {
         Args: { p_adjustment_id: string; p_user_id: string }
         Returns: Json
       }
-      backfill_opening_inventory_gl: { Args: { p_org: string }; Returns: Json }
+      backfill_opening_inventory_gl: {
+        Args: {
+          p_as_of?: string
+          p_business?: string
+          p_dry_run?: boolean
+          p_org: string
+        }
+        Returns: Json
+      }
       bank_account_create: {
         Args: { _business_id: string; _payload: Json }
         Returns: Json
@@ -92755,10 +92859,6 @@ export type Database = {
           source: string
         }[]
       }
-      detect_negative_asset_findings: {
-        Args: { p_org: string }
-        Returns: number
-      }
       diagnose_default_account_mappings: {
         Args: { _business_id: string; _org_id: string }
         Returns: {
@@ -94348,6 +94448,10 @@ export type Database = {
       expire_overdue_proformas: { Args: never; Returns: number }
       expire_stale_estimates: { Args: never; Returns: number }
       expire_stock_reservations: { Args: never; Returns: number }
+      explain_inventory_gl_drift: {
+        Args: { p_as_of?: string; p_business?: string; p_org: string }
+        Returns: Json
+      }
       extend_app_trial: {
         Args: { p_app_id: string; p_extra_days: number; p_org_id: string }
         Returns: Json
@@ -95019,49 +95123,30 @@ export type Database = {
           total_debit: number
         }[]
       }
-      get_accounting_integrity_findings:
-        | {
-            Args: { _include_supplemental?: boolean }
-            Returns: {
-              branch_id: string
-              business_id: string
-              detected_at: string
-              entity_id: string
-              entity_ref: string
-              entity_type: string
-              evidence: Json
-              finding_code: string
-              finding_detail: string
-              finding_title: string
-              id: string
-              organization_id: string
-              severity: string
-            }[]
-          }
-        | {
-            Args: {
-              _branch_id?: string
-              _business_id?: string
-              _limit?: number
-              _org_id: string
-              _severity?: string
-            }
-            Returns: {
-              branch_id: string
-              business_id: string
-              detected_at: string
-              entity_id: string
-              entity_ref: string
-              entity_type: string
-              evidence: Json
-              finding_code: string
-              finding_detail: string
-              finding_title: string
-              id: string
-              organization_id: string
-              severity: string
-            }[]
-          }
+      get_accounting_integrity_findings: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _limit?: number
+          _org_id: string
+          _severity?: string
+        }
+        Returns: {
+          branch_id: string
+          business_id: string
+          detected_at: string
+          entity_id: string
+          entity_ref: string
+          entity_type: string
+          evidence: Json
+          finding_code: string
+          finding_detail: string
+          finding_title: string
+          id: string
+          organization_id: string
+          severity: string
+        }[]
+      }
       get_ai_api_key_secret: { Args: { p_id: string }; Returns: string }
       get_all_subordinates: {
         Args: { _manager_employee_id: string }
@@ -96861,6 +96946,20 @@ export type Database = {
         }
         Returns: Json[]
       }
+      list_inventory_subledger_composition: {
+        Args: { p_business?: string; p_limit?: number; p_org: string }
+        Returns: {
+          cost_basis: string
+          product_id: string
+          product_name: string
+          quantity: number
+          sku: string
+          unit_cost: number
+          value: number
+          warehouse_id: string
+          warehouse_name: string
+        }[]
+      }
       list_invoices_missing_journals: {
         Args: {
           _branch_id?: string
@@ -96879,6 +96978,19 @@ export type Database = {
           residual: number
           status: string
           total: number
+        }[]
+      }
+      list_negative_stock_positions: {
+        Args: { p_business?: string; p_org: string }
+        Returns: {
+          product_id: string
+          product_name: string
+          quantity: number
+          sku: string
+          unit_cost: number
+          valuation_impact: number
+          warehouse_id: string
+          warehouse_name: string
         }[]
       }
       list_org_storage_paths: { Args: { org_id: string }; Returns: Json }
@@ -100567,14 +100679,18 @@ export type Database = {
         Returns: Json
       }
       reconcile_inventory_subledger_to_gl: {
-        Args: { p_org: string }
+        Args: { p_as_of?: string; p_business?: string; p_org: string }
         Returns: {
           account_code: string
           account_id: string
           account_name: string
+          business_id: string
           drift: number
+          fallback_cost_lines: number
           gl_closing: number
+          negative_qty_lines: number
           subledger_value: number
+          zero_cost_lines: number
         }[]
       }
       reconcile_stock_quantities: {
