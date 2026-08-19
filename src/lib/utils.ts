@@ -5,18 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Utility fallback formatter. Prefer useCurrency().formatCurrency in React components. */
 /**
- * Low-level money formatter. `currency` is REQUIRED and has no default:
+ * Low-level money formatter. There is deliberately NO currency default:
  * a defaulted currency silently renders USD in a KES/EUR workspace
- * (ADR 0136 — a missing currency is an absence, never a guess).
+ * (ADR 0136 — a missing currency is an absence, never a guess). When the
+ * currency is unknown the amount renders as a bare number, which reads as
+ * incomplete instead of reading as the wrong money.
  *
  * Prefer `useCurrency().formatCurrency` in React code — it resolves the
  * business base currency and the catalogue's decimal places. Use this
  * helper only where no React context is available, and always pass the
  * currency that authoritatively belongs to the amount.
  */
-export function formatCurrency(amount: number, currency: string): string {
+export function formatCurrency(amount: number, currency?: string | null): string {
+  if (!currency) {
+    return amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -27,6 +34,7 @@ export function formatCurrency(amount: number, currency: string): string {
     return `${currency} ${amount.toFixed(2)}`;
   }
 }
+
 
 
 export function formatDate(date: string | Date): string {
