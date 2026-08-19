@@ -112,7 +112,7 @@ export default function BankReconciliation() {
   // account's currency, never in a formatter default (ADR 0136).
   const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, loadError, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
-  const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
+  const { sessions, activeSession, startSession, writeOffSession, completeSession, cancelSession, reopenSession, isSaving: isSessionSaving, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((tx) => {
