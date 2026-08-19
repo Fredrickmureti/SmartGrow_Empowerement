@@ -74,6 +74,8 @@ export default function BankFeeds() {
   // Rules dialog was removed — Rules now open as a routed page.
   
   const { accounts: bankAccounts } = useBankAccounts();
+  // A feed line's currency is its bank account's currency (ADR 0136).
+  const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, fetchTransactions } = useBankTransactions();
   const { createRule } = useTransactionRules();
   const scope = useFinanceScope();
