@@ -90666,6 +90666,10 @@ export type Database = {
           sync_frequency: string
         }[]
       }
+      bank_match_candidates: {
+        Args: { _limit?: number; _txn_id: string }
+        Returns: Json
+      }
       bank_match_confirm: {
         Args: {
           _client_request_id?: string
@@ -95812,15 +95816,6 @@ export type Database = {
       get_public_pricing_snapshot: { Args: never; Returns: Json }
       get_recent_plan_change_summary: {
         Args: { p_org_id: string }
-        Returns: Json
-      }
-      get_reconciliation_match_suggestions: {
-        Args: {
-          _bank_account_id: string
-          _business_id: string
-          _limit?: number
-          _org_id: string
-        }
         Returns: Json
       }
       get_sales_dashboard_kpis: {
