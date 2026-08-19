@@ -400,8 +400,6 @@ export function ReconcileTransactionSheet({
                   );
                 })}
 
-                  );
-                })}
               </div>
             )}
           </TabsContent>
