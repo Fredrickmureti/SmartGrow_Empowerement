@@ -150,21 +150,9 @@ export function useJournalEntries() {
     staleTime: 15_000,
   });
 
-  // Generate next entry number using atomic database function (C3 fix)
-  const generateEntryNumber = async () => {
-    if (!organizationId) return "JE-00001";
-    
-    const { data, error } = await supabase.rpc("get_next_journal_entry_number", {
-      _org_id: organizationId,
-    });
-
-    if (error) {
-      console.error("Error getting journal entry number:", error);
-      return `JE-${Date.now()}`;
-    }
-
-    return data || "JE-00001";
-  };
+  // Numbering is owned by the posting engine (post_journal_entry_atomic →
+  // generate_next_je_number). The client never mints an entry number.
+  const generateEntryNumber = async (): Promise<null> => null;
 
   // Create journal entry — atomic via DB function (P0-3 fix)
   const createJournalEntry = useMutation({

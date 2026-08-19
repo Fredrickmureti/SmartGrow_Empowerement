@@ -99898,6 +99898,7 @@ export type Database = {
           _exchange_rate?: number
           _is_adjusting: boolean
           _is_closing: boolean
+          _is_opening_entry?: boolean
           _lines: Json
           _org_id: string
           _reference: string

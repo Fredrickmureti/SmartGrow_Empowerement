@@ -4,7 +4,7 @@
 Currency is stored as an ISO code `text` everywhere; `resolve_exchange_rate` / `require_exchange_rate` are the only FX authorities (ADR 0135/0136).
 One client FX lookup: `@/services/fx/rateBook` — display only, missing rate is `null` and renders `—`; never 1:1, never a rate literal (ADR 0136).
 Every purchasing document keys `vendor_id → contacts.id` (party), never `suppliers.id` (role) — ADR-0079.
-`post_journal_entry_atomic` is the only writer of journal rows (ADR 0123).
+`post_journal_entry_atomic` is the only writer of journal rows (ADR 0123) and the only journal numberer — callers/clients pass a NULL entry number (ADR 0146).
 Cost layers are the single valuation truth; AVCO is always derived from them, never computed independently.
 Year-segmented document numbers parse the trailing counter segment only, under a per-org advisory lock.
 Project status lives in `.lovable/plan.md`; verify prior work before continuing.

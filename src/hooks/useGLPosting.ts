@@ -82,20 +82,9 @@ export function useGLPosting() {
   const { isDateLocked } = useFiscalPeriods();
   const { can } = usePermissions();
 
-  const getNextJournalNumber = async (): Promise<string> => {
-    if (!currentOrg) return `JE-${Date.now()}`;
-
-    const { data, error } = await supabase.rpc("get_next_journal_entry_number", {
-      _org_id: currentOrg.id,
-    });
-
-    if (error) {
-      console.error("Error getting journal entry number:", error);
-      return `JE-${Date.now()}`;
-    }
-
-    return String(data) || `JE-${Date.now()}`;
-  };
+  // Numbering belongs to the posting engine (post_journal_entry_atomic →
+  // generate_next_je_number). The client passes null and never mints a number.
+  const getNextJournalNumber = async (): Promise<null> => null;
 
   /**
    * Post a transaction to the General Ledger using atomic RPC.

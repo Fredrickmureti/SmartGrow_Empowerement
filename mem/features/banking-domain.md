@@ -168,3 +168,27 @@ type: feature
 - Rule of thumb for future ratchets: assert the *property of the final state*,
   never the text of one migration file. A ratchet that fails on a correct
   architecture trains engineers to ignore ratchets.
+
+## Wave 4 — opening balance posting (2026-08-19)
+
+- Journal numbering is **not** Banking's job: `post_journal_entry_atomic`
+  self-numbers via `generate_next_je_number(org, business)` when the caller passes
+  `NULL` (ADR-0146). Banking passes `NULL`; the `OB-BANK-…` string it builds is the
+  entry *reference*, never the number. The legacy `get_next_journal_entry_number`
+  is dropped and clients never mint numbers.
+- Entry classification is passed **into** the engine
+  (`_is_opening_entry`), so the opening entry is born with its flags.
+  `_bank_account_post_opening_balance` must never `UPDATE` the posted entry —
+  the immutability trigger refuses it (`P0001 Cannot modify a posted journal entry`).
+- Banking outbox topics must be registered **exactly** in
+  `business_event_topics` (`banking.account.created|activated|updated|closed|
+  archived|deleted|opening_balance_posted|opening_balance_reset`). The prefix row
+  `banking.account` does not satisfy the dispatcher's exact-topic registry lookup;
+  without the exact rows the events dead-letter as
+  `posting.contract_violation: unknown_event_type` while the UI shows success.
+- Simulation of record: *Test Operating Bank – KES* / Meridian Commercial Bank /
+  010000000001 / KES / 2026-08-01 / 50,000.00 → one posted balanced JE
+  (`JE-00007`, `source_type='opening_balance'`, `is_opening_entry`), DR Cash at
+  Bank - KES / CR Opening Balance Equity, `opening_balance_je_id` set, repost is a
+  no-op, both banking events `succeeded`, and
+  `bank_account_positions()` opening = gl_balance = 50,000.00.
