@@ -244,6 +244,7 @@ export function ReconcileTransactionSheet({
     );
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
+    setSelectedRecordedId(null);
   };
 
   const toggleBillSelection = (billId: string) => {
@@ -252,17 +253,36 @@ export function ReconcileTransactionSheet({
     );
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
+    setSelectedRecordedId(null);
   };
+
+  const toggleRecordedSelection = (id: string) => {
+    setSelectedRecordedId((prev) => (prev === id ? null : id));
+    setSelectedInvoiceIds([]);
+    setSelectedBillIds([]);
+    setSelectedMatch(null);
+    setChosenCandidateIndex(null);
+  };
+
+  const selectedRecorded =
+    clearableCandidates.find((c) => c.id === selectedRecordedId) ?? null;
+
+  /** True when a hand-post would drain a holding account behind the seam's back. */
+  const isHoldingOffset = offsetAccountId
+    ? holdingAccountIds.includes(offsetAccountId)
+    : false;
 
   const close = () => {
     onOpenChange(false);
     setSelectedInvoiceIds([]);
     setSelectedBillIds([]);
+    setSelectedRecordedId(null);
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
     setOffsetAccountId("");
     setManualDescription("");
     setSearchQuery("");
+    setActiveTab(null);
   };
 
   /**
