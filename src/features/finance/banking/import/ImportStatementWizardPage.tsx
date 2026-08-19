@@ -152,14 +152,15 @@ export default function ImportStatementWizardPage() {
       toast.error("Please map at least Date, Description, and Amount columns");
       return;
     }
-    if (!parsedStatement?.headers || !parsedStatement?.rawRows) return;
+    if (!parsedStatement?.columns || !parsedStatement?.rawRows) return;
 
     const mapped = applyColumnMapping(
-      parsedStatement.headers,
+      parsedStatement.columns,
       parsedStatement.rawRows,
       columnMapping,
       selectedAccountId,
     );
+
     await preparePreview(mapped);
   };
 
