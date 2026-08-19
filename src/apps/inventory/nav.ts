@@ -24,6 +24,7 @@ import {
   CalendarClock,
   Truck,
   ShieldCheck,
+  BookOpen,
 
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
