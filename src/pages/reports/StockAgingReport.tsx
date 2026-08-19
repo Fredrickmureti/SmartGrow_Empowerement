@@ -1,323 +1,284 @@
-import { useMemo, useCallback, useState } from "react";
+/**
+ * Stock Aging — remaining COST LAYERS bucketed by age, AS AT a date.
+ *
+ * Phase 5 of the inventory reporting wave. Before this rebuild the page aged
+ * the *product* by its last inbound movement and valued it at live on-hand ×
+ * today's cost price, so a single fresh receipt made an entire slow-moving
+ * balance look new and no total could tie to Inventory Valuation.
+ *
+ * It now reads `public.report_inventory_aging_as_of()` — the same RPC the
+ * export path (`_shared/reports/inventoryData.ts`, registry key
+ * `inventory_aging`) uses — which ages each remaining cost layer by its own
+ * receipt date and enforces business / branch authorization server-side.
+ * Bucket values sum to the Inventory Valuation total value at the same date.
+ */
+import { useState, useMemo, useCallback } from "react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ReportSurface,
   ReportTable,
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
-import { Clock, AlertTriangle, Package } from "lucide-react";
+import { DollarSign, Package, AlertTriangle } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { BranchScopeToggle, type BranchScope } from "@/components/reports/BranchScopeToggle";
-import { differenceInDays, format } from "date-fns";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
-import { useQtyFormatter } from "@/hooks/inventory/useQtyFormatter";
-
+import { format } from "date-fns";
+import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
+import { useInventoryAgingAsOf } from "@/hooks/inventory/useInventoryReportRpcs";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+const TOTAL_KEYS = [
+  "qty_0_30",
+  "value_0_30",
+  "qty_31_60",
+  "value_31_60",
+  "qty_61_90",
+  "value_61_90",
+  "qty_90_plus",
+  "value_90_plus",
+  "qty_on_hand",
+  "total_value",
+] as const;
+
+type TotalKey = (typeof TOTAL_KEYS)[number];
+
 function StockAgingReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
-  const { products, isLoading: productsLoading } = useProducts();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
-  const orgId = currentOrg?.id;
-  const bizId = currentBusiness?.id;
+
+  const [asOf, setAsOf] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [scope, setScope] = useState<BranchScope>(currentBranch ? "branch" : "company");
   const effectiveBranchId = scope === "branch" ? currentBranch?.id ?? null : null;
 
-  // Per-product on-hand from warehouse_stock — branch-true.
-  // products.stock_quantity is a company-wide aggregate and must NEVER drive
-  // branch-scoped reports.
-  const { data: stockByProduct = new Map<string, number>() } = useQuery({
-    queryKey: ["stock-aging-on-hand", orgId, bizId, effectiveBranchId],
-    queryFn: async () => {
-      if (!orgId || !bizId) return new Map<string, number>();
-      let q = supabase
-        .from("warehouse_stock")
-        .select("product_id, quantity")
-        .eq("organization_id", orgId)
-        .eq("business_id", bizId);
-      if (effectiveBranchId) q = q.eq("branch_id", effectiveBranchId);
-      const { data, error } = await q;
-      if (error) throw error;
-      const map = new Map<string, number>();
-      for (const r of data || []) {
-        map.set(r.product_id, (map.get(r.product_id) || 0) + (Number(r.quantity) || 0));
-      }
-      return map;
-    },
-    enabled: !!orgId && !!bizId,
+  const orgId = currentOrg?.id ?? null;
+  const bizId = currentBusiness?.id ?? null;
+
+  const {
+    data: rows = [],
+    isLoading: rowsLoading,
+    error,
+  } = useInventoryAgingAsOf({
+    orgId,
+    businessId: bizId,
+    asOf,
+    filters: { branchId: effectiveBranchId },
   });
 
-  const isLoading = productsLoading || !currencyReady;
+  const isLoading = rowsLoading || !currencyReady;
 
-  // Fetch last inbound movement per product
-  const { data: lastInbound = [] } = useQuery({
-    queryKey: ["stock-aging-last-inbound", orgId, bizId, effectiveBranchId],
-    queryFn: async () => {
-      if (!orgId || !bizId) return [];
-      // Get the most recent inbound movement per product
-      let query = supabase
-        .from("stock_movements")
-        .select("product_id, movement_date, movement_type")
-        .eq("organization_id", orgId)
-        .eq("business_id", bizId)
-        .gt("quantity", 0)
-        .in("movement_type", ["receipt", "purchase", "return_in", "adjustment", "count", "opening"])
-        .order("movement_date", { ascending: false });
-      if (effectiveBranchId) query = query.eq("branch_id", effectiveBranchId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!orgId && !!bizId,
-  });
-
-  const physicalProducts = useMemo(
-    () => products.filter(
-      (p) => p.type === "product" && p.is_active && (stockByProduct.get(p.id) ?? 0) > 0
-    ),
-    [products, stockByProduct]
-  );
-
-  const agingData = useMemo(() => {
-    const now = new Date();
-    // Build map of most recent inbound per product
-    const lastInboundMap = new Map<string, string>();
-    for (const m of lastInbound) {
-      if (!lastInboundMap.has(m.product_id)) {
-        lastInboundMap.set(m.product_id, m.movement_date);
-      }
+  const totals = useMemo(() => {
+    const acc = Object.fromEntries(TOTAL_KEYS.map((k) => [k, 0])) as Record<TotalKey, number>;
+    for (const r of rows) {
+      for (const k of TOTAL_KEYS) acc[k] += Number(r[k] ?? 0);
     }
+    return acc;
+  }, [rows]);
 
-    const rows = physicalProducts.map((p) => {
-      const lastDate = lastInboundMap.get(p.id);
-      const daysAge = lastDate ? differenceInDays(now, new Date(lastDate)) : null;
-      const qty = stockByProduct.get(p.id) ?? 0;
-      const costPrice = p.cost_price || 0;
-      const value = qty * costPrice;
-
-      let ageBucket: string;
-      if (daysAge === null) ageBucket = "Unknown";
-      else if (daysAge <= 30) ageBucket = "0-30 days";
-      else if (daysAge <= 60) ageBucket = "31-60 days";
-      else if (daysAge <= 90) ageBucket = "61-90 days";
-      else if (daysAge <= 180) ageBucket = "91-180 days";
-      else ageBucket = "180+ days";
-
-      return {
-        id: p.id,
-        name: p.name,
-        sku: p.sku || "",
-        qty,
-        costPrice,
-        value,
-        lastInbound: lastDate || null,
-        daysAge,
-        ageBucket,
-      };
-    });
-
-    const buckets = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "Unknown"];
-    const summary = buckets.map((bucket) => {
-      const items = rows.filter((r) => r.ageBucket === bucket);
-      return {
-        bucket,
-        count: items.length,
-        totalQty: items.reduce((s, r) => s + r.qty, 0),
-        totalValue: items.reduce((s, r) => s + r.value, 0),
-      };
-    });
-
-    return {
-      rows: rows.sort((a, b) => (b.daysAge ?? 9999) - (a.daysAge ?? 9999)),
-      summary,
-      totalValue: rows.reduce((s, r) => s + r.value, 0),
-      oldStockValue: rows.filter((r) => (r.daysAge ?? 0) > 90).reduce((s, r) => s + r.value, 0),
-    };
-  }, [physicalProducts, lastInbound, stockByProduct]);
-
-  // Pack-aware qty formatter for the per-product rows.
-  const qtyFormatter = useQtyFormatter({
-    productIds: agingData.rows.map((r) => r.id),
-  });
-
-  const agingColumns = useMemo<ReportColumn[]>(
+  // Same keys, headers and order as the server column spec
+  // (`columnSpecs.ts` → `inventory_aging`).
+  const columns = useMemo<ReportColumn[]>(
     () => [
-      { key: "product", header: "Product" },
+      { key: "product_name", header: "Product" },
       { key: "sku", header: "SKU" },
-      {
-        key: "qty",
-        header: "Qty",
-        align: "right",
-        render: (row) => qtyFormatter.format(row.id, Number(row.values?.qty ?? 0)),
-      },
-      { key: "value", header: "Value", format: "currency" },
-      { key: "lastInbound", header: "Last Inbound", format: "date" },
-      { key: "daysAge", header: "Days", format: "number" },
-      {
-        key: "ageBucket",
-        header: "Bucket",
-        render: (row) => (
-          <Badge className={getBucketColor(String(row.values?.ageBucket ?? ""))} variant="outline">
-            {String(row.values?.ageBucket ?? "")}
-          </Badge>
-        ),
-      },
+      { key: "warehouse_name", header: "Warehouse" },
+      { key: "value_0_30", header: "0-30", format: "currency", align: "right" },
+      { key: "value_31_60", header: "31-60", format: "currency", align: "right" },
+      { key: "value_61_90", header: "61-90", format: "currency", align: "right" },
+      { key: "value_90_plus", header: "90+", format: "currency", align: "right" },
+      { key: "qty_on_hand", header: "Qty on Hand", format: "number", align: "right" },
+      { key: "total_value", header: "Total Value", format: "currency", align: "right" },
+      { key: "oldest_receipt_at", header: "Oldest Receipt", format: "date" },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [qtyFormatter],
+    [],
   );
 
-  const agingRows = useMemo<ReportRow[]>(
-    () =>
-      agingData.rows.slice(0, 100).map((row) => ({
-        id: row.id,
-        values: {
-          product: row.name,
-          sku: row.sku || null,
-          qty: row.qty,
-          value: row.value,
-          lastInbound: row.lastInbound,
-          daysAge: row.daysAge,
-          ageBucket: row.ageBucket,
-        },
-      })),
-    [agingData.rows],
-  );
-
-  const getExportConfig = useCallback((): ExportConfig => {
-    const exportRows: ExportRow[] = agingData.rows.map((r) => ({
-      product: r.name,
-      sku: r.sku,
-      qty: r.qty,
-      cost: r.costPrice,
-      value: r.value,
-      last_inbound: r.lastInbound ? format(new Date(r.lastInbound), "yyyy-MM-dd") : "N/A",
-      days_age: r.daysAge ?? "N/A",
-      bucket: r.ageBucket,
+  const reportRows = useMemo<ReportRow[]>(() => {
+    const detail: ReportRow[] = rows.map((r, i) => ({
+      id: `${r.product_id}-${r.warehouse_id ?? "all"}-${i}`,
+      kind: "detail",
+      values: {
+        product_name: r.product_name ?? "",
+        sku: r.sku ?? null,
+        warehouse_name: r.warehouse_name ?? "—",
+        value_0_30: Number(r.value_0_30 ?? 0),
+        value_31_60: Number(r.value_31_60 ?? 0),
+        value_61_90: Number(r.value_61_90 ?? 0),
+        value_90_plus: Number(r.value_90_plus ?? 0),
+        qty_on_hand: Number(r.qty_on_hand ?? 0),
+        total_value: Number(r.total_value ?? 0),
+        oldest_receipt_at: r.oldest_receipt_at ? String(r.oldest_receipt_at).slice(0, 10) : null,
+      },
     }));
-    return {
-      title: "Stock Aging Report",
-      companyName: currentOrg?.name || "",
-      columns: [
-        { key: "product", header: "Product", width: 25 },
-        { key: "sku", header: "SKU", width: 12 },
-        { key: "qty", header: "Qty", width: 8, format: "number", align: "right" },
-        { key: "value", header: "Value", width: 15, format: "currency", align: "right" },
-        { key: "last_inbound", header: "Last Inbound", width: 15 },
-        { key: "days_age", header: "Days", width: 8, format: "number", align: "right" },
-        { key: "bucket", header: "Age Bucket", width: 15 },
-      ],
-      rows: exportRows,
-      sheetName: "Stock Aging",
-      currency: baseCurrency,
-    };
-  }, [agingData, currentOrg, baseCurrency]);
 
-  const getBucketColor = (bucket: string) => {
-    if (bucket.includes("0-30")) return "bg-green-100 text-green-800";
-    if (bucket.includes("31-60")) return "bg-blue-100 text-blue-800";
-    if (bucket.includes("61-90")) return "bg-yellow-100 text-yellow-800";
-    if (bucket.includes("91-180")) return "bg-orange-100 text-orange-800";
-    if (bucket.includes("180+")) return "bg-red-100 text-red-800";
-    return "bg-gray-100 text-gray-800";
-  };
+    if (detail.length === 0) return detail;
+
+    detail.push({
+      id: "grand-total",
+      kind: "grandTotal",
+      label: "Total",
+      values: {
+        product_name: "Total",
+        sku: null,
+        warehouse_name: null,
+        value_0_30: totals.value_0_30,
+        value_31_60: totals.value_31_60,
+        value_61_90: totals.value_61_90,
+        value_90_plus: totals.value_90_plus,
+        qty_on_hand: totals.qty_on_hand,
+        total_value: totals.total_value,
+        oldest_receipt_at: null,
+      },
+    });
+    return detail;
+  }, [rows, totals]);
+
+  /**
+   * Server-built export: `reportType` + org + as-of send `render-report` down
+   * the same RPC path, so the PDF/CSV/XLSX carries the full dataset and cannot
+   * drift from the screen.
+   */
+  const getExportConfig = useCallback(
+    (): ServerBuildConfig => ({
+      title: "Stock Aging",
+      reportType: "inventory_aging",
+      organizationId: orgId ?? undefined,
+      businessId: bizId ?? undefined,
+      branchId: effectiveBranchId,
+      asOf,
+      dateFrom: asOf,
+      dateTo: asOf,
+      filters: { branchId: effectiveBranchId, asOf },
+      columns: [],
+      rows: [],
+      sheetName: "Aging",
+      currency: baseCurrency,
+    }),
+    [orgId, bizId, effectiveBranchId, asOf, baseCurrency],
+  );
+
+  const oldValue = totals.value_61_90 + totals.value_90_plus;
+  const oldShare = totals.total_value > 0 ? (oldValue / totals.total_value) * 100 : 0;
 
   return (
     <ReportPageLayout
-      title="Stock Aging Report"
-      description="Time since last inbound movement per product"
+      title="Stock Aging"
+      description={`Cost layers bucketed by age as at ${format(new Date(asOf), "MMM d, yyyy")}`}
       isLoading={isLoading}
-      isEmpty={physicalProducts.length === 0}
-      emptyMessage="No products with stock found"
+      error={(error as Error) ?? null}
+      isEmpty={!isLoading && rows.length === 0}
+      emptyMessage="No inventory on hand as at this date"
       getExportConfig={getExportConfig}
-      headerActions={<RefreshButton queryKeyPrefixes={[["stock-aging-last-inbound"] as const]} tooltip="Refresh" />}
       filters={
         <div className="flex flex-wrap gap-3 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">As at</Label>
+            <Input
+              type="date"
+              value={asOf}
+              onChange={(e) => setAsOf(e.target.value)}
+              className="w-auto"
+            />
+          </div>
           <BranchScopeToggle value={scope} onChange={setScope} />
         </div>
+      }
+      headerActions={
+        <RefreshButton queryKeyPrefixes={[["inventory-aging-as-of"] as const]} tooltip="Refresh" />
       }
     >
       <div className="space-y-6">
         <div className="stats-grid grid-cols-1 sm:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Stock Value</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(agingData.totalValue, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Aging Stock (&gt;90 days)</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{formatCurrency(agingData.oldStockValue, baseCurrency)}</div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(totals.total_value, baseCurrency)}
+              </div>
               <p className="text-xs text-muted-foreground">
-                {agingData.totalValue > 0 ? ((agingData.oldStockValue / agingData.totalValue) * 100).toFixed(1) : 0}% of total
+                Ties to Inventory Valuation at the same date
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Products in Stock</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Older than 60 Days</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{physicalProducts.length}</div>
+              <div className="text-2xl font-bold">{formatCurrency(oldValue, baseCurrency)}</div>
+              <p className="text-xs text-muted-foreground">{oldShare.toFixed(1)}% of value</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Quantity on Hand</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totals.qty_on_hand.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Age Buckets Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Age Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {agingData.summary.map((s) => (
-                <div key={s.bucket} className="rounded-lg border p-3 text-center">
-                  <Badge className={getBucketColor(s.bucket)}>{s.bucket}</Badge>
-                  <p className="mt-2 text-lg font-bold">{s.count}</p>
-                  <p className="text-xs text-muted-foreground">{formatCurrency(s.totalValue, baseCurrency)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Detail table */}
-        <ReportSurface title="Stock Details" subtitle="Sorted by age (oldest first)" profile="operational">
+        <ReportSurface
+          title="Aging Buckets"
+          subtitle={`Value by layer age as at ${asOf}`}
+          profile="financial"
+        >
           <ReportTable
-            columns={agingColumns}
-            rows={agingRows}
+            columns={[
+              { key: "bucket", header: "Bucket" },
+              { key: "qty", header: "Qty", format: "number", align: "right" },
+              { key: "value", header: "Value", format: "currency", align: "right" },
+            ]}
+            rows={[
+              { key: "0-30 days", q: totals.qty_0_30, v: totals.value_0_30 },
+              { key: "31-60 days", q: totals.qty_31_60, v: totals.value_31_60 },
+              { key: "61-90 days", q: totals.qty_61_90, v: totals.value_61_90 },
+              { key: "90+ days", q: totals.qty_90_plus, v: totals.value_90_plus },
+            ].map((b) => ({
+              id: b.key,
+              kind: "detail" as const,
+              values: { bucket: b.key, qty: b.q, value: b.v },
+            }))}
             currency={baseCurrency}
-            caption="Stock aging detail"
-            emptyMessage="No products with stock found"
+            caption="Aging summary"
+            emptyMessage="No inventory on hand as at this date"
+          />
+        </ReportSurface>
+
+        <ReportSurface
+          title="Stock Aging"
+          subtitle={`Cost-layer aging as at ${asOf} · ${rows.length} line(s)`}
+          profile="financial"
+        >
+          <ReportTable
+            columns={columns}
+            rows={reportRows}
+            currency={baseCurrency}
+            caption="Stock aging as at date"
+            emptyMessage="No inventory on hand as at this date"
           />
         </ReportSurface>
       </div>
     </ReportPageLayout>
   );
 }
-
-
-import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
-import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 
 export default function StockAgingReport() {
   return (
@@ -330,4 +291,3 @@ export default function StockAgingReport() {
     </ReportFilterProvider>
   );
 }
-
