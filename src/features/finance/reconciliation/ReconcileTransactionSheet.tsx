@@ -529,7 +529,6 @@ export function ReconcileTransactionSheet({
                     );
                   })}
 
-                  ))}
                 </div>
               )}
             </RadioGroup>
