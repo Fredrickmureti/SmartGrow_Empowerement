@@ -257,8 +257,9 @@ export default function ImportStatementWizardPage() {
     }
   };
 
-  const headers = parsedStatement?.headers || [];
+  const columns = parsedStatement?.columns || [];
   const rawRows = parsedStatement?.rawRows || [];
+
 
   const stepDescription =
     step === "upload"
