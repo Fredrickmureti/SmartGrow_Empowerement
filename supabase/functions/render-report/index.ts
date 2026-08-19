@@ -458,6 +458,12 @@ serve(async (req) => {
 
     const isProject = typeof reportType === "string" && reportType.startsWith("project_");
 
+    const isInventory = (
+      ["stock_ledger", "inventory_valuation"] as const
+    ).includes(reportType as InventoryReportKey);
+
+
+
     const result = isAttendance
       ? await buildAttendanceReport(
           supabase,
