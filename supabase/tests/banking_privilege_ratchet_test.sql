@@ -127,4 +127,81 @@ BEGIN
   END IF;
 END $$;
 
+-- ---------------------------------------------------------------------
+-- 6) The evidence engine, the transfer wrapper and the reversal delegate
+--    are hardened seams too (ADR-0147). `reconcile_bank_%` is covered by
+--    section 2; these three do not match that prefix, so name them.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE fn text; r record;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    'bank_match_candidates',
+    'unreconcile_bank_transaction',
+    'reconcile_bank_transfer_atomic',
+    'apply_reconciliation_rules'
+  ] LOOP
+    IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+         WHERE n.nspname='public' AND p.proname=fn) <> 1 THEN
+      RAISE EXCEPTION '% must have exactly one overload', fn;
+    END IF;
+
+    SELECT p.prosecdef, p.proconfig, p.proacl, p.proowner INTO r
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+     WHERE n.nspname='public' AND p.proname=fn;
+
+    IF NOT r.prosecdef THEN
+      RAISE EXCEPTION '% is not SECURITY DEFINER', fn;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM unnest(COALESCE(r.proconfig,'{}')) c WHERE c LIKE 'search\_path=%') THEN
+      RAISE EXCEPTION '% has no pinned search_path', fn;
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM aclexplode(COALESCE(r.proacl, acldefault('f', r.proowner))) a
+      WHERE a.privilege_type='EXECUTE'
+        AND a.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname='anon'))
+    ) THEN
+      RAISE EXCEPTION '% is executable by anon/PUBLIC', fn;
+    END IF;
+  END LOOP;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 7) The retired suggestion RPC must stay retired: it scored against a
+--    column that did not exist, asserted no membership, and was
+--    executable by anon.
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='get_reconciliation_match_suggestions'
+  ) THEN
+    RAISE EXCEPTION 'get_reconciliation_match_suggestions is back — a scorer must not authorize a posting';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 8) Every one of those four asserts tenant membership itself; a
+--    SECURITY DEFINER function that skips it has no boundary at all.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE fn text; v text;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    'bank_match_candidates',
+    'unreconcile_bank_transaction',
+    'apply_reconciliation_rules',
+    'bank_match_propose',
+    'bank_match_confirm'
+  ] LOOP
+    SELECT pg_get_functiondef(p.oid) INTO v
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+     WHERE n.nspname='public' AND p.proname=fn;
+    IF v NOT LIKE '%assert_can_reconcile_bank%' THEN
+      RAISE EXCEPTION '% does not assert bank reconciliation membership', fn;
+    END IF;
+  END LOOP;
+END $$;
+
 SELECT 'banking_privilege_ratchet: ok' AS result;

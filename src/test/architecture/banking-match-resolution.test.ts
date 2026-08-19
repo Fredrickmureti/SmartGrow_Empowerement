@@ -85,4 +85,48 @@ describe("bank match resolution", () => {
     const hook = read("src/hooks/useBankTransactions.ts");
     expect(hook).toContain("_fee_amount");
   });
+  it("every reconciled-state writer is a server seam, never a table write", () => {
+    // `bank_reconciliation_matches` carries the accounting decision. A browser
+    // insert/update there would make "reconciled" a client assertion again.
+    const pattern =
+      /\.from\(\s*["'`]bank_reconciliation_matches["'`]\s*\)\s*(?:[\s\S]{0,400}?)\.(insert|update|upsert|delete)\(/;
+    const offenders = sourceFiles
+      .filter((f) => pattern.test(readFileSync(f, "utf8")))
+      .map((f) => relative(root, f));
+    expect(offenders).toEqual([]);
+  });
+
+  it("a transfer is recorded through the transfer wrapper, not a hand-rolled match", () => {
+    const sheet = read("src/features/finance/reconciliation/TransferReconcileSheet.tsx");
+    expect(sheet).toContain("reconcile_bank_transfer_atomic");
+    // The wrapper owns propose+confirm; a second client-side pair would be a
+    // parallel transfer engine.
+    expect(sheet).not.toContain("bank_match_propose");
+    expect(sheet).not.toContain("bank_match_confirm");
+  });
+
+  it("undoing a reconciliation goes through the canonical reversal delegate", () => {
+    const reversal = read("src/hooks/useTransactionReversal.ts");
+    const bank = read("src/hooks/useBankTransactions.ts");
+    expect(`${reversal}${bank}`).toContain("unreconcile_bank_transaction");
+    // Undo is never a delete of posted accounting records.
+    for (const src of [reversal, bank]) {
+      expect(/\.from\(\s*["'`]journal_entries["'`]\s*\)[\s\S]{0,200}?\.delete\(/.test(src)).toBe(
+        false,
+      );
+    }
+  });
+
+  it("no client code recomputes a reconciliation journal or picks its accounts", () => {
+    // Account resolution (AR/AP control, bank charge) belongs to the server's
+    // canonical default-account resolver.
+    for (const file of [
+      "src/hooks/useBankTransactions.ts",
+      "src/features/finance/reconciliation/ReconcileTransactionSheet.tsx",
+    ]) {
+      const src = read(file);
+      expect(src).not.toContain("accounts_receivable\"");
+      expect(src).not.toContain("post_journal_entry_atomic");
+    }
+  });
 });

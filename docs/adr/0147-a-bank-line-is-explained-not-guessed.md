@@ -1,4 +1,4 @@
-# ADR 0145 — A bank line is explained, not guessed
+# ADR 0147 — A bank line is explained, not guessed
 
 Status: Accepted
 Date: 2026-08-19
@@ -64,7 +64,13 @@ four defects lived in that gap.
 ## Enforcement
 
 - `src/test/architecture/banking-match-resolution.test.ts`
-- `_bank_match_validate` (direction, full-clear, already-deposited, cross
-  company/branch/currency, and the amount law).
+- `supabase/tests/bank_match_resolution_invariants_test.sql`
+- `supabase/tests/banking_privilege_ratchet_test.sql`
+- `_bank_match_validate` (direction, full-clear, already-deposited, no charge on
+  a receipt already banked to this account, cross company/branch/currency, and
+  the amount law).
+- `unreconcile_bank_transaction` refuses a reversal whose settlement row is
+  missing rather than voiding the journal and leaving `amount_paid` standing.
 - `bank_match_candidates` and `apply_reconciliation_rules` are revoked from
   `anon` and assert membership via `assert_can_reconcile_bank`.
+
