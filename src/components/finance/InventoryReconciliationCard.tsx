@@ -354,10 +354,6 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
                 </>
               )
             ) : null}
-                  </table>
-                </div>
-              )
-            ) : null}
           </div>
         )}
 
