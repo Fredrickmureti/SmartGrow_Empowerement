@@ -32,7 +32,8 @@ import type { ReportResult } from "../reportDataEngine.ts";
 export type InventoryReportKey =
   | "stock_ledger"
   | "inventory_valuation"
-  | "inventory_aging";
+  | "inventory_aging"
+  | "inventory_gl_reconciliation";
 
 export interface InventoryFilters {
   branchId?: string | null;
@@ -202,6 +203,55 @@ export async function buildInventoryReport(
     return {
       data: agingData,
       summary: { lines: agingData.length, as_of: agingAsOf, ...t },
+    };
+  }
+
+  if (reportType === "inventory_gl_reconciliation") {
+    // Entity-level control report: one row per configured inventory control
+    // account. The subledger side is the same as-at layer valuation the
+    // inventory_valuation key reports, so drift is attributable to the GL.
+    const reconAsOf = filters.asOf ?? dateTo;
+    const { data, error } = await supabase.rpc("reconcile_inventory_subledger_to_gl", {
+      p_org: orgId,
+      p_business: businessId,
+      p_as_of: reconAsOf,
+    });
+    if (error) {
+      throw new Error(`reconcile_inventory_subledger_to_gl failed: ${error.message}`);
+    }
+
+    let subledger = 0;
+    let gl = 0;
+    let drift = 0;
+
+    const reconData = ((data ?? []) as any[]).map((r) => {
+      subledger += num(r.subledger_value);
+      gl += num(r.gl_closing);
+      drift += num(r.drift);
+      const exceptions = [
+        num(r.unlayered_positions) ? `${num(r.unlayered_positions)} no cost layer` : null,
+        num(r.zero_cost_positions) ? `${num(r.zero_cost_positions)} zero cost` : null,
+        num(r.negative_qty_positions) ? `${num(r.negative_qty_positions)} negative qty` : null,
+      ].filter(Boolean).join(", ");
+      return {
+        account_code: r.account_code ?? "",
+        account_name: r.account_name ?? "",
+        subledger_value: num(r.subledger_value),
+        gl_closing: num(r.gl_closing),
+        drift: num(r.drift),
+        exceptions: exceptions || "none",
+      };
+    });
+
+    return {
+      data: reconData,
+      summary: {
+        lines: reconData.length,
+        as_of: reconAsOf,
+        subledger_value: subledger,
+        gl_closing: gl,
+        drift,
+      },
     };
   }
 

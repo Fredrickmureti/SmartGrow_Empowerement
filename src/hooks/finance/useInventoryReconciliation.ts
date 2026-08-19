@@ -8,11 +8,13 @@ import { normalizeError } from "@/services/resilience";
 /**
  * Inventory subledger ⇄ General Ledger control-account reconciliation.
  *
- * Contract (see ADR 0017):
- *  - Valuation basis is the per-warehouse moving-average cost
- *    (`warehouse_stock.average_cost`), falling back to `products.cost_price`.
- *    Fallback / zero-cost / negative-quantity lines are COUNTED and surfaced,
- *    never silently absorbed into the total.
+ * Contract (Phase 6 — supersedes the AVCO basis documented in ADR 0017):
+ *  - Valuation basis is the COST-LAYER ledger, reconstructed as at the
+ *    reporting date by `public._inventory_layer_valuation_as_of()` — the same
+ *    helper `report_inventory_valuation_as_of()` reads. The reconciliation and
+ *    the Inventory Valuation report therefore cannot disagree.
+ *  - Positions with no cost layer, zero-cost layers, or negative quantity are
+ *    COUNTED and surfaced, never silently absorbed into the total.
  *  - The GL side is summed from POSTED `journal_entry_lines` up to an
  *    explicit as-at date — never from the denormalised
  *    `accounts.current_balance`, which cannot detect a stale cache.
@@ -27,9 +29,10 @@ export interface InventoryReconciliationRow {
   subledger_value: number;
   gl_closing: number;
   drift: number;
-  fallback_cost_lines: number;
-  zero_cost_lines: number;
-  negative_qty_lines: number;
+  /** Positions with quantity on the operational snapshot but no cost layer. */
+  unlayered_positions: number;
+  zero_cost_positions: number;
+  negative_qty_positions: number;
 }
 
 export interface NegativeStockPosition {
