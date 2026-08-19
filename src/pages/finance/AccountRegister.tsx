@@ -76,6 +76,7 @@ function AccountRegisterInner() {
   const { formatCurrency, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { filters } = useReportFilters();
 
   // Siblings = same account_type, active, sorted by code, for prev/next stepping.
   const siblings = useMemo(() => {
