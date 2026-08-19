@@ -932,6 +932,25 @@ export function ReconcileTransactionSheet({
                 Create a journal entry for this bank transaction (e.g., bank charges, interest income, transfers).
               </p>
 
+              {clearableCandidates.length > 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <p className="text-xs text-muted-foreground">
+                    Money of {formatTxn(transactionAmount)} is already recorded for this line. Use
+                    the{" "}
+                    <button
+                      type="button"
+                      className="font-medium underline"
+                      onClick={() => setActiveTab("recorded")}
+                    >
+                      Recorded
+                    </button>{" "}
+                    tab so it is marked as banked; a hand-posted entry leaves it waiting and it can
+                    be banked twice.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Offset Account *</Label>
                 <AccountCombobox
@@ -943,9 +962,17 @@ export function ReconcileTransactionSheet({
                   }}
                   placeholder="Search accounts by code or name..."
                 />
-                <p className="text-xs text-muted-foreground">
-                  {isCredit ? "DR Bank, CR this account" : "DR this account, CR Bank"}
-                </p>
+                {isHoldingOffset ? (
+                  <p className="text-xs text-destructive">
+                    This is a holding account for money already recorded. Clearing it by hand would
+                    move the cash without marking the receipt banked, so the same receipt could be
+                    banked again. Clear it from the Recorded tab instead.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {isCredit ? "DR Bank, CR this account" : "DR this account, CR Bank"}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
