@@ -38,7 +38,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
-import { useBankMatchCandidates, TIER_COPY } from "@/hooks/useBankMatchCandidates";
+import { useBankMatchCandidates, TIER_COPY, isExplainedTier } from "@/hooks/useBankMatchCandidates";
 
 import {
   Search,
