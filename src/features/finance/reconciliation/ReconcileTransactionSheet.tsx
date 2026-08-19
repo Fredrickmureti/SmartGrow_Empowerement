@@ -11,7 +11,7 @@
  *  - Manual / Create Journal Entry against a chosen offset account
  *  - Same `onReconcile` contract, unchanged permission gates
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,8 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 import { useBankMatchCandidates, TIER_COPY, isExplainedTier } from "@/hooks/useBankMatchCandidates";
+import { useBankPendingMatch, usePendingMatchActions } from "@/hooks/useBankPendingMatch";
+import { useClearableRecordedPayments } from "@/hooks/useClearableRecordedPayments";
 
 import {
   Search,
@@ -51,6 +53,9 @@ import {
   Check,
   BookOpen,
   Sparkles,
+  Banknote,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 
 interface ReconcileTransactionSheetProps {
@@ -100,10 +105,12 @@ export function ReconcileTransactionSheet({
   const [selectedMatch, setSelectedMatch] = useState<{ type: string; id: string } | null>(null);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [selectedRecordedId, setSelectedRecordedId] = useState<string | null>(null);
   const [chosenCandidateIndex, setChosenCandidateIndex] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [offsetAccountId, setOffsetAccountId] = useState("");
   const [manualDescription, setManualDescription] = useState("");
+  const [activeTab, setActiveTab] = useState<string | null>(null);
 
   const { invoices } = useInvoices();
   const { bills } = useBills();
@@ -116,6 +123,37 @@ export function ReconcileTransactionSheet({
     transaction?.id,
     open,
   );
+
+  /**
+   * An open proposal suppresses every suggestion (ADR-0148). It must therefore
+   * be visible and answerable here, or the line is blocked with no way out but
+   * a hand-match — the very mistake the engine exists to prevent.
+   */
+  const { data: pendingMatch } = useBankPendingMatch(transaction?.id, open);
+  const { confirm: confirmPending, reject: rejectPending } = usePendingMatchActions(
+    transaction?.id,
+  );
+
+  const inflow = transaction?.transaction_type === "credit";
+  const lineAmount = Math.abs(Number(transaction?.amount ?? 0));
+
+  /** Money already recorded that this line could be clearing rather than re-settling. */
+  const { data: clearable } = useClearableRecordedPayments({
+    amount: lineAmount,
+    isCredit: inflow,
+    enabled: open && !!transaction?.id,
+  });
+  const clearableCandidates = clearable?.candidates ?? [];
+  const holdingAccountIds = clearable?.holdingAccountIds ?? [];
+
+  /**
+   * Recognising money already recorded is the first offer, never the last: when
+   * a recorded receipt fits this line, that tab opens by default.
+   */
+  useEffect(() => {
+    if (activeTab !== null) return;
+    if (clearableCandidates.length > 0) setActiveTab("recorded");
+  }, [activeTab, clearableCandidates.length]);
 
   if (!transaction) return null;
 
@@ -206,6 +244,7 @@ export function ReconcileTransactionSheet({
     );
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
+    setSelectedRecordedId(null);
   };
 
   const toggleBillSelection = (billId: string) => {
@@ -214,17 +253,36 @@ export function ReconcileTransactionSheet({
     );
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
+    setSelectedRecordedId(null);
   };
+
+  const toggleRecordedSelection = (id: string) => {
+    setSelectedRecordedId((prev) => (prev === id ? null : id));
+    setSelectedInvoiceIds([]);
+    setSelectedBillIds([]);
+    setSelectedMatch(null);
+    setChosenCandidateIndex(null);
+  };
+
+  const selectedRecorded =
+    clearableCandidates.find((c) => c.id === selectedRecordedId) ?? null;
+
+  /** True when a hand-post would drain a holding account behind the seam's back. */
+  const isHoldingOffset = offsetAccountId
+    ? holdingAccountIds.includes(offsetAccountId)
+    : false;
 
   const close = () => {
     onOpenChange(false);
     setSelectedInvoiceIds([]);
     setSelectedBillIds([]);
+    setSelectedRecordedId(null);
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
     setOffsetAccountId("");
     setManualDescription("");
     setSearchQuery("");
+    setActiveTab(null);
   };
 
   /**
@@ -261,6 +319,23 @@ export function ReconcileTransactionSheet({
       return;
     }
 
+    // Clearing money already recorded: the receipt is deposited in full, and
+    // nothing new is settled (ADR-0147 §1).
+    if (selectedRecorded) {
+      await submit({
+        reconciled_type: selectedRecorded.kind,
+        allocations: [
+          {
+            document_type: selectedRecorded.kind,
+            document_id: selectedRecorded.id,
+            amount: selectedRecorded.amount,
+          },
+        ],
+        category: selectedRecorded.partyName ?? undefined,
+      });
+      return;
+    }
+
     if (selectedInvoiceIds.length > 0) {
       await submit({
         reconciled_type: "invoice",
@@ -278,7 +353,7 @@ export function ReconcileTransactionSheet({
     }
 
     if (selectedMatch?.type === "manual") {
-      if (!offsetAccountId) return;
+      if (!offsetAccountId || isHoldingOffset) return;
       await submit({
         reconciled_type: "manual",
         category: manualDescription || transaction.description,
@@ -299,9 +374,24 @@ export function ReconcileTransactionSheet({
   const hasSelection =
     chosenCandidateIndex !== null ||
     selectedMatch ||
+    selectedRecordedId !== null ||
     selectedInvoiceIds.length > 0 ||
     selectedBillIds.length > 0;
-  const isManualIncomplete = selectedMatch?.type === "manual" && !offsetAccountId;
+  const isManualIncomplete =
+    selectedMatch?.type === "manual" && (!offsetAccountId || isHoldingOffset);
+
+  /**
+   * The seam refuses a match whose allocations do not equal the bank line
+   * (`_bank_match_validate`, amount law). Gate the submit on the same law so the
+   * operator learns it here rather than from a raw error after pressing
+   * Reconcile.
+   */
+  const documentsBalanceLine =
+    selectedInvoiceIds.length > 0
+      ? Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01
+      : selectedBillIds.length > 0
+        ? Math.abs(selectedBillTotal - transactionAmount) < 0.01
+        : true;
 
   return (
     <DetailSheet
@@ -333,7 +423,9 @@ export function ReconcileTransactionSheet({
               </Button>
               <Button
                 onClick={handleReconcile}
-                disabled={!hasSelection || isSubmitting || isManualIncomplete}
+                disabled={
+                  !hasSelection || isSubmitting || isManualIncomplete || !documentsBalanceLine
+                }
               >
                 <Check className="mr-2 h-4 w-4" />
                 {isSubmitting ? "Reconciling…" : "Reconcile"}
@@ -436,6 +528,74 @@ export function ReconcileTransactionSheet({
         )}
 
 
+        {/*
+          An open proposal is an answer the operator owes, not a wall. Show what
+          was proposed and let it be confirmed or rejected through the seam.
+        */}
+        {pendingMatch && (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardContent className="space-y-3 pt-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium">A match is already proposed for this line</p>
+                  <p className="text-xs text-muted-foreground">
+                    Nothing has been posted yet. Confirm it to settle this line, or reject it to
+                    match the line yourself. While it stands, no suggestions are offered.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1 rounded-md border bg-background p-2">
+                {pendingMatch.allocations.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No allocations recorded.</p>
+                ) : (
+                  pendingMatch.allocations.map((a, idx) => (
+                    <div
+                      key={`${a.document_id}-${idx}`}
+                      className="flex items-center justify-between gap-2 text-xs"
+                    >
+                      <span className="truncate">
+                        {a.description ?? a.document_type.replace(/_/g, " ")}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {formatTxn(Number(a.amount) || 0)}
+                      </span>
+                    </div>
+                  ))
+                )}
+                {pendingMatch.fee_amount > 0 && (
+                  <div className="flex items-center justify-between gap-2 border-t pt-1 text-xs">
+                    <span>Bank charge</span>
+                    <span className="font-medium tabular-nums">
+                      {formatTxn(pendingMatch.fee_amount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => confirmPending.mutate(pendingMatch.id)}
+                  disabled={confirmPending.isPending || rejectPending.isPending}
+                >
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                  {confirmPending.isPending ? "Confirming…" : "Confirm match"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => rejectPending.mutate(pendingMatch.id)}
+                  disabled={confirmPending.isPending || rejectPending.isPending}
+                >
+                  <X className="mr-1.5 h-3.5 w-3.5" />
+                  {rejectPending.isPending ? "Rejecting…" : "Reject"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -447,8 +607,15 @@ export function ReconcileTransactionSheet({
           />
         </div>
 
-        <Tabs defaultValue={isCredit ? "invoices" : "bills"}>
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs
+          value={activeTab ?? (isCredit ? "invoices" : "bills")}
+          onValueChange={setActiveTab}
+        >
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="recorded" className="gap-1.5">
+              <Banknote className="h-3.5 w-3.5" />
+              Recorded
+            </TabsTrigger>
             <TabsTrigger value="invoices" disabled={!isCredit} className="gap-1.5">
               <FileText className="h-3.5 w-3.5" />
               Invoices
@@ -467,7 +634,93 @@ export function ReconcileTransactionSheet({
             </TabsTrigger>
           </TabsList>
 
+          {/*
+            Clearing money already recorded. Choosing here does not settle
+            anything new — it moves money out of the account it is waiting in.
+          */}
+          <TabsContent value="recorded" className="mt-4">
+            <p className="mb-3 text-xs text-muted-foreground">
+              {isCredit
+                ? "Receipts already recorded and waiting to be banked. Depositing one moves it out of its holding account — it does not settle the invoice again."
+                : "Supplier payments already recorded and waiting to present at the bank."}
+            </p>
+            {clearableCandidates.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No recorded {isCredit ? "receipt" : "payment"} of {formatTxn(transactionAmount)} is
+                waiting. A recorded {isCredit ? "receipt" : "payment"} is cleared in full, so only
+                an exact amount can explain this line.
+              </p>
+            ) : (
+              <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
+                {clearableCandidates.map((candidate) => {
+                  const isSelected = selectedRecordedId === candidate.id;
+                  return (
+                    <Label
+                      key={candidate.id}
+                      className={cn(
+                        "flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50",
+                        isSelected && "border-primary bg-primary/5",
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleRecordedSelection(candidate.id);
+                      }}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Checkbox checked={isSelected} />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {candidate.partyName ?? "Unnamed party"}
+                            </span>
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                              Exact
+                            </Badge>
+                          </div>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {formatDate(candidate.date)}
+                            {candidate.reference && <> • Ref {candidate.reference}</>}
+                            {candidate.method && <> • {candidate.method.replace(/_/g, " ")}</>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatTxn(candidate.amount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isCredit ? "Not yet banked" : "Not yet cleared"}
+                        </p>
+                      </div>
+                    </Label>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="invoices" className="mt-4">
+            {clearableCandidates.length > 0 && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <p className="text-xs text-muted-foreground">
+                  A receipt of {formatTxn(transactionAmount)} is already recorded for this amount.
+                  Settling an invoice here records the money a second time — check the{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline"
+                    onClick={() => setActiveTab("recorded")}
+                  >
+                    Recorded
+                  </button>{" "}
+                  tab first.
+                </p>
+              </div>
+            )}
+            <p className="mb-3 text-xs text-muted-foreground">
+              The selected invoices must add up to {formatTxn(transactionAmount)} — the bank line is
+              settled in full or not at all.
+            </p>
             {selectedInvoiceIds.length > 0 && (
               <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
                 <span className="text-xs font-medium">
@@ -679,6 +932,25 @@ export function ReconcileTransactionSheet({
                 Create a journal entry for this bank transaction (e.g., bank charges, interest income, transfers).
               </p>
 
+              {clearableCandidates.length > 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <p className="text-xs text-muted-foreground">
+                    Money of {formatTxn(transactionAmount)} is already recorded for this line. Use
+                    the{" "}
+                    <button
+                      type="button"
+                      className="font-medium underline"
+                      onClick={() => setActiveTab("recorded")}
+                    >
+                      Recorded
+                    </button>{" "}
+                    tab so it is marked as banked; a hand-posted entry leaves it waiting and it can
+                    be banked twice.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Offset Account *</Label>
                 <AccountCombobox
@@ -690,9 +962,17 @@ export function ReconcileTransactionSheet({
                   }}
                   placeholder="Search accounts by code or name..."
                 />
-                <p className="text-xs text-muted-foreground">
-                  {isCredit ? "DR Bank, CR this account" : "DR this account, CR Bank"}
-                </p>
+                {isHoldingOffset ? (
+                  <p className="text-xs text-destructive">
+                    This is a holding account for money already recorded. Clearing it by hand would
+                    move the cash without marking the receipt banked, so the same receipt could be
+                    banked again. Clear it from the Recorded tab instead.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {isCredit ? "DR Bank, CR this account" : "DR this account, CR Bank"}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
