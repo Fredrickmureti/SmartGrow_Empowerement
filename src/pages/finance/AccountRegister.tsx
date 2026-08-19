@@ -24,12 +24,14 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { ReportFilters } from "@/components/reports/ReportFilters";
+import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { format, startOfYear, endOfMonth, subYears } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
-import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+import { ReportFilterProvider, useReportFilters } from "@/contexts/ReportFilterContext";
 
 function AccountRegisterInner() {
   const [searchParams, setSearchParams] = useSearchParams();
