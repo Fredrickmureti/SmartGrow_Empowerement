@@ -36,6 +36,7 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useBills } from "@/hooks/useBills";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
+import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 import { useBankMatchCandidates, TIER_COPY, isExplainedTier } from "@/hooks/useBankMatchCandidates";
@@ -680,24 +681,15 @@ export function ReconcileTransactionSheet({
 
               <div className="space-y-2">
                 <Label>Offset Account *</Label>
-                <Select
+                <AccountCombobox
+                  accounts={incomeExpenseAccounts}
                   value={offsetAccountId}
                   onValueChange={(v) => {
                     setOffsetAccountId(v);
                     setSelectedMatch({ type: "manual", id: "manual" });
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account to offset against" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {incomeExpenseAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.code} - {a.name} ({a.account_type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Search accounts by code or name..."
+                />
                 <p className="text-xs text-muted-foreground">
                   {isCredit ? "DR Bank, CR this account" : "DR this account, CR Bank"}
                 </p>
