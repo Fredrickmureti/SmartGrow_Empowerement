@@ -253,7 +253,7 @@ export function ReconcileTransactionSheet({
           <span className="truncate">{transaction.description}</span>
           <span className={cn("ml-auto font-semibold tabular-nums", isCredit ? "text-green-600" : "text-destructive")}>
             {isCredit ? "+" : "-"}
-            {formatCurrency(transactionAmount)}
+            {formatTxn(transactionAmount)}
           </span>
         </span>
       }
@@ -290,7 +290,7 @@ export function ReconcileTransactionSheet({
               </div>
               <div className={cn("text-lg font-bold tabular-nums", isCredit ? "text-green-600" : "text-destructive")}>
                 {isCredit ? "+" : "-"}
-                {formatCurrency(transactionAmount)}
+                {formatTxn(transactionAmount)}
               </div>
             </div>
           </CardContent>
@@ -330,7 +330,7 @@ export function ReconcileTransactionSheet({
             {selectedInvoiceIds.length > 0 && (
               <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
                 <span className="text-xs font-medium">
-                  {selectedInvoiceIds.length} selected • Total: {formatCurrency(selectedInvoiceTotal)}
+                  {selectedInvoiceIds.length} selected • Total: {formatTxn(selectedInvoiceTotal)}
                 </span>
                 <Badge
                   variant={Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01 ? "default" : "secondary"}
@@ -338,7 +338,7 @@ export function ReconcileTransactionSheet({
                 >
                   {Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01
                     ? "Exact match"
-                    : `Diff: ${formatCurrency(transactionAmount - selectedInvoiceTotal)}`}
+                    : `Diff: ${formatTxn(transactionAmount - selectedInvoiceTotal)}`}
                 </Badge>
               </div>
             )}
@@ -393,7 +393,7 @@ export function ReconcileTransactionSheet({
             {selectedBillIds.length > 0 && (
               <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
                 <span className="text-xs font-medium">
-                  {selectedBillIds.length} selected • Total: {formatCurrency(selectedBillTotal)}
+                  {selectedBillIds.length} selected • Total: {formatTxn(selectedBillTotal)}
                 </span>
                 <Badge
                   variant={Math.abs(selectedBillTotal - transactionAmount) < 0.01 ? "default" : "secondary"}
@@ -401,7 +401,7 @@ export function ReconcileTransactionSheet({
                 >
                   {Math.abs(selectedBillTotal - transactionAmount) < 0.01
                     ? "Exact match"
-                    : `Diff: ${formatCurrency(transactionAmount - selectedBillTotal)}`}
+                    : `Diff: ${formatTxn(transactionAmount - selectedBillTotal)}`}
                 </Badge>
               </div>
             )}
