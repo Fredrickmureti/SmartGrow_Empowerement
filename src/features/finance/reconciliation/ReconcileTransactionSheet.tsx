@@ -38,7 +38,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
-import { useBankMatchCandidates, TIER_COPY } from "@/hooks/useBankMatchCandidates";
+import { useBankMatchCandidates, TIER_COPY, isExplainedTier } from "@/hooks/useBankMatchCandidates";
 
 import {
   Search,
@@ -375,7 +375,9 @@ export function ReconcileTransactionSheet({
                     variant={
                       candidateSet.tier === "deterministic"
                         ? "default"
-                        : candidateSet.tier === "ambiguous" || candidateSet.tier === "unresolved"
+                        : candidateSet.tier === "ambiguous" ||
+                            candidateSet.tier === "unresolved" ||
+                            isExplainedTier(candidateSet.tier)
                           ? "outline"
                           : "secondary"
                     }
@@ -391,8 +393,9 @@ export function ReconcileTransactionSheet({
               ) : (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    {TIER_COPY[candidateSet!.tier].hint}
+                    {candidateSet?.reason ?? TIER_COPY[candidateSet!.tier].hint}
                   </p>
+
                   {candidateSet!.candidates.map((candidate, idx) => {
                     const isChosen = chosenCandidateIndex === idx;
                     return (

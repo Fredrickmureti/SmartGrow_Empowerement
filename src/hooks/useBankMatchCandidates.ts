@@ -14,6 +14,12 @@
  *  - `ambiguous`     — several equally good candidates; a human must choose.
  *  - `weak`          — only a categorisation rule could explain the line.
  *  - `unresolved`    — nothing in the books explains it.
+ *  - `proposed`      — this line already carries a proposal awaiting a human.
+ *  - `settled`       — this line is already reconciled; there is nothing to ask.
+ *
+ * The last two are answers, not suggestions: the engine returns no candidates
+ * for them, because speculating about an explained line is how a replayed
+ * statement turns into a second settlement (ADR-0148).
  */
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,7 +29,9 @@ export type BankMatchTier =
   | "suggested"
   | "ambiguous"
   | "weak"
-  | "unresolved";
+  | "unresolved"
+  | "proposed"
+  | "settled";
 
 export type BankMatchCandidateKind =
   | "payment"
@@ -58,6 +66,10 @@ export interface BankMatchCandidateSet {
   bank_transaction_id: string;
   tier: BankMatchTier;
   candidates: BankMatchCandidate[];
+  /** Set when the tier is `proposed` or `settled` — the match that explains it. */
+  existing_match_id?: string | null;
+  /** Plain-English reason the engine asked nothing. */
+  reason?: string | null;
 }
 
 const EMPTY: BankMatchCandidateSet = {
@@ -111,4 +123,11 @@ export const TIER_COPY: Record<BankMatchTier, { label: string; hint: string }> =
   ambiguous: { label: "Ambiguous", hint: "Several records fit equally well. Choose one." },
   weak: { label: "Rule only", hint: "No document explains this line; a rule would categorise it." },
   unresolved: { label: "Unexplained", hint: "Nothing in the books accounts for this line yet." },
+  proposed: { label: "Awaiting review", hint: "A match has been proposed for this line — confirm or reject it." },
+  settled: { label: "Reconciled", hint: "This line is already explained by a confirmed match." },
 };
+
+/** A tier the operator answers, not one the engine asks about. */
+export function isExplainedTier(tier: BankMatchTier): boolean {
+  return tier === "proposed" || tier === "settled";
+}
