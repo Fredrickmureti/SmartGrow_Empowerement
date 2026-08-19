@@ -469,6 +469,20 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "stock_ledger",
     keywords: ["stock", "ledger", "movement", "opening", "closing", "quantity"],
   },
+  {
+    // Ages remaining cost layers (not products) as at a date; bucket values
+    // tie to Inventory Valuation total value for the same date.
+    id: "stock-aging",
+    name: "Stock Aging",
+    description: "Cost layers bucketed by age as at a date",
+    category: "inventory",
+    path: "/inventory-app/reports/aging",
+    icon: Boxes,
+    requiredFeature: "reports_stock",
+    permission: "viewReports",
+    reportType: "inventory_aging",
+    keywords: ["stock", "aging", "slow moving", "obsolete", "old stock", "buckets"],
+  },
 
   // ─── Management & BI ───
   {
