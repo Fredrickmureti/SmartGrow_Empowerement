@@ -57,9 +57,10 @@ export default function Banking() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { accounts: bankAccounts, isLoading: accountsLoading, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
+  const { accounts: bankAccounts, isLoading: accountsLoading, loadError: accountsError, refetch: refetchAccounts, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
   const scope = useFinanceScope();
-  const { transactions, isLoading: transactionsLoading, stats } = useBankTransactions();
+  const { transactions, isLoading: transactionsLoading, loadError: transactionsError, fetchTransactions } = useBankTransactions();
+  const { stats } = useBankTransactions === undefined ? { stats: undefined } : { stats: undefined };
   const { accounts: glAccounts } = useAccounts();
   const { getEffectiveBalance } = useAccountBalances();
   const fx = useTenantFx();
