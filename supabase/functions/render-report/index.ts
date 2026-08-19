@@ -92,7 +92,9 @@ export type ReportType =
   | AttendanceReportKey
   | PayrollReportKey
   | PayrollExtendedReportKey
-  | ProjectReportKey;
+  | ProjectReportKey
+  | InventoryReportKey;
+
 
 /**
  * Dispatch a report build by type. Pure data — no PDF.
