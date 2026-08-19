@@ -169,14 +169,33 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
   const reconcileTransaction = async (
     transactionId: string,
     reconcileData: {
-      reconciled_type: "invoice" | "expense" | "bill" | "transfer" | "manual";
+      reconciled_type:
+        | "invoice"
+        | "expense"
+        | "bill"
+        | "transfer"
+        | "manual"
+        | "payment"
+        | "bill_payment";
       reconciled_entity_id?: string;
       category?: string;
       createGLEntry?: boolean;
       offsetAccountId?: string;
-      /** n:m allocations. When omitted, derived from the legacy single-entity shape. */
+      /**
+       * n:m allocations. When omitted, derived from the legacy single-entity
+       * shape. `payment` / `bill_payment` clear money that is already
+       * recorded (a deposit or a cheque presenting); `invoice` / `bill`
+       * record new settlement. The distinction is the difference between
+       * banking a receipt and inventing a second one.
+       */
       allocations?: Array<{
-        document_type: "invoice" | "bill" | "account";
+        document_type:
+          | "invoice"
+          | "bill"
+          | "account"
+          | "payment"
+          | "bill_payment"
+          | "transfer";
         document_id: string;
         amount: number;
         description?: string;
@@ -200,13 +219,19 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
 
       const fee = reconcileData.feeAmount ?? 0;
       const allocations = reconcileData.allocations ?? (() => {
-        const amount = Math.abs(Number(txn.amount)) - fee;
-        if (reconcileData.reconciled_type === "invoice" || reconcileData.reconciled_type === "bill") {
+        // Amount law (mirrors `_bank_match_validate`): documents settle GROSS.
+        // On money in the bank received less than was settled by the charge;
+        // on money out it paid more.
+        const inflow =
+          (txn.transaction_type ?? (Number(txn.amount) >= 0 ? "credit" : "debit")) === "credit";
+        const amount = Math.abs(Number(txn.amount)) + (inflow ? fee : -fee);
+        const kind = reconcileData.reconciled_type;
+        if (kind === "invoice" || kind === "bill" || kind === "payment" || kind === "bill_payment") {
           if (!reconcileData.reconciled_entity_id) {
             throw new Error("A document must be selected to reconcile this line.");
           }
           return [{
-            document_type: reconcileData.reconciled_type,
+            document_type: kind,
             document_id: reconcileData.reconciled_entity_id,
             amount,
           }];

@@ -5001,6 +5001,7 @@ export type Database = {
       }
       bank_reconciliation_matches: {
         Row: {
+          adjustment_journal_entry_id: string | null
           allocations: Json
           bank_transaction_id: string
           branch_id: string | null
@@ -5010,9 +5011,11 @@ export type Database = {
           confirmed_by: string | null
           created_at: string
           created_by: string | null
+          evidence: Json | null
           exchange_rate: number | null
           fee_account_id: string | null
           fee_amount: number
+          fee_journal_entry_id: string | null
           id: string
           legal_order_remittance_batch_id: string | null
           match_type: string
@@ -5035,6 +5038,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adjustment_journal_entry_id?: string | null
           allocations?: Json
           bank_transaction_id: string
           branch_id?: string | null
@@ -5044,9 +5048,11 @@ export type Database = {
           confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          evidence?: Json | null
           exchange_rate?: number | null
           fee_account_id?: string | null
           fee_amount?: number
+          fee_journal_entry_id?: string | null
           id?: string
           legal_order_remittance_batch_id?: string | null
           match_type?: string
@@ -5069,6 +5075,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adjustment_journal_entry_id?: string | null
           allocations?: Json
           bank_transaction_id?: string
           branch_id?: string | null
@@ -5078,9 +5085,11 @@ export type Database = {
           confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          evidence?: Json | null
           exchange_rate?: number | null
           fee_account_id?: string | null
           fee_amount?: number
+          fee_journal_entry_id?: string | null
           id?: string
           legal_order_remittance_batch_id?: string | null
           match_type?: string

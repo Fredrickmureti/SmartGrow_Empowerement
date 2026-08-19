@@ -38,6 +38,7 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
+import { useBankMatchCandidates, TIER_COPY } from "@/hooks/useBankMatchCandidates";
 
 import {
   Search,
@@ -48,6 +49,7 @@ import {
   ArrowUpRight,
   Check,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 
 interface ReconcileTransactionSheetProps {
@@ -57,11 +59,32 @@ interface ReconcileTransactionSheetProps {
   onReconcile: (
     transactionId: string,
     reconcileData: {
-      reconciled_type: "invoice" | "expense" | "bill" | "transfer" | "manual";
+      reconciled_type:
+        | "invoice"
+        | "expense"
+        | "bill"
+        | "transfer"
+        | "manual"
+        | "payment"
+        | "bill_payment";
       reconciled_entity_id?: string;
       category?: string;
       createGLEntry?: boolean;
       offsetAccountId?: string;
+      allocations?: Array<{
+        document_type:
+          | "invoice"
+          | "bill"
+          | "account"
+          | "payment"
+          | "bill_payment"
+          | "transfer";
+        document_id: string;
+        amount: number;
+        description?: string;
+      }>;
+      feeAmount?: number;
+      feeAccountId?: string;
     },
   ) => Promise<void>;
 }
@@ -76,6 +99,7 @@ export function ReconcileTransactionSheet({
   const [selectedMatch, setSelectedMatch] = useState<{ type: string; id: string } | null>(null);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [chosenCandidateIndex, setChosenCandidateIndex] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [offsetAccountId, setOffsetAccountId] = useState("");
   const [manualDescription, setManualDescription] = useState("");
@@ -85,6 +109,12 @@ export function ReconcileTransactionSheet({
   const { expenses } = useExpenses();
   const { accounts: glAccounts } = useAccounts();
   const { currencyOf, formatBankAmount, formatDocumentAmount } = useBankMoney();
+
+  // The books answer what this line is; the client only presents the answer.
+  const { data: candidateSet, isLoading: candidatesLoading } = useBankMatchCandidates(
+    transaction?.id,
+    open,
+  );
 
   if (!transaction) return null;
 
@@ -146,11 +176,35 @@ export function ReconcileTransactionSheet({
     .filter((b) => selectedBillIds.includes(b.id))
     .reduce((sum, b) => sum + Math.min(b.total - (b.amount_paid || 0), transactionAmount), 0);
 
+  /**
+   * Spread the bank line across the chosen documents, oldest first, never
+   * beyond what each still owes and never beyond the line itself. If the
+   * documents do not add up to the line, the seam refuses the match — the
+   * client does not paper over the difference.
+   */
+  const allocationsFor = (
+    docs: Array<{ id: string; total: number; amount_paid?: number | null }>,
+    ids: string[],
+    kind: "invoice" | "bill",
+  ) => {
+    let remainingLine = transactionAmount;
+    return docs
+      .filter((d) => ids.includes(d.id))
+      .map((d) => {
+        const open = d.total - (d.amount_paid || 0);
+        const amount = Math.min(open, remainingLine);
+        remainingLine -= amount;
+        return { document_type: kind, document_id: d.id, amount };
+      })
+      .filter((a) => a.amount > 0);
+  };
+
   const toggleInvoiceSelection = (invoiceId: string) => {
     setSelectedInvoiceIds((prev) =>
       prev.includes(invoiceId) ? prev.filter((id) => id !== invoiceId) : [...prev, invoiceId],
     );
     setSelectedMatch(null);
+    setChosenCandidateIndex(null);
   };
 
   const toggleBillSelection = (billId: string) => {
@@ -158,6 +212,7 @@ export function ReconcileTransactionSheet({
       prev.includes(billId) ? prev.filter((id) => id !== billId) : [...prev, billId],
     );
     setSelectedMatch(null);
+    setChosenCandidateIndex(null);
   };
 
   const close = () => {
@@ -165,76 +220,86 @@ export function ReconcileTransactionSheet({
     setSelectedInvoiceIds([]);
     setSelectedBillIds([]);
     setSelectedMatch(null);
+    setChosenCandidateIndex(null);
     setOffsetAccountId("");
     setManualDescription("");
     setSearchQuery("");
   };
 
+  /**
+   * One bank line is one match. Every path below builds a single allocation
+   * set and hands it over once: settling three invoices from one deposit is
+   * one settlement with three allocations, never three settlements. Looping
+   * per document was how a single deposit minted several receipts.
+   */
   const handleReconcile = async () => {
-    if (selectedInvoiceIds.length > 0) {
+    const chosen =
+      chosenCandidateIndex !== null ? candidateSet?.candidates[chosenCandidateIndex] : undefined;
+
+    const submit = async (
+      data: Parameters<ReconcileTransactionSheetProps["onReconcile"]>[1],
+    ) => {
       setIsSubmitting(true);
       try {
-        for (const invoiceId of selectedInvoiceIds) {
-          await onReconcile(transaction.id, {
-            reconciled_type: "invoice",
-            reconciled_entity_id: invoiceId,
-          });
-        }
+        await onReconcile(transaction.id, data);
         close();
       } finally {
         setIsSubmitting(false);
       }
+    };
+
+    if (chosen) {
+      await submit({
+        reconciled_type:
+          chosen.kind === "account"
+            ? "manual"
+            : (chosen.kind as "invoice" | "bill" | "payment" | "bill_payment" | "transfer"),
+        allocations: chosen.allocations,
+        category: chosen.label,
+      });
+      return;
+    }
+
+    if (selectedInvoiceIds.length > 0) {
+      await submit({
+        reconciled_type: "invoice",
+        allocations: allocationsFor(matchingInvoices, selectedInvoiceIds, "invoice"),
+      });
       return;
     }
 
     if (selectedBillIds.length > 0) {
-      setIsSubmitting(true);
-      try {
-        for (const billId of selectedBillIds) {
-          await onReconcile(transaction.id, {
-            reconciled_type: "bill",
-            reconciled_entity_id: billId,
-          });
-        }
-        close();
-      } finally {
-        setIsSubmitting(false);
-      }
+      await submit({
+        reconciled_type: "bill",
+        allocations: allocationsFor(matchingBills, selectedBillIds, "bill"),
+      });
       return;
     }
 
     if (selectedMatch?.type === "manual") {
       if (!offsetAccountId) return;
-      setIsSubmitting(true);
-      try {
-        await onReconcile(transaction.id, {
-          reconciled_type: "manual",
-          category: manualDescription || transaction.description,
-          createGLEntry: true,
-          offsetAccountId,
-        });
-        close();
-      } finally {
-        setIsSubmitting(false);
-      }
+      await submit({
+        reconciled_type: "manual",
+        category: manualDescription || transaction.description,
+        createGLEntry: true,
+        offsetAccountId,
+      });
       return;
     }
 
     if (!selectedMatch) return;
 
-    setIsSubmitting(true);
-    try {
-      await onReconcile(transaction.id, {
-        reconciled_type: selectedMatch.type as "invoice" | "expense" | "bill" | "transfer" | "manual",
-        reconciled_entity_id: selectedMatch.id,
-      });
-      close();
-    } finally {
-      setIsSubmitting(false);
-    }
+    await submit({
+      reconciled_type: selectedMatch.type as "invoice" | "expense" | "bill" | "transfer" | "manual",
+      reconciled_entity_id: selectedMatch.id,
+    });
   };
 
-  const hasSelection = selectedMatch || selectedInvoiceIds.length > 0 || selectedBillIds.length > 0;
+  const hasSelection =
+    chosenCandidateIndex !== null ||
+    selectedMatch ||
+    selectedInvoiceIds.length > 0 ||
+    selectedBillIds.length > 0;
   const isManualIncomplete = selectedMatch?.type === "manual" && !offsetAccountId;
 
   return (
@@ -295,6 +360,78 @@ export function ReconcileTransactionSheet({
             </div>
           </CardContent>
         </Card>
+
+        {/* What the books say this line is. Evidence, not a score. */}
+        {(candidatesLoading || candidateSet) && (
+          <Card>
+            <CardContent className="space-y-2 pt-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  What this looks like
+                </span>
+                {candidateSet && (
+                  <Badge
+                    variant={
+                      candidateSet.tier === "deterministic"
+                        ? "default"
+                        : candidateSet.tier === "ambiguous" || candidateSet.tier === "unresolved"
+                          ? "outline"
+                          : "secondary"
+                    }
+                    className="text-xs"
+                  >
+                    {TIER_COPY[candidateSet.tier].label}
+                  </Badge>
+                )}
+              </div>
+
+              {candidatesLoading ? (
+                <p className="text-xs text-muted-foreground">Looking through the books…</p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {TIER_COPY[candidateSet!.tier].hint}
+                  </p>
+                  {candidateSet!.candidates.map((candidate, idx) => {
+                    const isChosen = chosenCandidateIndex === idx;
+                    return (
+                      <button
+                        key={`${candidate.kind}-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setChosenCandidateIndex(isChosen ? null : idx);
+                          setSelectedInvoiceIds([]);
+                          setSelectedBillIds([]);
+                          setSelectedMatch(null);
+                        }}
+                        className={cn(
+                          "w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/50",
+                          isChosen && "border-primary bg-primary/5",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium">{candidate.label}</span>
+                          {isChosen && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{candidate.effect}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {candidate.evidence.map((reason) => (
+                            <Badge key={reason} variant="outline" className="text-[10px] font-normal">
+                              {reason}
+                            </Badge>
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
