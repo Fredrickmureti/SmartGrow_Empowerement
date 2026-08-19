@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { safeQueryRetry, type NormalizedError } from "@/services/resilience";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFiscalPeriods } from "./useFiscalPeriods";
@@ -80,57 +81,75 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  /**
+   * Load failures are STATE, not a toast. Landing on a banking page with a
+   * slow link must never bombard the operator with "Failed to load" — the
+   * surface renders an inline retry affordance from this instead.
+   */
+  const [loadError, setLoadError] = useState<NormalizedError | null>(null);
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isDateLocked } = useFiscalPeriods();
   const { logAction } = useAuditLog();
   const scope = useFinanceScope();
 
-  // A3: Server-side pagination via RPC (Phase 12: branch-scoped)
-  const fetchTransactions = async () => {
+  const filtersKey = JSON.stringify(filters);
+
+  // A3: Server-side pagination via RPC (Phase 12: branch-scoped).
+  // Resilience contract: transport hiccups retry transparently and only a
+  // settled, normalized failure reaches the UI.
+  const fetchTransactions = useCallback(async () => {
     if (!currentOrg?.id || !currentBusiness?.id) {
       setTransactions([]);
       setTotalCount(0);
+      setLoadError(null);
       setIsLoading(false);
       return;
     }
 
-    try {
-      setIsLoading(true);
-      const pageSize = filters.pageSize || 100;
-      const pageOffset = (filters.page || 0) * pageSize;
+    setIsLoading(true);
+    const pageSize = filters.pageSize || 100;
+    const pageOffset = (filters.page || 0) * pageSize;
 
-      const { data, error } = await supabase.rpc("get_bank_transactions_paginated", {
-        _org_id: currentOrg.id,
-        _business_id: currentBusiness.id,
-        _bank_account_id: filters.bankAccountId || null,
-        _is_reconciled: filters.isReconciled ?? null,
-        _transaction_type: filters.transactionType || null,
-        _search_query: filters.searchQuery || null,
-        _start_date: filters.startDate || null,
-        _end_date: filters.endDate || null,
-        _page_size: pageSize,
-        _page_offset: pageOffset,
-        _branch_id: scope.branchId,
-      });
+    const { data, error } = await safeQueryRetry(
+      () =>
+        supabase.rpc("get_bank_transactions_paginated", {
+          _org_id: currentOrg.id,
+          _business_id: currentBusiness.id,
+          _bank_account_id: filters.bankAccountId || null,
+          _is_reconciled: filters.isReconciled ?? null,
+          _transaction_type: filters.transactionType || null,
+          _search_query: filters.searchQuery || null,
+          _start_date: filters.startDate || null,
+          _end_date: filters.endDate || null,
+          _page_size: pageSize,
+          _page_offset: pageOffset,
+          _branch_id: scope.branchId,
+        }),
+      { maxRetries: 2, baseDelayMs: 400 },
+    );
 
-      if (error) throw error;
-
-      const rows = (data || []) as any[];
-      const mapped: BankTransaction[] = rows.map((r: any) => ({
-        ...r,
-        bank_account: r.bank_account_name ? { name: r.bank_account_name, bank_name: r.bank_name } : undefined,
-        lifecycle_status: r.lifecycle_status || "for_review",
-      }));
-      setTransactions(mapped);
-      setTotalCount(rows.length > 0 ? Number(rows[0].total_count) : 0);
-    } catch (error: unknown) {
-      console.error("Error fetching bank transactions:", error);
-      toast.error("Failed to load transactions");
-    } finally {
+    if (error) {
+      // Keep whatever is already on screen — a transient failure must not
+      // blank out data the operator was reading.
+      console.error("[banking] transactions load failed:", error.kind, error.cause);
+      setLoadError(error);
       setIsLoading(false);
+      return;
     }
-  };
+
+    const rows = (data || []) as any[];
+    const mapped: BankTransaction[] = rows.map((r: any) => ({
+      ...r,
+      bank_account: r.bank_account_name ? { name: r.bank_account_name, bank_name: r.bank_name } : undefined,
+      lifecycle_status: r.lifecycle_status || "for_review",
+    }));
+    setTransactions(mapped);
+    setTotalCount(rows.length > 0 ? Number(rows[0].total_count) : 0);
+    setLoadError(null);
+    setIsLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, filtersKey]);
 
   useEffect(() => {
     if (currentOrg?.id && currentBusiness?.id) {
@@ -138,7 +157,7 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
     }
     // Phase 12: include scope.branchId so branch switches refetch and never
     // leave another branch's bank-feed numbers on screen.
-  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, JSON.stringify(filters)]);
+  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, filtersKey, fetchTransactions]);
 
   /**
    * Reconcile a bank transaction through the canonical matching seam
@@ -491,6 +510,7 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
     totalCount,
     isLoading,
     isSaving,
+    loadError,
     stats,
     fetchTransactions,
     reconcileTransaction,

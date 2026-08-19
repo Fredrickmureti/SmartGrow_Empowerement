@@ -39,6 +39,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useReconciliationSuggestions } from "@/hooks/useReconciliationSuggestions";
@@ -110,7 +111,7 @@ export default function BankReconciliation() {
   // Money on this page always belongs to a bank account; format it in that
   // account's currency, never in a formatter default (ADR 0136).
   const { formatBankAmount } = useBankMoney();
-  const { transactions, isLoading, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
+  const { transactions, isLoading, loadError, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
   const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
   const { data: matchSuggestions = [], isLoading: suggestionsLoading } = useReconciliationSuggestions(selectedAccount !== "all" ? selectedAccount : undefined);
 
@@ -434,6 +435,16 @@ export default function BankReconciliation() {
                             <TableRow>
                               <TableCell colSpan={8} className="h-24 text-center">
                                 <Loader2 className="h-6 w-6 mx-auto animate-spin text-muted-foreground" />
+                              </TableCell>
+                            </TableRow>
+                          ) : loadError ? (
+                            <TableRow>
+                              <TableCell colSpan={8} className="p-4">
+                                <BankingLoadError
+                                  error={loadError}
+                                  what="transactions"
+                                  onRetry={() => fetchTransactions()}
+                                />
                               </TableCell>
                             </TableRow>
                           ) : paginatedTransactions.length === 0 ? (

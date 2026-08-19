@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useAccountBalances } from "@/hooks/useAccountBalances";
@@ -56,9 +57,9 @@ export default function Banking() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { accounts: bankAccounts, isLoading: accountsLoading, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
+  const { accounts: bankAccounts, isLoading: accountsLoading, loadError: accountsError, refetch: refetchAccounts, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
   const scope = useFinanceScope();
-  const { transactions, isLoading: transactionsLoading, stats } = useBankTransactions();
+  const { transactions, isLoading: transactionsLoading, loadError: transactionsError, fetchTransactions, stats } = useBankTransactions();
   const { accounts: glAccounts } = useAccounts();
   const { getEffectiveBalance } = useAccountBalances();
   const fx = useTenantFx();
@@ -346,6 +347,12 @@ export default function Banking() {
                   <Card key={i} className="h-48 animate-pulse bg-muted" />
                 ))}
               </div>
+            ) : accountsError ? (
+              <BankingLoadError
+                error={accountsError}
+                what="bank accounts"
+                onRetry={refetchAccounts}
+              />
             ) : bankAccounts && bankAccounts.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {bankAccounts.map((account) => {
@@ -408,10 +415,18 @@ export default function Banking() {
           </TabsContent>
 
           <TabsContent value="transactions">
-            <TransactionsList 
-              transactions={transactions || []} 
-              isLoading={transactionsLoading}
-            />
+            {transactionsError && !transactionsLoading ? (
+              <BankingLoadError
+                error={transactionsError}
+                what="transactions"
+                onRetry={() => fetchTransactions()}
+              />
+            ) : (
+              <TransactionsList
+                transactions={transactions || []}
+                isLoading={transactionsLoading}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>

@@ -14,6 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useTransactionRules } from "@/hooks/useTransactionRules";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
@@ -76,7 +77,7 @@ export default function BankFeeds() {
   const { accounts: bankAccounts } = useBankAccounts();
   // A feed line's currency is its bank account's currency (ADR 0136).
   const { formatBankAmount } = useBankMoney();
-  const { transactions, isLoading, fetchTransactions } = useBankTransactions();
+  const { transactions, isLoading, loadError, fetchTransactions } = useBankTransactions();
   const { createRule } = useTransactionRules();
   const scope = useFinanceScope();
   const { currentOrg } = useOrganization();
@@ -292,6 +293,12 @@ export default function BankFeeds() {
                   <div className="text-center py-6 sm:py-8 text-xs sm:text-sm text-muted-foreground">
                     Loading transactions...
                   </div>
+                ) : loadError ? (
+                  <BankingLoadError
+                    error={loadError}
+                    what="transactions"
+                    onRetry={() => fetchTransactions()}
+                  />
                 ) : groupedTransactions.length === 0 ? (
                   <div className="text-center py-8 sm:py-12">
                     <CheckCircle2 className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-green-500 mb-3 sm:mb-4" />
