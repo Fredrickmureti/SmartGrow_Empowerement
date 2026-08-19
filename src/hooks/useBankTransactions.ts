@@ -31,8 +31,13 @@ function mapBankFeedPermErr(error: unknown): string | null {
   if (code === "42501" || msg.includes("INSUFFICIENT_PRIVILEGE") || msg.includes("row-level security")) {
     return FRIENDLY_BANK_FEED_PERM_MSG;
   }
+  // F17 — a completed reconciliation shuts the window on its own lines.
+  if (msg.includes("BANK_MATCH_SESSION_CLOSED") || msg.includes("BANK_UNRECONCILE_SESSION_CLOSED")) {
+    return "This bank line sits inside a completed reconciliation. Reopen that reconciliation before changing how the line is explained.";
+  }
   return null;
 }
+
 
 export interface BankTransaction {
   id: string;
