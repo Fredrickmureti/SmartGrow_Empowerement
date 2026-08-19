@@ -1,0 +1,195 @@
+/**
+ * inventoryData — server-build helpers for the inventory report keys.
+ *
+ * Mirrors attendanceData / payrollData / projectsData, so the live report
+ * page, the export path (PDF/CSV/XLSX) and `process-scheduled-reports` all
+ * produce the SAME rows from the SAME source.
+ *
+ * Both keys read the Phase 2 reporting RPCs rather than base tables:
+ *
+ *   stock_ledger        → public.report_stock_ledger()
+ *                         quantity ledger: opening → in → out → closing,
+ *                         per product × warehouse × branch, posting-date
+ *                         semantics on stock_movements.movement_date.
+ *
+ *   inventory_valuation → public.report_inventory_valuation_as_of()
+ *                         value ledger: quantity on hand and value AS AT a
+ *                         date, reconstructed from cost_layers receipts less
+ *                         cost_layer_consumptions up to that date.
+ *
+ * Why RPCs and not queries here: business/branch authorization, movement
+ * direction and as-of layer arithmetic are accounting rules. They belong in
+ * one place (the database), not duplicated per caller. The RPCs also return
+ * `total_rows`, so this module pages explicitly instead of silently
+ * truncating at PostgREST's 1,000-row cap.
+ *
+ * Each row carries `_meta = { sourceDocType: "product", sourceDocId }` so the
+ * existing drill-down router can deep-link a row back to the product.
+ */
+// deno-lint-ignore-file no-explicit-any
+import type { ReportResult } from "../reportDataEngine.ts";
+
+export type InventoryReportKey = "stock_ledger" | "inventory_valuation";
+
+export interface InventoryFilters {
+  branchId?: string | null;
+  warehouseId?: string | null;
+  productId?: string | null;
+  categoryId?: string | null;
+  /** Valuation only. Defaults to `dateTo` when omitted. */
+  asOf?: string | null;
+}
+
+/** Hard ceiling per report run — matches the RPC's own page cap. */
+const PAGE_SIZE = 5000;
+const MAX_ROWS = 100_000;
+
+const num = (v: unknown) => Number(v ?? 0);
+
+const withMeta = (row: Record<string, unknown>, productId: string | null) => ({
+  ...row,
+  _meta: { sourceDocType: "product", sourceDocId: productId },
+});
+
+/**
+ * Page through a reporting RPC until every row is fetched. `total_rows` is a
+ * window count returned on each row, so a short page is not proof of the end.
+ */
+async function fetchAllPages(
+  supabase: any,
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<any[]> {
+  const out: any[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await supabase.rpc(fn, {
+      ...args,
+      p_limit: PAGE_SIZE,
+      p_offset: offset,
+    });
+    if (error) throw new Error(`${fn} failed: ${error.message}`);
+
+    const rows = (data ?? []) as any[];
+    out.push(...rows);
+    if (rows.length === 0) break;
+
+    const total = num(rows[0].total_rows);
+    offset += rows.length;
+    if (out.length >= total || out.length >= MAX_ROWS || rows.length < PAGE_SIZE) break;
+  }
+
+  return out;
+}
+
+export async function buildInventoryReport(
+  supabase: any,
+  reportType: InventoryReportKey,
+  orgId: string,
+  businessId: string | undefined,
+  dateFrom: string,
+  dateTo: string,
+  filters: InventoryFilters,
+): Promise<ReportResult> {
+  // Business is an authorization boundary in the RPCs, not an optional
+  // filter: there is no "all businesses" inventory valuation.
+  if (!businessId) {
+    throw new Error("businessId is required for inventory reports");
+  }
+
+  const dimensions = {
+    p_branch: filters.branchId ?? null,
+    p_warehouse: filters.warehouseId ?? null,
+    p_product: filters.productId ?? null,
+    p_category: filters.categoryId ?? null,
+  };
+
+  if (reportType === "stock_ledger") {
+    const rows = await fetchAllPages(supabase, "report_stock_ledger", {
+      p_org: orgId,
+      p_business: businessId,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+      ...dimensions,
+    });
+
+    let opening = 0;
+    let qtyIn = 0;
+    let qtyOut = 0;
+    let closing = 0;
+
+    const data = rows.map((r) => {
+      opening += num(r.opening_qty);
+      qtyIn += num(r.qty_in);
+      qtyOut += num(r.qty_out);
+      closing += num(r.closing_qty);
+      return withMeta(
+        {
+          product_name: r.product_name ?? "",
+          sku: r.sku ?? "",
+          warehouse_name: r.warehouse_name ?? "—",
+          opening_qty: num(r.opening_qty),
+          qty_in: num(r.qty_in),
+          qty_out: num(r.qty_out),
+          closing_qty: num(r.closing_qty),
+          movement_count: num(r.movement_count),
+        },
+        r.product_id ?? null,
+      );
+    });
+
+    return {
+      data,
+      summary: {
+        lines: data.length,
+        opening_qty: opening,
+        qty_in: qtyIn,
+        qty_out: qtyOut,
+        closing_qty: closing,
+      },
+    };
+  }
+
+  // inventory_valuation — value ledger, as at a date.
+  const asOf = filters.asOf ?? dateTo;
+  const rows = await fetchAllPages(supabase, "report_inventory_valuation_as_of", {
+    p_org: orgId,
+    p_business: businessId,
+    p_as_of: asOf,
+    ...dimensions,
+  });
+
+  let totalQty = 0;
+  let totalValue = 0;
+
+  const data = rows.map((r) => {
+    totalQty += num(r.qty_on_hand);
+    totalValue += num(r.total_value);
+    return withMeta(
+      {
+        product_name: r.product_name ?? "",
+        sku: r.sku ?? "",
+        warehouse_name: r.warehouse_name ?? "—",
+        qty_on_hand: num(r.qty_on_hand),
+        avg_unit_cost: num(r.avg_unit_cost),
+        total_value: num(r.total_value),
+        oldest_receipt_at: r.oldest_receipt_at
+          ? String(r.oldest_receipt_at).slice(0, 10)
+          : "",
+        layer_count: num(r.layer_count),
+      },
+      r.product_id ?? null,
+    );
+  });
+
+  return {
+    data,
+    summary: {
+      lines: data.length,
+      as_of: asOf,
+      qty_on_hand: totalQty,
+      total_value: totalValue,
+    },
+  };
+}

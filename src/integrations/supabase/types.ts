@@ -87114,6 +87114,11 @@ export type Database = {
         Args: { p_account_id: string; p_label: string }
         Returns: undefined
       }
+      _assert_inventory_diag_authenticated: { Args: never; Returns: undefined }
+      _assert_inventory_diag_business: {
+        Args: { _business_id: string }
+        Returns: undefined
+      }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
       _assert_reset_permission: { Args: { org_id: string }; Returns: undefined }
       _assert_supplier_purchasable: {
@@ -87395,6 +87400,7 @@ export type Database = {
       }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
+      _is_trusted_inventory_diag_context: { Args: never; Returns: boolean }
       _landed_cost_annotate_reversal_intent: {
         Args: { _intent: Json }
         Returns: Json
@@ -100678,21 +100684,42 @@ export type Database = {
         }
         Returns: Json
       }
-      reconcile_inventory_subledger_to_gl: {
-        Args: { p_as_of?: string; p_business?: string; p_org: string }
-        Returns: {
-          account_code: string
-          account_id: string
-          account_name: string
-          business_id: string
-          drift: number
-          fallback_cost_lines: number
-          gl_closing: number
-          negative_qty_lines: number
-          subledger_value: number
-          zero_cost_lines: number
-        }[]
-      }
+      reconcile_inventory_subledger_to_gl:
+        | {
+            Args: { p_as_of?: string; p_business?: string; p_org: string }
+            Returns: {
+              account_code: string
+              account_id: string
+              account_name: string
+              business_id: string
+              drift: number
+              fallback_cost_lines: number
+              gl_closing: number
+              negative_qty_lines: number
+              subledger_value: number
+              zero_cost_lines: number
+            }[]
+          }
+        | {
+            Args: {
+              p_as_of?: string
+              p_branch?: string
+              p_business?: string
+              p_org: string
+            }
+            Returns: {
+              account_code: string
+              account_id: string
+              account_name: string
+              business_id: string
+              drift: number
+              fallback_cost_lines: number
+              gl_closing: number
+              negative_qty_lines: number
+              subledger_value: number
+              zero_cost_lines: number
+            }[]
+          }
       reconcile_stock_quantities: {
         Args: { p_business_id: string; p_organization_id: string }
         Returns: {

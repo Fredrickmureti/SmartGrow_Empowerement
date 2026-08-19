@@ -64,6 +64,12 @@ import {
   type ProjectReportKey,
   type ProjectFilters,
 } from "../_shared/reports/projectsData.ts";
+import {
+  buildInventoryReport,
+  type InventoryReportKey,
+  type InventoryFilters,
+} from "../_shared/reports/inventoryData.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,7 +92,9 @@ export type ReportType =
   | AttendanceReportKey
   | PayrollReportKey
   | PayrollExtendedReportKey
-  | ProjectReportKey;
+  | ProjectReportKey
+  | InventoryReportKey;
+
 
 /**
  * Dispatch a report build by type. Pure data — no PDF.
@@ -450,6 +458,12 @@ serve(async (req) => {
 
     const isProject = typeof reportType === "string" && reportType.startsWith("project_");
 
+    const isInventory = (
+      ["stock_ledger", "inventory_valuation"] as const
+    ).includes(reportType as InventoryReportKey);
+
+
+
     const result = isAttendance
       ? await buildAttendanceReport(
           supabase,
@@ -490,6 +504,17 @@ serve(async (req) => {
           dateTo,
           (body?.filters ?? {}) as ProjectFilters,
         )
+      : isInventory
+      ? await buildInventoryReport(
+          supabase,
+          reportType as InventoryReportKey,
+          organizationId,
+          businessId,
+          dateFrom,
+          dateTo,
+          (body?.filters ?? {}) as InventoryFilters,
+        )
+
       : await buildReportData(
           supabase,
           reportType as Exclude<ReportType, AttendanceReportKey>,

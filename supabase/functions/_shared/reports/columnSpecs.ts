@@ -259,6 +259,42 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
       { key: "total_value", header: "Total Value", width: 18, align: "right", format: "currency" },
     ],
   },
+  // ─── Inventory: quantity ledger vs value ledger (Phase 2) ────────
+  // Server-built from public.report_stock_ledger() /
+  // public.report_inventory_valuation_as_of() via inventoryData.ts, so the
+  // export carries the full dataset rather than the browser's page.
+  stock_ledger: {
+    title: "Stock Ledger",
+    orientation: "landscape",
+    subtitle: "Quantity ledger — opening, movement and closing quantities",
+    columns: [
+      { key: "product_name", header: "Product", width: 24, align: "left", format: "text" },
+      { key: "sku", header: "SKU", width: 14, align: "left", format: "text" },
+      { key: "warehouse_name", header: "Warehouse", width: 18, align: "left", format: "text" },
+      { key: "opening_qty", header: "Opening", width: 11, align: "right", format: "text" },
+      { key: "qty_in", header: "In", width: 10, align: "right", format: "text" },
+      { key: "qty_out", header: "Out", width: 10, align: "right", format: "text" },
+      { key: "closing_qty", header: "Closing", width: 11, align: "right", format: "text" },
+      { key: "movement_count", header: "Movements", width: 10, align: "right", format: "text" },
+    ],
+  },
+  inventory_valuation: {
+    title: "Inventory Valuation",
+    orientation: "landscape",
+    formatProfile: "financial",
+    subtitle: "Valued from cost layers as at the reporting date",
+    columns: [
+      { key: "product_name", header: "Product", width: 24, align: "left", format: "text" },
+      { key: "sku", header: "SKU", width: 14, align: "left", format: "text" },
+      { key: "warehouse_name", header: "Warehouse", width: 18, align: "left", format: "text" },
+      { key: "qty_on_hand", header: "Qty on Hand", width: 12, align: "right", format: "text" },
+      { key: "avg_unit_cost", header: "Avg Unit Cost", width: 14, align: "right", format: "currency" },
+      { key: "total_value", header: "Total Value", width: 16, align: "right", format: "currency" },
+      { key: "oldest_receipt_at", header: "Oldest Receipt", width: 14, align: "left", format: "text" },
+      { key: "layer_count", header: "Layers", width: 8, align: "right", format: "text" },
+    ],
+  },
+
   customer_analysis: {
     title: "Customer Analysis",
     orientation: "landscape",
