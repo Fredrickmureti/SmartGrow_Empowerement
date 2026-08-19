@@ -144,7 +144,8 @@ export function useNegativeStockPositions(enabled = true) {
   return useQuery({
     queryKey: ["inventory-negative-stock", orgId, businessId],
     queryFn: async (): Promise<NegativeStockPosition[]> => {
-      if (!orgId) return [];
+      // p_business is an authorization boundary server-side (Phase 6b).
+      if (!orgId || !businessId) return [];
       const { data, error } = await (supabase as any).rpc(
         "list_negative_stock_positions",
         { p_org: orgId, p_business: businessId },
@@ -152,26 +153,31 @@ export function useNegativeStockPositions(enabled = true) {
       if (error) throw error;
       return (data ?? []) as NegativeStockPosition[];
     },
-    enabled: !!orgId && enabled,
+    enabled: !!orgId && !!businessId && enabled,
     staleTime: 30_000,
   });
 }
 
-export function useInventorySubledgerComposition(enabled = true) {
+/**
+ * Composition of the subledger figure at the SAME as-at date the
+ * reconciliation used — otherwise the drill-down would explain a different
+ * number than the one on screen.
+ */
+export function useInventorySubledgerComposition(enabled = true, asOf?: string) {
   const { orgId, businessId } = useScope();
 
   return useQuery({
-    queryKey: ["inventory-subledger-composition", orgId, businessId],
+    queryKey: ["inventory-subledger-composition", orgId, businessId, asOf ?? "today"],
     queryFn: async (): Promise<SubledgerCompositionRow[]> => {
-      if (!orgId) return [];
+      if (!orgId || !businessId) return [];
       const { data, error } = await (supabase as any).rpc(
         "list_inventory_subledger_composition",
-        { p_org: orgId, p_business: businessId, p_limit: 500 },
+        { p_org: orgId, p_business: businessId, p_as_of: asOf ?? null, p_limit: 500 },
       );
       if (error) throw error;
       return (data ?? []) as SubledgerCompositionRow[];
     },
-    enabled: !!orgId && enabled,
+    enabled: !!orgId && !!businessId && enabled,
     staleTime: 30_000,
   });
 }
