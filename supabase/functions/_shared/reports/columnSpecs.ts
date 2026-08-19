@@ -294,6 +294,24 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
       { key: "layer_count", header: "Layers", width: 8, align: "right", format: "text" },
     ],
   },
+  inventory_aging: {
+    title: "Stock Aging",
+    orientation: "landscape",
+    formatProfile: "financial",
+    subtitle: "Remaining cost layers bucketed by age at the reporting date",
+    columns: [
+      { key: "product_name", header: "Product", width: 22, align: "left", format: "text" },
+      { key: "sku", header: "SKU", width: 12, align: "left", format: "text" },
+      { key: "warehouse_name", header: "Warehouse", width: 16, align: "left", format: "text" },
+      { key: "value_0_30", header: "0-30", width: 13, align: "right", format: "currency" },
+      { key: "value_31_60", header: "31-60", width: 13, align: "right", format: "currency" },
+      { key: "value_61_90", header: "61-90", width: 13, align: "right", format: "currency" },
+      { key: "value_90_plus", header: "90+", width: 13, align: "right", format: "currency" },
+      { key: "qty_on_hand", header: "Qty on Hand", width: 12, align: "right", format: "text" },
+      { key: "total_value", header: "Total Value", width: 15, align: "right", format: "currency" },
+      { key: "oldest_receipt_at", header: "Oldest Receipt", width: 14, align: "left", format: "text" },
+    ],
+  },
 
   customer_analysis: {
     title: "Customer Analysis",

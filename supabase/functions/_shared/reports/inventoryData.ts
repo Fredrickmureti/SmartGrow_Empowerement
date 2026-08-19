@@ -29,7 +29,10 @@
 // deno-lint-ignore-file no-explicit-any
 import type { ReportResult } from "../reportDataEngine.ts";
 
-export type InventoryReportKey = "stock_ledger" | "inventory_valuation";
+export type InventoryReportKey =
+  | "stock_ledger"
+  | "inventory_valuation"
+  | "inventory_aging";
 
 export interface InventoryFilters {
   branchId?: string | null;
@@ -148,6 +151,57 @@ export async function buildInventoryReport(
         qty_out: qtyOut,
         closing_qty: closing,
       },
+    };
+  }
+
+  if (reportType === "inventory_aging") {
+    // Ages the COST LAYER, not the product: each remaining layer is bucketed
+    // by its own receipt date, so bucket values sum to the same total value
+    // Inventory Valuation reports at the same date.
+    const agingAsOf = filters.asOf ?? dateTo;
+    const agingRows = await fetchAllPages(supabase, "report_inventory_aging_as_of", {
+      p_org: orgId,
+      p_business: businessId,
+      p_as_of: agingAsOf,
+      ...dimensions,
+    });
+
+    const t = {
+      qty_0_30: 0, value_0_30: 0,
+      qty_31_60: 0, value_31_60: 0,
+      qty_61_90: 0, value_61_90: 0,
+      qty_90_plus: 0, value_90_plus: 0,
+      qty_on_hand: 0, total_value: 0,
+    };
+
+    const agingData = agingRows.map((r) => {
+      for (const k of Object.keys(t) as (keyof typeof t)[]) t[k] += num(r[k]);
+      return withMeta(
+        {
+          product_name: r.product_name ?? "",
+          sku: r.sku ?? "",
+          warehouse_name: r.warehouse_name ?? "—",
+          qty_0_30: num(r.qty_0_30),
+          value_0_30: num(r.value_0_30),
+          qty_31_60: num(r.qty_31_60),
+          value_31_60: num(r.value_31_60),
+          qty_61_90: num(r.qty_61_90),
+          value_61_90: num(r.value_61_90),
+          qty_90_plus: num(r.qty_90_plus),
+          value_90_plus: num(r.value_90_plus),
+          qty_on_hand: num(r.qty_on_hand),
+          total_value: num(r.total_value),
+          oldest_receipt_at: r.oldest_receipt_at
+            ? String(r.oldest_receipt_at).slice(0, 10)
+            : "",
+        },
+        r.product_id ?? null,
+      );
+    });
+
+    return {
+      data: agingData,
+      summary: { lines: agingData.length, as_of: agingAsOf, ...t },
     };
   }
 
