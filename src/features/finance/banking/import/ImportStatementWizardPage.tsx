@@ -432,20 +432,20 @@ export default function ImportStatementWizardPage() {
           <Card>
             <CardContent className="pt-4">
               <p className="mb-4 text-sm text-muted-foreground">
-                Found {headers.length} columns and {rawRows.length} rows. Map
+                Found {columns.length} columns and {rawRows.length} rows. Map
                 your columns below:
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <MapField
                   label="Date column *"
                   value={columnMapping.date}
-                  headers={headers}
+                  columns={columns}
                   onChange={(v) => setColumnMapping({ ...columnMapping, date: v })}
                 />
                 <MapField
                   label="Description column *"
                   value={columnMapping.description}
-                  headers={headers}
+                  columns={columns}
                   onChange={(v) =>
                     setColumnMapping({ ...columnMapping, description: v })
                   }
@@ -453,14 +453,14 @@ export default function ImportStatementWizardPage() {
                 <MapField
                   label="Amount column (if single column)"
                   value={columnMapping.amount}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) => setColumnMapping({ ...columnMapping, amount: v })}
                 />
                 <MapField
                   label="Reference column (optional)"
                   value={columnMapping.reference}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) =>
                     setColumnMapping({ ...columnMapping, reference: v })
@@ -469,21 +469,21 @@ export default function ImportStatementWizardPage() {
                 <MapField
                   label="Credit column (if separate)"
                   value={columnMapping.credit}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) => setColumnMapping({ ...columnMapping, credit: v })}
                 />
                 <MapField
                   label="Debit column (if separate)"
                   value={columnMapping.debit}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) => setColumnMapping({ ...columnMapping, debit: v })}
                 />
                 <MapField
                   label="Balance column (optional)"
                   value={columnMapping.balance}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) =>
                     setColumnMapping({ ...columnMapping, balance: v })
