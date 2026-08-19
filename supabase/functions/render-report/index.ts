@@ -459,7 +459,7 @@ serve(async (req) => {
     const isProject = typeof reportType === "string" && reportType.startsWith("project_");
 
     const isInventory = (
-      ["stock_ledger", "inventory_valuation"] as const
+      ["stock_ledger", "inventory_valuation", "inventory_aging"] as const
     ).includes(reportType as InventoryReportKey);
 
 

@@ -110,6 +110,60 @@ export function useInventoryValuationAsOf(params: {
   });
 }
 
+export interface AgingRow {
+  product_id: string;
+  product_name: string | null;
+  sku: string | null;
+  category_id: string | null;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  branch_id: string | null;
+  qty_0_30: number;
+  value_0_30: number;
+  qty_31_60: number;
+  value_31_60: number;
+  qty_61_90: number;
+  value_61_90: number;
+  qty_90_plus: number;
+  value_90_plus: number;
+  qty_on_hand: number;
+  total_value: number;
+  oldest_receipt_at: string | null;
+  layer_count: number;
+  total_rows: number;
+}
+
+/**
+ * Stock aging on COST LAYERS as at a date. Each remaining layer is bucketed by
+ * its own receipt date, so bucket values sum to the Inventory Valuation total
+ * value for the same date. Never age the product by its last inbound movement.
+ */
+export function useInventoryAgingAsOf(params: {
+  orgId?: string | null;
+  businessId?: string | null;
+  asOf: string;
+  filters?: InventoryDimensionFilters;
+  enabled?: boolean;
+}) {
+  const { orgId, businessId, asOf, filters = {}, enabled = true } = params;
+
+  return useQuery({
+    queryKey: ["inventory-aging-as-of", orgId, businessId, asOf, filters],
+    queryFn: async () =>
+      fetchAllPages<AgingRow>("report_inventory_aging_as_of", {
+        p_org: orgId,
+        p_business: businessId,
+        p_as_of: asOf,
+        p_branch: filters.branchId ?? null,
+        p_warehouse: filters.warehouseId ?? null,
+        p_product: filters.productId ?? null,
+        p_category: filters.categoryId ?? null,
+      }),
+    enabled: enabled && !!orgId && !!businessId && !!asOf,
+    staleTime: 30_000,
+  });
+}
+
 export function useStockLedger(params: {
   orgId?: string | null;
   businessId?: string | null;

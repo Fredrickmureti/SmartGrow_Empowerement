@@ -101561,6 +101561,41 @@ export type Database = {
           sales_return_id: string
         }[]
       }
+      report_inventory_aging_as_of: {
+        Args: {
+          p_as_of?: string
+          p_branch?: string
+          p_business: string
+          p_category?: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_product?: string
+          p_warehouse?: string
+        }
+        Returns: {
+          branch_id: string
+          category_id: string
+          layer_count: number
+          oldest_receipt_at: string
+          product_id: string
+          product_name: string
+          qty_0_30: number
+          qty_31_60: number
+          qty_61_90: number
+          qty_90_plus: number
+          qty_on_hand: number
+          sku: string
+          total_rows: number
+          total_value: number
+          value_0_30: number
+          value_31_60: number
+          value_61_90: number
+          value_90_plus: number
+          warehouse_id: string
+          warehouse_name: string
+        }[]
+      }
       report_inventory_valuation_as_of: {
         Args: {
           p_as_of?: string
