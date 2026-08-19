@@ -1,156 +1,148 @@
-# Reconciliation Engine — Authoritative Project Status
+# Existing payment → Undeposited Funds → bank deposit reconciliation
 
-Source of truth for this wave. Design rationale and findings F1–F19 live in
-`.lovable/plan/reconciliation-engine-execution-plan-2026-08-19.md` and
-`.lovable/plan/reconciliation-engine-authoritative-project-status-2026-08-19.md`;
-this file tracks what is done, what is not, and what happens next.
+Scope: only the clearing resolution for an already-recorded customer receipt.
+No general reconciliation rework.
 
-Last updated: 2026-08-19 (turn 5 — Phase 10 behavioural proof + Phase 11 built end to end).
+## 1. Verified current behavior
 
-## Current phase
+VERIFIED FACT (live DB, canonical case):
+- Payment `8b4d1a2e…` (RCP-000001), Fredrick Mureti, KES 1,670.40, dated 2026-08-18,
+  `status = applied`, `deposit_account_id` = account **1340 Undeposited Funds**,
+  has its own `journal_entry_id`. Exactly one such payment exists.
+- Bank line `44d6847d…`, credit KES 1,670.40, reference `PMT-FM-00002`,
+  description "Payment received - Fredrick Mureti - INV-00002", same business and
+  branch as the payment, `is_reconciled = false`, `lifecycle_status = for_review`.
 
-**Phase 11 — reconciliation session closure: implemented, including the
-operator surface (11.5). Phase 10 is now behaviourally proven.** Phases 1–9
-were closed earlier.
+VERIFIED FACT (engine already models this correctly):
+- `bank_match_candidates` has a dedicated inflow branch that finds existing
+  payments by business, branch, exact amount and a date window, and returns
+  `kind = 'payment'` with the effect "Debit this bank account, credit
+  <holding account>". Replaying its exact predicates against the live data
+  returns **this one payment**, day gap 0, not spoken for — so a deterministic
+  single candidate is available.
+- `_bank_match_validate` validates the `payment` kind properly: direction,
+  voided status, holding account present, deposit-in-full, already-deposited,
+  no charge on a direct-to-bank receipt.
+- `bank_match_confirm` for `_kind IN ('payment','bill_payment')` posts exactly
+  Dr bank GL / Cr the payment's own `deposit_account_id` through
+  `post_journal_entry_atomic` (`source_type = 'bank_reconciliation'`), creates
+  **no** second payment and touches no AR.
+- `unreconcile_bank_transaction` reverses this kind by voiding only that clearing
+  journal, leaving the original receipt intact.
+- The UI (`ReconcileTransactionSheet`) already renders the candidate card with
+  label, plain-English effect and evidence badges, and submits the candidate's
+  allocations unchanged.
 
-Next up: **Phase 12 — run the two pgTAP suites in the migration/test harness and
-close the ratchet gap** (see "Next milestone").
+VERIFIED FACT (the failure):
+- `bank_transactions` carries
+  `CHECK (reconciled_type = ANY (ARRAY['invoice','expense','bill','transfer','manual']))`.
+- `bank_match_confirm` ends with `UPDATE bank_transactions SET reconciled_type = _kind`,
+  where `_kind` is the server-derived allocation kind — `'payment'`,
+  `'bill_payment'` or `'account'` for these paths.
+- Therefore confirming a payment-clearing match (and also an account/journal
+  classification) violates the constraint and the **whole confirm transaction
+  rolls back** after the journal was built: nothing posts, the line stays
+  unreconciled, and the proposal is left stranded in `status = 'suggested'`.
+- Corroborating evidence in the live DB: exactly one match row exists,
+  created today 13:57Z on this bank line, `matched_entity_type = 'account'`,
+  allocation `document_type = 'account'` pointing at 1340 Undeposited Funds,
+  still `suggested`, while the bank line is still unreconciled — a confirm that
+  was attempted and failed.
 
-## Roadmap status
+VERIFIED FACT (secondary, same workflow):
+- `bank_match_propose` writes `status = 'suggested'`, but
+  `_bank_doc_is_spoken_for` and the "already explained" guard in
+  `bank_match_candidates` both test `status IN ('proposed','confirmed')`.
+  `'proposed'` is not even permitted by the matches status CHECK, so an open
+  proposal is invisible to both guards: the same payment can be proposed on a
+  second bank line, and a stranded proposal is never surfaced as
+  tier `proposed`.
 
-| # | Phase | Status | Evidence |
-|---|-------|--------|----------|
-| 1 | Validator extension | Closed | `_bank_match_validate` |
-| 2 | Fee model + payment / bill_payment clearing | Closed | `bank_match_confirm` |
-| 3 | Kind-aware reversal delegate | Closed | `unreconcile_bank_transaction` |
-| 4 | Candidate/evidence engine | Closed | `bank_match_candidates` |
-| 5 | Transfer folded into the seam | Closed | `reconcile_bank_transfer_atomic` |
-| 6 | Rules subordinated to accounting truth | Closed | `apply_reconciliation_rules` |
-| 7 | Client workspace: one propose/confirm, evidence-led | Closed | `useBankMatchCandidates.ts`, `ReconcileTransactionSheet.tsx` |
-| 8 | Validation & ratchets | Closed | `bank_match_resolution_invariants_test.sql`, `banking_privilege_ratchet_test.sql` |
-| 9 | ADR | Closed | `docs/adr/0147`, `docs/adr/0148` |
-| 10 | Feed → matching automation hardening | **Closed — contract + behaviour** | `bank_match_automation_invariants_test.sql` §6–§8 |
-| 11 | Session closure: a completed session is falsifiable and immutable | **Closed — F17, F18, F19 resolved** | migration `20260819133444_…`, `bank_reconciliation_closure_invariants_test.sql`, client surfaces below |
-| 12 | Harness execution + ratchet closure | Open | see below |
+UNVERIFIED HYPOTHESIS (not an implementation requirement): that the operator
+never saw the candidate card. It could not be observed at runtime — this project
+uses an external Supabase, so no preview session can be minted. The card's data
+path is verified by replaying the engine's own predicates instead.
 
-## Delivered this turn
+## 2. Verified root cause
 
-### Phase 10.1–10.5 — behavioural proof (was the one honest gap of turn 4)
-Appended to `supabase/tests/bank_match_automation_invariants_test.sql` as
-self-rolled-back `DO` blocks over real rows:
-- §6 — an explained line is not a question: a proposed line answers tier
-  `proposed` with `existing_match_id` and zero candidates; after confirm the
-  tier is `settled`; the document reserved by that proposal is never offered on
-  a second line (10.1 + 10.2).
-- §7 — a rules sweep run twice yields one proposal (idempotence), and two
-  equally-ranked rules matching one line raise `AMBIGUOUS_RULE_MATCH` and post
-  nothing (10.4 + 10.5). The block inserts its own rules because
-  `bank_reconciliation_rules` is empty on this branch.
-- §8 — a deposit explainable by two distinct receipt combinations surfaces both,
-  tier `ambiguous` (10.3).
+A stale CHECK constraint on `bank_transactions.reconciled_type` predates the
+clearing/categorising resolution kinds, so `bank_match_confirm` cannot record
+the resolution it just posted and aborts. The accounting logic is already
+correct; the write of the reconciliation state is what fails.
 
-### Phase 11.1 — F17, the closed window (server)
-- `_bank_recon_closed_session(bank_account_id, date)` — the single place that
-  asks whether a date falls inside a completed session.
-- `_bank_match_closed_window_guard()` and
-  `_bank_txn_reconcile_closed_window_guard()` triggers refuse match births,
-  confirms, reversals and `is_reconciled` flips inside a closed window, with
-  named hints `BANK_MATCH_SESSION_CLOSED` / `BANK_UNRECONCILE_SESSION_CLOSED`.
-  Chosen as triggers, not per-RPC asserts, so every writer is caught.
-- `_bank_reconciliation_session_freeze()` protects a completed session's
-  statement figures.
-- EXECUTE on the guard helpers revoked from `PUBLIC`, `anon`, `authenticated`.
+## 3. Target behavior
 
-### Phase 11.2 — F18, the ledger tie-out (server)
-- `_bank_reconciliation_gl_tieout(session_id)` — pure SQL, `STABLE`: cleared
-  statement movement vs. the bank GL account's posted movement over the window,
-  plus a `cleared_without_posting` count.
-- `_bank_reconciliation_recompute` returns it as a nested `gl_tieout` object.
-- `bank_reconciliation_session_complete` refuses on divergence > 0.01
-  (`BANK_RECON_GL_DIVERGENCE`). A session with no GL account mapped reports
-  `checked: false` rather than a false pass.
+Confirming the deterministic "Deposit the recorded receipt from Fredrick Mureti"
+candidate posts one entry — Dr bank 1,670.40 / Cr 1340 Undeposited Funds
+1,670.40 — marks the line reconciled with `reconciled_type = 'payment'` and
+`reconciled_payment_id` = the existing payment, creates no second payment, does
+not touch AR, is idempotent per bank line, and reverses by voiding only that
+clearing journal.
 
-### Phase 11.3 — audited reopen (server)
-`bank_reconciliation_session_reopen(_session_id, _reason)`: reason required,
-period-guarded, refused when a later completed session exists, emits a business
-event. Closure is undone by a documented act, never a delete.
+## 4. Files / RPCs / tables actually involved
 
-### Phase 11.4 — F19, the stale `difference` column
-Persisted by its single writer: `_bank_reconciliation_recompute` writes it, and
-completion records the final figure, so the stored column and the RPC can no
-longer give two answers.
+- Table `public.bank_transactions` — constraint `bank_transactions_reconciled_type_check`.
+- Functions `bank_match_confirm`, `_bank_doc_is_spoken_for`, `bank_match_candidates`
+  (guard predicate only — the payment branch is unchanged).
+- `src/hooks/useBankTransactions.ts` — `BankTransaction.reconciled_type` union.
+- Tests: `supabase/tests/bank_match_resolution_invariants_test.sql`,
+  `supabase/tests/bank_matching_seam_invariants_test.sql`.
+- Not changed: AR/AP engines, `post_journal_entry_atomic`, FX, invoice/bill
+  resolution kinds, transfer flow, `ReconcileTransactionSheet` submit contract.
 
-### Phase 11.5 — client surface (this turn)
-- `src/hooks/useReconciliationItems.ts` — `ReconciliationGlTieout` type;
-  `ReconciliationCalc.gl_tieout`.
-- `src/components/banking/ReconciliationWorkspace.tsx` — a tie-out row (cleared
-  movement, bank ledger movement, divergence), a plain-English explanation
-  naming unposted cleared lines, and **Finish Now disabled while diverged** so
-  the client never invites a refusal it can predict.
-- `src/components/banking/CompletedReconciliations.tsx` (new) — history of
-  closed reconciliations with the frozen difference and a **Reopen** dialog that
-  demands a reason; permission-gated on `canReconcile`.
-- `src/pages/BankReconciliation.tsx` — renders that panel, wired to
-  `reopenSession`.
-- Hooks already map `BANK_RECON_GL_DIVERGENCE`, `BANK_MATCH_SESSION_CLOSED` and
-  the unreconcile refusal to operator copy.
+## 5. Minimal change set
 
-## Validation performed
+1. Migration: replace `bank_transactions_reconciled_type_check` with the full
+   set of resolutions the seam can produce — `invoice`, `bill`, `expense`,
+   `transfer`, `manual`, `payment`, `bill_payment`, `account`. No data rewrite
+   (no existing row uses the new values).
+2. Migration: align the open-proposal predicate with the status vocabulary the
+   seam actually writes — `_bank_doc_is_spoken_for` and the explained-tier guard
+   in `bank_match_candidates` test `status IN ('suggested','to_check','confirmed')`
+   instead of `'proposed'`. Behaviour otherwise byte-identical.
+3. Reject the stranded `suggested` match on the canonical bank line as part of
+   the same migration, so the line returns to a clean unreconciled state.
+   (`bank_match_propose` already auto-rejects prior open proposals, so this is
+   hygiene, not a code path.)
+4. Client: widen `BankTransaction.reconciled_type` to include `payment`,
+   `bill_payment`, `account` so the UI can label a cleared line. Type-only.
+5. UI (only if step 1–4 verification shows a gap): add the Dr/Cr pair to the
+   candidate card's effect line for `kind = 'payment'`. No new tab, no new
+   account picker, no journal browsing. The existing Journal fallback stays.
 
-- `bunx tsgo --noEmit -p tsconfig.app.json` — clean.
-- Banking Vitest ratchets green: `banking-reconciliation-seam` (9 tests, two new),
-  `banking-write-seam`, `banking-match-resolution`,
-  `reconciliation-business-level-gating` — 43 + 2 passing.
-- New ratchets assert the workspace shows `gl_tieout` and gates completion on
-  `glDiverged`, and that reopening goes through
-  `bank_reconciliation_session_reopen` with a mandatory reason and no client
-  write to `bank_reconciliation_sessions`.
-- `_bank_reconciliation_gl_tieout` exercised against live rows via read queries.
+Explicitly out of scope: no new resolution kind, no new RPC, no parallel posting
+path, no change to how candidates are scored or ranked.
 
-## Not yet done (carry forward)
+## 6. Accounting invariants
 
-1. **The two pgTAP suites have not been executed by the harness.**
-   `bank_match_automation_invariants_test.sql` §6–§8 and
-   `bank_reconciliation_closure_invariants_test.sql` are written but only
-   partially exercised: the client API role hits `is_period_open` permission
-   errors, so they must run as superuser under `supabase test`. Until they run
-   green they are unproven text.
-2. Reopen has no behavioural pgTAP proof of the "later completed session"
-   refusal path.
-3. Pre-existing, unrelated: `src/test/architecture/accounting-posting-engine.test.ts`
-   fails because `src/features/warehouse/events/OutboxTimeline.tsx` reads
-   `business_event_outbox` from non-admin UI. Warehouse events wave, not this one.
+- Clearing an existing receipt creates no `payments` row and no AR movement.
+- Bank GL debit equals the statement amount; the credit equals the payment's own
+  `deposit_account_id` — derived from the payment, never chosen by the user.
+- A receipt is deposited in full and at most once (`BANK_MATCH_PAYMENT_ALREADY_DEPOSITED`).
+- Journal rows only ever come from `post_journal_entry_atomic` (ADR-0123).
+- Reversal voids only the clearing journal; the receipt stays applied to INV-00002.
+- Tenant, branch, currency and period guards remain `assert_can_reconcile_bank`,
+  `is_period_open` and `require_exchange_rate` — untouched.
 
-## Next milestone — Phase 12
+## 7. Tests required
 
-1. Execute both pgTAP suites in the superuser harness; fix what they falsify.
-   Treat a failure as a defect in the engine, not in the test, until proven
-   otherwise.
-2. Add the reopen ordering/period-lock behavioural blocks.
-3. Then, and only then, write the ADR for session closure (immutability +
-   GL tie-out as invariants 7 and 8) and close the wave.
+pgTAP additions to `bank_match_resolution_invariants_test.sql`:
+1. `reconciled_type` accepts every kind `_bank_match_validate` can return
+   (regression for the root cause).
+2. Confirming a payment-clearing match: payment count unchanged, no new AR
+   credit, one journal with Dr bank / Cr the holding account for the exact
+   amount, `reconciled_type = 'payment'`, `reconciled_payment_id` set.
+3. Second confirm of the same match returns `already_confirmed` with no second
+   journal; a second bank line proposing the same payment is refused.
+4. Unreconcile voids the clearing journal, leaves the payment `applied` and its
+   invoice allocation intact, and returns the line to unreconciled.
+5. Cross-business payment, mismatched branch, mismatched currency and a locked
+   period are each refused.
+6. An open (`suggested`) proposal makes the payment spoken for.
 
-## Accounting invariants
+## 8. Execution status
 
-1. Journal rows only through `post_journal_entry_atomic` (ADR-0123).
-2. Settlement only through `record_multi_invoice_payment` /
-   `record_multi_bill_payment`.
-3. One bank line is one match; several documents are several allocations.
-4. Documents settle gross; the residual is a named charge or explicit write-off.
-5. A missing FX rate is an absence, never 1.0.
-6. Ambiguity is never automated (ADR-0148).
-7. A completed reconciliation is immutable until explicitly reopened (F17).
-8. A completed session's cleared movement must agree with the bank GL movement (F18).
-
-## Instructions for the next agent
-
-1. **Verify before you build.** Re-derive this turn's claims from the live
-   database (`pg_get_functiondef` for the guards, triggers on
-   `bank_transaction_matches` / `bank_transactions` /
-   `bank_reconciliation_sessions`, ACLs on the new helpers) and from the client
-   files named above. Record the verdict in this file before writing code.
-2. Then resume at **Phase 12, step 1** — run the pgTAP suites. Do not start
-   unrelated work while an unexecuted test suite is the wave's weakest link.
-3. No server behaviour without its client surface in the same turn.
-4. Keep this file current: status table, delivered list, carry-forward, next
-   milestone.
+- Phase 1–2 research: COMPLETE (findings above).
+- Phase 3 change set: DEFINED, awaiting approval.
+- Phase 4 UI: contingent, likely no change needed.
+- Phase 5 tests: NOT STARTED.
