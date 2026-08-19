@@ -36,7 +36,9 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useBills } from "@/hooks/useBills";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
+import { useBankMoney } from "@/hooks/useBankAccountCurrency";
+
 import {
   Search,
   FileText,
@@ -82,11 +84,24 @@ export function ReconcileTransactionSheet({
   const { bills } = useBills();
   const { expenses } = useExpenses();
   const { accounts: glAccounts } = useAccounts();
+  const { currencyOf, formatBankAmount, formatDocumentAmount } = useBankMoney();
 
   if (!transaction) return null;
 
   const isCredit = transaction.transaction_type === "credit";
   const transactionAmount = Math.abs(transaction.amount);
+
+  /**
+   * The bank line is denominated in its account's currency. A document can
+   * only settle it when it is held in the same currency — settling across
+   * currencies needs a rate and an FX difference, which the client may not
+   * invent (ADR 0136). Mismatched candidates stay visible (so an operator can
+   * see why their invoice is not offered) but are not selectable.
+   */
+  const txnCurrency = currencyOf(transaction.bank_account_id);
+  const formatTxn = (amount: number) => formatBankAmount(amount, transaction.bank_account_id);
+  const currencyMatches = (documentCurrency?: string | null) =>
+    txnCurrency != null && (documentCurrency ?? null) === txnCurrency;
 
   const incomeExpenseAccounts =
     glAccounts?.filter(
@@ -123,6 +138,7 @@ export function ReconcileTransactionSheet({
     }) || [];
 
   const selectedInvoiceTotal = matchingInvoices
+
     .filter((inv) => selectedInvoiceIds.includes(inv.id))
     .reduce((sum, inv) => sum + Math.min(inv.total - (inv.amount_paid || 0), transactionAmount), 0);
 
@@ -237,7 +253,7 @@ export function ReconcileTransactionSheet({
           <span className="truncate">{transaction.description}</span>
           <span className={cn("ml-auto font-semibold tabular-nums", isCredit ? "text-green-600" : "text-destructive")}>
             {isCredit ? "+" : "-"}
-            {formatCurrency(transactionAmount)}
+            {formatTxn(transactionAmount)}
           </span>
         </span>
       }
@@ -274,7 +290,7 @@ export function ReconcileTransactionSheet({
               </div>
               <div className={cn("text-lg font-bold tabular-nums", isCredit ? "text-green-600" : "text-destructive")}>
                 {isCredit ? "+" : "-"}
-                {formatCurrency(transactionAmount)}
+                {formatTxn(transactionAmount)}
               </div>
             </div>
           </CardContent>
@@ -314,7 +330,7 @@ export function ReconcileTransactionSheet({
             {selectedInvoiceIds.length > 0 && (
               <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
                 <span className="text-xs font-medium">
-                  {selectedInvoiceIds.length} selected • Total: {formatCurrency(selectedInvoiceTotal)}
+                  {selectedInvoiceIds.length} selected • Total: {formatTxn(selectedInvoiceTotal)}
                 </span>
                 <Badge
                   variant={Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01 ? "default" : "secondary"}
@@ -322,7 +338,7 @@ export function ReconcileTransactionSheet({
                 >
                   {Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01
                     ? "Exact match"
-                    : `Diff: ${formatCurrency(transactionAmount - selectedInvoiceTotal)}`}
+                    : `Diff: ${formatTxn(transactionAmount - selectedInvoiceTotal)}`}
                 </Badge>
               </div>
             )}
@@ -332,28 +348,40 @@ export function ReconcileTransactionSheet({
               <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
                 {matchingInvoices.map((invoice) => {
                   const remaining = invoice.total - (invoice.amount_paid || 0);
-                  const isExactMatch = Math.abs(remaining - transactionAmount) < 0.01;
+                  const sameCurrency = currencyMatches((invoice as any).currency);
+                  const isExactMatch =
+                    sameCurrency && Math.abs(remaining - transactionAmount) < 0.01;
                   const isSelected = selectedInvoiceIds.includes(invoice.id);
                   return (
                     <Label
                       key={invoice.id}
                       className={cn(
-                        "flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50",
+                        "flex items-center justify-between gap-3 rounded-lg border p-3",
+                        sameCurrency
+                          ? "cursor-pointer hover:bg-muted/50"
+                          : "cursor-not-allowed opacity-60",
                         isSelected && "border-primary bg-primary/5",
                       )}
                       onClick={(e) => {
                         e.preventDefault();
+                        if (!sameCurrency) return;
                         toggleInvoiceSelection(invoice.id);
                       }}
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <Checkbox checked={isSelected} />
+                        <Checkbox checked={isSelected} disabled={!sameCurrency} />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium">{invoice.invoice_number}</span>
                             {isExactMatch && (
                               <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
                                 Exact
+                              </Badge>
+                            )}
+                            {!sameCurrency && (
+                              <Badge variant="outline" className="text-xs">
+                                {(invoice as any).currency ?? "No currency"} — cannot settle a{" "}
+                                {txnCurrency ?? "—"} line
                               </Badge>
                             )}
                           </div>
@@ -363,12 +391,15 @@ export function ReconcileTransactionSheet({
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-medium tabular-nums">{formatCurrency(remaining)}</p>
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatDocumentAmount(remaining, (invoice as any).currency)}
+                        </p>
                         <p className="text-xs text-muted-foreground">Outstanding</p>
                       </div>
                     </Label>
                   );
                 })}
+
               </div>
             )}
           </TabsContent>
@@ -377,7 +408,7 @@ export function ReconcileTransactionSheet({
             {selectedBillIds.length > 0 && (
               <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
                 <span className="text-xs font-medium">
-                  {selectedBillIds.length} selected • Total: {formatCurrency(selectedBillTotal)}
+                  {selectedBillIds.length} selected • Total: {formatTxn(selectedBillTotal)}
                 </span>
                 <Badge
                   variant={Math.abs(selectedBillTotal - transactionAmount) < 0.01 ? "default" : "secondary"}
@@ -385,7 +416,7 @@ export function ReconcileTransactionSheet({
                 >
                   {Math.abs(selectedBillTotal - transactionAmount) < 0.01
                     ? "Exact match"
-                    : `Diff: ${formatCurrency(transactionAmount - selectedBillTotal)}`}
+                    : `Diff: ${formatTxn(transactionAmount - selectedBillTotal)}`}
                 </Badge>
               </div>
             )}
@@ -395,28 +426,40 @@ export function ReconcileTransactionSheet({
               <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
                 {matchingBills.map((bill) => {
                   const remaining = bill.total - (bill.amount_paid || 0);
-                  const isExactMatch = Math.abs(remaining - transactionAmount) < 0.01;
+                  const sameCurrency = currencyMatches((bill as any).currency);
+                  const isExactMatch =
+                    sameCurrency && Math.abs(remaining - transactionAmount) < 0.01;
                   const isSelected = selectedBillIds.includes(bill.id);
                   return (
                     <Label
                       key={bill.id}
                       className={cn(
-                        "flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50",
+                        "flex items-center justify-between gap-3 rounded-lg border p-3",
+                        sameCurrency
+                          ? "cursor-pointer hover:bg-muted/50"
+                          : "cursor-not-allowed opacity-60",
                         isSelected && "border-primary bg-primary/5",
                       )}
                       onClick={(e) => {
                         e.preventDefault();
+                        if (!sameCurrency) return;
                         toggleBillSelection(bill.id);
                       }}
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <Checkbox checked={isSelected} />
+                        <Checkbox checked={isSelected} disabled={!sameCurrency} />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium">{bill.bill_number}</span>
                             {isExactMatch && (
                               <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
                                 Exact
+                              </Badge>
+                            )}
+                            {!sameCurrency && (
+                              <Badge variant="outline" className="text-xs">
+                                {(bill as any).currency ?? "No currency"} — cannot settle a{" "}
+                                {txnCurrency ?? "—"} line
                               </Badge>
                             )}
                           </div>
@@ -426,7 +469,9 @@ export function ReconcileTransactionSheet({
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-medium tabular-nums">{formatCurrency(remaining)}</p>
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatDocumentAmount(remaining, (bill as any).currency)}
+                        </p>
                         <p className="text-xs text-muted-foreground">Outstanding</p>
                       </div>
                     </Label>
@@ -445,26 +490,43 @@ export function ReconcileTransactionSheet({
                 <p className="py-8 text-center text-sm text-muted-foreground">No matching expenses found</p>
               ) : (
                 <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
-                  {matchingExpenses.map((expense) => (
+                  {matchingExpenses.map((expense) => {
+                    const sameCurrency = currencyMatches((expense as any).currency);
+                    return (
                     <Label
                       key={expense.id}
                       className={cn(
-                        "flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50",
+                        "flex items-center justify-between gap-3 rounded-lg border p-3",
+                        sameCurrency
+                          ? "cursor-pointer hover:bg-muted/50"
+                          : "cursor-not-allowed opacity-60",
                         selectedMatch?.id === expense.id && "border-primary bg-primary/5",
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        <RadioGroupItem value={expense.id} />
+                        <RadioGroupItem value={expense.id} disabled={!sameCurrency} />
                         <div className="min-w-0">
                           <span className="text-sm font-medium">{expense.description}</span>
-                          <p className="text-xs text-muted-foreground">{formatDate(expense.expense_date)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(expense.expense_date)}
+                            {!sameCurrency && (
+                              <>
+                                {" "}• {(expense as any).currency ?? "No currency"} — cannot settle a{" "}
+                                {txnCurrency ?? "—"} line
+                              </>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-medium tabular-nums">{formatCurrency(expense.amount)}</p>
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatDocumentAmount(expense.amount, (expense as any).currency)}
+                        </p>
                       </div>
                     </Label>
-                  ))}
+                    );
+                  })}
+
                 </div>
               )}
             </RadioGroup>

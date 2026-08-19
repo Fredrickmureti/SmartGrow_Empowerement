@@ -23,7 +23,8 @@ import {
   ArrowDownLeft,
   CheckCircle2
 } from "lucide-react";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
+import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 
 interface Transaction {
   id: string;
@@ -35,6 +36,7 @@ interface Transaction {
   category?: string;
   is_reconciled: boolean;
   balance_after?: number;
+  bank_account_id?: string | null;
 }
 
 interface TransactionsListProps {
@@ -42,9 +44,16 @@ interface TransactionsListProps {
   isLoading?: boolean;
 }
 
+/**
+ * Currency contract (ADR 0136): a bank line is denominated in its account's
+ * currency, resolved through `useBankMoney`. Nothing here falls back to the
+ * workspace currency or to a literal.
+ */
+
 export function TransactionsList({ transactions, isLoading }: TransactionsListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const { formatBankAmount } = useBankMoney();
 
   const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch = 
@@ -147,10 +156,10 @@ export function TransactionsList({ transactions, isLoading }: TransactionsListPr
                     tx.transaction_type === 'credit' ? 'text-green-600' : 'text-destructive'
                   )}>
                     {tx.transaction_type === 'credit' ? '+' : '-'}
-                    {formatCurrency(Math.abs(tx.amount))}
+                    {formatBankAmount(Math.abs(tx.amount), tx.bank_account_id)}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {tx.balance_after !== undefined ? formatCurrency(tx.balance_after) : '-'}
+                    {tx.balance_after !== undefined ? formatBankAmount(tx.balance_after, tx.bank_account_id) : '-'}
                   </TableCell>
                   <TableCell>
                     {tx.is_reconciled ? (

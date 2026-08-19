@@ -52,13 +52,17 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currenciesLoaded, setCurrenciesLoaded] = useState(false);
 
-  // Initialize baseCurrency from localStorage for instant access (no flash)
+  // Seed from the last-known business currency for instant access (no flash).
+  // There is deliberately NO literal fallback: an unknown base currency is an
+  // absence (empty string) that renders unsymbolled, never a silent "USD"
+  // stamped onto a KES/EUR workspace (ADR 0136).
   const [baseCurrency, setBaseCurrency] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem(STORAGE_KEY) || "USD";
+      return localStorage.getItem(STORAGE_KEY) || "";
     }
-    return "USD";
+    return "";
   });
+
 
   // Sync baseCurrency when current business loads/changes (Phase-7: business is source of truth)
   useEffect(() => {
@@ -117,7 +121,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     (amount: number, currencyCode?: string): string => {
       const code = currencyCode || baseCurrency;
       const currency = currencies.find((c) => c.code === code);
-      
+
+      // No authoritative currency yet: render the number unsymbolled rather
+      // than borrowing a currency the amount does not belong to.
+      if (!code) return amount.toFixed(2);
+
       try {
         return new Intl.NumberFormat(undefined, {
           style: "currency",
@@ -133,6 +141,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     },
     [baseCurrency, currencies]
   );
+
 
   const getCurrencySymbol = useCallback(
     (currencyCode?: string): string => {
@@ -193,17 +202,13 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     await fetchExchangeRates();
   };
 
-  // isReady is true when we have a cached currency OR when currencies have loaded
+  // Ready once a base currency is actually known (cached from the business
+  // or freshly loaded). No currency-code special-casing: any known code counts.
   const isReady = useMemo(() => {
-    // If we have a cached baseCurrency from localStorage and it's not the default "USD",
-    // we're ready immediately
-    const cachedCurrency = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-    if (cachedCurrency && cachedCurrency !== "USD") {
-      return true;
-    }
-    // Otherwise, wait for currencies to load
+    if (baseCurrency) return true;
     return currenciesLoaded;
-  }, [currenciesLoaded]);
+  }, [baseCurrency, currenciesLoaded]);
+
 
   const value = useMemo(
     () => ({

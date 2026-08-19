@@ -5,8 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Utility fallback formatter. Prefer useCurrency().formatCurrency in React components. */
-export function formatCurrency(amount: number, currency: string = "USD"): string {
+/**
+ * Low-level money formatter. There is deliberately NO currency default:
+ * a defaulted currency silently renders USD in a KES/EUR workspace
+ * (ADR 0136 — a missing currency is an absence, never a guess). When the
+ * currency is unknown the amount renders as a bare number, which reads as
+ * incomplete instead of reading as the wrong money.
+ *
+ * Prefer `useCurrency().formatCurrency` in React code — it resolves the
+ * business base currency and the catalogue's decimal places. Use this
+ * helper only where no React context is available, and always pass the
+ * currency that authoritatively belongs to the amount.
+ */
+export function formatCurrency(amount: number, currency?: string | null): string {
+  if (!currency) {
+    return amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -18,6 +35,8 @@ export function formatCurrency(amount: number, currency: string = "USD"): string
   }
 }
 
+
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
@@ -27,11 +46,19 @@ export function formatDate(date: string | Date): string {
 }
 
 /**
- * Format large numbers in compact notation (e.g., 1.2M, 5.8B)
- * Useful for dashboard cards where space is limited
+ * Format large numbers in compact notation (e.g., 1.2M, 5.8B).
+ * Same currency contract as `formatCurrency`: no default, and an unknown
+ * currency renders the number bare rather than borrowing one (ADR 0136).
  */
-export function formatCompactNumber(amount: number, currency: string = "USD"): string {
+export function formatCompactNumber(amount: number, currency?: string | null): string {
   const absAmount = Math.abs(amount);
+
+  if (!currency) {
+    if (absAmount >= 1_000_000_000) return `${(amount / 1_000_000_000).toFixed(1)}B`;
+    if (absAmount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
+    return formatCurrency(amount, null);
+  }
+
   
   // Only use compact notation for very large numbers (1 million+)
   if (absAmount >= 1_000_000) {

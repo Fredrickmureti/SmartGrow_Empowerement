@@ -38,7 +38,8 @@ import {
   AlertCircle,
   FileText
 } from "lucide-react";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
+import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
@@ -73,6 +74,8 @@ export default function BankFeeds() {
   // Rules dialog was removed — Rules now open as a routed page.
   
   const { accounts: bankAccounts } = useBankAccounts();
+  // A feed line's currency is its bank account's currency (ADR 0136).
+  const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, fetchTransactions } = useBankTransactions();
   const { createRule } = useTransactionRules();
   const scope = useFinanceScope();
@@ -357,7 +360,7 @@ export default function BankFeeds() {
                                   tx.transaction_type === 'credit' ? 'text-green-600' : 'text-destructive'
                                 )}>
                                   {tx.transaction_type === 'credit' ? '+' : '-'}
-                                  {formatCurrency(Math.abs(tx.amount))}
+                                  {formatBankAmount(Math.abs(tx.amount), tx.bank_account_id)}
                                 </div>
                               </div>
                               <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0 hidden xs:block" />
@@ -399,7 +402,7 @@ export default function BankFeeds() {
                           selectedTransaction.transaction_type === 'credit' ? 'text-green-600' : 'text-destructive'
                         )}>
                           {selectedTransaction.transaction_type === 'credit' ? '+' : '-'}
-                          {formatCurrency(Math.abs(selectedTransaction.amount))}
+                          {formatBankAmount(Math.abs(selectedTransaction.amount), selectedTransaction.bank_account_id)}
                         </p>
                       </div>
                       <div>

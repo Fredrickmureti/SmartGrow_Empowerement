@@ -67,7 +67,8 @@ import {
   Scale,
   Lightbulb,
 } from "lucide-react";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
+import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -106,6 +107,9 @@ export default function BankReconciliation() {
   const PAGE_SIZE = 100;
 
   const { accounts: bankAccounts } = useBankAccounts();
+  // Money on this page always belongs to a bank account; format it in that
+  // account's currency, never in a formatter default (ADR 0136).
+  const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
   const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
   const { data: matchSuggestions = [], isLoading: suggestionsLoading } = useReconciliationSuggestions(selectedAccount !== "all" ? selectedAccount : undefined);
@@ -477,7 +481,7 @@ export default function BankReconciliation() {
                                   tx.transaction_type === "credit" ? "text-green-600" : "text-destructive"
                                 )}>
                                   {tx.transaction_type === "credit" ? "+" : "-"}
-                                  {formatCurrency(Math.abs(tx.amount))}
+                                  {formatBankAmount(Math.abs(tx.amount), tx.bank_account_id)}
                                 </TableCell>
                                 <TableCell>
                                   {tx.is_reconciled ? (
@@ -603,7 +607,7 @@ export default function BankReconciliation() {
                             <TableRow key={`${s.bank_transaction_id}-${s.line_id}-${idx}`}>
                               <TableCell>{formatDate(s.bank_date)}</TableCell>
                               <TableCell className="max-w-[200px] truncate">{s.bank_description}</TableCell>
-                              <TableCell className="text-right font-medium">{formatCurrency(Math.abs(s.bank_amount))}</TableCell>
+                              <TableCell className="text-right font-medium">{formatBankAmount(Math.abs(s.bank_amount), selectedAccount)}</TableCell>
                               <TableCell className="font-mono text-xs">
                                 <button
                                   className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0"
@@ -618,7 +622,7 @@ export default function BankReconciliation() {
                               </TableCell>
                               <TableCell>{formatDate(s.entry_date)}</TableCell>
                               <TableCell className="max-w-[200px] truncate">{s.je_description}</TableCell>
-                              <TableCell className="text-right font-medium">{formatCurrency(s.gl_amount)}</TableCell>
+                              <TableCell className="text-right font-medium">{formatBankAmount(s.gl_amount, selectedAccount)}</TableCell>
                               <TableCell className="text-center">
                                 <Badge variant={s.match_score >= 80 ? "default" : s.match_score >= 50 ? "secondary" : "outline"}>
                                   {s.match_score}
@@ -687,7 +691,7 @@ export default function BankReconciliation() {
               This will reverse the accounting impact of this reconciliation, including any journal entries and payment records created.
               {transactionToUnreconcile && (
                 <span className="block mt-2 font-medium text-foreground">
-                  {transactionToUnreconcile.description} — {formatCurrency(Math.abs(transactionToUnreconcile.amount))}
+                  {transactionToUnreconcile.description} — {formatBankAmount(Math.abs(transactionToUnreconcile.amount), transactionToUnreconcile.bank_account_id)}
                 </span>
               )}
             </AlertDialogDescription>
