@@ -504,6 +504,17 @@ serve(async (req) => {
           dateTo,
           (body?.filters ?? {}) as ProjectFilters,
         )
+      : isInventory
+      ? await buildInventoryReport(
+          supabase,
+          reportType as InventoryReportKey,
+          organizationId,
+          businessId,
+          dateFrom,
+          dateTo,
+          (body?.filters ?? {}) as InventoryFilters,
+        )
+
       : await buildReportData(
           supabase,
           reportType as Exclude<ReportType, AttendanceReportKey>,
