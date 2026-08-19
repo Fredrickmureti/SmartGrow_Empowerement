@@ -42,7 +42,7 @@ import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
-import { useReconciliationSuggestions } from "@/hooks/useReconciliationSuggestions";
+import { useBankMatchCandidatesFor, TIER_COPY } from "@/hooks/useBankMatchCandidates";
 import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/ReconcileTransactionSheet";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 
@@ -113,7 +113,6 @@ export default function BankReconciliation() {
   const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, loadError, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
   const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
-  const { data: matchSuggestions = [], isLoading: suggestionsLoading } = useReconciliationSuggestions(selectedAccount !== "all" ? selectedAccount : undefined);
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((tx) => {
@@ -134,6 +133,27 @@ export default function BankReconciliation() {
   // Paginate
   const totalPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
   const paginatedTransactions = filteredTransactions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  /**
+   * Explanations are asked for per unmatched line, and only for a chosen
+   * account — the engine reads the books, so it is not something to run
+   * speculatively across every account at once.
+   */
+  const suggestionTargets =
+    selectedAccount === "all"
+      ? []
+      : filteredTransactions.filter((tx) => !tx.is_reconciled).slice(0, 25);
+  const { byTransaction: candidatesByTxn, isLoading: candidatesLoading } =
+    useBankMatchCandidatesFor(suggestionTargets.map((tx) => tx.id));
+
+  const suggestionRows = suggestionTargets
+    .map((txn) => {
+      const set = candidatesByTxn.get(txn.id);
+      const top = set?.candidates?.[0];
+      return set && top ? { txn, set, top } : null;
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+
 
   const unreconciledCount = stats?.unreconciledCount || 0;
   const reconciledCount = stats?.reconciledCount || 0;
@@ -348,8 +368,8 @@ export default function BankReconciliation() {
                 <TabsTrigger value="suggestions" className="gap-2">
                   <Lightbulb className="h-4 w-4" />
                   Match Suggestions
-                  {matchSuggestions.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-xs">{matchSuggestions.length}</Badge>
+                  {suggestionRows.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs">{suggestionRows.length}</Badge>
                   )}
                 </TabsTrigger>
               </TabsList>
@@ -585,79 +605,75 @@ export default function BankReconciliation() {
               <TabsContent value="suggestions">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">GL Match Suggestions</CardTitle>
+                    <CardTitle className="text-base">What the books say</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Server-side suggestions matching unreconciled bank transactions to posted journal entries by amount, date, and reference.
+                      For each unmatched bank line, the accounting records are searched for something that
+                      already explains it — a receipt awaiting deposit, a supplier payment not yet cleared,
+                      an open invoice or bill, or a transfer between your own accounts. Each suggestion
+                      shows the evidence behind it; nothing is posted until you accept it.
                       {selectedAccount === "all" && " Select a specific bank account to see suggestions."}
                     </p>
                   </CardHeader>
                   <CardContent>
                     {selectedAccount === "all" ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">Select a bank account from the filter above to view match suggestions.</p>
-                    ) : suggestionsLoading ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">Select a bank account from the filter above to view suggestions.</p>
+                    ) : candidatesLoading ? (
                       <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                    ) : matchSuggestions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">No match suggestions found for this account.</p>
+                    ) : suggestionRows.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">Nothing in the books explains the remaining lines on this account.</p>
                     ) : (
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Bank Txn Date</TableHead>
-                            <TableHead>Bank Description</TableHead>
-                            <TableHead className="text-right">Bank Amount</TableHead>
-                            <TableHead>JE Number</TableHead>
-                            <TableHead>JE Date</TableHead>
-                            <TableHead>JE Description</TableHead>
-                            <TableHead className="text-right">GL Amount</TableHead>
-                            <TableHead className="text-center">Score</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Bank line</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Best explanation</TableHead>
+                            <TableHead>Evidence</TableHead>
+                            <TableHead className="text-center">Confidence</TableHead>
                             <TableHead className="text-right">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {matchSuggestions.map((s, idx) => (
-                            <TableRow key={`${s.bank_transaction_id}-${s.line_id}-${idx}`}>
-                              <TableCell>{formatDate(s.bank_date)}</TableCell>
-                              <TableCell className="max-w-[200px] truncate">{s.bank_description}</TableCell>
-                              <TableCell className="text-right font-medium">{formatBankAmount(Math.abs(s.bank_amount), selectedAccount)}</TableCell>
-                              <TableCell className="font-mono text-xs">
-                                <button
-                                  className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0"
-                                  onClick={() => {
-                                    setPreviewSource({ type: "journal_entry", id: s.journal_entry_id });
-                                    setPreviewOpen(true);
-                                  }}
-                                  title="Preview journal entry"
-                                >
-                                  {s.entry_number}
-                                </button>
+                          {suggestionRows.map(({ txn, set, top }) => (
+                            <TableRow key={txn.id}>
+                              <TableCell>{formatDate(txn.transaction_date)}</TableCell>
+                              <TableCell className="max-w-[200px] truncate">{txn.description}</TableCell>
+                              <TableCell className="text-right font-medium">{formatBankAmount(Math.abs(txn.amount), selectedAccount)}</TableCell>
+                              <TableCell className="max-w-[220px]">
+                                <p className="truncate text-sm">{top.label}</p>
+                                <p className="truncate text-xs text-muted-foreground">{top.effect}</p>
                               </TableCell>
-                              <TableCell>{formatDate(s.entry_date)}</TableCell>
-                              <TableCell className="max-w-[200px] truncate">{s.je_description}</TableCell>
-                              <TableCell className="text-right font-medium">{formatBankAmount(s.gl_amount, selectedAccount)}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {top.evidence.slice(0, 3).map((reason) => (
+                                    <Badge key={reason} variant="outline" className="text-[10px] font-normal">
+                                      {reason}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-center">
-                                <Badge variant={s.match_score >= 80 ? "default" : s.match_score >= 50 ? "secondary" : "outline"}>
-                                  {s.match_score}
+                                <Badge
+                                  variant={
+                                    set.tier === "deterministic"
+                                      ? "default"
+                                      : set.tier === "ambiguous" || set.tier === "unresolved"
+                                        ? "outline"
+                                        : "secondary"
+                                  }
+                                >
+                                  {TIER_COPY[set.tier].label}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right">
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={async () => {
-                                    try {
-                                      await reconcileTransaction(s.bank_transaction_id, {
-                                        reconciled_type: "manual",
-                                        reconciled_entity_id: s.journal_entry_id,
-                                        createGLEntry: false,
-                                      });
-                                      toast.success("Transaction reconciled from suggestion");
-                                    } catch (err) {
-                                      toast.error("Failed to reconcile");
-                                    }
-                                  }}
+                                  onClick={() => handleReconcile(txn)}
                                 >
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Match
+                                  Review
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -668,6 +684,7 @@ export default function BankReconciliation() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
             </Tabs>
           </>
         )}
