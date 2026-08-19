@@ -439,4 +439,48 @@ BEGIN
   RAISE NOTICE 'refusal invariants hold (unbalanced, cross-company, unknown kind, direction, partial deposit, charge-on-direct)';
 END $$;
 
+-- ---------------------------------------------------------------------
+-- 8) Regression: the stamp a resolution leaves must be storable, and an
+--    open proposal must count as an explanation.
+--    A clearing used to post correctly and then abort on the CHECK
+--    constraint of bank_transactions.reconciled_type, rolling the whole
+--    confirm back and stranding the proposal in 'suggested' — while both
+--    "already spoken for" guards looked for a status ('proposed') the seam
+--    never writes.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE k text; v text;
+BEGIN
+  FOREACH k IN ARRAY ARRAY['invoice','bill','expense','transfer','manual',
+                           'payment','bill_payment','account']
+  LOOP
+
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint c
+       WHERE c.conname = 'bank_transactions_reconciled_type_check'
+         AND pg_get_constraintdef(c.oid) LIKE '%''' || k || '''%'
+    ) THEN
+      RAISE EXCEPTION 'reconciled_type cannot store the resolution kind % — confirm would post and then roll back', k;
+    END IF;
+  END LOOP;
+
+  -- Both guards must speak the status vocabulary bank_match_propose writes.
+  SELECT pg_get_functiondef(p.oid) INTO v
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = '_bank_doc_is_spoken_for';
+  IF position('''suggested''' IN v) = 0 THEN
+    RAISE EXCEPTION '_bank_doc_is_spoken_for ignores open proposals — a document could be proposed twice';
+  END IF;
+
+  SELECT pg_get_functiondef(p.oid) INTO v
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'bank_match_candidates';
+  IF position('''suggested''' IN v) = 0 THEN
+    RAISE EXCEPTION 'bank_match_candidates ignores open proposals — one line could grow two competing ones';
+  END IF;
+
+  RAISE NOTICE 'resolution stamp storable for every kind; open proposals are seen by both guards';
+END $$;
+
 SELECT 'bank_match_resolution_invariants: ok' AS result;
