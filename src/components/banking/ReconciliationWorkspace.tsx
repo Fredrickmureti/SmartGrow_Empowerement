@@ -244,6 +244,38 @@ export function ReconciliationWorkspace({
               </div>
             </>
           )}
+
+          {/* F18 — the ledger tie-out, so the statement is checked against the books */}
+          {tieout?.checked && (
+            <>
+              <Separator className="my-3" />
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Cleared movement:</span>
+                  <span className="font-medium tabular-nums">{formatCurrency(tieout.cleared_movement)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Bank ledger movement:</span>
+                  <span className="font-medium tabular-nums">{formatCurrency(tieout.gl_movement ?? 0)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Ledger divergence:</span>
+                  <span className={cn("font-semibold tabular-nums", glDiverged ? "text-destructive" : "text-green-600")}>
+                    {formatCurrency(glDivergence ?? 0)}
+                  </span>
+                </div>
+              </div>
+              {glDiverged && (
+                <p className="mt-2 text-xs text-destructive">
+                  The cleared lines don&apos;t agree with this bank account&apos;s ledger movement
+                  {tieout.cleared_without_posting > 0
+                    ? ` — ${tieout.cleared_without_posting} cleared line(s) have no posted settlement behind them.`
+                    : " — a cleared line is posted to another account."}{" "}
+                  Fix those lines before finishing; the server will refuse to complete until they agree.
+                </p>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
