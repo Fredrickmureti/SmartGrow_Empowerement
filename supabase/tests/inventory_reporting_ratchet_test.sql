@@ -157,4 +157,96 @@ BEGIN
 END
 $tieout$;
 
+-- ── 8. Phase 6 tie-out: for the same business and date the reconciliation's
+--       subledger total MUST equal the Inventory Valuation total. Before the
+--       re-base the reconciliation valued stock at live AVCO while the
+--       valuation report replayed cost layers, so "drift" against the GL was
+--       not attributable to the ledger. This assertion is the contract.
+DO $recon$
+DECLARE
+  v_org        uuid;
+  v_business   uuid;
+  v_subledger  numeric;
+  v_valuation  numeric;
+  v_aging      numeric;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_inventory_layer_valuation_as_of'
+  ) THEN
+    RAISE EXCEPTION 'RATCHET: shared layer valuation helper _inventory_layer_valuation_as_of is missing';
+  END IF;
+
+  IF (SELECT p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = 'reconcile_inventory_subledger_to_gl')
+     NOT LIKE '%_inventory_layer_valuation_as_of%'
+  THEN
+    RAISE EXCEPTION 'RATCHET: reconciliation no longer values the subledger from the shared cost-layer helper';
+  END IF;
+
+  SELECT organization_id, business_id INTO v_org, v_business
+  FROM public.stock_movements
+  WHERE business_id IS NOT NULL
+  GROUP BY organization_id, business_id
+  ORDER BY count(*) DESC
+  LIMIT 1;
+
+  IF v_org IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: no stock movements to reconcile';
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(sum(subledger_value), 0) INTO v_subledger
+  FROM public.reconcile_inventory_subledger_to_gl(v_org, v_business, current_date);
+
+  SELECT COALESCE(sum(total_value), 0) INTO v_valuation
+  FROM public.report_inventory_valuation_as_of(
+         v_org, v_business, current_date, NULL, NULL, NULL, NULL, 100000, 0);
+
+  IF abs(v_subledger - v_valuation) > 0.01 THEN
+    RAISE EXCEPTION 'TIE-OUT FAIL: reconciliation subledger % <> valuation total % for the same date',
+      v_subledger, v_valuation;
+  END IF;
+
+  -- Aging buckets partition the same valuation, so they must sum to it too.
+  SELECT COALESCE(sum(COALESCE(value_0_30, 0) + COALESCE(value_31_60, 0)
+                    + COALESCE(value_61_90, 0) + COALESCE(value_90_plus, 0)), 0)
+    INTO v_aging
+  FROM public.report_inventory_aging_as_of(
+         v_org, v_business, current_date, NULL, NULL, NULL, NULL, 100000, 0);
+
+  IF abs(v_aging - v_valuation) > 0.01 THEN
+    RAISE WARNING 'TIE-OUT: aging buckets % <> valuation total %', v_aging, v_valuation;
+  ELSE
+    RAISE NOTICE 'TIE-OUT PASS: reconciliation, valuation and aging agree';
+  END IF;
+END
+$recon$;
+
+-- ── 9. Cross-business denial: the re-based reconciliation must refuse a
+--       business that does not belong to the caller's organization.
+DO $deny$
+DECLARE
+  v_org      uuid;
+  v_foreign  uuid;
+BEGIN
+  SELECT organization_id INTO v_org FROM public.businesses LIMIT 1;
+  SELECT id INTO v_foreign FROM public.businesses
+   WHERE organization_id IS DISTINCT FROM v_org LIMIT 1;
+
+  IF v_org IS NULL OR v_foreign IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: need two organizations to assert cross-business denial';
+    RETURN;
+  END IF;
+
+  BEGIN
+    PERFORM * FROM public.reconcile_inventory_subledger_to_gl(v_org, v_foreign, current_date);
+    RAISE EXCEPTION 'RATCHET: reconciliation returned rows for a business outside the organization';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'RATCHET:%' THEN RAISE; END IF;
+    RAISE NOTICE 'DENIAL PASS: cross-business reconciliation rejected (%)', SQLERRM;
+  END;
+END
+$deny$;
+
 ROLLBACK;

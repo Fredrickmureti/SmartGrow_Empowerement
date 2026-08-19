@@ -57,6 +57,16 @@ export const INVENTORY_NAV: WorkspaceNav = {
         { to: "/inventory-app/reports/ledger", label: "Stock ledger", icon: BookOpen },
         { to: "/inventory-app/reports/aging", label: "Aging", icon: Hourglass },
         { to: "/inventory-app/reports/integrity", label: "Integrity", icon: ShieldCheck },
+        // Phase 6.4 — discoverability only. The reconciliation report has ONE
+        // implementation, registered under Finance; Inventory deep-links to it
+        // rather than shipping a second page.
+        {
+          to: "/finance/reports/inventory-gl-reconciliation",
+          label: "Inventory ⇄ GL",
+          icon: Scale,
+        },
+
+
 
       ],
     },
