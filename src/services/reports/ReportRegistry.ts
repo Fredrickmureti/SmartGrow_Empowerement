@@ -455,6 +455,20 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "inventory_valuation",
     keywords: ["inventory", "valuation", "cost", "avco", "as of", "stock value"],
   },
+  {
+    // Quantity ledger for a period. Reads `report_stock_ledger`; closing qty
+    // ties to Inventory Valuation's qty on hand at the same date.
+    id: "stock-ledger",
+    name: "Stock Ledger",
+    description: "Opening, movement and closing quantities per product",
+    category: "inventory",
+    path: "/inventory-app/reports/ledger",
+    icon: Boxes,
+    requiredFeature: "reports_stock",
+    permission: "viewReports",
+    reportType: "stock_ledger",
+    keywords: ["stock", "ledger", "movement", "opening", "closing", "quantity"],
+  },
 
   // ─── Management & BI ───
   {

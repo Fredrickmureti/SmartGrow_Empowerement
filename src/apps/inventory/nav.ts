@@ -24,6 +24,7 @@ import {
   CalendarClock,
   Truck,
   ShieldCheck,
+  BookOpen,
 
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
@@ -53,6 +54,7 @@ export const INVENTORY_NAV: WorkspaceNav = {
       items: [
         { to: "/inventory-app/reports", label: "Stock reports", icon: BarChart3, end: true },
         { to: "/inventory-app/reports/valuation", label: "Valuation", icon: Coins },
+        { to: "/inventory-app/reports/ledger", label: "Stock ledger", icon: BookOpen },
         { to: "/inventory-app/reports/aging", label: "Aging", icon: Hourglass },
         { to: "/inventory-app/reports/integrity", label: "Integrity", icon: ShieldCheck },
 
