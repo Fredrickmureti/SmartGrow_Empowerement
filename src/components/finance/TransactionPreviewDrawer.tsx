@@ -636,6 +636,7 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
     case "manual":
     case "year_end_closing":
     case "bank_recon":
+    case "bank_reconciliation":
     case "pos_sale":
     case "purchase_return":
     case "owner_investment":
@@ -648,58 +649,92 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
     case "asset_disposal":
     case "depreciation":
     case "opening_balance": {
-      // Generic journal entry lookup for types without dedicated tables
-      const { data: je } = await supabase
-        .from("journal_entries")
-        .select("*")
-        .eq("source_type", sourceType)
-        .eq("source_id", sourceId)
-        .maybeSingle();
-
+      // Generic journal entry lookup for types without dedicated tables.
+      const je = await fetchJournalEntryBySource(sourceType, sourceId);
       if (!je) throw new Error(`${SOURCE_LABELS[sourceType] || sourceType} not found`);
-      return {
-        type: sourceType,
-        title: SOURCE_LABELS[sourceType] || sourceType,
-        subtitle: je.reference || "",
-        status: je.status || "posted",
-        amount: 0,
-        date: je.entry_date,
-        details: [
-          { icon: Calendar, label: "Date", value: format(new Date(je.entry_date), "MMM d, yyyy") },
-          { icon: Hash, label: "Entry #", value: je.entry_number || "—" },
-          { icon: FileText, label: "Description", value: je.description || "—" },
-          { icon: Tag, label: "Reference", value: je.reference || "—" },
-        ],
-        navigateTo: `/finance/journal-entries/${je.id}`,
-      };
+      return journalEntryPreview(je, SOURCE_LABELS[sourceType] || sourceType, sourceType);
     }
 
     default: {
       // Graceful fallback: attempt journal entry lookup for any unknown source type
       console.warn(`[TransactionPreviewDrawer] Unrecognized source_type "${sourceType}" — attempting JE fallback lookup`);
-      const { data: je } = await supabase
-        .from("journal_entries")
-        .select("*")
-        .eq("source_type", sourceType)
-        .eq("source_id", sourceId)
-        .maybeSingle();
-
+      const je = await fetchJournalEntryBySource(sourceType, sourceId);
       if (!je) throw new Error(`Transaction not found for type: ${sourceType}`);
-      return {
-        type: sourceType,
-        title: SOURCE_LABELS[sourceType] || sourceType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-        subtitle: je.reference || "",
-        status: je.status || "posted",
-        amount: 0,
-        date: je.entry_date,
-        details: [
-          { icon: Calendar, label: "Date", value: format(new Date(je.entry_date), "MMM d, yyyy") },
-          { icon: Hash, label: "Entry #", value: je.entry_number || "—" },
-          { icon: FileText, label: "Description", value: je.description || "—" },
-          { icon: Tag, label: "Reference", value: je.reference || "—" },
-        ],
-        navigateTo: `/finance/journal-entries/${je.id}`,
-      };
+      const title =
+        SOURCE_LABELS[sourceType] ||
+        sourceType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      return journalEntryPreview(je, title, sourceType);
     }
   }
+}
+
+interface SourcedJournalEntry {
+  id: string;
+  entry_date: string;
+  entry_number: string | null;
+  description: string | null;
+  reference: string | null;
+  status: string | null;
+  journal_entry_lines?: {
+    debit: number | null;
+    credit: number | null;
+    description: string | null;
+    accounts: { code: string | null; name: string | null } | null;
+  }[] | null;
+}
+
+/**
+ * The entry a source produced, with its lines — the lines are what carry the
+ * amount. `journal_entries` holds no amount column, so a preview built from the
+ * header alone can only show zero, which is what every generic source type used
+ * to display. Ordered + limited rather than `maybeSingle()` so a source that
+ * ever produced more than one entry still renders instead of erroring.
+ */
+async function fetchJournalEntryBySource(
+  sourceType: string,
+  sourceId: string,
+): Promise<SourcedJournalEntry | null> {
+  const { data } = await supabase
+    .from("journal_entries")
+    .select(
+      "id, entry_date, entry_number, description, reference, status, journal_entry_lines(debit, credit, description, accounts(code, name))",
+    )
+    .eq("source_type", sourceType)
+    .eq("source_id", sourceId)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  return ((data ?? [])[0] as SourcedJournalEntry | undefined) ?? null;
+}
+
+/** Shared shape for previews whose only record is the journal entry itself. */
+function journalEntryPreview(
+  je: SourcedJournalEntry,
+  title: string,
+  type: string,
+): TransactionData {
+  const lines = je.journal_entry_lines ?? [];
+  const totalDebit = lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
+  const lineSummary = lines
+    .map((l) => `${l.accounts?.code || ""} ${l.accounts?.name || ""}`.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(" • ");
+
+  return {
+    type,
+    title,
+    subtitle: lineSummary || je.description || je.reference || "",
+    status: je.status || "posted",
+    amount: totalDebit,
+    date: je.entry_date,
+    details: [
+      { icon: Calendar, label: "Date", value: format(new Date(je.entry_date), "MMM d, yyyy") },
+      { icon: Hash, label: "Entry #", value: je.entry_number || "—" },
+      { icon: FileText, label: "Description", value: je.description || "—" },
+      { icon: Tag, label: "Reference", value: je.reference || "—" },
+      { icon: Coins, label: "Lines", value: `${lines.length}` },
+    ],
+    navigateTo: `/finance/journal-entries/${je.id}`,
+  };
 }
