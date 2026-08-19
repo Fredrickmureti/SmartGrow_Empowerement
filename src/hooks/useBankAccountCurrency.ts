@@ -12,11 +12,11 @@
  */
 import { useCallback, useMemo } from "react";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCurrencyContext } from "@/contexts/CurrencyContext";
 
 export function useBankMoney() {
   const { accounts, isLoading } = useBankAccounts();
-  const { formatCurrency, baseCurrency } = useCurrency();
+  const { formatCurrency, baseCurrency } = useCurrencyContext();
 
   const byId = useMemo(() => {
     const map = new Map<string, string | null>();
