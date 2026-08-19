@@ -312,6 +312,23 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
       { key: "oldest_receipt_at", header: "Oldest Receipt", width: 14, align: "left", format: "text" },
     ],
   },
+  // Phase 6 — entity-level integrity control. Subledger side comes from the
+  // SAME layer arithmetic as inventory_valuation (shared SQL helper), so a
+  // non-zero drift means the GL is wrong, not that the two reports disagree.
+  inventory_gl_reconciliation: {
+    title: "Inventory \u21C4 GL Reconciliation",
+    orientation: "landscape",
+    formatProfile: "financial",
+    subtitle: "Inventory subledger at cost-layer value vs posted GL closing balance",
+    columns: [
+      { key: "account_code", header: "Code", width: 12, align: "left", format: "text" },
+      { key: "account_name", header: "Inventory Account", width: 30, align: "left", format: "text" },
+      { key: "subledger_value", header: "Subledger (at cost)", width: 18, align: "right", format: "currency" },
+      { key: "gl_closing", header: "GL Closing", width: 18, align: "right", format: "currency" },
+      { key: "drift", header: "Drift", width: 18, align: "right", format: "currency" },
+      { key: "exceptions", header: "Valuation exceptions", width: 26, align: "left", format: "text" },
+    ],
+  },
 
   customer_analysis: {
     title: "Customer Analysis",
