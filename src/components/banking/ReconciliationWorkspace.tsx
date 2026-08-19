@@ -107,6 +107,13 @@ export function ReconciliationWorkspace({
   const difference = calc ? calc.difference : session.closing_balance - localClearedBalance;
   const isBalanced = calc ? calc.is_balanced : Math.abs(difference) < 0.01;
 
+  // F18 — the ledger leg. The server compares the cleared statement movement
+  // with the bank GL account's posted movement; a divergence means a cleared
+  // line was posted somewhere else, and completion will be refused.
+  const tieout = calc?.gl_tieout ?? null;
+  const glDivergence = tieout?.checked ? (tieout.divergence ?? 0) : null;
+  const glDiverged = glDivergence !== null && Math.abs(glDivergence) > 0.01;
+
   // Counts
   const clearedDebitCount = debits.filter(tx => isCleared(tx)).length;
   const clearedCreditCount = credits.filter(tx => isCleared(tx)).length;
