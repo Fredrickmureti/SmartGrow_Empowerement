@@ -87402,6 +87402,27 @@ export type Database = {
         Args: { p_id: string; p_source_type: string }
         Returns: boolean
       }
+      _inventory_layer_valuation_as_of: {
+        Args: {
+          p_as_of?: string
+          p_branch?: string
+          p_business: string
+          p_category?: string
+          p_org: string
+          p_product?: string
+          p_warehouse?: string
+        }
+        Returns: {
+          branch_id: string
+          layer_count: number
+          oldest_receipt_at: string
+          product_id: string
+          qty_on_hand: number
+          total_value: number
+          warehouse_id: string
+          zero_cost_layers: number
+        }[]
+      }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
       _is_trusted_inventory_diag_context: { Args: never; Returns: boolean }
@@ -96957,7 +96978,13 @@ export type Database = {
         Returns: Json[]
       }
       list_inventory_subledger_composition: {
-        Args: { p_business?: string; p_limit?: number; p_org: string }
+        Args: {
+          p_as_of?: string
+          p_branch?: string
+          p_business?: string
+          p_limit?: number
+          p_org: string
+        }
         Returns: {
           cost_basis: string
           product_id: string
@@ -96993,12 +97020,12 @@ export type Database = {
       list_negative_stock_positions: {
         Args: { p_business?: string; p_org: string }
         Returns: {
+          avco_exposure_estimate: number
+          avco_unit_cost: number
           product_id: string
           product_name: string
           quantity: number
           sku: string
-          unit_cost: number
-          valuation_impact: number
           warehouse_id: string
           warehouse_name: string
         }[]
@@ -100701,11 +100728,11 @@ export type Database = {
           account_name: string
           business_id: string
           drift: number
-          fallback_cost_lines: number
           gl_closing: number
-          negative_qty_lines: number
+          negative_qty_positions: number
           subledger_value: number
-          zero_cost_lines: number
+          unlayered_positions: number
+          zero_cost_positions: number
         }[]
       }
       reconcile_stock_quantities: {
