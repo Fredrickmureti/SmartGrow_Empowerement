@@ -1,121 +1,123 @@
 # Inventory / Stock Reporting Wave — authoritative status
 
-**Currently active phase:** Phase 6 — Integrity + Inventory⇄GL reconciliation
-(not started).
-**Last completed:** Phase 5 — Stock Aging on cost layers (implemented and
-verified).
+**Handover verification: complete.** Phases 1–5 are genuinely implemented
+(evidence below). Phase 6 has NOT started, and verification surfaced two new
+confirmed defects that Phase 6 must fix, plus one new phase (6b).
 
-## Completed and verified
+**Currently active phase:** Phase 6 — Inventory ⇄ GL reconciliation onto the
+authoritative cost-layer valuation basis.
 
-**Phase 1 — RPC foundation + security (DONE).**
-`report_stock_ledger` and `report_inventory_valuation_as_of` are SECURITY
-DEFINER with a pinned `search_path` and assert business/branch access through
-`_assert_inventory_report_access`. Phase 1b closed the two open defects:
-`EXECUTE` revoked from `anon`/`PUBLIC` on every inventory reporting and
-diagnostic RPC (granted to `authenticated` + `service_role` only), and the
-duplicate 3-argument `reconcile_inventory_subledger_to_gl` overload dropped so
-the app's RPC call is no longer ambiguous.
-Verified by: grant query against `pg_proc` + `has_function_privilege`.
+## Verification of prior work (facts, re-checked in this codebase)
 
-**Phase 2 — server report builder (DONE).**
-`supabase/functions/_shared/reports/inventoryData.ts` builds both reports from
-the same RPCs; `columnSpecs.ts` carries the `stock_ledger` and
-`inventory_valuation` keys, so exports and the scheduler resolve canonical
-columns from the registry.
+- **Phase 1 (RPC foundation + security) — CONFIRMED.**
+  `supabase/migrations/20260819214418_*.sql` defines
+  `report_stock_ledger` and `report_inventory_valuation_as_of` as
+  `STABLE SECURITY DEFINER`, `SET search_path TO 'public'`, asserting
+  `_assert_org_member` + `_assert_inventory_report_access` (business =
+  authorization boundary; explicit branch checked via `can_access_branch`;
+  branch-null rows row-guarded). Quantity direction comes from
+  `stock_movement_signed_quantity`. Period is mandatory and validated.
+- **Phase 2 (server builder) — CONFIRMED.** `columnSpecs.ts` carries
+  `stock_ledger`, `inventory_valuation`, `inventory_aging`;
+  `render-report/index.ts` dispatches all three through
+  `_shared/reports/inventoryData.ts`.
+- **Phases 3–5 (Valuation / Stock Ledger / Stock Aging pages) — CONFIRMED.**
+  All three pages exist, read only the RPCs through
+  `src/hooks/inventory/useInventoryReportRpcs.ts` (paging on `total_rows`),
+  and type their export as `ServerBuildConfig`. No `products.stock_quantity`,
+  `warehouse_stock` or `qty × cost_price` derivation remains in these pages.
+  All three are registered, routed, and present in the Inventory sidebar.
+- **Outstanding from before (environmental, not a defect):**
+  `supabase/tests/inventory_reporting_ratchet_test.sql` still needs a signed-in
+  psql/SQL-editor session; this sandbox has no `PGHOST`.
 
-**Phase 3 — Inventory Valuation page (DONE).**
-`src/pages/reports/InventoryValuationReport.tsx` no longer computes
-`live on-hand × current AVCO`. It reads `report_inventory_valuation_as_of` via
-`useInventoryValuationAsOf` (`src/hooks/inventory/useInventoryReportRpcs.ts`,
-explicit paging on `total_rows`, 5k page size), renders through
-`ReportSurface`/`ReportTable`, and exports server-built with
-`reportType: "inventory_valuation"`. Registered as `inventory-valuation` at
-`/inventory-app/reports/valuation`.
+## New confirmed findings (this handover)
 
-**Phase 4 — Stock Ledger page (DONE).**
-New `src/pages/reports/StockLedgerReport.tsx`: opening → in → out → closing per
-product/warehouse from `report_stock_ledger` via `useStockLedger`, period +
-branch-scope filters, grand-total row, server-built export with
-`reportType: "stock_ledger"` (full dataset, canonical columns). Wired end to
-end: route `reports/ledger` in `src/apps/inventory/routes.tsx`, sidebar entry
-in `src/apps/inventory/nav.ts`, registry entry `stock-ledger` at
-`/inventory-app/reports/ledger`.
-Both pages now type their export as `ServerBuildConfig` (no casts).
+1. **Two valuation sources of truth (CRITICAL, accounting).**
+   `report_inventory_valuation_as_of` values stock from `cost_layers` +
+   `cost_layer_consumptions` reconstructed at the as-of date. But
+   `reconcile_inventory_subledger_to_gl`
+   (`supabase/migrations/20260819213514_*.sql`, line ~276) values the subledger
+   as `ws.quantity × COALESCE(NULLIF(ws.average_cost,0), p.cost_price, 0)`.
+   Consequence: the Inventory Valuation report and the Inventory ⇄ GL
+   reconciliation can disagree for the same business and date, so "drift"
+   reported against the GL is not attributable — it may be layer-vs-AVCO
+   divergence rather than a missing journal. `useInventoryReconciliation`
+   documents the AVCO basis as the contract (ADR 0017); that contract is now
+   superseded by the cost-layer ledger (ADR 0078) and must be re-based.
+2. **Reconciliation has no true as-of.** The subledger side reads the *current*
+   `warehouse_stock` snapshot, while the GL side sums posted
+   `journal_entry_lines` up to `p_as_of`. Any historical date therefore compares
+   today's stock to a past ledger — a structurally guaranteed false drift. The
+   as-of date input on `InventoryGLReconciliation.tsx` is misleading today.
+3. **Reconciliation report bypasses the unified server export.**
+   `src/pages/reports/InventoryGLReconciliation.tsx` builds a client-side
+   `ExportConfig` (rows mapped in the browser) while Phases 3–5 export
+   server-built via `reportType`. Same figure, two code paths.
+4. **Reconciliation is reachable only from Finance.** It is registered at
+   `/finance/reports/inventory-gl-reconciliation`; the Inventory workspace
+   "Integrity" entry points at `src/pages/inventory/InventoryIntegrity.tsx`
+   (quant/valuation/serial drift checks), which is a *different, correct*
+   report. This is a discoverability gap, not a duplicate report.
 
-### Verification evidence for Phases 3–4
-- `tsgo --noEmit -p tsconfig.app.json`: clean.
-- Report architecture guards pass: routing parity, nav-registry, registry key
-  coverage, single engine, data-source contract (74 assertions).
-- Known unrelated pre-existing failures (NOT caused by this wave, do not chase
-  them here): `financial-reports-scope-labeling` (Partner Ledger, Audit Trail,
-  Budget vs Actual branch scoping) and `wms-rpc-grants`.
-- `supabase/tests/inventory_reporting_ratchet_test.sql` still needs a psql
-  session; this sandbox has no `PGHOST`, so run it from the SQL editor.
+## Phase 6 — Inventory ⇄ GL reconciliation (active)
 
-**Phase 5 — Stock Aging page (DONE).**
-New RPC `public.report_inventory_aging_as_of(p_org, p_business, p_as_of,
-p_branch, p_warehouse, p_product, p_category, p_limit, p_offset)`: ages each
-*remaining cost layer* by its own `received_at` at the as-of date into
-0–30 / 31–60 / 61–90 / 90+ buckets, returning qty + value per bucket,
-`qty_on_hand`, `total_value`, `oldest_receipt_at`, `layer_count` and
-`total_rows`. Same security shape as Phase 1 (SECURITY DEFINER, pinned
-`search_path`, `_assert_org_member` + `_assert_inventory_report_access`,
-`can_access_branch` row guard, EXECUTE revoked from PUBLIC/anon, granted to
-`authenticated` + `service_role` only — verified via `has_function_privilege`).
-Server side: `inventory_aging` key in `columnSpecs.ts`, builder branch in
-`_shared/reports/inventoryData.ts`, dispatch added in
-`render-report/index.ts`. Client side:
-`src/pages/reports/StockAgingReport.tsx` fully rebuilt on
-`useInventoryAgingAsOf` (`useInventoryReportRpcs.ts`, paged on `total_rows`) —
-no more "age the product by its last inbound movement × current cost price".
-Registered as `stock-aging` at `/inventory-app/reports/aging` (route and
-sidebar entry already existed); server-built export with
-`reportType: "inventory_aging"`.
-Because the aging buckets are exhaustive and disjoint over the SAME
-`qty_as_of × unit_cost` layer arithmetic the valuation RPC uses, bucket values
-sum to `total_value`, which ties to Inventory Valuation at the same date.
+Goal: one reconciliation figure, derived from the same authoritative layer
+arithmetic as Inventory Valuation, correct at any as-of date, exported through
+the unified engine.
 
-### Verification evidence for Phase 5
-- `tsgo --noEmit -p tsconfig.app.json`: clean.
-- Guards pass: routing parity, nav-registry, registry key coverage, single
-  engine, data-source contract, filter-provider wrap, layout coverage,
-  aging-single-source, module-report-screens (120 tests).
-- Grant state confirmed: anon `false`, authenticated `true`, service_role
-  `true`, `prosecdef = true`, `search_path = public`.
-- Still outstanding (environmental, not a defect):
-  `supabase/tests/inventory_reporting_ratchet_test.sql` needs a psql session;
-  this sandbox has no `PGHOST`, and `read_query` cannot execute the reporting
-  RPCs (EXECUTE is intentionally restricted to authenticated/service_role), so
-  run the tie-out from the SQL editor as a signed-in user.
+- **6.1 Data layer.** Rewrite `reconcile_inventory_subledger_to_gl(p_org,
+  p_business, p_as_of)` so the subledger side is computed from the same
+  layer CTE used by `report_inventory_valuation_as_of` (extract that
+  arithmetic into one `_inventory_layer_valuation_as_of(...)` helper so the
+  two RPCs cannot drift again). GL side unchanged (posted
+  `journal_entry_lines` ≤ as-of; never `accounts.current_balance`).
+  Keep exception counters, but re-express them against layer data
+  (`zero_cost_layers`, `negative_qty_positions`, `unlayered_positions` — the
+  last one replaces "fallback at product cost" and is the honest measure of
+  positions the layer ledger cannot value). Preserve the security shape of
+  Phase 1 exactly: SECURITY DEFINER, pinned `search_path`, `_assert_org_member`
+  + `_assert_inventory_report_access`, EXECUTE revoked from `PUBLIC`/`anon`.
+  Entity-level by design — document that branch is not a dimension here.
+- **6.2 Server report.** Add an `inventory_gl_reconciliation` key to
+  `columnSpecs.ts` and a builder branch in `_shared/reports/inventoryData.ts`
+  reading the same RPC; add the `render-report` dispatch.
+- **6.3 UI.** Point `useInventoryReconciliation` at the re-based RPC (types
+  updated for the renamed counters), render the grid through
+  `ReportSurface`/`ReportTable` like Phases 3–5, and replace the client
+  `ExportConfig` with a `ServerBuildConfig` (`reportType:
+  "inventory_gl_reconciliation"`). Keep the drift drill-down into the GL
+  register. `InventoryReconciliationCard` (used in Finance Settings) keeps
+  consuming the same hook, so remediation logic stays in one place.
+- **6.4 Discoverability.** Register the report in the Inventory workspace
+  reporting nav as well, pointing at the single existing route — no second
+  implementation.
+- **6.5 Validation.** Extend
+  `supabase/tests/inventory_reporting_ratchet_test.sql` to assert, for the
+  same business/date: reconciliation `subledger_value` total ==
+  `report_inventory_valuation_as_of` total == sum of the four aging buckets.
+  Add a cross-business/cross-branch denial assertion for the re-based RPC and
+  a client-side guard test that this page exports server-built.
 
-## Pending
+## Phase 6b — Valuation-basis convergence (NEW, from finding 1)
 
-**Phase 6 — Integrity + Inventory⇄GL reconciliation** onto the unified engine
-with a single reconciliation RPC signature.
+`warehouse_stock.average_cost` / `products.cost_price` remain the basis for
+`detect_negative_asset_findings` and other integrity helpers
+(`20260819205917_*.sql`). Once 6.1 lands, layer valuation is authoritative:
+audit those helpers and re-base or explicitly re-label them as
+"AVCO-vs-layer divergence" checks (which is what `useValuationDrift` on the
+Integrity page already measures). No new report; correctness only.
 
-**Phase 7 — Lot/serial traceability report.**
+## Phase 7 — Lot / serial traceability report
 
-## Instructions for the next agent
+Unchanged: forward/backward trace over `stock_lots` / `stock_serials` +
+movements, as a dimension-driven report family, not per-entity pages.
 
-1. **Verify Phases 3–5 before writing anything new.** Read
-   `src/hooks/inventory/useInventoryReportRpcs.ts`,
-   `src/pages/reports/InventoryValuationReport.tsx`,
-   `src/pages/reports/StockLedgerReport.tsx` and
-   `src/pages/reports/StockAgingReport.tsx`. Confirm: no client-side value
-   derivation (no `qty × cost_price`, no `warehouse_stock`/`products.
-   stock_quantity` reads), paging honours `total_rows`, exports are
-   server-built (`reportType` + org + period, empty `rows`/`columns`), all
-   three pages are in `REPORT_REGISTRY`, routed, and reachable from the
-   Inventory sidebar. Confirm the aging RPC is still anon-denied.
-2. **Confirm the numbers tie.** In the SQL editor, signed in as a real user,
-   run `supabase/tests/inventory_reporting_ratchet_test.sql` and additionally
-   check that, for the same business and date,
-   `sum(total_value)` from `report_inventory_aging_as_of` equals
-   `sum(total_value)` from `report_inventory_valuation_as_of`, and that the
-   four aging buckets sum to that same total. Extend the ratchet test with
-   this aging assertion. Investigate any TIE-OUT warning before continuing.
-3. **Then resume at Phase 6** exactly as specified below. Do not start Phase 7,
-   and do not detour into the unrelated pre-existing test failures listed
-   above.
-4. **Update this file** as each phase closes: what is verified, what is
-   pending, active phase, next phase.
+## Rules for execution
+
+- One phase at a time, fully verified before the next.
+- No client-side accounting derivation; no second report engine; no duplicated
+  SQL — extract shared arithmetic instead.
+- Do not chase the known unrelated pre-existing failures
+  (`financial-reports-scope-labeling`, `wms-rpc-grants`).
+- Update this file as each phase closes.
