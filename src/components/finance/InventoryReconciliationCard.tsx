@@ -293,41 +293,67 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
                   <Loader2 className="h-3 w-3 animate-spin" /> Loading positions…
                 </div>
               ) : (
-                <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-muted-foreground">
-                        <th className="py-1.5 pr-4">Product</th>
-                        <th className="py-1.5 pr-4">Warehouse</th>
-                        <th className="py-1.5 pr-4 text-right">Qty</th>
-                        <th className="py-1.5 pr-4 text-right">Unit cost</th>
-                        <th className="py-1.5 pr-4">Basis</th>
-                        <th className="py-1.5 text-right">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(composition.data ?? []).map((c) => (
-                        <tr key={`${c.product_id}-${c.warehouse_id}`} className="border-t">
-                          <td className="py-1.5 pr-4">
-                            <div className="font-medium">{c.product_name}</div>
-                            <div className="text-xs text-muted-foreground">{c.sku}</div>
-                          </td>
-                          <td className="py-1.5 pr-4">{c.warehouse_name ?? "—"}</td>
-                          <td className="py-1.5 pr-4 text-right tabular-nums">{qty(c.quantity)}</td>
-                          <td className="py-1.5 pr-4 text-right tabular-nums">{fmt(c.unit_cost)}</td>
-                          <td className="py-1.5 pr-4">
-                            <Badge variant={c.cost_basis === "avco" ? "outline" : "secondary"}>
-                              {c.cost_basis === "avco"
-                                ? "AVCO"
-                                : c.cost_basis === "product_cost"
-                                  ? "Product cost"
-                                  : "No cost"}
-                            </Badge>
-                          </td>
-                          <td className="py-1.5 text-right tabular-nums">{fmt(c.value)}</td>
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Valued from the cost-layer ledger as at the reporting date — the
+                    same basis as the Inventory Valuation report. Positions with
+                    quantity but no cost layer are listed at zero and flagged.
+                  </p>
+                  <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground">
+                          <th className="py-1.5 pr-4">Product</th>
+                          <th className="py-1.5 pr-4">Warehouse</th>
+                          <th className="py-1.5 pr-4 text-right">Qty</th>
+                          <th className="py-1.5 pr-4 text-right">Unit cost</th>
+                          <th className="py-1.5 pr-4">Basis</th>
+                          <th className="py-1.5 text-right">Value</th>
                         </tr>
-                      ))}
-                    </tbody>
+                      </thead>
+                      <tbody>
+                        {(composition.data ?? []).map((c) => (
+                          <tr key={`${c.product_id}-${c.warehouse_id}`} className="border-t">
+                            <td className="py-1.5 pr-4">
+                              <div className="font-medium">{c.product_name}</div>
+                              <div className="text-xs text-muted-foreground">{c.sku}</div>
+                            </td>
+                            <td className="py-1.5 pr-4">{c.warehouse_name ?? "—"}</td>
+                            <td className="py-1.5 pr-4 text-right tabular-nums">{qty(c.quantity)}</td>
+                            <td className="py-1.5 pr-4 text-right tabular-nums">{fmt(c.unit_cost)}</td>
+                            <td className="py-1.5 pr-4">
+                              <Badge
+                                variant={
+                                  c.cost_basis === "cost_layer" ? "outline" : "secondary"
+                                }
+                              >
+                                {COST_BASIS_LABEL[c.cost_basis] ?? c.cost_basis}
+                              </Badge>
+                            </td>
+                            <td className="py-1.5 text-right tabular-nums">{fmt(c.value)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t font-semibold">
+                          <td className="py-1.5 pr-4" colSpan={5}>
+                            Listed positions
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">
+                            {fmt(
+                              (composition.data ?? []).reduce(
+                                (s, c) => s + (c.value ?? 0),
+                                0,
+                              ),
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
+              )
+            ) : null}
                   </table>
                 </div>
               )
