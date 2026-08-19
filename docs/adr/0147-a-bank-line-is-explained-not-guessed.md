@@ -1,4 +1,4 @@
-# ADR 0145 — A bank line is explained, not guessed
+# ADR 0147 — A bank line is explained, not guessed
 
 Status: Accepted
 Date: 2026-08-19
