@@ -53,7 +53,7 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
   );
 
   const negative = useNegativeStockPositions(showNegative);
-  const composition = useInventorySubledgerComposition(showComposition);
+  const composition = useInventorySubledgerComposition(showComposition, asOf);
   const explanation = useInventoryDriftExplanation(asOf, hasDrift);
 
   return (
