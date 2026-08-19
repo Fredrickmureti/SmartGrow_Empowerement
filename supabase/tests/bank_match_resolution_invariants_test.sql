@@ -454,10 +454,7 @@ BEGIN
   FOREACH k IN ARRAY ARRAY['invoice','bill','expense','transfer','manual',
                            'payment','bill_payment','account']
   LOOP
-    BEGIN
-      PERFORM 1 WHERE k = ANY (ARRAY['x']);
-      EXECUTE 'SELECT 1 FROM public.bank_transactions WHERE reconciled_type = $1' USING k;
-    EXCEPTION WHEN OTHERS THEN RAISE; END;
+
 
     IF NOT EXISTS (
       SELECT 1 FROM pg_constraint c
