@@ -441,6 +441,20 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "stock",
     keywords: ["stock", "inventory", "valuation", "movement", "warehouse"],
   },
+  {
+    // Value ledger, as at a date. Reads `report_inventory_valuation_as_of`
+    // (cost-layer reconstruction), never live on-hand × current AVCO.
+    id: "inventory-valuation",
+    name: "Inventory Valuation",
+    description: "Cost-layer inventory value as at a date",
+    category: "inventory",
+    path: "/inventory-app/reports/valuation",
+    icon: Boxes,
+    requiredFeature: "reports_stock",
+    permission: "viewReports",
+    reportType: "inventory_valuation",
+    keywords: ["inventory", "valuation", "cost", "avco", "as of", "stock value"],
+  },
 
   // ─── Management & BI ───
   {
