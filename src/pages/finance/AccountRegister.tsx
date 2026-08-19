@@ -95,18 +95,19 @@ function AccountRegisterInner() {
   useEffect(() => {
     let cancelled = false;
     setOpeningBalanceJEId(null);
-    if (!currentOrg?.id || !accountId) return;
+    // No company in context = no single set of books to read; the register
+    // renders the consolidation gate instead, so skip the lookup entirely.
+    if (!currentOrg?.id || !currentBusiness?.id || !accountId) return;
     (async () => {
-      let q = supabase
+      const { data } = await supabase
         .from("journal_entries")
         .select("id, journal_entry_lines!inner(account_id)")
         .eq("organization_id", currentOrg.id)
+        .eq("business_id", currentBusiness.id)
         .eq("source_type", "migration")
         .eq("journal_entry_lines.account_id", accountId)
         .order("entry_date", { ascending: true })
         .limit(1);
-      q = q.eq("business_id", currentBusiness!.id);
-      const { data } = await q;
       if (!cancelled && data && data.length > 0) {
         setOpeningBalanceJEId(data[0].id as string);
       }
@@ -119,32 +120,29 @@ function AccountRegisterInner() {
     dateTo,
     accountIds: accountId ? [accountId] : undefined,
     includeZeroActivity: false,
+    // Same branch dimension as the GL report / Trial Balance, so a
+    // branch-scoped statement can be tied back to this register.
+    branchId: filters.branchId,
   });
 
   const accountData = data?.accounts?.[0];
   const transactions = accountData?.transactions || [];
 
-  // Filter transactions by search
-  const filteredTransactions = searchQuery
-    ? transactions.filter(t =>
-        t.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.entry_number?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : transactions;
-
-  // Running balance
+  // Filter transactions by search. The running balance is a LEDGER property
+  // (computed once in `useGeneralLedger` over the full period), never
+  // recomputed over the visible subset — otherwise a search term would
+  // silently produce partial cumulative balances.
   const transactionsWithBalance = useMemo(() => {
-    const isDebitNormal = ["asset", "expense"].includes(accountData?.account_type || "asset");
-    let running = accountData?.opening_balance || 0;
-    return filteredTransactions.map(t => {
-      if (isDebitNormal) {
-        running += (t.debit_amount || 0) - (t.credit_amount || 0);
-      } else {
-        running += (t.credit_amount || 0) - (t.debit_amount || 0);
-      }
-      return { ...t, runningBalance: running };
-    });
-  }, [filteredTransactions, accountData?.opening_balance, accountData?.account_type]);
+    const q = searchQuery.trim().toLowerCase();
+    const visible = q
+      ? transactions.filter(t =>
+          t.description?.toLowerCase().includes(q) ||
+          t.entry_number?.toLowerCase().includes(q)
+        )
+      : transactions;
+    return visible.map(t => ({ ...t, runningBalance: t.running_balance }));
+  }, [transactions, searchQuery]);
+
 
   const getExportConfig = useCallback((): ExportConfig => {
     const columns: ExportColumn[] = [
