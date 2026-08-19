@@ -46,11 +46,19 @@ export function formatDate(date: string | Date): string {
 }
 
 /**
- * Format large numbers in compact notation (e.g., 1.2M, 5.8B)
- * Useful for dashboard cards where space is limited
+ * Format large numbers in compact notation (e.g., 1.2M, 5.8B).
+ * Same currency contract as `formatCurrency`: no default, and an unknown
+ * currency renders the number bare rather than borrowing one (ADR 0136).
  */
-export function formatCompactNumber(amount: number, currency: string = "USD"): string {
+export function formatCompactNumber(amount: number, currency?: string | null): string {
   const absAmount = Math.abs(amount);
+
+  if (!currency) {
+    if (absAmount >= 1_000_000_000) return `${(amount / 1_000_000_000).toFixed(1)}B`;
+    if (absAmount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
+    return formatCurrency(amount, null);
+  }
+
   
   // Only use compact notation for very large numbers (1 million+)
   if (absAmount >= 1_000_000) {
