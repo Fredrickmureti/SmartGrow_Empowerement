@@ -638,17 +638,23 @@ export default function ImportStatementWizardPage() {
 interface MapFieldProps {
   label: string;
   value: string | undefined;
-  headers: string[];
+  columns: ParsedStatementColumn[];
   optional?: boolean;
   onChange: (v: string) => void;
 }
 
-function MapField({ label, value, headers, optional, onChange }: MapFieldProps) {
+/**
+ * Column picker. Option values are `column.key` — guaranteed non-empty and
+ * unique by the parser — so a blank or duplicated header in the source file
+ * can never become an empty selectable value. "Not mapped" is represented by
+ * the placeholder (required fields) or the `__none__` sentinel (optional).
+ */
+function MapField({ label, value, columns, optional, onChange }: MapFieldProps) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       <Select
-        value={value || (optional ? "__none__" : "")}
+        value={value || (optional ? "__none__" : undefined)}
         onValueChange={(v) => onChange(optional && v === "__none__" ? "" : v)}
       >
         <SelectTrigger>
@@ -656,13 +662,19 @@ function MapField({ label, value, headers, optional, onChange }: MapFieldProps) 
         </SelectTrigger>
         <SelectContent>
           {optional && <SelectItem value="__none__">None</SelectItem>}
-          {headers.map((h, i) => (
-            <SelectItem key={i} value={h}>
-              {h}
+          {columns.map((col) => (
+            <SelectItem key={col.key} value={col.key}>
+              <span>{col.key}</span>
+              {col.sample && (
+                <span className="ml-2 text-muted-foreground">
+                  e.g. {col.sample}
+                </span>
+              )}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     </div>
   );
+
 }
