@@ -182,7 +182,7 @@ const mainNavItems: NavItem[] = [
   { title: "Budgets", href: "/budgets", icon: Target, permission: "viewFinancials" },
   { title: "Banking", href: "/banking", icon: Landmark, permission: "viewFinancials" },
   { title: "Bank Feeds", href: "/bank-feeds", icon: ListFilter, permission: "viewFinancials" },
-  { title: "Reconciliation", href: "/bank-reconciliation", icon: GitCompare, permission: "viewFinancials" },
+  { title: "Reconciliation", href: "/finance/reconciliation", icon: GitCompare, permission: "viewFinancials" },
   { title: "Audit Logs", href: "/audit-logs", icon: History, permission: "viewAuditLogs" },
 ];
 
