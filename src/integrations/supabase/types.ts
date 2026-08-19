@@ -100688,42 +100688,26 @@ export type Database = {
         }
         Returns: Json
       }
-      reconcile_inventory_subledger_to_gl:
-        | {
-            Args: { p_as_of?: string; p_business?: string; p_org: string }
-            Returns: {
-              account_code: string
-              account_id: string
-              account_name: string
-              business_id: string
-              drift: number
-              fallback_cost_lines: number
-              gl_closing: number
-              negative_qty_lines: number
-              subledger_value: number
-              zero_cost_lines: number
-            }[]
-          }
-        | {
-            Args: {
-              p_as_of?: string
-              p_branch?: string
-              p_business?: string
-              p_org: string
-            }
-            Returns: {
-              account_code: string
-              account_id: string
-              account_name: string
-              business_id: string
-              drift: number
-              fallback_cost_lines: number
-              gl_closing: number
-              negative_qty_lines: number
-              subledger_value: number
-              zero_cost_lines: number
-            }[]
-          }
+      reconcile_inventory_subledger_to_gl: {
+        Args: {
+          p_as_of?: string
+          p_branch?: string
+          p_business?: string
+          p_org: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          business_id: string
+          drift: number
+          fallback_cost_lines: number
+          gl_closing: number
+          negative_qty_lines: number
+          subledger_value: number
+          zero_cost_lines: number
+        }[]
+      }
       reconcile_stock_quantities: {
         Args: { p_business_id: string; p_organization_id: string }
         Returns: {
