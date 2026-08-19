@@ -700,6 +700,27 @@ export function ReconcileTransactionSheet({
           </TabsContent>
 
           <TabsContent value="invoices" className="mt-4">
+            {clearableCandidates.length > 0 && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <p className="text-xs text-muted-foreground">
+                  A receipt of {formatTxn(transactionAmount)} is already recorded for this amount.
+                  Settling an invoice here records the money a second time — check the{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline"
+                    onClick={() => setActiveTab("recorded")}
+                  >
+                    Recorded
+                  </button>{" "}
+                  tab first.
+                </p>
+              </div>
+            )}
+            <p className="mb-3 text-xs text-muted-foreground">
+              The selected invoices must add up to {formatTxn(transactionAmount)} — the bank line is
+              settled in full or not at all.
+            </p>
             {selectedInvoiceIds.length > 0 && (
               <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
                 <span className="text-xs font-medium">
