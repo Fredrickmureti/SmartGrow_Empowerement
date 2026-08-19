@@ -193,12 +193,19 @@ function AccountRegisterInner() {
       description={account ? `${account.account_type.charAt(0).toUpperCase() + account.account_type.slice(1)} account • ${account.detail_type || "General"}` : "Loading..."}
       isLoading={isLoading}
       error={error as Error | null}
-      isEmpty={!isLoading && transactionsWithBalance.length === 0}
+      // A register with no movement is NOT empty when the account carries a
+      // balance forward: "nil movement, balance b/f X" is itself the answer.
+      isEmpty={
+        !isLoading &&
+        transactionsWithBalance.length === 0 &&
+        (accountData?.opening_balance || 0) === 0 &&
+        (accountData?.closing_balance || 0) === 0
+      }
       emptyState={{
         kind: "no_data",
         title: "No activity on this account",
         message:
-          "The account has no posted journal lines in the selected period. Widen the date range or check whether the entries are still in draft.",
+          "The account has no posted journal lines in the selected period and no balance carried forward. Widen the date range or check whether the entries are still in draft.",
       }}
       getExportConfig={getExportConfig}
       headerActions={
