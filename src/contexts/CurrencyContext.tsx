@@ -202,16 +202,12 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     await fetchExchangeRates();
   };
 
-  // isReady is true when we have a cached currency OR when currencies have loaded
+  // Ready once a base currency is actually known (cached from the business
+  // or freshly loaded). No currency-code special-casing: any known code counts.
   const isReady = useMemo(() => {
-    // If we have a cached baseCurrency from localStorage and it's not the default "USD",
-    // we're ready immediately
-    const cachedCurrency = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-    if (cachedCurrency && cachedCurrency !== "USD") {
-      return true;
-    }
-    // Otherwise, wait for currencies to load
+    if (baseCurrency) return true;
     return currenciesLoaded;
+
   }, [currenciesLoaded]);
 
   const value = useMemo(
