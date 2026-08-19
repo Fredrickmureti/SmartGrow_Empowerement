@@ -34,6 +34,8 @@ const SKIP_COPY: Record<string, string> = {
     "An opening inventory journal has already been posted for this company. Posting again would double-count inventory, so this action is blocked.",
   no_zero_cost_opening_movements:
     "There are no zero-cost opening stock movements to value. The drift you are seeing comes from something else — check “Difference explained”.",
+  no_layer_basis_drift:
+    "The cost-layer reconciliation shows no shortfall on the Inventory control account at this date, so there is nothing to bring on. Posting anyway would create new drift.",
   period_locked:
     "The accounting period that would receive this entry is locked. Re-open the period, or choose an as-at date in an open period.",
 };
