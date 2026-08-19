@@ -4,82 +4,109 @@ Source of truth for this wave. Full design rationale and findings F1–F9 live i
 `.lovable/plan/reconciliation-engine-execution-plan-2026-08-19.md`; this file
 tracks what is done, what is not, and what happens next.
 
-Last updated: 2026-08-19 (verification turn 2 — independent audit of the
-previous engineer's claims, plus Phase 8 execution).
+Last updated: 2026-08-19 (turn 3 — Phase 10 executed).
 
-## Verification verdict (turn 2)
+## Current phase
 
-Every "Implemented" claim below was re-checked against the **live database**
-(`pg_proc` definitions, ACLs, indexes) and the **current client code**, not
-against the previous engineer's notes.
+**Phase 10 — feed → matching automation hardening: implemented, contract-proven,
+behavioural proof pending.** Phases 1–9 are closed.
 
-| # | Phase | Claim | Verdict | Evidence |
-|---|-------|-------|---------|----------|
-| 1 | Validator extension | Implemented | **Pass** | `_bank_match_validate` (single overload, pinned `search_path`, STABLE): per-kind direction checks, cross-company `42501`, cross-branch, currency-vs-bank-account, over-allocation, mixed kinds, and the gross amount law `Σalloc = |txn| ± fee` |
-| 2 | Fee model + clearing resolutions | Implemented | **Pass** | `bank_match_confirm`: clearing branch posts bank↔holding only and never calls a settlement engine; fee is its own two-line `BFEE-` entry; residual its own `BADJ-` entry; documents settle gross |
-| 3 | Kind-aware reversal delegate | Implemented | **Pass (with F11, now fixed)** | `unreconcile_bank_transaction` delegates to `void_payment_atomic` / `void_bill_payment_atomic` / `void_journal_entry_atomic`, voids residual+fee+write-off entries, marks matches `reversed` (never deletes) |
-| 4 | Candidate/evidence engine | Implemented | **Pass** | `bank_match_candidates(_txn_id,_limit)` asserts membership, returns evidence; `get_reconciliation_match_suggestions` confirmed **absent** from the database |
-| 5 | Transfer folded into the seam | Implemented | **Pass** | `reconcile_bank_transfer_atomic` is a pure wrapper over `bank_match_propose` + `bank_match_confirm`; unique index `bank_reconciliation_matches_one_confirmed` exists |
-| 6 | Rules subordinate to accounting truth | Implemented | **Pass** | `apply_reconciliation_rules` asserts membership, skips with `DOCUMENT_CANDIDATE_EXISTS`, proposes through the seam |
-| 7 | Client workspace | Implemented | **Pass** | `useBankMatchCandidates.ts` → `bank_match_candidates`; `useBankTransactions.ts` → one `propose`+`confirm` per line with N allocations and `_fee_amount`; `TransferReconcileSheet.tsx` → wrapper only |
-| 8 | Validation & ratchets | Partially done | **Now complete** | see below |
-| 9 | ADR | Implemented | **Pass (renumbered)** | now `docs/adr/0147-a-bank-line-is-explained-not-guessed.md` |
+## Roadmap status
 
-Privilege check (live): none of `bank_match_propose/confirm/reject/reverse`,
-`bank_match_candidates`, `unreconcile_bank_transaction`,
-`reconcile_bank_transfer_atomic`, `apply_reconciliation_rules` grant EXECUTE to
-`anon` or `PUBLIC`; all are SECURITY DEFINER with `search_path=public` and have
-exactly one overload.
+| # | Phase | Status | Evidence |
+|---|-------|--------|----------|
+| 1 | Validator extension (new kinds, branch + currency assertions, gross settlement + named residual) | Closed | `_bank_match_validate`; re-verified live turn 2 |
+| 2 | Fee model fix + `payment` / `bill_payment` clearing resolutions | Closed | `bank_match_confirm`; F10 fixed turn 2 |
+| 3 | Kind-aware reversal delegate | Closed | `unreconcile_bank_transaction`; F11 fixed turn 2 |
+| 4 | Candidate/evidence engine; broken suggestions RPC retired | Closed | `bank_match_candidates`; `get_reconciliation_match_suggestions` absent from the DB |
+| 5 | Transfer folded into the seam + single-confirmed-match unique index | Closed | `reconcile_bank_transfer_atomic`; partial unique index |
+| 6 | Rules subordinated to accounting truth | Closed | `apply_reconciliation_rules` |
+| 7 | Client workspace: one multi-allocation propose/confirm, evidence-led review | Closed | `useBankMatchCandidates.ts`, `ReconcileTransactionSheet.tsx`, `BankReconciliation.tsx` |
+| 8 | Validation & ratchets | Closed turn 2 | `bank_match_resolution_invariants_test.sql`, hardened `banking_privilege_ratchet_test.sql`, 10 green Vitest ratchets |
+| 9 | ADR | Closed | `docs/adr/0147-a-bank-line-is-explained-not-guessed.md` |
+| 10 | Feed → matching automation hardening | **Implemented — contract-proven, behaviour pending** | this turn; see below |
 
-## New findings from this audit (both fixed this turn)
+## Turn 2 summary (verification + Phase 8)
 
-**F10 — a bank charge could ride on a receipt already banked here.**
-- Evidence: in `bank_match_confirm`'s clearing branch, an allocation whose
-  holding account equals the bank's own GL is skipped (`CONTINUE`), so
-  `_clearing` excludes it. With `fee_amount > 0` and every allocation direct,
-  no clearing entry is posted but the `BFEE-` entry still credits the bank —
-  bank delta `-fee` instead of the statement amount.
-- Impact: the reconciled bank balance would disagree with the statement.
-- Change: `_bank_match_validate` now refuses with
-  `BANK_MATCH_FEE_ON_DIRECT_PAYMENT` for both `payment` and `bill_payment`.
-  (The `bill_payment` branch also now resolves its holding account, which it
-  previously never read.)
+Every phase-1–9 claim was re-derived from the live database (`pg_get_functiondef`,
+ACLs, indexes) and the current client code. All passed. Two real corruption
+paths were found and fixed:
 
-**F11 — reversal could overstate a document balance.**
-- Evidence: `unreconcile_bank_transaction` fell through to
-  `void_journal_entry_atomic(_txn.journal_entry_id)` when
-  `_kind = 'invoice'/'bill'` but `matched_payment_id` / `matched_bill_payment_id`
-  was NULL — voiding the settlement journal while leaving
-  `invoices.amount_paid` / `bills.amount_paid` and the allocations intact.
-- Impact: silent AR/AP corruption; the document reads as paid with no payment.
-- Change: refuses with `BANK_UNRECONCILE_MISSING_SETTLEMENT`.
+- **F10** — a bank charge could ride on a receipt already banked to this
+  account, leaving the bank leg short by the fee. Now refused with
+  `BANK_MATCH_FEE_ON_DIRECT_PAYMENT`.
+- **F11** — reversing an invoice/bill match whose settlement row was missing
+  voided the journal but left `amount_paid` standing. Now refused with
+  `BANK_UNRECONCILE_MISSING_SETTLEMENT`.
 
-## Phase 8 — closed this turn
+## Turn 3 — Phase 10, implemented this turn
 
-1. `supabase/tests/bank_match_resolution_invariants_test.sql` (new): contract
-   assertions for every resolution kind, the refusal vocabulary, the gross
-   amount law, the kind-aware reversal, the one-confirmed-match index and rule
-   subordination — plus two behavioural blocks (self-rolled-back): the
-   undeposited-receipt clearing scenario (no duplicate payment, bank leg equals
-   the statement exactly once, holding account drains to zero, repeat confirm is
-   a no-op, receipt cannot be deposited twice, reverse leaves the receipt valid)
-   and composed-row refusals (unbalanced, cross-company, unknown kind, wrong
-   direction, partial deposit, charge-on-direct).
-2. `supabase/tests/banking_privilege_ratchet_test.sql` extended: the evidence
-   engine, transfer wrapper, reversal delegate and rules engine are asserted
-   single-overload, SECURITY DEFINER, `search_path`-pinned, not `anon`-callable,
-   and membership-asserting; the retired suggestion RPC must stay absent.
-3. `src/test/architecture/banking-match-resolution.test.ts` extended (10 tests,
-   green): no client write to `bank_reconciliation_matches`; a transfer uses the
-   wrapper and never a hand-rolled propose/confirm; undo routes through
-   `unreconcile_bank_transaction` and never deletes journal rows; no client-side
-   account resolution or journal posting.
-4. ADR renumbered: `0145-a-bank-line-is-explained-not-guessed.md` →
-   `0147-…`; `docs/adr/README.md` highest-allocated updated to 0147.
+Investigation focus: what happens the *second* time a line is explained, which
+is what a feed and a re-import do. Ingest was found sound (fingerprint +
+`ON CONFLICT (bank_account_id, external_transaction_id) DO NOTHING`, zero-amount
+and cross-currency rejection, locked-period rejection). The explanation layer
+was not. Five defects found and fixed:
 
-Regression pass: `banking-reconciliation-seam`, `banking-write-seam`,
-`banking-currency-integrity`, `reconciliation-business-level-gating`,
-`reversal-writer-monopoly`, `journal-posting-monopoly` — all green.
+- **F12** — `bank_match_candidates` never inspected the line's own match, so an
+  already-reconciled deposit still returned a "certain" suggestion to settle the
+  invoice again. Now short-circuits to tier `settled`, zero candidates,
+  `existing_match_id` and a plain-English reason.
+- **F13** — a line already carrying a *proposed* match got a fresh candidate
+  set, so one line could accumulate competing proposals. Now tier `proposed`.
+- **F14** — only *confirmed* matches removed a document from the pool, so two
+  bank lines could each hold an open proposal against the same invoice, receipt,
+  bill or mirror transfer line. Reservation now starts at the proposal, asked in
+  one place: `_bank_doc_is_spoken_for(kind, id)` (internal — no `anon`, no
+  `authenticated` EXECUTE), applied to all five candidate classes.
+- **F15** — the multi-receipt deposit query aggregated every valid combination
+  into one row and then required exactly two members, so *two* possibilities
+  produced no candidate at all. Each combination is now its own candidate, so N
+  possibilities tie and the line reads `ambiguous`.
+- **F16** — the rules runner re-proposed lines that already had a match and
+  resolved a tie between two equally-ranked rules by creation order. It now
+  skips matched lines, refuses with `AMBIGUOUS_RULE_MATCH`, skips
+  `LINE_ALREADY_EXPLAINED`, and never auto-posts an ambiguous line
+  (`AMBIGUOUS_NOT_AUTO_POSTED`).
+
+Client surface completed in the same turn (no orphaned server behaviour): the
+two new tiers are typed, given operator copy ("Awaiting review", "Reconciled"),
+the badge variant handles them, and the sheet shows the server's reason instead
+of an empty suggestion panel. `isExplainedTier()` names the distinction.
+
+Recorded as **ADR-0148 — an automation may only post what is unambiguous**;
+`docs/adr/README.md` highest-allocated bumped to 0148.
+
+### Verified this turn
+
+- Both migrations applied clean; `bank_match_candidates` and
+  `apply_reconciliation_rules` remain single-overload, SECURITY DEFINER,
+  `search_path=public`, `authenticated`-only; `_bank_doc_is_spoken_for` is
+  `service_role`-only (the project's default grant to `anon` was explicitly
+  revoked — a bare `REVOKE … FROM PUBLIC` was not enough).
+- `supabase/tests/bank_match_automation_invariants_test.sql` (new) asserts every
+  point above as a contract, plus ingest idempotence and the unique index behind
+  it.
+- `bunx tsgo --noEmit -p tsconfig.app.json` clean.
+
+### Not yet verified (Phase 10's open work)
+
+Behavioural (pgTAP, live rows) proof for:
+
+- A reconciled line returns `settled` with zero candidates; a proposed line
+  returns `proposed`.
+- The same invoice cannot be proposed on two bank lines.
+- Two receipt combinations for one deposit yield two candidates and tier
+  `ambiguous`.
+- A rules sweep run twice produces one proposal, not two.
+- Two equally-ranked rules matching one line produce `AMBIGUOUS_RULE_MATCH` and
+  no posting.
+
+The behavioural blocks belong in
+`supabase/tests/bank_match_automation_invariants_test.sql`, following the
+self-rolled-back shape used in `bank_match_resolution_invariants_test.sql`
+section 6. Note that `read_query` cannot exercise these (the seams assert
+membership via `assert_can_reconcile_bank`, and the internal helpers are
+`service_role`-only), so they must run through `supabase test db`.
 
 ## Known open items (not reconciliation)
 
@@ -89,23 +116,33 @@ Regression pass: `banking-reconciliation-seam`, `banking-write-seam`,
   `business_event_outbox` directly from non-admin UI. Left untouched
   deliberately; belongs to the warehouse events wave.
 
-## Next milestone
+## Next milestone (do this next, nothing else)
 
-Reconciliation Phase 8 is closed. The next roadmap item is **bank feed →
-matching automation hardening**: the deterministic auto-post tier in
-`apply_reconciliation_rules` currently proves only that it *skips* when a
-document candidate exists. What is still unproven behaviourally is the tie
-handling in `bank_match_candidates` (two equally-strong candidates must degrade
-to `ambiguous` and never auto-post) and the feed-replay path (a re-imported
-statement must not produce a second candidate set for an already-reconciled
-line). Start there, with a behavioural block in the new SQL suite.
+1. **Close Phase 10 behaviourally** — the five scenarios listed above.
+2. Then, and only then, move to the next roadmap item: **reconciliation session
+   closure**. The session (`bank_reconciliation_sessions`) currently freezes and
+   reports, but it has no proven relationship to the matches inside its window —
+   i.e. it is not yet demonstrable that a completed session's computed
+   difference equals the bank GL movement for the period, nor that a match
+   cannot be created or reversed inside a completed session's window without
+   reopening it. Verify those two invariants first, then implement what is
+   missing.
 
 ## Instructions for the next agent
 
-1. Do not trust this file's verdicts either — re-derive them from
-   `pg_get_functiondef` and the client hooks before extending anything.
-2. Keep the two new refusal codes (`BANK_MATCH_FEE_ON_DIRECT_PAYMENT`,
-   `BANK_UNRECONCILE_MISSING_SETTLEMENT`) covered by the SQL suite; they are the
-   only guard against the two corruption paths found in this audit.
-3. Keep this file current: the status table, the findings, and the next
+1. **Verify before you build.** Do not extend Phase 10 or start session closure
+   until you have re-derived this turn's claims yourself: read
+   `bank_match_candidates`, `_bank_doc_is_spoken_for` and
+   `apply_reconciliation_rules` from the live database with
+   `pg_get_functiondef`, confirm the short-circuit precedes every candidate
+   class, confirm the reservation covers `proposed` as well as `confirmed`, and
+   confirm `_bank_doc_is_spoken_for` grants EXECUTE to `service_role` only.
+2. **Record the verdict here** (pass/fail per item) before changing code. If
+   something fails, repair it to a coherent production state before layering new
+   work on top.
+3. **Keep the whole workflow intact.** Any new server tier, refusal code or
+   candidate kind must reach the operator in `useBankMatchCandidates.ts` and the
+   reconciliation sheet in the same turn — no server behaviour without its UI
+   surface.
+4. **Keep this file current**: status table, findings, open items and next
    milestone, at the end of every turn.
