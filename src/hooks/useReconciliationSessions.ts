@@ -262,6 +262,31 @@ export function useReconciliationSessions(bankAccountId?: string) {
     }
   };
 
+  /**
+   * F17 — reopening a completed reconciliation is a deliberate, audited act.
+   * The server refuses without a reason, out of statement order, or in a
+   * locked period.
+   */
+  const reopenSession = async (sessionId: string, reason: string) => {
+    try {
+      setIsSaving(true);
+      const { error } = await (supabase as any).rpc("bank_reconciliation_session_reopen", {
+        _session_id: sessionId,
+        _reason: reason,
+      });
+      if (error) throw error;
+      await fetchSessions();
+      toast.success("Reconciliation reopened");
+      return true;
+    } catch (error) {
+      console.error("Error reopening session:", error);
+      toast.error(mapReconcilePermErr(error) ?? "Failed to reopen reconciliation");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return {
     sessions,
     activeSession,
@@ -273,7 +298,9 @@ export function useReconciliationSessions(bankAccountId?: string) {
     writeOffSession,
     completeSession,
     cancelSession,
+    reopenSession,
     fetchSessions,
   };
 }
+
 
