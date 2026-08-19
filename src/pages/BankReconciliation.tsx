@@ -111,7 +111,7 @@ export default function BankReconciliation() {
   // Money on this page always belongs to a bank account; format it in that
   // account's currency, never in a formatter default (ADR 0136).
   const { formatBankAmount } = useBankMoney();
-  const { transactions, isLoading, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
+  const { transactions, isLoading, loadError, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
   const { activeSession, startSession, writeOffSession, completeSession, cancelSession, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
   const { data: matchSuggestions = [], isLoading: suggestionsLoading } = useReconciliationSuggestions(selectedAccount !== "all" ? selectedAccount : undefined);
 
