@@ -528,6 +528,74 @@ export function ReconcileTransactionSheet({
         )}
 
 
+        {/*
+          An open proposal is an answer the operator owes, not a wall. Show what
+          was proposed and let it be confirmed or rejected through the seam.
+        */}
+        {pendingMatch && (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardContent className="space-y-3 pt-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium">A match is already proposed for this line</p>
+                  <p className="text-xs text-muted-foreground">
+                    Nothing has been posted yet. Confirm it to settle this line, or reject it to
+                    match the line yourself. While it stands, no suggestions are offered.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1 rounded-md border bg-background p-2">
+                {pendingMatch.allocations.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No allocations recorded.</p>
+                ) : (
+                  pendingMatch.allocations.map((a, idx) => (
+                    <div
+                      key={`${a.document_id}-${idx}`}
+                      className="flex items-center justify-between gap-2 text-xs"
+                    >
+                      <span className="truncate">
+                        {a.description ?? a.document_type.replace(/_/g, " ")}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {formatTxn(Number(a.amount) || 0)}
+                      </span>
+                    </div>
+                  ))
+                )}
+                {pendingMatch.fee_amount > 0 && (
+                  <div className="flex items-center justify-between gap-2 border-t pt-1 text-xs">
+                    <span>Bank charge</span>
+                    <span className="font-medium tabular-nums">
+                      {formatTxn(pendingMatch.fee_amount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => confirmPending.mutate(pendingMatch.id)}
+                  disabled={confirmPending.isPending || rejectPending.isPending}
+                >
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                  {confirmPending.isPending ? "Confirming…" : "Confirm match"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => rejectPending.mutate(pendingMatch.id)}
+                  disabled={confirmPending.isPending || rejectPending.isPending}
+                >
+                  <X className="mr-1.5 h-3.5 w-3.5" />
+                  {rejectPending.isPending ? "Rejecting…" : "Reject"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -539,8 +607,15 @@ export function ReconcileTransactionSheet({
           />
         </div>
 
-        <Tabs defaultValue={isCredit ? "invoices" : "bills"}>
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs
+          value={activeTab ?? (isCredit ? "invoices" : "bills")}
+          onValueChange={setActiveTab}
+        >
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="recorded" className="gap-1.5">
+              <Banknote className="h-3.5 w-3.5" />
+              Recorded
+            </TabsTrigger>
             <TabsTrigger value="invoices" disabled={!isCredit} className="gap-1.5">
               <FileText className="h-3.5 w-3.5" />
               Invoices
@@ -558,6 +633,71 @@ export function ReconcileTransactionSheet({
               Journal
             </TabsTrigger>
           </TabsList>
+
+          {/*
+            Clearing money already recorded. Choosing here does not settle
+            anything new — it moves money out of the account it is waiting in.
+          */}
+          <TabsContent value="recorded" className="mt-4">
+            <p className="mb-3 text-xs text-muted-foreground">
+              {isCredit
+                ? "Receipts already recorded and waiting to be banked. Depositing one moves it out of its holding account — it does not settle the invoice again."
+                : "Supplier payments already recorded and waiting to present at the bank."}
+            </p>
+            {clearableCandidates.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No recorded {isCredit ? "receipt" : "payment"} of {formatTxn(transactionAmount)} is
+                waiting. A recorded {isCredit ? "receipt" : "payment"} is cleared in full, so only
+                an exact amount can explain this line.
+              </p>
+            ) : (
+              <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
+                {clearableCandidates.map((candidate) => {
+                  const isSelected = selectedRecordedId === candidate.id;
+                  return (
+                    <Label
+                      key={candidate.id}
+                      className={cn(
+                        "flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50",
+                        isSelected && "border-primary bg-primary/5",
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleRecordedSelection(candidate.id);
+                      }}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Checkbox checked={isSelected} />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {candidate.partyName ?? "Unnamed party"}
+                            </span>
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                              Exact
+                            </Badge>
+                          </div>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {formatDate(candidate.date)}
+                            {candidate.reference && <> • Ref {candidate.reference}</>}
+                            {candidate.method && <> • {candidate.method.replace(/_/g, " ")}</>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-medium tabular-nums">
+                          {formatTxn(candidate.amount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isCredit ? "Not yet banked" : "Not yet cleared"}
+                        </p>
+                      </div>
+                    </Label>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="invoices" className="mt-4">
             {selectedInvoiceIds.length > 0 && (
