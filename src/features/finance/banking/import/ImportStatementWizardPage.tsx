@@ -632,10 +632,24 @@ export default function ImportStatementWizardPage() {
             {importResult.failed > 0 && (
               <span className="text-red-600">
                 <X className="mr-1 inline h-4 w-4" />
-                {importResult.failed} failed
+                {importResult.failed} skipped
               </span>
             )}
           </div>
+
+          {importResult.rejectedRows.length > 0 && (
+            <div className="mx-auto mt-4 max-w-lg rounded-lg border p-3 text-left">
+              <p className="mb-2 text-sm font-medium">Skipped rows</p>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {importResult.rejectedRows.slice(0, 10).map((r) => (
+                  <li key={r.row}>Row {r.row}: {r.reason}</li>
+                ))}
+                {importResult.rejectedRows.length > 10 && (
+                  <li>+{importResult.rejectedRows.length - 10} more</li>
+                )}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </WizardShell>
