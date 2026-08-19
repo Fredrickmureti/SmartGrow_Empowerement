@@ -87056,6 +87056,10 @@ export type Database = {
         }
         Returns: string
       }
+      _bank_recon_closed_session: {
+        Args: { _bank_account_id: string; _txn_date: string }
+        Returns: string
+      }
       _bank_reconciliation_assert_account: {
         Args: { _bank_account_id: string }
         Returns: {
@@ -87101,6 +87105,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _bank_reconciliation_gl_tieout: {
+        Args: { _session_id: string }
+        Returns: Json
       }
       _bank_reconciliation_recompute: {
         Args: { _session_id: string }
@@ -90724,6 +90732,10 @@ export type Database = {
       }
       bank_reconciliation_session_complete: {
         Args: { _session_id: string }
+        Returns: Json
+      }
+      bank_reconciliation_session_reopen: {
+        Args: { _reason: string; _session_id: string }
         Returns: Json
       }
       bank_reconciliation_session_start: {

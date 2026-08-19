@@ -33,8 +33,29 @@ function mapReconcilePermErr(error: unknown): string | null {
   if (code === "23505" && msg.includes("bank_reconciliation_one_open_per_account")) {
     return "Another reconciliation is already in progress for this bank account. Resume or cancel it before starting a new one.";
   }
+  // F17 — a completed reconciliation is a fact: the window is shut.
+  if (msg.includes("BANK_MATCH_SESSION_CLOSED") || msg.includes("BANK_UNRECONCILE_SESSION_CLOSED")) {
+    return "That bank line sits inside a completed reconciliation. Reopen the reconciliation before changing how the line is explained.";
+  }
+  // F18 — the statement balances but the ledger disagrees.
+  if (msg.includes("BANK_RECON_GL_DIVERGENCE")) {
+    return "The cleared lines don't agree with this bank account's ledger movement — a cleared line is posted to another account. Review those lines before completing.";
+  }
+  if (msg.includes("BANK_RECON_LATER_SESSION_CLOSED")) {
+    return "A later reconciliation for this account is already completed. Reopen that one first.";
+  }
+  if (msg.includes("BANK_RECON_NOT_COMPLETED")) {
+    return "Only a completed reconciliation can be reopened.";
+  }
+  if (msg.includes("BANK_RECON_REOPEN_NEEDS_REASON")) {
+    return "Give a reason for reopening the reconciliation.";
+  }
+  if (msg.includes("BANK_RECON_PERIOD_LOCKED")) {
+    return "The accounting period for that statement date is locked.";
+  }
   return null;
 }
+
 
 export interface ReconciliationSession {
   id: string;
@@ -241,6 +262,31 @@ export function useReconciliationSessions(bankAccountId?: string) {
     }
   };
 
+  /**
+   * F17 — reopening a completed reconciliation is a deliberate, audited act.
+   * The server refuses without a reason, out of statement order, or in a
+   * locked period.
+   */
+  const reopenSession = async (sessionId: string, reason: string) => {
+    try {
+      setIsSaving(true);
+      const { error } = await (supabase as any).rpc("bank_reconciliation_session_reopen", {
+        _session_id: sessionId,
+        _reason: reason,
+      });
+      if (error) throw error;
+      await fetchSessions();
+      toast.success("Reconciliation reopened");
+      return true;
+    } catch (error) {
+      console.error("Error reopening session:", error);
+      toast.error(mapReconcilePermErr(error) ?? "Failed to reopen reconciliation");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return {
     sessions,
     activeSession,
@@ -252,7 +298,9 @@ export function useReconciliationSessions(bankAccountId?: string) {
     writeOffSession,
     completeSession,
     cancelSession,
+    reopenSession,
     fetchSessions,
   };
 }
+
 
