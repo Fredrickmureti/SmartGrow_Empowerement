@@ -48,6 +48,7 @@ import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/Rec
 
 import { TransferReconcileSheet } from "@/features/finance/reconciliation/TransferReconcileSheet";
 import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWorkspace";
+import { CompletedReconciliations } from "@/components/banking/CompletedReconciliations";
 import { ImportHistoryTab } from "@/components/banking/ImportHistoryTab";
 import { ReconciliationHistoryTab } from "@/components/banking/ReconciliationHistoryTab";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
