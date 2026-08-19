@@ -15,6 +15,18 @@ export interface ReconciliationItem {
  * Server-computed reconciliation arithmetic, returned by every mutating RPC.
  * The browser never derives these numbers itself any more.
  */
+export interface ReconciliationGlTieout {
+  /** NULL when the bank account has no GL account mapped — nothing to tie out to. */
+  gl_account_id: string | null;
+  checked: boolean;
+  cleared_movement: number;
+  gl_movement: number | null;
+  /** cleared statement movement − posted bank GL movement, rounded to 2dp. */
+  divergence: number | null;
+  /** cleared lines with no posted settlement behind them. */
+  cleared_without_posting: number;
+}
+
 export interface ReconciliationCalc {
   session_id: string;
   cleared_count: number;
@@ -23,6 +35,11 @@ export interface ReconciliationCalc {
   cleared_balance: number;
   difference: number;
   is_balanced: boolean;
+  /**
+   * F18 — the session is falsifiable: its cleared movement is compared with the
+   * bank GL account's posted movement. Completion is refused when they diverge.
+   */
+  gl_tieout?: ReconciliationGlTieout | null;
 }
 
 /**
