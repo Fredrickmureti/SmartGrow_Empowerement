@@ -62,7 +62,7 @@ BEGIN
       FROM fns,
            regexp_matches(
              fns.def,
-             '''((?:warehouse|procurement|inventory|goods_receipt|delivery_note|product|stock|pos)\.[a-z_]+(?:\.[a-z_]+)*)''',
+             '''((?:warehouse|procurement|inventory|goods_receipt|delivery_note|product|stock|pos|banking)\.[a-z_]+(?:\.[a-z_]+)*)''',
              'g'
            ) m
   )
