@@ -347,6 +347,12 @@ export default function Banking() {
                   <Card key={i} className="h-48 animate-pulse bg-muted" />
                 ))}
               </div>
+            ) : accountsError ? (
+              <BankingLoadError
+                error={accountsError}
+                what="bank accounts"
+                onRetry={refetchAccounts}
+              />
             ) : bankAccounts && bankAccounts.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {bankAccounts.map((account) => {
