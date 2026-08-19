@@ -17,10 +17,25 @@ export interface ParsedBankTransaction {
   rawData: Record<string, string>; // Original row data for audit
 }
 
+/**
+ * A column of a CSV/Excel statement, addressed by a stable identifier.
+ *
+ * `key` is guaranteed non-empty and unique within a statement, so it is safe
+ * to use as a Select option value. `label` is what the file called the column
+ * (may be blank), `index` is its position in `rawRows`.
+ */
+export interface ParsedStatementColumn {
+  key: string;
+  label: string;
+  index: number;
+  sample: string;
+}
+
 export interface ParsedStatement {
   format: "csv" | "excel" | "ofx" | "qbo" | "qif";
   transactions: ParsedBankTransaction[];
-  headers?: string[];       // For CSV/Excel — column headers for mapping
+  columns?: ParsedStatementColumn[]; // For CSV/Excel — mappable columns
+  preamble?: string[][];    // For CSV/Excel — rows above the header row
   rawRows?: string[][];     // For CSV/Excel — raw data rows for mapping UI
   needsColumnMapping: boolean; // CSV/Excel need mapping; OFX/QIF are self-describing
   metadata?: {
@@ -35,6 +50,7 @@ export interface ParsedStatement {
   };
 }
 
+/** Mapping values are `ParsedStatementColumn.key`, never raw header labels. */
 export interface ColumnMapping {
   date: string;
   description: string;
@@ -44,6 +60,7 @@ export interface ColumnMapping {
   debit?: string;
   balance?: string;
 }
+
 
 /**
  * Detect file format from extension and content.
@@ -85,20 +102,27 @@ export async function parseStatementFile(file: File): Promise<ParsedStatement> {
 
 /**
  * Apply column mapping to raw CSV/Excel data and produce ParsedBankTransactions.
+ * Columns are resolved by stable key → position, so duplicate or blank header
+ * labels in the source file cannot mis-resolve a column.
  */
 export function applyColumnMapping(
-  headers: string[],
+  columns: ParsedStatementColumn[],
   rawRows: string[][],
   mapping: ColumnMapping,
   bankAccountId: string
 ): ParsedBankTransaction[] {
-  const dateIdx = headers.indexOf(mapping.date);
-  const descIdx = headers.indexOf(mapping.description);
-  const amountIdx = mapping.amount ? headers.indexOf(mapping.amount) : -1;
-  const refIdx = mapping.reference ? headers.indexOf(mapping.reference) : -1;
-  const creditIdx = mapping.credit ? headers.indexOf(mapping.credit) : -1;
-  const debitIdx = mapping.debit ? headers.indexOf(mapping.debit) : -1;
-  const balanceIdx = mapping.balance ? headers.indexOf(mapping.balance) : -1;
+  const indexOfKey = (key?: string) =>
+    key ? (columns.find((c) => c.key === key)?.index ?? -1) : -1;
+
+  const dateIdx = indexOfKey(mapping.date);
+  const descIdx = indexOfKey(mapping.description);
+  const amountIdx = indexOfKey(mapping.amount);
+  const refIdx = indexOfKey(mapping.reference);
+  const creditIdx = indexOfKey(mapping.credit);
+  const debitIdx = indexOfKey(mapping.debit);
+  const balanceIdx = indexOfKey(mapping.balance);
+
+  if (dateIdx < 0 || descIdx < 0) return [];
 
   return rawRows
     .filter(row => row.length >= Math.max(dateIdx, descIdx) + 1)
@@ -111,8 +135,8 @@ export function applyColumnMapping(
         type = amount >= 0 ? "credit" : "debit";
         amount = Math.abs(amount);
       } else {
-        const credit = parseAmount(row[creditIdx] || "0");
-        const debit = parseAmount(row[debitIdx] || "0");
+        const credit = creditIdx >= 0 ? parseAmount(row[creditIdx] || "0") : 0;
+        const debit = debitIdx >= 0 ? parseAmount(row[debitIdx] || "0") : 0;
         if (credit > 0) {
           amount = credit;
           type = "credit";
@@ -128,9 +152,10 @@ export function applyColumnMapping(
       const balance = balanceIdx >= 0 ? parseAmount(row[balanceIdx] || "") : undefined;
       const parsedDate = parseDate(dateStr);
 
-      // Build raw data map for audit trail
+      // Build raw data map for audit trail, keyed by stable column key
       const rawData: Record<string, string> = {};
-      headers.forEach((h, i) => { rawData[h] = row[i] || ""; });
+      columns.forEach((c) => { rawData[c.key] = row[c.index] || ""; });
+
 
       return {
         date: parsedDate,

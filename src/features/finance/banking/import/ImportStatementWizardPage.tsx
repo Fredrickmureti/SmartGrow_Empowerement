@@ -57,8 +57,10 @@ import {
   generateTransactionHash,
   type ParsedBankTransaction,
   type ParsedStatement,
+  type ParsedStatementColumn,
   type ColumnMapping,
 } from "@/lib/bankStatementParsers";
+
 import { normalizeError } from "@/services/resilience";
 
 const STEPS: WizardStep[] = [
@@ -152,14 +154,15 @@ export default function ImportStatementWizardPage() {
       toast.error("Please map at least Date, Description, and Amount columns");
       return;
     }
-    if (!parsedStatement?.headers || !parsedStatement?.rawRows) return;
+    if (!parsedStatement?.columns || !parsedStatement?.rawRows) return;
 
     const mapped = applyColumnMapping(
-      parsedStatement.headers,
+      parsedStatement.columns,
       parsedStatement.rawRows,
       columnMapping,
       selectedAccountId,
     );
+
     await preparePreview(mapped);
   };
 
@@ -256,8 +259,9 @@ export default function ImportStatementWizardPage() {
     }
   };
 
-  const headers = parsedStatement?.headers || [];
+  const columns = parsedStatement?.columns || [];
   const rawRows = parsedStatement?.rawRows || [];
+
 
   const stepDescription =
     step === "upload"
@@ -430,20 +434,20 @@ export default function ImportStatementWizardPage() {
           <Card>
             <CardContent className="pt-4">
               <p className="mb-4 text-sm text-muted-foreground">
-                Found {headers.length} columns and {rawRows.length} rows. Map
+                Found {columns.length} columns and {rawRows.length} rows. Map
                 your columns below:
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <MapField
                   label="Date column *"
                   value={columnMapping.date}
-                  headers={headers}
+                  columns={columns}
                   onChange={(v) => setColumnMapping({ ...columnMapping, date: v })}
                 />
                 <MapField
                   label="Description column *"
                   value={columnMapping.description}
-                  headers={headers}
+                  columns={columns}
                   onChange={(v) =>
                     setColumnMapping({ ...columnMapping, description: v })
                   }
@@ -451,14 +455,14 @@ export default function ImportStatementWizardPage() {
                 <MapField
                   label="Amount column (if single column)"
                   value={columnMapping.amount}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) => setColumnMapping({ ...columnMapping, amount: v })}
                 />
                 <MapField
                   label="Reference column (optional)"
                   value={columnMapping.reference}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) =>
                     setColumnMapping({ ...columnMapping, reference: v })
@@ -467,21 +471,21 @@ export default function ImportStatementWizardPage() {
                 <MapField
                   label="Credit column (if separate)"
                   value={columnMapping.credit}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) => setColumnMapping({ ...columnMapping, credit: v })}
                 />
                 <MapField
                   label="Debit column (if separate)"
                   value={columnMapping.debit}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) => setColumnMapping({ ...columnMapping, debit: v })}
                 />
                 <MapField
                   label="Balance column (optional)"
                   value={columnMapping.balance}
-                  headers={headers}
+                  columns={columns}
                   optional
                   onChange={(v) =>
                     setColumnMapping({ ...columnMapping, balance: v })
@@ -495,9 +499,9 @@ export default function ImportStatementWizardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {headers.map((h, i) => (
-                    <TableHead key={i} className="whitespace-nowrap">
-                      {h}
+                  {columns.map((col) => (
+                    <TableHead key={col.key} className="whitespace-nowrap">
+                      {col.key}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -505,13 +509,14 @@ export default function ImportStatementWizardPage() {
               <TableBody>
                 {rawRows.slice(0, 3).map((row, i) => (
                   <TableRow key={i}>
-                    {row.map((cell, j) => (
-                      <TableCell key={j} className="whitespace-nowrap">
-                        {cell}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="whitespace-nowrap">
+                        {row[col.index] ?? ""}
                       </TableCell>
                     ))}
                   </TableRow>
                 ))}
+
               </TableBody>
             </Table>
           </div>
@@ -635,17 +640,23 @@ export default function ImportStatementWizardPage() {
 interface MapFieldProps {
   label: string;
   value: string | undefined;
-  headers: string[];
+  columns: ParsedStatementColumn[];
   optional?: boolean;
   onChange: (v: string) => void;
 }
 
-function MapField({ label, value, headers, optional, onChange }: MapFieldProps) {
+/**
+ * Column picker. Option values are `column.key` — guaranteed non-empty and
+ * unique by the parser — so a blank or duplicated header in the source file
+ * can never become an empty selectable value. "Not mapped" is represented by
+ * the placeholder (required fields) or the `__none__` sentinel (optional).
+ */
+function MapField({ label, value, columns, optional, onChange }: MapFieldProps) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       <Select
-        value={value || (optional ? "__none__" : "")}
+        value={value || (optional ? "__none__" : undefined)}
         onValueChange={(v) => onChange(optional && v === "__none__" ? "" : v)}
       >
         <SelectTrigger>
@@ -653,13 +664,19 @@ function MapField({ label, value, headers, optional, onChange }: MapFieldProps) 
         </SelectTrigger>
         <SelectContent>
           {optional && <SelectItem value="__none__">None</SelectItem>}
-          {headers.map((h, i) => (
-            <SelectItem key={i} value={h}>
-              {h}
+          {columns.map((col) => (
+            <SelectItem key={col.key} value={col.key}>
+              <span>{col.key}</span>
+              {col.sample && (
+                <span className="ml-2 text-muted-foreground">
+                  e.g. {col.sample}
+                </span>
+              )}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     </div>
   );
+
 }
