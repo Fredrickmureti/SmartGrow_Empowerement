@@ -429,8 +429,13 @@ function AccountRegisterInner() {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center mt-2">
-        {transactionsWithBalance.length} transaction{transactionsWithBalance.length !== 1 ? "s" : ""} in period
+        Showing {transactionsWithBalance.length} of {transactions.length} transaction
+        {transactions.length !== 1 ? "s" : ""} in period
+        {searchQuery.trim()
+          ? " — running balance stays the full-period ledger balance, not a subtotal of the filtered rows."
+          : ""}
       </p>
+
 
       <TransactionPreviewDrawer
         open={drawerOpen}
