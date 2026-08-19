@@ -1,132 +1,85 @@
-# Inventory / Stock Reporting — investigation findings and phased plan
+# Inventory / Stock Reporting — verification verdict and remaining phases
 
-Scope: inventory & stock reporting only. Investigation is complete; no code changed.
-Everything under "Verified" was confirmed by reading code or querying the live database.
+Scope unchanged: inventory & stock reporting only. This revision replaces the
+"implementation not started" status with an independently verified account of
+what the previous engineer actually landed, plus the corrected phase order.
 
-## 1. Verified facts — architecture
+## 1. Verification of claimed work (checked against live DB and code)
 
-- The unified reporting engine is sound and should be preserved. `REPORT_REGISTRY`
-  (`src/services/reports/ReportRegistry.ts`) is the single source of report metadata;
-  `reportsNav.ts` derives navigation from it; `src/design-system/reports/*`
-  (`ReportSurface`, `ReportTable`, `format`, `server.ts`) is the only rendering path;
-  exports/PDF are produced server-side by the `render-report` edge function using the
-  same column spec (`supabase/functions/_shared/reports/columnSpecs.ts`).
-  Architecture tests already forbid raw tables, local formatters, nav drift and
-  route/registry drift (`src/test/architecture/reports-*.test.ts`).
-- Registry's inventory family contains exactly three reports: `stock-reports`,
-  `stock-adjustments-report`, `stock-transfers-report` (`reportsNav.ts:98-102`).
-  `inventory-gl-reconciliation` sits in the `integrity` family.
-- Verified: `/inventory-app/reports/valuation`, `/aging` and `/integrity`
-  (`InventoryValuationReport.tsx`, `StockAgingReport.tsx`,
-  `src/pages/inventory/InventoryIntegrity.tsx`) are **not** in `REPORT_REGISTRY`.
-  They are outside registry governance: no central permission/feature declaration,
-  no server column spec, no nav/route parity test.
-- Verified: `columnSpecs.ts` defines only one stock key (`stock_report`, quantity only).
-  Every other inventory report therefore exports through the "prebuilt" path, i.e. it
-  ships the browser's rows — so the export inherits any client-side row cap.
-- Verified: the database already has the correct enterprise-grade substrate — a
-  **quantity ledger** (`stock_movements`, immutable, provenance-guarded, reversal-based)
-  and a **value ledger** (`cost_layers` + `cost_layer_consumptions`, AVCO/layer costed,
-  single registered writer). No inventory reporting RPC exists on top of them:
-  there is no `get_stock_ledger`, no `report_inventory_valuation`, nothing.
-  All inventory reports query base tables directly from the browser.
+| Claim | Verdict | Evidence |
+|---|---|---|
+| `report_stock_ledger` exists, definer, business+branch enforced, paginated | TRUE | `pg_proc`: SECURITY DEFINER, `search_path=public`, args `(p_org,p_business,p_date_from,p_date_to,p_branch,p_warehouse,p_product,p_category,p_limit,p_offset)`, body calls `_assert_inventory_report_access` |
+| `report_inventory_valuation_as_of` same shape, replays cost layers | TRUE | same, body references `cost_layer_consumptions` |
+| `_assert_inventory_report_access` rejects NULL business, checks branch | TRUE | delegates to `_assert_inventory_diag_business` (auth.uid, NULL-business reject, `user_can_access_business`) + `can_access_branch` |
+| Diagnostics (`check_inventory_valuation_drift`, `check_valuation_writer_coverage`, `check_movement_reversal_coverage`) authorized | TRUE for the guard | drift → `_assert_inventory_diag_business`; coverage fns → `_assert_inventory_diag_authenticated` |
+| `cost_layers` / `cost_layer_consumptions` RLS re-scoped to business | TRUE | RLS enabled; policies `cost_layers_select_business_scoped`, `cost_layer_consumptions_select_business` both business-scoped |
+| Deno builder + column specs + `render-report` dispatch | TRUE | `_shared/reports/inventoryData.ts` (195 lines), `columnSpecs.ts` keys `stock_ledger`/`inventory_valuation`, `render-report/index.ts:71,462` |
+| SQL ratchet test added | TRUE (file exists), but it **fails today** — see defect A |
+| Phase 1 "security" complete | **FALSE — incomplete** | defects A and B below |
+| Plan updated / Phase 3+ started | FALSE | pages untouched; not in registry |
 
-## 2. Verified security findings (highest priority)
+## 2. Confirmed open defects (introduced or left behind)
 
-1. **`check_inventory_valuation_drift(_business_id, _tolerance)`** — SECURITY DEFINER,
-   `EXECUTE` granted to `anon` and `authenticated`, and the body contains **no**
-   `auth.uid()`, org or business check. Called with no arguments it returns product-level
-   quantity, unit cost and inventory value for **every business in every tenant**.
-   Cross-tenant disclosure of valuation data. Same no-auth shape:
-   `check_valuation_writer_coverage`, `check_movement_reversal_coverage` (metadata only,
-   lower severity but still unauthenticated).
-2. **`reconcile_inventory_subledger_to_gl(p_org, p_business, p_as_of)`** — SECURITY
-   DEFINER, asserts `_assert_org_member(p_org)` only. `p_business` is a caller-supplied
-   *filter*, not an authorization check, and `NULL` aggregates all businesses in the org.
-   A user authorized for Business A can read Business B's inventory subledger and GL
-   inventory balance. Branch is not considered at all.
-3. **`cost_layers` / `cost_layer_consumptions` RLS is org-scoped only**
-   (`is_org_member(auth.uid(), organization_id)`), not business-scoped — unlike
-   `stock_movements`, `warehouse_stock`, `stock_quants`, `stock_adjustments`,
-   `stock_transfers`, which are all correctly `user_can_access_business(...)` +
-   `can_access_branch(...)`. Any direct read of the value ledger crosses businesses.
-4. Client-side `.eq("business_id", ...)` in the report pages is a *filter*, not a
-   boundary. It is currently backstopped by correct RLS on the quantity-side tables
-   (acceptable defence in depth) but not on the value-side tables (finding 3).
-
-## 3. Verdicts per existing report
-
-| Report | Grain | Verdict | Evidence |
-|---|---|---|---|
-| Stock Reports (`/inventory-app/reports`, registry `stock-reports`) | qty snapshot | CORRECT for what it is (operational on-hand). MISCLASSIFIED name — "Stock Reports … valuation and movement" describes neither. | `StockReports.tsx:44-58` reads `warehouse_stock` + `products` |
-| Inventory Valuation | value | **INCORRECT** | `InventoryValuationReport.tsx:136-176`: `closingValue = currentQty × products.cost_price` — live on-hand and today's AVCO, not "as at period end". No opening balance row. Period in/out valued at `stock_movements.unit_cost`. Ignores `cost_layers` entirely, so it cannot reproduce a historical valuation and cannot tie to GL. |
-| Stock Aging | qty only | **INCORRECT** | `StockAgingReport.tsx:68-77`: one "last inbound date" per product applied to the entire on-hand quantity — not layer/lot-aged, so a product with old and new stock ages entirely at its newest receipt. Query has no `.range()`, so it silently truncates at PostgREST's 1000-row cap. No value column. |
-| Stock Adjustments Report | qty + value | INCOMPLETE (not incorrect) | `StockAdjustmentsReport.tsx:100-118` — document register with Σ qty × unit_cost. Missing: reversal linkage (`reverses_adjustment_id`), reason grouping, GL journal reference, drill-down. |
-| Stock Transfers Report | qty | INCOMPLETE | `StockTransfersReport.tsx` — document register. Missing in-transit exposure (sent vs received) as an accounting figure and value column. |
-| Inventory ⇄ GL Reconciliation | value | CORRECT in shape, **INSECURE** (finding 2). Off-engine: hand-rolled cards, not `ReportTable`. | `useInventoryReconciliation.ts:92-109` |
-| Inventory Integrity | diagnostics | CORRECT purpose, **INSECURE** (finding 1). Off-engine: raw shadcn `<Table>`. | `InventoryIntegrity.tsx`, `useStockQuants.ts` |
-| MISSING | — | **Stock Ledger / product movement card** (opening → movements → closing, per product × warehouse × period) — the report every other inventory report derives from. Also missing: **Lot/Serial traceability** (data exists in `stock_lots`, `stock_serials`, `cost_layers`). |
-
-## 4. Target taxonomy (recommendation)
-
-Research finding (NetSuite saved searches, Odoo `stock.valuation.layer` pivots, BC item
-ledger entry + value entry + dimensions): product, category, warehouse, location, branch
-and lot/serial are **dimensions**, not reports. Only the *grain* creates a separate
-report — quantity ledger vs value ledger vs open documents. This ERP's schema already
-matches that split, so the recommendation is a small family set with strong dimensions:
-
-Accounting/control: Inventory Valuation (as-of, from `cost_layers`) · Inventory ⇄ GL
-Reconciliation · Adjustment & Write-off Register.
-Operational: Stock on Hand / Availability · Stock Ledger (movement card) · Transfer
-Register (incl. in-transit) · Lot/Serial Traceability.
-Management: Aging / slow-moving · Turnover (later, derived).
-Every one of these takes the same dimension set as filters/group-by/drill-down:
-business → branch → warehouse → location → category → product → lot/serial.
-No new report is justified merely to change grouping level.
-
-## 5. Phases (one complete piece at a time)
-
-**Phase 1 — Security (do first, blocks nothing else).** Add authorization to
+**A. `anon` still holds EXECUTE on every inventory reporting/diagnostic RPC.**
+Verified via `has_function_privilege('anon', oid, 'EXECUTE')` = true for
+`report_stock_ledger`, `report_inventory_valuation_as_of`,
 `check_inventory_valuation_drift`, `check_valuation_writer_coverage`,
-`check_movement_reversal_coverage` (require business membership; revoke `anon`);
-enforce `user_can_access_business` + branch inside
-`reconcile_inventory_subledger_to_gl` instead of trusting `p_business`; re-scope
-`cost_layers` / `cost_layer_consumptions` RLS to business + branch. Add a pgTAP/vitest
-suite that explicitly attempts cross-business and cross-tenant reads via each RPC.
+`check_movement_reversal_coverage`, `reconcile_inventory_subledger_to_gl`.
+The default `GRANT EXECUTE TO PUBLIC` was never revoked. Data does not leak
+(the in-body guards raise on `auth.uid() IS NULL`), so severity is
+defence-in-depth, not disclosure — but the shipped ratchet test asserts the
+opposite and therefore fails, i.e. the regression gate is currently red.
 
-**Phase 2 — Server reporting foundation.** Two SECURITY DEFINER, business+branch-enforced
-RPCs over the existing ledgers: `report_stock_ledger(...)` (opening/in/out/closing by
-quantity, posting-date semantics on `movement_date`, dimension params + pagination) and
-`report_inventory_valuation_as_of(...)` (value from `cost_layers` as at a date, with the
-quantity/value split explicit). Register both in `columnSpecs.ts` so exports are
-server-built rather than prebuilt.
+**B. Duplicate `reconcile_inventory_subledger_to_gl` overloads.**
+Both `(p_org, p_business, p_as_of)` and `(p_org, p_business, p_as_of, p_branch)`
+exist. The legacy 3-arg version is still callable and branch-blind; leaving two
+resolutions of one control report is exactly the "second source of truth" the
+brief forbids. Drop the 3-arg form after confirming no caller uses it.
 
-**Phase 3 — Rebuild Inventory Valuation** on Phase 2: true opening → movements →
-closing, as-of correctness, value ties to the GL reconciliation figure. Register in
-`REPORT_REGISTRY`.
+**C. Report pages still read the wrong sources.** `src/pages/reports/InventoryValuationReport.tsx`
+and `StockAgingReport.tsx` are unchanged: valuation is still live on-hand x
+current AVCO, aging is still one date per product with no `.range()`. The new
+RPCs are consumed only by the export path, so **screen and PDF now disagree** —
+a new inconsistency created by landing Phase 2 without Phase 3.
 
-**Phase 4 — New Stock Ledger / movement card** report with drill-down to the source
-document, on `ReportSurface`/`ReportTable`, registered.
+## 3. Corrected phase order
 
-**Phase 5 — Fix Stock Aging** onto cost layers (age each layer, not the product),
+**Phase 1b (do first, small).** Revoke `EXECUTE` from `anon` (and `PUBLIC`) on
+the six functions in defect A, grant explicitly to `authenticated` +
+`service_role`; drop the legacy 3-arg `reconcile_inventory_subledger_to_gl`
+after a caller sweep. Then run `supabase/tests/inventory_reporting_ratchet_test.sql`
+and require a clean PASS.
+
+**Phase 3 (next).** Rebuild `InventoryValuationReport` on
+`report_inventory_valuation_as_of` via the unified engine
+(`ReportSurface`/`ReportTable`, `toReportColumns`/`toReportRows`), as-of date
+semantics, opening/closing explicit, register in `REPORT_REGISTRY` with the
+`inventory_valuation` server key so screen and export are one dataset.
+
+**Phase 4.** New Stock Ledger / movement card page on `report_stock_ledger`,
+registered, with drill-down to the source document.
+
+**Phase 5.** Fix Stock Aging onto cost layers (age each layer, not the product),
 remove the 1000-row truncation, add value buckets, register.
 
-**Phase 6 — Bring Integrity + GL Reconciliation onto the engine** (`ReportTable`,
-registry, server export spec) and complete the Adjustment/Transfer registers
-(reversal linkage, reason grouping, journal reference, in-transit).
+**Phase 6.** Bring Integrity + Inventory⇄GL Reconciliation onto the engine and
+complete the Adjustment/Transfer registers (reversal linkage, reason grouping,
+journal reference, in-transit).
 
-**Phase 7 — Lot/Serial traceability** report.
+**Phase 7.** Lot/Serial traceability report.
 
-Dependencies: Phase 2 gates 3/4/5. Phase 1 is independent and should ship alone.
+Dimensions stay dimensions: business → branch → warehouse → location → category
+→ product → lot/serial are filters/group-by on the families above, never new
+reports. (Section 4 of the prior revision remains the accepted taxonomy.)
 
-## 6. Validation required per phase
+## 4. Validation per phase
 
-Empty/zero stock · opening balances · date boundaries and backdated periods ·
-multi-business, multi-branch, multi-warehouse · adjustments/transfers/purchases/sales ·
-large datasets (no silent row caps) · valuation changes and revaluations ·
-export/PDF dataset identity with screen · cross-business and cross-branch access
-attempts through both the UI path and direct RPC calls.
+Empty/zero stock · opening balances · backdated and boundary dates · multi
+business/branch/warehouse · large datasets (no silent caps) · screen-vs-PDF
+dataset identity · explicit cross-business and cross-branch attempts through
+both the UI path and direct RPC calls · ratchet test green.
 
-## 7. Status
+## 5. Status
 
-Investigation: complete. Implementation: not started. Awaiting approval of Phase 1.
+Phase 1: substantially done, **two defects open (A, B)**. Phase 2: done
+server-side. Phase 3 onward: not started. Next action: Phase 1b.
