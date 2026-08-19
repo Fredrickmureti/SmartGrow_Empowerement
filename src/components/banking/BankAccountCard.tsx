@@ -181,7 +181,7 @@ export function BankAccountCard({
                   Edit Account
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={`/bank-reconciliation?account=${account.id}`}>
+                  <Link to={`/finance/reconciliation?account=${account.id}`}>
                     <Scale className="h-4 w-4 mr-2" />
                     Reconcile
                   </Link>
