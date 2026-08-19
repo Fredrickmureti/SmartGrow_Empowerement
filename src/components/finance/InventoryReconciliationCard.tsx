@@ -220,6 +220,11 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
         {showNegative && (
           <div className="rounded-md border p-3 space-y-2">
             <div className="text-sm font-semibold">Negative stock positions</div>
+            <p className="text-xs text-muted-foreground">
+              An operational defect: negative quantity has no cost layers, so the
+              amounts below are average-cost exposure estimates, not accounting
+              valuations.
+            </p>
             {negative.isLoading ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" /> Scanning…
