@@ -76,7 +76,7 @@ export default function BankFeeds() {
   const { accounts: bankAccounts } = useBankAccounts();
   // A feed line's currency is its bank account's currency (ADR 0136).
   const { formatBankAmount } = useBankMoney();
-  const { transactions, isLoading, fetchTransactions } = useBankTransactions();
+  const { transactions, isLoading, loadError, fetchTransactions } = useBankTransactions();
   const { createRule } = useTransactionRules();
   const scope = useFinanceScope();
   const { currentOrg } = useOrganization();
