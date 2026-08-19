@@ -209,10 +209,10 @@ BEGIN
   END IF;
 
   -- Aging buckets partition the same valuation, so they must sum to it too.
-  SELECT COALESCE(sum(COALESCE(bucket_0_30_value, 0) + COALESCE(bucket_31_60_value, 0)
-                    + COALESCE(bucket_61_90_value, 0) + COALESCE(bucket_over_90_value, 0)), 0)
+  SELECT COALESCE(sum(COALESCE(value_0_30, 0) + COALESCE(value_31_60, 0)
+                    + COALESCE(value_61_90, 0) + COALESCE(value_90_plus, 0)), 0)
     INTO v_aging
-  FROM public.report_inventory_aging(
+  FROM public.report_inventory_aging_as_of(
          v_org, v_business, current_date, NULL, NULL, NULL, NULL, 100000, 0);
 
   IF abs(v_aging - v_valuation) > 0.01 THEN
