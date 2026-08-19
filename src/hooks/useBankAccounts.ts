@@ -667,7 +667,10 @@ export function useBankAccounts() {
       accounts,
       isLoading,
       isSaving,
+      loadError,
       canManage,
+      /** Manual retry always bypasses the dedupe cache. */
+      refetch: () => fetchAccounts(true),
       fetchAccounts,
       createAccount,
       updateAccount,
