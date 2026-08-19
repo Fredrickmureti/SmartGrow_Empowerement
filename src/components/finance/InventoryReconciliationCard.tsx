@@ -236,8 +236,8 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
                       <th className="py-1.5 pr-4">Product</th>
                       <th className="py-1.5 pr-4">Warehouse</th>
                       <th className="py-1.5 pr-4 text-right">Qty</th>
-                      <th className="py-1.5 pr-4 text-right">Unit cost</th>
-                      <th className="py-1.5 text-right">Valuation impact</th>
+                      <th className="py-1.5 pr-4 text-right">AVCO unit cost</th>
+                      <th className="py-1.5 text-right">AVCO exposure (est.)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -251,8 +251,12 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
                         <td className="py-1.5 pr-4 text-right tabular-nums text-destructive">
                           {qty(n.quantity)}
                         </td>
-                        <td className="py-1.5 pr-4 text-right tabular-nums">{fmt(n.unit_cost)}</td>
-                        <td className="py-1.5 text-right tabular-nums">{fmt(n.valuation_impact)}</td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums">
+                          {fmt(n.avco_unit_cost)}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">
+                          {fmt(n.avco_exposure_estimate)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
