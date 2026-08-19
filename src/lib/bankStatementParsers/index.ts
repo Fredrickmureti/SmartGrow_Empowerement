@@ -17,10 +17,25 @@ export interface ParsedBankTransaction {
   rawData: Record<string, string>; // Original row data for audit
 }
 
+/**
+ * A column of a CSV/Excel statement, addressed by a stable identifier.
+ *
+ * `key` is guaranteed non-empty and unique within a statement, so it is safe
+ * to use as a Select option value. `label` is what the file called the column
+ * (may be blank), `index` is its position in `rawRows`.
+ */
+export interface ParsedStatementColumn {
+  key: string;
+  label: string;
+  index: number;
+  sample: string;
+}
+
 export interface ParsedStatement {
   format: "csv" | "excel" | "ofx" | "qbo" | "qif";
   transactions: ParsedBankTransaction[];
-  headers?: string[];       // For CSV/Excel — column headers for mapping
+  columns?: ParsedStatementColumn[]; // For CSV/Excel — mappable columns
+  preamble?: string[][];    // For CSV/Excel — rows above the header row
   rawRows?: string[][];     // For CSV/Excel — raw data rows for mapping UI
   needsColumnMapping: boolean; // CSV/Excel need mapping; OFX/QIF are self-describing
   metadata?: {
@@ -35,6 +50,7 @@ export interface ParsedStatement {
   };
 }
 
+/** Mapping values are `ParsedStatementColumn.key`, never raw header labels. */
 export interface ColumnMapping {
   date: string;
   description: string;
@@ -44,6 +60,7 @@ export interface ColumnMapping {
   debit?: string;
   balance?: string;
 }
+
 
 /**
  * Detect file format from extension and content.
