@@ -149,7 +149,6 @@ export function CompletedReconciliations({
               Reopen
             </Button>
           </DialogFooter>
-        </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
