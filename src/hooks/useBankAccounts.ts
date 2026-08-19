@@ -170,59 +170,88 @@ export interface CreateBankAccountData {
  * business, so a branch-only user without the permission gets a friendly
  * `INSUFFICIENT_PRIVILEGE_BANK_MANAGE` toast instead of a raw RLS error.
  */
-export function useBankAccounts() {
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusinesses();
-  const scope = useFinanceScope();
-  const { allowed: canManage } = useFinancePermission("finance.manage_bank_accounts");
+interface BankAccountsLoad {
+  accounts: BankAccount[];
+  error: NormalizedError | null;
+}
 
-  const lastOrgIdRef = useRef<string | null>(null);
-  const lastBusinessIdRef = useRef<string | null>(null);
-  const lastBranchIdRef = useRef<string | null>(null);
-  const hasFetchedRef = useRef(false);
+/**
+ * Landing-burst control.
+ *
+ * `useBankAccounts` is mounted more than once per banking screen (directly by
+ * the page and again inside `useBankMoney`). Without coordination that is 6
+ * concurrent requests the instant you land, which is exactly what turns a slow
+ * link into a wall of "Failed to fetch". Consumers mounted within the same
+ * tick join a single in-flight load, and a short TTL absorbs remounts.
+ */
+const ACCOUNTS_TTL_MS = 5_000;
+const accountsInflight = new Map<string, Promise<BankAccountsLoad>>();
+const accountsCache = new Map<string, { at: number; value: BankAccountsLoad }>();
 
-  const fetchAccounts = useCallback(async () => {
-    if (!currentOrg?.id || !currentBusiness?.id) {
-      setAccounts([]);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
+async function loadBankAccounts(
+  orgId: string,
+  businessId: string,
+  branchId: string | null,
+): Promise<BankAccountsLoad> {
+  // The account rows are the load-bearing read; positions and feed health
+  // decorate them. All three go through the resilience seam so a transport
+  // hiccup retries instead of surfacing as a hard failure.
+  const rowsRes = await safeQueryRetry<BankAccount[]>(
+    () => {
       let q = supabase
         .from("bank_accounts")
         .select(`*, provider:platform_bank_providers(*)`)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
+        .eq("organization_id", orgId)
+        .eq("business_id", businessId);
 
       // Branch scope filter: when a specific branch is active, return rows
       // for that branch + company-wide (NULL) rows. Consolidated mode returns
       // everything the user is allowed to see (RLS enforces the cap).
-      if (scope.branchId) {
-        q = q.or(`branch_id.eq.${scope.branchId},branch_id.is.null`);
+      if (branchId) {
+        q = q.or(`branch_id.eq.${branchId},branch_id.is.null`);
       }
 
-      const { data, error } = await q
-        .order("is_primary", { ascending: false })
-        .order("name");
+      return q.order("is_primary", { ascending: false }).order("name") as unknown as PromiseLike<{
+        data: BankAccount[] | null;
+        error: unknown;
+      }>;
+    },
+    { maxRetries: 2, baseDelayMs: 400 },
+  );
 
-      if (error) throw error;
-      const rows = (data as unknown as BankAccount[]) || [];
+  if (rowsRes.error) {
+    return { accounts: [], error: rowsRes.error };
+  }
+  const rows = (rowsRes.data as unknown as BankAccount[]) || [];
 
-      // Phase 7: balances are never read from the account row. They come from
-      // the server projection so statement and GL figures stay traceable.
-      const { data: positions, error: posError } = await supabase.rpc(
-        "bank_account_positions",
-        { _business_id: currentBusiness.id },
-      );
-      if (posError) {
-        console.error("Error resolving bank positions:", posError);
-      }
-      const byId = new Map<string, BankAccountPosition>(
+  // Phase 7: balances are never read from the account row. They come from
+  // the server projection so statement and GL figures stay traceable.
+  const [posRes, feedRes] = await Promise.all([
+    safeQueryRetry<Array<Record<string, unknown>>>(
+      () =>
+        supabase.rpc("bank_account_positions", { _business_id: businessId }) as unknown as PromiseLike<{
+          data: Array<Record<string, unknown>> | null;
+          error: unknown;
+        }>,
+      { maxRetries: 2, baseDelayMs: 400 },
+    ),
+    safeQueryRetry<Array<Record<string, unknown>>>(
+      () =>
+        supabase.rpc("bank_feed_status", { _business_id: businessId }) as unknown as PromiseLike<{
+          data: Array<Record<string, unknown>> | null;
+          error: unknown;
+        }>,
+      { maxRetries: 2, baseDelayMs: 400 },
+    ),
+  ]);
+
+  const positions = posRes.data;
+  if (posRes.error) {
+    // Decoration failure: the list still renders, balances read as "not
+    // resolved". Never a raw error, never a toast on page landing.
+    console.warn("[banking] positions unresolved:", posRes.error.kind);
+  }
+  const byId = new Map<string, BankAccountPosition>(
         ((positions ?? []) as Array<Record<string, unknown>>).map((p) => [
           String(p.bank_account_id),
           {
