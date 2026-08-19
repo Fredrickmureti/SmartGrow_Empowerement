@@ -102,20 +102,27 @@ export async function parseStatementFile(file: File): Promise<ParsedStatement> {
 
 /**
  * Apply column mapping to raw CSV/Excel data and produce ParsedBankTransactions.
+ * Columns are resolved by stable key → position, so duplicate or blank header
+ * labels in the source file cannot mis-resolve a column.
  */
 export function applyColumnMapping(
-  headers: string[],
+  columns: ParsedStatementColumn[],
   rawRows: string[][],
   mapping: ColumnMapping,
   bankAccountId: string
 ): ParsedBankTransaction[] {
-  const dateIdx = headers.indexOf(mapping.date);
-  const descIdx = headers.indexOf(mapping.description);
-  const amountIdx = mapping.amount ? headers.indexOf(mapping.amount) : -1;
-  const refIdx = mapping.reference ? headers.indexOf(mapping.reference) : -1;
-  const creditIdx = mapping.credit ? headers.indexOf(mapping.credit) : -1;
-  const debitIdx = mapping.debit ? headers.indexOf(mapping.debit) : -1;
-  const balanceIdx = mapping.balance ? headers.indexOf(mapping.balance) : -1;
+  const indexOfKey = (key?: string) =>
+    key ? (columns.find((c) => c.key === key)?.index ?? -1) : -1;
+
+  const dateIdx = indexOfKey(mapping.date);
+  const descIdx = indexOfKey(mapping.description);
+  const amountIdx = indexOfKey(mapping.amount);
+  const refIdx = indexOfKey(mapping.reference);
+  const creditIdx = indexOfKey(mapping.credit);
+  const debitIdx = indexOfKey(mapping.debit);
+  const balanceIdx = indexOfKey(mapping.balance);
+
+  if (dateIdx < 0 || descIdx < 0) return [];
 
   return rawRows
     .filter(row => row.length >= Math.max(dateIdx, descIdx) + 1)
@@ -128,8 +135,8 @@ export function applyColumnMapping(
         type = amount >= 0 ? "credit" : "debit";
         amount = Math.abs(amount);
       } else {
-        const credit = parseAmount(row[creditIdx] || "0");
-        const debit = parseAmount(row[debitIdx] || "0");
+        const credit = creditIdx >= 0 ? parseAmount(row[creditIdx] || "0") : 0;
+        const debit = debitIdx >= 0 ? parseAmount(row[debitIdx] || "0") : 0;
         if (credit > 0) {
           amount = credit;
           type = "credit";
@@ -145,9 +152,10 @@ export function applyColumnMapping(
       const balance = balanceIdx >= 0 ? parseAmount(row[balanceIdx] || "") : undefined;
       const parsedDate = parseDate(dateStr);
 
-      // Build raw data map for audit trail
+      // Build raw data map for audit trail, keyed by stable column key
       const rawData: Record<string, string> = {};
-      headers.forEach((h, i) => { rawData[h] = row[i] || ""; });
+      columns.forEach((c) => { rawData[c.key] = row[c.index] || ""; });
+
 
       return {
         date: parsedDate,
