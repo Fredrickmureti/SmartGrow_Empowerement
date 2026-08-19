@@ -31,7 +31,7 @@ import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { BranchScopeToggle, type BranchScope } from "@/components/reports/BranchScopeToggle";
 import { format } from "date-fns";
-import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { useInventoryValuationAsOf } from "@/hooks/inventory/useInventoryReportRpcs";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 
@@ -133,7 +133,7 @@ function InventoryValuationReportInner() {
    * and cannot drift from the screen.
    */
   const getExportConfig = useCallback(
-    (): ExportConfig => ({
+    (): ServerBuildConfig => ({
       title: "Inventory Valuation",
       reportType: "inventory_valuation",
       organizationId: orgId ?? undefined,
@@ -147,7 +147,7 @@ function InventoryValuationReportInner() {
       rows: [],
       sheetName: "Valuation",
       currency: baseCurrency,
-    }) as ExportConfig,
+    }),
     [orgId, bizId, effectiveBranchId, asOf, baseCurrency],
   );
 
