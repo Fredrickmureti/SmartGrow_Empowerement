@@ -87044,6 +87044,10 @@ export type Database = {
         Returns: string
       }
       _bank_account_row: { Args: { _id: string }; Returns: Json }
+      _bank_doc_is_spoken_for: {
+        Args: { _doc_id: string; _kind: string }
+        Returns: boolean
+      }
       _bank_match_validate: {
         Args: {
           _allocations: Json
