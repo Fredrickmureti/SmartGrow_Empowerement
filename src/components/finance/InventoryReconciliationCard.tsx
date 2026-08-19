@@ -45,9 +45,9 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
   const hasDrift = rows.some((r) => Math.abs(r.drift) > 0.01);
   const dataQuality = rows.reduce(
     (acc, r) => ({
-      fallback: acc.fallback + (r.fallback_cost_lines ?? 0),
-      zero: acc.zero + (r.zero_cost_lines ?? 0),
-      negative: acc.negative + (r.negative_qty_lines ?? 0),
+      fallback: acc.fallback + (r.unlayered_positions ?? 0),
+      zero: acc.zero + (r.zero_cost_positions ?? 0),
+      negative: acc.negative + (r.negative_qty_positions ?? 0),
     }),
     { fallback: 0, zero: 0, negative: 0 },
   );
@@ -71,8 +71,8 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
               )}
             </CardTitle>
             <CardDescription className="text-xs">
-              Stock on hand valued at moving-average cost (per warehouse) compared against the
-              posted GL closing balance of the Inventory control account
+              Stock on hand valued from the cost-layer ledger as at the reporting date, compared
+              against the posted GL closing balance of the Inventory control account
               {asOf ? ` as at ${asOf}` : ""}. A non-zero drift means a journal is missing,
               mis-dated, or posted to the wrong account.
             </CardDescription>
@@ -164,7 +164,7 @@ export function InventoryReconciliationCard({ asOf }: InventoryReconciliationCar
               <ul className="list-disc pl-4">
                 {dataQuality.fallback > 0 && (
                   <li>
-                    {dataQuality.fallback} position(s) valued at product cost price because no
+                    {dataQuality.fallback} position(s) hold quantity with no cost layer, so no
                     moving-average cost exists yet.
                   </li>
                 )}
