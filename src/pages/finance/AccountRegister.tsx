@@ -24,12 +24,14 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { ReportFilters } from "@/components/reports/ReportFilters";
+import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { format, startOfYear, endOfMonth, subYears } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
-import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+import { ReportFilterProvider, useReportFilters } from "@/contexts/ReportFilterContext";
 
 function AccountRegisterInner() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -74,6 +76,7 @@ function AccountRegisterInner() {
   const { formatCurrency, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { filters } = useReportFilters();
 
   // Siblings = same account_type, active, sorted by code, for prev/next stepping.
   const siblings = useMemo(() => {
@@ -93,18 +96,19 @@ function AccountRegisterInner() {
   useEffect(() => {
     let cancelled = false;
     setOpeningBalanceJEId(null);
-    if (!currentOrg?.id || !accountId) return;
+    // No company in context = no single set of books to read; the register
+    // renders the consolidation gate instead, so skip the lookup entirely.
+    if (!currentOrg?.id || !currentBusiness?.id || !accountId) return;
     (async () => {
-      let q = supabase
+      const { data } = await supabase
         .from("journal_entries")
         .select("id, journal_entry_lines!inner(account_id)")
         .eq("organization_id", currentOrg.id)
+        .eq("business_id", currentBusiness.id)
         .eq("source_type", "migration")
         .eq("journal_entry_lines.account_id", accountId)
         .order("entry_date", { ascending: true })
         .limit(1);
-      q = q.eq("business_id", currentBusiness!.id);
-      const { data } = await q;
       if (!cancelled && data && data.length > 0) {
         setOpeningBalanceJEId(data[0].id as string);
       }
@@ -117,32 +121,29 @@ function AccountRegisterInner() {
     dateTo,
     accountIds: accountId ? [accountId] : undefined,
     includeZeroActivity: false,
+    // Same branch dimension as the GL report / Trial Balance, so a
+    // branch-scoped statement can be tied back to this register.
+    branchId: filters.branchId,
   });
 
   const accountData = data?.accounts?.[0];
   const transactions = accountData?.transactions || [];
 
-  // Filter transactions by search
-  const filteredTransactions = searchQuery
-    ? transactions.filter(t =>
-        t.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.entry_number?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : transactions;
-
-  // Running balance
+  // Filter transactions by search. The running balance is a LEDGER property
+  // (computed once in `useGeneralLedger` over the full period), never
+  // recomputed over the visible subset — otherwise a search term would
+  // silently produce partial cumulative balances.
   const transactionsWithBalance = useMemo(() => {
-    const isDebitNormal = ["asset", "expense"].includes(accountData?.account_type || "asset");
-    let running = accountData?.opening_balance || 0;
-    return filteredTransactions.map(t => {
-      if (isDebitNormal) {
-        running += (t.debit_amount || 0) - (t.credit_amount || 0);
-      } else {
-        running += (t.credit_amount || 0) - (t.debit_amount || 0);
-      }
-      return { ...t, runningBalance: running };
-    });
-  }, [filteredTransactions, accountData?.opening_balance, accountData?.account_type]);
+    const q = searchQuery.trim().toLowerCase();
+    const visible = q
+      ? transactions.filter(t =>
+          t.description?.toLowerCase().includes(q) ||
+          t.entry_number?.toLowerCase().includes(q)
+        )
+      : transactions;
+    return visible.map(t => ({ ...t, runningBalance: t.running_balance }));
+  }, [transactions, searchQuery]);
+
 
   const getExportConfig = useCallback((): ExportConfig => {
     const columns: ExportColumn[] = [
@@ -193,12 +194,19 @@ function AccountRegisterInner() {
       description={account ? `${account.account_type.charAt(0).toUpperCase() + account.account_type.slice(1)} account • ${account.detail_type || "General"}` : "Loading..."}
       isLoading={isLoading}
       error={error as Error | null}
-      isEmpty={!isLoading && transactionsWithBalance.length === 0}
+      // A register with no movement is NOT empty when the account carries a
+      // balance forward: "nil movement, balance b/f X" is itself the answer.
+      isEmpty={
+        !isLoading &&
+        transactionsWithBalance.length === 0 &&
+        (accountData?.opening_balance || 0) === 0 &&
+        (accountData?.closing_balance || 0) === 0
+      }
       emptyState={{
         kind: "no_data",
         title: "No activity on this account",
         message:
-          "The account has no posted journal lines in the selected period. Widen the date range or check whether the entries are still in draft.",
+          "The account has no posted journal lines in the selected period and no balance carried forward. Widen the date range or check whether the entries are still in draft.",
       }}
       getExportConfig={getExportConfig}
       headerActions={
@@ -245,13 +253,16 @@ function AccountRegisterInner() {
         </div>
       }
       filters={
-        <ReportFilters
-          dateMode="range"
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onDateFromChange={setDateFrom}
-          onDateToChange={setDateTo}
-        />
+        <div className="flex flex-wrap items-end gap-3">
+          <ReportFilters
+            dateMode="range"
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+          />
+          <ReportBranchFilter reportKind="general_ledger" />
+        </div>
       }
     >
       {/* Account Summary */}
@@ -418,8 +429,13 @@ function AccountRegisterInner() {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center mt-2">
-        {transactionsWithBalance.length} transaction{transactionsWithBalance.length !== 1 ? "s" : ""} in period
+        Showing {transactionsWithBalance.length} of {transactions.length} transaction
+        {transactions.length !== 1 ? "s" : ""} in period
+        {searchQuery.trim()
+          ? " — running balance stays the full-period ledger balance, not a subtotal of the filtered rows."
+          : ""}
       </p>
+
 
       <TransactionPreviewDrawer
         open={drawerOpen}
@@ -433,9 +449,11 @@ function AccountRegisterInner() {
 
 export default function AccountRegister() {
   return (
-    <ReportFilterProvider>
-      <AccountRegisterInner />
-    </ReportFilterProvider>
+    <CompanyScopeGate reportName="The account register">
+      <ReportFilterProvider>
+        <AccountRegisterInner />
+      </ReportFilterProvider>
+    </CompanyScopeGate>
   );
 }
 
