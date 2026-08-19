@@ -54,7 +54,21 @@ export interface BankTransaction {
   category: string | null;
   category_confidence: number | null;
   is_reconciled: boolean;
-  reconciled_type: "invoice" | "expense" | "bill" | "transfer" | "manual" | null;
+  /**
+   * The resolution that explained this line. `payment` / `bill_payment` mean
+   * money already recorded was cleared out of its holding account; `account`
+   * is a plain classification. (ADR-0147 kinds.)
+   */
+  reconciled_type:
+    | "invoice"
+    | "expense"
+    | "bill"
+    | "transfer"
+    | "manual"
+    | "payment"
+    | "bill_payment"
+    | "account"
+    | null;
   reconciled_entity_id: string | null;
   reconciled_at: string | null;
   reconciled_by: string | null;
