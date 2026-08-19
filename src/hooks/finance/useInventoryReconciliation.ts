@@ -96,7 +96,9 @@ export function useInventoryReconciliation(asOf?: string) {
   return useQuery({
     queryKey: ["inventory-gl-reconciliation", orgId, businessId, asOf ?? "today"],
     queryFn: async (): Promise<InventoryReconciliationRow[]> => {
-      if (!orgId) return [];
+      // p_business is an authorization boundary server-side: the RPC rejects a
+      // null business for signed-in callers, so never fire without one.
+      if (!orgId || !businessId) return [];
       const { data, error } = await (supabase as any).rpc(
         "reconcile_inventory_subledger_to_gl",
         { p_org: orgId, p_business: businessId, p_as_of: asOf ?? null },
@@ -104,10 +106,11 @@ export function useInventoryReconciliation(asOf?: string) {
       if (error) throw error;
       return (data ?? []) as InventoryReconciliationRow[];
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !!businessId,
     staleTime: 30_000,
   });
 }
+
 
 export function useNegativeStockPositions(enabled = true) {
   const { orgId, businessId } = useScope();
