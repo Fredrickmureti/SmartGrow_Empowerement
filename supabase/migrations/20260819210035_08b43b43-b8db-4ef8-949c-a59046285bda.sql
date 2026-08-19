@@ -1,0 +1,1 @@
+ALTER VIEW public.accounting_integrity_findings_stock_negative SET (security_invoker = true);

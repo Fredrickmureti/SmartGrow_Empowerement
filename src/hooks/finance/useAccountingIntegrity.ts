@@ -38,17 +38,21 @@ export function useAccountingIntegrity(limit = 200) {
     queryFn: async (): Promise<AccountingIntegrityFinding[]> => {
       if (!currentOrg?.id) return [];
 
+      // Scoping happens SERVER-side. The previous unscoped overload returned
+      // findings for every tenant and relied on the client to filter them.
       const { data, error } = await (supabase as any).rpc(
         "get_accounting_integrity_findings",
-        { _include_supplemental: true },
+        {
+          _org_id: currentOrg.id,
+          _business_id: currentBusiness?.id ?? null,
+          _branch_id: currentBranch?.id ?? null,
+          _severity: null,
+          _limit: limit,
+        },
       );
 
       if (error) throw error;
-      return ((data ?? []) as AccountingIntegrityFinding[])
-        .filter((finding) => finding.organization_id === currentOrg.id)
-        .filter((finding) => !currentBusiness?.id || finding.business_id === currentBusiness.id)
-        .filter((finding) => !currentBranch?.id || finding.branch_id === currentBranch.id)
-        .slice(0, limit);
+      return (data ?? []) as AccountingIntegrityFinding[];
     },
     enabled: !!currentOrg?.id,
     staleTime: 60_000,

@@ -16,9 +16,11 @@
  * stays visible for layout consistency; this is documented behaviour.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ArrowRight } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { InventoryReconciliationCard } from "@/components/finance/InventoryReconciliationCard";
@@ -26,17 +28,23 @@ import { useInventoryReconciliation } from "@/hooks/finance/useInventoryReconcil
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function InventoryGLReconciliationInner() {
-  const { data: rows = [], isLoading, error } = useInventoryReconciliation();
+  const [asOf, setAsOf] = useState<string>(todayISO());
+  const { data: rows = [], isLoading, error } = useInventoryReconciliation(asOf);
   const { baseCurrency } = useCurrency();
 
   const getExportConfig = useCallback((): ExportConfig => {
     const columns: ExportColumn[] = [
       { key: "account_code", header: "Code", width: 16 },
-      { key: "account_name", header: "Inventory Account", width: 40 },
+      { key: "account_name", header: "Inventory Account", width: 34 },
       { key: "subledger_value", header: "Subledger (at cost)", width: 22, format: "currency", align: "right" },
       { key: "gl_closing", header: "GL Closing", width: 22, format: "currency", align: "right" },
       { key: "drift", header: "Drift", width: 22, format: "currency", align: "right" },
+      { key: "exceptions", header: "Valuation exceptions", width: 30 },
     ];
     const exportRows: ExportRow[] = rows.map((r) => ({
       account_code: r.account_code,
@@ -44,16 +52,23 @@ function InventoryGLReconciliationInner() {
       subledger_value: r.subledger_value,
       gl_closing: r.gl_closing,
       drift: r.drift,
+      exceptions: [
+        r.fallback_cost_lines ? `${r.fallback_cost_lines} at product cost` : null,
+        r.zero_cost_lines ? `${r.zero_cost_lines} zero cost` : null,
+        r.negative_qty_lines ? `${r.negative_qty_lines} negative qty` : null,
+      ]
+        .filter(Boolean)
+        .join(", ") || "none",
     }));
     return {
       title: "Inventory ⇄ GL Reconciliation",
-      subtitle: "Subledger (Σ warehouse_stock × cost_price) vs General Ledger closing balance",
+      subtitle: `Stock on hand at moving-average cost vs posted General Ledger closing balance — as at ${asOf}`,
       formatProfile: "financial",
       columns,
       rows: exportRows,
       currency: baseCurrency,
     };
-  }, [rows, baseCurrency]);
+  }, [rows, baseCurrency, asOf]);
 
   const driftRows = useMemo(
     () => rows.filter((r) => Math.abs(r.drift) > 0.01),
@@ -63,12 +78,29 @@ function InventoryGLReconciliationInner() {
   return (
     <ReportPageLayout
       title="Inventory ⇄ GL Reconciliation"
-      description="Compares the inventory subledger against the General Ledger closing balance of each configured inventory control account. Non-zero drift indicates a missing opening, revaluation, or adjustment journal."
+      description="Compares the inventory subledger (stock on hand valued at per-warehouse moving-average cost) against the posted General Ledger closing balance of each configured inventory control account. Non-zero drift means a journal is missing, mis-dated, or posted elsewhere."
       isLoading={isLoading}
       error={(error as Error) ?? null}
       isEmpty={!isLoading && rows.length === 0}
       emptyMessage="No inventory control account is configured for this organization. Set it under Finance → Settings → Default Accounts."
       getExportConfig={getExportConfig}
+      filters={
+        <div className="flex items-end gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="recon-as-of" className="text-xs">
+              As at
+            </Label>
+            <Input
+              id="recon-as-of"
+              type="date"
+              className="w-[170px]"
+              value={asOf}
+              max={todayISO()}
+              onChange={(e) => setAsOf(e.target.value || todayISO())}
+            />
+          </div>
+        </div>
+      }
     >
       <div className="space-y-4">
         <InventoryReconciliationCard />
