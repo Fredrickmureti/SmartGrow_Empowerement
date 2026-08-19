@@ -312,6 +312,14 @@ export default function BankReconciliation() {
 
         ) : (
           <>
+            {/* F17 — a closed reconciliation is reopened here, with a reason */}
+            <CompletedReconciliations
+              sessions={sessions}
+              canReconcile={canReconcile}
+              isSaving={isSessionSaving}
+              onReopen={reopenSession}
+            />
+
             {/* Summary Cards */}
             <div className="stats-grid grid-cols-1 sm:grid-cols-3">
               <Card>
