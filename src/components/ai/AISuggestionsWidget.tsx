@@ -79,7 +79,7 @@ export function AISuggestionsWidget({ pendingInvoices, overdueAmount }: AISugges
         navigate("/invoices");
         break;
       case "reconcile":
-        navigate("/bank-reconciliation");
+        navigate("/finance/reconciliation");
         break;
       default:
         break;
