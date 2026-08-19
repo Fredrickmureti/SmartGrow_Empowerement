@@ -338,7 +338,7 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
       await fetchTransactions();
     } catch (error: unknown) {
       console.error("Error unreconciling transaction:", error);
-      toast.error("Failed to unreconcile transaction");
+      toast.error(mapBankFeedPermErr(error) ?? "Failed to unreconcile transaction");
       throw error;
     } finally {
       setIsSaving(false);
