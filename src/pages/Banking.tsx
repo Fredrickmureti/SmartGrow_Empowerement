@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useAccountBalances } from "@/hooks/useAccountBalances";

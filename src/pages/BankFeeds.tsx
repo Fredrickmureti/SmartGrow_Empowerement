@@ -14,6 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useTransactionRules } from "@/hooks/useTransactionRules";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
