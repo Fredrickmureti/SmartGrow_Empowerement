@@ -1,7 +1,8 @@
 # Inventory / Stock Reporting Wave — authoritative status
 
-**Currently active phase:** Phase 6 is **COMPLETE** (6.1–6.5 shipped and
-verified below). **Next phase: 6b — valuation-basis convergence.**
+**Currently active phase:** Phase 6b is **COMPLETE** (shipped and verified
+below; Phase 6 independently re-verified first). **Next phase: 7 — lot / serial
+traceability report family.**
 
 ## Status board
 
@@ -13,8 +14,8 @@ verified below). **Next phase: 6b — valuation-basis convergence.**
 | 4 | Stock Ledger page (signed quantity ledger) | Complete, verified |
 | 5 | Stock Aging page (bucketed layer value) | Complete, verified |
 | 6 | Inventory ⇄ GL reconciliation on the layer basis | **Complete this session** |
-| 6b | Valuation-basis convergence for integrity helpers | **Next — not started** |
-| 7 | Lot / serial traceability report family | Not started |
+| 6b | Valuation-basis convergence for integrity helpers | **Complete this session** |
+| 7 | Lot / serial traceability report family | **Next — not started** |
 
 ## Phase 6 — what shipped (all five sub-phases)
 
@@ -59,21 +60,56 @@ psql / SQL-editor session to execute; this sandbox exposes no `PGHOST`. The new
 sections 8–9 are therefore authored but not yet run. Running them is the first
 item for whoever has a database session.
 
-## Phase 6b — valuation-basis convergence (next)
+## Phase 6b — valuation-basis convergence (shipped and verified)
 
-`warehouse_stock.average_cost` / `products.cost_price` remain the basis for
-`detect_negative_asset_findings` and sibling integrity helpers
-(`20260819205917_*.sql`), and for `useValuationDrift` on the Inventory
-Integrity page. Now that layer valuation is authoritative, audit each helper
-and either re-base it on `_inventory_layer_valuation_as_of` or explicitly
-re-label it as an "AVCO-vs-layer divergence" check — which is what it actually
-measures. No new report; correctness and labelling only. Deliverables:
+Verification of Phase 6 was run first: the 9 unified-engine assertions pass, and
+the newest migration was read line by line — subledger value comes only from
+`_inventory_layer_valuation_as_of`, `p_as_of` reaches both sides, no AVCO
+fallback survives, EXECUTE revoked from `PUBLIC`/`anon`.
 
-1. Enumerate every helper/report that still derives inventory value from
-   `warehouse_stock.average_cost` or `products.cost_price`.
-2. For each: re-base, or rename + re-document as a divergence check.
-3. Extend the ratchet so a NEW inventory-value derivation outside the shared
-   helper fails the build.
+Enumerated every remaining inventory-value derivation and resolved each:
+
+- **`list_inventory_subledger_composition` — RE-BASED.** Rebuilt on
+  `_inventory_layer_valuation_as_of` at an explicit `p_as_of`, so the `value`
+  column now sums exactly to `subledger_value` (it previously "defended" the
+  figure on the AVCO basis and could never tie). New signature
+  `(p_org, p_business, p_as_of, p_limit, p_branch)`; company is an
+  authorization boundary (`INVENTORY_RECON_BUSINESS_REQUIRED`), branch applied
+  symmetrically, `SECURITY DEFINER` + both assertions, EXECUTE revoked from
+  `PUBLIC`/`anon`. `cost_basis` values are now layer-derived:
+  `cost_layer` / `zero_cost_layer` / `negative_layer` / `unlayered`. Unlayered
+  positions are listed at zero value and flagged, never estimated.
+- **`list_negative_stock_positions` + `accounting_integrity_findings_stock_negative`
+  — RE-LABELLED.** Negative quantity has no layers, so the amount is an
+  operational exposure estimate, not a valuation: columns/evidence keys renamed
+  `avco_unit_cost` / `avco_exposure_estimate`, detail copy states the layer
+  ledger cannot value the position. Company scope now required, matching the
+  reconciliation.
+- **`backfill_opening_inventory_gl` — RE-LABELLED + GUARDED.** Product cost
+  stays the only possible basis for positions with no layers, but the payload
+  now declares `basis: 'product_cost_estimate'`, reports
+  `layer_basis_drift` measured by the re-based reconciliation at the entry date,
+  skips with `no_layer_basis_drift` when there is nothing to close, and caps the
+  posting at that drift so remediation can never create new drift.
+- **`useValuationDrift` / `check_inventory_valuation_drift` — NO CHANGE
+  NEEDED.** It is already an explicit AVCO-vs-layers divergence check and is
+  documented as such; the guard now pins that labelling.
+
+Client alignment: `useInventoryReconciliation.ts` types the new bases and the
+renamed exposure fields and pins the composition query to the same `asOf`;
+`InventoryReconciliationCard` labels each basis, totals the listed positions,
+states the AVCO-estimate caveat on negative stock; `OpeningInventoryBackfillDialog`
+shows the measured layer drift, the basis caveat and the new skip reason.
+
+Guards: `src/test/architecture/inventory-valuation-basis-convergence.test.ts`
+(11 assertions, passing) fails the build if a value derivation reappears outside
+the shared helper, if the misleading names return, if the composition loses its
+security shape, or if the backfill cap is removed.
+`supabase/tests/inventory_reporting_ratchet_test.sql` gained section 10
+(composition total == subledger value; only layer-derived bases allowed) and
+section 11 (company scope required on both integrity helpers).
+
+Typecheck clean; Phase 6 + 6b architecture suites: 20/20 passing.
 
 ## Phase 7 — lot / serial traceability report
 
@@ -91,23 +127,30 @@ movements, delivered as a dimension-driven report family, not per-entity pages.
 
 ## Handover — instructions for the next agent
 
-**Verify before you build.** Do not start 6b until you have independently
-confirmed Phase 6, in this order:
+**Verify before you build.** Do not start Phase 7 until you have
+independently confirmed Phase 6b, in this order:
 
-1. Run `bunx vitest run src/test/architecture/inventory-gl-reconciliation-unified.test.ts`
-   — 9 assertions must pass.
+1. Run `bunx vitest run src/test/architecture/inventory-gl-reconciliation-unified.test.ts src/test/architecture/inventory-valuation-basis-convergence.test.ts`
+   — 20 assertions must pass. Then run a full typecheck.
 2. Read the newest migration defining
-   `reconcile_inventory_subledger_to_gl` and confirm with your own eyes:
-   subledger value comes only from `_inventory_layer_valuation_as_of`; the
-   `p_as_of` date reaches BOTH sides; no `warehouse_stock.average_cost`
-   fallback survives; EXECUTE is revoked from `PUBLIC`/`anon`.
-3. If you have a database session, run
+   `list_inventory_subledger_composition` and confirm with your own eyes: value
+   comes only from `_inventory_layer_valuation_as_of`; no `average_cost` /
+   `cost_price` survives in that function; company scope raises
+   `INVENTORY_RECON_BUSINESS_REQUIRED`; EXECUTE revoked from `PUBLIC`/`anon`;
+   `backfill_opening_inventory_gl` is capped by `LEAST(v_total, v_layer_drift)`.
+3. Grep the repo for any NEW inventory-value derivation from
+   `warehouse_stock.average_cost` or `products.cost_price`. Anything found must
+   either read the shared helper or be named/documented as an AVCO estimate or
+   divergence check.
+4. If you have a database session, run
    `supabase/tests/inventory_reporting_ratchet_test.sql` and confirm sections
-   8 and 9 pass. Record the result here.
-4. Open `/finance/reports/inventory-gl-reconciliation`, compare its subledger
-   total against `/inventory-app/reports/valuation` at the same as-at date, and
-   confirm they agree to the cent — that is the whole point of Phase 6.
+   8–11 pass. Record the result here.
+5. Open `/finance/reports/inventory-gl-reconciliation`, expand "Subledger
+   composition" and confirm the listed-positions total equals `subledger_value`
+   for the same as-at date, and that the same figure matches
+   `/inventory-app/reports/valuation` to the cent.
 
-**Then resume at Phase 6b**, in the order listed in that section. Do not pick
-up unrelated inventory work, do not start Phase 7 before 6b closes, and do not
-leave a helper half re-based.
+**Then resume at Phase 7** as scoped above (dimension-driven lot/serial
+traceability report family on the unified engine — server column specs, server
+build, `ReportSurface` page, nav entry, architecture + ratchet guards). Do not
+pick up unrelated inventory work and do not leave a report half migrated.

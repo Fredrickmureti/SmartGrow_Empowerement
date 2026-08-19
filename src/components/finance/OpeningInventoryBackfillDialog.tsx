@@ -34,6 +34,8 @@ const SKIP_COPY: Record<string, string> = {
     "An opening inventory journal has already been posted for this company. Posting again would double-count inventory, so this action is blocked.",
   no_zero_cost_opening_movements:
     "There are no zero-cost opening stock movements to value. The drift you are seeing comes from something else — check “Difference explained”.",
+  no_layer_basis_drift:
+    "The cost-layer reconciliation shows no shortfall on the Inventory control account at this date, so there is nothing to bring on. Posting anyway would create new drift.",
   period_locked:
     "The accounting period that would receive this entry is locked. Re-open the period, or choose an as-at date in an open period.",
 };
@@ -106,8 +108,19 @@ export function OpeningInventoryBackfillDialog({ open, onOpenChange, asOf }: Pro
               <dt className="text-muted-foreground">Credit — Opening Balance Equity</dt>
               <dd className="font-medium tabular-nums">{fmt(preview.total_posted ?? 0)}</dd>
             </div>
+            <div className="flex justify-between gap-4 px-3 py-2">
+              <dt className="text-muted-foreground">Drift measured on the cost-layer basis</dt>
+              <dd className="font-medium tabular-nums">
+                {fmt(preview.layer_basis_drift ?? 0)}
+              </dd>
+            </div>
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              Valued at product cost — these positions have no cost layers to value
+              them. The posting is capped at the drift the reconciliation measures.
+            </div>
           </dl>
         ) : null}
+
 
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

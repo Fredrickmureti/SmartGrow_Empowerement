@@ -35,6 +35,11 @@ export interface InventoryReconciliationRow {
   negative_qty_positions: number;
 }
 
+/**
+ * Negative stock is an OPERATIONAL defect: negative quantity has no cost
+ * layers behind it, so the amount shown is an explicitly named AVCO /
+ * product-cost exposure estimate — never an accounting valuation.
+ */
 export interface NegativeStockPosition {
   product_id: string;
   product_name: string;
@@ -42,9 +47,22 @@ export interface NegativeStockPosition {
   warehouse_id: string | null;
   warehouse_name: string | null;
   quantity: number;
-  unit_cost: number;
-  valuation_impact: number;
+  avco_unit_cost: number;
+  avco_exposure_estimate: number;
 }
+
+/**
+ * Line-by-line composition of `subledger_value`, built from the same
+ * `_inventory_layer_valuation_as_of()` data as the reconciliation total, so
+ * the `value` column sums to that total. `unlayered` rows carry quantity with
+ * no cost layer and are therefore listed at zero value, flagged rather than
+ * estimated.
+ */
+export type SubledgerCostBasis =
+  | "cost_layer"
+  | "zero_cost_layer"
+  | "negative_layer"
+  | "unlayered";
 
 export interface SubledgerCompositionRow {
   warehouse_id: string | null;
@@ -54,7 +72,7 @@ export interface SubledgerCompositionRow {
   sku: string | null;
   quantity: number;
   unit_cost: number;
-  cost_basis: "avco" | "product_cost" | "none";
+  cost_basis: SubledgerCostBasis;
   value: number;
 }
 
@@ -83,6 +101,11 @@ export interface BackfillResult {
   entry_date?: string;
   total_posted?: number;
   total?: number;
+  /** Basis of the posted amount. Product cost only — these positions have no layers. */
+  basis?: "product_cost_estimate";
+  /** Drift measured on the authoritative layer basis; the posting is capped at it. */
+  layer_basis_drift?: number;
+  estimated_total?: number;
   debit_account_id?: string;
   credit_account_id?: string;
 }
@@ -121,7 +144,8 @@ export function useNegativeStockPositions(enabled = true) {
   return useQuery({
     queryKey: ["inventory-negative-stock", orgId, businessId],
     queryFn: async (): Promise<NegativeStockPosition[]> => {
-      if (!orgId) return [];
+      // p_business is an authorization boundary server-side (Phase 6b).
+      if (!orgId || !businessId) return [];
       const { data, error } = await (supabase as any).rpc(
         "list_negative_stock_positions",
         { p_org: orgId, p_business: businessId },
@@ -129,26 +153,31 @@ export function useNegativeStockPositions(enabled = true) {
       if (error) throw error;
       return (data ?? []) as NegativeStockPosition[];
     },
-    enabled: !!orgId && enabled,
+    enabled: !!orgId && !!businessId && enabled,
     staleTime: 30_000,
   });
 }
 
-export function useInventorySubledgerComposition(enabled = true) {
+/**
+ * Composition of the subledger figure at the SAME as-at date the
+ * reconciliation used — otherwise the drill-down would explain a different
+ * number than the one on screen.
+ */
+export function useInventorySubledgerComposition(enabled = true, asOf?: string) {
   const { orgId, businessId } = useScope();
 
   return useQuery({
-    queryKey: ["inventory-subledger-composition", orgId, businessId],
+    queryKey: ["inventory-subledger-composition", orgId, businessId, asOf ?? "today"],
     queryFn: async (): Promise<SubledgerCompositionRow[]> => {
-      if (!orgId) return [];
+      if (!orgId || !businessId) return [];
       const { data, error } = await (supabase as any).rpc(
         "list_inventory_subledger_composition",
-        { p_org: orgId, p_business: businessId, p_limit: 500 },
+        { p_org: orgId, p_business: businessId, p_as_of: asOf ?? null, p_limit: 500 },
       );
       if (error) throw error;
       return (data ?? []) as SubledgerCompositionRow[];
     },
-    enabled: !!orgId && enabled,
+    enabled: !!orgId && !!businessId && enabled,
     staleTime: 30_000,
   });
 }
