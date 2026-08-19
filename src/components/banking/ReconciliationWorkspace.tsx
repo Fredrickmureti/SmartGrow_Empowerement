@@ -358,7 +358,12 @@ export function ReconciliationWorkspace({
         <CardContent className="pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {isBalanced ? (
+              {glDiverged ? (
+                <Badge variant="outline" className="text-destructive border-destructive/30">
+                  <XCircle className="mr-1 h-3 w-3" />
+                  Ledger divergence: {formatCurrency(glDivergence ?? 0)}
+                </Badge>
+              ) : isBalanced ? (
                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
                   Balanced — Ready to finish
@@ -390,7 +395,8 @@ export function ReconciliationWorkspace({
               )}
               <Button
                 onClick={handleFinish}
-                disabled={!isBalanced || isCompleting}
+                disabled={!isBalanced || glDiverged || isCompleting}
+                title={glDiverged ? "The cleared lines disagree with the bank ledger — resolve the divergence first." : undefined}
               >
                 {isCompleting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
