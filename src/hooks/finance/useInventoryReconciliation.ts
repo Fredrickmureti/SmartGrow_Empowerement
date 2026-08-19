@@ -35,6 +35,11 @@ export interface InventoryReconciliationRow {
   negative_qty_positions: number;
 }
 
+/**
+ * Negative stock is an OPERATIONAL defect: negative quantity has no cost
+ * layers behind it, so the amount shown is an explicitly named AVCO /
+ * product-cost exposure estimate — never an accounting valuation.
+ */
 export interface NegativeStockPosition {
   product_id: string;
   product_name: string;
@@ -42,9 +47,22 @@ export interface NegativeStockPosition {
   warehouse_id: string | null;
   warehouse_name: string | null;
   quantity: number;
-  unit_cost: number;
-  valuation_impact: number;
+  avco_unit_cost: number;
+  avco_exposure_estimate: number;
 }
+
+/**
+ * Line-by-line composition of `subledger_value`, built from the same
+ * `_inventory_layer_valuation_as_of()` data as the reconciliation total, so
+ * the `value` column sums to that total. `unlayered` rows carry quantity with
+ * no cost layer and are therefore listed at zero value, flagged rather than
+ * estimated.
+ */
+export type SubledgerCostBasis =
+  | "cost_layer"
+  | "zero_cost_layer"
+  | "negative_layer"
+  | "unlayered";
 
 export interface SubledgerCompositionRow {
   warehouse_id: string | null;
@@ -54,7 +72,7 @@ export interface SubledgerCompositionRow {
   sku: string | null;
   quantity: number;
   unit_cost: number;
-  cost_basis: "avco" | "product_cost" | "none";
+  cost_basis: SubledgerCostBasis;
   value: number;
 }
 
