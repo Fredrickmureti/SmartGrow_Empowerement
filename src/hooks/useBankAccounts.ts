@@ -509,7 +509,7 @@ export function useBankAccounts() {
 
       if (error) throw error;
       toast.success("Bank account added successfully");
-      await fetchAccounts();
+      await fetchAccounts(true);
       return created as unknown as BankAccount;
     } catch (error: unknown) {
       console.error("Error creating bank account:", error);
@@ -552,7 +552,7 @@ export function useBankAccounts() {
 
       if (error) throw error;
       toast.success("Bank account updated successfully");
-      await fetchAccounts();
+      await fetchAccounts(true);
     } catch (error: unknown) {
       console.error("Error updating bank account:", error);
       const friendly = mapPermErr(error);
@@ -586,7 +586,7 @@ export function useBankAccounts() {
             ? "Bank account suspended"
             : "Bank account activated",
       );
-      await fetchAccounts();
+      await fetchAccounts(true);
     } catch (error: unknown) {
       console.error("Error changing bank account status:", error);
       const friendly = mapPermErr(error);
@@ -615,7 +615,7 @@ export function useBankAccounts() {
       });
       if (error) throw error;
       toast.success("Bank account deleted successfully");
-      await fetchAccounts();
+      await fetchAccounts(true);
     } catch (error: unknown) {
       console.error("Error deleting bank account:", error);
       const friendly = mapPermErr(error);
@@ -655,7 +655,7 @@ export function useBankAccounts() {
       console.error("Error syncing transactions:", error);
       toast.error("Failed to sync transactions");
     } finally {
-      await fetchAccounts();
+      await fetchAccounts(true);
       setIsSaving(false);
     }
   };
