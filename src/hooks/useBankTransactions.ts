@@ -510,6 +510,7 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
     totalCount,
     isLoading,
     isSaving,
+    loadError,
     stats,
     fetchTransactions,
     reconcileTransaction,
