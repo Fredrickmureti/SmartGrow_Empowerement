@@ -21,6 +21,7 @@ const Inventory = lazy(() => import("@/pages/Inventory"));
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
+const StockLedgerReport = lazy(() => import("@/pages/reports/StockLedgerReport"));
 const InventoryIntegrity = lazy(() => import("@/pages/inventory/InventoryIntegrity"));
 
 const ReplenishmentLog = lazy(() => import("@/pages/ReplenishmentLog"));
