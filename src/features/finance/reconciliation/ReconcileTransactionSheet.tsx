@@ -105,10 +105,12 @@ export function ReconcileTransactionSheet({
   const [selectedMatch, setSelectedMatch] = useState<{ type: string; id: string } | null>(null);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [selectedRecordedId, setSelectedRecordedId] = useState<string | null>(null);
   const [chosenCandidateIndex, setChosenCandidateIndex] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [offsetAccountId, setOffsetAccountId] = useState("");
   const [manualDescription, setManualDescription] = useState("");
+  const [activeTab, setActiveTab] = useState<string | null>(null);
 
   const { invoices } = useInvoices();
   const { bills } = useBills();
@@ -121,6 +123,37 @@ export function ReconcileTransactionSheet({
     transaction?.id,
     open,
   );
+
+  /**
+   * An open proposal suppresses every suggestion (ADR-0148). It must therefore
+   * be visible and answerable here, or the line is blocked with no way out but
+   * a hand-match — the very mistake the engine exists to prevent.
+   */
+  const { data: pendingMatch } = useBankPendingMatch(transaction?.id, open);
+  const { confirm: confirmPending, reject: rejectPending } = usePendingMatchActions(
+    transaction?.id,
+  );
+
+  const inflow = transaction?.transaction_type === "credit";
+  const lineAmount = Math.abs(Number(transaction?.amount ?? 0));
+
+  /** Money already recorded that this line could be clearing rather than re-settling. */
+  const { data: clearable } = useClearableRecordedPayments({
+    amount: lineAmount,
+    isCredit: inflow,
+    enabled: open && !!transaction?.id,
+  });
+  const clearableCandidates = clearable?.candidates ?? [];
+  const holdingAccountIds = clearable?.holdingAccountIds ?? [];
+
+  /**
+   * Recognising money already recorded is the first offer, never the last: when
+   * a recorded receipt fits this line, that tab opens by default.
+   */
+  useEffect(() => {
+    if (activeTab !== null) return;
+    if (clearableCandidates.length > 0) setActiveTab("recorded");
+  }, [activeTab, clearableCandidates.length]);
 
   if (!transaction) return null;
 
