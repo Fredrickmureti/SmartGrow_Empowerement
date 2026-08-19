@@ -29,7 +29,7 @@ import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { BranchScopeToggle, type BranchScope } from "@/components/reports/BranchScopeToggle";
 import { format, startOfMonth } from "date-fns";
-import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { useStockLedger } from "@/hooks/inventory/useInventoryReportRpcs";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
@@ -130,21 +130,20 @@ function StockLedgerReportInner() {
 
   /** Server-built export: full dataset, canonical columns, identical to screen. */
   const getExportConfig = useCallback(
-    (): ExportConfig =>
-      ({
-        title: "Stock Ledger",
-        reportType: "stock_ledger",
-        organizationId: orgId ?? undefined,
-        businessId: bizId ?? undefined,
-        branchId: effectiveBranchId,
-        dateRange: { from: dateFrom, to: dateTo },
+    (): ServerBuildConfig => ({
+      title: "Stock Ledger",
+      reportType: "stock_ledger",
+      organizationId: orgId ?? undefined,
+      businessId: bizId ?? undefined,
+      branchId: effectiveBranchId,
+      dateRange: `${dateFrom} to ${dateTo}`,
         dateFrom,
         dateTo,
-        filters: { branchId: effectiveBranchId },
-        columns: [],
-        rows: [],
-        sheetName: "Stock Ledger",
-      }) as ExportConfig,
+      filters: { branchId: effectiveBranchId },
+      columns: [],
+      rows: [],
+      sheetName: "Stock Ledger",
+    }),
     [orgId, bizId, effectiveBranchId, dateFrom, dateTo],
   );
 
