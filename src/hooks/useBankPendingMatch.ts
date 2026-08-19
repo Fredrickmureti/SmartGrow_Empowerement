@@ -101,6 +101,7 @@ export function usePendingMatchActions(txnId?: string) {
       const { data: userData } = await supabase.auth.getUser();
       const { error } = await (supabase as any).rpc("bank_match_reject", {
         _match_id: matchId,
+        _reason: "Rejected by operator from the match sheet",
         _user_id: userData.user?.id ?? null,
       });
       if (error) throw error;
