@@ -86,6 +86,7 @@ const SOURCE_LABELS: Record<string, string> = {
   opening_balance: "Opening Balance",
   year_end_closing: "Year-End Closing",
   bank_recon: "Bank Reconciliation",
+  bank_reconciliation: "Bank Deposit / Reconciliation",
   pos_sale: "POS Sale",
   payroll: "Payroll",
   purchase_return: "Purchase Return",
