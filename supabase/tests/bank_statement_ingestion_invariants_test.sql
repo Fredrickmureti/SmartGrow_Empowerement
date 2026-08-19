@@ -146,3 +146,74 @@ BEGIN
 END $$;
 
 SELECT 'bank_statement_ingestion_invariants: ok' AS result;
+
+-- ---------------------------------------------------------------------
+-- 6) Lifecycle drift guard: every status literal the engine writes to
+--    bank_statements must be a member of the live check constraint's
+--    allowed set. Derived from pg_constraint, never hardcoded — this is
+--    the exact drift that produced 23514 on every import.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  v_src      text;
+  v_check    text;
+  v_lit      text;
+  v_offend   text[] := '{}';
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO v_src
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.proname='bank_statement_import_batch';
+
+  SELECT pg_get_constraintdef(c.oid) INTO v_check
+  FROM pg_constraint c
+  WHERE c.conrelid='public.bank_statements'::regclass
+    AND c.conname='bank_statements_status_check';
+
+  IF v_check IS NULL THEN
+    RAISE EXCEPTION 'bank_statements_status_check is missing';
+  END IF;
+
+  -- Statuses the engine assigns, extracted from its own source text.
+  FOR v_lit IN
+    SELECT DISTINCT m[1]
+    FROM regexp_matches(v_src, 'status\s*=\s*''([a-z_]+)''', 'g') m
+    UNION
+    SELECT DISTINCT m[1]
+    FROM regexp_matches(v_src, 'THEN\s*''([a-z_]+)''\s*ELSE\s*''[a-z_]+''', 'g') m
+    UNION
+    SELECT DISTINCT m[1]
+    FROM regexp_matches(v_src, 'ELSE\s*''([a-z_]+)''\s*END', 'g') m
+  LOOP
+    IF v_check NOT LIKE '%''' || v_lit || '''%' THEN
+      v_offend := v_offend || v_lit;
+    END IF;
+  END LOOP;
+
+  IF array_length(v_offend, 1) IS NOT NULL THEN
+    RAISE EXCEPTION 'import engine writes status literal(s) % rejected by %',
+      array_to_string(v_offend, ', '), v_check;
+  END IF;
+
+  -- The unobservable intermediate state must not come back.
+  IF v_src ILIKE '%''processing''%' THEN
+    RAISE EXCEPTION 'import engine reintroduced the non-observable ''processing'' status';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 7) A zero-amount line (opening balance / carry-forward) is statement
+--    metadata, never a bank transaction.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE v_src text;
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO v_src
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.proname='bank_statement_import_batch';
+
+  IF v_src !~ 'v_amount\s*=\s*0' THEN
+    RAISE EXCEPTION 'import engine does not reject zero-amount statement lines';
+  END IF;
+END $$;
+
+SELECT 'bank_statement_lifecycle_invariants: ok' AS result;

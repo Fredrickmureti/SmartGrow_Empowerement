@@ -99,6 +99,7 @@ export default function ImportStatementWizardPage() {
     success: number;
     failed: number;
     duplicates: number;
+    rejectedRows: Array<{ row: number; reason: string }>;
   } | null>(null);
   const [duplicateCount, setDuplicateCount] = useState(0);
 
@@ -249,6 +250,7 @@ export default function ImportStatementWizardPage() {
         success: result.inserted ?? 0,
         failed: result.rejected ?? 0,
         duplicates: result.duplicates ?? 0,
+        rejectedRows: result.rejected_rows ?? [],
       });
       setStep("done");
     } catch (error) {
@@ -526,8 +528,11 @@ export default function ImportStatementWizardPage() {
       {step === "preview" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
+            {/* "parsed", not "ready": statement-level validation (account
+                lifecycle, currency, period locks) happens server-side inside
+                the import engine, after this step. */}
             <Badge variant="outline">
-              {finalTransactions.length} transactions ready
+              {finalTransactions.length} transactions parsed
             </Badge>
             {duplicateCount > 0 && (
               <Badge
@@ -627,10 +632,24 @@ export default function ImportStatementWizardPage() {
             {importResult.failed > 0 && (
               <span className="text-red-600">
                 <X className="mr-1 inline h-4 w-4" />
-                {importResult.failed} failed
+                {importResult.failed} skipped
               </span>
             )}
           </div>
+
+          {importResult.rejectedRows.length > 0 && (
+            <div className="mx-auto mt-4 max-w-lg rounded-lg border p-3 text-left">
+              <p className="mb-2 text-sm font-medium">Skipped rows</p>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {importResult.rejectedRows.slice(0, 10).map((r) => (
+                  <li key={r.row}>Row {r.row}: {r.reason}</li>
+                ))}
+                {importResult.rejectedRows.length > 10 && (
+                  <li>+{importResult.rejectedRows.length - 10} more</li>
+                )}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </WizardShell>
