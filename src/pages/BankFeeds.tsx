@@ -292,6 +292,12 @@ export default function BankFeeds() {
                   <div className="text-center py-6 sm:py-8 text-xs sm:text-sm text-muted-foreground">
                     Loading transactions...
                   </div>
+                ) : loadError ? (
+                  <BankingLoadError
+                    error={loadError}
+                    what="transactions"
+                    onRetry={() => fetchTransactions()}
+                  />
                 ) : groupedTransactions.length === 0 ? (
                   <div className="text-center py-8 sm:py-12">
                     <CheckCircle2 className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-green-500 mb-3 sm:mb-4" />
