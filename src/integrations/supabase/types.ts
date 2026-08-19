@@ -95595,10 +95595,6 @@ export type Database = {
         Args: { _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_journal_entry_number: {
-        Args: { _org_id: string }
-        Returns: string
-      }
       get_next_lead_number: { Args: { p_org_id: string }; Returns: string }
       get_next_leave_request_number: {
         Args: { p_org_id: string }
