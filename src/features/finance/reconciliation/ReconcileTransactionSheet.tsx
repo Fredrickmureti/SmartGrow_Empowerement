@@ -40,6 +40,8 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 import { useBankMatchCandidates, TIER_COPY, isExplainedTier } from "@/hooks/useBankMatchCandidates";
+import { useBankPendingMatch, usePendingMatchActions } from "@/hooks/useBankPendingMatch";
+import { useClearableRecordedPayments } from "@/hooks/useClearableRecordedPayments";
 
 import {
   Search,
@@ -51,6 +53,9 @@ import {
   Check,
   BookOpen,
   Sparkles,
+  Banknote,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 
 interface ReconcileTransactionSheetProps {
