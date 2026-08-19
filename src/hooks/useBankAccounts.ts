@@ -680,7 +680,7 @@ export function useBankAccounts() {
       syncTransactions,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accounts, isLoading, isSaving, canManage, fetchAccounts],
+    [accounts, isLoading, isSaving, loadError, canManage, fetchAccounts],
   );
 
   return value;
