@@ -78,7 +78,11 @@ BEGIN
       SELECT * FROM public.bank_account_positions(v_biz, CURRENT_DATE)
     LOOP
       SELECT COALESCE(a.opening_balance, 0) + COALESCE((
-                SELECT SUM(t.amount) FROM public.bank_transactions t
+                SELECT SUM(CASE
+                         WHEN t.transaction_type = 'credit' THEN ABS(t.amount)
+                         WHEN t.transaction_type = 'debit'  THEN -ABS(t.amount)
+                         ELSE t.amount END)
+                FROM public.bank_transactions t
                 WHERE t.bank_account_id = v_row.bank_account_id
                   AND t.transaction_date <= CURRENT_DATE
              ), 0)
