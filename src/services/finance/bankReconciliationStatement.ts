@@ -214,6 +214,7 @@ export async function fetchBankReconciliationStatement(
     },
     residual: nullableNum(payload.residual),
     inBalance: Boolean(payload.in_balance),
+    residualExplanations: normalizeExplanations(payload.residual_explanations),
     diagnostics: {
       glAccountMissing: Boolean(diag.gl_account_missing),
       glAccountShared: Boolean(diag.gl_account_shared),
