@@ -8,7 +8,8 @@
  * advice for the accountant to act on in the reconciliation workspace.
  */
 
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,12 +17,21 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  resolveRemedy,
+  type RemedyContext,
+} from "@/features/finance/reconciliation/residualRemedies";
 import type { ResidualExplanation } from "@/services/finance/bankReconciliationStatement";
 
 interface ResidualExplainerProps {
   residual: number | null;
   currency: string;
   explanations: ResidualExplanation[];
+  /**
+   * Where the remedies point. Navigation only — the explainer still performs
+   * no accounting act of its own (ADR-0149).
+   */
+  remedyContext?: RemedyContext;
 }
 
 const money = (value: number | null, currency: string) =>
