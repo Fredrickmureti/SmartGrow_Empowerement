@@ -87407,17 +87407,23 @@ export type Database = {
           p_as_of?: string
           p_branch?: string
           p_business: string
+          p_by_lot?: boolean
           p_category?: string
+          p_lot?: string
           p_org: string
           p_product?: string
           p_warehouse?: string
         }
         Returns: {
           branch_id: string
+          latest_receipt_at: string
           layer_count: number
+          lot_number: string
           oldest_receipt_at: string
           product_id: string
+          qty_consumed: number
           qty_on_hand: number
+          qty_received: number
           total_value: number
           warehouse_id: string
           zero_cost_layers: number
@@ -101645,6 +101651,50 @@ export type Database = {
           product_name: string
           qty_on_hand: number
           sku: string
+          total_rows: number
+          total_value: number
+          warehouse_id: string
+          warehouse_name: string
+        }[]
+      }
+      report_lot_traceability_as_of: {
+        Args: {
+          p_as_of?: string
+          p_branch?: string
+          p_business: string
+          p_category?: string
+          p_expiry_bucket?: string
+          p_include_depleted?: boolean
+          p_limit?: number
+          p_lot?: string
+          p_offset?: number
+          p_org: string
+          p_product?: string
+          p_status?: string
+          p_warehouse?: string
+        }
+        Returns: {
+          avg_unit_cost: number
+          branch_id: string
+          category_id: string
+          days_to_expiry: number
+          expiry_bucket: string
+          expiry_date: string
+          first_receipt_at: string
+          last_movement_at: string
+          layer_count: number
+          lot_id: string
+          lot_number: string
+          lot_status: string
+          manufacture_date: string
+          product_id: string
+          product_name: string
+          qty_consumed: number
+          qty_on_hand: number
+          qty_received: number
+          receipt_number: string
+          sku: string
+          supplier_name: string
           total_rows: number
           total_value: number
           warehouse_id: string
