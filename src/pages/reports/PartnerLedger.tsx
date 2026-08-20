@@ -12,10 +12,8 @@ import { useState, useCallback, useMemo } from "react";
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { usePartnerLedger, usePartnerLedgerReconciliation } from "@/hooks/usePartnerLedger";
-import type {
-  PartnerLedgerPartner,
-  PartnerLedgerTransaction,
-} from "@/services/finance/partnerLedger";
+
+
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from "@/hooks/useOrganization";
