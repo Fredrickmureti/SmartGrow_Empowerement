@@ -101704,15 +101704,15 @@ export type Database = {
       }
       report_stock_adjustments: {
         Args: {
-          _branch_id?: string
-          _business_id: string
-          _from_date?: string
-          _limit?: number
-          _offset?: number
-          _organization_id: string
-          _reason?: string
-          _status?: string
-          _to_date?: string
+          p_branch?: string
+          p_business: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_reason?: string
+          p_status?: string
+          p_to?: string
         }
         Returns: {
           abs_qty: number
@@ -101762,14 +101762,14 @@ export type Database = {
       }
       report_stock_transfers: {
         Args: {
-          _branch_id?: string
-          _business_id: string
-          _from_date?: string
-          _limit?: number
-          _offset?: number
-          _organization_id: string
-          _status?: string
-          _to_date?: string
+          p_branch?: string
+          p_business: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_status?: string
+          p_to?: string
         }
         Returns: {
           actual_arrival_date: string
