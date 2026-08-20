@@ -483,6 +483,30 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "inventory_aging",
     keywords: ["stock", "aging", "slow moving", "obsolete", "old stock", "buckets"],
   },
+  {
+    // Phase 7 — lot / serial traceability. Value uses the same shared cost-layer
+    // helper as Inventory Valuation (lot grain), so totals tie at the same date.
+    id: "lot-traceability",
+    name: "Lot Traceability",
+    description: "Lot / serial positions, expiry and control status as at a date",
+    category: "inventory",
+    path: "/inventory-app/reports/lot-traceability",
+    icon: Boxes,
+    requiredFeature: "reports_stock",
+    permission: "viewReports",
+    reportType: "lot_traceability",
+    keywords: [
+      "lot",
+      "batch",
+      "serial",
+      "traceability",
+      "expiry",
+      "shelf life",
+      "recall",
+      "quarantine",
+      "genealogy",
+    ],
+  },
 
   // ─── Management & BI ───
   {
