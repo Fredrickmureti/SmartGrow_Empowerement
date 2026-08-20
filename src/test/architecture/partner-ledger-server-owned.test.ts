@@ -63,4 +63,24 @@ describe("Partner Ledger — server-owned balances", () => {
   it("the hook exposes the GL tie-out", () => {
     expect(read(HOOK)).toContain("usePartnerLedgerReconciliation");
   });
+  it("grand totals come from the engine's totals envelope, not JS addition", () => {
+    const src = read(PAGE);
+    expect(src).not.toMatch(/grand\.debit\s*\+=/);
+    expect(src).not.toMatch(/grand\.credit\s*\+=/);
+    expect(src).toContain("totals.total_debit");
+    expect(src).toContain("totals.total_credit");
+    expect(src).toContain("totals.closing_balance");
+  });
+
+  it("drill-down targets the originating journal entry", () => {
+    const src = read(PAGE);
+    expect(src).toContain("_journalEntryId");
+    expect(src).toContain('sourceType="journal_entry"');
+    // A date-range drill-down cannot prove which posting produced the row.
+    expect(src).not.toContain("DrillDownDialog");
+  });
+
+  it("the service carries the journal entry id through to the page", () => {
+    expect(read(SERVICE)).toContain("journal_entry_id");
+  });
 });
