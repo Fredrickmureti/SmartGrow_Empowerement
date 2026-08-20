@@ -94,9 +94,16 @@ describe("inventory ⇄ GL reconciliation — unified report engine", () => {
     );
   });
 
-  it("is reachable from the Inventory workspace via the single Finance route", () => {
+  it("is reachable from the Inventory workspace through the registry-driven nav", () => {
+    // ADR 0143: the Inventory sidebar is emitted from REPORT_REGISTRY, never
+    // hand-listed, so reachability is asserted on the registry + family list.
     const nav = read("src/apps/inventory/nav.ts");
-    expect(nav).toContain("/finance/reports/inventory-gl-reconciliation");
+    expect(nav).toContain("buildInventoryReportsNavChildren");
+    const navBuilder = read("src/services/reports/reportsNav.ts");
+    expect(navBuilder).toContain('"inventory-gl-reconciliation"');
+    const registry = read("src/services/reports/ReportRegistry.ts");
+    expect(registry).toContain('/finance/reports/inventory-gl-reconciliation');
+    expect(registry).toContain('/inventory-app/reports/inventory-gl-reconciliation');
   });
 
   it("the hook types the layer-based exception counters", () => {

@@ -113,7 +113,13 @@ describe("lot traceability screen and export share one dataset", () => {
     expect(data).toContain("report_lot_traceability_as_of");
     expect(read("supabase/functions/render-report/index.ts")).toContain('"lot_traceability"');
     expect(read("src/services/reports/ReportRegistry.ts")).toContain('reportType: "lot_traceability"');
-    expect(read("src/apps/inventory/nav.ts")).toContain("/inventory-app/reports/lot-traceability");
+    // ADR 0143: the Inventory sidebar is registry-driven, so the link is
+    // guaranteed by the registry row + inventory family, not by nav.ts text.
+    expect(read("src/apps/inventory/nav.ts")).toContain("buildInventoryReportsNavChildren");
+    expect(read("src/services/reports/reportsNav.ts")).toContain('"lot-traceability"');
+    expect(read("src/services/reports/ReportRegistry.ts")).toContain(
+      "/inventory-app/reports/lot-traceability",
+    );
   });
 
   it("the page performs no client-side valuation arithmetic", () => {
