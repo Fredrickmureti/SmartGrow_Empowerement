@@ -28,6 +28,7 @@ import {
 
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
+import { buildInventoryReportsNavChildren } from "@/services/reports/reportsNav";
 
 export const INVENTORY_NAV: WorkspaceNav = {
   groups: [
