@@ -38,6 +38,7 @@ export type ReportKind =
   | "depreciation"
   | "audit_trail"
   | "sales"
+  | "purchases"
   | "inventory"
   | "management"
   | "bank_reconciliation"
@@ -65,6 +66,7 @@ export const BRANCH_SCOPABLE: Record<ReportKind, boolean> = {
   depreciation: true,
   audit_trail: true,
   sales: true,
+  purchases: true,
   inventory: true,
   management: true,
   bank_reconciliation: true,

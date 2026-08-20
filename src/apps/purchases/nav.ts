@@ -18,6 +18,7 @@ import {
   Building2,
   FileSignature,
   ClipboardList,
+  BarChart3,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -45,6 +46,7 @@ export const PURCHASES_NAV: WorkspaceNav = {
     {
       label: "Insights",
       items: [
+        { to: "/purchases/purchase-analysis", label: "Purchase analysis", icon: BarChart3 },
         { to: "/purchases/aged-payables", label: "Aged payables", icon: Hourglass },
         { to: "/purchases/ap-reconciliation", label: "AP reconciliation", icon: Scale },
         { to: "/purchases/landed-costs", label: "Landed costs", icon: Layers },
