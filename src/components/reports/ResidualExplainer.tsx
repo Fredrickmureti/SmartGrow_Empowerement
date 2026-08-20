@@ -97,22 +97,34 @@ export function ResidualExplainer({
                               <th className="py-1 font-normal">Reference</th>
                               <th className="py-1 font-normal">Description</th>
                               <th className="py-1 text-right font-normal">Amount</th>
+                              <th className="py-1 text-right font-normal sr-only">Open</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {explanation.refs.map((ref, refIndex) => (
-                              <tr
-                                key={`${explanation.code}-${ref.id ?? refIndex}-${refIndex}`}
-                                className="border-t border-border/60"
-                              >
-                                <td className="py-1">{ref.date ?? "—"}</td>
-                                <td className="py-1">{ref.reference ?? "—"}</td>
-                                <td className="py-1">{ref.description ?? "—"}</td>
-                                <td className="py-1 text-right font-mono">
-                                  {ref.amount == null ? "—" : ref.amount.toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
+                            {explanation.refs.map((ref, refIndex) => {
+                              const refLink = remedy?.forRef?.(ref, ctx) ?? null;
+                              return (
+                                <tr
+                                  key={`${explanation.code}-${ref.id ?? refIndex}-${refIndex}`}
+                                  className="border-t border-border/60"
+                                >
+                                  <td className="py-1">{ref.date ?? "—"}</td>
+                                  <td className="py-1">{ref.reference ?? "—"}</td>
+                                  <td className="py-1">{ref.description ?? "—"}</td>
+                                  <td className="py-1 text-right font-mono">
+                                    {ref.amount == null ? "—" : ref.amount.toFixed(2)}
+                                  </td>
+                                  <td className="py-1 pl-3 text-right">
+                                    {refLink ? (
+                                      <Link className={remedyLinkClass} to={refLink.href}>
+                                        {refLink.label}
+                                        <ExternalLink className="h-3 w-3" />
+                                      </Link>
+                                    ) : null}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -120,7 +132,8 @@ export function ResidualExplainer({
                   </CollapsibleContent>
                 </Collapsible>
               </li>
-            ))}
+              );
+            })}
           </ol>
         )}
       </AlertDescription>
