@@ -464,15 +464,11 @@ function BankReconciliationReportInner() {
               {!statement.inBalance
                 && !statement.diagnostics.glAccountMissing
                 && !statement.diagnostics.glAccountShared && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Statement does not reconcile</AlertTitle>
-                  <AlertDescription>
-                    An unexplained difference of {statement.residual?.toFixed(2)} {statement.currency} remains
-                    after outstanding and unrecorded items. Investigate duplicate or missing
-                    postings before closing the period.
-                  </AlertDescription>
-                </Alert>
+                <ResidualExplainer
+                  residual={statement.residual}
+                  currency={statement.currency}
+                  explanations={statement.residualExplanations}
+                />
               )}
               {statement.inBalance && (
                 <Alert>
