@@ -274,8 +274,6 @@ function CashFlowReportInner() {
 
           {/* KPI Cards */}
           <div className="grid gap-4 md:grid-cols-4">
-
-          <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <span className="text-sm font-medium">Opening Cash</span>
