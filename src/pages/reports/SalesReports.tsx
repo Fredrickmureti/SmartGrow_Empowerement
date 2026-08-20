@@ -13,7 +13,7 @@
  * comes from `finance_sales_revenue_reconciliation`.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -51,9 +51,18 @@ import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
+
+/** Only a real contact id can open a partner drill-down. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function SalesReportsInner() {
   const now = new Date();
+  const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({
+    open: false,
+    config: null,
+  });
+
   const { filters } = useReportFilters();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -149,8 +158,27 @@ function SalesReportsInner() {
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = (data || []).map((r) => ({
       id: `${dimension}-${r.dimension_key}`,
+      // Drill-down exists only where a real relationship does: a customer row
+      // owns invoices, so it opens that partner's documents for the period.
+      // Product / category / branch / salesperson / month are groupings, not
+      // document owners — no drill path is fabricated for them.
+      onClick:
+        dimension === "customer" && UUID_RE.test(r.dimension_key)
+          ? () =>
+              setDrillDown({
+                open: true,
+                config: {
+                  title: `${r.label} — sales documents`,
+                  contactId: r.dimension_key,
+                  sourceType: "invoice",
+                  startDate: dateFrom,
+                  endDate: dateTo,
+                },
+              })
+          : undefined,
       values: toValues(r),
     }));
+
 
     if (out.length > 0) {
       // The footer is the engine's totals envelope — never a sum of the rows
@@ -179,7 +207,7 @@ function SalesReportsInner() {
       });
     }
     return out;
-  }, [data, totals, dimension]);
+  }, [data, totals, dimension, dateFrom, dateTo]);
 
   // The engine is queried unpaged (`limit: null`), so `rows` already IS the
   // whole report — the export renders the same dataset through the same column
@@ -340,6 +368,12 @@ function SalesReportsInner() {
           />
         </ReportSurface>
       </div>
+
+      <DrillDownDialog
+        open={drillDown.open}
+        onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}
+        config={drillDown.config}
+      />
     </ReportPageLayout>
   );
 }
