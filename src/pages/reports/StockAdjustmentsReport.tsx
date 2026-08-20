@@ -263,7 +263,22 @@ function StockAdjustmentsReportInner() {
           <KpiCard label="Σ posted cost impact" value={formatAccountingNumber(kpis.cost, baseCurrency)} />
         </div>
 
-        <ReportSurface title="Stock Adjustments" profile="operational">
+        <ReportSurface
+          title="Stock Adjustments"
+          profile="operational"
+          subtitle="Cost impact from the posted stock ledger"
+          banner={
+            kpis.estimatedCount > 0 ? (
+              <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+                {kpis.estimatedCount} adjustment
+                {kpis.estimatedCount === 1 ? " has" : "s have"} not posted to the stock
+                ledger yet. Their cost impact is an estimate from the entered lines and
+                is excluded from the posted total above.
+              </div>
+            ) : null
+          }
+        >
+
           <ReportTable
             columns={columns}
             rows={tableRows}
