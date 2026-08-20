@@ -56,6 +56,28 @@ export interface ReconciliationSessionRef {
   completedAt: string | null;
 }
 
+/**
+ * A ranked candidate cause for a non-zero residual, produced by the engine.
+ * Suggestions are read-only findings: they never mutate accounting data.
+ */
+export interface ResidualExplanationRef {
+  kind: "journal_entry" | "bank_transaction" | "pair" | string;
+  id: string | null;
+  journalEntryId: string | null;
+  date: string | null;
+  reference: string | null;
+  description: string | null;
+  amount: number | null;
+}
+
+export interface ResidualExplanation {
+  code: string;
+  title: string;
+  detail: string;
+  amount: number | null;
+  refs: ResidualExplanationRef[];
+}
+
 export interface ReconciliationDiagnostics {
   glAccountMissing: boolean;
   glAccountShared: boolean;
