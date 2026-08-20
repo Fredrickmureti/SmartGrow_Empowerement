@@ -48,7 +48,8 @@ INSERT INTO _reporting_matrix(proname, family) VALUES
   ('get_gl_transactions',                    'general_ledger'),
   ('check_balance_integrity',                'general_ledger'),
   -- Cash & Banking statement engines.
-  ('finance_cash_flow_statement',            'cash_bank');
+  ('finance_cash_flow_statement',            'cash_bank'),
+  ('finance_bank_reconciliation_statement',  'cash_bank');
 
 
 -- ---------------------------------------------------------------------------
@@ -251,6 +252,12 @@ BEGIN
   BEGIN
     PERFORM public.finance_cash_flow_statement(v_org, v_from, v_to, NULL, NULL);
     RAISE EXCEPTION 'finance_cash_flow_statement answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  BEGIN
+    PERFORM public.finance_bank_reconciliation_statement(
+      v_org, gen_random_uuid(), v_to, NULL, NULL);
+    RAISE EXCEPTION 'finance_bank_reconciliation_statement answered for a foreign organization';
   EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
 END $$;
 
