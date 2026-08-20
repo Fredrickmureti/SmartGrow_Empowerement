@@ -145,6 +145,30 @@ function normalizeGroup(raw: unknown, fallbackLabel: string): ReconciliationItem
   };
 }
 
+function normalizeExplanations(raw: unknown): ResidualExplanation[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[]).map((entry) => {
+    const refs = Array.isArray(entry.refs) ? (entry.refs as Record<string, unknown>[]) : [];
+    return {
+      code: String(entry.code ?? ""),
+      title: String(entry.title ?? ""),
+      detail: String(entry.detail ?? ""),
+      amount:
+        entry.amount === null || entry.amount === undefined ? null : num(entry.amount),
+      refs: refs.map((ref) => ({
+        kind: String(ref.kind ?? ""),
+        id: str(ref.id),
+        journalEntryId: str(ref.journal_entry_id),
+        date: str(ref.date),
+        reference: str(ref.reference),
+        description: str(ref.description),
+        amount: ref.amount === null || ref.amount === undefined ? null : num(ref.amount),
+      })),
+    };
+  });
+}
+
+
 export async function fetchBankReconciliationStatement(
   params: BankReconciliationStatementParams,
 ): Promise<BankReconciliationStatement & { diagnostics: ReconciliationDiagnostics }> {
