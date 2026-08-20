@@ -542,7 +542,10 @@ serve(async (req) => {
           businessId,
           dateFrom,
           dateTo,
+          (body as { branchId?: string | null }).branchId ?? undefined,
+          (body?.filters ?? {}) as Record<string, unknown>,
         );
+
 
     if (format === "json") {
       // Column projection belongs to the REPORT RESULT, not to the PDF
