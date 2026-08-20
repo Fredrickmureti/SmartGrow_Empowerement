@@ -294,6 +294,12 @@ function StockAdjustmentsReportInner() {
           />
         </ReportSurface>
       </div>
+
+      <AdjustmentPeekSheet
+        open={!!peekId}
+        onOpenChange={(o) => !o && setPeekId(null)}
+        adjustmentId={peekId}
+      />
     </ReportPageLayout>
   );
 }
