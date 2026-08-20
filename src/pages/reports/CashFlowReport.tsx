@@ -13,7 +13,8 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Building2, TrendingUp, CreditCard, ArrowUpRight, ArrowDownRight, Banknote, Wallet } from "lucide-react";
+import { Building2, TrendingUp, CreditCard, ArrowUpRight, ArrowDownRight, Banknote, Wallet, AlertTriangle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { useCashFlowReport, type CashFlowSection } from "@/hooks/useCashFlowReport";
 import { useCurrency } from "@/hooks/useCurrency";
