@@ -94724,6 +94724,67 @@ export type Database = {
           organization_id: string
         }[]
       }
+      finance_ar_aging_reconciliation: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: {
+          aging_total: number
+          control_account_balance: number
+          in_balance: boolean
+          variance: number
+        }[]
+      }
+      finance_ar_customer_credit_as_of: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: {
+          base_credit_amount: number
+          branch_id: string
+          business_id: string
+          contact_id: string
+          credit_amount: number
+          currency: string
+          organization_id: string
+        }[]
+      }
+      finance_ar_open_items_as_of: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: {
+          aging_bucket: string
+          base_residual_amount: number
+          branch_id: string
+          business_id: string
+          contact_id: string
+          credited_amount: number
+          currency: string
+          days_past_due: number
+          document_date: string
+          document_id: string
+          document_number: string
+          document_status: string
+          document_total: number
+          due_date: string
+          exchange_rate: number
+          journal_entry_id: string
+          organization_id: string
+          paid_amount: number
+          residual_amount: number
+          source_kind: string
+        }[]
+      }
       finance_can_read_org: { Args: { _org_id: string }; Returns: boolean }
       finance_loan_receivable_integrity_check: {
         Args: { _org: string }
