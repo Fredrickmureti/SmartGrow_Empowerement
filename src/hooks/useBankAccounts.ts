@@ -330,9 +330,12 @@ function getBankAccounts(
   orgId: string,
   businessId: string,
   branchId: string | null,
+  asOf: string | null,
   force = false,
 ): Promise<BankAccountsLoad> {
-  const key = `${orgId}:${businessId}:${branchId ?? "all"}`;
+  // The as-of date is part of the identity of a load: two screens asking for
+  // different dates must not share one cached answer.
+  const key = `${orgId}:${businessId}:${branchId ?? "all"}:${asOf ?? "today"}`;
   if (force) {
     accountsCache.delete(key);
     accountsInflight.delete(key);
@@ -345,7 +348,8 @@ function getBankAccounts(
     }
   }
 
-  const promise = loadBankAccounts(orgId, businessId, branchId)
+  const promise = loadBankAccounts(orgId, businessId, branchId, asOf)
+
     .then((value) => {
       // Only successful loads are cached — a failure must be retryable now.
       if (!value.error) accountsCache.set(key, { at: Date.now(), value });
