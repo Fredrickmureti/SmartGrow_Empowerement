@@ -154,7 +154,6 @@ const DOC_CONFIG: Record<string, {
     dateField: "transfer_date",
     statusField: "status",
     route: "/warehouse-app/warehouses",
-    recordPath: (id) => `/warehouse-app/transfers/${id}`,
     kind: "stock_transfer",
   },
 };
