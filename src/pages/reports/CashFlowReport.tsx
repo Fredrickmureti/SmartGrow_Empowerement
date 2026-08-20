@@ -25,7 +25,7 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { cn } from "@/lib/utils";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
@@ -179,7 +179,7 @@ function CashFlowReportInner() {
   // through render-report, not re-shipped from the browser's rows. Omitting
   // organizationId / dateFrom / dateTo silently downgraded every Cash Flow
   // PDF to the page's own slice, which is how a screen and its archive drift.
-  const getExportConfig = useCallback((): ExportConfig => ({
+  const getExportConfig = useCallback((): ServerBuildConfig => ({
     title: "Cash Flow Statement",
     reportType: "cash_flow",
     organizationId: currentOrg?.id,
