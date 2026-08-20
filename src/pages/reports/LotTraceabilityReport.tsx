@@ -29,7 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ReportTable, type ReportColumn, type ReportRow } from "@/design-system/reports";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { DollarSign, CalendarClock, ShieldAlert } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";

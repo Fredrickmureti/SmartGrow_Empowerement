@@ -21,6 +21,7 @@ const Inventory = lazy(() => import("@/pages/Inventory"));
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
+const LotTraceabilityReport = lazy(() => import("@/pages/reports/LotTraceabilityReport"));
 const StockLedgerReport = lazy(() => import("@/pages/reports/StockLedgerReport"));
 const InventoryIntegrity = lazy(() => import("@/pages/inventory/InventoryIntegrity"));
 
@@ -405,6 +406,18 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Stock Aging">
                 <StockAgingReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Lot / serial traceability — Phase 7 */}
+        <Route
+          path="reports/lot-traceability"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Lot Traceability">
+                <LotTraceabilityReport />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
