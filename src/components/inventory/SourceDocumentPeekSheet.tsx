@@ -33,8 +33,11 @@ const DOC_CONFIG: Record<string, {
   totalField?: string;
   contactField?: string;
   route: string;
+  /** Full record page for this document, when one exists. */
+  recordPath?: (id: string) => string;
   kind: DocumentKind;
 }> = {
+
   purchase_order: {
     table: "purchase_orders",
     select: "*, contacts(company_name, name)",
