@@ -193,7 +193,15 @@ async function loadBankAccounts(
   orgId: string,
   businessId: string,
   branchId: string | null,
+  /**
+   * Phase 7 — the position date. `null` lets the server default to
+   * CURRENT_DATE. Passing it explicitly is what stops the dashboard and the
+   * reconciliation statement disagreeing about one account purely because the
+   * screen asked "now" and the statement asked "as at".
+   */
+  asOf: string | null,
 ): Promise<BankAccountsLoad> {
+
   // The account rows are the load-bearing read; positions and feed health
   // decorate them. All three go through the resilience seam so a transport
   // hiccup retries instead of surfacing as a hard failure.
