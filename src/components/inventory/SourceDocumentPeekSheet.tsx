@@ -145,11 +145,11 @@ const DOC_CONFIG: Record<string, DocConfig> = {
   delivery_note: {
     table: "delivery_notes",
     select:
-      "*, contacts(company_name, name), ship_to:contacts!delivery_notes_ship_to_contact_id_fkey(company_name, name), sales_orders(order_number), source_invoice:invoices!delivery_notes_source_invoice_id_fkey(invoice_number, status), spawned_invoice:invoices!delivery_notes_spawned_invoice_id_fkey(invoice_number, status), warehouses(name)",
+      "*, customer:contacts!delivery_notes_contact_id_fkey(company_name, name), ship_to:contacts!delivery_notes_ship_to_contact_id_fkey(company_name, name), sales_orders(order_number), source_invoice:invoices!delivery_notes_source_invoice_id_fkey(invoice_number, status), spawned_invoice:invoices!delivery_notes_spawned_invoice_id_fkey(invoice_number, status), warehouses(name)",
     titleField: "delivery_number",
     dateField: "delivery_date",
     statusField: "status",
-    contactField: "contacts",
+    contactField: "customer",
     route: "/delivery-notes",
     recordPath: (id) => `/sales/delivery-notes/${id}`,
     kind: "delivery_note",
