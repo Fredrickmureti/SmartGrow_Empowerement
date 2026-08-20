@@ -94794,6 +94794,36 @@ export type Database = {
           loans_outstanding: number
         }[]
       }
+      finance_partner_ledger: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _contact_id?: string
+          _from?: string
+          _limit?: number
+          _offset?: number
+          _org_id: string
+          _search?: string
+          _side?: string
+          _to?: string
+        }
+        Returns: Json
+      }
+      finance_partner_ledger_reconciliation: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+          _side?: string
+          _to?: string
+        }
+        Returns: {
+          control_account_balance: number
+          in_balance: boolean
+          ledger_total: number
+          variance: number
+        }[]
+      }
       finance_post_gr_journal: {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
