@@ -98,6 +98,26 @@ export default function Banking() {
     return out;
   })();
 
+  // Each currency subtotal is converted to the base currency through the one
+  // FX resolver. A missing rate is an absence (ADR-0136): we refuse the total
+  // rather than showing a number built on an assumed 1.0.
+  const fxBreakdown = baseCurrency
+    ? Object.entries(balanceByCurrency).map(([ccy, amount]) => {
+        const converted = ccy === baseCurrency.toUpperCase()
+          ? amount
+          : fx.convert(amount, ccy, baseCurrency);
+        const rate = ccy === baseCurrency.toUpperCase() ? 1 : fx.rate(ccy, baseCurrency);
+        return { ccy, amount, converted, rate };
+      })
+    : [];
+
+  const missingFxCurrencies = fxBreakdown
+    .filter(b => b.converted === null)
+    .map(b => b.ccy);
+  const totalBalanceBase = baseCurrency && missingFxCurrencies.length === 0
+    ? fxBreakdown.reduce((s, b) => s + (b.converted ?? 0), 0)
+    : null;
+
   const unreconciledCount = stats?.unreconciledCount || 0;
 
   // Per-account stats: unreconciled counts and last reconciliation dates
