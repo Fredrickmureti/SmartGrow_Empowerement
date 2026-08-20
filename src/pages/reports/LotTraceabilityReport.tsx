@@ -361,6 +361,13 @@ function LotTraceabilityReportInner() {
             emptyMessage="No lot-tracked stock on hand as at this date"
           />
         </ReportSurface>
+
+        <LotGenealogyDialog
+          open={!!drillTarget}
+          onOpenChange={(o) => !o && setDrillTarget(null)}
+          target={drillTarget}
+        />
+
       </div>
     </ReportPageLayout>
   );
