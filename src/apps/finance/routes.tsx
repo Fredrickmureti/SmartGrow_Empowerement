@@ -77,6 +77,7 @@ const TrialBalance = lazy(() => import("@/pages/reports/TrialBalance"));
 const GeneralLedger = lazy(() => import("@/pages/reports/GeneralLedger"));
 const AgingReport = lazy(() => import("@/pages/reports/AgingReport"));
 const SalesReports = lazy(() => import("@/pages/reports/SalesReports"));
+const PurchaseReports = lazy(() => import("@/pages/reports/PurchaseReports"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
 const TaxReports = lazy(() => import("@/pages/reports/TaxReports"));
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
@@ -652,6 +653,17 @@ export function FinanceApp() {
           }
         />
         
+        <Route
+          path="reports/purchases"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Purchase Reports">
+                <PurchaseReports />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         <Route
           path="reports/management"
           element={

@@ -85,6 +85,7 @@ const VendorStatementRecordPage = lazy(
   () => import("@/features/purchases/statements/VendorStatementRecordPage"),
 );
 const AgedPayables = lazy(() => import("@/pages/purchases/AgedPayables"));
+const PurchaseReports = lazy(() => import("@/pages/reports/PurchaseReports"));
 const ApReconciliation = lazy(() => import("@/pages/purchases/ApReconciliation"));
 // Landed Cost (ADR 0077) — voucher domain: list → create → record.
 const LandedCostListPage = lazy(
@@ -576,6 +577,18 @@ export function PurchasesApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Aged Payables">
                 <AgedPayables />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Purchase analysis — same engine-owned page as /finance/reports/purchases */}
+        <Route
+          path="purchase-analysis"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Purchase Reports">
+                <PurchaseReports />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

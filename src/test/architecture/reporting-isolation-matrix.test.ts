@@ -38,12 +38,15 @@ const REPORTING_RPCS = [
   "finance_partner_ledger_reconciliation",
   "finance_sales_analysis",
   "finance_sales_revenue_reconciliation",
+  "finance_purchase_analysis",
+  "finance_purchase_expense_reconciliation",
 ] as const;
 
 const SERVICE_FILES = [
   "src/services/finance/openItems.ts",
   "src/services/finance/partnerLedger.ts",
   "src/services/finance/salesAnalysis.ts",
+  "src/services/finance/purchaseAnalysis.ts",
 ];
 
 describe("reporting isolation matrix — client half", () => {
@@ -101,9 +104,10 @@ describe("report taxonomy coverage", () => {
     "aged-payables",
     "partner-ledger",
     "sales-reports",
+    "purchase-reports",
   ];
 
-  it("registers all four report families", () => {
+  it("registers every report family", () => {
     for (const id of FAMILY_IDS) {
       const def = REPORT_REGISTRY.find((r) => r.id === id);
       expect(def, `${id} is not in REPORT_REGISTRY`).toBeTruthy();

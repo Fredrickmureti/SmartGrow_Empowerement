@@ -37,7 +37,9 @@ INSERT INTO _reporting_matrix(proname, family) VALUES
   ('finance_partner_ledger',                 'partner_ledger'),
   ('finance_partner_ledger_reconciliation',  'partner_ledger'),
   ('finance_sales_analysis',                 'sales'),
-  ('finance_sales_revenue_reconciliation',   'sales');
+  ('finance_sales_revenue_reconciliation',   'sales'),
+  ('finance_purchase_analysis',              'purchases'),
+  ('finance_purchase_expense_reconciliation','purchases');
 
 -- ---------------------------------------------------------------------------
 -- 1) Every matrix entry exists exactly once.
@@ -195,6 +197,17 @@ BEGIN
   BEGIN
     PERFORM public.finance_sales_revenue_reconciliation(v_org, v_from, v_to, NULL, NULL);
     RAISE EXCEPTION 'finance_sales_revenue_reconciliation answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  -- purchases family
+  BEGIN
+    PERFORM public.finance_purchase_analysis(v_org, v_from, v_to, NULL, NULL, 'supplier', NULL, 0);
+    RAISE EXCEPTION 'finance_purchase_analysis answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  BEGIN
+    PERFORM public.finance_purchase_expense_reconciliation(v_org, v_from, v_to, NULL, NULL);
+    RAISE EXCEPTION 'finance_purchase_expense_reconciliation answered for a foreign organization';
   EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
 END $$;
 
