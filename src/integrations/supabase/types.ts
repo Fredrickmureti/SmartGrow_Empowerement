@@ -87836,6 +87836,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      _raise_business_required: { Args: never; Returns: string }
       _recalc_so_item_invoiced: {
         Args: { p_so_item_ids: string[] }
         Returns: undefined
@@ -101701,6 +101702,35 @@ export type Database = {
           warehouse_name: string
         }[]
       }
+      report_stock_adjustments: {
+        Args: {
+          p_branch?: string
+          p_business: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_reason?: string
+          p_status?: string
+          p_to?: string
+        }
+        Returns: {
+          abs_qty: number
+          adjustment_date: string
+          adjustment_id: string
+          adjustment_number: string
+          approved_at: string
+          branch_id: string
+          cost_basis: string
+          cost_impact: number
+          line_count: number
+          reason: string
+          reverses_adjustment_id: string
+          status: string
+          total_rows: number
+          warehouse_id: string
+        }[]
+      }
       report_stock_ledger: {
         Args: {
           p_branch?: string
@@ -101728,6 +101758,39 @@ export type Database = {
           total_rows: number
           warehouse_id: string
           warehouse_name: string
+        }[]
+      }
+      report_stock_transfers: {
+        Args: {
+          p_branch?: string
+          p_business: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_org: string
+          p_status?: string
+          p_to?: string
+        }
+        Returns: {
+          actual_arrival_date: string
+          completed_at: string
+          expected_arrival_date: string
+          from_branch_id: string
+          from_warehouse_id: string
+          from_warehouse_name: string
+          line_count: number
+          qty_received: number
+          qty_requested: number
+          qty_sent: number
+          status: string
+          to_branch_id: string
+          to_warehouse_id: string
+          to_warehouse_name: string
+          total_rows: number
+          transfer_date: string
+          transfer_id: string
+          transfer_number: string
+          variance: number
         }[]
       }
       request_app_access: {

@@ -262,3 +262,120 @@ export function useLotTraceabilityAsOf(params: {
     staleTime: 30_000,
   });
 }
+
+/* ---------------------------------------------------------------------------
+ * Phase 8 — operational stock reports (adjustments / transfers).
+ *
+ * These used to be browser-side aggregations over `stock_adjustments` +
+ * `stock_adjustment_items` / `stock_transfers` + `stock_transfer_items`:
+ * the page summed quantity × unit_cost itself, never paged past PostgREST's
+ * 1,000-row cap, and treated the company as an optional filter. Both are now
+ * server RPCs with the same authorization + paging contract as valuation and
+ * the stock ledger.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Which fact the `cost_impact` figure came from. `movement_ledger` is the
+ * posted, auditable number; `estimated_from_lines` means nothing has posted
+ * yet and the figure is intent, not accounting. The UI must show the
+ * difference — an unposted estimate may never read as a posted amount.
+ */
+export type AdjustmentCostBasis = "movement_ledger" | "estimated_from_lines" | "none";
+
+export interface StockAdjustmentReportRow {
+  adjustment_id: string;
+  adjustment_number: string | null;
+  adjustment_date: string;
+  reason: string | null;
+  status: string;
+  warehouse_id: string | null;
+  branch_id: string | null;
+  approved_at: string | null;
+  reverses_adjustment_id: string | null;
+  line_count: number;
+  abs_qty: number;
+  cost_impact: number;
+  cost_basis: AdjustmentCostBasis;
+  total_rows: number;
+}
+
+export interface StockTransferReportRow {
+  transfer_id: string;
+  transfer_number: string | null;
+  transfer_date: string;
+  status: string;
+  from_branch_id: string | null;
+  to_branch_id: string | null;
+  from_warehouse_id: string | null;
+  to_warehouse_id: string | null;
+  from_warehouse_name: string | null;
+  to_warehouse_name: string | null;
+  expected_arrival_date: string | null;
+  actual_arrival_date: string | null;
+  completed_at: string | null;
+  line_count: number;
+  qty_requested: number;
+  qty_sent: number;
+  qty_received: number;
+  variance: number;
+  total_rows: number;
+}
+
+export interface StockOperationsFilters {
+  branchId?: string | null;
+  from?: string | null;
+  to?: string | null;
+  status?: string | null;
+  reason?: string | null;
+}
+
+export function useStockAdjustmentsReport(params: {
+  orgId?: string | null;
+  businessId?: string | null;
+  filters?: StockOperationsFilters;
+  enabled?: boolean;
+}) {
+  const { orgId, businessId, filters = {}, enabled = true } = params;
+
+  return useQuery({
+    queryKey: ["stock-adjustments-report", orgId, businessId, filters],
+    queryFn: async () =>
+      fetchAllPages<StockAdjustmentReportRow>("report_stock_adjustments", {
+        p_org: orgId,
+        p_business: businessId,
+        p_branch: filters.branchId ?? null,
+        p_from: filters.from || null,
+        p_to: filters.to || null,
+        p_status: filters.status ?? null,
+        p_reason: filters.reason ?? null,
+      }),
+    // `p_business` is an authorization boundary, not a filter: without an
+    // active company the report must not run at all.
+    enabled: enabled && !!orgId && !!businessId,
+    staleTime: 30_000,
+  });
+}
+
+export function useStockTransfersReport(params: {
+  orgId?: string | null;
+  businessId?: string | null;
+  filters?: StockOperationsFilters;
+  enabled?: boolean;
+}) {
+  const { orgId, businessId, filters = {}, enabled = true } = params;
+
+  return useQuery({
+    queryKey: ["stock-transfers-report", orgId, businessId, filters],
+    queryFn: async () =>
+      fetchAllPages<StockTransferReportRow>("report_stock_transfers", {
+        p_org: orgId,
+        p_business: businessId,
+        p_branch: filters.branchId ?? null,
+        p_from: filters.from || null,
+        p_to: filters.to || null,
+        p_status: filters.status ?? null,
+      }),
+    enabled: enabled && !!orgId && !!businessId,
+    staleTime: 30_000,
+  });
+}

@@ -1,17 +1,24 @@
 /**
- * Stock Adjustments Report — Phase B5
+ * Stock Adjustments Report — Phase B5, server-owned since Phase 8.
  *
- * Read-only report over `stock_adjustments` + `stock_adjustment_items`.
- * Surfaces every adjustment in scope, its reason, status, line count and
- * cost impact (Σ quantity_adjustment × unit_cost). The actual write path
- * remains the inventory adjustment workflow — this page is observation
- * only. Scoping mirrors the bank-reconciliation report: org + business
- * always; branch via `useFinanceScope` (kind `stock_adjustment` is
- * branch-sliceable per `branchScopability.ts`).
+ * Read-only observation of the inventory adjustment workflow; the workflow
+ * itself remains the only write path.
+ *
+ * ACCOUNTING OWNERSHIP. Every figure on this page is produced by
+ * `report_stock_adjustments`. The browser used to sum
+ * `quantity_adjustment × unit_cost` from the line snapshots, which meant the
+ * "cost impact" of a posted adjustment could disagree with what actually hit
+ * the ledger. The RPC now reads the immutable movement ledger for anything
+ * that posted, and flags the remainder as an ESTIMATE via `cost_basis` — an
+ * unposted intent figure must never read as a posted amount.
+ *
+ * Scope: org + company are mandatory (the RPC refuses a null company, so the
+ * page cannot silently widen to the whole organization); branch comes from
+ * `useFinanceScope` (kind `stock_adjustment` is branch-sliceable per
+ * `branchScopability.ts`).
  */
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,13 +29,17 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import {
   ReportSurface,
   ReportTable,
+  formatAccountingNumber,
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
+import {
+  useStockAdjustmentsReport,
+  type StockAdjustmentReportRow,
+} from "@/hooks/inventory/useInventoryReportRpcs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
@@ -40,20 +51,15 @@ import type {
 
 type StatusFilter = "all" | "draft" | "approved" | "posted" | "reversed" | "cancelled";
 
-interface AdjustmentRow {
-  id: string;
-  adjustment_number: string;
-  adjustment_date: string;
-  reason: string | null;
-  status: string;
-  warehouse_id: string | null;
-  branch_id: string | null;
-  approved_at: string | null;
-  reverses_adjustment_id: string | null;
-  line_count: number;
-  cost_impact: number;
-  abs_qty: number;
-}
+/**
+ * Wording is deliberate: "Posted (ledger)" is an auditable fact, "Estimate
+ * (unposted lines)" is not. The two must never be shown identically.
+ */
+const COST_BASIS_LABEL: Record<string, string> = {
+  movement_ledger: "Posted (ledger)",
+  estimated_from_lines: "Estimate (unposted lines)",
+  none: "—",
+};
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
@@ -62,16 +68,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
   reversed: "destructive",
   cancelled: "outline",
 };
-
-function fmtMoney(n: number, ccy: string) {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency", currency: ccy, maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return n.toFixed(2);
-  }
-}
 
 function StockAdjustmentsReportInner() {
   const { currentOrg } = useOrganization();
@@ -84,73 +80,46 @@ function StockAdjustmentsReportInner() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  const { data: rows = [], isLoading, error } = useQuery({
-    queryKey: [
-      "stock-adjustments-report",
-      currentOrg?.id, currentBusiness?.id, scope.branchId,
-      status, reason, fromDate, toDate,
-    ],
-    enabled: !!currentOrg?.id,
-    queryFn: async (): Promise<AdjustmentRow[]> => {
-      let q = supabase
-        .from("stock_adjustments")
-        .select(`
-          id, adjustment_number, adjustment_date, reason, status,
-          warehouse_id, branch_id, approved_at, reverses_adjustment_id,
-          items:stock_adjustment_items ( quantity_adjustment, unit_cost )
-        `)
-        .eq("organization_id", currentOrg!.id)
-        .order("adjustment_date", { ascending: false });
-      if (currentBusiness?.id) q = q.eq("business_id", currentBusiness.id);
-      if (scope.branchId) q = q.or(`branch_id.eq.${scope.branchId},branch_id.is.null`);
-      if (status !== "all") q = q.eq("status", status);
-      if (reason !== "all") q = q.eq("reason", reason);
-      if (fromDate) q = q.gte("adjustment_date", fromDate);
-      if (toDate) q = q.lte("adjustment_date", toDate);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []).map((r: Record<string, unknown>) => {
-        const items = (r.items as Array<Record<string, unknown>> | null) ?? [];
-        let cost = 0;
-        let absQty = 0;
-        for (const it of items) {
-          const q = Number(it.quantity_adjustment ?? 0);
-          const c = Number(it.unit_cost ?? 0);
-          cost += q * c;
-          absQty += Math.abs(q);
-        }
-        return {
-          id: r.id as string,
-          adjustment_number: (r.adjustment_number as string) ?? "—",
-          adjustment_date: r.adjustment_date as string,
-          reason: (r.reason as string | null) ?? null,
-          status: (r.status as string) ?? "draft",
-          warehouse_id: (r.warehouse_id as string | null) ?? null,
-          branch_id: (r.branch_id as string | null) ?? null,
-          approved_at: (r.approved_at as string | null) ?? null,
-          reverses_adjustment_id: (r.reverses_adjustment_id as string | null) ?? null,
-          line_count: items.length,
-          cost_impact: cost,
-          abs_qty: absQty,
-        };
-      });
+  const {
+    data: rows = [],
+    isLoading,
+    error,
+  } = useStockAdjustmentsReport({
+    orgId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    filters: {
+      branchId: scope.branchId ?? null,
+      from: fromDate || null,
+      to: toDate || null,
+      status: status === "all" ? null : status,
+      reason: reason === "all" ? null : reason,
     },
   });
 
   const reasons = useMemo(() => {
     const s = new Set<string>();
-    rows.forEach((r) => { if (r.reason) s.add(r.reason); });
+    rows.forEach((r: StockAdjustmentReportRow) => { if (r.reason) s.add(r.reason); });
     return Array.from(s).sort();
   }, [rows]);
 
   const kpis = useMemo(() => {
-    const posted = rows.filter((r) => r.status === "posted");
-    const pending = rows.filter((r) => r.status === "draft" || r.status === "approved");
+    // Σ posted cost impact may only sum LEDGER-BACKED rows. Adding an
+    // unposted estimate into a posted total is exactly the misstatement the
+    // server-side `cost_basis` flag exists to prevent.
+    const posted = rows.filter(
+      (r: StockAdjustmentReportRow) => r.cost_basis === "movement_ledger",
+    );
+    const pending = rows.filter(
+      (r: StockAdjustmentReportRow) => r.status === "draft" || r.status === "approved",
+    );
     return {
       total: rows.length,
-      posted: posted.length,
+      posted: rows.filter((r: StockAdjustmentReportRow) => r.status === "posted").length,
       pending: pending.length,
-      cost: posted.reduce((a, r) => a + r.cost_impact, 0),
+      cost: posted.reduce((a: number, r: StockAdjustmentReportRow) => a + Number(r.cost_impact), 0),
+      estimatedCount: rows.filter(
+        (r: StockAdjustmentReportRow) => r.cost_basis === "estimated_from_lines",
+      ).length,
     };
   }, [rows]);
 
@@ -171,6 +140,9 @@ function StockAdjustmentsReportInner() {
       { key: "line_count", header: "Lines", format: "number" },
       { key: "abs_qty", header: "|Δ Qty|", format: "number" },
       { key: "cost_impact", header: "Cost Impact", format: "currency" },
+      // The basis is part of the figure, not decoration: a reader must be
+      // able to tell a posted ledger amount from an unposted estimate.
+      { key: "cost_basis", header: "Cost basis" },
       {
         key: "actions",
         header: "",
@@ -189,17 +161,18 @@ function StockAdjustmentsReportInner() {
 
   const tableRows = useMemo<ReportRow[]>(
     () =>
-      rows.map((r) => ({
-        id: r.id,
+      rows.map((r: StockAdjustmentReportRow) => ({
+        id: r.adjustment_id,
         tone: r.status === "reversed" ? "warning" : "default",
         values: {
           adjustment_date: r.adjustment_date,
           adjustment_number: r.adjustment_number,
           reason: r.reason,
           status: r.status,
-          line_count: r.line_count,
-          abs_qty: Number(r.abs_qty.toFixed(2)),
-          cost_impact: r.cost_impact,
+          line_count: Number(r.line_count),
+          abs_qty: Number(Number(r.abs_qty).toFixed(2)),
+          cost_impact: Number(r.cost_impact),
+          cost_basis: COST_BASIS_LABEL[r.cost_basis] ?? r.cost_basis,
         },
       })),
     [rows],
@@ -214,15 +187,17 @@ function StockAdjustmentsReportInner() {
       { key: "line_count", header: "Lines", width: 10, align: "right" },
       { key: "abs_qty", header: "|Δ Qty|", width: 14, align: "right" },
       { key: "cost_impact", header: "Cost Impact", width: 18, format: "currency", align: "right" },
+      { key: "cost_basis", header: "Cost basis", width: 20 },
     ];
-    const exportRows: ExportRow[] = rows.map((r) => ({
+    const exportRows: ExportRow[] = rows.map((r: StockAdjustmentReportRow) => ({
       adjustment_date: r.adjustment_date ? format(new Date(r.adjustment_date), "yyyy-MM-dd") : "",
-      adjustment_number: r.adjustment_number,
+      adjustment_number: r.adjustment_number ?? "",
       reason: r.reason ?? "",
       status: r.status,
-      line_count: r.line_count,
-      abs_qty: r.abs_qty,
-      cost_impact: r.cost_impact,
+      line_count: Number(r.line_count),
+      abs_qty: Number(r.abs_qty),
+      cost_impact: Number(r.cost_impact),
+      cost_basis: COST_BASIS_LABEL[r.cost_basis] ?? r.cost_basis,
     }));
     return {
       title: "Stock Adjustments Report",
@@ -230,6 +205,7 @@ function StockAdjustmentsReportInner() {
       columns, rows: exportRows, currency: baseCurrency,
     };
   }, [rows, baseCurrency]);
+
 
   return (
     <ReportPageLayout
@@ -284,10 +260,25 @@ function StockAdjustmentsReportInner() {
           <KpiCard label="Adjustments" value={String(kpis.total)} />
           <KpiCard label="Posted" value={String(kpis.posted)} />
           <KpiCard label="Pending" value={String(kpis.pending)} />
-          <KpiCard label="Σ posted cost impact" value={fmtMoney(kpis.cost, baseCurrency)} />
+          <KpiCard label="Σ posted cost impact" value={formatAccountingNumber(kpis.cost, baseCurrency)} />
         </div>
 
-        <ReportSurface title="Stock Adjustments" profile="operational">
+        <ReportSurface
+          title="Stock Adjustments"
+          profile="operational"
+          subtitle="Cost impact from the posted stock ledger"
+          banner={
+            kpis.estimatedCount > 0 ? (
+              <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+                {kpis.estimatedCount} adjustment
+                {kpis.estimatedCount === 1 ? " has" : "s have"} not posted to the stock
+                ledger yet. Their cost impact is an estimate from the entered lines and
+                is excluded from the posted total above.
+              </div>
+            ) : null
+          }
+        >
+
           <ReportTable
             columns={columns}
             rows={tableRows}

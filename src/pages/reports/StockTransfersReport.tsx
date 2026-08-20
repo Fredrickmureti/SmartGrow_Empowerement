@@ -1,19 +1,23 @@
 /**
- * Stock Transfers Report — Phase B5
+ * Stock Transfers Report — Phase B5, server-owned since Phase 8.
  *
- * Read-only report over `stock_transfers` + `stock_transfer_items`.
- * Surfaces every inter-warehouse / inter-branch transfer with status,
- * line totals, and in-transit / variance picture. The transfer workflow
- * itself remains the only write path; this page is observation only.
+ * Read-only observation of inter-warehouse / inter-branch transfer activity;
+ * the transfer workflow remains the only write path.
  *
- * Scoping: org + business always; branch via `useFinanceScope`. Because
- * a transfer has both `from_branch_id` and `to_branch_id`, the branch
- * filter matches either side (a branch's "outbound" and "inbound"
- * transfers are both relevant to its operations report).
+ * All aggregation (line counts, requested/sent/received quantities, and the
+ * sent-vs-received variance) is now produced by `report_stock_transfers`.
+ * The browser previously summed nested `stock_transfer_items`, which meant
+ * the KPI row silently under-reported once the embedded read hit PostgREST's
+ * 1,000-row cap — an in-transit variance that quietly disappears is worse
+ * than no report at all.
+ *
+ * Scope: org + company are mandatory (the RPC refuses a null company);
+ * branch comes from `useFinanceScope` and matches EITHER side of the
+ * transfer, since a branch's outbound and inbound moves are both its
+ * operational business.
  */
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,13 +28,16 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import {
   ReportSurface,
   ReportTable,
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
+import {
+  useStockTransfersReport,
+  type StockTransferReportRow,
+} from "@/hooks/inventory/useInventoryReportRpcs";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
@@ -40,25 +47,6 @@ import type {
 } from "@/services/reports/ReportExportService";
 
 type StatusFilter = "all" | "draft" | "approved" | "in_transit" | "completed" | "cancelled";
-
-interface TransferRow {
-  id: string;
-  transfer_number: string;
-  transfer_date: string;
-  status: string;
-  from_branch_id: string | null;
-  to_branch_id: string | null;
-  from_warehouse_id: string | null;
-  to_warehouse_id: string | null;
-  expected_arrival_date: string | null;
-  actual_arrival_date: string | null;
-  completed_at: string | null;
-  line_count: number;
-  qty_requested: number;
-  qty_sent: number;
-  qty_received: number;
-  variance: number;
-}
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
@@ -77,68 +65,28 @@ function StockTransfersReportInner() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  const { data: rows = [], isLoading, error } = useQuery({
-    queryKey: [
-      "stock-transfers-report",
-      currentOrg?.id, currentBusiness?.id, scope.branchId,
-      status, fromDate, toDate,
-    ],
-    enabled: !!currentOrg?.id,
-    queryFn: async (): Promise<TransferRow[]> => {
-      let q = supabase
-        .from("stock_transfers")
-        .select(`
-          id, transfer_number, transfer_date, status,
-          from_branch_id, to_branch_id, from_warehouse_id, to_warehouse_id,
-          expected_arrival_date, actual_arrival_date, completed_at,
-          items:stock_transfer_items ( quantity_requested, quantity_sent, quantity_received )
-        `)
-        .eq("organization_id", currentOrg!.id)
-        .order("transfer_date", { ascending: false });
-      if (currentBusiness?.id) q = q.eq("business_id", currentBusiness.id);
-      if (scope.branchId) {
-        // Either outbound or inbound for the active branch counts.
-        q = q.or(`from_branch_id.eq.${scope.branchId},to_branch_id.eq.${scope.branchId}`);
-      }
-      if (status !== "all") q = q.eq("status", status);
-      if (fromDate) q = q.gte("transfer_date", fromDate);
-      if (toDate) q = q.lte("transfer_date", toDate);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []).map((r: Record<string, unknown>) => {
-        const items = (r.items as Array<Record<string, unknown>> | null) ?? [];
-        let qReq = 0, qSent = 0, qRecv = 0;
-        for (const it of items) {
-          qReq += Number(it.quantity_requested ?? 0);
-          qSent += Number(it.quantity_sent ?? 0);
-          qRecv += Number(it.quantity_received ?? 0);
-        }
-        return {
-          id: r.id as string,
-          transfer_number: (r.transfer_number as string) ?? "—",
-          transfer_date: r.transfer_date as string,
-          status: (r.status as string) ?? "draft",
-          from_branch_id: (r.from_branch_id as string | null) ?? null,
-          to_branch_id: (r.to_branch_id as string | null) ?? null,
-          from_warehouse_id: (r.from_warehouse_id as string | null) ?? null,
-          to_warehouse_id: (r.to_warehouse_id as string | null) ?? null,
-          expected_arrival_date: (r.expected_arrival_date as string | null) ?? null,
-          actual_arrival_date: (r.actual_arrival_date as string | null) ?? null,
-          completed_at: (r.completed_at as string | null) ?? null,
-          line_count: items.length,
-          qty_requested: qReq,
-          qty_sent: qSent,
-          qty_received: qRecv,
-          variance: qSent - qRecv,
-        };
-      });
+  const {
+    data: rows = [],
+    isLoading,
+    error,
+  } = useStockTransfersReport({
+    orgId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    filters: {
+      branchId: scope.branchId ?? null,
+      from: fromDate || null,
+      to: toDate || null,
+      status: status === "all" ? null : status,
     },
   });
 
   const kpis = useMemo(() => {
-    const inTransit = rows.filter((r) => r.status === "in_transit");
-    const completed = rows.filter((r) => r.status === "completed");
-    const variance = rows.reduce((a, r) => a + Math.abs(r.variance), 0);
+    const inTransit = rows.filter((r: StockTransferReportRow) => r.status === "in_transit");
+    const completed = rows.filter((r: StockTransferReportRow) => r.status === "completed");
+    const variance = rows.reduce(
+      (a: number, r: StockTransferReportRow) => a + Math.abs(Number(r.variance)),
+      0,
+    );
     return {
       total: rows.length,
       inTransit: inTransit.length,
@@ -196,20 +144,20 @@ function StockTransfersReportInner() {
 
   const tableRows = useMemo<ReportRow[]>(
     () =>
-      rows.map((r) => {
-        const hasVar = Math.abs(r.variance) > 0.0001;
+      rows.map((r: StockTransferReportRow) => {
+        const hasVar = Math.abs(Number(r.variance)) > 0.0001;
         return {
-          id: r.id,
+          id: r.transfer_id,
           tone: hasVar ? "warning" : "default",
           values: {
             transfer_date: r.transfer_date,
             transfer_number: r.transfer_number,
             status: r.status,
-            line_count: r.line_count,
-            qty_requested: Number(r.qty_requested.toFixed(2)),
-            qty_sent: Number(r.qty_sent.toFixed(2)),
-            qty_received: Number(r.qty_received.toFixed(2)),
-            variance: r.variance,
+            line_count: Number(r.line_count),
+            qty_requested: Number(Number(r.qty_requested).toFixed(2)),
+            qty_sent: Number(Number(r.qty_sent).toFixed(2)),
+            qty_received: Number(Number(r.qty_received).toFixed(2)),
+            variance: Number(r.variance),
           },
         };
       }),
@@ -227,15 +175,15 @@ function StockTransfersReportInner() {
       { key: "qty_received", header: "Received", width: 14, align: "right" },
       { key: "variance", header: "Variance", width: 14, align: "right" },
     ];
-    const exportRows: ExportRow[] = rows.map((r) => ({
+    const exportRows: ExportRow[] = rows.map((r: StockTransferReportRow) => ({
       transfer_date: r.transfer_date ? format(new Date(r.transfer_date), "yyyy-MM-dd") : "",
-      transfer_number: r.transfer_number,
+      transfer_number: r.transfer_number ?? "",
       status: r.status,
-      line_count: r.line_count,
-      qty_requested: r.qty_requested,
-      qty_sent: r.qty_sent,
-      qty_received: r.qty_received,
-      variance: r.variance,
+      line_count: Number(r.line_count),
+      qty_requested: Number(r.qty_requested),
+      qty_sent: Number(r.qty_sent),
+      qty_received: Number(r.qty_received),
+      variance: Number(r.variance),
     }));
     return {
       title: "Stock Transfers Report",
