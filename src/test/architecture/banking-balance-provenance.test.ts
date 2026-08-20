@@ -82,6 +82,39 @@ describe("banking balance provenance (Phase 7)", () => {
     expect(src).toMatch(/const p = account\.position;\s*\n\s*if \(!p\) return null;/);
   });
 
+  /**
+   * Phase 6 (Cash & Banking coherence): the Banking overview must not compute
+   * a cash figure of its own. It previously added `accounts.opening_balance`
+   * to the posted-JE movement, which double counted an opening balance that
+   * had itself been posted as a journal entry — the same class of defect the
+   * reconciliation statement surfaced as an unexplained difference.
+   */
+  it("the Banking overview derives no balance of its own", () => {
+    const src = readFileSync(join(SRC, "pages/Banking.tsx"), "utf8");
+    expect(src).toContain("resolveBankAccountBalance");
+    expect(src).not.toContain("getEffectiveBalance");
+    expect(src).not.toContain("useAccountBalances");
+    expect(src).not.toMatch(/opening_balance/);
+  });
+
+  it("an account with an unresolvable balance is excluded from the total, not zeroed", () => {
+    const src = readFileSync(join(SRC, "pages/Banking.tsx"), "utf8");
+    expect(src).toMatch(/resolveBankAccountBalance\(acc\) === null/);
+    expect(src).toMatch(/if \(!resolved\) continue;/);
+    expect(src).toContain("unresolvedAccounts");
+  });
+
+  it("the account card has no caller-supplied balance override", () => {
+    const src = readFileSync(join(SRC, "components/banking/BankAccountCard.tsx"), "utf8");
+    expect(src).not.toContain("glBalance");
+    expect(src).toContain("const displayBalance = resolved?.amount ?? null;");
+  });
+
+  it("a shared control account is disclosed on the card", () => {
+    const src = readFileSync(join(SRC, "components/banking/BankAccountCard.tsx"), "utf8");
+    expect(src).toContain("account.position?.gl_shared");
+  });
+
   it("the bank account card renders an em dash when no balance resolves", () => {
     const src = readFileSync(join(SRC, "components/banking/BankAccountCard.tsx"), "utf8");
     expect(src).toContain("resolveBankAccountBalance");
