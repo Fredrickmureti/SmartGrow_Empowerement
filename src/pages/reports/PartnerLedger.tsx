@@ -111,6 +111,7 @@ function PartnerLedgerInner() {
   // the browser.
   const {
     partners: data,
+    totals,
     isLoading,
     error,
   } = usePartnerLedger({
@@ -121,6 +122,7 @@ function PartnerLedgerInner() {
     from: dateFrom,
     to: dateTo,
   });
+
 
   // GL tie-out for the closing position, as of the period end.
   const { data: reconciliation } = usePartnerLedgerReconciliation({
