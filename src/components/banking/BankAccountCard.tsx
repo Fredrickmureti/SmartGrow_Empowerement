@@ -43,7 +43,6 @@ import { Link } from "react-router-dom";
 
 interface BankAccountCardProps {
   account: BankAccount;
-  glBalance?: number | null;
   unreconciledCount?: number;
   lastReconciledDate?: string | null;
   onSync: () => void;
@@ -55,7 +54,6 @@ interface BankAccountCardProps {
 
 export function BankAccountCard({ 
   account, 
-  glBalance,
   unreconciledCount,
   lastReconciledDate,
   onSync, 
@@ -69,13 +67,15 @@ export function BankAccountCard({
   const [logoError, setLogoError] = useState(false);
   const [runHistoryOpen, setRunHistoryOpen] = useState(false);
 
-  // Phase 7: prefer the caller-supplied GL balance, then the server-derived
-  // position. When neither resolves we render an em dash — a balance we cannot
-  // trace to a source row is an absence, not a zero.
+  // Phase 6: the server-derived position is the ONLY source. There is no
+  // caller-supplied override any more — a page that could pass its own figure
+  // was a second way to answer "how much money is in this account". When
+  // nothing resolves we render an em dash: a balance we cannot trace to a
+  // source row is an absence, not a zero.
   const resolved = resolveBankAccountBalance(account);
-  const displayBalance = glBalance ?? resolved?.amount ?? null;
+  const displayBalance = resolved?.amount ?? null;
   const balanceLabel =
-    glBalance != null || resolved?.source === "gl"
+    resolved?.source === "gl"
       ? "Book Balance (GL)"
       : resolved?.source === "statement"
         ? "Statement Balance"
@@ -221,8 +221,14 @@ export function BankAccountCard({
                   ? "—"
                   : formatAmount(displayBalance, account.currency || "USD")}
               </p>
-              {glBalance == null && account.account_id == null && (
+              {account.account_id == null && (
                 <p className="text-xs text-amber-600 mt-0.5">⚠ No GL link — balance is not ledger-derived</p>
+              )}
+              {account.position?.gl_shared && (
+                <p className="text-xs text-amber-600 mt-0.5">
+                  ⚠ Control account shared with another bank account — the ledger
+                  balance cannot be attributed to this account alone
+                </p>
               )}
             </div>
             {getSyncStatusBadge()}
