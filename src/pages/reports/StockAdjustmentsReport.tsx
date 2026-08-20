@@ -131,6 +131,9 @@ function StockAdjustmentsReportInner() {
       { key: "line_count", header: "Lines", format: "number" },
       { key: "abs_qty", header: "|Δ Qty|", format: "number" },
       { key: "cost_impact", header: "Cost Impact", format: "currency" },
+      // The basis is part of the figure, not decoration: a reader must be
+      // able to tell a posted ledger amount from an unposted estimate.
+      { key: "cost_basis", header: "Cost basis" },
       {
         key: "actions",
         header: "",
@@ -149,17 +152,18 @@ function StockAdjustmentsReportInner() {
 
   const tableRows = useMemo<ReportRow[]>(
     () =>
-      rows.map((r) => ({
-        id: r.id,
+      rows.map((r: StockAdjustmentReportRow) => ({
+        id: r.adjustment_id,
         tone: r.status === "reversed" ? "warning" : "default",
         values: {
           adjustment_date: r.adjustment_date,
           adjustment_number: r.adjustment_number,
           reason: r.reason,
           status: r.status,
-          line_count: r.line_count,
-          abs_qty: Number(r.abs_qty.toFixed(2)),
-          cost_impact: r.cost_impact,
+          line_count: Number(r.line_count),
+          abs_qty: Number(Number(r.abs_qty).toFixed(2)),
+          cost_impact: Number(r.cost_impact),
+          cost_basis: COST_BASIS_LABEL[r.cost_basis] ?? r.cost_basis,
         },
       })),
     [rows],
@@ -174,15 +178,17 @@ function StockAdjustmentsReportInner() {
       { key: "line_count", header: "Lines", width: 10, align: "right" },
       { key: "abs_qty", header: "|Δ Qty|", width: 14, align: "right" },
       { key: "cost_impact", header: "Cost Impact", width: 18, format: "currency", align: "right" },
+      { key: "cost_basis", header: "Cost basis", width: 20 },
     ];
-    const exportRows: ExportRow[] = rows.map((r) => ({
+    const exportRows: ExportRow[] = rows.map((r: StockAdjustmentReportRow) => ({
       adjustment_date: r.adjustment_date ? format(new Date(r.adjustment_date), "yyyy-MM-dd") : "",
-      adjustment_number: r.adjustment_number,
+      adjustment_number: r.adjustment_number ?? "",
       reason: r.reason ?? "",
       status: r.status,
-      line_count: r.line_count,
-      abs_qty: r.abs_qty,
-      cost_impact: r.cost_impact,
+      line_count: Number(r.line_count),
+      abs_qty: Number(r.abs_qty),
+      cost_impact: Number(r.cost_impact),
+      cost_basis: COST_BASIS_LABEL[r.cost_basis] ?? r.cost_basis,
     }));
     return {
       title: "Stock Adjustments Report",
@@ -190,6 +196,7 @@ function StockAdjustmentsReportInner() {
       columns, rows: exportRows, currency: baseCurrency,
     };
   }, [rows, baseCurrency]);
+
 
   return (
     <ReportPageLayout
