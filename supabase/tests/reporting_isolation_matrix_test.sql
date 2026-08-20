@@ -216,6 +216,61 @@ BEGIN
     PERFORM public.finance_purchase_expense_reconciliation(v_org, v_from, v_to, NULL, NULL);
     RAISE EXCEPTION 'finance_purchase_expense_reconciliation answered for a foreign organization';
   EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  -- general-ledger family (Cash Flow, Bank/Cash dashboards, Trial Balance,
+  -- Year-End closing all read through these).
+  BEGIN
+    PERFORM public.get_account_movements(v_org, v_from, v_to, NULL, NULL);
+    RAISE EXCEPTION 'get_account_movements answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  BEGIN
+    PERFORM public.get_account_balances(v_org, NULL, NULL);
+    RAISE EXCEPTION 'get_account_balances answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  BEGIN
+    PERFORM public.get_general_ledger(v_org, v_from, v_to, NULL, NULL, false, NULL);
+    RAISE EXCEPTION 'get_general_ledger answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  BEGIN
+    PERFORM public.get_gl_transactions(v_org, v_from, v_to, NULL, NULL);
+    RAISE EXCEPTION 'get_gl_transactions answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  BEGIN
+    PERFORM public.check_balance_integrity(v_org, NULL);
+    RAISE EXCEPTION 'check_balance_integrity answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 5b) `get_account_balance_at_date` is account-scoped rather than org-scoped,
+--     so it sits outside the matrix (its first argument is an account id).
+--     It must still resolve the account's owning organisation and gate on it.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE r record;
+BEGIN
+  SELECT p.oid, p.prosrc, p.prosecdef, p.proconfig INTO r
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'get_account_balance_at_date';
+  IF r IS NULL THEN
+    RAISE EXCEPTION 'get_account_balance_at_date is missing';
+  END IF;
+  IF NOT r.prosecdef THEN
+    RAISE EXCEPTION 'get_account_balance_at_date is not SECURITY DEFINER';
+  END IF;
+  IF COALESCE(array_to_string(r.proconfig, ','), '') !~ 'search_path=' THEN
+    RAISE EXCEPTION 'get_account_balance_at_date has no pinned search_path';
+  END IF;
+  IF r.prosrc !~ 'finance_can_read_org' THEN
+    RAISE EXCEPTION 'get_account_balance_at_date never calls finance_can_read_org';
+  END IF;
+  IF has_function_privilege('anon', r.oid, 'EXECUTE') THEN
+    RAISE EXCEPTION 'get_account_balance_at_date is executable by anon';
+  END IF;
 END $$;
 
 -- ---------------------------------------------------------------------------
