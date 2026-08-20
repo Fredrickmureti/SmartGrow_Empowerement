@@ -464,6 +464,7 @@ serve(async (req) => {
         "inventory_valuation",
         "inventory_aging",
         "inventory_gl_reconciliation",
+        "lot_traceability",
       ] as const
     ).includes(reportType as InventoryReportKey);
 
