@@ -215,10 +215,20 @@ export default function BankReconciliation() {
     setTransferDialogOpen(true);
   };
 
-  const handleUnreconcileConfirm = (transaction: any) => {
+  const handleUnreconcileConfirm = async (transaction: any) => {
     if (isReadOnly) { openUpgradeModal("banking"); return; }
     setTransactionToUnreconcile(transaction);
+    setUnmatchPreflight(null);
     setUnreconcileDialogOpen(true);
+    setPreflightLoading(true);
+    try {
+      setUnmatchPreflight(await fetchUnmatchPreflight(transaction.id));
+    } catch {
+      // A failed check must not imply permission; the RPC re-checks anyway.
+      setUnmatchPreflight(null);
+    } finally {
+      setPreflightLoading(false);
+    }
   };
 
   const executeUnreconcile = async () => {
@@ -230,6 +240,7 @@ export default function BankReconciliation() {
     } finally {
       setUnreconcileDialogOpen(false);
       setTransactionToUnreconcile(null);
+      setUnmatchPreflight(null);
     }
   };
 
