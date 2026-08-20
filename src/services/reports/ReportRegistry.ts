@@ -362,9 +362,9 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
   },
   {
     id: "bank-reconciliation-report",
-    name: "Bank Reconciliation Report",
-    description: "Every reconciliation session with matched / unmatched / drift",
-    category: "audit",
+    name: "Bank Reconciliation",
+    description: "Bank-to-book proof at a date, plus the sessions behind it",
+    category: "cash_bank",
     path: "/finance/reports/bank-reconciliation",
     icon: Landmark,
     requiredFeature: "reports_financial",

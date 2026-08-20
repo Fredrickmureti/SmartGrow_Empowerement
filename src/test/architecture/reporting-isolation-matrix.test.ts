@@ -50,6 +50,7 @@ const REPORTING_RPCS = [
   "check_balance_integrity",
   // Cash & Banking statement engines.
   "finance_cash_flow_statement",
+  "finance_bank_reconciliation_statement",
 ] as const;
 
 

@@ -94785,6 +94785,16 @@ export type Database = {
           source_kind: string
         }[]
       }
+      finance_bank_reconciliation_statement: {
+        Args: {
+          _as_of: string
+          _bank_account_id: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: Json
+      }
       finance_can_read_org: { Args: { _org_id: string }; Returns: boolean }
       finance_cash_flow_statement: {
         Args: {
