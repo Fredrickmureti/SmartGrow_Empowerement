@@ -396,34 +396,35 @@ export async function fetchContactOpenItemAging(
  * org, optionally narrowed to one contact. This is a genuine credit position on
  * the customer and reduces the net receivable.
  *
- * ADR: reads `finance_ar_customer_credit`, the single canonical definition of
- * unapplied credit. `get_ar_summary`, `get_ar_ap_aging_from_ledger` and
- * `finance_ar_net_position` all read the same view, so no consumer can invent
- * its own credit filter (e.g. forget the 0.01 floor or the currency handling).
+ * ADR: reads `finance_ar_customer_credit_as_of`, the single canonical
+ * definition of unapplied credit as of a reporting date, replayed from the
+ * append-only credit movements. `get_ar_summary` and
+ * `get_ar_ap_aging_from_ledger` read the same function, so no consumer can
+ * invent its own credit filter (e.g. forget the 0.01 floor, the currency
+ * handling, or the as-of cut-off).
  */
 export async function fetchUnappliedCustomerCredit(
   orgId: string,
   businessId?: string | null,
   contactId?: string | string[] | null,
+  asOf?: string,
 ): Promise<number> {
-  let q = supabase
-    .from("finance_ar_customer_credit" as any)
-    .select("base_credit_amount")
-    .eq("organization_id", orgId);
-  if (businessId) q = q.eq("business_id", businessId);
-  if (Array.isArray(contactId)) {
-    if (contactId.length === 0) return 0;
-    q = q.in("contact_id", contactId);
-  } else if (contactId) {
-    q = q.eq("contact_id", contactId);
+  const wanted = Array.isArray(contactId) ? contactId : contactId ? [contactId] : null;
+  if (wanted && wanted.length === 0) return 0;
+
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  try {
+    rows = await fetchArCustomerCreditAsOf(orgId, businessId, null, asOf);
+  } catch {
+    return 0;
   }
 
-  const { data, error } = await q;
-  if (error) return 0;
-  return ((data || []) as any[]).reduce(
-    (sum, r) => sum + (Number(r.base_credit_amount) || 0),
-    0,
-  );
+  let total = 0;
+  for (const row of rows) {
+    if (wanted && (!row.contact_id || !wanted.includes(row.contact_id))) continue;
+    total += Number(row.base_credit_amount) || 0;
+  }
+  return total;
 }
 
 /**
