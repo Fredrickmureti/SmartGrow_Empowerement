@@ -65,7 +65,10 @@ export function ResidualExplainer({
           </p>
         ) : (
           <ol className="space-y-2">
-            {explanations.map((explanation, index) => (
+            {explanations.map((explanation, index) => {
+              const remedy = resolveRemedy(explanation.code);
+              const primary = remedy?.primary?.(ctx) ?? null;
+              return (
               <li key={explanation.code}>
                 <Collapsible className="rounded-md border border-destructive/30 bg-background/60">
                   <CollapsibleTrigger className="flex w-full items-start justify-between gap-3 p-3 text-left">
