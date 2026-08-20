@@ -755,12 +755,21 @@ export function getRelatedReports(id: string): ReportDefinition[] {
  * the longest matching registered path so `/finance/reports/stock-transfers`
  * does not resolve to `/finance/reports/stock`.
  */
+export function reportMountPaths(def: ReportDefinition): string[] {
+  const all = def.paths
+    ? [def.path, def.paths.finance, def.paths.inventory]
+    : [def.path];
+  return Array.from(new Set(all.map((p) => p.split("?")[0])));
+}
+
 export function findReportByPath(pathname: string): ReportDefinition | undefined {
-  const candidates = REPORT_REGISTRY.filter((r) => {
-    const base = r.path.split("?")[0];
-    return pathname === base || pathname.startsWith(`${base}/`);
-  });
-  return candidates.sort(
-    (a, b) => b.path.split("?")[0].length - a.path.split("?")[0].length,
-  )[0];
+  let best: { def: ReportDefinition; len: number } | undefined;
+  for (const r of REPORT_REGISTRY) {
+    for (const base of reportMountPaths(r)) {
+      if (pathname === base || pathname.startsWith(`${base}/`)) {
+        if (!best || base.length > best.len) best = { def: r, len: base.length };
+      }
+    }
+  }
+  return best?.def;
 }
