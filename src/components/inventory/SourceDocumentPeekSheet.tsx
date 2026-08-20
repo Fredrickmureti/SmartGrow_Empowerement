@@ -21,7 +21,11 @@ import { format } from "date-fns";
 
 import { PeekScaffold } from "@/design-system/records";
 import type { DocumentRecordView } from "@/design-system/records";
-import type { LineItemColumn, LineItemRow } from "@/design-system/records/LineItemsGrid";
+import type {
+  LineItemColumn,
+  LineItemRow,
+  LineItemRowCell,
+} from "@/design-system/records/LineItemsGrid";
 import type { DetailField } from "@/design-system/records/RecordBody";
 import type { DocumentKind } from "@/design-system/records/documentStatus";
 import type { LifecycleDocType } from "@/design-system/records/DocumentLifecycleStrip";
@@ -363,7 +367,7 @@ function rowsFor(
   formatCurrency: (v: number) => string,
 ): LineItemRow[] {
   return lines.map((line) => {
-    const cells = [{ columnId: "item", content: itemCell(line) }];
+    const cells: LineItemRowCell[] = [{ columnId: "item", content: itemCell(line) }];
     if (shape === "priced") {
       const unit = num(line.unit_price);
       const total = num(line.line_total);
