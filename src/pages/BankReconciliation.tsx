@@ -95,6 +95,9 @@ export default function BankReconciliation() {
   // Unreconcile confirmation
   const [unreconcileDialogOpen, setUnreconcileDialogOpen] = useState(false);
   const [transactionToUnreconcile, setTransactionToUnreconcile] = useState<any>(null);
+  // ADR-0149 — the server declares the refusal before the click.
+  const [unmatchPreflight, setUnmatchPreflight] = useState<UnmatchPreflight | null>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
   const navigate = useNavigate();
 
   /**
