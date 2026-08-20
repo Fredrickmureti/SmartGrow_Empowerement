@@ -33,8 +33,11 @@ const DOC_CONFIG: Record<string, {
   totalField?: string;
   contactField?: string;
   route: string;
+  /** Full record page for this document, when one exists. */
+  recordPath?: (id: string) => string;
   kind: DocumentKind;
 }> = {
+
   purchase_order: {
     table: "purchase_orders",
     select: "*, contacts(company_name, name)",
@@ -44,6 +47,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "contacts",
     route: "/purchases",
+    recordPath: (id) => `/purchases/orders/${id}`,
     kind: "purchase_order",
   },
   invoice: {
@@ -55,6 +59,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "contacts",
     route: "/invoices",
+    recordPath: (id) => `/sales/invoices/${id}`,
     kind: "invoice",
   },
   bill: {
@@ -66,6 +71,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "vendor",
     route: "/bills",
+    recordPath: (id) => `/purchases/bills/${id}`,
     kind: "bill",
   },
   sales_order: {
@@ -77,7 +83,50 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "contacts",
     route: "/sales",
+    recordPath: (id) => `/sales/orders/${id}`,
     kind: "sales_order",
+  },
+  delivery_note: {
+    table: "delivery_notes",
+    select: "*",
+    titleField: "delivery_number",
+    dateField: "delivery_date",
+    statusField: "status",
+    route: "/delivery-notes",
+    recordPath: (id) => `/sales/delivery-notes/${id}`,
+    kind: "delivery_note",
+  },
+  credit_note: {
+    table: "credit_notes",
+    select: "*",
+    titleField: "credit_note_number",
+    dateField: "issue_date",
+    statusField: "status",
+    totalField: "total",
+    route: "/sales/credit-notes",
+    recordPath: (id) => `/sales/credit-notes/${id}`,
+    kind: "credit_note",
+  },
+  sales_return: {
+    table: "sales_returns",
+    select: "*, contacts(company_name, name)",
+    titleField: "return_number",
+    dateField: "return_date",
+    statusField: "status",
+    totalField: "total",
+    contactField: "contacts",
+    route: "/sales/returns",
+    recordPath: (id) => `/sales/returns/${id}`,
+    kind: "sales_return",
+  },
+  goods_receipt: {
+    table: "goods_receipts",
+    select: "*, purchase_orders(order_number)",
+    titleField: "receipt_number",
+    dateField: "receipt_date",
+    statusField: "status",
+    route: "/warehouse-app/receiving",
+    kind: "generic",
   },
   pos_transaction: {
     table: "pos_transactions",
@@ -108,6 +157,7 @@ const DOC_CONFIG: Record<string, {
     kind: "stock_transfer",
   },
 };
+
 
 const fmtDate = (v?: string | null) => {
   if (!v) return "—";
@@ -202,10 +252,13 @@ export function SourceDocumentPeekSheet({
       open={open}
       onOpenChange={onOpenChange}
       fullPageHref={
-        config?.route && referenceId
-          ? `${config.route}?selected=${referenceId}`
-          : undefined
+        referenceId && config?.recordPath
+          ? config.recordPath(referenceId)
+          : config?.route && referenceId
+            ? `${config.route}?selected=${referenceId}`
+            : undefined
       }
+
     />
   );
 }

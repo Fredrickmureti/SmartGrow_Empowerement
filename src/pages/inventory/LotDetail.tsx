@@ -44,9 +44,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { SourceDocumentPeekSheet } from "@/components/inventory/SourceDocumentPeekSheet";
 import {
   fetchLotGenealogy,
-  lotReferenceLabel,
+  lotReferenceLabel, isDrillableLotReference,
   type LotGenealogy,
 } from "@/hooks/inventory/useLotGenealogy";
 
@@ -91,6 +92,7 @@ export default function LotDetail() {
   const [recallOpen, setRecallOpen] = useState(false);
   const [recallReason, setRecallReason] = useState("");
   const [recalling, setRecalling] = useState(false);
+  const [reference, setReference] = useState<{ type: string; id: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -390,7 +392,20 @@ export default function LotDetail() {
                         </div>
                       </TableCell>
                       <TableCell className="text-xs">
-                        <div>{refLabel}</div>
+                        {isDrillableLotReference(m.reference_type, m.reference_id) ? (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs"
+                            onClick={() =>
+                              setReference({ type: m.reference_type!, id: m.reference_id! })
+                            }
+                          >
+                            {refLabel}
+                          </Button>
+                        ) : (
+                          <div>{refLabel}</div>
+                        )}
                         {m.reference_id && (
                           <div className="font-mono text-[10px] text-muted-foreground">{m.reference_id.slice(0, 8)}</div>
                         )}
@@ -409,6 +424,13 @@ export default function LotDetail() {
           )}
         </CardContent>
       </Card>
+
+      <SourceDocumentPeekSheet
+        open={!!reference}
+        onOpenChange={(o) => !o && setReference(null)}
+        referenceType={reference?.type ?? null}
+        referenceId={reference?.id ?? null}
+      />
     </div>
   );
 }

@@ -15,7 +15,7 @@
  * recomputed here. Serial-tracked products surface their serials on the same
  * movement rows — no parallel serial RPC.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { format } from "date-fns";
-import { useLotGenealogy, lotReferenceLabel, type LotTimelineRow } from "@/hooks/inventory/useLotGenealogy";
+import {
+  useLotGenealogy,
+  lotReferenceLabel,
+  isDrillableLotReference,
+  type LotTimelineRow,
+} from "@/hooks/inventory/useLotGenealogy";
+import { SourceDocumentPeekSheet } from "@/components/inventory/SourceDocumentPeekSheet";
+import { Button } from "@/components/ui/button";
+
+
+interface ReferenceTarget {
+  type: string;
+  id: string;
+}
 
 export interface LotGenealogyTarget {
   businessId: string | null;
@@ -61,10 +74,12 @@ function MovementTable({
   rows,
   emptyMessage,
   runningLabel,
+  onOpenReference,
 }: {
   rows: Array<LotTimelineRow & { running?: number }>;
   emptyMessage: string;
   runningLabel?: string;
+  onOpenReference: (target: ReferenceTarget) => void;
 }) {
   if (rows.length === 0) {
     return <div className="py-6 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
@@ -98,7 +113,22 @@ function MovementTable({
                 {m.movement_type}
               </span>
             </TableCell>
-            <TableCell className="text-xs">{lotReferenceLabel(m.reference_type)}</TableCell>
+            <TableCell className="text-xs">
+              {isDrillableLotReference(m.reference_type, m.reference_id) ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() =>
+                    onOpenReference({ type: m.reference_type!, id: m.reference_id! })
+                  }
+                >
+                  {lotReferenceLabel(m.reference_type)}
+                </Button>
+              ) : (
+                lotReferenceLabel(m.reference_type)
+              )}
+            </TableCell>
             <TableCell className="text-xs">{m.warehouse_name ?? "—"}</TableCell>
             <TableCell className="font-mono text-xs">{m.serial_number ?? "—"}</TableCell>
             <TableCell className="text-right font-mono text-xs">
@@ -123,6 +153,8 @@ export function LotGenealogyDialog({ open, onOpenChange, target }: Props) {
     lotNumber: target?.lotNumber ?? null,
     enabled: open,
   });
+
+  const [reference, setReference] = useState<ReferenceTarget | null>(null);
 
   const { inbound, outbound } = useMemo(() => {
     const timeline = data?.timeline ?? [];
@@ -192,7 +224,11 @@ export function LotGenealogyDialog({ open, onOpenChange, target }: Props) {
           <div className="space-y-6">
             <section>
               <h4 className="mb-2 text-sm font-medium">Backward trace — origin</h4>
-              <MovementTable rows={inbound} emptyMessage="No inbound movements for this lot." />
+              <MovementTable
+                rows={inbound}
+                emptyMessage="No inbound movements for this lot."
+                onOpenReference={setReference}
+              />
             </section>
             <section>
               <h4 className="mb-2 text-sm font-medium">Forward trace — where it went</h4>
@@ -200,11 +236,19 @@ export function LotGenealogyDialog({ open, onOpenChange, target }: Props) {
                 rows={outbound}
                 emptyMessage="Nothing issued from this lot yet."
                 runningLabel="Cumulative consumed"
+                onOpenReference={setReference}
               />
             </section>
           </div>
         )}
       </DialogContent>
+
+      <SourceDocumentPeekSheet
+        open={!!reference}
+        onOpenChange={(o) => !o && setReference(null)}
+        referenceType={reference?.type ?? null}
+        referenceId={reference?.id ?? null}
+      />
     </Dialog>
   );
 }
