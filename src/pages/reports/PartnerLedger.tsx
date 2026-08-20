@@ -307,7 +307,20 @@ function PartnerLedgerInner() {
         </ReportFilters>
       }
     >
+      {reconciliation && !reconciliation.inBalance && (
+        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span className="font-medium">
+            Ledger does not agree with the {partnerType === "customer" ? "receivables" : "payables"} control account.
+          </span>{" "}
+          Ledger {formatCurrency(reconciliation.ledgerTotal, baseCurrency)} vs control account{" "}
+          {formatCurrency(reconciliation.controlAccountBalance, baseCurrency)} — variance{" "}
+          {formatCurrency(reconciliation.variance, baseCurrency)} as of{" "}
+          {format(new Date(dateTo), "MMM d, yyyy")}.
+        </div>
+      )}
+
       <ReportSurface
+
         title={`${partnerType === "customer" ? "Customer" : "Supplier"} Ledger`}
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
         profile="operational"
