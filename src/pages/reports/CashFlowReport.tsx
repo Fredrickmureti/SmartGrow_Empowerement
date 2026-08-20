@@ -173,16 +173,26 @@ function CashFlowReportInner() {
     return out;
   }, [data, dateFrom, dateTo]);
 
+  // Server-build: the export is REBUILT by `finance_cash_flow_statement`
+  // through render-report, not re-shipped from the browser's rows. Omitting
+  // organizationId / dateFrom / dateTo silently downgraded every Cash Flow
+  // PDF to the page's own slice, which is how a screen and its archive drift.
   const getExportConfig = useCallback((): ExportConfig => ({
     title: "Cash Flow Statement",
     reportType: "cash_flow",
+    organizationId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    branchId: filters.branchId ?? null,
+    dateFrom,
+    dateTo,
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(columns),
     rows: toExportRows(rows, columns),
     subtitle: "Indirect method",
     sheetName: "Cash Flow",
     currency: baseCurrency,
-  }), [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency]);
+  }), [columns, rows, dateFrom, dateTo, currentOrg, currentBusiness, filters.branchId, baseCurrency]);
+
 
   return (
     <ReportPageLayout
