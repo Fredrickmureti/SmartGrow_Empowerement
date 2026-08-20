@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from "react";
 
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
-import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
+import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { usePartnerLedger, usePartnerLedgerReconciliation } from "@/hooks/usePartnerLedger";
 
 
@@ -97,7 +97,10 @@ function PartnerLedgerInner() {
   const dateTo = workspace.get("to", filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
   const setDateFrom = (value: string) => workspace.set({ from: value });
   const setDateTo = (value: string) => workspace.set({ to: value });
-  const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
+  // Drill-down goes straight to the originating journal entry (ADR 0029):
+  // the ledger row carries `journal_entry_id`, so the register is drillable to
+  // the posting that created it instead of to a date-range guess.
+  const [journalEntryId, setJournalEntryId] = useState<string | null>(null);
 
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -336,10 +339,13 @@ function PartnerLedgerInner() {
         />
       </ReportSurface>
 
-      <DrillDownDialog
-        open={drillDown.open}
-        onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}
-        config={drillDown.config}
+      <TransactionPreviewDrawer
+        open={Boolean(journalEntryId)}
+        onOpenChange={(open) => {
+          if (!open) setJournalEntryId(null);
+        }}
+        sourceType="journal_entry"
+        sourceId={journalEntryId}
       />
     </ReportPageLayout>
   );
