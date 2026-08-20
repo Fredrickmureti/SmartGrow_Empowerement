@@ -71,7 +71,7 @@ describe("banking balance provenance (Phase 7)", () => {
 
   it("useBankAccounts resolves balances through bank_account_positions()", () => {
     const src = readFileSync(join(SRC, "hooks/useBankAccounts.ts"), "utf8");
-    expect(src).toContain('supabase.rpc(\n        "bank_account_positions"');
+    expect(src).toMatch(/supabase\.rpc\(\s*"bank_account_positions"/);
     expect(src).toContain("export interface BankAccountPosition");
     expect(src).toContain("export function resolveBankAccountBalance");
   });
@@ -94,7 +94,8 @@ describe("banking balance provenance (Phase 7)", () => {
     expect(src).toContain("resolveBankAccountBalance");
     expect(src).not.toContain("getEffectiveBalance");
     expect(src).not.toContain("useAccountBalances");
-    expect(src).not.toMatch(/opening_balance/);
+    // The double-count: an opening balance added on top of posted movement.
+    expect(src).not.toMatch(/opening_balance\s*\?\?/);
   });
 
   it("an account with an unresolvable balance is excluded from the total, not zeroed", () => {
