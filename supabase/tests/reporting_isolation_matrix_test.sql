@@ -39,7 +39,14 @@ INSERT INTO _reporting_matrix(proname, family) VALUES
   ('finance_sales_analysis',                 'sales'),
   ('finance_sales_revenue_reconciliation',   'sales'),
   ('finance_purchase_analysis',              'purchases'),
-  ('finance_purchase_expense_reconciliation','purchases');
+  ('finance_purchase_expense_reconciliation','purchases'),
+  -- General-ledger engines behind Cash Flow, Bank/Cash dashboards, Trial
+  -- Balance and Year-End closing. Same definer + caller-org contract.
+  ('get_account_movements',                  'general_ledger'),
+  ('get_account_balances',                   'general_ledger'),
+  ('get_general_ledger',                     'general_ledger'),
+  ('get_gl_transactions',                    'general_ledger'),
+  ('check_balance_integrity',                'general_ledger');
 
 -- ---------------------------------------------------------------------------
 -- 1) Every matrix entry exists exactly once.
