@@ -1,93 +1,95 @@
-# Cash & Banking Reporting — Authoritative Status (2026-08-20)
+# Cash & Banking Reporting — Verification + Continuation (2026-08-21)
 
-Legend: **[FACT]** verified this session · **[TASK]** pending work
+Legend: **[FACT]** re-verified this session · **[FINDING]** new defect found this session ·
+**[TASK]** work to do · **[TEST]** test requirement · **[OPEN]** unresolved policy
 
-Related history: `.lovable/plan/cash-banking-reporting-investigation-findings-and-phased-pla-2026-08-20.md`,
-`.lovable/plan/cash-banking-reporting-handover-verification-and-continuatio-2026-08-20.md`.
+## Phase 1 — Independent verification of the previous engineer's claims
 
-## Currently active phase
+| Claim | Verdict |
+| --- | --- |
+| Security gate on GL/report RPCs, definer + pinned search_path, no `anon` EXECUTE | **[FACT] TRUE.** `pg_proc` shows `prosecdef=true`, `search_path=public`, ACL `postgres/authenticated/service_role` only — no PUBLIC, no `anon` — for `finance_can_read_org`, `finance_cash_flow_statement`, `finance_bank_reconciliation_statement`, `get_general_ledger`, `get_account_movements`, `get_account_balances`, `get_account_balance_at_date`, `get_gl_transactions`, `check_balance_integrity`, `get_control_account_reconciliation`. |
+| `finance_bank_reconciliation_statement` exists with the stated signature | **[FACT] TRUE** (`_org_id, _bank_account_id, _as_of, _business_id, _branch_id`). |
+| Client seam is the only caller; report page does no accounting arithmetic | **[FACT] TRUE.** Only `src/services/finance/bankReconciliationStatement.ts` calls the RPC; the page renders the payload and computes only row counts. |
+| Guard tests green | **[FACT] TRUE.** 22 tests pass across `bank-reconciliation-single-engine`, `cash-flow-single-engine`, `reporting-isolation-matrix`. |
+| Registry entry moved to `cash_bank`, nav group "Cash & banking" | **[FACT] TRUE** (`ReportRegistry.ts` + `reportsNav.ts`). |
+| Phase 2b: "the PDF/schedule path reads the one cash-flow engine" | **[FACT] PARTLY TRUE — see [FINDING] 1.** The server builder `buildCashFlow` does call `finance_cash_flow_statement`, but the Cash Flow *screen's* export never reaches it. |
 
-**Phase 3 — Bank Reconciliation Statement: COMPLETE.** Phase 4 (session register cleanup) was
-folded into the same screen and is complete. **Next: Phase 5 — Cash & Banking category coherence.**
+### New findings
 
-## Fully implemented and verified
+1. **[FINDING] The Cash Flow screen's PDF/CSV/XLSX is still browser rows, not the engine.**
+   `ReportExportService.canServerBuild` requires `reportType && organizationId && dateFrom && dateTo`.
+   `CashFlowReport.getExportConfig` supplies `reportType: "cash_flow"` and a display `dateRange`
+   only — no `organizationId`, no `dateFrom`/`dateTo`. So every export silently falls into the
+   prebuilt branch and re-ships the page's rendered rows. The single-engine victory holds for
+   scheduled reports and direct `render-report` calls, not for the button the accountant presses.
+2. **[FINDING] Server-built cash flow ignores branch scope.** `buildCashFlow(..., branchId?)` accepts
+   a branch, but neither `render-report/index.ts:121` nor `process-scheduled-reports/index.ts:183`
+   passes one, although `render-report` already parses `branchId` from the body. A branch-scoped
+   screen and its scheduled PDF therefore state different cash flows.
+3. **[FINDING] Bank Reconciliation has no server build path at all.** `render-report`'s
+   `buildReportData` switch has no `bank_reconciliation` case; the registry's
+   `reportType: "bank-reconciliation"` would throw `Unsupported report type`. The page exports
+   prebuilt rows, so the exported proof is capped by the page's own 200-item truncation and does
+   not go through the canonical column spec/masthead.
+4. **[FINDING] Report-type vocabulary is inconsistent.** The registry uses kebab (`cash-flow`,
+   `bank-reconciliation`); the server switch uses snake (`cash_flow`). Nothing normalizes between
+   them — the Cash Flow page only works because it hardcodes the snake form in its export config.
+   This is the exact trap that will make finding 3's fix silently no-op.
+5. **[FACT]** The SQL isolation matrix only has the negative leg (foreign org raises) for the new
+   RPC; no positive leg, and no registry test pinning `cash_bank` membership.
 
-### Phase 1 — Security (complete)
-- **[FACT]** `finance_can_read_org(_org_id)` gates `get_account_movements`, `get_general_ledger`,
-  `get_account_balances`, `get_gl_transactions`, `get_account_balance_at_date`,
-  `check_balance_integrity`, `get_control_account_reconciliation`. All definer, pinned
-  `search_path`, no `anon` EXECUTE. The cross-tenant GL leak is closed.
+### Live-data item carried forward (not an engine defect)
 
-### Phase 2 — Cash Flow, one engine (complete)
-- **[FACT]** `finance_cash_flow_statement` is the single engine. The screen reads it through
-  `src/services/finance/cashFlow.ts`; the PDF/schedule path reads it through
-  `supabase/functions/_shared/reportDataEngine.ts` (the old name-matching heuristic is deleted).
-- **[FACT]** Proved on live data with a service-role harness: residual 0.00 across several windows
-  and business scopes.
-- **[FACT]** Guards: `src/test/architecture/cash-flow-single-engine.test.ts`,
-  `reporting-isolation-matrix.test.ts`, `supabase/tests/reporting_isolation_matrix_test.sql`.
+**[FACT]** Org "Joshua Holdings" / "Test Operating Bank – KES" shows a −50,000.00 KES unexplained
+difference: the opening balance is posted twice (via `bank_accounts.opening_balance_je_id` and via a
+separate entry behind the 2026-07-31 "Opening balance" statement line). Data fix for the business.
 
-### Phase 3 — Bank Reconciliation Statement (complete)
-- **[FACT]** `finance_bank_reconciliation_statement(_org_id, _bank_account_id, _as_of,
-  _business_id, _branch_id)` — definer, pinned `search_path`, `finance_can_read_org` gate,
-  EXECUTE revoked from `PUBLIC`/`anon`, granted to `authenticated` + `service_role`.
-  It returns the classic proof: statement balance → deposits in transit → unpresented payments →
-  adjusted bank balance; ledger balance → unrecorded receipts → unrecorded charges → adjusted book
-  balance; plus the residual, item drill-downs (capped at 200 with a truncation flag) and
-  diagnostics (`gl_account_missing`, `gl_account_shared`, `cleared_without_posting`,
-  `gl_currency_fallback_lines`, latest session).
-- **[FACT]** Single-currency by construction: ledger lines use `original_*` amounts when the entry
-  carries the bank account's currency, so no FX noise enters the proof. A ledger account shared by
-  two open bank accounts nulls the book side rather than mis-attributing movement.
-- **[FACT]** Opening-balance correctness: the opening balance counts only from its own
-  `opening_balance_date`, statement lines it already contains are not double counted, and an entry
-  tied to any statement line of the account is never reported as an outstanding item.
-- **[FACT]** Client seam `src/services/finance/bankReconciliationStatement.ts` is the only caller.
-  `src/pages/reports/BankReconciliationReport.tsx` renders the payload verbatim (Statement tab)
-  and performs no accounting arithmetic.
-- **[FACT]** Guard `src/test/architecture/bank-reconciliation-single-engine.test.ts` (5 tests) plus
-  the new entries in both isolation matrices — all green.
+## Phase 5 — Export coherence (next, in this order)
 
-### Phase 4 — Session register cleanup (complete)
-- **[FACT]** The register is the second tab of the same screen: `reconciled_balance` relabelled
-  "Cleared Movement", a Currency column added, and the meaningless cross-currency money KPIs
-  replaced by counts (total / open / completed / with a difference).
-- **[FACT]** Registry entry moved from `audit` to `cash_bank` and renamed "Bank Reconciliation".
+- **[TASK] 5a.** Normalize the report-type vocabulary in one place (registry key → server builder
+  key) so a registry `reportType` is always what `render-report` dispatches on. No new engine, no
+  per-page hardcoding.
+- **[TASK] 5b.** Make `CashFlowReport.getExportConfig` a server-build config: pass
+  `organizationId`, `businessId`, `branchId`, `dateFrom`, `dateTo`. Drop the prebuilt rows so the
+  prebuilt branch cannot be re-entered.
+- **[TASK] 5c.** Thread `branchId` from the `render-report` body and from the schedule record into
+  `buildCashFlow`.
+- **[TASK] 5d.** Add a `bank_reconciliation` builder to `_shared/reportDataEngine.ts` that calls
+  `finance_bank_reconciliation_statement` and renders the same proof rows the screen renders
+  (no arithmetic in the builder), wire it into `render-report`'s switch, and switch the report
+  page's Statement tab to a server-build export. Requires `bank_account_id` + `as_of` to travel as
+  `filters` — extend the server-build contract minimally rather than adding a second export path.
+- **[TEST] 5e.** Extend `cash-flow-single-engine` / `bank-reconciliation-single-engine` guards:
+  (i) no Cash & Banking page may export prebuilt rows; (ii) every registry `reportType` in
+  `cash_bank` must resolve to a server builder; (iii) branch must be threaded into the builder.
+- **[TEST] 5f.** Registry test asserting `cash_bank` membership (cash flow, bank reconciliation).
+- **[TEST] 5g.** SQL positive leg for `finance_bank_reconciliation_statement` (own org succeeds,
+  foreign org raises 42501) in `supabase/tests/reporting_isolation_matrix_test.sql`.
 
-## Live-data finding to hand to the business (not an engine defect)
+## Phase 6 — Taxonomy: is two reports enough (investigate, then decide)
 
-- **[FACT]** Org "Joshua Holdings", account "Test Operating Bank – KES": the statement shows an
-  unexplained difference of **−50,000.00 KES** as at 2026-08-20. The bank ledger account carries the
-  opening balance **twice** — once via `bank_accounts.opening_balance_je_id` (2026-08-01) and once
-  via a separate posted entry behind the 2026-07-31 "Opening balance" statement line. Earlier engine
-  drafts hid this by counting the second posting as a deposit in transit; the statement now reports
-  it. The duplicate posting should be reversed in the data.
+Deferred until Phase 5 lands, and to be settled by evidence, not by copying another ERP's menu.
+The three candidates worth testing against the existing model:
 
-## Pending work
+- **Cash position / bank balances as at a date** — one line per bank & cash account, book balance,
+  last reconciled date, uncleared count. Likely a *report*, since no existing screen answers
+  "how much cash do we have, by account, at a date, reconciled or not".
+- **Bank book / cash ledger** (opening, movements, running balance, closing per account) — likely a
+  *register* reachable as drill-down from the position report, not a new financial statement.
+- **Outstanding items ageing** (deposits in transit / unpresented payments by age) — most likely a
+  *drill-down dimension* of the reconciliation statement, not a separate report.
 
-### Phase 5 — Cash & Banking category coherence (next)
-- **[TASK]** Add a registry test asserting `cash_bank` membership (cash flow statement, bank
-  reconciliation, bank/cash dashboards) so the taxonomy cannot silently drift.
-- **[TASK]** Route `render-report` for `reportType: "bank-reconciliation"` through
-  `finance_bank_reconciliation_statement` so the PDF states the same proof as the screen — the exact
-  defect Phase 2b fixed for cash flow. **This is the highest-value remaining item.**
-- **[TASK]** Add the SQL-side positive test for the new RPC (own-org call succeeds, foreign-org
-  raises 42501) to `supabase/tests/`; only the foreign-org leg exists today.
+Rule for this phase: a new entry is justified only if it answers an accounting question no existing
+screen answers, and can be sourced from an existing engine without new accounting logic.
 
-### Unresolved policy (documented, not blocking)
-Whether cash equivalents are `cash_flow_category='cash'` only, or must also include POS /
+## Open policy
+
+**[OPEN]** Whether cash equivalents are `cash_flow_category='cash'` only, or must also include POS /
 credit-card / undeposited-funds clearing accounts. Default stands: `'cash'` only.
 
-## Instructions for the next agent
+## Notes for execution
 
-1. **Verify before extending.** Confirm: (a) `finance_bank_reconciliation_statement` is definer +
-   gated + no `anon` EXECUTE; (b) the report page contains no accounting arithmetic; (c)
-   `bunx vitest run src/test/architecture/bank-reconciliation-single-engine.test.ts
-   src/test/architecture/reporting-isolation-matrix.test.ts
-   src/test/architecture/cash-flow-single-engine.test.ts` is green; (d) call the RPC with a
-   service-role harness on a real account and check that
-   `adjusted_bank − adjusted_book = residual` and that the item lists explain the difference.
-2. Note: the repo has ~111 pre-existing failing test files unrelated to this domain (e.g.
-   `wms-rpc-grants`). Do not attribute them to this work, and do not start fixing them here.
-3. Then resume at **Phase 5**, top task first (the export path). Do not jump to another domain and
-   do not leave the export stating a different proof from the screen.
+- ~111 pre-existing failing test files elsewhere in the repo (e.g. `wms-rpc-grants`) are unrelated;
+  do not attribute them to this work and do not fix them here.
+- Do not add a second reporting engine, a second FX path, or accounting arithmetic in React or in
+  the edge builders. Builders render engine payloads.
