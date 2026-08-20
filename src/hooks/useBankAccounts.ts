@@ -389,6 +389,7 @@ export function useBankAccounts(options?: UseBankAccountsOptions) {
   const lastOrgIdRef = useRef<string | null>(null);
   const lastBusinessIdRef = useRef<string | null>(null);
   const lastBranchIdRef = useRef<string | null>(null);
+  const lastAsOfRef = useRef<string | null>(null);
   const hasFetchedRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -452,15 +453,17 @@ export function useBankAccounts(options?: UseBankAccountsOptions) {
       lastOrgIdRef.current !== orgId ||
       lastBusinessIdRef.current !== businessId ||
       lastBranchIdRef.current !== branchId ||
+      lastAsOfRef.current !== asOf ||
       !hasFetchedRef.current
     ) {
       lastOrgIdRef.current = orgId;
       lastBusinessIdRef.current = businessId;
       lastBranchIdRef.current = branchId;
+      lastAsOfRef.current = asOf;
       hasFetchedRef.current = true;
       fetchAccounts();
     }
-  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, fetchAccounts]);
+  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, asOf, fetchAccounts]);
 
   const mapPermErr = (error: unknown): string | null => {
     const msg = (error as { message?: string })?.message ?? "";
