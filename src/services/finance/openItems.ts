@@ -127,7 +127,7 @@ export interface OpenItemRow {
 }
 
 
-/** Row shape returned by the point-in-time AP engine. */
+/** Row shape returned by a point-in-time open-items engine (AR and AP share it). */
 export interface ApOpenItemAsOfRow {
   organization_id: string;
   business_id: string | null;
@@ -143,13 +143,60 @@ export interface ApOpenItemAsOfRow {
   residual_amount: number;
   currency: string | null;
   base_residual_amount: number;
-  source_kind: "bill" | "journal";
+  source_kind: "bill" | "invoice" | "journal";
   aging_bucket: string;
   days_past_due: number;
 }
 
+/** Receivables engine rows have the same shape as payables engine rows. */
+export type ArOpenItemAsOfRow = ApOpenItemAsOfRow;
+
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * The ONE receivables read. `finance_ar_open_items_as_of` is the point-in-time
+ * AR engine — the exact mirror of the payables engine: a receipt or credit note
+ * counts only if it happened on or before `asOf`, and an invoice appears only
+ * once its journal entry was posted by that date. The legacy
+ * `finance_ar_open_items` view always answers "today" and is not a substitute.
+ */
+export async function fetchArOpenItemsAsOf(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<ArOpenItemAsOfRow[]> {
+  const { data, error } = await supabase.rpc("finance_ar_open_items_as_of" as never, {
+    _org_id: orgId,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+    _as_of: asOf ?? today(),
+  } as never);
+  if (error) throw error;
+  return (data ?? []) as unknown as ArOpenItemAsOfRow[];
+}
+
+/** Unapplied customer credit as of a date — the AR credit half of the engine. */
+export async function fetchArCustomerCreditAsOf(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+  const { data, error } = await supabase.rpc("finance_ar_customer_credit_as_of" as never, {
+    _org_id: orgId,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+    _as_of: asOf ?? today(),
+  } as never);
+  if (error) throw error;
+  return (data ?? []) as unknown as Array<{
+    contact_id: string | null;
+    credit_amount: number;
+    base_credit_amount: number;
+  }>;
 }
 
 /**
