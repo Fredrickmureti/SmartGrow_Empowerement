@@ -94828,6 +94828,29 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
+      finance_sales_analysis: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _dimension?: string
+          _from: string
+          _limit?: number
+          _offset?: number
+          _org_id: string
+          _to: string
+        }
+        Returns: Json
+      }
+      finance_sales_revenue_reconciliation: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _from: string
+          _org_id: string
+          _to: string
+        }
+        Returns: Json
+      }
       find_bill_vendor_business_mismatches: {
         Args: never
         Returns: {
