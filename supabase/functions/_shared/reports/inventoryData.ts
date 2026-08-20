@@ -115,6 +115,10 @@ export async function buildInventoryReport(
     p_category: filters.categoryId ?? null,
   };
 
+  if (reportType === "lot_traceability") {
+    return await buildLotTraceabilityReport(supabase, orgId, businessId, dateTo, filters);
+  }
+
   if (reportType === "stock_ledger") {
     const rows = await fetchAllPages(supabase, "report_stock_ledger", {
       p_org: orgId,
