@@ -32,7 +32,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
-import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ExportConfig, ServerBuildConfig } from "@/services/reports/ReportExportService";
 import {
   ReportSurface,
   ReportTable,
@@ -313,7 +313,7 @@ function BankReconciliationReportInner() {
 
   const statementCurrency = statement?.currency || baseCurrency;
 
-  const getExportConfig = useCallback((): ExportConfig => {
+  const getExportConfig = useCallback((): ServerBuildConfig => {
     if (view === "sessions") {
       return {
         title: "Bank Reconciliation Sessions",
@@ -332,8 +332,18 @@ function BankReconciliationReportInner() {
       subtitle: statement
         ? `${statement.account.name} — as at ${statement.asOf}`
         : "Bank-to-book proof",
-      reportType: "bank_reconciliation",
-      organizationId: currentOrg?.id,
+      // Without an account there is no proof to rebuild; fall back to the
+      // page rows rather than asking the engine to guess an account.
+      ...(statementAccountId
+        ? {
+            reportType: "bank_reconciliation",
+            organizationId: currentOrg?.id,
+            dateFrom: asOf,
+            dateTo: asOf,
+            filters: { bankAccountId: statementAccountId },
+          }
+        : { formatProfile: "financial" as const }),
+      organizationIdUnused: undefined,
       businessId: currentBusiness?.id,
       branchId: scope.branchId ?? null,
       dateFrom: asOf,
