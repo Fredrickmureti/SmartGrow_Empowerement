@@ -689,8 +689,10 @@ export async function buildBankReconciliation(
 
   itemSection(dit);
   itemSection(unpresented);
-  itemSection(receipts);
-  itemSection(charges);
+  if (bookStated) {
+    itemSection(receipts);
+    itemSection(charges);
+  }
 
   const warnings: string[] = [];
   if (diagnostics.gl_account_missing) warnings.push("The bank account has no general ledger account, so the book side cannot be stated.");
@@ -703,16 +705,17 @@ export async function buildBankReconciliation(
     data: rows,
     summary: {
       bankAccount: String(account.name ?? ""),
-      currency: String(account.currency ?? ""),
+      currency: String(payload.currency ?? account.currency ?? ""),
       asOf: String(payload.as_of ?? asOf),
       statementBalance: num(bank.statement_balance),
       adjustedBankBalance: num(bank.adjusted_balance),
-      glBalance: num(book.gl_balance),
-      adjustedBookBalance: num(book.adjusted_balance),
+      glBalance: bookStated ? num(book.gl_balance) : null,
+      adjustedBookBalance: bookStated ? num(book.adjusted_balance) : null,
       residual,
-      inBalance: Math.abs(residual) < 0.01,
+      inBalance: residual !== null && Math.abs(residual) < 0.01,
       diagnostics: warnings,
     },
+
   };
 }
 
