@@ -98,7 +98,19 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     key: "inventory",
     label: "Inventory",
     icon: Boxes,
-    reportIds: ["stock-reports", "stock-adjustments-report", "stock-transfers-report"],
+    // Dual-host family (ADR 0143): the SAME eight reports are listed by the
+    // Finance sidebar and by the Inventory sidebar; only the URL prefix
+    // differs, so a click never throws the user into the other app.
+    reportIds: [
+      "stock-reports",
+      "inventory-valuation",
+      "stock-ledger",
+      "stock-aging",
+      "lot-traceability",
+      "stock-adjustments-report",
+      "stock-transfers-report",
+      "inventory-gl-reconciliation",
+    ],
   },
   {
     key: "integrity",
@@ -108,7 +120,8 @@ export const REPORT_FAMILIES: ReportFamily[] = [
       "audit-trail",
       "report-run-history",
       "control-account-reconciliation",
-      "inventory-gl-reconciliation",
+      // inventory-gl-reconciliation now lives in the `inventory` family
+      // (one family per report — see test guard).
     ],
   },
   {
@@ -129,9 +142,28 @@ function childrenOf(def: ReportDefinition): ReportDefinition[] {
   return REPORT_REGISTRY.filter((r) => r.parentId === def.id);
 }
 
-function toNavItems(def: ReportDefinition): WorkspaceNavItem[] {
+export type ReportHost = "finance" | "inventory";
+
+/**
+ * Resolve the URL for a report inside the shell the user is currently in.
+ * Inventory reports are mounted under both `/finance/reports/*` and
+ * `/inventory-app/reports/*`; every other report has a single mount.
+ */
+export function resolveReportPath(
+  def: Pick<ReportDefinition, "path" | "paths">,
+  pathnameOrHost: string,
+): string {
+  if (!def.paths) return def.path;
+  const host: ReportHost = pathnameOrHost === "inventory" ||
+    pathnameOrHost.startsWith("/inventory-app")
+    ? "inventory"
+    : "finance";
+  return def.paths[host];
+}
+
+function toNavItems(def: ReportDefinition, host: ReportHost = "finance"): WorkspaceNavItem[] {
   const hub: WorkspaceNavItem = {
-    to: def.path,
+    to: resolveReportPath(def, host),
     label: def.name,
     icon: def.icon,
     permission: def.permission,
@@ -142,7 +174,7 @@ function toNavItems(def: ReportDefinition): WorkspaceNavItem[] {
   // folder — the sidebar turns any item with children into a non-clickable
   // disclosure, which would make the hub itself unreachable.
   return [hub, ...childrenOf(def).map((k) => ({
-    to: k.path,
+    to: resolveReportPath(k, host),
     label: k.name,
     icon: k.icon,
     permission: k.permission,
@@ -154,7 +186,7 @@ function toNavItems(def: ReportDefinition): WorkspaceNavItem[] {
  * The `Reports` sub-tree: one collapsible node per family, each holding its
  * reports.
  */
-export function buildReportsNavChildren(): WorkspaceNavItem[] {
+export function buildReportsNavChildren(host: ReportHost = "finance"): WorkspaceNavItem[] {
   const byId = new Map(REPORT_REGISTRY.map((r) => [r.id, r]));
   const items: WorkspaceNavItem[] = [];
 
@@ -162,7 +194,7 @@ export function buildReportsNavChildren(): WorkspaceNavItem[] {
     const children = family.reportIds
       .map((id) => byId.get(id))
       .filter((d): d is ReportDefinition => Boolean(d))
-      .flatMap(toNavItems);
+      .flatMap((d) => toNavItems(d, host));
     if (children.length === 0) continue;
 
     // A single-report family is noise as a folder — surface the report itself.
@@ -187,4 +219,20 @@ export function collectNavReportPaths(items: WorkspaceNavItem[]): string[] {
   };
   walk(items);
   return out;
+}
+
+
+/**
+ * The Inventory app's Insights group — the SAME registry family as the Finance
+ * sidebar, emitted with `/inventory-app/...` URLs. Never hand-list inventory
+ * reports in `src/apps/inventory/nav.ts`; add a registry row instead.
+ */
+export function buildInventoryReportsNavChildren(): WorkspaceNavItem[] {
+  const byId = new Map(REPORT_REGISTRY.map((r) => [r.id, r]));
+  const family = REPORT_FAMILIES.find((f) => f.key === "inventory");
+  if (!family) return [];
+  return family.reportIds
+    .map((id) => byId.get(id))
+    .filter((d): d is ReportDefinition => Boolean(d))
+    .flatMap((d) => toNavItems(d, "inventory"));
 }
