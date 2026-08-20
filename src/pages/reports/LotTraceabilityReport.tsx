@@ -341,12 +341,19 @@ function LotTraceabilityReportInner() {
           </Card>
         </div>
 
-        <ReportTable
-          columns={columns}
-          rows={reportRows}
-          currency={baseCurrency}
-          isLoading={isLoading}
-        />
+        <ReportSurface
+          title="Lots on Hand"
+          subtitle={`Lot-level position as at ${asOf} · ${rows.length} line(s)`}
+          profile="financial"
+        >
+          <ReportTable
+            columns={columns}
+            rows={reportRows}
+            currency={baseCurrency}
+            caption="Lot traceability as at date"
+            emptyMessage="No lots match these filters as at this date"
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
   );
@@ -354,12 +361,12 @@ function LotTraceabilityReportInner() {
 
 export default function LotTraceabilityReport() {
   return (
-    <CompanyScopeGate reportName="Lot Traceability">
-      <BranchScopeGate>
-        <ReportFilterProvider>
+    <ReportFilterProvider>
+      <CompanyScopeGate reportName="Lot traceability">
+        <BranchScopeGate pageName="Lot traceability">
           <LotTraceabilityReportInner />
-        </ReportFilterProvider>
-      </BranchScopeGate>
-    </CompanyScopeGate>
+        </BranchScopeGate>
+      </CompanyScopeGate>
+    </ReportFilterProvider>
   );
 }
