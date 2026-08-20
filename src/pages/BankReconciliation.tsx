@@ -102,6 +102,8 @@ export default function BankReconciliation() {
   // ADR-0149 — the server declares the refusal before the click.
   const [unmatchPreflight, setUnmatchPreflight] = useState<UnmatchPreflight | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
+  const [unreconciling, setUnreconciling] = useState(false);
+
   const navigate = useNavigate();
 
   /**
@@ -236,17 +238,22 @@ export default function BankReconciliation() {
   };
 
   const executeUnreconcile = async () => {
-    if (!transactionToUnreconcile) return;
+    // A reversal is a posting: one click, one act. A second submission while
+    // the first is in flight is dropped rather than merely discouraged.
+    if (!transactionToUnreconcile || unreconciling) return;
+    setUnreconciling(true);
     try {
       await unreconcileTransaction(transactionToUnreconcile.id);
     } catch {
       // Error handled in hook
     } finally {
+      setUnreconciling(false);
       setUnreconcileDialogOpen(false);
       setTransactionToUnreconcile(null);
       setUnmatchPreflight(null);
     }
   };
+
 
   const handleAutoMatch = async () => {
     if (isReadOnly) { openUpgradeModal("banking"); return; }
@@ -788,7 +795,14 @@ export default function BankReconciliation() {
 
 
       {/* Unreconcile Confirmation */}
-      <AlertDialog open={unreconcileDialogOpen} onOpenChange={setUnreconcileDialogOpen}>
+      <AlertDialog
+        open={unreconcileDialogOpen}
+        onOpenChange={(open) => {
+          // The dialog cannot be dismissed mid-reversal.
+          if (unreconciling) return;
+          setUnreconcileDialogOpen(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unreconcile Transaction</AlertDialogTitle>
@@ -800,6 +814,15 @@ export default function BankReconciliation() {
                     : unmatchPreflight?.reason
                       ?? "This will reverse the accounting impact of this reconciliation, including any journal entries and payment records created."}
                 </span>
+                {!preflightLoading && unmatchPreflight?.allowed && (
+                  <span className="block mt-2 text-muted-foreground">
+                    {unmatchPreflight.requires === "void_payment"
+                      ? "The payment this line settled will be voided by a dated reversing entry; the document balance is recomputed from its live allocations."
+                      : unmatchPreflight.requires === "void_journal_entry"
+                        ? "The journal entry this match posted will be voided by a dated reversing entry. The original entry is never edited."
+                        : "No posting was created by this match, so only the link is broken."}
+                  </span>
+                )}
                 {transactionToUnreconcile && (
                   <span className="block mt-2 font-medium text-foreground">
                     {transactionToUnreconcile.description} — {formatBankAmount(Math.abs(transactionToUnreconcile.amount), transactionToUnreconcile.bank_account_id)}
@@ -809,18 +832,25 @@ export default function BankReconciliation() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{unmatchPreflight && !unmatchPreflight.allowed ? "Close" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogCancel disabled={unreconciling}>
+              {unmatchPreflight && !unmatchPreflight.allowed ? "Close" : "Cancel"}
+            </AlertDialogCancel>
             <AlertDialogAction
-              onClick={executeUnreconcile}
+              onClick={(event) => {
+                // Keep the dialog mounted so the pending state is visible.
+                event.preventDefault();
+                void executeUnreconcile();
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={isSaving || preflightLoading || unmatchPreflight?.allowed === false}
+              disabled={unreconciling || isSaving || preflightLoading || unmatchPreflight?.allowed === false}
             >
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Unreconcile
+              {(unreconciling || isSaving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {unreconciling ? "Reversing…" : "Unreconcile"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       {/* Source preview drawer (suggestions / history) */}
       <TransactionPreviewDrawer
