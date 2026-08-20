@@ -414,6 +414,7 @@ export function useBankAccounts(options?: UseBankAccountsOptions) {
         currentOrg.id,
         currentBusiness.id,
         scope.branchId ?? null,
+        asOf,
         force,
       );
       if (!mountedRef.current) return;
@@ -428,7 +429,7 @@ export function useBankAccounts(options?: UseBankAccountsOptions) {
       setLoadError(null);
       setIsLoading(false);
     },
-    [currentOrg?.id, currentBusiness?.id, scope.branchId],
+    [currentOrg?.id, currentBusiness?.id, scope.branchId, asOf],
   );
 
 
