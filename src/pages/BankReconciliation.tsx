@@ -39,6 +39,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import {
+  fetchUnmatchPreflight,
+  type UnmatchPreflight,
+} from "@/services/finance/bankUnmatchPreflight";
 import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
@@ -95,6 +99,9 @@ export default function BankReconciliation() {
   // Unreconcile confirmation
   const [unreconcileDialogOpen, setUnreconcileDialogOpen] = useState(false);
   const [transactionToUnreconcile, setTransactionToUnreconcile] = useState<any>(null);
+  // ADR-0149 — the server declares the refusal before the click.
+  const [unmatchPreflight, setUnmatchPreflight] = useState<UnmatchPreflight | null>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
   const navigate = useNavigate();
 
   /**
@@ -212,10 +219,20 @@ export default function BankReconciliation() {
     setTransferDialogOpen(true);
   };
 
-  const handleUnreconcileConfirm = (transaction: any) => {
+  const handleUnreconcileConfirm = async (transaction: any) => {
     if (isReadOnly) { openUpgradeModal("banking"); return; }
     setTransactionToUnreconcile(transaction);
+    setUnmatchPreflight(null);
     setUnreconcileDialogOpen(true);
+    setPreflightLoading(true);
+    try {
+      setUnmatchPreflight(await fetchUnmatchPreflight(transaction.id));
+    } catch {
+      // A failed check must not imply permission; the RPC re-checks anyway.
+      setUnmatchPreflight(null);
+    } finally {
+      setPreflightLoading(false);
+    }
   };
 
   const executeUnreconcile = async () => {
@@ -227,6 +244,7 @@ export default function BankReconciliation() {
     } finally {
       setUnreconcileDialogOpen(false);
       setTransactionToUnreconcile(null);
+      setUnmatchPreflight(null);
     }
   };
 
@@ -774,21 +792,28 @@ export default function BankReconciliation() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unreconcile Transaction</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will reverse the accounting impact of this reconciliation, including any journal entries and payment records created.
-              {transactionToUnreconcile && (
-                <span className="block mt-2 font-medium text-foreground">
-                  {transactionToUnreconcile.description} — {formatBankAmount(Math.abs(transactionToUnreconcile.amount), transactionToUnreconcile.bank_account_id)}
+            <AlertDialogDescription asChild>
+              <div>
+                <span className="block">
+                  {preflightLoading
+                    ? "Checking whether this line can be un-matched…"
+                    : unmatchPreflight?.reason
+                      ?? "This will reverse the accounting impact of this reconciliation, including any journal entries and payment records created."}
                 </span>
-              )}
+                {transactionToUnreconcile && (
+                  <span className="block mt-2 font-medium text-foreground">
+                    {transactionToUnreconcile.description} — {formatBankAmount(Math.abs(transactionToUnreconcile.amount), transactionToUnreconcile.bank_account_id)}
+                  </span>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{unmatchPreflight && !unmatchPreflight.allowed ? "Close" : "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={executeUnreconcile}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={isSaving}
+              disabled={isSaving || preflightLoading || unmatchPreflight?.allowed === false}
             >
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Unreconcile

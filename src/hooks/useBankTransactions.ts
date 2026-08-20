@@ -35,6 +35,23 @@ function mapBankFeedPermErr(error: unknown): string | null {
   if (msg.includes("BANK_MATCH_SESSION_CLOSED") || msg.includes("BANK_UNRECONCILE_SESSION_CLOSED")) {
     return "This bank line sits inside a completed reconciliation. Reopen that reconciliation before changing how the line is explained.";
   }
+  // ADR-0149 — the refusals the un-match pre-flight also reports, in the same
+  // words, for the case where the write is attempted without one.
+  if (msg.includes("BANK_UNRECONCILE_PERIOD_LOCKED") || msg.includes("period is closed")) {
+    return "The accounting period containing this line is closed. Reopen the period, or post a correcting entry in an open period.";
+  }
+  if (msg.includes("BANK_UNRECONCILE_MISSING_SETTLEMENT")) {
+    return "This line settled a document but its payment record is missing. Reverse the payment from the document before un-matching.";
+  }
+  if (msg.includes("BANK_UNRECONCILE_ENTRY_IS_REVERSAL")) {
+    return "The posting behind this line is itself a reversal and cannot be voided again.";
+  }
+  if (msg.includes("BANK_OPENING_BALANCE_ALREADY_POSTED")) {
+    return "This bank account already carries a posted opening balance. Classifying this line to the bank's own control account would count it twice.";
+  }
+  if (msg.includes("Cannot modify a posted journal entry")) {
+    return "That posting is final. Void it and post a correction instead of editing it.";
+  }
   return null;
 }
 

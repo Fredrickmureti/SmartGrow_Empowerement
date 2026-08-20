@@ -469,6 +469,10 @@ function BankReconciliationReportInner() {
                   residual={statement.residual}
                   currency={statement.currency}
                   explanations={statement.residualExplanations}
+                  remedyContext={{
+                    bankAccountId: statement.account.id,
+                    sessionId: statement.diagnostics.latestSession?.id ?? null,
+                  }}
                 />
               )}
               {statement.inBalance && (

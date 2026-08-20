@@ -90933,6 +90933,10 @@ export type Database = {
         }
         Returns: Json
       }
+      bank_unmatch_preflight: {
+        Args: { _bank_transaction_id: string }
+        Returns: Json
+      }
       bill_payment_is_bank_reconciled: {
         Args: { _bill_payment_id: string }
         Returns: boolean
