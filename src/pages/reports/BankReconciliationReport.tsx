@@ -41,6 +41,7 @@ import {
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
+import { ResidualExplainer } from "@/components/reports/ResidualExplainer";
 import {
   fetchBankReconciliationStatement,
   type ReconciliationItemGroup,
