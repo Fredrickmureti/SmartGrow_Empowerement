@@ -82,12 +82,8 @@ function PartnerLedgerDepositAction({
     </>
   );
 }
-/**
- * Row/partner shapes come from the canonical service — the page never
- * declares its own ledger arithmetic types.
- */
-type PartnerTransaction = PartnerLedgerTransaction;
-type PartnerData = PartnerLedgerPartner;
+
+
 
 
 function PartnerLedgerInner() {
