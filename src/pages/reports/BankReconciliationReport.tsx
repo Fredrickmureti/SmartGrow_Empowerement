@@ -324,17 +324,31 @@ function BankReconciliationReportInner() {
         currency: baseCurrency,
       };
     }
+    // Statement tab: the export is REBUILT server-side from the same
+    // `finance_bank_reconciliation_statement` engine, so the archived proof
+    // is the engine's, not the screen's (which caps item lists at 200).
     return {
       title: "Bank Reconciliation Statement",
       subtitle: statement
         ? `${statement.account.name} — as at ${statement.asOf}`
         : "Bank-to-book proof",
-      formatProfile: "financial",
+      reportType: "bank_reconciliation",
+      organizationId: currentOrg?.id,
+      businessId: currentBusiness?.id,
+      branchId: scope.branchId ?? null,
+      dateFrom: asOf,
+      dateTo: asOf,
+      asOf,
+      filters: { bankAccountId: statementAccountId },
       columns: toExportColumns(proofColumns),
       rows: toExportRows(proofRows, proofColumns),
       currency: statementCurrency,
     };
-  }, [view, sessionColumns, sessionRows, baseCurrency, statement, proofColumns, proofRows, statementCurrency]);
+  }, [
+    view, sessionColumns, sessionRows, baseCurrency, statement, proofColumns, proofRows,
+    statementCurrency, currentOrg, currentBusiness, scope.branchId, asOf, statementAccountId,
+  ]);
+
 
   const isLoading = view === "statement" ? statementLoading : sessionsLoading;
   const error = (view === "statement" ? statementError : sessionsError) as Error | null;
