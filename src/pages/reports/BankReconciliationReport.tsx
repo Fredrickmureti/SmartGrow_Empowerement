@@ -343,13 +343,10 @@ function BankReconciliationReportInner() {
             filters: { bankAccountId: statementAccountId },
           }
         : { formatProfile: "financial" as const }),
-      organizationIdUnused: undefined,
       businessId: currentBusiness?.id,
       branchId: scope.branchId ?? null,
-      dateFrom: asOf,
-      dateTo: asOf,
       asOf,
-      filters: { bankAccountId: statementAccountId },
+
       columns: toExportColumns(proofColumns),
       rows: toExportRows(proofRows, proofColumns),
       currency: statementCurrency,
