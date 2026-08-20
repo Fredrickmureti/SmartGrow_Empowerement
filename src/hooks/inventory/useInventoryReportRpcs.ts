@@ -191,3 +191,76 @@ export function useStockLedger(params: {
     staleTime: 30_000,
   });
 }
+
+export interface LotTraceabilityRow {
+  product_id: string;
+  product_name: string | null;
+  sku: string | null;
+  category_id: string | null;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  branch_id: string | null;
+  lot_number: string | null;
+  lot_id: string | null;
+  supplier_name: string | null;
+  receipt_number: string | null;
+  manufacture_date: string | null;
+  expiry_date: string | null;
+  days_to_expiry: number | null;
+  expiry_bucket: string;
+  lot_status: string;
+  layer_count: number;
+  qty_received: number;
+  qty_consumed: number;
+  qty_on_hand: number;
+  avg_unit_cost: number;
+  total_value: number;
+  first_receipt_at: string | null;
+  last_movement_at: string | null;
+  total_rows: number;
+}
+
+export interface LotTraceabilityFilters extends InventoryDimensionFilters {
+  lotNumber?: string | null;
+  lotStatus?: string | null;
+  expiryBucket?: string | null;
+  /** Depleted lots are excluded by default so value ties to Inventory Valuation. */
+  includeDepleted?: boolean;
+}
+
+/**
+ * Lot / serial traceability as at a date. Reads the same cost-layer basis as
+ * `useInventoryValuationAsOf` (one shared SQL helper, asked for at the lot
+ * grain), so with `includeDepleted = false` the value column sums to the
+ * Inventory Valuation total for the same date. Never re-derive lot value from
+ * live on-hand × current cost.
+ */
+export function useLotTraceabilityAsOf(params: {
+  orgId?: string | null;
+  businessId?: string | null;
+  asOf: string;
+  filters?: LotTraceabilityFilters;
+  enabled?: boolean;
+}) {
+  const { orgId, businessId, asOf, filters = {}, enabled = true } = params;
+
+  return useQuery({
+    queryKey: ["inventory-lot-traceability-as-of", orgId, businessId, asOf, filters],
+    queryFn: async () =>
+      fetchAllPages<LotTraceabilityRow>("report_lot_traceability_as_of", {
+        p_org: orgId,
+        p_business: businessId,
+        p_as_of: asOf,
+        p_branch: filters.branchId ?? null,
+        p_warehouse: filters.warehouseId ?? null,
+        p_product: filters.productId ?? null,
+        p_category: filters.categoryId ?? null,
+        p_lot: filters.lotNumber ?? null,
+        p_status: filters.lotStatus ?? null,
+        p_expiry_bucket: filters.expiryBucket ?? null,
+        p_include_depleted: filters.includeDepleted ?? false,
+      }),
+    enabled: enabled && !!orgId && !!businessId && !!asOf,
+    staleTime: 30_000,
+  });
+}
