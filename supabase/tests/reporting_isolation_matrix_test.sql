@@ -246,7 +246,14 @@ BEGIN
     PERFORM public.check_balance_integrity(v_org, NULL);
     RAISE EXCEPTION 'check_balance_integrity answered for a foreign organization';
   EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  -- cash & banking family
+  BEGIN
+    PERFORM public.finance_cash_flow_statement(v_org, v_from, v_to, NULL, NULL);
+    RAISE EXCEPTION 'finance_cash_flow_statement answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
 END $$;
+
 
 -- ---------------------------------------------------------------------------
 -- 5b) `get_account_balance_at_date` is account-scoped rather than org-scoped,
