@@ -636,14 +636,32 @@ export async function buildBankReconciliation(
   rows.push({ item: "Adjusted bank balance", amount: num(bank.adjusted_balance), _kind: "subtotal" });
   rows.push({ item: "", _kind: "spacer" });
 
-  rows.push({ item: "Balance per books (general ledger)", amount: num(book.gl_balance), _kind: "section" });
-  const receipts = group(book.unrecorded_receipts, 1);
-  const charges = group(book.unrecorded_charges, -1);
-  rows.push({ item: "Adjusted book balance", amount: num(book.adjusted_balance), _kind: "subtotal" });
+  // A null book side is an ABSENCE (no GL account, or one shared by two open
+  // bank accounts), never a zero. State it as unstateable rather than proving
+  // a difference against a balance that does not exist.
+  const bookStated = book.gl_balance !== null && book.gl_balance !== undefined;
+  const receipts = obj(book.unrecorded_receipts);
+  const charges = obj(book.unrecorded_charges);
+  if (bookStated) {
+    rows.push({ item: "Balance per books (general ledger)", amount: num(book.gl_balance), _kind: "section" });
+    group(book.unrecorded_receipts, 1);
+    group(book.unrecorded_charges, -1);
+    rows.push({ item: "Adjusted book balance", amount: num(book.adjusted_balance), _kind: "subtotal" });
+  } else {
+    rows.push({ item: "Balance per books (general ledger)", _kind: "section" });
+    rows.push({ item: "Not stateable — the bank account has no attributable general ledger account", _kind: "note" });
+  }
   rows.push({ item: "", _kind: "spacer" });
 
-  const residual = num(payload.residual);
-  rows.push({ item: "Unexplained difference", amount: residual, _kind: "grand_total" });
+  const residual = payload.residual === null || payload.residual === undefined
+    ? null
+    : num(payload.residual);
+  if (residual === null) {
+    rows.push({ item: "Unexplained difference", _kind: "grand_total" });
+  } else {
+    rows.push({ item: "Unexplained difference", amount: residual, _kind: "grand_total" });
+  }
+
 
   // Outstanding items, in full. The screen caps its lists for readability;
   // the archived document is the audit artefact and states everything the
