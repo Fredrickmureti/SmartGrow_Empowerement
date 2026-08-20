@@ -75,7 +75,9 @@ function LotTraceabilityReportInner() {
   const [status, setStatus] = useState<string>(ALL);
   const [expiryBucket, setExpiryBucket] = useState<string>(ALL);
   const [scope, setScope] = useState<BranchScope>(currentBranch ? "branch" : "company");
+  const [drillTarget, setDrillTarget] = useState<LotGenealogyTarget | null>(null);
   const effectiveBranchId = scope === "branch" ? currentBranch?.id ?? null : null;
+
 
   const orgId = currentOrg?.id ?? null;
   const bizId = currentBusiness?.id ?? null;
