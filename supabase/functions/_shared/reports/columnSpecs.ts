@@ -135,6 +135,18 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
       { key: "amount", header: "Amount", width: 30, align: "right", format: "currency" },
     ],
   },
+  bank_reconciliation: {
+    title: "Bank Reconciliation Statement",
+    orientation: "portrait",
+    // The bank-to-book proof is a STATEMENT, not a grid: each step is a
+    // semantic line, so it must share the cash flow presentation profile.
+    formatProfile: "financial",
+    presentationProfile: "statement",
+    columns: [
+      { key: "item", header: "Item", width: 70, align: "left", format: "text" },
+      { key: "amount", header: "Amount", width: 30, align: "right", format: "currency" },
+    ],
+  },
   general_ledger: {
     title: "General Ledger",
     orientation: "landscape",

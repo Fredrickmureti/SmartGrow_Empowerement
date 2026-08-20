@@ -19,12 +19,13 @@ import { format } from "date-fns";
 import { useCashFlowReport, type CashFlowSection } from "@/hooks/useCashFlowReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { cn } from "@/lib/utils";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
@@ -51,6 +52,7 @@ function CashFlowReportInner() {
 
   const { baseCurrency, isReady } = useCurrency();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
   const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: filters.branchId });
 
@@ -173,16 +175,26 @@ function CashFlowReportInner() {
     return out;
   }, [data, dateFrom, dateTo]);
 
-  const getExportConfig = useCallback((): ExportConfig => ({
+  // Server-build: the export is REBUILT by `finance_cash_flow_statement`
+  // through render-report, not re-shipped from the browser's rows. Omitting
+  // organizationId / dateFrom / dateTo silently downgraded every Cash Flow
+  // PDF to the page's own slice, which is how a screen and its archive drift.
+  const getExportConfig = useCallback((): ServerBuildConfig => ({
     title: "Cash Flow Statement",
     reportType: "cash_flow",
+    organizationId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    branchId: filters.branchId ?? null,
+    dateFrom,
+    dateTo,
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(columns),
     rows: toExportRows(rows, columns),
     subtitle: "Indirect method",
     sheetName: "Cash Flow",
     currency: baseCurrency,
-  }), [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency]);
+  }), [columns, rows, dateFrom, dateTo, currentOrg, currentBusiness, filters.branchId, baseCurrency]);
+
 
   return (
     <ReportPageLayout

@@ -180,7 +180,11 @@ async function generateReportData(
       result = await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr);
       break;
     case "cash_flow":
-      result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr);
+      // Scheduled reports carry no branch dimension (there is no branch on
+      // `scheduled_reports`), so this is deliberately the whole business.
+      // Passing a branch here would be inventing a scope the schedule never
+      // stated.
+      result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, undefined);
       break;
     case "general_ledger":
       result = await buildGeneralLedger(supabase, report.organization_id, businessId, startStr, endStr);

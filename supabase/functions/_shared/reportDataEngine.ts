@@ -578,6 +578,149 @@ export async function buildCashFlow(
   };
 }
 
+/**
+ * Bank Reconciliation Statement — a thin projection of the ONE engine.
+ *
+ * The bank-to-book proof is accounting output and is computed exclusively by
+ * `public.finance_bank_reconciliation_statement` (single currency, statement
+ * lines + posted journal entries, `finance_can_read_org` gated). This
+ * function renders that payload; it MUST NOT decide what is outstanding,
+ * net anything, or re-derive either balance.
+ *
+ * Before this, the report had no server build path at all: the export
+ * re-shipped the browser's rows, so an archived PDF carried the screen's
+ * 200-item truncation and bypassed the canonical column spec.
+ */
+export async function buildBankReconciliation(
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string | undefined,
+  asOf: string,
+  bankAccountId: string,
+  branchId?: string,
+): Promise<ReportResult> {
+  if (!bankAccountId) {
+    throw new Error(
+      "bank_reconciliation requires filters.bankAccountId — the proof is per bank account",
+    );
+  }
+
+  const { data, error } = await supabase.rpc("finance_bank_reconciliation_statement", {
+    _org_id: organizationId,
+    _bank_account_id: bankAccountId,
+    _as_of: asOf,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`finance_bank_reconciliation_statement failed: ${error.message}`);
+
+  const payload = (data ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const obj = (v: unknown) => (v ?? {}) as Record<string, unknown>;
+
+  const account = obj(payload.account);
+  const bank = obj(payload.bank);
+  const book = obj(payload.book);
+  const diagnostics = obj(payload.diagnostics);
+  const rows: Record<string, unknown>[] = [];
+
+  const group = (raw: unknown, sign: 1 | -1) => {
+    const g = obj(raw);
+    rows.push({ item: String(g.label ?? ""), amount: sign * num(g.total), _kind: "detail" });
+    return g;
+  };
+
+  rows.push({ item: "Balance per bank statement", amount: num(bank.statement_balance), _kind: "section" });
+  const dit = group(bank.deposits_in_transit, 1);
+  const unpresented = group(bank.unpresented_payments, -1);
+  rows.push({ item: "Adjusted bank balance", amount: num(bank.adjusted_balance), _kind: "subtotal" });
+  rows.push({ item: "", _kind: "spacer" });
+
+  // A null book side is an ABSENCE (no GL account, or one shared by two open
+  // bank accounts), never a zero. State it as unstateable rather than proving
+  // a difference against a balance that does not exist.
+  const bookStated = book.gl_balance !== null && book.gl_balance !== undefined;
+  const receipts = obj(book.unrecorded_receipts);
+  const charges = obj(book.unrecorded_charges);
+  if (bookStated) {
+    rows.push({ item: "Balance per books (general ledger)", amount: num(book.gl_balance), _kind: "section" });
+    group(book.unrecorded_receipts, 1);
+    group(book.unrecorded_charges, -1);
+    rows.push({ item: "Adjusted book balance", amount: num(book.adjusted_balance), _kind: "subtotal" });
+  } else {
+    rows.push({ item: "Balance per books (general ledger)", _kind: "section" });
+    rows.push({ item: "Not stateable — the bank account has no attributable general ledger account", _kind: "note" });
+  }
+  rows.push({ item: "", _kind: "spacer" });
+
+  const residual = payload.residual === null || payload.residual === undefined
+    ? null
+    : num(payload.residual);
+  if (residual === null) {
+    rows.push({ item: "Unexplained difference", _kind: "grand_total" });
+  } else {
+    rows.push({ item: "Unexplained difference", amount: residual, _kind: "grand_total" });
+  }
+
+
+  // Outstanding items, in full. The screen caps its lists for readability;
+  // the archived document is the audit artefact and states everything the
+  // engine returned, including its own truncation flag.
+  const itemSection = (raw: unknown) => {
+    const g = obj(raw);
+    const items = Array.isArray(g.items) ? (g.items as Record<string, unknown>[]) : [];
+    if (items.length === 0) return;
+    rows.push({ item: "", _kind: "spacer" });
+    rows.push({ item: String(g.label ?? ""), _kind: "section" });
+    for (const it of items) {
+      const parts = [it.date, it.reference, it.description]
+        .map((p) => (p == null ? "" : String(p)))
+        .filter(Boolean);
+      rows.push({ item: parts.join(" · "), amount: num(it.amount), _kind: "detail" });
+    }
+    rows.push({ item: `Total ${String(g.label ?? "")}`, amount: num(g.total), _kind: "subtotal" });
+    if (g.truncated) {
+      rows.push({
+        item: `Only the first ${items.length} item(s) are listed — the engine truncated this group`,
+        _kind: "note",
+      });
+    }
+  };
+
+  itemSection(dit);
+  itemSection(unpresented);
+  if (bookStated) {
+    itemSection(receipts);
+    itemSection(charges);
+  }
+
+  const warnings: string[] = [];
+  if (diagnostics.gl_account_missing) warnings.push("The bank account has no general ledger account, so the book side cannot be stated.");
+  if (diagnostics.gl_account_shared) warnings.push("The general ledger account is shared by more than one open bank account, so the book side is not attributable.");
+  if (num(diagnostics.cleared_without_posting) > 0) warnings.push(`${num(diagnostics.cleared_without_posting)} cleared statement line(s) carry no posting.`);
+  if (num(diagnostics.gl_currency_fallback_lines) > 0) warnings.push(`${num(diagnostics.gl_currency_fallback_lines)} ledger line(s) fell back from the account currency.`);
+  for (const w of warnings) rows.push({ item: w, _kind: "note" });
+
+  return {
+    data: rows,
+    summary: {
+      bankAccount: String(account.name ?? ""),
+      currency: String(payload.currency ?? account.currency ?? ""),
+      asOf: String(payload.as_of ?? asOf),
+      statementBalance: num(bank.statement_balance),
+      adjustedBankBalance: num(bank.adjusted_balance),
+      glBalance: bookStated ? num(book.gl_balance) : null,
+      adjustedBookBalance: bookStated ? num(book.adjusted_balance) : null,
+      residual,
+      inBalance: residual !== null && Math.abs(residual) < 0.01,
+      diagnostics: warnings,
+    },
+
+  };
+}
+
+
+
 
 export async function buildGeneralLedger(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string

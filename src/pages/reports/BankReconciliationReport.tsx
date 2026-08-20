@@ -32,7 +32,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
-import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ExportConfig, ServerBuildConfig } from "@/services/reports/ReportExportService";
 import {
   ReportSurface,
   ReportTable,
@@ -269,17 +269,18 @@ function BankReconciliationReportInner() {
     const b = statement.bank;
     const k = statement.book;
     const out: ReportRow[] = [
-      { id: "bank-head", tone: "subtle", values: { line: "Balance per bank statement", amount: b.statementBalance } },
+      { id: "bank-head", kind: "subsection", values: { line: "Balance per bank statement", amount: b.statementBalance } },
       { id: "dit", values: { line: b.depositsInTransit.label, amount: b.depositsInTransit.total } },
       { id: "unp", values: { line: b.unpresentedPayments.label, amount: -b.unpresentedPayments.total } },
-      { id: "bank-adj", tone: "total", values: { line: "Adjusted bank balance", amount: b.adjustedBalance } },
-      { id: "book-head", tone: "subtle", values: { line: "Balance per books (general ledger)", amount: k.glBalance } },
+      { id: "bank-adj", kind: "subtotal", values: { line: "Adjusted bank balance", amount: b.adjustedBalance } },
+      { id: "book-head", kind: "subsection", values: { line: "Balance per books (general ledger)", amount: k.glBalance } },
       { id: "unrec-in", values: { line: k.unrecordedReceipts.label, amount: k.unrecordedReceipts.total } },
       { id: "unrec-out", values: { line: k.unrecordedCharges.label, amount: -k.unrecordedCharges.total } },
-      { id: "book-adj", tone: "total", values: { line: "Adjusted book balance", amount: k.adjustedBalance } },
+      { id: "book-adj", kind: "subtotal", values: { line: "Adjusted book balance", amount: k.adjustedBalance } },
       {
         id: "residual",
-        tone: statement.inBalance ? "total" : "warning",
+        kind: "calculatedResult",
+        tone: statement.inBalance ? "default" : "warning",
         values: { line: "Unexplained difference", amount: statement.residual },
       },
     ];
@@ -312,7 +313,7 @@ function BankReconciliationReportInner() {
 
   const statementCurrency = statement?.currency || baseCurrency;
 
-  const getExportConfig = useCallback((): ExportConfig => {
+  const getExportConfig = useCallback((): ServerBuildConfig => {
     if (view === "sessions") {
       return {
         title: "Bank Reconciliation Sessions",
@@ -323,17 +324,38 @@ function BankReconciliationReportInner() {
         currency: baseCurrency,
       };
     }
+    // Statement tab: the export is REBUILT server-side from the same
+    // `finance_bank_reconciliation_statement` engine, so the archived proof
+    // is the engine's, not the screen's (which caps item lists at 200).
     return {
       title: "Bank Reconciliation Statement",
       subtitle: statement
         ? `${statement.account.name} — as at ${statement.asOf}`
         : "Bank-to-book proof",
-      formatProfile: "financial",
+      // Without an account there is no proof to rebuild; fall back to the
+      // page rows rather than asking the engine to guess an account.
+      ...(statementAccountId
+        ? {
+            reportType: "bank_reconciliation",
+            organizationId: currentOrg?.id,
+            dateFrom: asOf,
+            dateTo: asOf,
+            filters: { bankAccountId: statementAccountId },
+          }
+        : { formatProfile: "financial" as const }),
+      businessId: currentBusiness?.id,
+      branchId: scope.branchId ?? null,
+      asOf,
+
       columns: toExportColumns(proofColumns),
       rows: toExportRows(proofRows, proofColumns),
       currency: statementCurrency,
     };
-  }, [view, sessionColumns, sessionRows, baseCurrency, statement, proofColumns, proofRows, statementCurrency]);
+  }, [
+    view, sessionColumns, sessionRows, baseCurrency, statement, proofColumns, proofRows,
+    statementCurrency, currentOrg, currentBusiness, scope.branchId, asOf, statementAccountId,
+  ]);
+
 
   const isLoading = view === "statement" ? statementLoading : sessionsLoading;
   const error = (view === "statement" ? statementError : sessionsError) as Error | null;
