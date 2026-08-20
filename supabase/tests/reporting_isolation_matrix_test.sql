@@ -46,7 +46,10 @@ INSERT INTO _reporting_matrix(proname, family) VALUES
   ('get_account_balances',                   'general_ledger'),
   ('get_general_ledger',                     'general_ledger'),
   ('get_gl_transactions',                    'general_ledger'),
-  ('check_balance_integrity',                'general_ledger');
+  ('check_balance_integrity',                'general_ledger'),
+  -- Cash & Banking statement engines.
+  ('finance_cash_flow_statement',            'cash_bank');
+
 
 -- ---------------------------------------------------------------------------
 -- 1) Every matrix entry exists exactly once.
