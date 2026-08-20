@@ -44,10 +44,14 @@ const REPORTING_RPCS = [
   // Balance and Year-End closing — same definer + caller-org contract.
   "get_account_movements",
   "get_account_balances",
+  "get_account_balance_at_date",
   "get_general_ledger",
   "get_gl_transactions",
   "check_balance_integrity",
+  // Cash & Banking statement engines.
+  "finance_cash_flow_statement",
 ] as const;
+
 
 const SERVICE_FILES = [
   "src/services/finance/openItems.ts",
