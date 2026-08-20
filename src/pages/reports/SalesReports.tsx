@@ -51,8 +51,13 @@ import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
+
+/** Only a real contact id can open a partner drill-down. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function SalesReportsInner() {
+
   const now = new Date();
   const { filters } = useReportFilters();
   const { currentOrg } = useOrganization();
