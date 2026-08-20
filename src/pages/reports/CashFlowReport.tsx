@@ -225,7 +225,56 @@ function CashFlowReportInner() {
     >
       {data && (
         <div className="space-y-6">
+          {/* Reconciliation finding: the statement is built up from postings,
+              closing cash is derived independently from ledger balances. If
+              the two disagree the difference is shown, never absorbed. */}
+          {!data.reconciliation.inBalance && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Statement does not tie to the ledger</AlertTitle>
+              <AlertDescription>
+                Built-up closing cash is {fmt(data.reconciliation.expectedClosingCash)} but the
+                ledger-derived cash balance is {fmt(data.reconciliation.derivedClosingCash)} — an
+                unexplained difference of {fmt(data.reconciliation.residual)}. This usually means
+                cash movements posted to accounts that are not classified into operating, investing
+                or financing.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {data.needsClassification.length > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>
+                {data.needsClassification.length} account
+                {data.needsClassification.length === 1 ? "" : "s"} classified by fallback rules
+              </AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">
+                  These accounts moved in the period but have no cash-flow category set, so the
+                  statement assumed one. Set their category on the chart of accounts to make the
+                  presentation explicit.
+                </p>
+                <ul className="space-y-0.5">
+                  {data.needsClassification.slice(0, 8).map((a) => (
+                    <li key={a.accountId} className="text-xs">
+                      <span className="font-medium">{a.code}</span> {a.name} — assumed{" "}
+                      {a.assumedBucket.replace(/_/g, " ")} ({fmt(a.netMovement)})
+                    </li>
+                  ))}
+                  {data.needsClassification.length > 8 && (
+                    <li className="text-xs italic">
+                      and {data.needsClassification.length - 8} more…
+                    </li>
+                  )}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
