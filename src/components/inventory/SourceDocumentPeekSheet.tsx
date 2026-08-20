@@ -363,7 +363,7 @@ function rowsFor(
   formatCurrency: (v: number) => string,
 ): LineItemRow[] {
   return lines.map((line) => {
-    const cells = [{ columnId: "item", content: itemCell(line) }];
+    const cells: LineItemRowCell[] = [{ columnId: "item", content: itemCell(line) }];
     if (shape === "priced") {
       const unit = num(line.unit_price);
       const total = num(line.line_total);
