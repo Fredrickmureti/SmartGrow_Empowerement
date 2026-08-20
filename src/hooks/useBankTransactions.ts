@@ -347,14 +347,14 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
 
       if (!txnData) throw new Error("Transaction not found");
 
-      const { error } = await (supabase as any).rpc("unreconcile_bank_transaction", {
+      const { data: result, error } = await (supabase as any).rpc("unreconcile_bank_transaction", {
         _bank_transaction_id: transactionId,
         _reason: "Unreconciled from bank reconciliation workspace",
         _user_id: userData.user?.id ?? null,
       });
 
       if (error) throw error;
-      
+
       // Audit log
       logAction({
         action: "reversed",
@@ -364,9 +364,22 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
         changesSummary: `Unreconciled from ${txnData.reconciled_type || "unknown"}`,
         oldValues: { reconciled_type: txnData.reconciled_type, reconciled_entity_id: txnData.reconciled_entity_id },
       });
-      
-      toast.success("Transaction unreconciled — accounting reversed");
+
+      // Name the accounting consequence: a reversal is a posting, not a flag.
+      const voided = Number((result as any)?.voided_entries ?? 0);
+      if ((result as any)?.already_unreconciled) {
+        toast.success("This line was already un-matched");
+      } else if (voided > 0) {
+        toast.success(
+          voided === 1
+            ? "Match reversed — 1 posting voided by a dated reversing entry"
+            : `Match reversed — ${voided} postings voided by dated reversing entries`,
+        );
+      } else {
+        toast.success("Match reversed — no posting had been created, so nothing was voided");
+      }
       await fetchTransactions();
+
     } catch (error: unknown) {
       console.error("Error unreconciling transaction:", error);
       toast.error(mapBankFeedPermErr(error) ?? "Failed to unreconcile transaction");
