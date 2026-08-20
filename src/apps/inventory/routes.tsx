@@ -411,7 +411,20 @@ export function InventoryApp() {
           }
         />
 
+        {/* Lot / serial traceability report family (wave Phase 7) */}
+        <Route
+          path="reports/lot-traceability"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Lot Traceability">
+                <LotTraceabilityReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Ledger integrity report (ADR 0142 Phase 3) */}
+
         <Route
           path="reports/integrity"
           element={
