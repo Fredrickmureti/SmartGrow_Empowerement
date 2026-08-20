@@ -101727,6 +101727,7 @@ export type Database = {
           reason: string
           reverses_adjustment_id: string
           status: string
+          total_rows: number
           warehouse_id: string
         }[]
       }
@@ -101785,6 +101786,7 @@ export type Database = {
           to_branch_id: string
           to_warehouse_id: string
           to_warehouse_name: string
+          total_rows: number
           transfer_date: string
           transfer_id: string
           transfer_number: string
