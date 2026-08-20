@@ -252,10 +252,13 @@ export function SourceDocumentPeekSheet({
       open={open}
       onOpenChange={onOpenChange}
       fullPageHref={
-        config?.route && referenceId
-          ? `${config.route}?selected=${referenceId}`
-          : undefined
+        referenceId && config?.recordPath
+          ? config.recordPath(referenceId)
+          : config?.route && referenceId
+            ? `${config.route}?selected=${referenceId}`
+            : undefined
       }
+
     />
   );
 }
