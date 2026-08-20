@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,6 +97,17 @@ export default function BankReconciliation() {
   const [transactionToUnreconcile, setTransactionToUnreconcile] = useState<any>(null);
   const navigate = useNavigate();
 
+  /**
+   * Phase 9 — session context. The sessions register and the reconciliation
+   * statement both link here as `?session=<id>`. Dropping that id made "Open"
+   * a lie: the operator landed on an unfiltered workspace and had to re-find
+   * the account by hand, and any figure they then read was for a different
+   * scope than the report they came from.
+   */
+  const [searchParams] = useSearchParams();
+  const requestedSessionId = searchParams.get("session");
+  const appliedSessionRef = useRef<string | null>(null);
+
   // R1: Statement-level reconciliation lives on a routed page now
   // (see /finance/reconciliation/new). Nothing to track locally.
   
@@ -114,6 +125,20 @@ export default function BankReconciliation() {
   const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, loadError, reconcileTransaction, unreconcileTransaction, stats, autoMatchTransactions, isSaving, fetchTransactions } = useBankTransactions();
   const { sessions, activeSession, startSession, writeOffSession, completeSession, cancelSession, reopenSession, isSaving: isSessionSaving, canReconcile, scope } = useReconciliationSessions(selectedAccount !== "all" ? selectedAccount : undefined);
+
+  const requestedSession = requestedSessionId
+    ? sessions?.find((s) => s.id === requestedSessionId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (!requestedSessionId || appliedSessionRef.current === requestedSessionId) return;
+    if (!requestedSession) return;
+    appliedSessionRef.current = requestedSessionId;
+    setSelectedAccount(requestedSession.bank_account_id);
+    // An open session is worked in the transactions list; a closed one can only
+    // be read, so land on the history where its proof lives.
+    setActiveTab(requestedSession.status === "in_progress" ? "transactions" : "recon-history");
+  }, [requestedSessionId, requestedSession]);
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((tx) => {
@@ -358,6 +383,28 @@ export default function BankReconciliation() {
                 </CardContent>
               </Card>
             </div>
+
+            {requestedSessionId && (
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground flex items-center justify-between gap-3">
+                {requestedSession ? (
+                  <span>
+                    Scoped to the reconciliation session of{" "}
+                    <span className="font-medium text-foreground">
+                      {requestedSession.statement_date}
+                    </span>{" "}
+                    ({requestedSession.status.replace("_", " ")}) for the selected account.
+                  </span>
+                ) : (
+                  <span>
+                    That reconciliation session is not visible in the current scope — the
+                    workspace below is unfiltered.
+                  </span>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => navigate("/finance/reconciliation")}>
+                  Clear
+                </Button>
+              </div>
+            )}
 
             {/* Tabs: Transactions | Import History */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>

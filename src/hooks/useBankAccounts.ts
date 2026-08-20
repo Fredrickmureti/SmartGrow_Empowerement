@@ -193,7 +193,15 @@ async function loadBankAccounts(
   orgId: string,
   businessId: string,
   branchId: string | null,
+  /**
+   * Phase 7 — the position date. `null` lets the server default to
+   * CURRENT_DATE. Passing it explicitly is what stops the dashboard and the
+   * reconciliation statement disagreeing about one account purely because the
+   * screen asked "now" and the statement asked "as at".
+   */
+  asOf: string | null,
 ): Promise<BankAccountsLoad> {
+
   // The account rows are the load-bearing read; positions and feed health
   // decorate them. All three go through the resilience seam so a transport
   // hiccup retries instead of surfacing as a hard failure.
@@ -230,7 +238,11 @@ async function loadBankAccounts(
   const [posRes, feedRes] = await Promise.all([
     safeQueryRetry<Array<Record<string, unknown>>>(
       () =>
-        supabase.rpc("bank_account_positions", { _business_id: businessId }) as unknown as PromiseLike<{
+        supabase.rpc("bank_account_positions", {
+          _business_id: businessId,
+          ...(asOf ? { _as_of: asOf } : {}),
+        }) as unknown as PromiseLike<{
+
           data: Array<Record<string, unknown>> | null;
           error: unknown;
         }>,
@@ -318,9 +330,12 @@ function getBankAccounts(
   orgId: string,
   businessId: string,
   branchId: string | null,
+  asOf: string | null,
   force = false,
 ): Promise<BankAccountsLoad> {
-  const key = `${orgId}:${businessId}:${branchId ?? "all"}`;
+  // The as-of date is part of the identity of a load: two screens asking for
+  // different dates must not share one cached answer.
+  const key = `${orgId}:${businessId}:${branchId ?? "all"}:${asOf ?? "today"}`;
   if (force) {
     accountsCache.delete(key);
     accountsInflight.delete(key);
@@ -333,7 +348,8 @@ function getBankAccounts(
     }
   }
 
-  const promise = loadBankAccounts(orgId, businessId, branchId)
+  const promise = loadBankAccounts(orgId, businessId, branchId, asOf)
+
     .then((value) => {
       // Only successful loads are cached — a failure must be retryable now.
       if (!value.error) accountsCache.set(key, { at: Date.now(), value });
@@ -347,7 +363,19 @@ function getBankAccounts(
   return promise;
 }
 
-export function useBankAccounts() {
+export interface UseBankAccountsOptions {
+  /**
+   * Phase 7 — position date (`YYYY-MM-DD`). Omit for "today" (the server
+   * default). A screen that states a cash position for a chosen date must
+   * pass it, so its figures agree with the reconciliation statement for the
+   * same account on the same date.
+   */
+  asOf?: string | null;
+}
+
+export function useBankAccounts(options?: UseBankAccountsOptions) {
+  const asOf = options?.asOf ?? null;
+
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -361,6 +389,7 @@ export function useBankAccounts() {
   const lastOrgIdRef = useRef<string | null>(null);
   const lastBusinessIdRef = useRef<string | null>(null);
   const lastBranchIdRef = useRef<string | null>(null);
+  const lastAsOfRef = useRef<string | null>(null);
   const hasFetchedRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -386,6 +415,7 @@ export function useBankAccounts() {
         currentOrg.id,
         currentBusiness.id,
         scope.branchId ?? null,
+        asOf,
         force,
       );
       if (!mountedRef.current) return;
@@ -400,7 +430,7 @@ export function useBankAccounts() {
       setLoadError(null);
       setIsLoading(false);
     },
-    [currentOrg?.id, currentBusiness?.id, scope.branchId],
+    [currentOrg?.id, currentBusiness?.id, scope.branchId, asOf],
   );
 
 
@@ -423,15 +453,17 @@ export function useBankAccounts() {
       lastOrgIdRef.current !== orgId ||
       lastBusinessIdRef.current !== businessId ||
       lastBranchIdRef.current !== branchId ||
+      lastAsOfRef.current !== asOf ||
       !hasFetchedRef.current
     ) {
       lastOrgIdRef.current = orgId;
       lastBusinessIdRef.current = businessId;
       lastBranchIdRef.current = branchId;
+      lastAsOfRef.current = asOf;
       hasFetchedRef.current = true;
       fetchAccounts();
     }
-  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, fetchAccounts]);
+  }, [currentOrg?.id, currentBusiness?.id, scope.branchId, asOf, fetchAccounts]);
 
   const mapPermErr = (error: unknown): string | null => {
     const msg = (error as { message?: string })?.message ?? "";
