@@ -108,6 +108,10 @@ export async function buildReportData(
   businessId: string | undefined,
   dateFrom: string,
   dateTo: string,
+  // Branch is a REPORTING DIMENSION, not a decoration: a report built without
+  // it silently states the whole business under a branch-scoped title.
+  branchId?: string,
+  filters?: Record<string, unknown>,
 ): Promise<ReportResult> {
   switch (reportType) {
     case "balance_sheet":
@@ -118,7 +122,16 @@ export async function buildReportData(
     case "profit_and_loss":
       return await buildIncomeStatement(supabase, orgId, businessId, dateFrom, dateTo);
     case "cash_flow":
-      return await buildCashFlow(supabase, orgId, businessId, dateFrom, dateTo);
+      return await buildCashFlow(supabase, orgId, businessId, dateFrom, dateTo, branchId);
+    case "bank_reconciliation":
+      return await buildBankReconciliation(
+        supabase,
+        orgId,
+        businessId,
+        dateTo,
+        String((filters?.bankAccountId ?? filters?.bank_account_id ?? "") as string),
+        branchId,
+      );
     case "general_ledger":
       return await buildGeneralLedger(supabase, orgId, businessId, dateFrom, dateTo);
     case "partner_ledger":
@@ -135,6 +148,7 @@ export async function buildReportData(
       throw new Error(`Unsupported report type: ${reportType}`);
   }
 }
+
 
 /** Resolve who triggered the run from the bearer JWT (if any). */
 async function resolveCaller(
