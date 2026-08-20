@@ -40,6 +40,13 @@ const REPORTING_RPCS = [
   "finance_sales_revenue_reconciliation",
   "finance_purchase_analysis",
   "finance_purchase_expense_reconciliation",
+  // General-ledger engines behind Cash Flow, Bank/Cash dashboards, Trial
+  // Balance and Year-End closing — same definer + caller-org contract.
+  "get_account_movements",
+  "get_account_balances",
+  "get_general_ledger",
+  "get_gl_transactions",
+  "check_balance_integrity",
 ] as const;
 
 const SERVICE_FILES = [
