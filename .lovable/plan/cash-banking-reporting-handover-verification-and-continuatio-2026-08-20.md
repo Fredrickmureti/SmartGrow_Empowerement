@@ -21,10 +21,11 @@ Labels: **[FACT]** verified this session in code/DB · **[RESEARCH]** external p
 
 ## 2. Corrected completion status
 
-- Phase 1 (security): **complete**, minus two guard entries.
-- Phase 2 (Cash Flow, server-owned): **engine + client seam complete; export path and tests outstanding** → not complete.
+- Phase 1 (security): **complete** (guard entries added 2026-08-20).
+- Phase 2 (Cash Flow, server-owned): **complete** — engine, client seam, export path (`buildCashFlow` is now a projection of `finance_cash_flow_statement`), isolation guards, architecture guard `src/test/architecture/cash-flow-single-engine.test.ts`, and a live service-role proof that `opening + net + fx − closing = 0` across six period windows and per-business scope (residual 0, anon EXECUTE refused with 42501). `render-report` / `process-scheduled-reports` redeployed.
 - Phase 3 (Bank Reconciliation Statement): not started.
 - Phase 4 (session register cleanup): not started.
+
 
 ## 3. Continuation plan
 

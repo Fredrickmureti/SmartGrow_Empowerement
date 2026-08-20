@@ -46,7 +46,10 @@ INSERT INTO _reporting_matrix(proname, family) VALUES
   ('get_account_balances',                   'general_ledger'),
   ('get_general_ledger',                     'general_ledger'),
   ('get_gl_transactions',                    'general_ledger'),
-  ('check_balance_integrity',                'general_ledger');
+  ('check_balance_integrity',                'general_ledger'),
+  -- Cash & Banking statement engines.
+  ('finance_cash_flow_statement',            'cash_bank');
+
 
 -- ---------------------------------------------------------------------------
 -- 1) Every matrix entry exists exactly once.
@@ -243,7 +246,14 @@ BEGIN
     PERFORM public.check_balance_integrity(v_org, NULL);
     RAISE EXCEPTION 'check_balance_integrity answered for a foreign organization';
   EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+
+  -- cash & banking family
+  BEGIN
+    PERFORM public.finance_cash_flow_statement(v_org, v_from, v_to, NULL, NULL);
+    RAISE EXCEPTION 'finance_cash_flow_statement answered for a foreign organization';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
 END $$;
+
 
 -- ---------------------------------------------------------------------------
 -- 5b) `get_account_balance_at_date` is account-scoped rather than org-scoped,

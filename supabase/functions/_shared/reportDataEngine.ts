@@ -495,36 +495,89 @@ export async function buildIncomeStatement(
   };
 }
 
+/**
+ * Cash Flow Statement — a thin projection of the ONE engine.
+ *
+ * The statement is accounting output and is computed exclusively by
+ * `public.finance_cash_flow_statement` (indirect method, base currency,
+ * posted journal entries only, closing cash derived independently from the
+ * cash accounts' ledger balances). This function renders that payload; it
+ * MUST NOT classify accounts, guess what "cash" means, or sum movements.
+ *
+ * Before this, the export path carried its own three-row heuristic that
+ * matched cash accounts by name substring and had no investing, financing,
+ * FX or opening/closing cash — so the archived PDF stated a different cash
+ * flow from the screen. There is now one engine and two renderers.
+ */
 export async function buildCashFlow(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined,
+  startStr: string, endStr: string, branchId?: string,
 ): Promise<ReportResult> {
-  const allAccounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr);
+  const { data, error } = await supabase.rpc("finance_cash_flow_statement", {
+    _org_id: organizationId,
+    _from: startStr,
+    _to: endStr,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`finance_cash_flow_statement failed: ${error.message}`);
 
-  const netIncome = allAccounts
-    .filter(a => ["income", "expense"].includes(a.account_type))
-    .reduce((s, a) => {
-      const movement = a.closing_balance - a.opening_balance;
-      return a.account_type === "income" ? s + movement : s - movement;
-    }, 0);
+  const payload = (data ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const rows: Record<string, unknown>[] = [];
 
-  const operatingAdjustments = allAccounts
-    .filter(a => a.account_type === "asset" && !a.name.toLowerCase().includes("cash") && !a.name.toLowerCase().includes("bank"))
-    .reduce((s, a) => s - (a.closing_balance - a.opening_balance), 0)
-    + allAccounts
-    .filter(a => a.account_type === "liability")
-    .reduce((s, a) => s + (a.closing_balance - a.opening_balance), 0);
+  const section = (raw: unknown, fallbackLabel: string, resultLabel: string) => {
+    const s = (raw ?? {}) as Record<string, unknown>;
+    const items = Array.isArray(s.items) ? (s.items as Record<string, unknown>[]) : [];
+    rows.push({ item: String(s.label ?? fallbackLabel), _kind: "section" });
+    for (const it of items) {
+      rows.push({ item: String(it.label ?? ""), amount: num(it.amount), _kind: "detail" });
+    }
+    rows.push({ item: resultLabel, amount: num(s.total), _kind: "major_total" });
+    rows.push({ item: "", _kind: "spacer" });
+    return num(s.total);
+  };
 
-  const operatingCashFlow = netIncome + operatingAdjustments;
+  const operating = section(payload.operating, "Cash flows from operating activities", "Net cash from operating activities");
+  const investing = section(payload.investing, "Cash flows from investing activities", "Net cash used in investing activities");
+  const financing = section(payload.financing, "Cash flows from financing activities", "Net cash from financing activities");
+
+  const netCashFlow = num(payload.net_cash_flow);
+  const fxEffect = num(payload.fx_effect);
+  const openingCash = num(payload.opening_cash);
+  const closingCash = num(payload.closing_cash);
+  const recon = (payload.reconciliation ?? {}) as Record<string, unknown>;
+  const residual = num(recon.residual);
+
+  rows.push({ item: "Net increase / (decrease) in cash", amount: netCashFlow, _kind: "calculated_result" });
+  if (Math.abs(fxEffect) >= 0.01) {
+    rows.push({ item: "Effect of exchange rate changes on cash", amount: fxEffect, _kind: "detail" });
+  }
+  rows.push({ item: "Cash and cash equivalents at beginning of period", amount: openingCash, _kind: "detail" });
+  rows.push({ item: "Cash and cash equivalents at end of period", amount: closingCash, _kind: "grand_total" });
+  if (Math.abs(residual) >= 0.01) {
+    rows.push({
+      item: `Unexplained residual vs ledger cash balance: ${residual.toFixed(2)} — accounts need cash-flow classification`,
+      _kind: "note",
+    });
+  }
 
   return {
-    data: [
-      { section: "Operating Activities", item: "Net Income", amount: netIncome },
-      { section: "Operating Activities", item: "Working Capital Changes", amount: operatingAdjustments },
-      { section: "Operating Activities", item: "Net Operating Cash Flow", amount: operatingCashFlow },
-    ],
-    summary: { netIncome, operatingAdjustments, netOperatingCashFlow: operatingCashFlow },
+    data: rows,
+    summary: {
+      netOperatingCashFlow: operating,
+      netInvestingCashFlow: investing,
+      netFinancingCashFlow: financing,
+      netCashFlow,
+      fxEffect,
+      openingCash,
+      closingCash,
+      residual,
+      inBalance: Math.abs(residual) < 0.01,
+    },
   };
 }
+
 
 export async function buildGeneralLedger(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
