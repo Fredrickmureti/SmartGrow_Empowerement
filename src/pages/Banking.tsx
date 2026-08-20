@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenantFx } from "@/hooks/useTenantFx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { BankAccountCard } from "@/components/banking/BankAccountCard";
 // ImportTransactionsDialog removed — import is now a routed WizardShell at /finance/banking/import.
 // BankAccountSheet removed — create/edit are routed pages at
@@ -55,7 +56,12 @@ export default function Banking() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { accounts: bankAccounts, isLoading: accountsLoading, loadError: accountsError, refetch: refetchAccounts, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
+  // Phase 7 — the cash position is stated *as at a date*, never "now".
+  // The reconciliation statement is always as of a chosen date; if the
+  // dashboard silently asked the server for CURRENT_DATE the two surfaces
+  // could disagree about the same account purely through date drift.
+  const [asOf, setAsOf] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const { accounts: bankAccounts, isLoading: accountsLoading, loadError: accountsError, refetch: refetchAccounts, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts({ asOf });
   const scope = useFinanceScope();
   const { transactions, isLoading: transactionsLoading, loadError: transactionsError, fetchTransactions, stats } = useBankTransactions();
   const fx = useTenantFx();
@@ -173,6 +179,19 @@ export default function Banking() {
               </p>
             </div>
             <FinanceScopeBadge />
+            <div className="flex items-center gap-2">
+              <label htmlFor="banking-as-of" className="text-xs text-muted-foreground">
+                As at
+              </label>
+              <Input
+                id="banking-as-of"
+                type="date"
+                value={asOf}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setAsOf(e.target.value || new Date().toISOString().slice(0, 10))}
+                className="h-8 w-[9.5rem]"
+              />
+            </div>
             <RefreshButton
               queryKeyPrefixes={[
                 ['bank-accounts', currentOrg?.id || ""] as const,
@@ -258,7 +277,7 @@ export default function Banking() {
                 </Tooltip>
               )}
               <p className="text-xs text-muted-foreground">
-                Derived position across {activeAccounts.length - unresolvedAccounts.length} of {activeAccounts.length} account{activeAccounts.length !== 1 ? 's' : ''}
+                As at {asOf} · derived position across {activeAccounts.length - unresolvedAccounts.length} of {activeAccounts.length} account{activeAccounts.length !== 1 ? 's' : ''}
                 {fxBreakdown.length > 1 ? ` · ${fxBreakdown.length} currencies` : ""}
                 {" · "}
                 <span className="font-medium">{scope.scopeLabel}</span>
