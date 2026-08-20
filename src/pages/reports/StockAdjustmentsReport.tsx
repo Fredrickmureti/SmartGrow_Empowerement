@@ -18,7 +18,6 @@
  * `branchScopability.ts`).
  */
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +44,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { AdjustmentPeekSheet } from "@/components/inventory/AdjustmentPeekSheet";
 import type {
   ExportConfig, ExportColumn, ExportRow,
 } from "@/services/reports/ReportExportService";
@@ -102,6 +102,10 @@ function StockAdjustmentsReportInner() {
     return Array.from(s).sort();
   }, [rows]);
 
+  // There is no stock-adjustment record route; the canonical drill-down is
+  // the shared adjustment peek drawer.
+  const [peekId, setPeekId] = useState<string | null>(null);
+
   const kpis = useMemo(() => {
     // Σ posted cost impact may only sum LEDGER-BACKED rows. Adding an
     // unposted estimate into a posted total is exactly the misstatement the
@@ -148,10 +152,12 @@ function StockAdjustmentsReportInner() {
         header: "",
         exportExclude: true,
         render: (row) => (
-          <Button asChild variant="outline" size="sm">
-            <Link to={`/inventory/adjustments/${row.id}`}>
-              Open <ArrowRight className="h-3 w-3 ml-1" />
-            </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPeekId(String(row.id))}
+          >
+            Open <ArrowRight className="h-3 w-3 ml-1" />
           </Button>
         ),
       },
