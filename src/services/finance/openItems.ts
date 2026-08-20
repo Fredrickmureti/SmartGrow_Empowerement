@@ -127,7 +127,7 @@ export interface OpenItemRow {
 }
 
 
-/** Row shape returned by the point-in-time AP engine. */
+/** Row shape returned by a point-in-time open-items engine (AR and AP share it). */
 export interface ApOpenItemAsOfRow {
   organization_id: string;
   business_id: string | null;
@@ -143,13 +143,60 @@ export interface ApOpenItemAsOfRow {
   residual_amount: number;
   currency: string | null;
   base_residual_amount: number;
-  source_kind: "bill" | "journal";
+  source_kind: "bill" | "invoice" | "journal";
   aging_bucket: string;
   days_past_due: number;
 }
 
+/** Receivables engine rows have the same shape as payables engine rows. */
+export type ArOpenItemAsOfRow = ApOpenItemAsOfRow;
+
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * The ONE receivables read. `finance_ar_open_items_as_of` is the point-in-time
+ * AR engine — the exact mirror of the payables engine: a receipt or credit note
+ * counts only if it happened on or before `asOf`, and an invoice appears only
+ * once its journal entry was posted by that date. The legacy
+ * `finance_ar_open_items` view always answers "today" and is not a substitute.
+ */
+export async function fetchArOpenItemsAsOf(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<ArOpenItemAsOfRow[]> {
+  const { data, error } = await supabase.rpc("finance_ar_open_items_as_of" as never, {
+    _org_id: orgId,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+    _as_of: asOf ?? today(),
+  } as never);
+  if (error) throw error;
+  return (data ?? []) as unknown as ArOpenItemAsOfRow[];
+}
+
+/** Unapplied customer credit as of a date — the AR credit half of the engine. */
+export async function fetchArCustomerCreditAsOf(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+  asOf?: string,
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+  const { data, error } = await supabase.rpc("finance_ar_customer_credit_as_of" as never, {
+    _org_id: orgId,
+    _business_id: businessId ?? null,
+    _branch_id: branchId ?? null,
+    _as_of: asOf ?? today(),
+  } as never);
+  if (error) throw error;
+  return (data ?? []) as unknown as Array<{
+    contact_id: string | null;
+    credit_amount: number;
+    base_credit_amount: number;
+  }>;
 }
 
 /**
@@ -279,8 +326,8 @@ export async function fetchTopOpenCounterparties(
  * Per-counterparty open-item aging.
  *
  * ADR: contact-level receivable / payable figures MUST come from
- * `finance_ar_open_items` / `finance_ap_open_items_as_of`, never from a status list
- * over `invoices` / `bills`. Residual there nets every settlement channel
+ * `finance_ar_open_items_as_of` / `finance_ap_open_items_as_of`, never from a
+ * status list over `invoices` / `bills`. Residual there nets every settlement channel
  * (cash receipts and applied credit notes) and only counts documents with a
  * posted journal entry on the control account.
  *
@@ -311,34 +358,15 @@ export async function fetchContactOpenItemAging(
 
   let data: any[] | null = null;
 
-  if (side === "ap") {
-    // AP is served by the point-in-time engine (`finance_ap_open_items_as_of`),
-    // the same source as Aged Payables: settlements only count if they
-    // happened on or before the as-of date, so a vendor statement for a closed
-    // period reproduces the aging that period actually had.
-    const rows = await fetchApOpenItemsAsOf(
-      params.orgId,
-      params.businessId,
-      params.branchId,
-      asOf,
-    );
-    data = rows.filter((r) => r.contact_id && contactIds.includes(r.contact_id));
-  } else {
-
-    let q = supabase
-      .from("finance_ar_open_items" as any)
-      .select("document_date, due_date, residual_amount, base_residual_amount")
-      .eq("organization_id", params.orgId)
-      .in("contact_id", contactIds)
-      .lte("document_date", asOf)
-      .gt("residual_amount", 0.01);
-    if (params.businessId) q = q.eq("business_id", params.businessId);
-    if (params.branchId) q = q.eq("branch_id", params.branchId);
-
-    const { data: rows, error } = await q;
-    if (error) throw error;
-    data = rows as any[];
-  }
+  // Both sides are served by their point-in-time engine, the same source as
+  // Aged Receivables / Aged Payables: settlements only count if they happened
+  // on or before the as-of date, so a statement for a closed period reproduces
+  // the aging that period actually had instead of today's residuals.
+  const rows =
+    side === "ap"
+      ? await fetchApOpenItemsAsOf(params.orgId, params.businessId, params.branchId, asOf)
+      : await fetchArOpenItemsAsOf(params.orgId, params.businessId, params.branchId, asOf);
+  data = rows.filter((r) => r.contact_id && contactIds.includes(r.contact_id));
 
   const buckets = emptyAgingBuckets();
   for (const row of (data || []) as any[]) {
@@ -354,7 +382,7 @@ export async function fetchContactOpenItemAging(
 
   const credit =
     side === "ar"
-      ? await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds)
+      ? await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds, asOf)
       : await fetchUnappliedVendorCredit(params.orgId, params.businessId, contactIds, asOf);
 
   if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
@@ -368,34 +396,35 @@ export async function fetchContactOpenItemAging(
  * org, optionally narrowed to one contact. This is a genuine credit position on
  * the customer and reduces the net receivable.
  *
- * ADR: reads `finance_ar_customer_credit`, the single canonical definition of
- * unapplied credit. `get_ar_summary`, `get_ar_ap_aging_from_ledger` and
- * `finance_ar_net_position` all read the same view, so no consumer can invent
- * its own credit filter (e.g. forget the 0.01 floor or the currency handling).
+ * ADR: reads `finance_ar_customer_credit_as_of`, the single canonical
+ * definition of unapplied credit as of a reporting date, replayed from the
+ * append-only credit movements. `get_ar_summary` and
+ * `get_ar_ap_aging_from_ledger` read the same function, so no consumer can
+ * invent its own credit filter (e.g. forget the 0.01 floor, the currency
+ * handling, or the as-of cut-off).
  */
 export async function fetchUnappliedCustomerCredit(
   orgId: string,
   businessId?: string | null,
   contactId?: string | string[] | null,
+  asOf?: string,
 ): Promise<number> {
-  let q = supabase
-    .from("finance_ar_customer_credit" as any)
-    .select("base_credit_amount")
-    .eq("organization_id", orgId);
-  if (businessId) q = q.eq("business_id", businessId);
-  if (Array.isArray(contactId)) {
-    if (contactId.length === 0) return 0;
-    q = q.in("contact_id", contactId);
-  } else if (contactId) {
-    q = q.eq("contact_id", contactId);
+  const wanted = Array.isArray(contactId) ? contactId : contactId ? [contactId] : null;
+  if (wanted && wanted.length === 0) return 0;
+
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  try {
+    rows = await fetchArCustomerCreditAsOf(orgId, businessId, null, asOf);
+  } catch {
+    return 0;
   }
 
-  const { data, error } = await q;
-  if (error) return 0;
-  return ((data || []) as any[]).reduce(
-    (sum, r) => sum + (Number(r.base_credit_amount) || 0),
-    0,
-  );
+  let total = 0;
+  for (const row of rows) {
+    if (wanted && (!row.contact_id || !wanted.includes(row.contact_id))) continue;
+    total += Number(row.base_credit_amount) || 0;
+  }
+  return total;
 }
 
 /**
