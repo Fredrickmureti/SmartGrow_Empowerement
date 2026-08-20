@@ -4,12 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBankAccounts } from "@/hooks/useBankAccounts";
+import { useBankAccounts, resolveBankAccountBalance } from "@/hooks/useBankAccounts";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { supabase } from "@/integrations/supabase/client";
-import { useAccounts } from "@/hooks/useAccounts";
-import { useAccountBalances } from "@/hooks/useAccountBalances";
 import { useTenantFx } from "@/hooks/useTenantFx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,8 +58,6 @@ export default function Banking() {
   const { accounts: bankAccounts, isLoading: accountsLoading, loadError: accountsError, refetch: refetchAccounts, syncTransactions, isSaving: isSyncing, deleteAccount, canManage } = useBankAccounts();
   const scope = useFinanceScope();
   const { transactions, isLoading: transactionsLoading, loadError: transactionsError, fetchTransactions, stats } = useBankTransactions();
-  const { accounts: glAccounts } = useAccounts();
-  const { getEffectiveBalance } = useAccountBalances();
   const fx = useTenantFx();
   const baseCurrency = currentBusiness?.base_currency ?? null;
 
@@ -69,47 +65,39 @@ export default function Banking() {
     await deleteAccount(accountId);
   };
 
-  // Currency-aware aggregation. Bank accounts may hold different currencies;
-  // summing them as raw numbers (the previous behaviour) was an accounting
-  // bug. Group by each bank account's `currency`, derive the GL-balance per
-  // group from posted JE lines + opening balance (single source of truth),
-  // then convert each subtotal to the company base currency via
-  // platform_exchange_rates. If any required rate is missing we surface a
-  // warning and refuse to display a misleading total — Odoo / Xero / QBO
-  // standard.
+  // Currency-aware aggregation over the ONE derived position.
+  //
+  // Phase 6: this screen performs no balance arithmetic of its own. Each
+  // account's figure comes from `bank_account_positions()` through
+  // `resolveBankAccountBalance` — the same projection the account cards and
+  // the reconciliation statement read — so the dashboard cannot state a
+  // different cash position from the reports. The previous code added
+  // `accounts.opening_balance` to the posted-JE movement, which double counted
+  // an opening balance that had itself been posted as a journal entry, and it
+  // ignored the shared-control-account case entirely.
+  //
+  // An account whose balance does not resolve (no GL link and no statement
+  // line, or a control account shared by several bank accounts) is NOT counted
+  // as zero. It is excluded and reported, because a total that silently
+  // swallows an unknown is worse than no total.
+  const activeAccounts = bankAccounts?.filter(acc => acc.is_active) || [];
+
+  const unresolvedAccounts = activeAccounts.filter(
+    (acc) => resolveBankAccountBalance(acc) === null,
+  );
+
   const balanceByCurrency: Record<string, number> = (() => {
     const out: Record<string, number> = {};
-    if (!bankAccounts?.length || !glAccounts?.length) return out;
-    const glById = new Map(glAccounts.map(a => [a.id, a]));
-    for (const ba of bankAccounts) {
-      if (!ba.account_id) continue;
-      const gl = glById.get(ba.account_id);
-      if (!gl) continue;
-      const ccy = (ba.currency || baseCurrency || "").toUpperCase();
+    for (const acc of activeAccounts) {
+      const resolved = resolveBankAccountBalance(acc);
+      if (!resolved) continue;
+      const ccy = (acc.currency || baseCurrency || "").toUpperCase();
       if (!ccy) continue;
-      const bal = getEffectiveBalance(gl.id, gl.opening_balance ?? 0);
-      out[ccy] = (out[ccy] ?? 0) + bal;
+      out[ccy] = (out[ccy] ?? 0) + resolved.amount;
     }
     return out;
   })();
 
-  const fxBreakdown = baseCurrency
-    ? Object.entries(balanceByCurrency).map(([ccy, amount]) => {
-        const converted = ccy === baseCurrency.toUpperCase()
-          ? amount
-          : fx.convert(amount, ccy, baseCurrency);
-        const rate = ccy === baseCurrency.toUpperCase() ? 1 : fx.rate(ccy, baseCurrency);
-        return { ccy, amount, converted, rate };
-      })
-    : [];
-
-  const missingFxCurrencies = fxBreakdown
-    .filter(b => b.converted === null)
-    .map(b => b.ccy);
-  const totalBalanceBase = baseCurrency && missingFxCurrencies.length === 0
-    ? fxBreakdown.reduce((s, b) => s + (b.converted ?? 0), 0)
-    : null;
-  const activeAccounts = bankAccounts?.filter(acc => acc.is_active) || [];
   const unreconciledCount = stats?.unreconciledCount || 0;
 
   // Per-account stats: unreconciled counts and last reconciliation dates
@@ -250,11 +238,19 @@ export default function Banking() {
                 </Tooltip>
               )}
               <p className="text-xs text-muted-foreground">
-                Book balance (GL-derived) across {activeAccounts.length} account{activeAccounts.length !== 1 ? 's' : ''}
+                Derived position across {activeAccounts.length - unresolvedAccounts.length} of {activeAccounts.length} account{activeAccounts.length !== 1 ? 's' : ''}
                 {fxBreakdown.length > 1 ? ` · ${fxBreakdown.length} currencies` : ""}
                 {" · "}
                 <span className="font-medium">{scope.scopeLabel}</span>
               </p>
+              {unresolvedAccounts.length > 0 && (
+                <p className="text-xs text-amber-600">
+                  {unresolvedAccounts.length} account
+                  {unresolvedAccounts.length !== 1 ? "s are" : " is"} excluded: no linked
+                  GL account, a control account shared with another bank account, or no
+                  imported statement line.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -356,16 +352,18 @@ export default function Banking() {
             ) : bankAccounts && bankAccounts.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {bankAccounts.map((account) => {
-                  // Derive GL balance for this account
-                  const linkedGL = account.account_id ? glAccounts?.find(a => a.id === account.account_id) : null;
-                  const glBalance = linkedGL?.current_balance ?? null;
+                  // The card resolves its own figure from `account.position`.
+                  // Nothing here re-derives a balance, and the unreconciled
+                  // count comes from the same projection so the card's two
+                  // numbers share one `as_of`.
                   const acctStats = perAccountStats[account.id];
                     return (
                       <BankAccountCard
                         key={account.id}
                         account={account}
-                        glBalance={glBalance}
-                        unreconciledCount={acctStats?.unreconciledCount}
+                        unreconciledCount={
+                          account.position?.unreconciled_count ?? acctStats?.unreconciledCount
+                        }
                         lastReconciledDate={acctStats?.lastReconciledDate}
                         onSync={() => syncTransactions(account.id)}
                         isSyncing={isSyncing}
