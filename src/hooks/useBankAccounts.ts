@@ -238,7 +238,11 @@ async function loadBankAccounts(
   const [posRes, feedRes] = await Promise.all([
     safeQueryRetry<Array<Record<string, unknown>>>(
       () =>
-        supabase.rpc("bank_account_positions", { _business_id: businessId }) as unknown as PromiseLike<{
+        supabase.rpc("bank_account_positions", {
+          _business_id: businessId,
+          ...(asOf ? { _as_of: asOf } : {}),
+        }) as unknown as PromiseLike<{
+
           data: Array<Record<string, unknown>> | null;
           error: unknown;
         }>,
