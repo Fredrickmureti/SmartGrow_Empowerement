@@ -57,8 +57,12 @@ import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/Dril
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function SalesReportsInner() {
-
   const now = new Date();
+  const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({
+    open: false,
+    config: null,
+  });
+
   const { filters } = useReportFilters();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
