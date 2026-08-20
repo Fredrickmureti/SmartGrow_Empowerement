@@ -55,7 +55,32 @@ of what the correct cure is.
 - Remedy wording lives in one table, so the report, the workspace and any future
   surface phrase the same finding identically.
 
+## Addendum (2026-08-21) — the refusal that was a defect
+
+An un-match of a classified statement line failed with
+`Cannot modify a posted journal entry. Create a reversing entry or void it
+instead.` That message read as a policy ("go to the journal and void it there"),
+but it was a defect in the void engine and it affected **every** caller of
+`void_journal_entry_atomic`.
+
+`void_journal_entry_atomic` inserted the reversal header already stamped
+`status = 'posted'` and only then wrote its lines. Each line insert fired
+`trg_jel_recompute_je_totals`, which UPDATEs `journal_entries.total_debit /
+total_credit` — an update of a posted row, refused by the immutability trigger.
+`post_journal_entry_atomic` never hit this because it sets
+`app.suppress_je_recompute = 'on'` and stamps the totals on the header itself.
+The void engine now does the same.
+
+This also settles the workflow question the failure raised: un-matching is
+initiated where the match lives, and when the match created a posting the same
+act voids it by a dated reversing entry. That is the majority convention (Xero
+"Remove & Redo", QuickBooks "Undo", NetSuite "Unmatch", Dynamics 365 BC "Remove
+match", SAP reset-clearing from the reconciliation item). Sending an accountant
+to the journal page is never the cure for a posting the reconciliation created.
+
 ## Enforcement
 
 - `supabase/tests/bank_unmatch_preflight_invariants_test.sql`
+- `supabase/tests/journal_void_recompute_invariants_test.sql`
 - `src/test/architecture/banking-unmatch-preflight.test.ts`
+
