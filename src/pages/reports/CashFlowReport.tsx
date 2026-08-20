@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { useCashFlowReport, type CashFlowSection } from "@/hooks/useCashFlowReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
@@ -51,6 +52,7 @@ function CashFlowReportInner() {
 
   const { baseCurrency, isReady } = useCurrency();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
   const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: filters.branchId });
 
