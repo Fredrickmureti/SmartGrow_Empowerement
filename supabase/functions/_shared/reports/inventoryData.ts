@@ -43,12 +43,13 @@ export interface InventoryFilters {
   categoryId?: string | null;
   /** Valuation only. Defaults to `dateTo` when omitted. */
   asOf?: string | null;
-  /** Lot traceability only. */
+  /** lot_traceability dimensions. */
   lotNumber?: string | null;
   lotStatus?: string | null;
   expiryBucket?: string | null;
   includeDepleted?: boolean | null;
 }
+
 
 /** Hard ceiling per report run — matches the RPC's own page cap. */
 const PAGE_SIZE = 5000;
@@ -114,10 +115,6 @@ export async function buildInventoryReport(
     p_product: filters.productId ?? null,
     p_category: filters.categoryId ?? null,
   };
-
-  if (reportType === "lot_traceability") {
-    return await buildLotTraceabilityReport(supabase, orgId, businessId, dateTo, filters);
-  }
 
   if (reportType === "stock_ledger") {
     const rows = await fetchAllPages(supabase, "report_stock_ledger", {
@@ -216,7 +213,75 @@ export async function buildInventoryReport(
     };
   }
 
+  if (reportType === "lot_traceability") {
+    // Lot / serial traceability: lot × product × warehouse, valued on the SAME
+    // shared layer basis as Inventory Valuation (p_by_lot inside the helper),
+    // so the value column ties to valuation at the same date. Depleted lots are
+    // excluded unless explicitly requested, for the same reason.
+    const lotAsOf = filters.asOf ?? dateTo;
+    const lotRows = await fetchAllPages(supabase, "report_lot_traceability_as_of", {
+      p_org: orgId,
+      p_business: businessId,
+      p_as_of: lotAsOf,
+      ...dimensions,
+      p_lot: filters.lotNumber ?? null,
+      p_status: filters.lotStatus ?? null,
+      p_expiry_bucket: filters.expiryBucket ?? null,
+      p_include_depleted: filters.includeDepleted ?? false,
+    });
+
+    let lotQty = 0;
+    let lotValue = 0;
+    let expiringValue = 0;
+    let blockedValue = 0;
+
+    const lotData = lotRows.map((r) => {
+      lotQty += num(r.qty_on_hand);
+      lotValue += num(r.total_value);
+      if (r.expiry_bucket === "expired" || r.expiry_bucket === "0_30") {
+        expiringValue += num(r.total_value);
+      }
+      if (r.lot_status === "quarantined" || r.lot_status === "recalled") {
+        blockedValue += num(r.total_value);
+      }
+      return withMeta(
+        {
+          product_name: r.product_name ?? "",
+          sku: r.sku ?? "",
+          warehouse_name: r.warehouse_name ?? "—",
+          lot_number: r.lot_number ?? "—",
+          expiry_date: r.expiry_date ? String(r.expiry_date).slice(0, 10) : "",
+          days_to_expiry: r.days_to_expiry === null || r.days_to_expiry === undefined
+            ? ""
+            : num(r.days_to_expiry),
+          lot_status: r.lot_status ?? "",
+          qty_received: num(r.qty_received),
+          qty_consumed: num(r.qty_consumed),
+          qty_on_hand: num(r.qty_on_hand),
+          avg_unit_cost: num(r.avg_unit_cost),
+          total_value: num(r.total_value),
+          supplier_name: r.supplier_name ?? "",
+          receipt_number: r.receipt_number ?? "",
+        },
+        r.product_id ?? null,
+      );
+    });
+
+    return {
+      data: lotData,
+      summary: {
+        lines: lotData.length,
+        as_of: lotAsOf,
+        qty_on_hand: lotQty,
+        total_value: lotValue,
+        expiring_value: expiringValue,
+        blocked_value: blockedValue,
+      },
+    };
+  }
+
   if (reportType === "inventory_gl_reconciliation") {
+
     // Entity-level control report: one row per configured inventory control
     // account. The subledger side is the same as-at layer valuation the
     // inventory_valuation key reports, so drift is attributable to the GL.
@@ -304,89 +369,6 @@ export async function buildInventoryReport(
       as_of: asOf,
       qty_on_hand: totalQty,
       total_value: totalValue,
-    },
-  };
-}
-
-/**
- * lot_traceability — Phase 7.
- *
- * One row per product × warehouse × lot AS AT a date, valued on the SAME
- * cost-layer basis as `inventory_valuation` (both read the shared SQL helper
- * `_inventory_layer_valuation_as_of`, the lot report simply asks for the lot
- * grain). With `includeDepleted = false` the value column therefore sums to
- * the Inventory Valuation total for the same date; opting depleted lots back
- * in is a traceability view, not a valuation view.
- */
-export async function buildLotTraceabilityReport(
-  supabase: any,
-  orgId: string,
-  businessId: string,
-  dateTo: string,
-  filters: InventoryFilters,
-): Promise<ReportResult> {
-  const asOf = filters.asOf ?? dateTo;
-
-  const rows = await fetchAllPages(supabase, "report_lot_traceability_as_of", {
-    p_org: orgId,
-    p_business: businessId,
-    p_as_of: asOf,
-    p_branch: filters.branchId ?? null,
-    p_warehouse: filters.warehouseId ?? null,
-    p_product: filters.productId ?? null,
-    p_category: filters.categoryId ?? null,
-    p_lot: filters.lotNumber ?? null,
-    p_status: filters.lotStatus ?? null,
-    p_expiry_bucket: filters.expiryBucket ?? null,
-    p_include_depleted: filters.includeDepleted ?? false,
-  });
-
-  let qtyOnHand = 0;
-  let totalValue = 0;
-  let expiring = 0;
-  let blocked = 0;
-
-  const data = rows.map((r) => {
-    qtyOnHand += num(r.qty_on_hand);
-    totalValue += num(r.total_value);
-    if (r.expiry_bucket === "expired" || r.expiry_bucket === "0_30") {
-      expiring += num(r.total_value);
-    }
-    if (r.lot_status === "quarantined" || r.lot_status === "recalled") {
-      blocked += num(r.total_value);
-    }
-    return withMeta(
-      {
-        product_name: r.product_name ?? "",
-        sku: r.sku ?? "",
-        warehouse_name: r.warehouse_name ?? "—",
-        lot_number: r.lot_number ?? "—",
-        expiry_date: r.expiry_date ? String(r.expiry_date).slice(0, 10) : "",
-        days_to_expiry: r.days_to_expiry === null || r.days_to_expiry === undefined
-          ? ""
-          : num(r.days_to_expiry),
-        lot_status: r.lot_status ?? "",
-        qty_received: num(r.qty_received),
-        qty_consumed: num(r.qty_consumed),
-        qty_on_hand: num(r.qty_on_hand),
-        avg_unit_cost: num(r.avg_unit_cost),
-        total_value: num(r.total_value),
-        supplier_name: r.supplier_name ?? "",
-        receipt_number: r.receipt_number ?? "",
-      },
-      r.product_id ?? null,
-    );
-  });
-
-  return {
-    data,
-    summary: {
-      lines: data.length,
-      as_of: asOf,
-      qty_on_hand: qtyOnHand,
-      total_value: totalValue,
-      expiring_value: expiring,
-      blocked_value: blocked,
     },
   };
 }

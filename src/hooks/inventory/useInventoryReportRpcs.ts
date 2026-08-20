@@ -207,8 +207,8 @@ export interface LotTraceabilityRow {
   manufacture_date: string | null;
   expiry_date: string | null;
   days_to_expiry: number | null;
-  expiry_bucket: string;
-  lot_status: string;
+  expiry_bucket: string | null;
+  lot_status: string | null;
   layer_count: number;
   qty_received: number;
   qty_consumed: number;
@@ -224,16 +224,14 @@ export interface LotTraceabilityFilters extends InventoryDimensionFilters {
   lotNumber?: string | null;
   lotStatus?: string | null;
   expiryBucket?: string | null;
-  /** Depleted lots are excluded by default so value ties to Inventory Valuation. */
   includeDepleted?: boolean;
 }
 
 /**
- * Lot / serial traceability as at a date. Reads the same cost-layer basis as
- * `useInventoryValuationAsOf` (one shared SQL helper, asked for at the lot
- * grain), so with `includeDepleted = false` the value column sums to the
- * Inventory Valuation total for the same date. Never re-derive lot value from
- * live on-hand × current cost.
+ * Lot / serial traceability AS AT a date. Value is produced by the SAME shared
+ * layer valuation helper the Inventory Valuation report uses (lot grain), so
+ * the value column ties to valuation at the same date. Depleted lots are hidden
+ * server-side unless `includeDepleted` is set, for the same reason.
  */
 export function useLotTraceabilityAsOf(params: {
   orgId?: string | null;
@@ -255,7 +253,7 @@ export function useLotTraceabilityAsOf(params: {
         p_warehouse: filters.warehouseId ?? null,
         p_product: filters.productId ?? null,
         p_category: filters.categoryId ?? null,
-        p_lot: filters.lotNumber ?? null,
+        p_lot: filters.lotNumber?.trim() ? filters.lotNumber.trim() : null,
         p_status: filters.lotStatus ?? null,
         p_expiry_bucket: filters.expiryBucket ?? null,
         p_include_depleted: filters.includeDepleted ?? false,

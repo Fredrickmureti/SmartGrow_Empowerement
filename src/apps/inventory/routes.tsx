@@ -411,7 +411,7 @@ export function InventoryApp() {
           }
         />
 
-        {/* Lot / serial traceability — Phase 7 */}
+        {/* Lot / serial traceability report family (wave Phase 7) */}
         <Route
           path="reports/lot-traceability"
           element={
@@ -424,6 +424,7 @@ export function InventoryApp() {
         />
 
         {/* Ledger integrity report (ADR 0142 Phase 3) */}
+
         <Route
           path="reports/integrity"
           element={

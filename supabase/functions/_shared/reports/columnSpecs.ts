@@ -294,31 +294,6 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
       { key: "layer_count", header: "Layers", width: 8, align: "right", format: "text" },
     ],
   },
-  // Phase 7 — lot / serial traceability. Valued on the SAME cost-layer basis
-  // as inventory_valuation (shared SQL helper at the lot grain), so the value
-  // column ties to Inventory Valuation at the same date.
-  lot_traceability: {
-    title: "Lot Traceability",
-    orientation: "landscape",
-    formatProfile: "financial",
-    subtitle: "Lots on hand with expiry, status and cost-layer value at the reporting date",
-    columns: [
-      { key: "product_name", header: "Product", width: 20, align: "left", format: "text" },
-      { key: "sku", header: "SKU", width: 10, align: "left", format: "text" },
-      { key: "warehouse_name", header: "Warehouse", width: 14, align: "left", format: "text" },
-      { key: "lot_number", header: "Lot / Serial", width: 14, align: "left", format: "text" },
-      { key: "expiry_date", header: "Expiry", width: 11, align: "left", format: "text" },
-      { key: "days_to_expiry", header: "Days", width: 8, align: "right", format: "text" },
-      { key: "lot_status", header: "Status", width: 11, align: "left", format: "text" },
-      { key: "qty_received", header: "Received", width: 11, align: "right", format: "text" },
-      { key: "qty_consumed", header: "Consumed", width: 11, align: "right", format: "text" },
-      { key: "qty_on_hand", header: "On Hand", width: 11, align: "right", format: "text" },
-      { key: "avg_unit_cost", header: "Unit Cost", width: 12, align: "right", format: "currency" },
-      { key: "total_value", header: "Value", width: 14, align: "right", format: "currency" },
-      { key: "supplier_name", header: "Supplier", width: 16, align: "left", format: "text" },
-      { key: "receipt_number", header: "Receipt", width: 12, align: "left", format: "text" },
-    ],
-  },
   inventory_aging: {
     title: "Stock Aging",
     orientation: "landscape",
@@ -354,6 +329,34 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
       { key: "exceptions", header: "Valuation exceptions", width: 26, align: "left", format: "text" },
     ],
   },
+  // Phase 7 — lot / serial traceability. Value comes from the SAME shared
+  // layer valuation helper (lot grain), so the value column ties to Inventory
+  // Valuation at the same date. Columns and order MUST match the screen
+  // (`src/pages/reports/LotTraceabilityReport.tsx`).
+  lot_traceability: {
+    title: "Lot Traceability",
+    orientation: "landscape",
+    formatProfile: "financial",
+    subtitle: "Lot / serial positions, expiry and control status at the reporting date",
+    columns: [
+      { key: "product_name", header: "Product", width: 20, align: "left", format: "text" },
+      { key: "sku", header: "SKU", width: 11, align: "left", format: "text" },
+      { key: "warehouse_name", header: "Warehouse", width: 14, align: "left", format: "text" },
+      { key: "lot_number", header: "Lot / Serial", width: 14, align: "left", format: "text" },
+      { key: "expiry_date", header: "Expiry", width: 11, align: "left", format: "text" },
+      { key: "days_to_expiry", header: "Days", width: 8, align: "right", format: "text" },
+      { key: "lot_status", header: "Status", width: 11, align: "left", format: "text" },
+      { key: "qty_received", header: "Received", width: 11, align: "right", format: "text" },
+      { key: "qty_consumed", header: "Consumed", width: 11, align: "right", format: "text" },
+      { key: "qty_on_hand", header: "On Hand", width: 11, align: "right", format: "text" },
+      { key: "avg_unit_cost", header: "Unit Cost", width: 12, align: "right", format: "currency" },
+      { key: "total_value", header: "Value", width: 14, align: "right", format: "currency" },
+      { key: "supplier_name", header: "Supplier", width: 16, align: "left", format: "text" },
+      { key: "receipt_number", header: "Receipt", width: 12, align: "left", format: "text" },
+    ],
+  },
+
+
 
   customer_analysis: {
     title: "Customer Analysis",

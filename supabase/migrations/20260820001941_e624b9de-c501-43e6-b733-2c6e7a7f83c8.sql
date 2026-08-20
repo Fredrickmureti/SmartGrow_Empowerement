@@ -1,58 +1,30 @@
--- =====================================================================
--- Phase 7.0 — close the trace-RPC boundary
---
--- Verified fact: trace_lot_genealogy and check_serial_position_drift DO
--- enforce membership (public.user_can_access_business(auth.uid(), ...)), so
--- there is no open cross-tenant read. What was wrong is that both are
--- SECURITY DEFINER and still carried EXECUTE for `anon`, which is not a
--- boundary any inventory reporting function in this wave is allowed to keep.
--- =====================================================================
-REVOKE ALL ON FUNCTION public.trace_lot_genealogy(uuid, uuid, text) FROM PUBLIC, anon;
+-- Phase 7.0 — close the trace-RPC boundary: no anonymous execution of
+-- SECURITY DEFINER lot/serial trace functions.
+REVOKE ALL ON FUNCTION public.trace_lot_genealogy(uuid, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.trace_lot_genealogy(uuid, uuid, text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.trace_lot_genealogy(uuid, uuid, text) TO authenticated, service_role;
 
-REVOKE ALL ON FUNCTION public.check_serial_position_drift(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.check_serial_position_drift(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.check_serial_position_drift(uuid) FROM anon;
 GRANT EXECUTE ON FUNCTION public.check_serial_position_drift(uuid) TO authenticated, service_role;
 
--- =====================================================================
--- Phase 7.1 — lot / serial traceability on the authoritative layer basis
---
--- The lot report must NOT invent a second valuation. The shared helper
--- _inventory_layer_valuation_as_of() is therefore extended with an optional
--- lot grain (p_by_lot / p_lot) and with the received / consumed quantities it
--- already computes internally. Existing 7-argument callers are unaffected:
--- the new parameters default to the previous behaviour and every caller
--- selects columns by name.
--- =====================================================================
-DROP FUNCTION IF EXISTS public._inventory_layer_valuation_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid);
-
+-- Phase 7.1 — the shared as-at layer valuation helper, with an OPTIONAL lot
+-- grain. One valuation basis for valuation, aging, reconciliation, composition
+-- and now lot traceability; no duplicated layer arithmetic anywhere.
 CREATE OR REPLACE FUNCTION public._inventory_layer_valuation_as_of(
-  p_org       uuid,
-  p_business  uuid,
-  p_as_of     date DEFAULT NULL::date,
-  p_branch    uuid DEFAULT NULL::uuid,
+  p_org uuid,
+  p_business uuid,
+  p_as_of date DEFAULT NULL::date,
+  p_branch uuid DEFAULT NULL::uuid,
   p_warehouse uuid DEFAULT NULL::uuid,
-  p_product   uuid DEFAULT NULL::uuid,
-  p_category  uuid DEFAULT NULL::uuid,
-  p_by_lot    boolean DEFAULT false,
-  p_lot       text DEFAULT NULL::text
-)
-RETURNS TABLE(
-  product_id        uuid,
-  warehouse_id      uuid,
-  branch_id         uuid,
-  lot_number        text,
-  layer_count       integer,
-  qty_received      numeric,
-  qty_consumed      numeric,
-  qty_on_hand       numeric,
-  total_value       numeric,
-  oldest_receipt_at timestamptz,
-  latest_receipt_at timestamptz,
-  zero_cost_layers  integer
-)
-LANGUAGE plpgsql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
+  p_product uuid DEFAULT NULL::uuid,
+  p_category uuid DEFAULT NULL::uuid,
+  p_by_lot boolean DEFAULT false,
+  p_lot text DEFAULT NULL::text)
+ RETURNS TABLE(product_id uuid, warehouse_id uuid, branch_id uuid, lot_number text, layer_count integer, qty_received numeric, qty_consumed numeric, qty_on_hand numeric, total_value numeric, oldest_receipt_at timestamp with time zone, latest_receipt_at timestamp with time zone, zero_cost_layers integer)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
 AS $function$
 DECLARE
   v_as_of timestamptz := (COALESCE(p_as_of, current_date) + 1)::timestamptz; -- exclusive
@@ -117,55 +89,30 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public._inventory_layer_valuation_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, boolean, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public._inventory_layer_valuation_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, boolean, text) TO service_role;
+REVOKE ALL ON FUNCTION public._inventory_layer_valuation_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, boolean, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public._inventory_layer_valuation_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, boolean, text) FROM anon;
+GRANT EXECUTE ON FUNCTION public._inventory_layer_valuation_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, boolean, text) TO authenticated, service_role;
 
--- ------------------------------------------------- lot traceability report
+-- Phase 7.1 — lot / serial traceability report family: lot x product x
+-- warehouse, valued on the shared layer basis, with expiry and control status.
 CREATE OR REPLACE FUNCTION public.report_lot_traceability_as_of(
-  p_org              uuid,
-  p_business         uuid,
-  p_as_of            date DEFAULT NULL::date,
-  p_branch           uuid DEFAULT NULL::uuid,
-  p_warehouse        uuid DEFAULT NULL::uuid,
-  p_product          uuid DEFAULT NULL::uuid,
-  p_category         uuid DEFAULT NULL::uuid,
-  p_lot              text DEFAULT NULL::text,
-  p_status           text DEFAULT NULL::text,
-  p_expiry_bucket    text DEFAULT NULL::text,
+  p_org uuid,
+  p_business uuid,
+  p_as_of date DEFAULT NULL::date,
+  p_branch uuid DEFAULT NULL::uuid,
+  p_warehouse uuid DEFAULT NULL::uuid,
+  p_product uuid DEFAULT NULL::uuid,
+  p_category uuid DEFAULT NULL::uuid,
+  p_lot text DEFAULT NULL::text,
+  p_status text DEFAULT NULL::text,
+  p_expiry_bucket text DEFAULT NULL::text,
   p_include_depleted boolean DEFAULT false,
-  p_limit            integer DEFAULT 500,
-  p_offset           integer DEFAULT 0
-)
-RETURNS TABLE(
-  product_id        uuid,
-  product_name      text,
-  sku               text,
-  category_id       uuid,
-  warehouse_id      uuid,
-  warehouse_name    text,
-  branch_id         uuid,
-  lot_number        text,
-  lot_id            uuid,
-  supplier_name     text,
-  receipt_number    text,
-  manufacture_date  date,
-  expiry_date       date,
-  days_to_expiry    integer,
-  expiry_bucket     text,
-  lot_status        text,
-  layer_count       integer,
-  qty_received      numeric,
-  qty_consumed      numeric,
-  qty_on_hand       numeric,
-  avg_unit_cost     numeric,
-  total_value       numeric,
-  first_receipt_at  timestamptz,
-  last_movement_at  timestamptz,
-  total_rows        bigint
-)
-LANGUAGE plpgsql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
+  p_limit integer DEFAULT 500,
+  p_offset integer DEFAULT 0)
+ RETURNS TABLE(product_id uuid, product_name text, sku text, category_id uuid, warehouse_id uuid, warehouse_name text, branch_id uuid, lot_number text, lot_id uuid, supplier_name text, receipt_number text, manufacture_date date, expiry_date date, days_to_expiry integer, expiry_bucket text, lot_status text, layer_count integer, qty_received numeric, qty_consumed numeric, qty_on_hand numeric, avg_unit_cost numeric, total_value numeric, first_receipt_at timestamp with time zone, last_movement_at timestamp with time zone, total_rows bigint)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
 AS $function$
 DECLARE
   v_as_of  date    := COALESCE(p_as_of, current_date);
@@ -297,6 +244,6 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.report_lot_traceability_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, text, text, text, boolean, integer, integer) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.report_lot_traceability_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, text, text, text, boolean, integer, integer)
-  TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.report_lot_traceability_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, text, text, text, boolean, integer, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.report_lot_traceability_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, text, text, text, boolean, integer, integer) FROM anon;
+GRANT EXECUTE ON FUNCTION public.report_lot_traceability_as_of(uuid, uuid, date, uuid, uuid, uuid, uuid, text, text, text, boolean, integer, integer) TO authenticated, service_role;

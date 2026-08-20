@@ -484,18 +484,28 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["stock", "aging", "slow moving", "obsolete", "old stock", "buckets"],
   },
   {
-    // Lot / serial grain of the SAME cost-layer valuation basis, plus expiry
-    // and control status (quarantine / recall).
+    // Phase 7 — lot / serial traceability. Value uses the same shared cost-layer
+    // helper as Inventory Valuation (lot grain), so totals tie at the same date.
     id: "lot-traceability",
     name: "Lot Traceability",
-    description: "Lots and serials on hand with expiry, status and value as at a date",
+    description: "Lot / serial positions, expiry and control status as at a date",
     category: "inventory",
     path: "/inventory-app/reports/lot-traceability",
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
     reportType: "lot_traceability",
-    keywords: ["lot", "serial", "batch", "traceability", "expiry", "recall", "quarantine"],
+    keywords: [
+      "lot",
+      "batch",
+      "serial",
+      "traceability",
+      "expiry",
+      "shelf life",
+      "recall",
+      "quarantine",
+      "genealogy",
+    ],
   },
 
   // ─── Management & BI ───

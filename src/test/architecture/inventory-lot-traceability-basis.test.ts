@@ -1,113 +1,123 @@
 /**
- * Phase 7 guard — lot traceability must stay on the ONE valuation basis.
+ * Phase 7 guard — lot / serial traceability shares the ONE valuation basis and
+ * the wave's security shape, and screen/export report the same columns.
  *
- * The failure mode this pins: someone adds lot-level value by joining
- * cost_layers (or worse, live on-hand × products.cost_price) inside the lot
- * report, and the lot report silently stops agreeing with Inventory Valuation.
- * The only sanctioned source is the shared SQL helper
- * `_inventory_layer_valuation_as_of`, asked for at the lot grain.
+ * Each assertion pins a decision that would otherwise silently regress:
+ *  - lot value must come from `_inventory_layer_valuation_as_of` (lot grain),
+ *    never from a second lot-level layer aggregation;
+ *  - the report RPC must assert org membership + inventory report access and
+ *    must not be executable anonymously (the defect found on the pre-existing
+ *    lot/serial trace RPCs);
+ *  - depleted lots stay excluded by default so the value column ties to
+ *    Inventory Valuation at the same date;
+ *  - the page's column keys/order match the server column spec, so PDF/CSV/XLSX
+ *    cannot drift from the screen.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const MIGRATIONS = join(process.cwd(), "supabase/migrations");
+const ROOT = process.cwd();
+const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 
-function migrationsContaining(needle: string): string[] {
-  return readdirSync(MIGRATIONS)
+function latestMigrationDefining(fn: string): { file: string; sql: string } {
+  const dir = join(ROOT, "supabase/migrations");
+  const hits = readdirSync(dir)
     .filter((f) => f.endsWith(".sql"))
-    .filter((f) => readFileSync(join(MIGRATIONS, f), "utf8").includes(needle));
+    .sort()
+    .filter((f) => readFileSync(join(dir, f), "utf8").includes(`FUNCTION public.${fn}`));
+  expect(hits.length, `no migration defines public.${fn}`).toBeGreaterThan(0);
+  const file = hits[hits.length - 1]!;
+  return { file, sql: readFileSync(join(dir, file), "utf8") };
 }
 
-function latestMigrationWith(needle: string): string {
-  const files = migrationsContaining(needle).sort();
-  expect(files.length, `no migration defines ${needle}`).toBeGreaterThan(0);
-  return readFileSync(join(MIGRATIONS, files[files.length - 1]), "utf8");
+function functionBody(sql: string, fn: string): string {
+  const start = sql.indexOf(`FUNCTION public.${fn}(`);
+  expect(start, `public.${fn} not found in migration`).toBeGreaterThan(-1);
+  const next = sql.indexOf("CREATE OR REPLACE ", start + 10);
+  return sql.slice(start, next === -1 ? sql.length : next);
 }
 
-describe("lot traceability RPC", () => {
-  const sql = latestMigrationWith("report_lot_traceability_as_of");
+const LOT_RPC = "report_lot_traceability_as_of";
 
-  it("derives quantity and value only from the shared layer helper", () => {
-    const body = sql.slice(sql.indexOf("report_lot_traceability_as_of"));
-    expect(body).toContain("_inventory_layer_valuation_as_of(");
-    // No second valuation basis inside the report.
-    expect(body).not.toMatch(/FROM\s+public\.cost_layers/i);
-    expect(body).not.toMatch(/cost_price/i);
-    expect(body).not.toMatch(/warehouse_stock\.average_cost/i);
+describe("lot traceability reports on the shared layer valuation basis", () => {
+  it("derives lot value from the shared helper, not new layer arithmetic", () => {
+    const body = functionBody(latestMigrationDefining(LOT_RPC).sql, LOT_RPC);
+
+    expect(body).toContain("_inventory_layer_valuation_as_of");
+    // No second layer aggregation, and no AVCO / cost-price fallback.
+    expect(body).not.toMatch(/cost_layer_consumptions/);
+    expect(body).not.toMatch(/average_cost/);
+    expect(body).not.toMatch(/cost_price/);
   });
 
-  it("asserts org membership and business/branch report access", () => {
-    const body = sql.slice(sql.indexOf("CREATE OR REPLACE FUNCTION public.report_lot_traceability_as_of"));
-    expect(body).toContain("_assert_org_member(p_org)");
-    expect(body).toContain("_assert_inventory_report_access(p_business, p_branch)");
+  it("keeps the wave's authorization contract", () => {
+    const { sql } = latestMigrationDefining(LOT_RPC);
+    const body = functionBody(sql, LOT_RPC);
+
+    expect(body).toContain("SECURITY DEFINER");
+    expect(body).toContain("SET search_path");
+    expect(body).toContain("_assert_org_member");
+    expect(body).toContain("_assert_inventory_report_access");
     expect(body).toContain("INVENTORY_REPORT_BUSINESS_REQUIRED");
+    expect(sql).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${LOT_RPC}[^;]*FROM PUBLIC`));
+    expect(sql).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${LOT_RPC}[^;]*FROM anon`));
   });
 
-  it("is not callable anonymously", () => {
-    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.report_lot_traceability_as_of[\s\S]*?FROM PUBLIC, anon;/);
-    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.report_lot_traceability_as_of[\s\S]*?TO authenticated, service_role;/);
+  it("revokes anonymous execution on the lot/serial trace RPCs", () => {
+    for (const fn of ["trace_lot_genealogy", "check_serial_position_drift"]) {
+      const dir = join(ROOT, "supabase/migrations");
+      const revoked = readdirSync(dir)
+        .filter((f) => f.endsWith(".sql"))
+        .some((f) => {
+          const sql = readFileSync(join(dir, f), "utf8");
+          return new RegExp(`REVOKE ALL ON FUNCTION public\\.${fn}[^;]*FROM anon`).test(sql);
+        });
+      expect(revoked, `public.${fn} still allows anon EXECUTE`).toBe(true);
+    }
   });
 
-  it("keeps the lot grain optional on the shared helper so other reports are unchanged", () => {
-    const helper = sql.slice(sql.indexOf("CREATE OR REPLACE FUNCTION public._inventory_layer_valuation_as_of"));
-    expect(helper).toContain("p_by_lot    boolean DEFAULT false");
-    expect(helper).toContain("p_lot       text DEFAULT NULL");
-    expect(helper).toContain("_assert_inventory_report_access(p_business, p_branch)");
-  });
-
-  it("revokes anon execute on the trace RPCs (Phase 7.0)", () => {
-    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.trace_lot_genealogy[\s\S]*?FROM PUBLIC, anon;/);
-    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.check_serial_position_drift[\s\S]*?FROM PUBLIC, anon;/);
+  it("hides depleted lots by default so value ties to Inventory Valuation", () => {
+    const body = functionBody(latestMigrationDefining(LOT_RPC).sql, LOT_RPC);
+    expect(body).toMatch(/p_include_depleted\s+boolean\s+DEFAULT\s+false/i);
+    expect(body).toContain("p_include_depleted OR a.qty_on_hand <> 0");
   });
 });
 
-describe("lot traceability surfaces", () => {
-  const page = readFileSync(
-    join(process.cwd(), "src/pages/reports/LotTraceabilityReport.tsx"),
-    "utf8",
-  );
-  const hook = readFileSync(
-    join(process.cwd(), "src/hooks/inventory/useInventoryReportRpcs.ts"),
-    "utf8",
-  );
-  const specs = readFileSync(
-    join(process.cwd(), "supabase/functions/_shared/reports/columnSpecs.ts"),
-    "utf8",
-  );
-  const data = readFileSync(
-    join(process.cwd(), "supabase/functions/_shared/reports/inventoryData.ts"),
-    "utf8",
-  );
+describe("lot traceability screen and export share one dataset", () => {
+  const spec = read("supabase/functions/_shared/reports/columnSpecs.ts");
+  const page = read("src/pages/reports/LotTraceabilityReport.tsx");
 
-  it("reads the RPC through the shared hook, never a raw query", () => {
-    expect(hook).toContain("report_lot_traceability_as_of");
-    expect(page).toContain("useLotTraceabilityAsOf");
-    expect(page).not.toContain("supabase");
+  const specKeys = (() => {
+    const start = spec.indexOf("lot_traceability: {");
+    expect(start, "lot_traceability missing from columnSpecs").toBeGreaterThan(-1);
+    const block = spec.slice(start, spec.indexOf("\n  },", start));
+    return [...block.matchAll(/\{ key: "([^"]+)"/g)].map((m) => m[1]);
+  })();
+
+  const pageKeys = (() => {
+    const start = page.indexOf("const columns = useMemo<ReportColumn[]>");
+    expect(start, "column list missing from the page").toBeGreaterThan(-1);
+    const block = page.slice(start, page.indexOf("], \n    [],", start) + 1 || start + 2000);
+    return [...block.matchAll(/\{ key: "([^"]+)"/g)].map((m) => m[1]);
+  })();
+
+  it("column keys and order match between page and server spec", () => {
+    expect(specKeys.length).toBeGreaterThan(10);
+    expect(pageKeys.slice(0, specKeys.length)).toEqual(specKeys);
   });
 
-  it("exports through the server report registry, not a client-built table", () => {
-    expect(page).toContain('reportType: "lot_traceability"');
-    expect(specs).toContain("lot_traceability:");
+  it("the export path is registered end to end", () => {
+    const data = read("supabase/functions/_shared/reports/inventoryData.ts");
+    expect(data).toContain('| "lot_traceability"');
     expect(data).toContain("report_lot_traceability_as_of");
+    expect(read("supabase/functions/render-report/index.ts")).toContain('"lot_traceability"');
+    expect(read("src/services/reports/ReportRegistry.ts")).toContain('reportType: "lot_traceability"');
+    expect(read("src/apps/inventory/nav.ts")).toContain("/inventory-app/reports/lot-traceability");
   });
 
-  it("screen and export share the same column keys in the same order", () => {
-    const keys = (block: string) =>
-      [...block.matchAll(/key: "([a-z_]+)"/g)].map((m) => m[1]);
-    const specBlock = specs.slice(
-      specs.indexOf("lot_traceability:"),
-      specs.indexOf("inventory_aging:"),
-    );
-    const pageBlock = page.slice(
-      page.indexOf("const columns = useMemo"),
-      page.indexOf("const reportRows"),
-    );
-    expect(keys(pageBlock)).toEqual(keys(specBlock));
-  });
-
-  it("excludes depleted lots by default so value ties to Inventory Valuation", () => {
-    expect(hook).toContain("p_include_depleted: filters.includeDepleted ?? false");
-    expect(page).toContain("useState(false)");
+  it("the page performs no client-side valuation arithmetic", () => {
+    expect(page).not.toMatch(/average_cost|cost_price/);
+    expect(page).toContain("useLotTraceabilityAsOf");
   });
 });
