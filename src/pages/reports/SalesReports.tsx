@@ -149,8 +149,27 @@ function SalesReportsInner() {
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = (data || []).map((r) => ({
       id: `${dimension}-${r.dimension_key}`,
+      // Drill-down exists only where a real relationship does: a customer row
+      // owns invoices, so it opens that partner's documents for the period.
+      // Product / category / branch / salesperson / month are groupings, not
+      // document owners — no drill path is fabricated for them.
+      onClick:
+        dimension === "customer" && UUID_RE.test(r.dimension_key)
+          ? () =>
+              setDrillDown({
+                open: true,
+                config: {
+                  title: `${r.label} — sales documents`,
+                  contactId: r.dimension_key,
+                  sourceType: "invoice",
+                  startDate: dateFrom,
+                  endDate: dateTo,
+                },
+              })
+          : undefined,
       values: toValues(r),
     }));
+
 
     if (out.length > 0) {
       // The footer is the engine's totals envelope — never a sum of the rows
