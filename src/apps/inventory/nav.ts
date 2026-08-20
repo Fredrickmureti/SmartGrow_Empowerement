@@ -17,14 +17,10 @@ import {
   Trash2,
   ClipboardCheck,
   ClipboardList,
-  BarChart3,
-  Coins,
-  Hourglass,
   Scale,
   CalendarClock,
   Truck,
   ShieldCheck,
-  BookOpen,
 
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
