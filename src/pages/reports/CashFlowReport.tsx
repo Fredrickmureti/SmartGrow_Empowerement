@@ -150,12 +150,24 @@ function CashFlowReportInner() {
       id: "opening-cash",
       values: { item: "Cash and cash equivalents at beginning of period", amount: data.openingCash },
     });
+    // IAS 7.28 — FX on cash held is presented separately from operating,
+    // investing and financing, as a reconciling item.
+    if (Math.abs(data.fxEffect) >= 0.01) {
+      out.push({
+        id: "fx-effect",
+        values: {
+          item: "Effect of exchange rate changes on cash held",
+          amount: data.fxEffect,
+        },
+      });
+    }
     out.push({
       id: "closing-cash",
       kind: "grandTotal",
       label: "Cash and cash equivalents at end of period",
       values: { amount: data.closingCash },
     });
+
 
     return out;
   }, [data, dateFrom, dateTo]);
