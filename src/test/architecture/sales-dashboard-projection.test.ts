@@ -9,9 +9,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { ENUM_LABELS, invalidStatusLiterals } from "./support/enumStatusLiterals";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 const FN = "get_sales_dashboard_kpis";
+
 
 function latestDashboardFunctionSql(): string {
   const files = readdirSync(MIGRATIONS_DIR)
