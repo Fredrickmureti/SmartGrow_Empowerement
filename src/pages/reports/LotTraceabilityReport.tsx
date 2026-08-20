@@ -210,7 +210,7 @@ function LotTraceabilityReportInner() {
       },
     });
     return detail;
-  }, [rows, totals]);
+  }, [rows, totals, bizId, formatCurrency, baseCurrency]);
 
   /**
    * Server-built export: the same reportType + as-of + dimensions send
