@@ -87,6 +87,16 @@ screen answers, and can be sourced from an existing engine without new accountin
 **[OPEN]** Whether cash equivalents are `cash_flow_category='cash'` only, or must also include POS /
 credit-card / undeposited-funds clearing accounts. Default stands: `'cash'` only.
 
+## Phase 0 — Blocking type error left by the previous engineer (fix first)
+
+**[FINDING]** `src/pages/reports/BankReconciliationReport.tsx` does not typecheck. The proof rows
+use `tone: "subtle"` and `tone: "total"`, which are not members of
+`ReportRow["tone"]` (`default | warning | danger | success`) — those are *row kinds*, not tones.
+Six TS2322 errors. The fix is to express structure through `kind` (`subsection` for the two
+balance captions, `subtotal` for the two adjusted balances, `calculatedResult` for the residual)
+and keep `tone` for the exception state only. This also makes the proof carry the canonical
+statement vocabulary into the PDF, which Phase 5d depends on.
+
 ## Notes for execution
 
 - ~111 pre-existing failing test files elsewhere in the repo (e.g. `wms-rpc-grants`) are unrelated;
