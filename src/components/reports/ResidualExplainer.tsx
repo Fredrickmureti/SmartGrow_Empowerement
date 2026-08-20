@@ -37,11 +37,16 @@ interface ResidualExplainerProps {
 const money = (value: number | null, currency: string) =>
   value == null ? "—" : `${value.toFixed(2)} ${currency}`;
 
+const remedyLinkClass =
+  "inline-flex items-center gap-1 text-sm font-medium underline underline-offset-2";
+
 export function ResidualExplainer({
   residual,
   currency,
   explanations,
+  remedyContext,
 }: ResidualExplainerProps) {
+  const ctx: RemedyContext = remedyContext ?? { bankAccountId: null, sessionId: null };
   return (
     <Alert variant="destructive">
       <AlertTriangle className="h-4 w-4" />
