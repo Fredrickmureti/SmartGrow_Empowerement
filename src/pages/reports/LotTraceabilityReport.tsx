@@ -40,6 +40,11 @@ import { BranchScopeToggle, type BranchScope } from "@/components/reports/Branch
 import { format } from "date-fns";
 import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { useLotTraceabilityAsOf } from "@/hooks/inventory/useInventoryReportRpcs";
+import {
+  LotGenealogyDialog,
+  type LotGenealogyTarget,
+} from "@/components/reports/LotGenealogyDialog";
+
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
@@ -75,7 +80,9 @@ function LotTraceabilityReportInner() {
   const [status, setStatus] = useState<string>(ALL);
   const [expiryBucket, setExpiryBucket] = useState<string>(ALL);
   const [scope, setScope] = useState<BranchScope>(currentBranch ? "branch" : "company");
+  const [drillTarget, setDrillTarget] = useState<LotGenealogyTarget | null>(null);
   const effectiveBranchId = scope === "branch" ? currentBranch?.id ?? null : null;
+
 
   const orgId = currentOrg?.id ?? null;
   const bizId = currentBusiness?.id ?? null;
@@ -158,7 +165,26 @@ function LotTraceabilityReportInner() {
         supplier_name: r.supplier_name ?? "",
         receipt_number: r.receipt_number ?? "",
       },
+      // Drill-down: backward / forward trace for this exact lot. The value
+      // shown in the panel is the row's value, not a second computation.
+      onClick: r.lot_number
+        ? () =>
+            setDrillTarget({
+              businessId: bizId,
+              productId: r.product_id,
+              lotNumber: r.lot_number,
+              productName: r.product_name,
+              sku: r.sku,
+              warehouseName: r.warehouse_name,
+              supplierName: r.supplier_name,
+              receiptNumber: r.receipt_number,
+              expiryDate: r.expiry_date,
+              lotStatus: r.lot_status,
+              valueLabel: formatCurrency(Number(r.total_value ?? 0), baseCurrency),
+            })
+        : undefined,
     }));
+
 
     if (detail.length === 0) return detail;
 
@@ -184,7 +210,7 @@ function LotTraceabilityReportInner() {
       },
     });
     return detail;
-  }, [rows, totals]);
+  }, [rows, totals, bizId, formatCurrency, baseCurrency]);
 
   /**
    * Server-built export: the same reportType + as-of + dimensions send
@@ -335,6 +361,13 @@ function LotTraceabilityReportInner() {
             emptyMessage="No lot-tracked stock on hand as at this date"
           />
         </ReportSurface>
+
+        <LotGenealogyDialog
+          open={!!drillTarget}
+          onOpenChange={(o) => !o && setDrillTarget(null)}
+          target={drillTarget}
+        />
+
       </div>
     </ReportPageLayout>
   );

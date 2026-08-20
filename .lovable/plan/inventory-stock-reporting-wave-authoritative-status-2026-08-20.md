@@ -1,8 +1,33 @@
 # Inventory / Stock Reporting Wave — authoritative status
 
-**Handover verified 2026-08-19 (new owner).** Phases 1–6b re-verified
-independently and accepted. **Active phase: 7 — lot / serial traceability
-report family, now preceded by a confirmed security fix (7.0).**
+**Last updated 2026-08-20 00:40 UTC. New owner handover verification complete.**
+This file is the single source of project status.
+
+**Active phase: 7 — lot / serial traceability. 7.0–7.3 independently re-verified
+and accepted. Next milestone: 7.4 (genealogy / movement-trail drill-down).**
+
+## Handover verification (this session, evidence)
+
+Every Phase 7.0–7.3 claim of the previous engineer was re-checked directly:
+
+- `bunx vitest run inventory-lot-traceability-basis + inventory-valuation-basis-convergence
+  + inventory-gl-reconciliation-unified` → **27/27 pass** (3 files).
+- `pg_proc` confirms live in the database, all `SECURITY DEFINER`,
+  `search_path=public`, EXECUTE granted only to `authenticated` + `service_role`
+  (no `PUBLIC`/`anon`):
+  `report_lot_traceability_as_of(13 args)`, `_inventory_layer_valuation_as_of(9 args,
+  incl. p_by_lot/p_lot)`, `report_stock_ledger`, `report_inventory_valuation_as_of`,
+  `trace_lot_genealogy`, `check_serial_position_drift`.
+- The lot grain is additive: existing 7-arg valuation/aging/reconciliation callers
+  select by column name and are unaffected.
+- `lot_traceability` is wired end to end: `columnSpecs.ts`, `inventoryData.ts`,
+  `render-report/index.ts`, `useInventoryReportRpcs.ts`,
+  `src/pages/reports/LotTraceabilityReport.tsx`, `ReportRegistry.ts`, plus the
+  recorded migration `20260820001941_*.sql`.
+- The page carries no valuation arithmetic of its own (verified by reading it and
+  by the architecture guard).
+
+**Verdict: Phases 1–7.3 accepted as claimed. No rework required. Resume at 7.4.**
 
 ## Status board
 
@@ -13,130 +38,74 @@ report family, now preceded by a confirmed security fix (7.0).**
 | 3 | Inventory Valuation page (as-at, cost layers) | Complete, verified |
 | 4 | Stock Ledger page (signed quantity ledger) | Complete, verified |
 | 5 | Stock Aging page (bucketed layer value) | Complete, verified |
-| 6 | Inventory ⇄ GL reconciliation on the layer basis | Complete, re-verified |
-| 6b | Valuation-basis convergence for integrity helpers | Complete, re-verified |
-| 7.0 | **Security fix: unscoped lot/serial trace RPCs** | **New — not started** |
-| 7 | Lot / serial traceability report family | Not started |
+| 6 | Inventory ⇄ GL reconciliation on the layer basis | Complete, code-verified (DB ratchet pending) |
+| 6b | Valuation-basis convergence for integrity helpers | Complete, code-verified (DB ratchet pending) |
+| 7.0 | Revoke `anon` EXECUTE on lot/serial trace RPCs | Done, re-verified in `pg_proc` |
+| 7.1 | `report_lot_traceability_as_of` + lot grain in shared helper | Done, re-verified |
+| 7.2 | Server column spec + builder + `render-report` dispatch | Done, re-verified |
+| 7.3 | Lot Traceability page + route + nav + registry | Done, re-verified |
+| 7.4 | Genealogy / movement-trail drill-down | **NEXT** |
+| 7.5 | pgTAP ratchet sections for Phase 7 | Pending (needs a DB session) |
+| 8 | Verdict on Stock Adjustments / Stock Transfers vs the unified engine | Not started |
 
-## Verification of the previous engineer's claims (evidence)
+## Phase 7.4 — lot genealogy drill-down (next, to implement)
 
-Verified facts:
+Goal: from a Lot Traceability row, answer "where did this lot come from and where
+did it go" without leaving the report and without a second data path.
 
-- `bunx vitest run inventory-gl-reconciliation-unified + inventory-valuation-basis-convergence`
-  → 20/20 assertions pass.
-- Migration `20260819232807_…` read line by line and confirmed live in the
-  database: `list_inventory_subledger_composition(p_org, p_business, p_as_of,
-  p_limit, p_branch)` derives `value` **only** from
-  `_inventory_layer_valuation_as_of`, raises
-  `INVENTORY_RECON_BUSINESS_REQUIRED`, is `SECURITY DEFINER` +
-  `_assert_org_member` + `_assert_inventory_report_access`, EXECUTE revoked
-  from `PUBLIC`/`anon`.
-- `pg_proc` confirms the shared helper is used by
-  `report_inventory_valuation_as_of`, `reconcile_inventory_subledger_to_gl`
-  and `list_inventory_subledger_composition`. No AVCO fallback survives in
-  those three.
-- `backfill_opening_inventory_gl` is capped by `LEAST(v_total, v_layer_drift)`,
-  declares `basis: 'product_cost_estimate'`, and skips with
-  `no_layer_basis_drift`.
-- `list_negative_stock_positions` returns `avco_unit_cost` /
-  `avco_exposure_estimate` (correctly labelled estimate, not a valuation) and
-  now requires company scope.
-- Report keys `stock_ledger`, `inventory_valuation`, `inventory_aging`,
-  `inventory_gl_reconciliation` are registered in
-  `_shared/reports/columnSpecs.ts` and built in `_shared/reports/inventoryData.ts`
-  from the same RPCs the screens read.
+- Reuse the existing `src/components/reports/DrillDownDialog.tsx` pattern rather
+  than a new panel component; the report row click opens it.
+- Data comes only from `trace_lot_genealogy(p_business_id, p_product_id,
+  p_lot_number)` — already hardened in 7.0 and already the authoritative
+  genealogy source used by `src/pages/inventory/LotDetail.tsx`. No new SQL, no
+  client-side re-derivation of quantities or value.
+- Extract the genealogy fetch + typing currently inlined in `LotDetail.tsx` into a
+  single hook (`useLotGenealogy`) and have both surfaces consume it, so direction,
+  distribution and downstream customer trace have one implementation.
+- Content: backward trace (receipt date, supplier, PO/GRN, unit cost) and forward
+  trace (issues, sales, transfers, scrap) with running consumed quantity; the
+  panel states quantities and references only, and echoes value from the report
+  row already computed by the shared helper.
+- Serial-tracked products: same family, filtered to serials off `stock_serials`
+  via the existing genealogy payload; no parallel serial RPC.
+- Scope: the drill-down inherits the report's org/business/branch context; the RPC
+  asserts business access server-side, so an unauthorized lot id returns an error
+  rather than rows.
+- Guard: extend `src/test/architecture/inventory-lot-traceability-basis.test.ts`
+  to pin (a) the drill-down uses `trace_lot_genealogy` only, (b) no arithmetic on
+  value in the panel, (c) both surfaces import the shared hook.
 
-No claim was found to be false or superficial. Phases 1–6b stand.
+## Phase 7.5 — pgTAP ratchet for Phase 7
 
-Still outstanding from the previous session (environmental):
-`supabase/tests/inventory_reporting_ratchet_test.sql` sections 8–11 are
-authored but never executed — this sandbox has no `PGHOST`. Run them in the
-SQL editor when a session exists; do not treat them as passing until then.
+Add sections to `supabase/tests/inventory_reporting_ratchet_test.sql`:
+lot totals tie to Inventory Valuation at the same date for lot-tracked products;
+depleted lots excluded by default; cross-business call to
+`report_lot_traceability_as_of` is denied.
 
-## NEW FINDING (verified) — cross-tenant exposure on the trace RPCs
+## Phase 8 — Stock Adjustments / Stock Transfers verdict
 
-`pg_proc` inspection of the two existing lot/serial trace functions:
+Not started; no verdict claimed. Trace each page's data path end to end (page →
+hook → RPC/SQL → export), confirm whether it goes through the unified engine and
+the layer valuation basis, and only then record CORRECT / INCOMPLETE / INCORRECT
+per report with evidence.
 
-| Function | secdef | org assert | report/branch assert | EXECUTE grantees |
-|---|---|---|---|---|
-| `trace_lot_genealogy(p_business_id, p_product_id, p_lot_number)` | yes | **none** | **none** | includes **anon** |
-| `check_serial_position_drift(p_business_id)` | yes | **none** | **none** | includes **anon** |
+## Carried-over blockers (environmental, not code)
 
-Both are `SECURITY DEFINER`, take a caller-supplied `business_id`, perform no
-membership or branch check, and are executable by `anon`. Any caller can read
-lot genealogy and serial-position data for **any** business by guessing/enumerating
-a business id. This is a tenant-isolation defect of the exact class the wave
-was chartered to eliminate, and it is a prerequisite for Phase 7 because the
-traceability report will read the same substrate.
+1. `supabase/tests/inventory_reporting_ratchet_test.sql` sections 8–11 are authored
+   but never executed: no `PGHOST` in this sandbox, and the SQL runner role is
+   neither `authenticated` nor `service_role`, so it is denied by design.
+   Phases 6/6b therefore stay "code-verified, DB-test pending".
+2. Live UI smoke of the new RPC is not possible: preview auth is
+   `external_unmanaged`, so no session can be minted.
 
-## Phase 7.0 — close the trace-RPC boundary (do this first)
+## Rules for execution (unchanged)
 
-1. Migration: recreate both functions with the wave's standard shape —
-   `p_org` first, `_assert_org_member(p_org)`, business belongs to org,
-   `_assert_inventory_report_access(p_business, p_branch)`,
-   `SET search_path TO 'public'`, `REVOKE ALL … FROM PUBLIC, anon`,
-   `GRANT EXECUTE … TO authenticated, service_role`.
-2. Update the callers (`src/pages/inventory/LotDetail.tsx`,
-   `Lots.tsx`, `InventoryIntegrity.tsx` and their hooks) to pass the active
-   org, and keep the existing operational UI behaviour unchanged.
-3. Guard: extend the architecture suite so a lot/serial RPC without both
-   assertions, or with `anon` EXECUTE, fails the build; add a ratchet section
-   asserting cross-business denial.
-
-## Phase 7 — lot / serial traceability report family
-
-One report family, dimension-driven — **not** per-entity pages, and **not** a
-replacement for the operational `/inventory-app/lots` screens (ADR 0070),
-which stay as the master-data/detail surface.
-
-Design (from the actual model: `stock_lots`, `stock_serials`,
-`warehouse_stock_lots`, `stock_movements.lot_number/serial_number`):
-
-- **Report key `lot_traceability`.** One row per lot × product × warehouse with
-  received qty, consumed qty, on-hand qty, layer-derived value at the as-at
-  date, expiry date, days-to-expiry bucket, status (active / quarantined /
-  recalled), first receipt and last movement.
-- **Dimensions, not new reports:** business (required), branch, warehouse,
-  product, category, lot/serial number, expiry window, status.
-- **Drill-down:** row → movement trail for that lot (forward: where it went;
-  backward: which receipt/supplier it came from) using
-  `trace_lot_genealogy` post-7.0. Serial-tracked products expose the same
-  family filtered to serials, keyed off `stock_serials`.
-- **Value basis:** reuse `_inventory_layer_valuation_as_of`; no new valuation
-  arithmetic. Where a lot has no layer, report qty with zero value and flag it
-  `unlayered`, exactly as the composition helper does.
-
-Sub-phases (each fully finished before the next):
-
-- 7.1 RPC `report_lot_traceability_as_of(...)` with the standard security
-  shape, pagination (`p_limit`/`p_offset`) and the dimension set above.
-- 7.2 Server column spec + `inventoryData.ts` builder + `render-report`
-  dispatch, so screen and export share one dataset.
-- 7.3 `ReportSurface` page under Inventory reports + nav entry.
-- 7.4 Drill-down (movement trail / genealogy panel).
-- 7.5 Architecture guard + ratchet sections (totals tie to Inventory
-  Valuation for lot-tracked products; cross-business denial).
-
-## Appended items (evidence-backed, previously omitted)
-
-- **Ratchet execution.** Sections 8–11 must actually be run once; record the
-  result here. Until then Phases 6/6b are "code-verified, DB-test pending".
-- **Expiry / shelf-life control.** `stock_lots.expiry_date` exists and drives
-  `enforce_lot_expiry_policy`, but no report exposes expiring/expired value.
-  Folded into Phase 7 as an expiry dimension rather than a separate report.
-- **Serial position drift** (`check_serial_position_drift`) is an integrity
-  check, not a report — keep it on the integrity surface, fix its scope in 7.0.
-- **Stock Adjustments / Stock Transfers reports** (`StockAdjustmentsReport.tsx`,
-  `StockTransfersReport.tsx`) have **not** yet been re-verified against the
-  unified engine in this wave. Do not assume they share the Phase 1–6 shape.
-  Scheduled as Phase 8 (verify data path, scope enforcement, export parity)
-  after Phase 7 closes. No verdict is claimed on them yet.
-
-## Rules for execution
-
-- One phase at a time, fully verified before the next.
+- One phase at a time, fully finished and verified before the next.
 - No client-side accounting derivation; no second report engine; no duplicated
-  SQL — extract shared arithmetic instead.
-- Do not chase the known unrelated pre-existing failures
-  (`financial-reports-scope-labeling`, `wms-rpc-grants`).
+  SQL — extend the shared helper instead.
+- Screen and export always read the same RPC.
+- If a DB function exists with no migration file, re-record it from
+  `pg_get_functiondef` rather than inventing new SQL.
+- Ignore known unrelated failures (`financial-reports-scope-labeling`,
+  `wms-rpc-grants`) and project-wide linter `SECURITY DEFINER` noise.
 - Update this file as each phase closes.

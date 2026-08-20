@@ -321,4 +321,105 @@ BEGIN
 END
 $scope$;
 
+-- ── 12. Phase 7: lot traceability ties to Inventory Valuation at the same
+--        date. Depleted lots are hidden by default precisely so that the sum
+--        of lot value equals valuation value for lot-tracked products.
+DO $lot$
+DECLARE
+  v_org       uuid;
+  v_business  uuid;
+  v_lot_value numeric;
+  v_val_value numeric;
+BEGIN
+  SELECT organization_id, id INTO v_org, v_business FROM public.businesses LIMIT 1;
+  IF v_business IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: no businesses';
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(sum(total_value), 0) INTO v_lot_value
+  FROM public.report_lot_traceability_as_of(
+    v_org, v_business, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 100000, 0);
+
+  SELECT COALESCE(sum(v.total_value), 0) INTO v_val_value
+  FROM public.report_inventory_valuation_as_of(
+    v_org, v_business, current_date, NULL, NULL, NULL, NULL, 100000, 0) v
+  WHERE v.product_id IN (
+    SELECT DISTINCT product_id
+    FROM public.report_lot_traceability_as_of(
+      v_org, v_business, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 100000, 0)
+  );
+
+  IF abs(v_lot_value - v_val_value) > 0.01 THEN
+    RAISE EXCEPTION 'LOT FAIL: lot value % <> valuation value % for lot-tracked products',
+      v_lot_value, v_val_value;
+  END IF;
+  RAISE NOTICE 'LOT PASS: lot value ties to valuation at the same date';
+
+  -- Default must exclude depleted lots; including them may only add rows.
+  IF (
+    SELECT count(*) FROM public.report_lot_traceability_as_of(
+      v_org, v_business, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, true, 100000, 0)
+  ) < (
+    SELECT count(*) FROM public.report_lot_traceability_as_of(
+      v_org, v_business, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 100000, 0)
+  ) THEN
+    RAISE EXCEPTION 'LOT FAIL: include_depleted returned fewer rows than the default';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.report_lot_traceability_as_of(
+      v_org, v_business, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 100000, 0)
+     WHERE qty_on_hand = 0
+  ) THEN
+    RAISE EXCEPTION 'LOT FAIL: a depleted lot leaked into the default result';
+  END IF;
+  RAISE NOTICE 'LOT PASS: depleted lots excluded by default';
+END
+$lot$;
+
+-- ── 13. Phase 7: company scope is an authorization boundary on the lot
+--        report, and a cross-company pairing must be refused.
+DO $lotscope$
+DECLARE
+  v_org      uuid;
+  v_business uuid;
+  v_other    uuid;
+BEGIN
+  SELECT organization_id, id INTO v_org, v_business FROM public.businesses LIMIT 1;
+  IF v_business IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: no businesses';
+    RETURN;
+  END IF;
+
+  BEGIN
+    PERFORM * FROM public.report_lot_traceability_as_of(
+      v_org, NULL, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 10, 0);
+    RAISE EXCEPTION 'RATCHET: lot report accepted a null company';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'RATCHET:%' THEN RAISE; END IF;
+    RAISE NOTICE 'LOT SCOPE PASS: lot report requires a company (%)', SQLERRM;
+  END;
+
+  SELECT id INTO v_other
+  FROM public.businesses
+  WHERE organization_id IS DISTINCT FROM v_org
+  LIMIT 1;
+
+  IF v_other IS NULL THEN
+    RAISE NOTICE 'RATCHET SKIP: no second organization to test cross-company denial';
+    RETURN;
+  END IF;
+
+  BEGIN
+    PERFORM * FROM public.report_lot_traceability_as_of(
+      v_org, v_other, current_date, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 10, 0);
+    RAISE EXCEPTION 'RATCHET: lot report served a company outside the organization';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'RATCHET:%' THEN RAISE; END IF;
+    RAISE NOTICE 'LOT SCOPE PASS: cross-company lot read denied (%)', SQLERRM;
+  END;
+END
+$lotscope$;
+
 ROLLBACK;

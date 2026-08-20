@@ -121,3 +121,42 @@ describe("lot traceability screen and export share one dataset", () => {
     expect(page).toContain("useLotTraceabilityAsOf");
   });
 });
+
+/**
+ * Phase 7.4 guard — the genealogy drill-down has exactly one data path.
+ *
+ * The report drill-down and the operational lot page must both reach
+ * `trace_lot_genealogy` through `@/hooks/inventory/useLotGenealogy`; a second
+ * inline RPC call (or any client-side value arithmetic in the panel) would
+ * reintroduce the divergence this phase removed.
+ */
+describe("lot genealogy drill-down has one implementation", () => {
+  const hook = read("src/hooks/inventory/useLotGenealogy.ts");
+  const dialog = read("src/components/reports/LotGenealogyDialog.tsx");
+  const lotDetail = read("src/pages/inventory/LotDetail.tsx");
+  const page = read("src/pages/reports/LotTraceabilityReport.tsx");
+
+  it("only the shared hook calls trace_lot_genealogy", () => {
+    expect(hook).toContain("trace_lot_genealogy");
+    for (const [name, src] of [
+      ["LotGenealogyDialog", dialog],
+      ["LotDetail", lotDetail],
+      ["LotTraceabilityReport", page],
+    ] as const) {
+      expect(src, `${name} must not call the RPC directly`).not.toContain(
+        'rpc("trace_lot_genealogy"',
+      );
+    }
+  });
+
+  it("both surfaces consume the shared module", () => {
+    expect(dialog).toContain("@/hooks/inventory/useLotGenealogy");
+    expect(lotDetail).toContain("@/hooks/inventory/useLotGenealogy");
+  });
+
+  it("the drill-down echoes report value instead of recomputing it", () => {
+    expect(dialog).toContain("valueLabel");
+    expect(dialog).not.toMatch(/average_cost|cost_price|unit_cost\s*\*/);
+    expect(page).toContain("LotGenealogyDialog");
+  });
+});
