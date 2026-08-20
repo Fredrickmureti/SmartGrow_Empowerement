@@ -33,6 +33,7 @@ import {
   buildTrialBalance,
   buildIncomeStatement,
   buildCashFlow,
+  buildBankReconciliation,
   buildGeneralLedger,
   buildPartnerLedger,
   buildJournalReport,
@@ -83,6 +84,7 @@ export type ReportType =
   | "income_statement"
   | "profit_and_loss"
   | "cash_flow"
+  | "bank_reconciliation"
   | "general_ledger"
   | "partner_ledger"
   | "journal_report"
