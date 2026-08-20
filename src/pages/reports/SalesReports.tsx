@@ -1,11 +1,37 @@
-import { useState, useMemo, useCallback } from "react";
+/**
+ * Sales Reports — dimensional sales analysis.
+ *
+ * ONE report family, many dimensions. Customer, product, category, branch,
+ * salesperson and month are grouping keys over the same source rows and the
+ * same measure set, so they are a `_dimension` parameter on one engine
+ * (`finance_sales_analysis`), not five report pages.
+ *
+ * Every figure on this page is produced in SQL, in base currency, from
+ * ledger-posted, non-void invoices and their credit notes. The page performs
+ * NO invoice arithmetic: no `reduce` over document totals, no client-side
+ * grouping, no re-adding of rows to invent a footer. The GL tie-out banner
+ * comes from `finance_sales_revenue_reconciliation`.
+ */
+
+import { useCallback, useMemo } from "react";
+
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
-import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useInvoices } from "@/hooks/useInvoices";
-import { useContacts } from "@/hooks/useContacts";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  useSalesAnalysis,
+  useSalesRevenueReconciliation,
+} from "@/hooks/useSalesAnalysis";
+import {
+  SALES_DIMENSIONS,
+  SALES_DIMENSION_LABELS,
+  isSalesDimension,
+  
+  type SalesDimension,
+} from "@/services/finance/salesAnalysis";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ReportSurface,
@@ -15,300 +41,308 @@ import {
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
-import { Users, ShoppingCart, TrendingUp, Receipt } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
+import { ShoppingCart, TrendingUp, Receipt, Percent } from "lucide-react";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { ReportFilters } from "@/components/reports/ReportFilters";
+import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
-
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
-import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
 function SalesReportsInner() {
+  const now = new Date();
+  const { filters } = useReportFilters();
   const { currentOrg } = useOrganization();
-  const { invoices, isLoading: invoicesLoading } = useInvoices();
-  const { contacts } = useContacts();
+  const { currentBusiness } = useBusinesses();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
-  // Period is URL-owned so a drill-down into a customer's invoices and Back
-  // return to the same sales window.
-  const workspace = useReportWorkspaceState({ period: "this_month" });
-  const dateRange = workspace.get("period", "this_month");
-  const setDateRange = (value: string) => workspace.set({ period: value });
-  const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
 
-  const isLoading = invoicesLoading || !currencyReady;
+  // Period and dimension are URL-owned reporting scope, so a drill-down and
+  // Back return to exactly the same sales view.
+  const workspace = useReportWorkspaceState();
+  const dateFrom = workspace.get(
+    "from",
+    filters.dateFrom || format(startOfMonth(now), "yyyy-MM-dd"),
+  );
+  const dateTo = workspace.get("to", filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
+  const setDateFrom = (value: string) => workspace.set({ from: value });
+  const setDateTo = (value: string) => workspace.set({ to: value });
 
-  const getDateRange = () => {
-    const now = new Date();
-    switch (dateRange) {
-      case "this_month":
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      case "last_month":
-        return { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) };
-      case "last_3_months":
-        return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
-      case "this_year":
-        return { start: new Date(now.getFullYear(), 0, 1), end: new Date(now.getFullYear(), 11, 31) };
-      default:
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-    }
-  };
+  const rawDimension = workspace.get("group", "customer");
+  const dimension: SalesDimension = isSalesDimension(rawDimension) ? rawDimension : "customer";
+  const setDimension = (value: string) => workspace.set({ group: value });
 
-  const { start, end } = getDateRange();
+  const branchId = filters.branchId ?? null;
 
-  const VALID_SALES_STATUSES = ["sent", "viewed", "partial", "paid", "overdue"];
+  const { rows: data, totals, isLoading, error } = useSalesAnalysis({
+    orgId: currentOrg?.id,
+    businessId: currentBusiness?.id ?? null,
+    branchId,
+    from: dateFrom,
+    to: dateTo,
+    dimension,
+  });
 
-  const salesData = useMemo(() => {
-    const filteredInvoices = invoices.filter((inv) => {
-      const date = new Date(inv.issue_date);
-      return isWithinInterval(date, { start, end }) && VALID_SALES_STATUSES.includes(inv.status);
-    });
+  const { data: reconciliation } = useSalesRevenueReconciliation({
+    orgId: currentOrg?.id,
+    businessId: currentBusiness?.id ?? null,
+    branchId,
+    from: dateFrom,
+    to: dateTo,
+  });
 
-    const totalSales = filteredInvoices.reduce((sum, i) => sum + i.total, 0);
-    const paidSales = filteredInvoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.total, 0);
-    const pendingSales = filteredInvoices.filter((i) => ["sent", "viewed", "partial", "overdue"].includes(i.status)).reduce((sum, i) => sum + (i.total - i.amount_paid), 0);
-
-    const customerSales: Record<string, { id: string; name: string; total: number; count: number }> = {};
-    filteredInvoices.forEach((inv) => {
-      const customerId = inv.contact_id || "unknown";
-      const customerName = inv.contact?.name || "Unknown Customer";
-      if (!customerSales[customerId]) {
-        customerSales[customerId] = { id: customerId, name: customerName, total: 0, count: 0 };
-      }
-      customerSales[customerId].total += inv.total;
-      customerSales[customerId].count += 1;
-    });
-
-    const topCustomers = Object.values(customerSales)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-
-    const monthlyBreakdown: Record<string, number> = {};
-    filteredInvoices.forEach((inv) => {
-      const month = format(new Date(inv.issue_date), "MMM yyyy");
-      monthlyBreakdown[month] = (monthlyBreakdown[month] || 0) + inv.total;
-    });
-
-    return {
-      filteredInvoices,
-      totalSales,
-      paidSales,
-      pendingSales,
-      invoiceCount: filteredInvoices.length,
-      avgInvoiceValue: filteredInvoices.length > 0 ? totalSales / filteredInvoices.length : 0,
-      topCustomers,
-      monthlyBreakdown: Object.entries(monthlyBreakdown).map(([month, total]) => ({ month, total })),
-    };
-  }, [invoices, start, end]);
-
-  const topCustomerColumns = useMemo<ReportColumn[]>(
+  // ── One column declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn<ReportRow>[]>(
     () => [
-      { key: "customer", header: "Customer" },
-      { key: "count", header: "Invoices", format: "number", align: "center" },
-      { key: "total", header: "Total", format: "currency" },
+      { key: "label", header: SALES_DIMENSION_LABELS[dimension] },
+      { key: "quantity", header: "Qty", format: "number", align: "right", width: "w-[90px]" },
+      { key: "gross", header: "Gross", format: "currency", width: "w-[130px]" },
+      { key: "discount", header: "Discounts", format: "currency", width: "w-[130px]" },
+      { key: "net_sales", header: "Net sales", format: "currency", width: "w-[130px]" },
+      { key: "returns", header: "Returns", format: "currency", width: "w-[130px]" },
+      {
+        key: "net_after_returns",
+        header: "Net after returns",
+        format: "currency",
+        width: "w-[150px]",
+      },
+      { key: "tax", header: "Tax", format: "currency", width: "w-[120px]" },
+      { key: "cost", header: "Cost", format: "currency", width: "w-[130px]" },
+      { key: "margin", header: "Margin", format: "currency", width: "w-[130px]" },
+      { key: "margin_pct", header: "Margin %", format: "percent", align: "right", width: "w-[100px]" },
+      { key: "documents", header: "Docs", format: "number", align: "right", width: "w-[80px]" },
     ],
-    [],
+    [dimension],
   );
 
-  const topCustomerRows = useMemo<ReportRow[]>(
-    () =>
-      salesData.topCustomers.map((customer, index) => ({
-        id: `customer-${index}`,
-        onClick: () =>
-          setDrillDown({
-            open: true,
-            config: {
-              title: `Sales — ${customer.name}`,
-              // Customer → their invoices for the period. Only offered when the
-              // customer is identified; "Unknown Customer" rows stay inert.
-              contactId: customer.id !== "unknown" ? customer.id : undefined,
-              startDate: format(start, "yyyy-MM-dd"),
-              endDate: format(end, "yyyy-MM-dd"),
-              sourceType: "invoice",
-            },
-          }),
-        values: { customer: customer.name, count: customer.count, total: customer.total },
-      })),
-    [salesData.topCustomers, start, end],
-  );
+  const toValues = (row: {
+    label: string;
+    quantity: number;
+    gross: number;
+    discount: number;
+    net_sales: number;
+    returns: number;
+    net_after_returns: number;
+    tax: number;
+    cost: number;
+    margin: number;
+    margin_pct: number | null;
+    sale_documents: number;
+    return_documents: number;
+  }) => ({
+    label: row.label,
+    quantity: row.quantity,
+    gross: row.gross,
+    discount: row.discount,
+    net_sales: row.net_sales,
+    returns: row.returns,
+    net_after_returns: row.net_after_returns,
+    tax: row.tax,
+    cost: row.cost,
+    margin: row.margin,
+    margin_pct: row.margin_pct,
+    documents: row.sale_documents + row.return_documents,
+  });
 
-  const monthlyColumns = useMemo<ReportColumn[]>(
-    () => [
-      { key: "month", header: "Month" },
-      { key: "total", header: "Sales", format: "currency" },
-    ],
-    [],
-  );
+  const rows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = (data || []).map((r) => ({
+      id: `${dimension}-${r.dimension_key}`,
+      values: toValues(r),
+    }));
 
-  const monthlyRows = useMemo<ReportRow[]>(
-    () =>
-      salesData.monthlyBreakdown.map((item, index) => ({
-        id: `month-${index}`,
-        values: { month: item.month, total: item.total },
-      })),
-    [salesData.monthlyBreakdown],
-  );
-
-  const getExportConfig = useCallback((): ExportConfig => {
-    const rows: ExportRow[] = [];
-
-    // Summary section
-    rows.push({ item: "SALES SUMMARY", amount: null, _isHeader: true });
-    rows.push({ item: "Total Sales", amount: salesData.totalSales, _depth: 1 });
-    rows.push({ item: "Collected", amount: salesData.paidSales, _depth: 1 });
-    rows.push({ item: "Outstanding", amount: salesData.pendingSales, _depth: 1 });
-    rows.push({ item: "Invoice Count", amount: salesData.invoiceCount, _depth: 1 });
-    rows.push({ item: "Average Invoice Value", amount: salesData.avgInvoiceValue, _depth: 1 });
-    rows.push({ item: "", amount: null });
-
-    // Top customers
-    rows.push({ item: "TOP CUSTOMERS", amount: null, _isHeader: true });
-    for (const c of salesData.topCustomers) {
-      rows.push({ item: `${c.name} (${c.count} invoices)`, amount: c.total, _depth: 1 });
-    }
-    if (salesData.topCustomers.length > 0) {
-      rows.push({
-        item: "Total (Top Customers)",
-        amount: salesData.topCustomers.reduce((s, c) => s + c.total, 0),
-        _isSubtotal: true,
+    if (out.length > 0) {
+      // The footer is the engine's totals envelope — never a sum of the rows
+      // on screen, which would be wrong the moment the result set is paged.
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "TOTAL",
+        values: {
+          label: "TOTAL",
+          quantity: totals.quantity,
+          gross: totals.gross,
+          discount: totals.discount,
+          net_sales: totals.net_sales,
+          returns: totals.returns,
+          net_after_returns: totals.net_after_returns,
+          tax: totals.tax,
+          cost: totals.cost,
+          margin: totals.margin,
+          margin_pct:
+            totals.net_after_returns === 0
+              ? null
+              : (totals.margin / totals.net_after_returns) * 100,
+          documents: totals.sale_documents + totals.return_documents,
+        },
       });
     }
-    rows.push({ item: "", amount: null });
+    return out;
+  }, [data, totals, dimension]);
 
-    // Monthly breakdown
-    rows.push({ item: "MONTHLY BREAKDOWN", amount: null, _isHeader: true });
-    for (const m of salesData.monthlyBreakdown) {
-      rows.push({ item: m.month, amount: m.total, _depth: 1 });
-    }
-
-    return {
-      title: "Sales Report",
+  // The engine is queried unpaged (`limit: null`), so `rows` already IS the
+  // whole report — the export renders the same dataset through the same column
+  // declaration and never re-aggregates anything.
+  const getExportConfig = useCallback(
+    (): ExportConfig => ({
+      title: `Sales by ${SALES_DIMENSION_LABELS[dimension]}`,
+      reportType: "sales_analysis",
       companyName: currentOrg?.name || "",
-      dateRange: `${format(start, "MMM d, yyyy")} – ${format(end, "MMM d, yyyy")}`,
-      columns: [
-        { key: "item", header: "Description", width: 50 },
-        { key: "amount", header: "Amount", width: 20, format: "currency", align: "right" },
-      ],
-      rows,
-      sheetName: "Sales Report",
+      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
+      columns: toExportColumns(columns),
+      rows: toExportRows(rows, columns),
+      sheetName: "Sales Analysis",
       currency: baseCurrency,
-    };
-  }, [salesData, start, end, currentOrg, baseCurrency]);
+    }),
+    [columns, rows, dimension, dateFrom, dateTo, currentOrg, baseCurrency],
+  );
+
+
+  const marginPct =
+    totals.net_after_returns === 0 ? null : (totals.margin / totals.net_after_returns) * 100;
 
   return (
     <ReportPageLayout
       title="Sales Reports"
-      description="Sales performance and customer analytics"
-      isLoading={isLoading}
-      isEmpty={salesData.invoiceCount === 0}
-      emptyMessage="No sales data available for the selected period"
+      description="Net sales, returns and margin by dimension — base currency, ledger-posted documents only"
+      isLoading={isLoading || !currencyReady}
+      error={error as Error | null}
+      isEmpty={!data || data.length === 0}
+      emptyMessage="No posted sales documents for the selected period"
       getExportConfig={getExportConfig}
       headerActions={
         <>
-          <RefreshButton queryKeyPrefixes={[['sales-orders'] as const, ['invoices'] as const]} tooltip="Refresh sales reports" />
+          <RefreshButton
+            queryKeyPrefixes={[["sales-analysis"] as const, ["sales-revenue-reconciliation"] as const]}
+            tooltip="Refresh sales analysis"
+          />
           <SaveViewButton
             reportType="sales"
-            currentFilters={{ dateRange }}
-            onLoadView={(filters) => {
-              if (filters.dateRange) setDateRange(filters.dateRange);
+            currentFilters={{ dimension, dateFrom, dateTo }}
+            onLoadView={(saved) => {
+              if (saved.dimension) setDimension(saved.dimension);
+              if (saved.dateFrom) setDateFrom(saved.dateFrom);
+              if (saved.dateTo) setDateTo(saved.dateTo);
             }}
           />
         </>
       }
       filters={
-        <Select value={dateRange} onValueChange={setDateRange}>
-          <SelectTrigger className="w-full sm:w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="this_month">This Month</SelectItem>
-            <SelectItem value="last_month">Last Month</SelectItem>
-            <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-            <SelectItem value="this_year">This Year</SelectItem>
-          </SelectContent>
-        </Select>
+        <ReportFilters
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
+        >
+          <ReportBranchFilter reportKind="sales" />
+          <Select value={dimension} onValueChange={setDimension}>
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SALES_DIMENSIONS.map((d) => (
+                <SelectItem key={d} value={d}>
+                  By {SALES_DIMENSION_LABELS[d].toLowerCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ReportFilters>
       }
     >
+      {reconciliation && !reconciliation.inBalance && (
+        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span className="font-medium">
+            Document net sales do not agree with the general ledger.
+          </span>{" "}
+          Documents {formatCurrency(reconciliation.documentNetSales, baseCurrency)} vs ledger{" "}
+          {formatCurrency(reconciliation.ledgerNetSales, baseCurrency)} (revenue{" "}
+          {formatCurrency(reconciliation.glRevenue, baseCurrency)} less returns{" "}
+          {formatCurrency(reconciliation.glSalesReturns, baseCurrency)} and discounts{" "}
+          {formatCurrency(reconciliation.glDiscountsGiven, baseCurrency)}) — variance{" "}
+          {formatCurrency(reconciliation.variance, baseCurrency)} for the period.
+        </div>
+      )}
+
       <div className="space-y-6">
         <div className="stats-grid">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium">Net sales</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(salesData.totalSales, baseCurrency)}
+              <div className="text-2xl font-bold">
+                {formatCurrency(totals.net_sales, baseCurrency)}
               </div>
-              <p className="text-xs text-muted-foreground">{salesData.invoiceCount} invoices</p>
+              <p className="text-xs text-muted-foreground">
+                {totals.sale_documents} invoices, gross{" "}
+                {formatCurrency(totals.gross, baseCurrency)}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Collected</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium">Returns</CardTitle>
+              <Receipt className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(salesData.paidSales, baseCurrency)}
+              <div className="text-2xl font-bold">
+                {formatCurrency(totals.returns, baseCurrency)}
               </div>
+              <p className="text-xs text-muted-foreground">
+                {totals.return_documents} credit notes
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
-              <Receipt className="h-4 w-4 text-orange-600" />
+              <CardTitle className="text-sm font-medium">Net after returns</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {formatCurrency(salesData.pendingSales, baseCurrency)}
+              <div className="text-2xl font-bold">
+                {formatCurrency(totals.net_after_returns, baseCurrency)}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Discounts {formatCurrency(totals.discount, baseCurrency)}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Invoice</CardTitle>
-              <Users className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium">Margin</CardTitle>
+              <Percent className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {formatCurrency(salesData.avgInvoiceValue, baseCurrency)}
+              <div className="text-2xl font-bold">
+                {formatCurrency(totals.margin, baseCurrency)}
               </div>
+              <p className="text-xs text-muted-foreground">
+                {marginPct === null ? "—" : `${marginPct.toFixed(1)}%`} of net after returns
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <ReportSurface title="Top Customers" subtitle="By revenue generated" profile="operational">
-            <ReportTable
-              columns={topCustomerColumns}
-              rows={topCustomerRows}
-              currency={baseCurrency}
-              caption="Top customers by revenue"
-              emptyMessage="No sales data available"
-            />
-          </ReportSurface>
-
-          <ReportSurface title="Monthly Sales" subtitle="Sales breakdown by month" profile="operational">
-            <ReportTable
-              columns={monthlyColumns}
-              rows={monthlyRows}
-              currency={baseCurrency}
-              caption="Monthly sales breakdown"
-              emptyMessage="No sales data available"
-            />
-          </ReportSurface>
-        </div>
+        <ReportSurface
+          title={`Sales by ${SALES_DIMENSION_LABELS[dimension].toLowerCase()}`}
+          dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+          profile="financial"
+        >
+          <ReportTable
+            columns={columns}
+            rows={rows}
+            currency={baseCurrency}
+            caption={`Sales by ${SALES_DIMENSION_LABELS[dimension].toLowerCase()}, base currency`}
+            emptyMessage="No posted sales documents for the selected period"
+          />
+        </ReportSurface>
       </div>
-      <DrillDownDialog
-        open={drillDown.open}
-        onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}
-        config={drillDown.config}
-      />
     </ReportPageLayout>
   );
 }
-
 
 export default function SalesReports() {
   return (
