@@ -212,7 +212,6 @@ function PartnerLedgerInner() {
 
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = [];
-    const grand = { debit: 0, credit: 0 };
     for (const p of data || []) {
       out.push({
         id: `sec-${p.contact_id}`,
@@ -235,6 +234,7 @@ function PartnerLedgerInner() {
             credit: blankIfZero(t.credit),
             balance: t.running_balance,
             _partnerName: p.contact_name,
+            _journalEntryId: t.journal_entry_id,
           },
         });
       }
@@ -244,19 +244,24 @@ function PartnerLedgerInner() {
         label: "Total",
         values: { debit: p.total_debit, credit: p.total_credit, balance: p.closing_balance },
       });
-      grand.debit += p.total_debit;
-      grand.credit += p.total_credit;
     }
     if (out.length > 0) {
+      // Grand totals come from the engine's totals envelope — the page never
+      // re-adds partner subtotals to invent a figure of its own.
       out.push({
         id: "grand-total",
         kind: "grandTotal",
         label: "GRAND TOTAL",
-        values: { debit: grand.debit, credit: grand.credit },
+        values: {
+          debit: totals.total_debit,
+          credit: totals.total_credit,
+          balance: totals.closing_balance,
+        },
       });
     }
     return out;
-  }, [data]);
+  }, [data, totals]);
+
 
   const getExportConfig = useCallback(
     (): ExportConfig => ({
