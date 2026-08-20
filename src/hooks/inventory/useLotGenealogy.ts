@@ -71,6 +71,31 @@ export function lotReferenceLabel(referenceType: string | null | undefined): str
 }
 
 /**
+ * Reference types that resolve to a peekable source document
+ * (`SourceDocumentPeekSheet`). Anything else renders as plain text.
+ */
+export const DRILLABLE_LOT_REFERENCES: ReadonlySet<string> = new Set([
+  "purchase_order",
+  "goods_receipt",
+  "invoice",
+  "bill",
+  "sales_order",
+  "delivery_note",
+  "credit_note",
+  "sales_return",
+  "pos_transaction",
+  "stock_adjustment",
+  "stock_transfer",
+]);
+
+export function isDrillableLotReference(
+  referenceType: string | null | undefined,
+  referenceId: string | null | undefined,
+): boolean {
+  return !!referenceType && !!referenceId && DRILLABLE_LOT_REFERENCES.has(referenceType);
+}
+
+/**
  * Raw fetch, for callers that already own their loading state
  * (`LotDetail` loads its header imperatively and reuses this).
  */

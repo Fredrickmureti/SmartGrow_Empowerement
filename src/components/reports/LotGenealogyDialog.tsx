@@ -34,24 +34,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { format } from "date-fns";
-import { useLotGenealogy, lotReferenceLabel, type LotTimelineRow } from "@/hooks/inventory/useLotGenealogy";
+import {
+  useLotGenealogy,
+  lotReferenceLabel,
+  isDrillableLotReference,
+  type LotTimelineRow,
+} from "@/hooks/inventory/useLotGenealogy";
 import { SourceDocumentPeekSheet } from "@/components/inventory/SourceDocumentPeekSheet";
 import { Button } from "@/components/ui/button";
 
-/** Reference types that resolve to a peekable source document. */
-const DRILLABLE_REFERENCES = new Set([
-  "purchase_order",
-  "goods_receipt",
-  "invoice",
-  "bill",
-  "sales_order",
-  "delivery_note",
-  "credit_note",
-  "sales_return",
-  "pos_transaction",
-  "stock_adjustment",
-  "stock_transfer",
-]);
 
 interface ReferenceTarget {
   type: string;
@@ -123,9 +114,7 @@ function MovementTable({
               </span>
             </TableCell>
             <TableCell className="text-xs">
-              {m.reference_type &&
-              m.reference_id &&
-              DRILLABLE_REFERENCES.has(m.reference_type) ? (
+              {isDrillableLotReference(m.reference_type, m.reference_id) ? (
                 <Button
                   variant="link"
                   size="sm"
