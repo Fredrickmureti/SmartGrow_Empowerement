@@ -22,7 +22,10 @@
 -- ---------------------------------------------------------------------------
 -- 0) The matrix. Adding a report to this domain means adding it here.
 -- ---------------------------------------------------------------------------
-CREATE TEMP TABLE _reporting_matrix(proname text PRIMARY KEY, family text) ON COMMIT DROP;
+-- Kept for the whole session (not ON COMMIT DROP) so the file can be run
+-- statement-by-statement as well as inside one transaction.
+DROP TABLE IF EXISTS _reporting_matrix;
+CREATE TEMP TABLE _reporting_matrix(proname text PRIMARY KEY, family text);
 INSERT INTO _reporting_matrix(proname, family) VALUES
   ('get_ar_ap_aging_from_ledger',            'aging'),
   ('get_ar_summary',                         'aging'),
@@ -134,8 +137,6 @@ DECLARE
   v_org uuid := gen_random_uuid();  -- an organization the caller cannot read
   v_from date := CURRENT_DATE - 31;
   v_to   date := CURRENT_DATE;
-
-  PROCEDURE_LIST text;
 BEGIN
   -- aging family
   BEGIN
@@ -213,3 +214,5 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+DROP TABLE IF EXISTS _reporting_matrix;
