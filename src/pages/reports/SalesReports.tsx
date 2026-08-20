@@ -368,6 +368,12 @@ function SalesReportsInner() {
           />
         </ReportSurface>
       </div>
+
+      <DrillDownDialog
+        open={drillDown.open}
+        onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}
+        config={drillDown.config}
+      />
     </ReportPageLayout>
   );
 }
