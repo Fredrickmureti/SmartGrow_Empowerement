@@ -19,7 +19,6 @@
  */
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +50,16 @@ import type {
 } from "@/services/reports/ReportExportService";
 
 type StatusFilter = "all" | "draft" | "approved" | "posted" | "reversed" | "cancelled";
+
+/**
+ * Wording is deliberate: "Posted (ledger)" is an auditable fact, "Estimate
+ * (unposted lines)" is not. The two must never be shown identically.
+ */
+const COST_BASIS_LABEL: Record<string, string> = {
+  movement_ledger: "Posted (ledger)",
+  estimated_from_lines: "Estimate (unposted lines)",
+  none: "—",
+};
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "outline",
