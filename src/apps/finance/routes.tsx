@@ -94,6 +94,12 @@ const ControlAccountReconciliation = lazy(() => import("@/pages/reports/ControlA
 const BankReconciliationReport = lazy(() => import("@/pages/reports/BankReconciliationReport"));
 
 const StockAdjustmentsReport = lazy(() => import("@/pages/reports/StockAdjustmentsReport"));
+// ADR 0143 — inventory reports are dual-hosted: same page components, mounted
+// under both /finance/reports/* and /inventory-app/reports/*.
+const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
+const StockLedgerReport = lazy(() => import("@/pages/reports/StockLedgerReport"));
+const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
+const LotTraceabilityReport = lazy(() => import("@/pages/reports/LotTraceabilityReport"));
 const StockTransfersReport = lazy(() => import("@/pages/reports/StockTransfersReport"));
 const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationReport"));
 const FxExposureReport = lazy(() => import("@/pages/reports/FxExposureReport"));
@@ -674,6 +680,48 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Stock Reports">
                 <StockReports />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Inventory reports — Finance mount (ADR 0143 dual host) */}
+        <Route
+          path="reports/inventory-valuation"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Inventory Valuation">
+                <InventoryValuationReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/stock-ledger"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Stock Ledger">
+                <StockLedgerReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/stock-aging"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Stock Aging">
+                <StockAgingReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/lot-traceability"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Lot Traceability">
+                <LotTraceabilityReport />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
