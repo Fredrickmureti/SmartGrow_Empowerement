@@ -1,8 +1,8 @@
 # Inventory / Stock Reporting Wave — authoritative status
 
-**Currently active phase:** Phase 6b is **COMPLETE** (shipped and verified
-below; Phase 6 independently re-verified first). **Next phase: 7 — lot / serial
-traceability report family.**
+**Handover verified 2026-08-19 (new owner).** Phases 1–6b re-verified
+independently and accepted. **Active phase: 7 — lot / serial traceability
+report family, now preceded by a confirmed security fix (7.0).**
 
 ## Status board
 
@@ -13,108 +13,124 @@ traceability report family.**
 | 3 | Inventory Valuation page (as-at, cost layers) | Complete, verified |
 | 4 | Stock Ledger page (signed quantity ledger) | Complete, verified |
 | 5 | Stock Aging page (bucketed layer value) | Complete, verified |
-| 6 | Inventory ⇄ GL reconciliation on the layer basis | **Complete this session** |
-| 6b | Valuation-basis convergence for integrity helpers | **Complete this session** |
-| 7 | Lot / serial traceability report family | **Next — not started** |
+| 6 | Inventory ⇄ GL reconciliation on the layer basis | Complete, re-verified |
+| 6b | Valuation-basis convergence for integrity helpers | Complete, re-verified |
+| 7.0 | **Security fix: unscoped lot/serial trace RPCs** | **New — not started** |
+| 7 | Lot / serial traceability report family | Not started |
 
-## Phase 6 — what shipped (all five sub-phases)
+## Verification of the previous engineer's claims (evidence)
 
-- **6.1 Data layer.** New migration extracts the point-in-time layer
-  arithmetic into `public._inventory_layer_valuation_as_of(...)` and re-bases
-  BOTH `report_inventory_valuation_as_of` and
-  `reconcile_inventory_subledger_to_gl` onto it, so the reconciliation's
-  subledger total and the Inventory Valuation total are the same number by
-  construction, at any as-at date. `explain_inventory_gl_drift` uses the same
-  basis. The GL side still sums posted `journal_entry_lines` ≤ as-of and never
-  reads `accounts.current_balance`. Security shape preserved exactly:
-  `SECURITY DEFINER`, `SET search_path TO 'public'`, `_assert_org_member` +
-  `_assert_inventory_report_access`, EXECUTE revoked from `PUBLIC`/`anon`.
-  Exception counters re-expressed against layer data: `unlayered_positions`,
-  `zero_cost_positions`, `negative_qty_positions`.
-- **6.2 Server report.** `inventory_gl_reconciliation` registered in
-  `supabase/functions/_shared/reports/columnSpecs.ts`, built in
-  `_shared/reports/inventoryData.ts` from the same RPC, dispatched in
-  `render-report/index.ts`.
-- **6.3 UI.** `src/pages/reports/InventoryGLReconciliation.tsx` rebuilt on
-  `ReportSurface`/`ReportTable` with a `ServerBuildConfig` export
-  (`reportType: "inventory_gl_reconciliation"`); the client-side row mapping is
-  gone. Drift drill-down into the GL register retained.
-  `useInventoryReconciliation` types the renamed counters; the shared
-  `InventoryReconciliationCard` (Finance Settings) consumes the same hook, so
-  remediation stays in one place.
-- **6.4 Discoverability.** The Inventory workspace "Insights" group deep-links
-  to the single Finance route `/finance/reports/inventory-gl-reconciliation`.
-  No second implementation.
-- **6.5 Validation.** `src/test/architecture/inventory-gl-reconciliation-unified.test.ts`
-  (9 assertions, passing) pins: shared helper usage, security shape, absence of
-  the old AVCO expression, posted-journal GL side, server-built export, no raw
-  table markup, server key registration, Inventory nav link, renamed counters.
-  `supabase/tests/inventory_reporting_ratchet_test.sql` gained section 8
-  (reconciliation subledger total == valuation total; aging buckets tie to the
-  same valuation) and section 9 (cross-business denial on the re-based RPC).
+Verified facts:
 
-## Known outstanding (environmental, not a defect)
+- `bunx vitest run inventory-gl-reconciliation-unified + inventory-valuation-basis-convergence`
+  → 20/20 assertions pass.
+- Migration `20260819232807_…` read line by line and confirmed live in the
+  database: `list_inventory_subledger_composition(p_org, p_business, p_as_of,
+  p_limit, p_branch)` derives `value` **only** from
+  `_inventory_layer_valuation_as_of`, raises
+  `INVENTORY_RECON_BUSINESS_REQUIRED`, is `SECURITY DEFINER` +
+  `_assert_org_member` + `_assert_inventory_report_access`, EXECUTE revoked
+  from `PUBLIC`/`anon`.
+- `pg_proc` confirms the shared helper is used by
+  `report_inventory_valuation_as_of`, `reconcile_inventory_subledger_to_gl`
+  and `list_inventory_subledger_composition`. No AVCO fallback survives in
+  those three.
+- `backfill_opening_inventory_gl` is capped by `LEAST(v_total, v_layer_drift)`,
+  declares `basis: 'product_cost_estimate'`, and skips with
+  `no_layer_basis_drift`.
+- `list_negative_stock_positions` returns `avco_unit_cost` /
+  `avco_exposure_estimate` (correctly labelled estimate, not a valuation) and
+  now requires company scope.
+- Report keys `stock_ledger`, `inventory_valuation`, `inventory_aging`,
+  `inventory_gl_reconciliation` are registered in
+  `_shared/reports/columnSpecs.ts` and built in `_shared/reports/inventoryData.ts`
+  from the same RPCs the screens read.
 
-`supabase/tests/inventory_reporting_ratchet_test.sql` still needs a signed-in
-psql / SQL-editor session to execute; this sandbox exposes no `PGHOST`. The new
-sections 8–9 are therefore authored but not yet run. Running them is the first
-item for whoever has a database session.
+No claim was found to be false or superficial. Phases 1–6b stand.
 
-## Phase 6b — valuation-basis convergence (shipped and verified)
+Still outstanding from the previous session (environmental):
+`supabase/tests/inventory_reporting_ratchet_test.sql` sections 8–11 are
+authored but never executed — this sandbox has no `PGHOST`. Run them in the
+SQL editor when a session exists; do not treat them as passing until then.
 
-Verification of Phase 6 was run first: the 9 unified-engine assertions pass, and
-the newest migration was read line by line — subledger value comes only from
-`_inventory_layer_valuation_as_of`, `p_as_of` reaches both sides, no AVCO
-fallback survives, EXECUTE revoked from `PUBLIC`/`anon`.
+## NEW FINDING (verified) — cross-tenant exposure on the trace RPCs
 
-Enumerated every remaining inventory-value derivation and resolved each:
+`pg_proc` inspection of the two existing lot/serial trace functions:
 
-- **`list_inventory_subledger_composition` — RE-BASED.** Rebuilt on
-  `_inventory_layer_valuation_as_of` at an explicit `p_as_of`, so the `value`
-  column now sums exactly to `subledger_value` (it previously "defended" the
-  figure on the AVCO basis and could never tie). New signature
-  `(p_org, p_business, p_as_of, p_limit, p_branch)`; company is an
-  authorization boundary (`INVENTORY_RECON_BUSINESS_REQUIRED`), branch applied
-  symmetrically, `SECURITY DEFINER` + both assertions, EXECUTE revoked from
-  `PUBLIC`/`anon`. `cost_basis` values are now layer-derived:
-  `cost_layer` / `zero_cost_layer` / `negative_layer` / `unlayered`. Unlayered
-  positions are listed at zero value and flagged, never estimated.
-- **`list_negative_stock_positions` + `accounting_integrity_findings_stock_negative`
-  — RE-LABELLED.** Negative quantity has no layers, so the amount is an
-  operational exposure estimate, not a valuation: columns/evidence keys renamed
-  `avco_unit_cost` / `avco_exposure_estimate`, detail copy states the layer
-  ledger cannot value the position. Company scope now required, matching the
-  reconciliation.
-- **`backfill_opening_inventory_gl` — RE-LABELLED + GUARDED.** Product cost
-  stays the only possible basis for positions with no layers, but the payload
-  now declares `basis: 'product_cost_estimate'`, reports
-  `layer_basis_drift` measured by the re-based reconciliation at the entry date,
-  skips with `no_layer_basis_drift` when there is nothing to close, and caps the
-  posting at that drift so remediation can never create new drift.
-- **`useValuationDrift` / `check_inventory_valuation_drift` — NO CHANGE
-  NEEDED.** It is already an explicit AVCO-vs-layers divergence check and is
-  documented as such; the guard now pins that labelling.
+| Function | secdef | org assert | report/branch assert | EXECUTE grantees |
+|---|---|---|---|---|
+| `trace_lot_genealogy(p_business_id, p_product_id, p_lot_number)` | yes | **none** | **none** | includes **anon** |
+| `check_serial_position_drift(p_business_id)` | yes | **none** | **none** | includes **anon** |
 
-Client alignment: `useInventoryReconciliation.ts` types the new bases and the
-renamed exposure fields and pins the composition query to the same `asOf`;
-`InventoryReconciliationCard` labels each basis, totals the listed positions,
-states the AVCO-estimate caveat on negative stock; `OpeningInventoryBackfillDialog`
-shows the measured layer drift, the basis caveat and the new skip reason.
+Both are `SECURITY DEFINER`, take a caller-supplied `business_id`, perform no
+membership or branch check, and are executable by `anon`. Any caller can read
+lot genealogy and serial-position data for **any** business by guessing/enumerating
+a business id. This is a tenant-isolation defect of the exact class the wave
+was chartered to eliminate, and it is a prerequisite for Phase 7 because the
+traceability report will read the same substrate.
 
-Guards: `src/test/architecture/inventory-valuation-basis-convergence.test.ts`
-(11 assertions, passing) fails the build if a value derivation reappears outside
-the shared helper, if the misleading names return, if the composition loses its
-security shape, or if the backfill cap is removed.
-`supabase/tests/inventory_reporting_ratchet_test.sql` gained section 10
-(composition total == subledger value; only layer-derived bases allowed) and
-section 11 (company scope required on both integrity helpers).
+## Phase 7.0 — close the trace-RPC boundary (do this first)
 
-Typecheck clean; Phase 6 + 6b architecture suites: 20/20 passing.
+1. Migration: recreate both functions with the wave's standard shape —
+   `p_org` first, `_assert_org_member(p_org)`, business belongs to org,
+   `_assert_inventory_report_access(p_business, p_branch)`,
+   `SET search_path TO 'public'`, `REVOKE ALL … FROM PUBLIC, anon`,
+   `GRANT EXECUTE … TO authenticated, service_role`.
+2. Update the callers (`src/pages/inventory/LotDetail.tsx`,
+   `Lots.tsx`, `InventoryIntegrity.tsx` and their hooks) to pass the active
+   org, and keep the existing operational UI behaviour unchanged.
+3. Guard: extend the architecture suite so a lot/serial RPC without both
+   assertions, or with `anon` EXECUTE, fails the build; add a ratchet section
+   asserting cross-business denial.
 
-## Phase 7 — lot / serial traceability report
+## Phase 7 — lot / serial traceability report family
 
-Unchanged: forward/backward trace over `stock_lots` / `stock_serials` +
-movements, delivered as a dimension-driven report family, not per-entity pages.
+One report family, dimension-driven — **not** per-entity pages, and **not** a
+replacement for the operational `/inventory-app/lots` screens (ADR 0070),
+which stay as the master-data/detail surface.
+
+Design (from the actual model: `stock_lots`, `stock_serials`,
+`warehouse_stock_lots`, `stock_movements.lot_number/serial_number`):
+
+- **Report key `lot_traceability`.** One row per lot × product × warehouse with
+  received qty, consumed qty, on-hand qty, layer-derived value at the as-at
+  date, expiry date, days-to-expiry bucket, status (active / quarantined /
+  recalled), first receipt and last movement.
+- **Dimensions, not new reports:** business (required), branch, warehouse,
+  product, category, lot/serial number, expiry window, status.
+- **Drill-down:** row → movement trail for that lot (forward: where it went;
+  backward: which receipt/supplier it came from) using
+  `trace_lot_genealogy` post-7.0. Serial-tracked products expose the same
+  family filtered to serials, keyed off `stock_serials`.
+- **Value basis:** reuse `_inventory_layer_valuation_as_of`; no new valuation
+  arithmetic. Where a lot has no layer, report qty with zero value and flag it
+  `unlayered`, exactly as the composition helper does.
+
+Sub-phases (each fully finished before the next):
+
+- 7.1 RPC `report_lot_traceability_as_of(...)` with the standard security
+  shape, pagination (`p_limit`/`p_offset`) and the dimension set above.
+- 7.2 Server column spec + `inventoryData.ts` builder + `render-report`
+  dispatch, so screen and export share one dataset.
+- 7.3 `ReportSurface` page under Inventory reports + nav entry.
+- 7.4 Drill-down (movement trail / genealogy panel).
+- 7.5 Architecture guard + ratchet sections (totals tie to Inventory
+  Valuation for lot-tracked products; cross-business denial).
+
+## Appended items (evidence-backed, previously omitted)
+
+- **Ratchet execution.** Sections 8–11 must actually be run once; record the
+  result here. Until then Phases 6/6b are "code-verified, DB-test pending".
+- **Expiry / shelf-life control.** `stock_lots.expiry_date` exists and drives
+  `enforce_lot_expiry_policy`, but no report exposes expiring/expired value.
+  Folded into Phase 7 as an expiry dimension rather than a separate report.
+- **Serial position drift** (`check_serial_position_drift`) is an integrity
+  check, not a report — keep it on the integrity surface, fix its scope in 7.0.
+- **Stock Adjustments / Stock Transfers reports** (`StockAdjustmentsReport.tsx`,
+  `StockTransfersReport.tsx`) have **not** yet been re-verified against the
+  unified engine in this wave. Do not assume they share the Phase 1–6 shape.
+  Scheduled as Phase 8 (verify data path, scope enforcement, export parity)
+  after Phase 7 closes. No verdict is claimed on them yet.
 
 ## Rules for execution
 
@@ -124,33 +140,3 @@ movements, delivered as a dimension-driven report family, not per-entity pages.
 - Do not chase the known unrelated pre-existing failures
   (`financial-reports-scope-labeling`, `wms-rpc-grants`).
 - Update this file as each phase closes.
-
-## Handover — instructions for the next agent
-
-**Verify before you build.** Do not start Phase 7 until you have
-independently confirmed Phase 6b, in this order:
-
-1. Run `bunx vitest run src/test/architecture/inventory-gl-reconciliation-unified.test.ts src/test/architecture/inventory-valuation-basis-convergence.test.ts`
-   — 20 assertions must pass. Then run a full typecheck.
-2. Read the newest migration defining
-   `list_inventory_subledger_composition` and confirm with your own eyes: value
-   comes only from `_inventory_layer_valuation_as_of`; no `average_cost` /
-   `cost_price` survives in that function; company scope raises
-   `INVENTORY_RECON_BUSINESS_REQUIRED`; EXECUTE revoked from `PUBLIC`/`anon`;
-   `backfill_opening_inventory_gl` is capped by `LEAST(v_total, v_layer_drift)`.
-3. Grep the repo for any NEW inventory-value derivation from
-   `warehouse_stock.average_cost` or `products.cost_price`. Anything found must
-   either read the shared helper or be named/documented as an AVCO estimate or
-   divergence check.
-4. If you have a database session, run
-   `supabase/tests/inventory_reporting_ratchet_test.sql` and confirm sections
-   8–11 pass. Record the result here.
-5. Open `/finance/reports/inventory-gl-reconciliation`, expand "Subledger
-   composition" and confirm the listed-positions total equals `subledger_value`
-   for the same as-at date, and that the same figure matches
-   `/inventory-app/reports/valuation` to the cent.
-
-**Then resume at Phase 7** as scoped above (dimension-driven lot/serial
-traceability report family on the unified engine — server column specs, server
-build, `ReportSurface` page, nav entry, architecture + ratchet guards). Do not
-pick up unrelated inventory work and do not leave a report half migrated.
