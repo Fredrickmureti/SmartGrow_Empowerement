@@ -198,7 +198,7 @@ function SalesReportsInner() {
       });
     }
     return out;
-  }, [data, totals, dimension]);
+  }, [data, totals, dimension, dateFrom, dateTo]);
 
   // The engine is queried unpaged (`limit: null`), so `rows` already IS the
   // whole report — the export renders the same dataset through the same column
