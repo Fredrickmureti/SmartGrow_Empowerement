@@ -14,7 +14,7 @@ Aging and statements age against an explicit `as_of`, never the browser clock.
 Guards: `supabase/tests/ar_aging_as_of_test.sql`,
 `src/test/architecture/ar-aging-point-in-time.test.ts` (29 tests green).
 
-## Phase 3 — Partner Ledger (COMPLETE)
+## Phase 3 — Partner Ledger (COMPLETE in code; live tie-out re-check pending)
 
 ### 3.1 Server-owned engine — done
 `finance_partner_ledger(_org_id, _business_id, _branch_id, _side, _from, _to,
