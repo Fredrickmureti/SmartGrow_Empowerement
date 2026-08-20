@@ -69,7 +69,19 @@ a business id. This is a tenant-isolation defect of the exact class the wave
 was chartered to eliminate, and it is a prerequisite for Phase 7 because the
 traceability report will read the same substrate.
 
-## Phase 7.0 — close the trace-RPC boundary (do this first)
+### Correction (verified 2026-08-20, after re-reading both bodies)
+
+The table above overstated the defect. Both functions **do** enforce
+membership: each begins with a `public.user_can_access_business(auth.uid(), …)`
+check and raises otherwise, so there is no open cross-tenant read. What was
+genuinely wrong is that both are `SECURITY DEFINER` and still carried
+`EXECUTE` for `anon` — no reporting function in this wave may keep that.
+Phase 7.0 was therefore reduced to revoking `anon`/`PUBLIC` execute and
+granting `authenticated, service_role`; no signature change and no caller
+changes were needed, so `LotDetail.tsx`, `Lots.tsx`, `InventoryIntegrity.tsx`
+and their hooks are untouched.
+
+## Phase 7.0 — close the trace-RPC boundary (DONE)
 
 1. Migration: recreate both functions with the wave's standard shape —
    `p_org` first, `_assert_org_member(p_org)`, business belongs to org,
@@ -116,6 +128,32 @@ Sub-phases (each fully finished before the next):
 - 7.4 Drill-down (movement trail / genealogy panel).
 - 7.5 Architecture guard + ratchet sections (totals tie to Inventory
   Valuation for lot-tracked products; cross-business denial).
+
+## Phase 7 status (2026-08-20)
+
+- **7.0 DONE** — `anon`/`PUBLIC` EXECUTE revoked on `trace_lot_genealogy` and
+  `check_serial_position_drift`; granted to `authenticated, service_role`.
+- **7.1 DONE** — `_inventory_layer_valuation_as_of` extended with an optional
+  lot grain (`p_by_lot`, `p_lot`) plus `qty_received` / `qty_consumed` /
+  `latest_receipt_at`, and it now asserts `_assert_org_member` +
+  `_assert_inventory_report_access` itself. Existing 7-argument callers
+  (valuation, aging-independent recon, composition) select by name and are
+  unchanged; their guards still pass. New RPC
+  `report_lot_traceability_as_of(...)` returns lot × product × warehouse with
+  received / consumed / on-hand, layer value, expiry date + bucket, status
+  (`active` / `expired` / `quarantined` / `recalled` / `inactive` /
+  `untracked`), supplier, receipt number, pagination and `total_rows`.
+  Depleted lots are excluded unless `p_include_depleted`, so the value column
+  ties to Inventory Valuation at the same date.
+- **7.2 DONE** — `columnSpecs.ts` key `lot_traceability`,
+  `inventoryData.ts` builder, `render-report` dispatch.
+- **7.3 DONE** — `src/pages/reports/LotTraceabilityReport.tsx` at
+  `/inventory-app/reports/lot-traceability`, nav entry, `ReportRegistry` entry,
+  hook `useLotTraceabilityAsOf`.
+- **7.5 partial** — `src/test/architecture/inventory-lot-traceability-basis.test.ts`
+  (9 assertions) pins single-basis, security shape, screen↔export column
+  parity. pgTAP ratchet (totals tie, cross-business denial) still owed.
+- **7.4 NOT STARTED** — genealogy drill-down panel.
 
 ## Appended items (evidence-backed, previously omitted)
 
