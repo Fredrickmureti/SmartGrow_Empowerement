@@ -33,7 +33,8 @@ export type InventoryReportKey =
   | "stock_ledger"
   | "inventory_valuation"
   | "inventory_aging"
-  | "inventory_gl_reconciliation";
+  | "inventory_gl_reconciliation"
+  | "lot_traceability";
 
 export interface InventoryFilters {
   branchId?: string | null;
@@ -42,7 +43,13 @@ export interface InventoryFilters {
   categoryId?: string | null;
   /** Valuation only. Defaults to `dateTo` when omitted. */
   asOf?: string | null;
+  /** lot_traceability dimensions. */
+  lotNumber?: string | null;
+  lotStatus?: string | null;
+  expiryBucket?: string | null;
+  includeDepleted?: boolean | null;
 }
+
 
 /** Hard ceiling per report run — matches the RPC's own page cap. */
 const PAGE_SIZE = 5000;
