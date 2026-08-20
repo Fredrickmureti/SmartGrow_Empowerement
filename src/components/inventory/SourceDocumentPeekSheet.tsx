@@ -21,7 +21,11 @@ import { format } from "date-fns";
 
 import { PeekScaffold } from "@/design-system/records";
 import type { DocumentRecordView } from "@/design-system/records";
-import type { LineItemColumn, LineItemRow } from "@/design-system/records/LineItemsGrid";
+import type {
+  LineItemColumn,
+  LineItemRow,
+  LineItemRowCell,
+} from "@/design-system/records/LineItemsGrid";
 import type { DetailField } from "@/design-system/records/RecordBody";
 import type { DocumentKind } from "@/design-system/records/documentStatus";
 import type { LifecycleDocType } from "@/design-system/records/DocumentLifecycleStrip";
