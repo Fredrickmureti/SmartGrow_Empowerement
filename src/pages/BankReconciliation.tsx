@@ -236,17 +236,22 @@ export default function BankReconciliation() {
   };
 
   const executeUnreconcile = async () => {
-    if (!transactionToUnreconcile) return;
+    // A reversal is a posting: one click, one act. A second submission while
+    // the first is in flight is dropped rather than merely discouraged.
+    if (!transactionToUnreconcile || unreconciling) return;
+    setUnreconciling(true);
     try {
       await unreconcileTransaction(transactionToUnreconcile.id);
     } catch {
       // Error handled in hook
     } finally {
+      setUnreconciling(false);
       setUnreconcileDialogOpen(false);
       setTransactionToUnreconcile(null);
       setUnmatchPreflight(null);
     }
   };
+
 
   const handleAutoMatch = async () => {
     if (isReadOnly) { openUpgradeModal("banking"); return; }
