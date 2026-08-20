@@ -148,18 +148,15 @@ function PartnerLedgerInner() {
         render: (row) => {
           const v = row.values;
           const amount = v?.debit as number | null | undefined;
-          const partnerName = v?._partnerName as string | undefined;
-          const entryDate = v?.date as string | undefined;
+          const journalEntryId = v?._journalEntryId as string | null | undefined;
           if (!amount) return "—";
+          if (!journalEntryId) return <span className="tabular-nums">{formatCurrency(amount, baseCurrency)}</span>;
           return (
             <button
               className="hover:underline hover:text-primary cursor-pointer tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
-                setDrillDown({
-                  open: true,
-                  config: { title: `${partnerName} — Debit`, startDate: entryDate, endDate: entryDate },
-                });
+                setJournalEntryId(journalEntryId);
               }}
             >
               {formatCurrency(amount, baseCurrency)}
@@ -175,18 +172,15 @@ function PartnerLedgerInner() {
         render: (row) => {
           const v = row.values;
           const amount = v?.credit as number | null | undefined;
-          const partnerName = v?._partnerName as string | undefined;
-          const entryDate = v?.date as string | undefined;
+          const journalEntryId = v?._journalEntryId as string | null | undefined;
           if (!amount) return "—";
+          if (!journalEntryId) return <span className="tabular-nums">{formatCurrency(amount, baseCurrency)}</span>;
           return (
             <button
               className="hover:underline hover:text-primary cursor-pointer tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
-                setDrillDown({
-                  open: true,
-                  config: { title: `${partnerName} — Credit`, startDate: entryDate, endDate: entryDate },
-                });
+                setJournalEntryId(journalEntryId);
               }}
             >
               {formatCurrency(amount, baseCurrency)}
@@ -194,6 +188,7 @@ function PartnerLedgerInner() {
           );
         },
       },
+
       { key: "balance", header: "Balance", format: "currency", width: "w-[140px]" },
       {
         key: "_actions",
