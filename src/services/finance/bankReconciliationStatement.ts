@@ -110,6 +110,7 @@ export interface BankReconciliationStatement {
   };
   residual: number | null;
   inBalance: boolean;
+  residualExplanations: ResidualExplanation[];
 }
 
 export interface BankReconciliationStatementParams {
