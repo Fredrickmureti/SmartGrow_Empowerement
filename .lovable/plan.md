@@ -14,7 +14,7 @@ Aging and statements age against an explicit `as_of`, never the browser clock.
 Guards: `supabase/tests/ar_aging_as_of_test.sql`,
 `src/test/architecture/ar-aging-point-in-time.test.ts` (29 tests green).
 
-## Phase 3 — Partner Ledger (COMPLETE)
+## Phase 3 — Partner Ledger (COMPLETE in code; live tie-out re-check pending)
 
 ### 3.1 Server-owned engine — done
 `finance_partner_ledger(_org_id, _business_id, _branch_id, _side, _from, _to,
@@ -63,3 +63,70 @@ applied in the engine — adding one would have introduced a real error.
   business and per side.
 - `src/test/architecture/partner-ledger-server-owned.test.ts` — no direct view
   reads, no paging loop, no JS balance math, no leaky branch predicate.
+
+### 3.4 Export & drill-down — done (this session)
+- **Export** re-uses the same `columns` / `rows` declaration the screen renders,
+  and the engine is called unpaged (`limit: null`), so the export is the full
+  period dataset, not a re-aggregation of a visible page.
+- **Grand totals** now come from the engine's `totals` envelope
+  (`total_debit`, `total_credit`, `closing_balance`). The page no longer adds
+  partner subtotals together to invent a footer figure.
+- **Drill-down** goes to the originating journal entry. Each movement carries
+  `journal_entry_id` from the engine and the amount opens
+  `TransactionPreviewDrawer` with `sourceType="journal_entry"`. The old
+  `DrillDownDialog` call passed only a date range with no `accountId`, so it
+  could never return rows — a dead drill-down is now a real one. Amounts with no
+  journal entry render as plain text instead of a dead button.
+- Guards extended in `src/test/architecture/partner-ledger-server-owned.test.ts`
+  (10 tests green): no JS grand-total accumulation, drill-down targets
+  `journal_entry`, service carries `journal_entry_id`.
+
+## Verification status — what is fact, what is not
+- **VERIFIED (static + tests):** typecheck clean; `partner-ledger-server-owned`
+  (10) and `ar-aging-point-in-time` (5) green.
+- **NOT VERIFIED against live data this session (INFERENCE):** the engine's
+  numbers and the GL tie-out could not be re-exercised. The read-only query role
+  is denied EXECUTE on `finance_partner_ledger` (correct hardening), and browser
+  auth reports `external_unmanaged`, so no authenticated session can be minted in
+  the sandbox. The earlier zero-variance check stands from the previous session;
+  it must be re-run from a signed-in session before Phase 3 is called closed on
+  data as well as on code.
+
+## ▶ NEXT — Phase 4 — Sales Reports as a real accounting report (not started)
+Nothing has been built. Do it in this order:
+1. **Taxonomy verdict with evidence.** Decide whether customer / product /
+   category / branch / salesperson are dimensions of ONE sales analysis report or
+   separate families. Write the verdict and the evidence into this file before
+   any code.
+2. **Engine.** A SQL function over the GL / dimensional sources that returns
+   gross, discounts, credit notes and returns, net, tax, cost and margin — in
+   base currency, definer, pinned `search_path`, `finance_can_read_org` gate,
+   `anon` revoked.
+3. **Revenue tie-out.** Net sales must reconcile to the revenue accounts in the
+   GL, mirroring `finance_partner_ledger_reconciliation`.
+4. **Page.** Replace the browser-side `useInvoices()` aggregation in
+   `src/pages/reports/SalesReports.tsx`; drop its hand-built export payload in
+   favour of `toExportColumns` / `toExportRows`.
+5. **Guards.** SQL contract test + an architecture test asserting the page holds
+   no invoice-total arithmetic.
+
+Until step 2 lands, `SalesReports.tsx` is an invoice-activity dashboard, not a
+revenue report, and must not be described as one in the UI.
+
+## Phase 5 — Report taxonomy & security closure (not started)
+Direct-RPC and drill-down isolation tests for all four reports across
+org / business / branch, plus the cross-org membership matrix.
+
+## Instructions for the next agent
+1. **Verify before building.** Confirm Phase 3 to enterprise standard: read the
+   `finance_partner_ledger` / `finance_partner_ledger_reconciliation` definitions
+   (definer, pinned `search_path`, org gate, no `anon` EXECUTE), run
+   `supabase/tests/partner_ledger_engine_test.sql` and the two architecture
+   suites, and — from an authenticated session — re-run the reconciliation for a
+   past month-end on both sides. A non-zero variance is a real finding: chase the
+   cause, never tune the report to match.
+2. **Do not redo Phases 1–3.** They are complete in code and guarded.
+3. **Then start Phase 4 at step 1** (taxonomy verdict). Do not open Phase 5, and
+   do not touch unrelated domains.
+4. Record what was *verified*, not what was written, and update this file at the
+   end of every phase.

@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from "react";
 
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
-import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
+import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { usePartnerLedger, usePartnerLedgerReconciliation } from "@/hooks/usePartnerLedger";
 
 
@@ -97,7 +97,10 @@ function PartnerLedgerInner() {
   const dateTo = workspace.get("to", filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
   const setDateFrom = (value: string) => workspace.set({ from: value });
   const setDateTo = (value: string) => workspace.set({ to: value });
-  const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
+  // Drill-down goes straight to the originating journal entry (ADR 0029):
+  // the ledger row carries `journal_entry_id`, so the register is drillable to
+  // the posting that created it instead of to a date-range guess.
+  const [journalEntryId, setJournalEntryId] = useState<string | null>(null);
 
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -111,6 +114,7 @@ function PartnerLedgerInner() {
   // the browser.
   const {
     partners: data,
+    totals,
     isLoading,
     error,
   } = usePartnerLedger({
@@ -121,6 +125,7 @@ function PartnerLedgerInner() {
     from: dateFrom,
     to: dateTo,
   });
+
 
   // GL tie-out for the closing position, as of the period end.
   const { data: reconciliation } = usePartnerLedgerReconciliation({
@@ -146,18 +151,15 @@ function PartnerLedgerInner() {
         render: (row) => {
           const v = row.values;
           const amount = v?.debit as number | null | undefined;
-          const partnerName = v?._partnerName as string | undefined;
-          const entryDate = v?.date as string | undefined;
+          const journalEntryId = v?._journalEntryId as string | null | undefined;
           if (!amount) return "—";
+          if (!journalEntryId) return <span className="tabular-nums">{formatCurrency(amount, baseCurrency)}</span>;
           return (
             <button
               className="hover:underline hover:text-primary cursor-pointer tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
-                setDrillDown({
-                  open: true,
-                  config: { title: `${partnerName} — Debit`, startDate: entryDate, endDate: entryDate },
-                });
+                setJournalEntryId(journalEntryId);
               }}
             >
               {formatCurrency(amount, baseCurrency)}
@@ -173,18 +175,15 @@ function PartnerLedgerInner() {
         render: (row) => {
           const v = row.values;
           const amount = v?.credit as number | null | undefined;
-          const partnerName = v?._partnerName as string | undefined;
-          const entryDate = v?.date as string | undefined;
+          const journalEntryId = v?._journalEntryId as string | null | undefined;
           if (!amount) return "—";
+          if (!journalEntryId) return <span className="tabular-nums">{formatCurrency(amount, baseCurrency)}</span>;
           return (
             <button
               className="hover:underline hover:text-primary cursor-pointer tabular-nums"
               onClick={(e) => {
                 e.stopPropagation();
-                setDrillDown({
-                  open: true,
-                  config: { title: `${partnerName} — Credit`, startDate: entryDate, endDate: entryDate },
-                });
+                setJournalEntryId(journalEntryId);
               }}
             >
               {formatCurrency(amount, baseCurrency)}
@@ -192,6 +191,7 @@ function PartnerLedgerInner() {
           );
         },
       },
+
       { key: "balance", header: "Balance", format: "currency", width: "w-[140px]" },
       {
         key: "_actions",
@@ -212,7 +212,6 @@ function PartnerLedgerInner() {
 
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = [];
-    const grand = { debit: 0, credit: 0 };
     for (const p of data || []) {
       out.push({
         id: `sec-${p.contact_id}`,
@@ -235,6 +234,7 @@ function PartnerLedgerInner() {
             credit: blankIfZero(t.credit),
             balance: t.running_balance,
             _partnerName: p.contact_name,
+            _journalEntryId: t.journal_entry_id,
           },
         });
       }
@@ -244,19 +244,24 @@ function PartnerLedgerInner() {
         label: "Total",
         values: { debit: p.total_debit, credit: p.total_credit, balance: p.closing_balance },
       });
-      grand.debit += p.total_debit;
-      grand.credit += p.total_credit;
     }
     if (out.length > 0) {
+      // Grand totals come from the engine's totals envelope — the page never
+      // re-adds partner subtotals to invent a figure of its own.
       out.push({
         id: "grand-total",
         kind: "grandTotal",
         label: "GRAND TOTAL",
-        values: { debit: grand.debit, credit: grand.credit },
+        values: {
+          debit: totals.total_debit,
+          credit: totals.total_credit,
+          balance: totals.closing_balance,
+        },
       });
     }
     return out;
-  }, [data]);
+  }, [data, totals]);
+
 
   const getExportConfig = useCallback(
     (): ExportConfig => ({
@@ -334,10 +339,13 @@ function PartnerLedgerInner() {
         />
       </ReportSurface>
 
-      <DrillDownDialog
-        open={drillDown.open}
-        onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}
-        config={drillDown.config}
+      <TransactionPreviewDrawer
+        open={Boolean(journalEntryId)}
+        onOpenChange={(open) => {
+          if (!open) setJournalEntryId(null);
+        }}
+        sourceType="journal_entry"
+        sourceId={journalEntryId}
       />
     </ReportPageLayout>
   );
