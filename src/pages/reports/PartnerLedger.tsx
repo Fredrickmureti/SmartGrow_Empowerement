@@ -78,25 +78,13 @@ function PartnerLedgerDepositAction({
     </>
   );
 }
-interface PartnerTransaction {
-  id: string;
-  entry_date: string;
-  entry_number: string;
-  description: string;
-  debit: number;
-  credit: number;
-  running_balance: number;
-}
+/**
+ * Row/partner shapes come from the canonical service — the page never
+ * declares its own ledger arithmetic types.
+ */
+type PartnerTransaction = PartnerLedgerTransaction;
+type PartnerData = PartnerLedgerPartner;
 
-interface PartnerData {
-  contact_id: string;
-  contact_name: string;
-  opening_balance: number;
-  transactions: PartnerTransaction[];
-  closing_balance: number;
-  total_debit: number;
-  total_credit: number;
-}
 
 function PartnerLedgerInner() {
   const now = new Date();
