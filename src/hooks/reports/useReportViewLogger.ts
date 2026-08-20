@@ -15,7 +15,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { REPORT_REGISTRY } from "@/services/reports/ReportRegistry";
+import { REPORT_REGISTRY, reportMountPaths } from "@/services/reports/ReportRegistry";
 
 function resolveReportFromPath(pathname: string): { id: string; reportType: string } | null {
   // Strip query/hash for matching; the registry path may include `?view=...`.
@@ -23,12 +23,20 @@ function resolveReportFromPath(pathname: string): { id: string; reportType: stri
   // Prefer exact match, otherwise the most specific registry path that is a
   // prefix of the current pathname (so /finance/reports/financial matches
   // both ?view=pnl and ?view=balance_sheet via shared id).
-  const exact = REPORT_REGISTRY.find(r => r.path.split("?")[0] === cleanPath);
+  // Dual-hosted reports (ADR 0143) match on any of their mount paths.
+  const exact = REPORT_REGISTRY.find(r => reportMountPaths(r).includes(cleanPath));
   if (exact) return { id: exact.id, reportType: exact.reportType };
 
   const prefixMatches = REPORT_REGISTRY
-    .filter(r => cleanPath.startsWith(r.path.split("?")[0]))
-    .sort((a, b) => b.path.length - a.path.length);
+    .map(r => ({
+      r,
+      len: Math.max(
+        ...reportMountPaths(r).map(b => (cleanPath.startsWith(b) ? b.length : 0)),
+      ),
+    }))
+    .filter(m => m.len > 0)
+    .sort((a, b) => b.len - a.len)
+    .map(m => m.r);
   if (prefixMatches[0]) {
     return { id: prefixMatches[0].id, reportType: prefixMatches[0].reportType };
   }

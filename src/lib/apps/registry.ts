@@ -629,7 +629,15 @@ export const REPORTS_APP: AppDefinition = {
     { id: "sales", name: "Sales Reports", path: "/sales", icon: FileText, permission: "viewReports" },
     { id: "management", name: "Management", path: "/management", icon: BarChart3, permission: "viewReports" },
     { id: "tax", name: "Tax Reports", path: "/tax", icon: Receipt, permission: "viewReports" },
+    // Inventory family — dual-hosted (ADR 0143). These paths are the Finance
+    // mounts; the Inventory shell mounts the same pages under /inventory-app.
     { id: "stock", name: "Stock Reports", path: "/stock", icon: Package, permission: "viewReports" },
+    { id: "inventory-valuation", name: "Inventory Valuation", path: "/inventory-valuation", icon: Package, permission: "viewReports" },
+    { id: "stock-ledger", name: "Stock Ledger", path: "/stock-ledger", icon: BookOpen, permission: "viewReports" },
+    { id: "stock-aging", name: "Stock Aging", path: "/stock-aging", icon: Clock, permission: "viewReports" },
+    { id: "lot-traceability", name: "Lot Traceability", path: "/lot-traceability", icon: Package, permission: "viewReports" },
+    { id: "stock-adjustments", name: "Stock Adjustments", path: "/stock-adjustments", icon: Package, permission: "viewReports" },
+    { id: "stock-transfers", name: "Stock Transfers", path: "/stock-transfers", icon: Package, permission: "viewReports" },
     { id: "intelligence", name: "Business Intelligence", path: "/intelligence", icon: BarChart3, permission: "viewReports" },
   ],
 };

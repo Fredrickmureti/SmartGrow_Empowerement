@@ -23,6 +23,11 @@ const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryVal
 const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
 const LotTraceabilityReport = lazy(() => import("@/pages/reports/LotTraceabilityReport"));
 const StockLedgerReport = lazy(() => import("@/pages/reports/StockLedgerReport"));
+// ADR 0143 — dual host: the Finance-authored operational/reconciliation reports
+// are mounted here too, so Inventory users never get bounced into Finance.
+const StockAdjustmentsReport = lazy(() => import("@/pages/reports/StockAdjustmentsReport"));
+const StockTransfersReport = lazy(() => import("@/pages/reports/StockTransfersReport"));
+const InventoryGLReconciliation = lazy(() => import("@/pages/reports/InventoryGLReconciliation"));
 const InventoryIntegrity = lazy(() => import("@/pages/inventory/InventoryIntegrity"));
 
 const ReplenishmentLog = lazy(() => import("@/pages/ReplenishmentLog"));
@@ -406,6 +411,38 @@ export function InventoryApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Stock Aging">
                 <StockAgingReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Finance-authored inventory reports — Inventory mount (ADR 0143) */}
+        <Route
+          path="reports/stock-adjustments"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Stock Adjustments">
+                <StockAdjustmentsReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/stock-transfers"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Stock Transfers">
+                <StockTransfersReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/inventory-gl-reconciliation"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Inventory GL Reconciliation">
+                <InventoryGLReconciliation />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

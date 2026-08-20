@@ -66,6 +66,14 @@ export interface ReportDefinition {
   category: ReportCategory;
   /** Full route, may include query string for deep-linking into a tab. */
   path: string;
+  /**
+   * Dual-host mounts. Inventory reports are reachable from BOTH the Finance
+   * reports shell and the Inventory app shell — same page component, two
+   * mount points — so a user never gets thrown into another app by clicking a
+   * report. `path` stays the canonical URL (search, scheduling, run history).
+   * Resolve a link with `resolveReportPath(def, pathname)`.
+   */
+  paths?: { finance: string; inventory: string };
   icon: LucideIcon;
   /** Plan/feature gate (secondary). Permission is the primary gate. */
   requiredFeature?: string;
@@ -331,6 +339,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Stock subledger (cost) vs General Ledger inventory account",
     category: "audit",
     path: "/finance/reports/inventory-gl-reconciliation",
+    paths: { finance: "/finance/reports/inventory-gl-reconciliation", inventory: "/inventory-app/reports/inventory-gl-reconciliation" },
     icon: Boxes,
     requiredFeature: "reports_financial",
     permission: "viewReports",
@@ -355,6 +364,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Operational adjustments with cost impact",
     category: "inventory",
     path: "/finance/reports/stock-adjustments",
+    paths: { finance: "/finance/reports/stock-adjustments", inventory: "/inventory-app/reports/stock-adjustments" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -367,6 +377,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Inter-warehouse / inter-branch transfer activity",
     category: "inventory",
     path: "/finance/reports/stock-transfers",
+    paths: { finance: "/finance/reports/stock-transfers", inventory: "/inventory-app/reports/stock-transfers" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -435,6 +446,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Inventory valuation and movement",
     category: "inventory",
     path: "/finance/reports/stock",
+    paths: { finance: "/finance/reports/stock", inventory: "/inventory-app/reports" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -449,6 +461,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Cost-layer inventory value as at a date",
     category: "inventory",
     path: "/inventory-app/reports/valuation",
+    paths: { finance: "/finance/reports/inventory-valuation", inventory: "/inventory-app/reports/valuation" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -463,6 +476,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Opening, movement and closing quantities per product",
     category: "inventory",
     path: "/inventory-app/reports/ledger",
+    paths: { finance: "/finance/reports/stock-ledger", inventory: "/inventory-app/reports/ledger" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -477,6 +491,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Cost layers bucketed by age as at a date",
     category: "inventory",
     path: "/inventory-app/reports/aging",
+    paths: { finance: "/finance/reports/stock-aging", inventory: "/inventory-app/reports/aging" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -491,6 +506,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     description: "Lot / serial positions, expiry and control status as at a date",
     category: "inventory",
     path: "/inventory-app/reports/lot-traceability",
+    paths: { finance: "/finance/reports/lot-traceability", inventory: "/inventory-app/reports/lot-traceability" },
     icon: Boxes,
     requiredFeature: "reports_stock",
     permission: "viewReports",
@@ -739,12 +755,21 @@ export function getRelatedReports(id: string): ReportDefinition[] {
  * the longest matching registered path so `/finance/reports/stock-transfers`
  * does not resolve to `/finance/reports/stock`.
  */
+export function reportMountPaths(def: ReportDefinition): string[] {
+  const all = def.paths
+    ? [def.path, def.paths.finance, def.paths.inventory]
+    : [def.path];
+  return Array.from(new Set(all.map((p) => p.split("?")[0])));
+}
+
 export function findReportByPath(pathname: string): ReportDefinition | undefined {
-  const candidates = REPORT_REGISTRY.filter((r) => {
-    const base = r.path.split("?")[0];
-    return pathname === base || pathname.startsWith(`${base}/`);
-  });
-  return candidates.sort(
-    (a, b) => b.path.split("?")[0].length - a.path.split("?")[0].length,
-  )[0];
+  let best: { def: ReportDefinition; len: number } | undefined;
+  for (const r of REPORT_REGISTRY) {
+    for (const base of reportMountPaths(r)) {
+      if (pathname === base || pathname.startsWith(`${base}/`)) {
+        if (!best || base.length > best.len) best = { def: r, len: base.length };
+      }
+    }
+  }
+  return best?.def;
 }

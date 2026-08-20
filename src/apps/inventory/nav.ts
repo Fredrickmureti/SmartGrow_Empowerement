@@ -17,17 +17,14 @@ import {
   Trash2,
   ClipboardCheck,
   ClipboardList,
-  BarChart3,
-  Coins,
-  Hourglass,
   Scale,
   CalendarClock,
   Truck,
   ShieldCheck,
-  BookOpen,
 
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
+import { buildInventoryReportsNavChildren } from "@/services/reports/reportsNav";
 
 export const INVENTORY_NAV: WorkspaceNav = {
   groups: [
@@ -51,24 +48,12 @@ export const INVENTORY_NAV: WorkspaceNav = {
     },
     {
       label: "Insights",
+      // ADR 0143 — registry-driven, identical to the Finance sidebar's
+      // Inventory family, emitted with `/inventory-app/...` URLs. Never
+      // hand-list a report here; add a row to REPORT_REGISTRY instead.
       items: [
-        { to: "/inventory-app/reports", label: "Stock reports", icon: BarChart3, end: true },
-        { to: "/inventory-app/reports/valuation", label: "Valuation", icon: Coins },
-        { to: "/inventory-app/reports/ledger", label: "Stock ledger", icon: BookOpen },
-        { to: "/inventory-app/reports/aging", label: "Aging", icon: Hourglass },
-        { to: "/inventory-app/reports/lot-traceability", label: "Lot traceability", icon: Boxes },
+        ...buildInventoryReportsNavChildren(),
         { to: "/inventory-app/reports/integrity", label: "Integrity", icon: ShieldCheck },
-        // Phase 6.4 — discoverability only. The reconciliation report has ONE
-        // implementation, registered under Finance; Inventory deep-links to it
-        // rather than shipping a second page.
-        {
-          to: "/finance/reports/inventory-gl-reconciliation",
-          label: "Inventory ⇄ GL",
-          icon: Scale,
-        },
-
-
-
       ],
     },
     {

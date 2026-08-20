@@ -27,10 +27,14 @@ import {
   getReportsByDomain,
   type ReportDefinition,
 } from "@/services/reports/ReportRegistry";
+import { resolveReportPath } from "@/services/reports/reportsNav";
 
-function reportHref(def: ReportDefinition, scopeSearch: string) {
-  const [base, ownSearch] = def.path.split("?");
-  if (!scopeSearch) return def.path;
+function reportHref(def: ReportDefinition, scopeSearch: string, pathname: string) {
+  // ADR 0143 — inventory reports are mounted in both the Finance and the
+  // Inventory shell; keep the user in the shell they are already in.
+  const resolved = resolveReportPath(def, pathname);
+  const [base, ownSearch] = resolved.split("?");
+  if (!scopeSearch) return resolved;
   // The registry path may already deep-link into a tab (`?view=pnl`). Keep it
   // and append the inherited reporting scope.
   const inherited = scopeSearch.replace(/^\?/, "");
@@ -78,7 +82,7 @@ export function ReportSwitcherStrip() {
             return (
               <Link
                 key={r.id}
-                to={reportHref(r, scopeSearch)}
+                to={reportHref(r, scopeSearch, pathname)}
                 aria-current={isActive ? "page" : undefined}
                 title={r.description}
                 className={cn(
@@ -105,7 +109,7 @@ export function ReportSwitcherStrip() {
             {related.map((r) => (
               <Link
                 key={r.id}
-                to={reportHref(r, scopeSearch)}
+                to={reportHref(r, scopeSearch, pathname)}
                 title={`${r.description} · ${REPORT_DOMAIN_LABELS[getReportDomain(r)]}`}
                 className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
               >
