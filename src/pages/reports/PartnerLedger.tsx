@@ -104,136 +104,34 @@ function PartnerLedgerInner() {
   const { currentBusiness } = useBusinesses();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["partner-ledger", currentOrg?.id, currentBusiness?.id, filters.branchId, partnerType, dateFrom, dateTo],
-    queryFn: async (): Promise<PartnerData[]> => {
-      if (!currentOrg?.id || !currentBusiness?.id) return [];
-
-      // ADR 0029 — Single AR/AP balance engine.
-      // Partner Ledger now reads the SAME canonical subledger views that
-      // the Sales Customer Ledger and Vendor Ledger consume. The previous
-      // implementation re-aggregated `journal_entry_lines` filtered by
-      // `contact_id IS NOT NULL` with NO account_id filter, which
-      // double-counted any JE leg stamped with a contact (Sales / Discount
-      // / Tax / Customer-Deposit legs included). That produced balances
-      // that diverged from the customer-facing report.
-      const viewName =
-        partnerType === "customer" ? "customer_ledger_entries" : "vendor_ledger_entries";
-
-      const pageSize = 1000;
-      const fetchAll = async (filterDate: { lt?: string; gte?: string; lte?: string }) => {
-        const rows: any[] = [];
-        let offset = 0;
-        while (true) {
-          let q = (supabase as any)
-            .from(viewName)
-            .select(
-              "contact_id, entry_date, doc_type, doc_id, doc_ref, debit, credit, branch_id, business_id, organization_id, created_at",
-            )
-            .eq("organization_id", currentOrg.id)
-            .eq("business_id", currentBusiness.id);
-          if (filters.branchId) {
-            q = q.or(`branch_id.eq.${filters.branchId},branch_id.is.null`);
-          }
-          if (filterDate.lt) q = q.lt("entry_date", filterDate.lt);
-          if (filterDate.gte) q = q.gte("entry_date", filterDate.gte);
-          if (filterDate.lte) q = q.lte("entry_date", filterDate.lte);
-          q = q.order("entry_date", { ascending: true }).order("created_at", { ascending: true });
-          const { data: page, error: err } = await q.range(offset, offset + pageSize - 1);
-          if (err) throw err;
-          rows.push(...(page || []));
-          if (!page || page.length < pageSize) break;
-          offset += pageSize;
-        }
-        return rows;
-      };
-
-      const [priorRows, periodRows] = await Promise.all([
-        fetchAll({ lt: dateFrom }),
-        fetchAll({ gte: dateFrom, lte: dateTo }),
-      ]);
-
-      // Resolve contact names in a single follow-up query.
-      const contactIds = Array.from(
-        new Set([...priorRows, ...periodRows].map((r) => r.contact_id).filter(Boolean)),
-      );
-      const nameById = new Map<string, string>();
-      if (contactIds.length) {
-        const { data: contacts } = await supabase
-          .from("contacts")
-          .select("id, name")
-          .in("id", contactIds);
-        for (const c of contacts || []) nameById.set(c.id, c.name);
-      }
-
-      // Opening balances from prior-period rows.
-      const contactMap = new Map<string, PartnerData>();
-      for (const row of priorRows) {
-        const id = row.contact_id;
-        if (!id) continue;
-        const existing = contactMap.get(id) || {
-          contact_id: id,
-          contact_name: nameById.get(id) || "(unknown)",
-          opening_balance: 0,
-          transactions: [],
-          closing_balance: 0,
-          total_debit: 0,
-          total_credit: 0,
-        };
-        existing.opening_balance += (Number(row.debit) || 0) - (Number(row.credit) || 0);
-        contactMap.set(id, existing);
-      }
-
-      // Period transactions.
-      for (const row of periodRows) {
-        const id = row.contact_id;
-        if (!id) continue;
-        let partner = contactMap.get(id);
-        if (!partner) {
-          partner = {
-            contact_id: id,
-            contact_name: nameById.get(id) || "(unknown)",
-            opening_balance: 0,
-            transactions: [],
-            closing_balance: 0,
-            total_debit: 0,
-            total_credit: 0,
-          };
-          contactMap.set(id, partner);
-        }
-        const debit = Number(row.debit) || 0;
-        const credit = Number(row.credit) || 0;
-        partner.transactions.push({
-          id: `${row.doc_type}:${row.doc_id}`,
-          entry_date: row.entry_date,
-          entry_number: row.doc_ref || "",
-          description: row.doc_type,
-          debit,
-          credit,
-          running_balance: 0,
-        });
-        partner.total_debit += debit;
-        partner.total_credit += credit;
-      }
-
-      // Running balances.
-      const result = Array.from(contactMap.values());
-      for (const partner of result) {
-        partner.transactions.sort(
-          (a, b) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime(),
-        );
-        let balance = partner.opening_balance;
-        for (const txn of partner.transactions) {
-          balance += txn.debit - txn.credit;
-          txn.running_balance = balance;
-        }
-        partner.closing_balance = balance;
-      }
-
-      return result.sort((a, b) => a.contact_name.localeCompare(b.contact_name));
-    },
-    enabled: !!currentOrg?.id && !!currentBusiness?.id,
+  // ADR 0029 — Single AR/AP balance engine, server-side.
+  // Opening / running / closing balances are produced by
+  // `finance_partner_ledger` from the same sub-ledger views the Customer
+  // Ledger and Vendor Ledger consume. The page renders those numbers; it
+  // never re-derives them, and it no longer pages the whole ledger into
+  // the browser.
+  const {
+    partners: data,
+    isLoading,
+    error,
+  } = usePartnerLedger({
+    orgId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    branchId: filters.branchId ?? null,
+    side: partnerType,
+    from: dateFrom,
+    to: dateTo,
   });
+
+  // GL tie-out for the closing position, as of the period end.
+  const { data: reconciliation } = usePartnerLedgerReconciliation({
+    orgId: currentOrg?.id,
+    businessId: currentBusiness?.id,
+    branchId: filters.branchId ?? null,
+    side: partnerType,
+    to: dateTo,
+  });
+
 
   // ── One column declaration drives the screen table AND the export ──
   const columns = useMemo<ReportColumn<ReportRow>[]>(
