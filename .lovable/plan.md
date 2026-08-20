@@ -94,10 +94,28 @@ applied in the engine — adding one would have introduced a real error.
 
 ## ▶ NEXT — Phase 4 — Sales Reports as a real accounting report (not started)
 Nothing has been built. Do it in this order:
-1. **Taxonomy verdict with evidence.** Decide whether customer / product /
-   category / branch / salesperson are dimensions of ONE sales analysis report or
-   separate families. Write the verdict and the evidence into this file before
-   any code.
+### 4.1 Taxonomy verdict — DONE (evidence below)
+**Verdict: ONE sales analysis engine with a `_dimension` parameter, not five
+report families.** Customer, product, category, branch, salesperson and month
+are grouping keys over the *same* measure set and the *same* source rows.
+
+Evidence gathered from the live schema:
+- Every candidate key is reachable from one row set: `invoices` carries
+  `contact_id`, `branch_id`, `salesperson_id`; `invoice_items` carries
+  `product_id`; `products.category_id` gives category. No dimension needs a
+  different document population.
+- The measures are identical for all of them: `invoice_items`
+  (`quantity * unit_price`, `discount_percent`, `tax_amount`, `line_total`),
+  `credit_note_items` for returns, and `stock_movements`
+  (`reference_type in ('invoice','credit_note')`, `unit_cost * quantity`) for
+  cost. One aggregation, six `GROUP BY` keys.
+- Base currency is a document property (`invoices.exchange_rate`,
+  `credit_notes.exchange_rate`), the same convention
+  `finance_ar_open_items.base_residual_amount` already uses — so normalisation
+  is shared, not per-dimension.
+- Splitting into families would duplicate the revenue tie-out five times and
+  guarantee the variants drift.
+
 2. **Engine.** A SQL function over the GL / dimensional sources that returns
    gross, discounts, credit notes and returns, net, tax, cost and margin — in
    base currency, definer, pinned `search_path`, `finance_can_read_org` gate,
