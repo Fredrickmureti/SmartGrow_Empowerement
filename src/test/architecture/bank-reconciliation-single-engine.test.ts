@@ -34,12 +34,27 @@ describe("bank reconciliation — one engine, one renderer", () => {
 
   it("does not re-derive the proof in the browser", () => {
     // No adjusted balances, no residual, no outstanding-item classification.
+    // A JSX prop pass-through (`residual={statement.residual}`) is a handover
+    // of the engine's number, not a derivation, so it is allowed.
     expect(PAGE).not.toMatch(/adjustedBank\s*=/);
-    expect(PAGE).not.toMatch(/residual\s*=\s*[^=]/);
+    expect(PAGE).not.toMatch(/residual\s*=\s*(?![{=])/);
     expect(PAGE).not.toMatch(/statementBalance\s*[+\-]\s*/);
     expect(PAGE).not.toContain("is_reconciled");
     expect(PAGE).not.toContain("journal_entry_lines");
   });
+
+  it("renders the engine's residual explanations instead of inventing causes", () => {
+    const EXPLAINER = readFileSync(
+      resolve(process.cwd(), "src/components/reports/ResidualExplainer.tsx"),
+      "utf8",
+    );
+    expect(PAGE).toContain("residualExplanations");
+    // The explainer only renders what the engine ranked: no local heuristics.
+    expect(EXPLAINER).not.toContain("supabase");
+    expect(EXPLAINER).not.toMatch(/duplicate_opening_balance|cleared_without_posting/);
+    expect(EXPLAINER).not.toMatch(/\.filter\(|\.sort\(/);
+  });
+
 
   it("surfaces the engine's findings instead of hiding them", () => {
     for (const flag of ["glAccountMissing", "glAccountShared", "inBalance", "clearedWithoutPosting"]) {

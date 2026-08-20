@@ -56,6 +56,28 @@ export interface ReconciliationSessionRef {
   completedAt: string | null;
 }
 
+/**
+ * A ranked candidate cause for a non-zero residual, produced by the engine.
+ * Suggestions are read-only findings: they never mutate accounting data.
+ */
+export interface ResidualExplanationRef {
+  kind: "journal_entry" | "bank_transaction" | "pair" | string;
+  id: string | null;
+  journalEntryId: string | null;
+  date: string | null;
+  reference: string | null;
+  description: string | null;
+  amount: number | null;
+}
+
+export interface ResidualExplanation {
+  code: string;
+  title: string;
+  detail: string;
+  amount: number | null;
+  refs: ResidualExplanationRef[];
+}
+
 export interface ReconciliationDiagnostics {
   glAccountMissing: boolean;
   glAccountShared: boolean;
@@ -88,6 +110,7 @@ export interface BankReconciliationStatement {
   };
   residual: number | null;
   inBalance: boolean;
+  residualExplanations: ResidualExplanation[];
 }
 
 export interface BankReconciliationStatementParams {
@@ -121,6 +144,30 @@ function normalizeGroup(raw: unknown, fallbackLabel: string): ReconciliationItem
     })),
   };
 }
+
+function normalizeExplanations(raw: unknown): ResidualExplanation[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[]).map((entry) => {
+    const refs = Array.isArray(entry.refs) ? (entry.refs as Record<string, unknown>[]) : [];
+    return {
+      code: String(entry.code ?? ""),
+      title: String(entry.title ?? ""),
+      detail: String(entry.detail ?? ""),
+      amount:
+        entry.amount === null || entry.amount === undefined ? null : num(entry.amount),
+      refs: refs.map((ref) => ({
+        kind: String(ref.kind ?? ""),
+        id: str(ref.id),
+        journalEntryId: str(ref.journal_entry_id),
+        date: str(ref.date),
+        reference: str(ref.reference),
+        description: str(ref.description),
+        amount: ref.amount === null || ref.amount === undefined ? null : num(ref.amount),
+      })),
+    };
+  });
+}
+
 
 export async function fetchBankReconciliationStatement(
   params: BankReconciliationStatementParams,
@@ -191,6 +238,7 @@ export async function fetchBankReconciliationStatement(
     },
     residual: nullableNum(payload.residual),
     inBalance: Boolean(payload.in_balance),
+    residualExplanations: normalizeExplanations(payload.residual_explanations),
     diagnostics: {
       glAccountMissing: Boolean(diag.gl_account_missing),
       glAccountShared: Boolean(diag.gl_account_shared),
