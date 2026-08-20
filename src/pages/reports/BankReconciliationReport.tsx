@@ -269,17 +269,18 @@ function BankReconciliationReportInner() {
     const b = statement.bank;
     const k = statement.book;
     const out: ReportRow[] = [
-      { id: "bank-head", tone: "subtle", values: { line: "Balance per bank statement", amount: b.statementBalance } },
+      { id: "bank-head", kind: "subsection", values: { line: "Balance per bank statement", amount: b.statementBalance } },
       { id: "dit", values: { line: b.depositsInTransit.label, amount: b.depositsInTransit.total } },
       { id: "unp", values: { line: b.unpresentedPayments.label, amount: -b.unpresentedPayments.total } },
-      { id: "bank-adj", tone: "total", values: { line: "Adjusted bank balance", amount: b.adjustedBalance } },
-      { id: "book-head", tone: "subtle", values: { line: "Balance per books (general ledger)", amount: k.glBalance } },
+      { id: "bank-adj", kind: "subtotal", values: { line: "Adjusted bank balance", amount: b.adjustedBalance } },
+      { id: "book-head", kind: "subsection", values: { line: "Balance per books (general ledger)", amount: k.glBalance } },
       { id: "unrec-in", values: { line: k.unrecordedReceipts.label, amount: k.unrecordedReceipts.total } },
       { id: "unrec-out", values: { line: k.unrecordedCharges.label, amount: -k.unrecordedCharges.total } },
-      { id: "book-adj", tone: "total", values: { line: "Adjusted book balance", amount: k.adjustedBalance } },
+      { id: "book-adj", kind: "subtotal", values: { line: "Adjusted book balance", amount: k.adjustedBalance } },
       {
         id: "residual",
-        tone: statement.inBalance ? "total" : "warning",
+        kind: "calculatedResult",
+        tone: statement.inBalance ? "default" : "warning",
         values: { line: "Unexplained difference", amount: statement.residual },
       },
     ];
