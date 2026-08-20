@@ -40,6 +40,11 @@ import { BranchScopeToggle, type BranchScope } from "@/components/reports/Branch
 import { format } from "date-fns";
 import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { useLotTraceabilityAsOf } from "@/hooks/inventory/useInventoryReportRpcs";
+import {
+  LotGenealogyDialog,
+  type LotGenealogyTarget,
+} from "@/components/reports/LotGenealogyDialog";
+
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
