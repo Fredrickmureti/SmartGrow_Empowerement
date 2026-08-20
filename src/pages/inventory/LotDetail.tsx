@@ -44,6 +44,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import {
+  fetchLotGenealogy,
+  lotReferenceLabel,
+  type LotGenealogy,
+} from "@/hooks/inventory/useLotGenealogy";
 
 interface LotHeader {
   id: string;
@@ -63,47 +68,6 @@ interface LotHeader {
   goods_receipt?: { id: string; receipt_number: string | null } | null;
 }
 
-interface TimelineRow {
-  id: string;
-  movement_date: string;
-  movement_type: string;
-  signed_quantity: number;
-  direction: "in" | "out";
-  warehouse_id: string | null;
-  warehouse_name: string | null;
-  reference_type: string | null;
-  reference_id: string | null;
-  serial_number: string | null;
-  notes: string | null;
-}
-
-interface DistributionRow {
-  warehouse_id: string | null;
-  warehouse_name: string;
-  quantity: number;
-}
-
-interface LotGenealogy {
-  total_on_hand: number;
-  distribution: DistributionRow[];
-  timeline: TimelineRow[];
-  downstream_customers: unknown[];
-  quarantine: unknown[];
-}
-
-const REFERENCE_LABELS: Record<string, string> = {
-  goods_receipt: "Goods Receipt",
-  invoice: "Invoice",
-  credit_note: "Credit Note",
-  sales_return: "Sales Return",
-  delivery_note: "Delivery Note",
-  stock_transfer: "Stock Transfer",
-  stock_adjustment: "Stock Adjustment",
-  scrap: "Scrap",
-  pos_transaction: "POS Sale",
-  purchase_return: "Purchase Return",
-  physical_count: "Physical Count",
-};
 
 
 /**
@@ -155,16 +119,21 @@ export default function LotDetail() {
     // decides whether a movement adds or removes stock, and never nets a lot
     // balance — `trace_lot_genealogy` owns direction, distribution and the
     // downstream customer trace.
-    const { data: gen, error: genErr } = await supabase.rpc("trace_lot_genealogy" as never, {
-      p_business_id: header.business_id,
-      p_product_id: header.product_id,
-      p_lot_number: header.lot_number,
-    } as never);
-    if (genErr) {
-      toast({ title: "Failed to load lot history", description: genErr.message, variant: "destructive" });
+    try {
+      setGenealogy(
+        await fetchLotGenealogy({
+          businessId: header.business_id,
+          productId: header.product_id,
+          lotNumber: header.lot_number,
+        }),
+      );
+    } catch (e) {
+      toast({
+        title: "Failed to load lot history",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
       setGenealogy(null);
-    } else {
-      setGenealogy((gen ?? null) as unknown as LotGenealogy | null);
     }
     setLoading(false);
   }, [id, toast]);
@@ -404,9 +373,7 @@ export default function LotDetail() {
               <TableBody>
                 {movements.map((m) => {
                   const inbound = m.direction === "in";
-                  const refLabel = m.reference_type
-                    ? REFERENCE_LABELS[m.reference_type] ?? m.reference_type
-                    : "—";
+                  const refLabel = lotReferenceLabel(m.reference_type);
                   return (
                     <TableRow key={m.id}>
                       <TableCell className="text-xs whitespace-nowrap">
