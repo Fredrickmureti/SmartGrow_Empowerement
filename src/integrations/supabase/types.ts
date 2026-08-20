@@ -94786,6 +94786,16 @@ export type Database = {
         }[]
       }
       finance_can_read_org: { Args: { _org_id: string }; Returns: boolean }
+      finance_cash_flow_statement: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _from: string
+          _org_id: string
+          _to: string
+        }
+        Returns: Json
+      }
       finance_loan_receivable_integrity_check: {
         Args: { _org: string }
         Returns: {
