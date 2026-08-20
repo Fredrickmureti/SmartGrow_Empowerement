@@ -363,7 +363,19 @@ function getBankAccounts(
   return promise;
 }
 
-export function useBankAccounts() {
+export interface UseBankAccountsOptions {
+  /**
+   * Phase 7 — position date (`YYYY-MM-DD`). Omit for "today" (the server
+   * default). A screen that states a cash position for a chosen date must
+   * pass it, so its figures agree with the reconciliation statement for the
+   * same account on the same date.
+   */
+  asOf?: string | null;
+}
+
+export function useBankAccounts(options?: UseBankAccountsOptions) {
+  const asOf = options?.asOf ?? null;
+
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
