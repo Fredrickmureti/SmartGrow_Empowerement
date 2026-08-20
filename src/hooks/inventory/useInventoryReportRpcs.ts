@@ -191,3 +191,74 @@ export function useStockLedger(params: {
     staleTime: 30_000,
   });
 }
+
+export interface LotTraceabilityRow {
+  product_id: string;
+  product_name: string | null;
+  sku: string | null;
+  category_id: string | null;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  branch_id: string | null;
+  lot_number: string | null;
+  lot_id: string | null;
+  supplier_name: string | null;
+  receipt_number: string | null;
+  manufacture_date: string | null;
+  expiry_date: string | null;
+  days_to_expiry: number | null;
+  expiry_bucket: string | null;
+  lot_status: string | null;
+  layer_count: number;
+  qty_received: number;
+  qty_consumed: number;
+  qty_on_hand: number;
+  avg_unit_cost: number;
+  total_value: number;
+  first_receipt_at: string | null;
+  last_movement_at: string | null;
+  total_rows: number;
+}
+
+export interface LotTraceabilityFilters extends InventoryDimensionFilters {
+  lotNumber?: string | null;
+  lotStatus?: string | null;
+  expiryBucket?: string | null;
+  includeDepleted?: boolean;
+}
+
+/**
+ * Lot / serial traceability AS AT a date. Value is produced by the SAME shared
+ * layer valuation helper the Inventory Valuation report uses (lot grain), so
+ * the value column ties to valuation at the same date. Depleted lots are hidden
+ * server-side unless `includeDepleted` is set, for the same reason.
+ */
+export function useLotTraceabilityAsOf(params: {
+  orgId?: string | null;
+  businessId?: string | null;
+  asOf: string;
+  filters?: LotTraceabilityFilters;
+  enabled?: boolean;
+}) {
+  const { orgId, businessId, asOf, filters = {}, enabled = true } = params;
+
+  return useQuery({
+    queryKey: ["inventory-lot-traceability-as-of", orgId, businessId, asOf, filters],
+    queryFn: async () =>
+      fetchAllPages<LotTraceabilityRow>("report_lot_traceability_as_of", {
+        p_org: orgId,
+        p_business: businessId,
+        p_as_of: asOf,
+        p_branch: filters.branchId ?? null,
+        p_warehouse: filters.warehouseId ?? null,
+        p_product: filters.productId ?? null,
+        p_category: filters.categoryId ?? null,
+        p_lot: filters.lotNumber?.trim() ? filters.lotNumber.trim() : null,
+        p_status: filters.lotStatus ?? null,
+        p_expiry_bucket: filters.expiryBucket ?? null,
+        p_include_depleted: filters.includeDepleted ?? false,
+      }),
+    enabled: enabled && !!orgId && !!businessId && !!asOf,
+    staleTime: 30_000,
+  });
+}
