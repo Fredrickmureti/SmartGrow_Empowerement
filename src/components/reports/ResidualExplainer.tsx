@@ -87,6 +87,18 @@ export function ResidualExplainer({
                     </span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
+                    {remedy && (
+                      <div className="mx-3 mb-3 rounded-md border border-border/60 bg-muted/40 p-3">
+                        <p className="text-sm font-medium text-foreground">{remedy.action}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{remedy.guidance}</p>
+                        {primary && (
+                          <Link className={`${remedyLinkClass} mt-2`} to={primary.href}>
+                            {primary.label}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        )}
+                      </div>
+                    )}
                     {explanation.refs.length === 0 ? (
                       <p className="px-3 pb-3 text-sm text-muted-foreground">
                         No individual rows to show for this finding.
