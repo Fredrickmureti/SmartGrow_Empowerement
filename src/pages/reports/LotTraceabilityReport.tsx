@@ -165,7 +165,26 @@ function LotTraceabilityReportInner() {
         supplier_name: r.supplier_name ?? "",
         receipt_number: r.receipt_number ?? "",
       },
+      // Drill-down: backward / forward trace for this exact lot. The value
+      // shown in the panel is the row's value, not a second computation.
+      onClick: r.lot_number
+        ? () =>
+            setDrillTarget({
+              businessId: bizId,
+              productId: r.product_id,
+              lotNumber: r.lot_number,
+              productName: r.product_name,
+              sku: r.sku,
+              warehouseName: r.warehouse_name,
+              supplierName: r.supplier_name,
+              receiptNumber: r.receipt_number,
+              expiryDate: r.expiry_date,
+              lotStatus: r.lot_status,
+              valueLabel: formatCurrency(Number(r.total_value ?? 0), baseCurrency),
+            })
+        : undefined,
     }));
+
 
     if (detail.length === 0) return detail;
 
