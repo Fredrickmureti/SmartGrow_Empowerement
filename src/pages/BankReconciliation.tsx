@@ -39,6 +39,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
+import {
+  fetchUnmatchPreflight,
+  type UnmatchPreflight,
+} from "@/services/finance/bankUnmatchPreflight";
 import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
