@@ -62,21 +62,51 @@ that is investigated as a bookkeeping finding — never tuned away.
 
 ---
 
-## ▶ NEXT — Phase 5 — Report taxonomy & security closure (not started)
+### Phase 5 — Report taxonomy & security closure — ✅ COMPLETE (this session)
 
-1. **Direct-RPC isolation matrix.** For all four report families (AR aging, AP
-   aging, Partner Ledger, Sales Analysis): cross-org call raises `42501`,
-   business scoping cannot be widened by passing `NULL`, branch scoping is
-   strict, and no function is reachable by `anon`. One SQL suite,
-   `supabase/tests/reporting_isolation_matrix_test.sql`.
-2. **Drill-down isolation.** `DrillDownDialog` reads must be org/business
-   scoped for every entry point that now uses it, including the new sales
-   customer drill.
-3. **Registry coverage.** Every routed report page in this family has a
-   `REPORT_REGISTRY` entry with domain + related reports, so the switcher and
-   Report Center cannot drift from the routes.
-4. **Security-linter pass** over this report family; record accepted findings
-   in security memory rather than leaving them open.
+| Item | State | Evidence |
+| --- | --- | --- |
+| 5.1 Direct-RPC isolation matrix | done | `supabase/tests/reporting_isolation_matrix_test.sql` — all 11 domain RPCs: single definition, definer, pinned `search_path`, `finance_can_read_org`, no `anon` EXECUTE, `_org_id` first argument, no `OR branch_id IS NULL` widening, `42501` on a foreign org, RLS on `invoices`/`bills` |
+| 5.2 Drill-down isolation | done | `DrillDownDialog` verified org-scoped on both paths (GL via `_org_id`, partner via `.eq("organization_id", …)` + business filter), document kind whitelisted to invoice/bill; guarded by `src/test/architecture/reporting-isolation-matrix.test.ts` |
+| 5.3 Registry coverage | done | all four families in `REPORT_REGISTRY` with resolvable domain, related reports and declared `drillDown`; guarded by the same suite (11 tests green) alongside the existing `reports-routing-parity` guard |
+| 5.4 Security-linter pass | done | linter run; the family's definer-executable-by-authenticated findings are **accepted by design** (caller-supplied `_org_id` + `finance_can_read_org` gate) and recorded in security memory, not left open |
+
+**Verified facts (live catalog, queried not assumed):** all 11 RPCs listed in
+the matrix are `SECURITY DEFINER`, `search_path=public`, call
+`finance_can_read_org`, take `_org_id uuid` first, and are **not** executable
+by `anon`. Linter reports no `anon`-executable definer function in this family.
+
+**Carried over — still open (access limitation, not a defect).** The live
+numeric smoke test of the sales RPCs from a signed-in session (Phase 4.7) has
+not been performed: the read-only query role is correctly denied EXECUTE and
+this project's Supabase is external/unmanaged, so no browser session can be
+injected. **Next agent: sign in to the preview, open
+`/finance/reports/sales`,** and for a closed month confirm (a) rows render per
+dimension, (b) the totals footer equals the engine envelope, (c) the
+reconciliation banner shows `in_balance = true` or a variance that is
+investigated as a bookkeeping finding — never tuned away.
+
+---
+
+## ▶ NEXT — Phase 6 — Purchases & payables reporting parity (not started)
+
+The receivables side is now fully server-owned; the purchases side is not yet
+held to the same contract. Phase 6 applies the identical pattern:
+
+1. **Audit the Purchases reports** the way Sales was audited: does the page do
+   browser-side arithmetic over bills / debit notes, and is there a single
+   report or several overlapping ones?
+2. **`finance_purchase_analysis`** — one engine, dimensions
+   supplier / product / category / branch / month, posted non-void documents
+   only, base currency, purchase returns subtracted, hardened exactly like
+   `finance_sales_analysis`.
+3. **`finance_purchase_expense_reconciliation`** — document purchases vs the
+   GL accounts carrying the `purchases` / `purchase_returns` roles.
+4. **Client seam + page rebuild + export + supplier drill-down**, mirroring
+   `salesAnalysis.ts` / `useSalesAnalysis.ts` / `SalesReports.tsx`.
+5. **Guards**: SQL contract suite + architecture suite, and extend
+   `reporting_isolation_matrix_test.sql` and
+   `reporting-isolation-matrix.test.ts` with the two new functions.
 
 ## Notes
 - No second reporting engine: `ReportSurface` / `ReportTable` /
@@ -85,14 +115,19 @@ that is investigated as a bookkeeping finding — never tuned away.
   currency.
 - Ledger `debit`/`credit` are already base currency — never add FX conversion
   on top of them (document currency lives in `original_debit`/`original_credit`).
+- The isolation matrix is the domain's registry of reporting RPCs: any new
+  report function in this family must be added to **both** matrix files in the
+  same change that creates it.
 
 ## Instructions for the next agent
-1. **Verify before continuing.** Re-check Phase 4 against the codebase and the
-   live catalog (not this file): the page holds no invoice arithmetic, the
-   service is the only RPC caller, both guard suites pass, and the two SQL
-   functions still carry definer + pinned search_path + org gate + no anon
-   EXECUTE. Then clear the open verification item above from a signed-in
-   session.
-2. **Then start Phase 5, item 1.** Do not open unrelated report families or
+1. **Verify before continuing.** Re-check Phases 4 and 5 against the codebase
+   and the live catalog (not this file): `SalesReports.tsx` holds no invoice
+   arithmetic, the services are the only RPC callers, and all four SQL suites
+   plus the architecture suites pass. Confirm the 11 matrix functions still
+   carry definer + pinned `search_path` + org gate + no `anon` EXECUTE.
+2. **Clear the carried-over item** by running the signed-in sales smoke test
+   described above, then delete it from this file.
+3. **Then start Phase 6, item 1.** Do not open unrelated report families or
    leave a phase half-shipped: each phase lands SQL + client seam + page +
    export + tests together.
+
