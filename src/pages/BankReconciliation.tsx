@@ -655,7 +655,10 @@ export default function BankReconciliation() {
               </TabsContent>
 
               <TabsContent value="recon-history">
-                <ReconciliationHistoryTab />
+                <ReconciliationHistoryTab
+                  bankAccountId={selectedAccount !== "all" ? selectedAccount : null}
+                  highlightSessionId={requestedSessionId}
+                />
               </TabsContent>
 
               <TabsContent value="suggestions">
