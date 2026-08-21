@@ -80,7 +80,7 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     key: "fx",
     label: "Currency & FX",
     icon: Coins,
-    reportIds: ["fx-revaluation", "fx-exposure"],
+    reportIds: ["fx-revaluation", "fx-exposure", "fx-realized"],
   },
   {
     key: "tax",
