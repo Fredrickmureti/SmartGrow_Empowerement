@@ -830,7 +830,7 @@ export async function executeDataTool(
   currencySummary: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (name === "get_currency_context") {
-    // `effective_date` is the real column; the old `rate_date` silently
+    // `effective_date` is the real column; the previous (non-existent) one
     // returned nothing and left the model to invent a rate.
     const { data: rates, error } = await supabaseClient
       .from("exchange_rates")
