@@ -1,75 +1,71 @@
-# Reconciliation Engine — Controlled Intelligence & Automation Wave
+# Reconciliation Engine — Phase 6 verification & Phase 7 hardening
 
-## Status snapshot
+## Verification of the previous engineer's claims (done this turn)
 
-- **Active phase:** Phase 6 — Assistive AI (implemented this turn, awaiting independent verification)
-- **Next milestone:** Phase 7 — Hardening & rollout (see below)
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| `reconciliation-assistant` edge function exists | CONFIRMED | `supabase/functions/reconciliation-assistant/index.ts` (370 lines) |
+| Runs on caller's JWT, 401 on anonymous, no service-role client | CONFIRMED in code | `auth.getUser()` + two `401` returns; no service-role reference in the file |
+| Degrades when the AI gateway key is absent | CONFIRMED in code | falls back to server order when `LOVABLE_API_KEY` is unset |
+| Ids stripped before the upstream call | CONFIRMED in code | comment + shaping at line ~98 |
+| Client seam is query-only and opt-in | CONFIRMED | `src/hooks/useReconciliationAssistant.ts`, `src/components/banking/ReconciliationAiAdvisory.tsx` |
+| Panels wired beside the candidate list and the audit record | CONFIRMED | `ReconcileTransactionSheet.tsx:535`, `BankMatchHistoryPanel.tsx:69` |
+| Ratchets pass | CONFIRMED | advisory-boundary 9/9, rule-authoring-seam 5/5, match-history-read-seam 5/5 — 19/19 green |
 
-## Fully implemented and verified
+Gaps found that the previous engineer did not record:
 
-- **Phase 0-3 — Discovery, consolidation, rule authoring.** `transaction_categorization_rules`
-  dropped; `bank_reconciliation_rules` is the single rule table and carries `branch_id`.
-  `apply_reconciliation_rules`, `bank_transaction_apply_rules`,
-  `bank_reconciliation_rule_upsert` and `bank_match_candidates` are branch-scoped;
-  ambiguity surfaces as `AMBIGUOUS_RULE_MATCH` instead of a silent pick.
-- **Phase 4 — Rule authoring seam.** Retired `useTransactionRules` gone; authoring flows only
-  through `useReconciliationRules`. Ratchet: `src/test/architecture/banking-rule-authoring-seam.test.ts` (5/5).
-  Delete action on `RulesListPage` wired to `deleteRule` (was inert).
-- **Phase 5 — History & explainability.** Org-wide SELECT policy on
-  `bank_reconciliation_matches` replaced with business+branch scoped policy. History served
-  only by hardened `SECURITY DEFINER` RPCs `bank_match_history` and
-  `bank_match_session_history`; internal helpers revoked from public. Client seam
-  `useBankMatchHistory`; UI `BankMatchDecisionCard`, `BankMatchHistoryPanel`,
-  `BankSessionAuditTrail`, wired into `BankReconciliation.tsx` and `ReconciliationHistoryTab.tsx`.
-  Ratchets: `banking-match-history-read-seam.test.ts` + `bank_match_history_read_seam_test.sql`.
+- **G1 (risk).** `reconciliation-assistant` has **no entry in `supabase/config.toml`**, unlike the
+  functions with explicit config. It inherits defaults rather than declaring `verify_jwt`
+  intentionally — the boundary is real but undeclared.
+- **G2 (defect, cost/audit).** The assistant logs **nothing to `ai_usage_logs`**, while
+  `ai-assistant` and `ai-generate-email` both do. AI spend on the reconciliation path is invisible
+  and unattributable per tenant.
+- **G3 (pending).** No throttle of any kind — Phase 7 item 1 is genuinely unstarted.
+- Still pending as recorded: authenticated browser walk-through and degraded-mode check.
 
-## Phase 6 — Assistive AI (implemented this turn, needs verification)
+Runtime behaviour of the panels remains UNVERIFIED — code review is not a walk-through.
 
-Principle held: **the AI advises, it cannot change the books.**
+## Work to do, in order
 
-- `supabase/functions/reconciliation-assistant/index.ts` — deployed. Two actions:
-  - `rank_candidates` — comments on and orders candidates the *database* produced.
-  - `explain_history` — narrates the Phase 5 decision record.
-  Guarantees: no service-role client (reads on the caller's JWT only), 401 on anonymous
-  (verified live), no write seam / journal / insert-update-delete reachable, reads only
-  `bank_match_candidates` and `bank_match_history` (no direct table access), model output
-  restricted to server-produced indices with omitted candidates re-appended, ids stripped
-  before the upstream call, free text treated as data not instructions, settled/proposed
-  lines declined, and a degraded (`ai_available: false`) answer when the gateway is absent.
-- `src/hooks/useReconciliationAssistant.ts` — query-only, `enabled` defaults to `false`
-  (never fires on a worklist), one bank line per call.
-- `src/components/banking/ReconciliationAiAdvisory.tsx` — `CandidateAdvisoryPanel` and
-  `HistoryNarrativePanel`. Both are opt-in ("ask" button), labelled "advisory only, no action
-  taken", carry no mutation, and state plainly what to do when unavailable.
-- Wiring: advisory panel in `ReconcileTransactionSheet.tsx` beside (not instead of) the
-  engine's candidate list, and only when more than one candidate and the line is unexplained;
-  narrative at the top of `BankMatchHistoryPanel`.
-- Ratchet: `src/test/architecture/reconciliation-ai-advisory-boundary.test.ts` (9/9 passing).
-- Typecheck clean.
+### Step 1 — Verify Phase 6 at runtime (no code changes)
+1. Authenticated Playwright walk-through: an ambiguous bank line (>1 candidate, unexplained) —
+   confirm the advisory panel appears, is opt-in, renders ranked commentary, and exposes no
+   action/mutation control.
+2. A reversed/settled line — confirm the advisory panel is **absent** and the history narrative
+   renders on the audit record.
+3. Degraded mode: call the function with `LOVABLE_API_KEY` unset and confirm `ai_available: false`
+   with the server-produced ordering intact and honest copy in the UI.
+4. Confirm the deployed endpoint still returns 401 unauthenticated.
 
-### Pending in Phase 6
+Any failure here is fixed before Step 2.
 
-- Authenticated browser walk-through of both panels against a real ambiguous line and a
-  reversed line (not yet run in any turn).
-- Gateway failure-mode check with `LOVABLE_API_KEY` unset (degraded copy renders).
+### Step 2 — Close G1 and G2
+- Declare `reconciliation-assistant` in `supabase/config.toml` with `verify_jwt = true`.
+- Log every invocation to `ai_usage_logs` (business, user, action, tokens, degraded flag),
+  reusing the `ai-assistant` logging shape rather than inventing a second one.
 
-## Phase 7 — Hardening & rollout (next)
+### Step 3 — Phase 7 item 1: per-user throttle (G3)
+- Bounded rate limit per user per business (e.g. N calls / rolling window), enforced
+  **server-side in the edge function**, before any upstream call.
+- Reject with a typed `429` payload; the UI states plainly that the advisory is temporarily
+  unavailable and that reconciliation is unaffected — the deterministic candidate list keeps working.
+- Extend `reconciliation-ai-advisory-boundary.test.ts` with a ratchet asserting the throttle and
+  the usage log cannot be removed, and that the advisory still carries no mutation.
 
-1. Rate/cost guard on `reconciliation-assistant` (per-user throttle) before wide exposure.
-2. Operator-facing docs on what the assistant may and may not do.
-3. Full-suite triage: unrelated pre-existing failures observed (`wms-rpc-grants`,
-   `bank-feeds-business-level-gating`, `banking-business-level-gating`,
-   `bank-export-template-metadata`, `pos-statement-gl-cutover`,
-   `post-payroll-gl-simulation-boundary`). None caused by this wave — confirm and schedule.
+### Step 4 — Phase 7 item 2: operator documentation
+Short ADR (`docs/adr/`) stating what the assistant may do (rank, narrate) and may never do
+(post, write, read outside the two RPCs, cross a tenant/branch boundary), plus the throttle and
+degraded-mode contract.
 
-## Instructions for the next agent
+### Step 5 — Phase 7 item 3: full-suite triage
+Run the suite, confirm the six failures the previous engineer listed (`wms-rpc-grants`,
+`bank-feeds-business-level-gating`, `banking-business-level-gating`,
+`bank-export-template-metadata`, `pos-statement-gl-cutover`,
+`post-payroll-gl-simulation-boundary`) are pre-existing and unrelated to this wave, and record
+each as either out-of-scope with an owner or in-scope with a fix.
 
-1. **Verify Phase 6 before building anything.** Re-read the edge function and confirm each
-   guarantee above holds in code, not just in comments. Run
-   `bunx vitest run src/test/architecture/reconciliation-ai-advisory-boundary.test.ts` and
-   the Phase 4/5 ratchets. Confirm the deployed function still rejects anonymous calls.
-2. Complete the two pending Phase 6 items (browser walk-through, degraded-mode check) so the
-   phase is coherent before moving on.
-3. Then resume at **Phase 7 item 1**. Do not start unrelated work, and do not widen the AI's
-   authority: any change that lets the assistant write, post, or read outside the two RPCs is
-   a breach of this wave's architecture and the ratchet exists to stop it.
+## Boundaries held throughout
+
+The assistant advises; it cannot change the books. No new write seam, no service-role access,
+no reads outside `bank_match_candidates` and `bank_match_history`, no AI-owned copies of ERP data,
+no widening of scope into unrelated domains.
