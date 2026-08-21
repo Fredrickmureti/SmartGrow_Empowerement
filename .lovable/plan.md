@@ -1,113 +1,143 @@
-# Currency & Forex — reporting trustworthiness programme
+# FX Foundation & Source-Consumption — controlled rework wave
 
-Authoritative status file. Update after every implementation step.
-Origin plan: `.lovable/plan/currency-forex-reporting-findings-and-phased-execution-plan-2026-08-21.md`
+Authoritative execution memory. Status vocabulary: VERIFIED / PARTIALLY VERIFIED /
+IMPLEMENTED BUT NOT ACCOUNTING-VERIFIED / BLOCKED / NOT YET INVESTIGATED.
+Supersedes the "Currency & Forex reporting trustworthiness" status file; reporting
+(Phases 3–5 of that plan) is out of scope for this wave.
 
-## Where we are
+## Verdict (from live database inspection, this session)
 
-- Phase 1 — Revaluation lifecycle repair: **COMPLETE, verified**
-- Phase 2a — Posting engine denomination + AR invoice family: **COMPLETE, verified (catalog-level)**
-- Phase 2b — Remaining document families: **NEXT**
-- Phases 3–5: pending
+**Partially sound at the centre, fundamentally deficient at the boundary.**
+The rate book, the resolver pair and the posting engine's conversion path exist and
+are structurally correct. But only **1 of 53** journal-posting callers actually uses
+the conversion path, the opt-in is silently unsafe, revaluation eligibility is the
+simplistic `asset OR liability` rule, and realized FX exists on two settlement paths
+out of many. No foreign-currency journal has ever been posted in this database
+(0 rows), so nothing about the foundation has been accounting-verified — only
+catalog-verified.
 
----
+## Verified facts (live DB, not the previous plan)
 
-## Phase 1 — Revaluation lifecycle repair (COMPLETE)
+- `post_journal_entry_atomic` — exactly one overload, ends with
+  `_amounts_in_document_currency boolean DEFAULT false`. When opted in it resolves via
+  `require_exchange_rate`, converts, stamps `original_currency/original_debit/
+  original_credit/exchange_rate`, validates balance in document **and** base currency,
+  absorbs the rounding residual on the largest line, stamps header currency+rate.
+  **VERIFIED structurally.**
+- Callers: **53** functions call the engine. **Exactly one** (`_confirm_invoice_core`)
+  opts in. Nine pass a document `_currency` (+ rate) **without** opting in —
+  `issue_credit_note_atomic`, `issue_vendor_credit_note_atomic`,
+  `issue_credit_note_for_payment_atomic`, `complete_delivery_atomic`,
+  `refund_customer_atomic`, `refund_from_vendor_atomic`, `approve_sales_return_atomic`,
+  `apply_credit_to_invoice_atomic`, `bank_match_confirm`, plus
+  `post_missing_invoice_journals`/`repair_misposted_ar_invoices`. These label the entry
+  foreign and record the amounts unconverted. **VERIFIED defect.**
+- `confirm_bill_atomic` passes no `_currency` at all — a foreign bill is recorded as
+  base with no trace. **VERIFIED defect.**
+- Engine trusts a caller-supplied `_exchange_rate` over the resolver when one is passed.
+  **VERIFIED.**
+- `revalue_fx_balances` groups by **header** `je.currency` (not line
+  `original_currency`), falls back to `jel.debit/credit` when `original_*` is NULL, and
+  filters eligibility with `a.account_type IN ('asset','liability')`. Missing rate now
+  fails the run loudly. **VERIFIED — eligibility and grouping are wrong.**
+- `reverse_fx_revaluation_run` no longer references `reversal_of_run_id` and scopes to
+  `_run.organization_id`. **VERIFIED structurally; 0 runs exist, so never exercised.**
+- Realized FX: `resolve_fx_realized_account` is referenced by exactly
+  `record_multi_invoice_payment` and `record_multi_bill_payment`. Nothing else.
+  **VERIFIED.**
+- Multi-tenant: `fx_stamp_document`, `describe_exchange_rate`,
+  `resolve_fx_realized_account` and **`set_exchange_rate_override`** carry `anon=X`
+  EXECUTE. `resolve_exchange_rate` / `require_exchange_rate` / exposure RPCs do not.
+  **VERIFIED — grant leak, override write is the serious one.**
+- `resolve_sales_exchange_rate` is a one-line delegate to `resolve_exchange_rate` — not
+  a second engine. Client side has no conversion outside `rateBook`/`platformUsd`
+  (platform billing display). **VERIFIED.**
+- Data: 130 exchange rates, 0 stamped lines, 0 foreign journal headers, 0 revaluation
+  runs. **VERIFIED — no production FX data at risk; migrations need no backfill.**
+- `accounts.detail_type` + `account_detail_type_catalog` (≈180 detail types incl.
+  `accounts_receivable`, `accounts_payable`, `inventory`, `prepaid_expenses`,
+  `customer_deposits`, `security_deposits`, fixed-asset types) already carry the
+  semantics needed for monetary classification. **No Chart-of-Accounts field needs
+  adding.** VERIFIED.
 
-Implemented and verified:
+## Accounting model this wave enforces (IAS 21)
 
-- `reverse_fx_revaluation_run` — organisation now derived from the run row
-  (`_run.organization_id`); the reference to the non-existent column
-  `reversal_of_run_id` removed. Before this, every reversal raised at runtime,
-  which also made the second and each later revaluation run fail.
-- `revalue_fx_balances` — journal numbering delegated to the posting engine
-  (ADR-0146, callers pass a NULL entry number); unrealized gain/loss posted at
-  entity level (`branch_id = NULL`) instead of an arbitrary `MIN(branch_id)`.
-- Guard: `supabase/tests/fx_revaluation_lifecycle_test.sql` — reversal
-  identifiers resolve, no hand-built journal numbers, no branch guessing,
-  period / permission / missing-rate gates intact, exposure RPCs remain
-  SECURITY DEFINER + business-gated and not anon-executable.
-- `src/test/architecture/fx-single-engine.test.ts` green (18 tests).
+Transaction date: record at the spot rate; base amount is authoritative in the GL, the
+foreign amount is carried as line metadata. Monetary items: retranslate at closing rate
+each period (unrealized), retranslate at settlement (realized) — the realized amount is
+the difference between the carrying base amount at derecognition and the cash base
+amount. Non-monetary items measured at historical cost (inventory, fixed assets,
+prepayments, deferred revenue) are **not** retranslated. Missing rate is an absence and
+must raise, never post at parity. Reversal restores the original base amounts unchanged.
 
-## Phase 2 — Denomination and eligibility
+## FX source → posting map (to be completed in Step 3; UNKNOWN = not yet traced)
 
-### Root cause confirmed (was worse than the original diagnosis)
+| Family | Posting path | Currency passed | Opt-in | Realized FX | Status |
+|---|---|---|---|---|---|
+| AR invoice | `_confirm_invoice_core` | yes | yes | n/a | IMPLEMENTED, NOT ACCOUNTING-VERIFIED |
+| AP bill | `confirm_bill_atomic` | **no** | no | n/a | DEFECTIVE |
+| Credit note (AR/AP) | `issue_credit_note_atomic`, `issue_vendor_credit_note_atomic` | yes | **no** | none | DEFECTIVE |
+| Delivery / GRN / landed cost | `complete_delivery_atomic`, `finance_post_gr_journal`, `_landed_cost_post_apply` | mixed | no | n/a | DEFECTIVE / non-monetary review |
+| Customer receipt | `record_multi_invoice_payment` | no | no | yes | PARTIALLY VERIFIED |
+| Supplier payment | `record_multi_bill_payment` | no | no | yes | PARTIALLY VERIFIED |
+| Advances | `record_advance_payment`, `apply_customer_deposit_atomic`, `record_vendor_advance_payment`, `apply_vendor_advance_atomic` | no | no | none | DEFECTIVE |
+| Refunds | `refund_customer_atomic`, `refund_from_vendor_atomic` | yes | no | none | DEFECTIVE |
+| Bank match / reconciliation | `bank_match_confirm`, `bank_reconciliation_session_complete/_writeoff` | partial | no | none | UNKNOWN |
+| Unapply / reversal / void | `unapply_payment_atomic`, `unreconcile_payment_atomic`, `void_journal_entry_atomic` | no | no | n/a | UNKNOWN |
+| POS, payroll, expenses, inventory adjustments | various | no | no | n/a | assumed base-only — to confirm, not to migrate |
 
-1. `post_journal_entry_atomic` — the only journal writer — never wrote
-   `original_currency` / `original_debit` / `original_credit`. Every FX report
-   reading those columns was reading nothing.
-2. Document posters pass **document-currency** amounts. `build_invoice_je_lines`
-   builds the AR debit from `invoices.total`; `_confirm_invoice_core` posted it
-   with `_currency := v_inv.currency` and no rate. A foreign invoice therefore
-   entered the general ledger unconverted — a GL integrity defect, not merely a
-   reporting one.
+## Work, in dependency order
 
-### Phase 2a — posting engine becomes the denomination authority (COMPLETE)
+### Step 0 — Close the two security holes (immediate, tiny)
+Revoke `anon` EXECUTE from `set_exchange_rate_override`, `fx_stamp_document`,
+`describe_exchange_rate`, `resolve_fx_realized_account`; confirm each gates on
+`user_can_access_business` for the passed business id rather than trusting the argument.
 
-- `post_journal_entry_atomic` gained `_amounts_in_document_currency boolean
-  DEFAULT false`. When a caller opts in and the document currency differs from
-  `businesses.base_currency`, the engine:
-  - resolves the rate via `require_exchange_rate` (raises on a missing rate —
-    never a silent 1:1, ADR 0136);
-  - stores base-currency `debit`/`credit` and stamps `original_currency`,
-    `original_debit`, `original_credit`, `exchange_rate` on every line;
-  - validates balance in document currency *and* in base currency, absorbing
-    the per-line rounding residual on the largest line;
-  - stamps the header currency and rate.
-- Default `false` keeps every unmigrated caller byte-identical in behaviour.
-  Base-currency entries keep full amount precision (no forced 2dp rounding).
-- The superseded 17-argument overload was dropped (two overloads would have made
-  every named-argument call ambiguous); `EXECUTE` revoked from PUBLIC/`anon`,
-  granted to `authenticated` and `service_role`.
-- First document family migrated: **AR invoices** (`_confirm_invoice_core`),
-  patched surgically from the live definition so no unrelated logic drifted.
-- Guard: `supabase/tests/journal_denomination_contract_test.sql` — exactly one
-  engine overload, opt-in exists and defaults to false, original_* stamping,
-  resolver use, base-balance assertion, residual handling, no rate literal,
-  no anon EXECUTE, and the invoice family declares its denomination.
+### Step 1 — Make the denomination contract safe by construction
+Replace the silent boolean with an engine that cannot be misused: when `_currency`
+resolves to a non-base currency the engine **must** convert; a caller wanting to supply
+already-converted base amounts states that explicitly. Concretely — keep one engine,
+invert the default so an unconverted foreign posting raises instead of passing, and stop
+preferring a caller-supplied rate over the resolver except for an explicitly stamped
+document rate. Line-level `original_currency` becomes the authority for denomination
+(header currency stays a convenience mirror) so mixed-currency entries are representable.
 
-### Phase 2b — remaining document families (NEXT)
+### Step 2 — Producer families, one at a time
+Order: AP bills → credit notes (AR then AP) → refunds → advances → delivery/GRN/landed
+cost (deciding non-monetary treatment per IAS 21) → bank match/reconciliation. Each
+family: trace it, migrate it, add an accounting-outcome test, verify reversal, verify
+tenant isolation, then move on. No half-migrations.
 
-Migrate one family per step, each with a contract-test assertion appended to
-`supabase/tests/journal_denomination_contract_test.sql` section 4:
+### Step 3 — Realized FX across every derecognition path
+Extend beyond the two multi-payment functions: partial and multiple settlements,
+advance application, credit-note application, refunds, write-offs, payment reversal /
+unapply, bank-match settlement. One shared realized-FX helper consuming
+`resolve_fx_realized_account` — no per-module variants.
 
-1. AP bills — `confirm_bill_atomic` currently passes **no** `_currency`, so a
-   foreign bill is recorded as base. Pass `bills.currency` + the opt-in.
-2. Credit notes — `issue_credit_note_atomic`, `issue_vendor_credit_note_atomic`
-   (both already pass a document currency; add the opt-in).
-3. Delivery/goods paths — `complete_delivery_atomic`, `finance_post_gr_journal`,
-   `_landed_cost_post_apply`.
-4. Deliberate, non-inferred review of the settlement paths that already do their
-   own base/foreign handling — `record_multi_invoice_payment`,
-   `record_multi_bill_payment`, `bank_match_confirm`. These must NOT be flipped
-   blindly: confirm whether their lines are already base before opting in.
-5. Then the eligibility model: line-level `original_currency` grouping in
-   `revalue_fx_balances` / `fx_exposure_by_currency`, and a monetary-account
-   filter so inventory and other non-monetary balances stop being revalued.
+### Step 4 — Monetary eligibility
+Replace `account_type IN ('asset','liability')` with a `detail_type`-driven monetary
+classification (data-driven map over the existing catalog, no new columns), and group
+revaluation by line `original_currency` rather than header currency, dropping the
+`COALESCE(original_debit, debit)` fallback that would revalue base amounts.
 
-## Phase 3 — Realized FX gain/loss report (pending)
-## Phase 4 — Exposure dimensions (by account, by counterparty) (pending)
-## Phase 5 — Rate register / provenance surface (pending)
+### Step 5 — Revaluation lifecycle, exercised for real
+With correct sources, run the lifecycle end to end in a scratch business: run,
+second-period run, reversal, reversal-then-run, locked period, missing rate, nil
+movement, settlement after revaluation. Assert no accumulation across runs.
 
----
+### Step 6 — Ratchets and hand-off
+Extend `supabase/tests/journal_denomination_contract_test.sql` and
+`src/test/architecture/fx-single-engine.test.ts`: no caller may pass a foreign
+`_currency` without conversion, no rate literal, no second resolver, no anon EXECUTE on
+FX functions, no `COALESCE(..., 1)` rate fallback. Reporting work is the **next** wave.
 
-## Instructions for the next agent
+## Tests required (accounting assertions, not "function ran")
+Foreign invoice USD 1,000 @ 130 → AR base 130,000, line stamped USD/1,000; settled
+@ 132 → realized loss/gain 2,000 and AR clears to zero; partial settlement proportional;
+missing rate raises; reversal restores exactly; mixed-currency journal balances in both
+denominations; non-monetary inventory line excluded from revaluation; a Business B user
+cannot read or revalue Business A.
 
-1. **Verify Phase 2a before writing anything new.**
-   - `select count(*) from pg_proc … proname='post_journal_entry_atomic'` must
-     return 1, and its arguments must end with
-     `_amounts_in_document_currency boolean DEFAULT false`.
-   - Run `supabase/tests/journal_denomination_contract_test.sql` and
-     `supabase/tests/fx_revaluation_lifecycle_test.sql`.
-   - Behavioural check still outstanding: post one base-currency document and one
-     foreign-currency document in a scratch business and confirm (a) the base
-     document is unchanged versus before, (b) the foreign document's lines carry
-     `original_*` and base amounts equal `original × rate`, (c) a foreign document
-     with no rate on file fails loudly. Do this before migrating more families.
-2. **Then resume at Phase 2b step 1 (AP bills).** Do not jump to Phases 3–5;
-   the reports cannot be made trustworthy while document families still post
-   foreign amounts unconverted.
-3. Migrate call sites by surgically patching `pg_get_functiondef` output inside
-   the migration (see the Phase 2a migration) rather than retyping large function
-   bodies.
-4. Keep this file current after each step.
+## Open at hand-off
+Nothing requires a user decision. Every item above is determinable from the code, the
+database, or IAS 21.
