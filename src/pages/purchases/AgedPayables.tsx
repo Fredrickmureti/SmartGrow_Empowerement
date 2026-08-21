@@ -21,6 +21,10 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useApAging, fetchApAging, type ApAgingVendor } from "@/hooks/useApAging";
+import {
+  BaseCurrencyAmount,
+  formatBaseCurrencyAmount,
+} from "@/components/finance/BaseCurrencyAmount";
 
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
@@ -140,24 +144,26 @@ export default function AgedPayables() {
     const rows = [
       ...full.vendors.map((row) => ({
         vendor: row.vendorName,
-        not_due: row.not_due,
-        current: row.current,
-        days30: row.days30,
-        days60: row.days60,
-        days90: row.days90,
-        credit: row.credit,
-        total: row.total,
+        // ADR 0136: an unstatable figure exports as the same words the screen
+        // shows, never as a zero that reads as "nothing owed".
+        not_due: row.not_due ?? "No rate on file",
+        current: row.current ?? "No rate on file",
+        days30: row.days30 ?? "No rate on file",
+        days60: row.days60 ?? "No rate on file",
+        days90: row.days90 ?? "No rate on file",
+        credit: row.credit ?? "No rate on file",
+        total: row.total ?? "No rate on file",
         _isGrandTotal: false,
       })),
       {
         vendor: "TOTAL",
-        not_due: full.totals.not_due,
-        current: full.totals.current,
-        days30: full.totals.days30,
-        days60: full.totals.days60,
-        days90: full.totals.days90,
-        credit: full.totals.credit,
-        total: full.totals.total,
+        not_due: full.totals.not_due ?? "No rate on file",
+        current: full.totals.current ?? "No rate on file",
+        days30: full.totals.days30 ?? "No rate on file",
+        days60: full.totals.days60 ?? "No rate on file",
+        days90: full.totals.days90 ?? "No rate on file",
+        credit: full.totals.credit ?? "No rate on file",
+        total: full.totals.total ?? "No rate on file",
         _isGrandTotal: true,
       },
     ];
@@ -174,14 +180,17 @@ export default function AgedPayables() {
 
   };
 
+  // ADR 0136: `null` is carried through to the tile, which then says why the
+  // figure is missing instead of printing a zero.
+  const unconvertible = totals?.unconvertibleCount ?? 0;
   const summaryCards = [
-    { label: AGING_BUCKET_LABELS.not_due, value: totals?.not_due ?? 0, tone: "text-foreground" },
-    { label: `${AGING_BUCKET_LABELS.current} overdue`, value: totals?.current ?? 0, tone: "text-accent-foreground" },
-    { label: AGING_BUCKET_LABELS.days30, value: totals?.days30 ?? 0, tone: "text-accent-foreground" },
-    { label: AGING_BUCKET_LABELS.days60, value: totals?.days60 ?? 0, tone: "text-destructive" },
-    { label: AGING_BUCKET_LABELS.days90, value: totals?.days90 ?? 0, tone: "text-destructive" },
-    { label: "Unapplied credit", value: totals?.credit ?? 0, tone: "text-muted-foreground" },
-    { label: "Total outstanding", value: totals?.total ?? 0, tone: "text-foreground" },
+    { label: AGING_BUCKET_LABELS.not_due, value: totals?.not_due ?? null, tone: "text-foreground" },
+    { label: `${AGING_BUCKET_LABELS.current} overdue`, value: totals?.current ?? null, tone: "text-accent-foreground" },
+    { label: AGING_BUCKET_LABELS.days30, value: totals?.days30 ?? null, tone: "text-accent-foreground" },
+    { label: AGING_BUCKET_LABELS.days60, value: totals?.days60 ?? null, tone: "text-destructive" },
+    { label: AGING_BUCKET_LABELS.days90, value: totals?.days90 ?? null, tone: "text-destructive" },
+    { label: "Unapplied credit", value: totals?.credit ?? null, tone: "text-muted-foreground" },
+    { label: "Total outstanding", value: totals?.total ?? null, tone: "text-foreground" },
   ];
 
   return (
@@ -210,9 +219,32 @@ export default function AgedPayables() {
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex flex-wrap items-center gap-2">
               <span>
-                Aging total {formatCurrency(reconciliation.agingTotal)} does not match the AP
-                control account {formatCurrency(reconciliation.controlAccountBalance)} as of{" "}
-                {fmtDate(asOfDate)} — variance {formatCurrency(reconciliation.variance)}.
+                {reconciliation.agingTotal === null ? (
+                  <>
+                    The AP control account cannot be tied out as of {fmtDate(asOfDate)}:{" "}
+                    {reconciliation.unconvertibleDocumentCount} open document(s) are in a currency
+                    with no exchange rate on file. Add the rate in{" "}
+                    <Link
+                      to="/settings/company?tab=currency"
+                      className="underline underline-offset-2"
+                    >
+                      Currency settings
+                    </Link>
+                    , then re-run.
+                  </>
+                ) : (
+                  <>
+                    Aging total{" "}
+                    {formatBaseCurrencyAmount(reconciliation.agingTotal, formatCurrency)} does not
+                    match the AP control account{" "}
+                    {formatBaseCurrencyAmount(
+                      reconciliation.controlAccountBalance,
+                      formatCurrency,
+                    )}{" "}
+                    as of {fmtDate(asOfDate)} — variance{" "}
+                    {formatBaseCurrencyAmount(reconciliation.variance, formatCurrency)}.
+                  </>
+                )}
               </span>
               <Button
                 variant="outline"
@@ -233,7 +265,14 @@ export default function AgedPayables() {
             <Card key={card.label}>
               <CardContent className="pt-4 pb-3 px-4">
                 <p className="text-xs text-muted-foreground">{card.label}</p>
-                <p className={`text-lg font-bold ${card.tone}`}>{formatCurrency(card.value)}</p>
+                <p className={`text-lg font-bold ${card.tone}`}>
+                  <BaseCurrencyAmount
+                    value={card.value}
+                    format={formatCurrency}
+                    unconvertibleCount={unconvertible}
+                    label={card.label}
+                  />
+                </p>
               </CardContent>
             </Card>
           ))}
@@ -332,31 +371,66 @@ export default function AgedPayables() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {row.not_due > 0 ? formatCurrency(row.not_due) : "—"}
+                          <BaseCurrencyAmount
+                            value={row.not_due}
+                            format={formatCurrency}
+                            unconvertibleCount={row.unconvertibleCount}
+                            dashWhenZero
+                          />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {row.current > 0 ? formatCurrency(row.current) : "—"}
+                          <BaseCurrencyAmount
+                            value={row.current}
+                            format={formatCurrency}
+                            unconvertibleCount={row.unconvertibleCount}
+                            dashWhenZero
+                          />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {row.days30 > 0 ? formatCurrency(row.days30) : "—"}
+                          <BaseCurrencyAmount
+                            value={row.days30}
+                            format={formatCurrency}
+                            unconvertibleCount={row.unconvertibleCount}
+                            dashWhenZero
+                          />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {row.days60 > 0 ? formatCurrency(row.days60) : "—"}
+                          <BaseCurrencyAmount
+                            value={row.days60}
+                            format={formatCurrency}
+                            unconvertibleCount={row.unconvertibleCount}
+                            dashWhenZero
+                          />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {row.days90 > 0 ? (
-                            <span className="text-destructive font-medium">
-                              {formatCurrency(row.days90)}
-                            </span>
+                          <BaseCurrencyAmount
+                            value={row.days90}
+                            format={formatCurrency}
+                            unconvertibleCount={row.unconvertibleCount}
+                            dashWhenZero
+                            className="text-destructive font-medium"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {row.credit === null ? (
+                            <BaseCurrencyAmount
+                              value={null}
+                              format={formatCurrency}
+                              unconvertibleCount={row.unconvertibleCount}
+                            />
+                          ) : row.credit > 0 ? (
+                            `(${formatCurrency(row.credit)})`
                           ) : (
                             "—"
                           )}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {row.credit > 0 ? `(${formatCurrency(row.credit)})` : "—"}
-                        </TableCell>
                         <TableCell className="text-right font-bold tabular-nums">
-                          {formatCurrency(row.total)}
+                          <BaseCurrencyAmount
+                            value={row.total}
+                            format={formatCurrency}
+                            unconvertibleCount={row.unconvertibleCount}
+                            label="This vendor's total"
+                          />
                         </TableCell>
                       </TableRow>
 
@@ -405,6 +479,11 @@ export default function AgedPayables() {
                                     </TableCell>
                                     <TableCell className="text-right tabular-nums font-medium">
                                       {formatCurrency(bill.balance)}
+                                      {bill.baseBalance === null && (
+                                        <span className="block text-[10px] font-normal text-destructive">
+                                          No {baseCurrency} rate on file
+                                        </span>
+                                      )}
                                     </TableCell>
                                     <TableCell className="text-right tabular-nums">
                                       {bill.daysPastDue > 0 ? bill.daysPastDue : "—"}
@@ -448,17 +527,60 @@ export default function AgedPayables() {
                     Total ({totals?.vendorCount ?? 0} vendors)
                     {appliedSearch && (
                       <span className="ml-1 font-normal text-xs text-muted-foreground">
-                        — matching “{appliedSearch}”: {formatCurrency(page?.filteredTotal ?? 0)}
+                        — matching “{appliedSearch}”:{" "}
+                        {formatBaseCurrencyAmount(page?.filteredTotal ?? null, formatCurrency)}
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.not_due ?? 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.current ?? 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days30 ?? 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days60 ?? 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.days90 ?? 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.credit ?? 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals?.total ?? 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.not_due ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.current ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.days30 ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.days60 ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.days90 ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.credit ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <BaseCurrencyAmount
+                      value={totals?.total ?? null}
+                      format={formatCurrency}
+                      unconvertibleCount={unconvertible}
+                    />
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
