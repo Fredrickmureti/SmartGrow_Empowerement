@@ -36,47 +36,60 @@ milestone and has **not** been started.
 - `src/components/ai/AIAssistantChat.tsx` shows the working context and a
   branch vs. company-wide scope toggle.
 
-### Phase 3 — Client trust reduction & conversation list (DONE — this pass)
+### Phase 3 — Client trust reduction & conversation list (DONE)
 - Client no longer declares its own authorization: `userRole` and
   `accessibleBranchIds` removed from `useAIAssistant.ts` and from the
-  `AIRequest` contract in the edge function, so no future handler can read them.
-  Role and accessible branches remain derived server-side from the JWT.
-- Conversation list added: `useAIConversation` now returns the newest 20
-  non-archived threads for the active scope, plus `selectConversation` and
-  `startNewConversation` (thread rows are still created lazily on first send so
-  navigation never litters the list with empty threads).
-- `useAIAssistant` exposes `conversations`, `conversationId`, `newChat`,
-  `openConversation`; `clearChat` still archives.
-- Chat header gained a history popover (thread list, active thread
-  highlighted), a new-conversation action, and kept the archive action.
-- In-flight scope switches are guarded by a scope key so a late query cannot
-  paint another scope's history.
-- Ratchet test added: `src/__tests__/architecture.ai-conversation-scope.test.ts`
-  — no client-declared role/branch, no `AIRequest` role/branch fields, every
-  browser conversation query is tenant- or thread-scoped, and the hook binds
-  turns to a persisted conversation.
+  `AIRequest` contract in the edge function. Role and accessible branches are
+  derived server-side from the JWT.
+- Conversation list: newest 20 non-archived threads per scope, plus
+  `selectConversation` / `startNewConversation` (threads created lazily on first
+  send). Chat header has a history popover, new-chat and archive actions.
+- In-flight scope switches are guarded by a scope key.
+- Ratchet test: `src/__tests__/architecture.ai-conversation-scope.test.ts`.
 
-**Verification performed:** `bunx vitest run` on the two AI architecture guard
-suites (7 tests passing) and a full `tsgo` typecheck of `tsconfig.app.json`
-(clean).
+**Verified:** guard suite passing, `tsgo` typecheck of `tsconfig.app.json` clean.
+
+### Phase 4 — AI cache & usage scope keying (DONE — this pass)
+- Migration: `ai_insights_cache` gained `branch_id` and `app_key`; the old
+  `ai_insights_cache_org_user_type_biz_idx` unique index was replaced with
+  `ai_insights_cache_scope_idx` over
+  `(organization_id, user_id, insight_type, COALESCE(business_id), COALESCE(branch_id), COALESCE(app_key))`.
+  `ai_usage_logs` gained `organization_id`, `business_id`, `branch_id`,
+  `user_id`, `app_key` plus a scope index; `ai_advisory_usage` gained `app_key`.
+- `src/hooks/useAIInsightsCache.ts` rewritten: accepts `appKey` and
+  `scopeMode` ("branch" default / "company"), applies the full null-aware scope
+  tuple to every select/delete via a shared `applyScope` helper, keeps the
+  delete-then-insert path aligned with the new unique index, resets displayed
+  content on any scope change, and cancels in-flight loads on scope switch so a
+  late response cannot paint another scope's cache.
+- Edge function: added a server-derived `UsageScope`
+  (organization / business / branch / user / app_key, taken from the JWT-derived
+  values and `workingContext.appKey`, never from client authorization claims)
+  and threaded it through `makeAIRequest`, `runDataToolLoop` and every
+  `logUsage` call site, including the rate-limit, credits-exhausted and
+  provider-error paths.
+- Ratchet test extended: cache hook must carry organization + branch + app
+  predicates (null-aware), no browser module may query `ai_insights_cache`
+  without an organization predicate, and usage logs must be written from the
+  server-derived scope tuple.
+
+**Verification performed:** `bunx vitest run
+src/__tests__/architecture.ai-conversation-scope.test.ts` (7 tests passing) and
+a full `tsgo --noEmit -p tsconfig.app.json` typecheck (clean). Migration applied
+successfully; the linter findings reported afterwards are pre-existing project
+wide items (security-definer views/functions, leaked-password protection) and
+were not introduced by this migration.
 
 ## Pending work (in roadmap order)
 
-### Phase 4 — AI cache & usage scope keying (NEXT)
-- `ai_insights_cache` is keyed on `(organization_id, user_id, insight_type,
-  business_id)` only. Add `branch_id` (nullable = company-wide) and, where
-  meaningful, `app_key`, with a migration that also replaces the
-  `ai_insights_cache_org_user_type_biz_idx` unique index.
-- Update `src/hooks/useAIInsightsCache.ts` to read/write the branch dimension
-  and to keep the delete-then-insert path aligned with the new unique index.
-- Key `ai_usage_logs` / `ai_advisory_usage` rows on the same scope tuple.
-- Extend the ratchet test: no cache query without an `organization_id`
-  predicate and, when branch-scoped, without a `branch_id` predicate.
-
-### Phase 5 — Tool/capability scope
+### Phase 5 — Tool/capability scope (NEXT)
 - Derive the assistant's allowed tool list server-side from installed apps plus
   `user_has_module_permission`, checked per tool invocation rather than once per
   conversation, and independent of the conversation's `app_key`.
+- Deny-by-default: an unknown or unpermitted tool name must return a structured
+  refusal to the model, not an error that aborts the turn.
+- Extend the ratchet test so no tool handler can execute without a permission
+  check.
 
 ### Phase 6 — Record-scoped threads & sharing
 - Surface record-scoped conversations (`record_type` / `record_id`) on record
@@ -89,21 +102,22 @@ suites (7 tests passing) and a full `tsgo` typecheck of `tsconfig.app.json`
 
 ## Instructions for the next agent
 
-1. **Verify Phase 3 before writing new code.** Confirm that
-   `rg "accessibleBranchIds" src` returns nothing, that the `AIRequest`
-   interface in `supabase/functions/ai-assistant/index.ts` still has no
-   role/branch fields, and that
+1. **Verify Phase 4 before writing new code.** Confirm
+   `ai_insights_cache_scope_idx` exists and the old
+   `ai_insights_cache_org_user_type_biz_idx` is gone; confirm `ai_usage_logs`
+   has the five scope columns. Run
    `bunx vitest run src/__tests__/architecture.ai-conversation-scope.test.ts`
-   passes. Then exercise the panel end-to-end: send a turn in two different apps
-   and two different branches, reload, and confirm each scope restores only its
-   own thread and that the history popover lists that scope's threads only.
-   Confirm the new-conversation action produces a second thread rather than
-   reusing the first, and that archive removes it from the list.
-2. Only after that verification, start **Phase 4** exactly as scoped above.
-   Do not begin Phase 5+ or unrelated domains while Phase 4 is partially done.
+   and `bunx tsgo --noEmit -p tsconfig.app.json`. Then exercise the insight
+   widgets: generate an insight in branch A, switch to branch B, and confirm the
+   widget is empty rather than showing branch A's content; switch back and
+   confirm the original is restored. Send an assistant turn and confirm the new
+   `ai_usage_logs` row carries organization / business / branch / user.
+2. Only after that verification, start **Phase 5** exactly as scoped above. Do
+   not begin Phase 6+ or unrelated domains while Phase 5 is partially done.
 3. Keep the audit's "Do NOT change" list intact: server-side auth/tenant/branch
    derivation, the single `ai-assistant` endpoint, cross-application reasoning
    when authorized, provider resolution/entitlements/streaming protocol, and all
    accounting business logic.
 4. Update this file at the end of each phase so it stays the authoritative
    status record.
+

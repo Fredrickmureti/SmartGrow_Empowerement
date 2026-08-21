@@ -67,4 +67,34 @@ describe("AI conversation scope", () => {
     // Only the new user turn may be trusted from the client once a thread exists.
     expect(src).toMatch(/\[\{ role: "user", content: userMessage \}\]/);
   });
+
+  it("the AI insights cache is keyed on the full tenant/branch/app scope", () => {
+    const src = readFileSync("src/hooks/useAIInsightsCache.ts", "utf8");
+    // Cache reads and writes must always carry the tenant predicate…
+    expect(src).toMatch(/\.eq\("organization_id", currentOrg\.id\)/);
+    // …and the branch + app dimensions, null-aware for company-wide entries.
+    expect(src).toMatch(/eq\("branch_id", branchId\)/);
+    expect(src).toMatch(/is\("branch_id", null\)/);
+    expect(src).toMatch(/eq\("app_key", scopedAppKey\)/);
+    expect(src).toMatch(/is\("app_key", null\)/);
+  });
+
+  it("no browser module queries ai_insights_cache without an organization predicate", () => {
+    const offenders = SRC_FILES.filter((file) => {
+      const src = readFileSync(file, "utf8");
+      return src.includes('"ai_insights_cache"') && !/organization_id/.test(src);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("AI usage logs are written with a server-derived scope tuple", () => {
+    const src = readFileSync("supabase/functions/ai-assistant/index.ts", "utf8");
+    expect(src).toMatch(/interface UsageScope/);
+    expect(src).toMatch(/from\("ai_usage_logs"\)\.insert\(\{[\s\S]{0,400}organization_id: usageScope\.organizationId/);
+    expect(src).toMatch(/branch_id: usageScope\.branchId/);
+    expect(src).toMatch(/app_key: usageScope\.appKey/);
+    // The scope must be derived server-side, never taken from the request body.
+    expect(src).toMatch(/userId: callerUserId \?\? null/);
+  });
 });
+

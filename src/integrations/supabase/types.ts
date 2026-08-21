@@ -728,6 +728,7 @@ export type Database = {
       ai_advisory_usage: {
         Row: {
           action: string
+          app_key: string | null
           branch_id: string | null
           business_id: string
           created_at: string
@@ -741,6 +742,7 @@ export type Database = {
         }
         Insert: {
           action: string
+          app_key?: string | null
           branch_id?: string | null
           business_id: string
           created_at?: string
@@ -754,6 +756,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          app_key?: string | null
           branch_id?: string | null
           business_id?: string
           created_at?: string
@@ -917,6 +920,8 @@ export type Database = {
       }
       ai_insights_cache: {
         Row: {
+          app_key: string | null
+          branch_id: string | null
           business_id: string | null
           content: Json
           created_at: string
@@ -928,6 +933,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          app_key?: string | null
+          branch_id?: string | null
           business_id?: string | null
           content: Json
           created_at?: string
@@ -939,6 +946,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          app_key?: string | null
+          branch_id?: string | null
           business_id?: string | null
           content?: Json
           created_at?: string
@@ -1066,40 +1075,55 @@ export type Database = {
       ai_usage_logs: {
         Row: {
           api_key_id: string | null
+          app_key: string | null
+          branch_id: string | null
+          business_id: string | null
           created_at: string | null
           error_message: string | null
           id: string
           model_used: string | null
+          organization_id: string | null
           provider_code: string
           request_type: string
           response_time_ms: number | null
           tokens_used: number | null
+          user_id: string | null
           was_fallback: boolean | null
           was_rate_limited: boolean | null
         }
         Insert: {
           api_key_id?: string | null
+          app_key?: string | null
+          branch_id?: string | null
+          business_id?: string | null
           created_at?: string | null
           error_message?: string | null
           id?: string
           model_used?: string | null
+          organization_id?: string | null
           provider_code: string
           request_type: string
           response_time_ms?: number | null
           tokens_used?: number | null
+          user_id?: string | null
           was_fallback?: boolean | null
           was_rate_limited?: boolean | null
         }
         Update: {
           api_key_id?: string | null
+          app_key?: string | null
+          branch_id?: string | null
+          business_id?: string | null
           created_at?: string | null
           error_message?: string | null
           id?: string
           model_used?: string | null
+          organization_id?: string | null
           provider_code?: string
           request_type?: string
           response_time_ms?: number | null
           tokens_used?: number | null
+          user_id?: string | null
           was_fallback?: boolean | null
           was_rate_limited?: boolean | null
         }

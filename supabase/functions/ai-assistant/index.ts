@@ -1505,6 +1505,26 @@ async function getAISettings(supabaseClient: any): Promise<Record<string, string
 }
 
 // Log usage
+/**
+ * Scope tuple attached to every AI usage log row so usage can be attributed to
+ * an organization / business / branch / application, never inferred later.
+ */
+interface UsageScope {
+  organizationId: string | null;
+  businessId: string | null;
+  branchId: string | null;
+  userId: string | null;
+  appKey: string | null;
+}
+
+const EMPTY_USAGE_SCOPE: UsageScope = {
+  organizationId: null,
+  businessId: null,
+  branchId: null,
+  userId: null,
+  appKey: null,
+};
+
 async function logUsage(
   supabaseClient: any,
   apiKeyId: string | null,
@@ -1514,11 +1534,17 @@ async function logUsage(
   wasRateLimited: boolean,
   wasFallback: boolean,
   errorMessage: string | null,
-  responseTimeMs: number | null
+  responseTimeMs: number | null,
+  usageScope: UsageScope = EMPTY_USAGE_SCOPE
 ) {
   try {
     await supabaseClient.from("ai_usage_logs").insert({
       api_key_id: apiKeyId,
+      organization_id: usageScope.organizationId,
+      business_id: usageScope.businessId,
+      branch_id: usageScope.branchId,
+      user_id: usageScope.userId,
+      app_key: usageScope.appKey,
       provider_code: providerCode,
       request_type: requestType,
       model_used: modelUsed,
@@ -1547,7 +1573,8 @@ async function makeAIRequest(
   requestType: string,
   isStreaming: boolean,
   settings: Record<string, string>,
-  tools?: ToolSpec[]
+  tools?: ToolSpec[],
+  usageScope: UsageScope = EMPTY_USAGE_SCOPE
 ): Promise<Response> {
   const { providers, keys } = await getAvailableProviders(supabaseClient);
   const fallbackEnabled = settings.fallback_enabled === "true";
@@ -1669,7 +1696,8 @@ async function makeAIRequest(
           false,
           isFallback,
           null,
-          responseTime
+          responseTime,
+          usageScope
         );
 
         if (isStreaming) {
@@ -1685,7 +1713,7 @@ async function makeAIRequest(
 
       if (response.status === 429) {
         console.log(`Rate limited by ${attempt.provider.provider_code}, trying fallback...`);
-        await logUsage(supabaseClient, attempt.key?.id || null, attempt.provider.provider_code, requestType, model, true, isFallback, "Rate limited", responseTime);
+        await logUsage(supabaseClient, attempt.key?.id || null, attempt.provider.provider_code, requestType, model, true, isFallback, "Rate limited", responseTime, usageScope);
         lastError = "Rate limit exceeded";
         if (!fallbackEnabled) break;
         continue;
@@ -1693,7 +1721,7 @@ async function makeAIRequest(
 
       if (response.status === 402) {
         lastError = "AI credits exhausted";
-        await logUsage(supabaseClient, attempt.key?.id || null, attempt.provider.provider_code, requestType, model, false, isFallback, "Credits exhausted", responseTime);
+        await logUsage(supabaseClient, attempt.key?.id || null, attempt.provider.provider_code, requestType, model, false, isFallback, "Credits exhausted", responseTime, usageScope);
         if (!fallbackEnabled) break;
         continue;
       }
@@ -1701,7 +1729,7 @@ async function makeAIRequest(
       const errorText = await response.text();
       console.error(`Error from ${attempt.provider.provider_code}:`, response.status, errorText);
       lastError = `Provider error: ${response.status}`;
-      await logUsage(supabaseClient, attempt.key?.id || null, attempt.provider.provider_code, requestType, model, false, isFallback, errorText.substring(0, 500), responseTime);
+      await logUsage(supabaseClient, attempt.key?.id || null, attempt.provider.provider_code, requestType, model, false, isFallback, errorText.substring(0, 500), responseTime, usageScope);
       if (!fallbackEnabled) break;
 
     } catch (e) {
@@ -1732,6 +1760,7 @@ async function runDataToolLoop(
   aiMessages: Array<Record<string, any>>,
   settings: Record<string, string>,
   scope: ToolScope,
+  usageScope: UsageScope,
   currencySummary: Record<string, unknown>,
   maxRounds = 4,
 ): Promise<Array<Record<string, any>>> {
@@ -1741,7 +1770,7 @@ async function runDataToolLoop(
   for (let round = 0; round < maxRounds; round++) {
     let payload: any;
     try {
-      const res = await makeAIRequest(supabaseClient, working, "chat", false, settings, tools);
+      const res = await makeAIRequest(supabaseClient, working, "chat", false, settings, tools, usageScope);
       if (!res.ok) return working; // provider unavailable: answer from the snapshot
       payload = await res.json();
     } catch (e) {
@@ -2135,6 +2164,15 @@ serve(async (req) => {
       });
     }
 
+    // Usage attribution scope: derived server-side only.
+    const usageScope: UsageScope = {
+      organizationId: organizationId ?? null,
+      businessId: businessId ?? null,
+      branchId: branchId ?? null,
+      userId: callerUserId ?? null,
+      appKey: (workingContext?.appKey as string | undefined) ?? null,
+    };
+
     // Ground the answer in live, tenant-scoped rows before streaming it.
     if (type === "chat" && organizationId) {
       const scope: ToolScope = {
@@ -2144,7 +2182,7 @@ serve(async (req) => {
         accessibleBranchIds,
         isAdmin: isAdminRole(userRole),
       };
-      aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, {
+      aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, usageScope, {
         base_currency: currencyCtx.baseCurrency,
         mixed_across_businesses: currencyCtx.mixed,
         business_currencies: currencyCtx.businessCurrencies,
@@ -2169,7 +2207,7 @@ serve(async (req) => {
     }
 
     const isStreaming = type === "chat";
-    const response = await makeAIRequest(supabaseClient, aiMessages, type, isStreaming, settings);
+    const response = await makeAIRequest(supabaseClient, aiMessages, type, isStreaming, settings, undefined, usageScope);
 
     if (isStreaming && response.ok && conversationId && response.body) {
       return new Response(
