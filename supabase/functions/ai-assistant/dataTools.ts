@@ -229,7 +229,7 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Projects and their budgets.",
   },
   project_tasks: {
-    columns: ["id", "name", "project_id", "status", "priority", "due_date", "business_id"],
+    columns: ["id", "task_number", "name", "project_id", "stage_id", "priority", "deadline", "is_done", "is_blocked", "progress", "is_active", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Project tasks.",
@@ -294,7 +294,7 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Tenant rate book. Use this instead of guessing a conversion — never invent a rate.",
   },
   business_active_currencies: {
-    columns: ["id", "business_id", "currency_code", "is_active"],
+    columns: ["id", "business_id", "currency_code", "is_enabled"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Currencies switched on for transacting.",
