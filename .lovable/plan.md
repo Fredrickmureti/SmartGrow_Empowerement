@@ -10,8 +10,9 @@ ADR 0123 (single journal posting monopoly).
 
 ## Currently active phase
 
-**Phase 8 — Collapse the redundant FX engines.** Steps 1–4 complete and verified.
-Step 5 (guard ratchets for the newly converged surface) is the next task.
+**Phase 8 — Collapse the redundant FX engines. COMPLETE (Steps 1–5) and verified.**
+Next task: **Phase 9 — Realized FX on settlement** (`record_payment_atomic` and
+settlement reversals).
 
 ---
 
@@ -66,15 +67,29 @@ revaluation (`revalue_fx_balances`, `reverse_fx_revaluation_run`,
   `_pick_exchange_rate_row` is now the **only** function that reads
   `public.exchange_rates`.
 
-- **Step 5 — guard ratchets — PENDING (next task).**
-  Extend `src/test/architecture/fx-single-engine.test.ts` (and add a SQL
-  invariant test) so CI fails on: a new SQL function selecting from
-  `exchange_rates` outside `_pick_exchange_rate_row`; a reintroduced
-  `COALESCE(..., 1)` / `ELSE _amount` parity fallback in any conversion
-  helper; a client-side `?? credit_amount`-style substitution of a foreign
-  amount for a missing base amount.
+- **Step 5 — guard ratchets — DONE, verified.**
+  - New `supabase/tests/fx_single_rate_reader_test.sql` — a **read-only**
+    catalogue suite (no DML; inspects `pg_proc` / `pg_get_functiondef` only,
+    wrapped in BEGIN/ROLLBACK). It fails if: any `public` function other than
+    `_pick_exchange_rate_row` reads `exchange_rates`; any function other than
+    `set_exchange_rate_override` / `publish_platform_rates` writes it;
+    `to_base_amount` loses its `resolve_exchange_rate` delegation or its
+    `user_can_access_business` gate, or regains `ELSE _amount` /
+    `COALESCE(..., 1)`; `resolve_exchange_rate` or `describe_exchange_rate`
+    stop delegating to the picker; `_wms_generate_3pl_invoice_internal` stops
+    using `require_exchange_rate`; any of the five FX helpers becomes
+    executable by `PUBLIC` or `anon`, or the internal picker becomes callable
+    by `authenticated`.
+  - `src/test/architecture/fx-single-engine.test.ts` extended with a
+    "missing rate is an absence, never a substitute" block: no
+    `base_*_amount ?? *amount` substitution anywhere under `src/`, nullable
+    base-amount typing plus unrated-row skipping in
+    `src/services/finance/openItems.ts`, and no `?? 1` in the client rate book.
+  Verified: `bunx vitest run src/test/architecture/fx-single-engine.test.ts`
+  → 31 passed; every SQL assertion re-checked against the live catalogue
+  (read-only queries) and holds.
 
-### Phase 9 — Realized FX on settlement — PENDING
+### Phase 9 — Realized FX on settlement — PENDING (NEXT)
 Realized FX is missing from single-invoice settlement paths
 (`record_payment_atomic`) and from settlement reversals. Bring them onto the
 same resolver and the existing realized-FX account resolution
@@ -95,14 +110,24 @@ close the cross-business execute surface on the remaining FX helpers.
 
 ## Notes for the next agent
 
-1. **Verify before extending.** Confirm Steps 1–4 hold: (a) only
+0. **Migration safety.** Keep every DB change small and single-purpose; never
+   batch unrelated DDL. Prefer read-only catalogue queries for verification
+   (the Phase 8 Step 5 suite is deliberately DML-free) so verification can
+   never destabilise the project.
+1. **Verify before extending.** Confirm Steps 1–5 hold: (a) only
    `_pick_exchange_rate_row` reads `public.exchange_rates` (catalogue sweep of
    `pg_get_functiondef` across `public`); (b) `to_base_amount`,
    `resolve_exchange_rate` and `describe_exchange_rate` carry no parity
    fallback and no `anon` EXECUTE; (c) `openItems.ts` has no
    `?? credit_amount` substitution.
-2. **Then resume at Phase 8 Step 5**, not elsewhere. Ratchets belong with the
-   convergence they protect; Phase 9 starts only once Phase 8 is closed.
+   (d) `supabase/tests/fx_single_rate_reader_test.sql` and the architecture
+   ratchet both pass.
+2. **Then resume at Phase 9 — Realized FX on settlement**, not elsewhere:
+   bring `record_payment_atomic` (single-invoice settlement) and the
+   settlement-reversal path onto `resolve_exchange_rate` /
+   `resolve_fx_realized_account`, with reversal symmetry, and extend
+   `supabase/tests/fx_settlement_realized_test.sql` to cover them. Do not open
+   Phase 10 until Phase 9 posts and reverses coherently.
 3. **Live data caveat:** `exchange_rates` holds base-currency rows only, so the
    foreign-currency paths are correct by construction and by SQL tests, but have
    not yet been exercised against real multi-currency tenant data. Seeding a
