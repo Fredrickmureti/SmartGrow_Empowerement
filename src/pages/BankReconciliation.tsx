@@ -55,6 +55,14 @@ import { ReconciliationWorkspace } from "@/components/banking/ReconciliationWork
 import { CompletedReconciliations } from "@/components/banking/CompletedReconciliations";
 import { ImportHistoryTab } from "@/components/banking/ImportHistoryTab";
 import { ReconciliationHistoryTab } from "@/components/banking/ReconciliationHistoryTab";
+import { BankMatchHistoryPanel } from "@/components/banking/BankMatchHistoryPanel";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import {
   Search, 
@@ -95,6 +103,12 @@ export default function BankReconciliation() {
   const [activeTab, setActiveTab] = useState("transactions");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSource, setPreviewSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
+  /**
+   * Phase 5 — explainability. A reconciled line must be able to answer "why?"
+   * without an operator reading the database. Read-only: the panel offers no
+   * actions, and it reads through the scoped `bank_match_history` RPC.
+   */
+  const [historyTxn, setHistoryTxn] = useState<{ id: string; description: string | null } | null>(null);
 
   // Unreconcile confirmation
   const [unreconcileDialogOpen, setUnreconcileDialogOpen] = useState(false);
@@ -624,6 +638,14 @@ export default function BankReconciliation() {
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
                                         <DropdownMenuItem
+                                          onClick={() =>
+                                            setHistoryTxn({ id: tx.id, description: tx.description })
+                                          }
+                                        >
+                                          <History className="mr-2 h-4 w-4" />
+                                          Why is this matched?
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
                                           disabled={!canReconcile}
                                           onClick={() => canReconcile && handleUnreconcileConfirm(tx)}
                                           className="text-destructive"
@@ -649,8 +671,17 @@ export default function BankReconciliation() {
                                             <ArrowRightLeft className="mr-2 h-4 w-4" />
                                             Record Transfer
                                           </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() =>
+                                              setHistoryTxn({ id: tx.id, description: tx.description })
+                                            }
+                                          >
+                                            <History className="mr-2 h-4 w-4" />
+                                            Decision history
+                                          </DropdownMenuItem>
                                         </DropdownMenuContent>
                                       </DropdownMenu>
+
                                     </div>
                                   )}
                                 </TableCell>
@@ -798,6 +829,28 @@ export default function BankReconciliation() {
         transaction={transferTransaction}
         onSuccess={fetchTransactions}
       />
+
+      {/* Decision history side rail — read-only explainability (Phase 5). */}
+      <Sheet open={!!historyTxn} onOpenChange={(open) => !open && setHistoryTxn(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Decision history</SheetTitle>
+            <SheetDescription>
+              Every decision taken on this bank line — what it was matched to, on what evidence, by
+              which rule or by whose hand, and whether it was later corrected. Nothing here changes
+              the books.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            <BankMatchHistoryPanel
+              bankTransactionId={historyTxn?.id}
+              formatAmount={(value) => formatBankAmount(value, selectedAccount !== "all" ? selectedAccount : undefined)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+
 
       {/* Start Statement Reconciliation is now a routed page at
           /finance/reconciliation/new — see StartReconciliationPage. */}
