@@ -87665,6 +87665,22 @@ export type Database = {
         Args: { _contract_id: string; _effective_from: string }
         Returns: number
       }
+      _pick_exchange_rate_row: {
+        Args: {
+          p_base_currency: string
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: {
+          effective_date: string
+          provider_key: string
+          rate: number
+          scope: string
+          source: string
+        }[]
+      }
       _pick_hq_branch: { Args: { _business_id: string }; Returns: string }
       _pos_apply_lot_consumption: {
         Args: {
