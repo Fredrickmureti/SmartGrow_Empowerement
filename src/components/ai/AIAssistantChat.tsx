@@ -58,15 +58,34 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
               </div>
               <div className="flex flex-col items-start">
                 <span className="text-base font-semibold">AccrualFlow AI</span>
-                <span className="text-xs text-muted-foreground font-normal">Your Financial Assistant</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {workingContext.appKey === "global"
+                    ? "Your Financial Assistant"
+                    : `Scoped to ${workingContext.appKey.replace(/_/g, " ")}`}
+                </span>
               </div>
             </SheetTitle>
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearChat} className="h-8 w-8 p-0">
+              <Button variant="ghost" size="sm" onClick={() => void clearChat()} className="h-8 w-8 p-0">
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
+          <div className="flex items-center gap-1 pt-2">
+            {(["branch", "company"] as ScopeMode[]).map((mode) => (
+              <Button
+                key={mode}
+                type="button"
+                size="sm"
+                variant={scopeMode === mode ? "secondary" : "ghost"}
+                className="h-7 px-2 text-xs"
+                onClick={() => setScopeMode(mode)}
+              >
+                {mode === "branch" ? "This branch" : "Company-wide"}
+              </Button>
+            ))}
+          </div>
+
         </SheetHeader>
 
         <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-background to-muted/20">
