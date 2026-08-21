@@ -40,6 +40,7 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
 import { useBankMatchCandidates, TIER_COPY, isExplainedTier } from "@/hooks/useBankMatchCandidates";
+import { CandidateAdvisoryPanel } from "@/components/banking/ReconciliationAiAdvisory";
 import { useBankPendingMatch, usePendingMatchActions } from "@/hooks/useBankPendingMatch";
 import { useClearableRecordedPayments } from "@/hooks/useClearableRecordedPayments";
 
@@ -521,8 +522,22 @@ export function ReconcileTransactionSheet({
                       </button>
                     );
                   })}
+
+                  {/*
+                    Phase 6 — the assistant may comment on the candidates above.
+                    It is asked, never automatic; it re-orders nothing on screen
+                    and confirms nothing. Only offered where a judgement is
+                    actually owed.
+                  */}
+                  {candidateSet!.candidates.length > 1 &&
+                    !isExplainedTier(candidateSet!.tier) && (
+                      <div className="pt-1">
+                        <CandidateAdvisoryPanel bankTransactionId={transaction?.id} />
+                      </div>
+                    )}
                 </>
               )}
+
             </CardContent>
           </Card>
         )}
