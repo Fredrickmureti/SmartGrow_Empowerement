@@ -137,16 +137,17 @@ export function CurrencySettings() {
 
   const fetchActiveCurrencies = useCallback(async () => {
     if (!currentBusiness) return;
-    const { data, error } = await supabase
-      .from("business_active_currencies")
-      .select("currency_code, is_enabled")
-      .eq("business_id", currentBusiness.id);
+    // Server-resolved: the base currency is flagged there, never inferred here.
+    const { data, error } = await supabase.rpc("list_business_active_currencies", {
+      _business_id: currentBusiness.id,
+    });
     if (error) {
       console.error("Error fetching active currencies:", error);
       return;
     }
     setActiveCurrencies((data ?? []) as ActiveCurrency[]);
   }, [currentBusiness]);
+
 
   useEffect(() => {
     setIsLoading(true);
