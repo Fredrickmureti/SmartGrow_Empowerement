@@ -669,14 +669,16 @@ async function getFinancialContext(
     const accounts = accountsResult.data || [];
     const branches = branchesResult.data || [];
 
-    // Apply branch filtering for non-admin users
-    if (!isAdmin && branchIds.length > 0) {
+    // Apply branch filtering for non-admin users. FAIL CLOSED: with no viewable
+    // branch the caller sees no branch-scoped rows — the old `length > 0` guard
+    // skipped filtering entirely and leaked every branch to an unassigned user.
+    if (!isAdmin) {
       // Filter POS transactions by branch
       posTransactions = posTransactions.filter((t: any) => 
         t.register?.branch_id && branchIds.includes(t.register.branch_id)
       );
 
-      // Filter employees by branch
+      // Filter employees by branch (branch-less records stay company-wide)
       employees = employees.filter((e: any) => 
         !e.branch_id || branchIds.includes(e.branch_id)
       );
@@ -686,6 +688,7 @@ async function getFinancialContext(
         !lr.employee?.branch_id || branchIds.includes(lr.employee.branch_id)
       );
     }
+
 
     // ─── Ledger-grounded financial truth ───────────────────────────────────
     // Every money figure below comes from a sanctioned projection, and a failed
