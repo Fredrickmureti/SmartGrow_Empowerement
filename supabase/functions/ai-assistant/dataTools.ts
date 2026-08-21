@@ -48,7 +48,7 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Customer invoices (AR). `total`/`amount_paid` are in `currency`.",
   },
   bills: {
-    columns: ["id", "bill_number", "status", "subtotal", "tax_amount", "total", "amount_paid", "currency", "bill_date", "due_date", "contact_id", "business_id", "created_at"],
+    columns: ["id", "bill_number", "status", "subtotal", "tax_amount", "total", "amount_paid", "currency", "bill_date", "due_date", "vendor_id", "voided_at", "business_id", "created_at"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Supplier bills (AP).",
@@ -60,25 +60,30 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Recorded expenses.",
   },
   payments: {
-    columns: ["id", "amount", "currency", "payment_date", "payment_method", "contact_id", "invoice_id", "business_id", "created_at"],
+    columns: ["id", "amount", "payment_date", "payment_method", "reference", "receipt_number", "status", "contact_id", "outstanding_amount", "applied_amount", "business_id", "created_at"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Customer payments received.",
+    description: "Customer payments received, in the workspace base currency. Allocation to invoices lives in payment_allocations, not here.",
   },
   bank_accounts: {
-    columns: ["id", "name", "bank_name", "account_number_masked", "currency", "current_balance", "is_primary", "is_active", "business_id"],
+    // NOTE: this table stores no running balance column at all. A balance is a
+    // projection (`bank_account_positions`), never a stored column — the
+    // assistant's snapshot already carries the positions.
+
+    columns: ["id", "name", "bank_name", "account_number", "currency", "opening_balance", "bank_reported_balance", "bank_balance_as_of", "is_primary", "is_active", "lifecycle_status", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Bank accounts. `current_balance` is in the account's own `currency`, not necessarily the base currency.",
+    description: "Bank account master data in the account's own `currency`. This table holds NO current balance: `opening_balance` is the day-one figure and `bank_reported_balance` is the bank's own last reported figure as at `bank_balance_as_of`. For an actual cash position use the Bank Accounts section of the snapshot, which comes from the `bank_account_positions` projection.",
   },
+
   bank_transactions: {
-    columns: ["id", "bank_account_id", "transaction_date", "description", "amount", "currency", "status", "business_id"],
+    columns: ["id", "bank_account_id", "transaction_date", "posting_date", "description", "reference", "amount", "transaction_type", "is_reconciled", "reconciled_at", "lifecycle_status", "original_currency", "original_amount", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Bank statement lines.",
   },
   contacts: {
-    columns: ["id", "name", "company", "email", "phone", "type", "currency", "is_active", "business_id"],
+    columns: ["id", "name", "email", "phone", "type", "is_company", "default_currency", "credit_limit", "credit_hold", "is_active", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Customers, suppliers and other parties.",
@@ -206,50 +211,50 @@ export const DATA_TABLES: Record<string, TableSpec> = {
   },
 
   employees: {
-    columns: ["id", "first_name", "last_name", "email", "department", "position", "status", "hire_date", "branch_id", "business_id"],
+    columns: ["id", "employee_number", "first_name", "last_name", "email", "work_email", "department_id", "job_position_id", "employment_type", "lifecycle_status", "is_active", "hire_date", "termination_date", "branch_id", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     branchColumn: "branch_id",
     description: "Employee register. Never project salary or bank details here.",
   },
   leave_requests: {
-    columns: ["id", "employee_id", "leave_type", "start_date", "end_date", "status", "business_id"],
+    columns: ["id", "employee_id", "leave_type_id", "request_number", "start_date", "end_date", "days_requested", "status", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Leave requests.",
   },
   projects: {
-    columns: ["id", "name", "status", "budget", "currency", "start_date", "deadline", "progress", "business_id"],
+    columns: ["id", "project_number", "name", "status", "priority", "budget", "currency", "start_date", "end_date", "spent_hours", "allocated_hours", "is_active", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Projects and their budgets.",
   },
   project_tasks: {
-    columns: ["id", "name", "project_id", "status", "priority", "due_date", "business_id"],
+    columns: ["id", "task_number", "name", "project_id", "stage_id", "priority", "deadline", "is_done", "is_blocked", "progress", "is_active", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Project tasks.",
   },
   crm_leads: {
-    columns: ["id", "name", "email", "stage", "expected_revenue", "currency", "probability", "created_at", "business_id"],
+    columns: ["id", "lead_number", "name", "email", "stage_id", "expected_revenue", "probability", "expected_close_date", "won_at", "lost_at", "is_active", "created_at", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "CRM pipeline.",
   },
   estimates: {
-    columns: ["id", "estimate_number", "status", "total", "currency", "issue_date", "valid_until", "contact_id", "business_id"],
+    columns: ["id", "estimate_number", "status", "total", "currency", "issue_date", "expiry_date", "contact_id", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Quotes / estimates.",
   },
   sales_orders: {
-    columns: ["id", "order_number", "status", "total", "currency", "order_date", "contact_id", "business_id"],
+    columns: ["id", "so_number", "status", "total", "currency", "order_date", "expected_date", "contact_id", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Sales orders.",
   },
   purchase_orders: {
-    columns: ["id", "po_number", "status", "total", "currency", "order_date", "expected_delivery_date", "contact_id", "business_id"],
+    columns: ["id", "po_number", "status", "total", "currency", "order_date", "expected_date", "vendor_id", "billing_status", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Purchase orders.",
@@ -261,16 +266,16 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Customer credit notes.",
   },
   fixed_assets: {
-    columns: ["id", "name", "asset_number", "purchase_price", "current_value", "currency", "status", "purchase_date", "business_id"],
+    columns: ["id", "name", "asset_number", "purchase_price", "accumulated_depreciation", "book_value", "status", "purchase_date", "disposal_date", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Fixed asset register.",
   },
   accounts: {
-    columns: ["id", "code", "name", "account_type", "currency", "is_active", "business_id"],
+    columns: ["id", "code", "name", "account_type", "detail_type", "is_header", "is_active", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Chart of accounts.",
+    description: "Chart of accounts (structure only). Do NOT derive balances here — account balances come from posted journal entries and are already summarised in the snapshot.",
   },
   branches: {
     columns: ["id", "name", "code", "is_active", "business_id"],
@@ -284,13 +289,13 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Businesses in this organization, each with its own base currency.",
   },
   exchange_rates: {
-    columns: ["id", "from_currency", "to_currency", "rate", "rate_date", "source", "business_id"],
+    columns: ["id", "from_currency", "to_currency", "rate", "effective_date", "source", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Tenant rate book. Use this instead of guessing a conversion — never invent a rate.",
   },
   business_active_currencies: {
-    columns: ["id", "business_id", "currency_code", "is_active"],
+    columns: ["id", "business_id", "currency_code", "is_enabled"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     description: "Currencies switched on for transacting.",
@@ -825,14 +830,23 @@ export async function executeDataTool(
   currencySummary: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (name === "get_currency_context") {
-    const { data: rates } = await supabaseClient
+    // `effective_date` is the real column; the previous (non-existent) one
+    // returned nothing and left the model to invent a rate.
+    const { data: rates, error } = await supabaseClient
       .from("exchange_rates")
-      .select("from_currency, to_currency, rate, rate_date, source")
+      .select("from_currency, to_currency, rate, effective_date, source")
       .eq("organization_id", scope.organizationId)
-      .order("rate_date", { ascending: false })
+      .order("effective_date", { ascending: false })
       .limit(25);
+    if (error) {
+      return {
+        ...currencySummary,
+        recent_rates_error: `Rate book unavailable (${error.message}). Do NOT convert or quote a rate.`,
+      };
+    }
     return { ...currencySummary, recent_rates: rates ?? [] };
   }
+
 
   if (name === "describe_schema") {
     const only = typeof rawArgs?.table === "string" ? rawArgs.table : null;

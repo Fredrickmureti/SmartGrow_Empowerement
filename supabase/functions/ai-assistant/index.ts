@@ -15,6 +15,17 @@ import {
   type ToolScope,
   type ToolSpec,
 } from "./dataTools.ts";
+import {
+  fetchBankPositions,
+  fetchLedgerBalances,
+  fetchPayables,
+  fetchReceivables,
+  type BankPositionRow,
+  type LedgerBalances,
+  type OpenItemsTotal,
+  type Result,
+} from "../_shared/financialSnapshot.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -215,12 +226,15 @@ interface FinancialContext {
   purchaseOrders: any[];
   accounts: any[];
   summary: {
-    totalBankBalance: number;
-    totalReceivables: number;
-    totalPayables: number;
-    overdueReceivables: number;
-    recentRevenue: number;
-    recentExpenses: number;
+    // `null` means the sanctioned read failed. It is rendered as
+    // "unavailable" — never as 0, which the model would quote as fact.
+    totalBankBalance: number | null;
+    totalReceivables: number | null;
+    totalPayables: number | null;
+    overdueReceivables: number | null;
+    recentRevenue: number | null;
+    recentExpenses: number | null;
+
     // Extended summaries
     totalProducts: number;
     lowStockCount: number;
@@ -313,12 +327,14 @@ async function getFinancialContext(
         .eq("id", organizationId)
         .single(),
       
-      // Bank accounts with balances
+      // Bank account identity only. Balances NEVER come from a column here —
+      // they come from the `bank_account_positions` projection below.
       biz(supabaseClient
         .from("bank_accounts")
-        .select("id, name, bank_name, current_balance, currency, is_primary")
+        .select("id, name, bank_name, currency, is_primary")
         .eq("organization_id", organizationId)
         .eq("is_active", true)),
+
       
       // Recent invoices (last 30 days + all unpaid)
       biz(supabaseClient
@@ -510,7 +526,7 @@ async function getFinancialContext(
       // Accounts summary
       supabaseClient
         .from("accounts")
-        .select("id, name, code, account_type, current_balance, is_active")
+        .select("id, name, code, account_type, is_active")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .order("code")
@@ -576,28 +592,32 @@ async function getFinancialContext(
       );
     }
 
-    const totalBankBalance = bankAccounts.reduce((sum: number, acc: any) => sum + (acc.current_balance || 0), 0);
-    
-    const unpaidInvoices = invoices.filter((inv: any) => 
-      ["sent", "overdue", "partial"].includes(inv.status)
-    );
-    const totalReceivables = unpaidInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.total - (inv.amount_paid || 0)), 0
-    );
-    
-    const overdueInvoices = invoices.filter((inv: any) => 
-      inv.status === "overdue" || (inv.due_date < today && ["sent", "partial"].includes(inv.status))
-    );
-    const overdueReceivables = overdueInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.total - (inv.amount_paid || 0)), 0
-    );
+    // ─── Ledger-grounded financial truth ───────────────────────────────────
+    // Every money figure below comes from a sanctioned projection, and a failed
+    // read stays `null` (rendered as "unavailable") instead of collapsing to 0.
+    const businessesForCash: string[] = businessId
+      ? [businessId]
+      : (((await supabaseClient
+            .from("businesses")
+            .select("id")
+            .eq("organization_id", organizationId)).data) || []).map((b: any) => b.id);
 
-    const totalPayables = bills.reduce((sum: number, bill: any) => 
-      sum + (bill.total - (bill.amount_paid || 0)), 0
-    );
+    const [bankPositions, ledger, receivables, payables] = await Promise.all([
+      fetchBankPositions(supabaseClient, businessesForCash, today),
+      fetchLedgerBalances(supabaseClient, organizationId, businessId || null, null, thirtyDaysAgo, today),
+      fetchReceivables(supabaseClient, organizationId, businessId || null, today),
+      fetchPayables(supabaseClient, organizationId, businessId || null, today),
+    ]);
 
-    const recentRevenue = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
-    const recentExpensesTotal = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const totalBankBalance = bankPositions.ok
+      ? bankPositions.value.reduce((sum, p) => sum + p.statement_balance, 0)
+      : null;
+    const totalReceivables = receivables.ok ? receivables.value.residual : null;
+    const overdueReceivables = receivables.ok ? receivables.value.overdue : null;
+    const totalPayables = payables.ok ? payables.value.residual : null;
+    const recentRevenue = ledger.ok ? ledger.value.revenue : null;
+    const recentExpensesTotal = ledger.ok ? ledger.value.expenses : null;
+
 
     // Calculate today's POS sales
     const todayStart = new Date().toISOString().split('T')[0];
@@ -647,7 +667,13 @@ async function getFinancialContext(
         totalAssetValue,
         todayPOSSales,
       },
+      // Ledger-grounded reads (Result-typed: a failed read is reported, never zeroed)
+      _bankPositions: bankPositions,
+      _ledger: ledger,
+      _receivables: receivables,
+      _payables: payables,
       // Extra data for branch-aware prompts
+
       _branches: branches,
       _isAdmin: isAdmin,
       _branchIds: branchIds,
@@ -761,24 +787,50 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     prompt += `| **TOTAL** | **${formatCurrency(totalToday, cur)}** | **${formatCurrency(totalWeek, cur)}** | **${totalCount}** | **${formatCurrency(totalAvg, cur)}** |\n\n`;
   }
 
-  // ===== FINANCIAL SUMMARY =====
-  prompt += `## 💰 Financial Summary\n`;
-  prompt += `- **Total Bank Balance:** ${formatCurrency(summary.totalBankBalance, cur)}\n`;
-  prompt += `- **Accounts Receivable (Money owed to you):** ${formatCurrency(summary.totalReceivables, cur)}\n`;
-  prompt += `- **Overdue Receivables:** ${formatCurrency(summary.overdueReceivables, cur)}\n`;
-  prompt += `- **Accounts Payable (Money you owe):** ${formatCurrency(summary.totalPayables, cur)}\n`;
-  prompt += `- **Net Cash Flow (Last 30 days):** ${formatCurrency(summary.recentRevenue - summary.recentExpenses, cur)}\n`;
-  prompt += `  - Revenue received: ${formatCurrency(summary.recentRevenue, cur)}\n`;
-  prompt += `  - Expenses paid: ${formatCurrency(summary.recentExpenses, cur)}\n\n`;
+  // ===== FINANCIAL SUMMARY (ledger-grounded) =====
+  // `money()` renders an unavailable read honestly. Nothing here may print a
+  // zero that was really a failed query.
+  const bankPositions = (context as any)._bankPositions as Result<BankPositionRow[]> | undefined;
+  const ledger = (context as any)._ledger as Result<LedgerBalances> | undefined;
+  const receivables = (context as any)._receivables as Result<OpenItemsTotal> | undefined;
+  const payables = (context as any)._payables as Result<OpenItemsTotal> | undefined;
 
-  // Bank Accounts
-  if (bankAccounts.length > 0) {
-    prompt += `## 🏦 Bank Accounts\n`;
-    bankAccounts.forEach((acc: any) => {
-      prompt += `- **${acc.name}** (${acc.bank_name || 'Bank'}): ${formatRecordMoney(acc.current_balance, acc.currency, cur)} ${acc.is_primary ? '(Primary)' : ''}\n`;
+  const money = (value: number | null | undefined, source: { ok: boolean; reason?: string } | undefined) => {
+    if (value === null || value === undefined) {
+      return `UNAVAILABLE (${source && !source.ok ? source.reason : 'could not be read'}) — do NOT state a figure`;
+    }
+    return formatCurrency(value, cur);
+  };
+
+  prompt += `## 💰 Financial Summary\n`;
+  prompt += `- **Total Bank Balance (statement position, all active accounts):** ${money(summary.totalBankBalance, bankPositions)}\n`;
+  prompt += `- **Accounts Receivable (Money owed to you):** ${money(summary.totalReceivables, receivables)}\n`;
+  prompt += `- **Overdue Receivables:** ${money(summary.overdueReceivables, receivables)}\n`;
+  prompt += `- **Accounts Payable (Money you owe):** ${money(summary.totalPayables, payables)}\n`;
+  const netCash = summary.recentRevenue !== null && summary.recentExpenses !== null
+    ? summary.recentRevenue - summary.recentExpenses
+    : null;
+  prompt += `- **Net Profit (posted GL, last 30 days):** ${money(netCash, ledger)}\n`;
+  prompt += `  - Revenue (posted income accounts): ${money(summary.recentRevenue, ledger)}\n`;
+  prompt += `  - Expenses (posted expense accounts): ${money(summary.recentExpenses, ledger)}\n`;
+  prompt += `\n*Sources: cash = \`bank_account_positions\`; revenue/expenses = posted journal entries via \`get_account_movements\`; receivables = \`finance_ar_open_items\`; payables = open bills net of payments and vendor credit notes. These are the same seams the finance reports use.*\n\n`;
+
+  // Bank Accounts — per-account positions, with the reconciliation state
+  if (bankPositions && !bankPositions.ok) {
+    prompt += `## 🏦 Bank Accounts\nUNAVAILABLE — the cash position could not be read (${bankPositions.reason}). Do NOT state any bank balance.\n\n`;
+  } else if (bankPositions && bankPositions.value.length > 0) {
+    prompt += `## 🏦 Bank Accounts (as at ${bankPositions.value[0].as_of})\n`;
+    bankPositions.value.forEach((p) => {
+      const gl = p.gl_shared
+        ? 'GL: shared control account (not attributable to this account)'
+        : p.gl_balance === null
+          ? 'GL: not mapped'
+          : `GL: ${formatRecordMoney(p.gl_balance, p.currency, cur)}`;
+      prompt += `- **${p.name}** (${p.bank_name || 'Bank'}): statement ${formatRecordMoney(p.statement_balance, p.currency, cur)} · ${gl} · ${p.unreconciled_count} unreconciled line(s) totalling ${formatRecordMoney(p.unreconciled_amount, p.currency, cur)}${p.is_primary ? ' (Primary)' : ''}\n`;
     });
     prompt += `\n`;
   }
+
 
   // ===== POS SALES =====
   prompt += `## 🛒 POS Sales\n`;
@@ -960,23 +1012,32 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     prompt += `\n`;
   }
 
-  // ===== CHART OF ACCOUNTS SUMMARY =====
-  if (accounts.length > 0) {
-    const accountsByType: Record<string, number> = {};
-    accounts.forEach((acc: any) => {
-      const type = acc.account_type || 'Other';
-      accountsByType[type] = (accountsByType[type] || 0) + (acc.current_balance || 0);
-    });
-    
-    prompt += `## 📒 Account Balances by Type\n`;
-    Object.entries(accountsByType)
-      .forEach(([type, balance]) => {
-        prompt += `- **${type}:** ${formatCurrency(balance, cur)}\n`;
+  // ===== ACCOUNT BALANCES BY TYPE (posted ledger, ALL accounts) =====
+  // Previously summed a 50-row page of a denormalised column, which silently
+  // truncated the totals. Now derived from posted journal entries over the
+  // complete chart of accounts.
+  prompt += `## 📒 Account Balances by Type (posted journal entries, all accounts)\n`;
+  if (!ledger || !ledger.ok) {
+    prompt += `UNAVAILABLE — the ledger could not be read (${ledger && !ledger.ok ? ledger.reason : 'no ledger read'}). Do NOT state balances by type.\n\n`;
+  } else {
+    const entries = Object.entries(ledger.value.byType).filter(([, v]) => Math.abs(v) > 0.005);
+    if (entries.length === 0) {
+      prompt += `No posted journal entries yet — every account type is at zero.\n`;
+    } else {
+      entries.forEach(([type, balance]) => {
+        prompt += `- **${type}:** ${formatCurrency(balance, cur)} (positive = normal balance for the type)\n`;
       });
-    prompt += `\n`;
+    }
+    prompt += `*Covers all ${ledger.value.accountCount} accounts in the chart, not a sample.*\n\n`;
   }
 
-  prompt += `---\n\nUse the above real-time data to answer questions. Be specific with numbers. Do not ask the user for information that is already provided above.\n`;
+
+  prompt += `---\n\n**ANSWERING RULES (non-negotiable):**\n`;
+  prompt += `1. Quote ONLY figures present above or returned by a data tool. Never estimate, infer or carry a number over from a previous answer.\n`;
+  prompt += `2. If a figure is marked UNAVAILABLE, say plainly that it could not be read and suggest where the user can see it. Never substitute 0.\n`;
+  prompt += `3. A zero is only a zero when it is stated as a figure above — a missing section is not evidence of zero.\n`;
+  prompt += `4. Name the basis when it matters (statement position vs GL balance, posted vs draft) so the user can reconcile your answer with the reports.\n`;
+
   
   return prompt;
 }
