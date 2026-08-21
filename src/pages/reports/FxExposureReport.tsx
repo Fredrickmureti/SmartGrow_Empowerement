@@ -82,6 +82,8 @@ function FxExposureReportInner() {
 
   const { data, isLoading, error } = useFxExposure(asOf);
   const { data: drill, isLoading: drillLoading } = useFxExposureOpenItems(selected, asOf);
+  const { data: dimensions } = useFxExposureDimensions(asOf, selected);
+
 
   const base = data?.base_currency ?? "";
   const currencies = useMemo<FxExposureCurrency[]>(() => data?.currencies ?? [], [data]);
