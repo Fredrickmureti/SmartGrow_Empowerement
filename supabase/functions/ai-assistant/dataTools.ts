@@ -66,11 +66,15 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Customer payments received.",
   },
   bank_accounts: {
-    columns: ["id", "name", "bank_name", "account_number_masked", "currency", "current_balance", "is_primary", "is_active", "business_id"],
+    // NOTE: there is no `current_balance` column on this table. A balance is a
+    // projection (`bank_account_positions`), never a stored column — the
+    // assistant's snapshot already carries the positions.
+    columns: ["id", "name", "bank_name", "account_number", "currency", "opening_balance", "bank_reported_balance", "bank_balance_as_of", "is_primary", "is_active", "lifecycle_status", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Bank accounts. `current_balance` is in the account's own `currency`, not necessarily the base currency.",
+    description: "Bank account master data in the account's own `currency`. This table holds NO current balance: `opening_balance` is the day-one figure and `bank_reported_balance` is the bank's own last reported figure as at `bank_balance_as_of`. For an actual cash position use the Bank Accounts section of the snapshot, which comes from the `bank_account_positions` projection.",
   },
+
   bank_transactions: {
     columns: ["id", "bank_account_id", "transaction_date", "description", "amount", "currency", "status", "business_id"],
     orgColumn: "organization_id",
