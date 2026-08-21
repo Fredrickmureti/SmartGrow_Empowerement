@@ -578,28 +578,32 @@ async function getFinancialContext(
       );
     }
 
-    const totalBankBalance = bankAccounts.reduce((sum: number, acc: any) => sum + (acc.current_balance || 0), 0);
-    
-    const unpaidInvoices = invoices.filter((inv: any) => 
-      ["sent", "overdue", "partial"].includes(inv.status)
-    );
-    const totalReceivables = unpaidInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.total - (inv.amount_paid || 0)), 0
-    );
-    
-    const overdueInvoices = invoices.filter((inv: any) => 
-      inv.status === "overdue" || (inv.due_date < today && ["sent", "partial"].includes(inv.status))
-    );
-    const overdueReceivables = overdueInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.total - (inv.amount_paid || 0)), 0
-    );
+    // ─── Ledger-grounded financial truth ───────────────────────────────────
+    // Every money figure below comes from a sanctioned projection, and a failed
+    // read stays `null` (rendered as "unavailable") instead of collapsing to 0.
+    const businessesForCash: string[] = businessId
+      ? [businessId]
+      : (((await supabaseClient
+            .from("businesses")
+            .select("id")
+            .eq("organization_id", organizationId)).data) || []).map((b: any) => b.id);
 
-    const totalPayables = bills.reduce((sum: number, bill: any) => 
-      sum + (bill.total - (bill.amount_paid || 0)), 0
-    );
+    const [bankPositions, ledger, receivables, payables] = await Promise.all([
+      fetchBankPositions(supabaseClient, businessesForCash, today),
+      fetchLedgerBalances(supabaseClient, organizationId, businessId || null, null, thirtyDaysAgo, today),
+      fetchReceivables(supabaseClient, organizationId, businessId || null, today),
+      fetchPayables(supabaseClient, organizationId, businessId || null, today),
+    ]);
 
-    const recentRevenue = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
-    const recentExpensesTotal = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const totalBankBalance = bankPositions.ok
+      ? bankPositions.value.reduce((sum, p) => sum + p.statement_balance, 0)
+      : null;
+    const totalReceivables = receivables.ok ? receivables.value.residual : null;
+    const overdueReceivables = receivables.ok ? receivables.value.overdue : null;
+    const totalPayables = payables.ok ? payables.value.residual : null;
+    const recentRevenue = ledger.ok ? ledger.value.revenue : null;
+    const recentExpensesTotal = ledger.ok ? ledger.value.expenses : null;
+
 
     // Calculate today's POS sales
     const todayStart = new Date().toISOString().split('T')[0];
