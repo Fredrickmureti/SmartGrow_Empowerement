@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBankTransactions } from "@/hooks/useBankTransactions";
 import { BankingLoadError } from "@/components/banking/BankingLoadError";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
-import { useTransactionRules } from "@/hooks/useTransactionRules";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/ReconcileTransactionSheet";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -78,7 +77,7 @@ export default function BankFeeds() {
   // A feed line's currency is its bank account's currency (ADR 0136).
   const { formatBankAmount } = useBankMoney();
   const { transactions, isLoading, loadError, fetchTransactions } = useBankTransactions();
-  const { createRule } = useTransactionRules();
+  const navigate = useNavigate();
   const scope = useFinanceScope();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -133,24 +132,24 @@ export default function BankFeeds() {
   };
 
 
-  const handleCreateRule = async (tx: any) => {
-    // Extract a pattern from the description (first meaningful word)
+  /**
+   * A rule is an accounting instruction, not a label: it must name the account
+   * the residual posts to, and this line cannot guess that. So the feed hands
+   * the operator a pre-filled rule form rather than silently creating a rule
+   * that the executor would refuse to act on.
+   */
+  const handleCreateRule = (tx: any) => {
     const words = tx.description.split(/\s+/).filter((w: string) => w.length > 3);
     const pattern = words[0] || tx.description.substring(0, 10);
-    
-    try {
-      await createRule({
-        rule_name: `Rule: ${pattern}`,
-        description_pattern: pattern,
-        target_category: tx.category || tx.ai_suggested_category || "Other",
-        priority: 50,
-        is_active: true,
-      });
-      toast({ title: "Rule created", description: `New rule created for "${pattern}"` });
-    } catch (error: any) {
-      toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
-    }
+    const params = new URLSearchParams({
+      name: `Rule: ${pattern}`,
+      pattern: `%${pattern}%`,
+      amount_sign: Number(tx.amount) < 0 ? "debit" : "credit",
+    });
+    if (tx.bank_account_id) params.set("bank_account_id", tx.bank_account_id);
+    navigate(`/finance/banking/rules/new?${params.toString()}`);
   };
+
 
   const handleBulkCategorize = async (category: string) => {
     if (selectedTransactions.length === 0) return;

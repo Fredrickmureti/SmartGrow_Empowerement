@@ -5282,6 +5282,7 @@ export type Database = {
           amount_sign: string | null
           auto_post: boolean
           bank_account_id: string | null
+          branch_id: string | null
           business_id: string
           counterpart_account_id: string
           counterpart_contact_id: string | null
@@ -5307,6 +5308,7 @@ export type Database = {
           amount_sign?: string | null
           auto_post?: boolean
           bank_account_id?: string | null
+          branch_id?: string | null
           business_id: string
           counterpart_account_id: string
           counterpart_contact_id?: string | null
@@ -5332,6 +5334,7 @@ export type Database = {
           amount_sign?: string | null
           auto_post?: boolean
           bank_account_id?: string | null
+          branch_id?: string | null
           business_id?: string
           counterpart_account_id?: string
           counterpart_contact_id?: string | null
@@ -5358,6 +5361,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bank_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
           },
           {
             foreignKeyName: "bank_reconciliation_rules_business_id_fkey"

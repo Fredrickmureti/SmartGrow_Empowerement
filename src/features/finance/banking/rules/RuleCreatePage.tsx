@@ -1,14 +1,17 @@
 /**
- * RuleCreatePage — routed `/finance/banking/rules/new` replacement for the
- * legacy `TransactionRulesDialog` in create mode.
+ * RuleCreatePage — routed `/finance/banking/rules/new`.
+ *
+ * Authors into `bank_reconciliation_rules` through the server write seam; the
+ * browser never stamps scope. A rule created here is a rule the executor reads.
  */
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import { RecordFormShell, useRecordFormSubmit } from "@/design-system";
-import { useTransactionRules, type TransactionRule } from "@/hooks/useTransactionRules";
+import { useReconciliationRules } from "@/hooks/finance/useReconciliationRules";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
+import { useBranches } from "@/hooks/useBranches";
 import {
   RuleFormBody,
   buildRulePayload,
@@ -17,14 +20,24 @@ import {
 } from "./RuleFormBody";
 
 export default function RuleCreatePage() {
-  const navigate = useNavigate();
-  const { createRule } = useTransactionRules();
+  const [searchParams] = useSearchParams();
+  const { createRule } = useReconciliationRules();
   const { accounts: glAccounts } = useAccounts();
   const { accounts: bankAccounts } = useBankAccounts();
+  const { branches } = useBranches();
 
-  const [values, setValues] = useState<RuleFormValues>(emptyRuleForm);
+  // A rule can be started from a bank line the operator is looking at; the
+  // line supplies the pattern and the scope, never the account.
+  const [values, setValues] = useState<RuleFormValues>(() => ({
+    ...emptyRuleForm,
+    name: searchParams.get("name") ?? "",
+    pattern: searchParams.get("pattern") ?? "",
+    bank_account_id: searchParams.get("bank_account_id") ?? "",
+    amount_sign:
+      (searchParams.get("amount_sign") as RuleFormValues["amount_sign"]) ?? "any",
+  }));
 
-  const submit = useRecordFormSubmit<TransactionRule | null>({
+  const submit = useRecordFormSubmit<boolean>({
     entityLabel: "Rule",
     mode: "create",
     redirectTo: () => "/finance/banking/rules",
@@ -33,14 +46,13 @@ export default function RuleCreatePage() {
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     submit.run(async () => {
-      const result = await createRule(buildRulePayload(values));
-      if (!result) throw new Error("Failed to create rule");
-      return result;
+      await createRule(buildRulePayload(values));
+      return true;
     });
   };
 
   const canSubmit =
-    !!values.rule_name && !!values.description_pattern && !!values.target_category;
+    !!values.name && !!values.pattern && !!values.counterpart_account_id;
 
   return (
     <RecordFormShell
@@ -56,6 +68,7 @@ export default function RuleCreatePage() {
         onChange={setValues}
         glAccounts={glAccounts || []}
         bankAccounts={bankAccounts || []}
+        branches={branches || []}
       />
     </RecordFormShell>
   );

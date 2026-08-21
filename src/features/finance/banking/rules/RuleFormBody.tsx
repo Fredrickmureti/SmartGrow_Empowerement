@@ -1,8 +1,15 @@
 /**
  * RuleFormBody — shared form body for RuleCreatePage + RuleEditPage.
  *
- * Extracted verbatim from the legacy `TransactionRulesDialog` create/edit
- * card. Presentational only; the parent page owns state and submit.
+ * Phase 4 of the reconciliation wave: rules are authored into the one table the
+ * executor actually reads (`bank_reconciliation_rules`). The form therefore
+ * speaks the accounting vocabulary — a rule names the account the residual is
+ * posted to, not a free-text "category" — and every field on this form is a
+ * field the engine honours. Fields with no backing behaviour (the old
+ * `auto_action`, `stop_processing` and offset-account controls) were removed
+ * rather than left as decoration.
+ *
+ * Presentational only; the parent page owns state and submit.
  */
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,53 +25,48 @@ import {
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import type { Account } from "@/hooks/useAccounts";
 import type { BankAccount } from "@/hooks/useBankAccounts";
+import type { Branch } from "@/contexts/BranchContext";
+import type { ReconciliationRuleInput } from "@/hooks/finance/useReconciliationRules";
 
 export interface RuleFormValues {
-  rule_name: string;
-  description_pattern: string;
+  name: string;
+  pattern: string;
+  /** When true the pattern is a regular expression, otherwise an ILIKE pattern. */
+  use_regex: boolean;
   reference_pattern: string;
-  min_amount?: number;
-  max_amount?: number;
-  transaction_type: string;
-  target_category: string;
+  amount_min?: number;
+  amount_max?: number;
+  amount_sign: "any" | "debit" | "credit";
+  counterpart_account_id: string;
+  description_template: string;
   priority: number;
   is_active: boolean;
-  auto_action: string;
   auto_post: boolean;
-  auto_offset_account_id: string;
-  use_regex: boolean;
-  stop_processing: boolean;
   bank_account_id: string;
+  branch_id: string;
 }
 
 export const emptyRuleForm: RuleFormValues = {
-  rule_name: "",
-  description_pattern: "",
-  reference_pattern: "",
-  min_amount: undefined,
-  max_amount: undefined,
-  transaction_type: "both",
-  target_category: "",
-  priority: 0,
-  is_active: true,
-  auto_action: "categorize",
-  auto_post: false,
-  auto_offset_account_id: "",
+  name: "",
+  pattern: "",
   use_regex: false,
-  stop_processing: false,
+  reference_pattern: "",
+  amount_min: undefined,
+  amount_max: undefined,
+  amount_sign: "any",
+  counterpart_account_id: "",
+  description_template: "",
+  priority: 100,
+  is_active: true,
+  auto_post: false,
   bank_account_id: "",
+  branch_id: "",
 };
 
-const TRANSACTION_TYPES = [
-  { value: "both", label: "All Types" },
-  { value: "debit", label: "Expense / Payment" },
-  { value: "credit", label: "Deposit / Receipt" },
-];
-
-const AUTO_ACTIONS = [
-  { value: "categorize", label: "Categorize Only" },
-  { value: "create_je", label: "Create Journal Entry" },
-  { value: "match_invoice", label: "Match to Invoice/Bill" },
+const AMOUNT_SIGNS = [
+  { value: "any", label: "All lines" },
+  { value: "debit", label: "Money out (payments)" },
+  { value: "credit", label: "Money in (receipts)" },
 ];
 
 interface RuleFormBodyProps {
@@ -72,6 +74,7 @@ interface RuleFormBodyProps {
   onChange: (next: RuleFormValues) => void;
   glAccounts: Account[];
   bankAccounts: BankAccount[];
+  branches: Branch[];
 }
 
 export function RuleFormBody({
@@ -79,44 +82,50 @@ export function RuleFormBody({
   onChange,
   glAccounts,
   bankAccounts,
+  branches,
 }: RuleFormBodyProps) {
   const patch = (next: Partial<RuleFormValues>) => onChange({ ...values, ...next });
 
   return (
     <div className="space-y-4">
-      {/* Row 1: Name + GL Account */}
+      {/* Row 1: Name + counterpart account */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="space-y-2">
           <Label className="text-xs sm:text-sm">Rule Name *</Label>
           <Input
-            value={values.rule_name}
-            onChange={(e) => patch({ rule_name: e.target.value })}
-            placeholder="e.g., MPESA Sales"
+            value={values.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            placeholder="e.g., Bank charges"
             className="text-sm"
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-xs sm:text-sm">Target Account (GL) *</Label>
+          <Label className="text-xs sm:text-sm">Post to Account *</Label>
           <AccountCombobox
             accounts={glAccounts}
-            value={values.target_category}
-            onValueChange={(value) => patch({ target_category: value })}
+            value={values.counterpart_account_id}
+            onValueChange={(value) => patch({ counterpart_account_id: value })}
             placeholder="Select GL account..."
           />
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
+            The other side of the entry when this rule explains a line.
+          </p>
         </div>
       </div>
 
-      {/* Row 2: Pattern + Reference */}
+      {/* Row 2: Pattern + reference */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="space-y-2">
           <Label className="text-xs sm:text-sm">Description Pattern *</Label>
           <Input
-            value={values.description_pattern}
-            onChange={(e) => patch({ description_pattern: e.target.value })}
-            placeholder={values.use_regex ? "e.g., MPESA.*SALES" : "e.g., MPESA|SAFARICOM"}
+            value={values.pattern}
+            onChange={(e) => patch({ pattern: e.target.value })}
+            placeholder={values.use_regex ? "e.g., LEDGER FEE|CHARGE" : "e.g., %LEDGER FEE%"}
           />
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            {values.use_regex ? "Regular expression pattern" : "Use | for OR matching"}
+            {values.use_regex
+              ? "Regular expression, matched case-insensitively"
+              : "Use % as a wildcard, e.g. %BANK CHARGE%"}
           </p>
         </div>
         <div className="space-y-2">
@@ -124,24 +133,24 @@ export function RuleFormBody({
           <Input
             value={values.reference_pattern}
             onChange={(e) => patch({ reference_pattern: e.target.value })}
-            placeholder="Optional pattern"
+            placeholder="Optional, e.g. %FEE%"
           />
         </div>
       </div>
 
-      {/* Row 3: Type, Amount Range, Priority */}
+      {/* Row 3: Direction, amount range, priority */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <div className="space-y-2">
-          <Label className="text-xs sm:text-sm">Transaction Type</Label>
+          <Label className="text-xs sm:text-sm">Applies To</Label>
           <Select
-            value={values.transaction_type}
-            onValueChange={(value) => patch({ transaction_type: value })}
+            value={values.amount_sign}
+            onValueChange={(value) => patch({ amount_sign: value as RuleFormValues["amount_sign"] })}
           >
             <SelectTrigger className="text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TRANSACTION_TYPES.map((t) => (
+              {AMOUNT_SIGNS.map((t) => (
                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
               ))}
             </SelectContent>
@@ -151,8 +160,8 @@ export function RuleFormBody({
           <Label className="text-xs sm:text-sm">Min Amount</Label>
           <Input
             type="number"
-            value={values.min_amount ?? ""}
-            onChange={(e) => patch({ min_amount: e.target.value ? Number(e.target.value) : undefined })}
+            value={values.amount_min ?? ""}
+            onChange={(e) => patch({ amount_min: e.target.value ? Number(e.target.value) : undefined })}
             placeholder="-"
           />
         </div>
@@ -160,8 +169,8 @@ export function RuleFormBody({
           <Label className="text-xs sm:text-sm">Max Amount</Label>
           <Input
             type="number"
-            value={values.max_amount ?? ""}
-            onChange={(e) => patch({ max_amount: e.target.value ? Number(e.target.value) : undefined })}
+            value={values.amount_max ?? ""}
+            onChange={(e) => patch({ amount_max: e.target.value ? Number(e.target.value) : undefined })}
             placeholder="-"
           />
         </div>
@@ -169,65 +178,68 @@ export function RuleFormBody({
           <Label className="text-xs sm:text-sm">Priority</Label>
           <Input
             type="number"
-            value={values.priority || 0}
+            value={values.priority}
             onChange={(e) => patch({ priority: Number(e.target.value) })}
-            placeholder="0"
+            placeholder="100"
           />
+          <p className="text-[10px] text-muted-foreground">Lower runs first.</p>
         </div>
       </div>
 
       <Separator />
 
-      {/* Row 4: Auto-action */}
+      {/* Scope */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label className="text-xs sm:text-sm">Auto Action</Label>
+          <Label className="text-xs sm:text-sm">Apply to Bank Account</Label>
           <Select
-            value={values.auto_action}
-            onValueChange={(value) => patch({ auto_action: value })}
+            value={values.bank_account_id || "all"}
+            onValueChange={(value) => patch({ bank_account_id: value === "all" ? "" : value })}
           >
             <SelectTrigger className="text-sm">
-              <SelectValue />
+              <SelectValue placeholder="All accounts" />
             </SelectTrigger>
             <SelectContent>
-              {AUTO_ACTIONS.map((a) => (
-                <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+              <SelectItem value="all">All bank accounts</SelectItem>
+              {bankAccounts.filter((a) => a.is_active).map((acc) => (
+                <SelectItem key={acc.id} value={acc.id}>
+                  {acc.name} — {acc.bank_name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        {values.auto_action === "create_je" && (
-          <div className="space-y-2">
-            <Label className="text-xs sm:text-sm">Offset Account</Label>
-            <AccountCombobox
-              accounts={glAccounts}
-              value={values.auto_offset_account_id}
-              onValueChange={(value) => patch({ auto_offset_account_id: value })}
-              placeholder="Select offset account..."
-            />
-          </div>
-        )}
+        <div className="space-y-2">
+          <Label className="text-xs sm:text-sm">Apply to Branch</Label>
+          <Select
+            value={values.branch_id || "all"}
+            onValueChange={(value) => patch({ branch_id: value === "all" ? "" : value })}
+          >
+            <SelectTrigger className="text-sm">
+              <SelectValue placeholder="All branches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All branches</SelectItem>
+              {branches.map((branch) => (
+                <SelectItem key={branch.id} value={branch.id}>
+                  {branch.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
+            A rule never explains a line from another branch.
+          </p>
+        </div>
       </div>
 
-      {/* Bank account scope */}
       <div className="space-y-2">
-        <Label className="text-xs sm:text-sm">Apply to Bank Account</Label>
-        <Select
-          value={values.bank_account_id || "all"}
-          onValueChange={(value) => patch({ bank_account_id: value === "all" ? "" : value })}
-        >
-          <SelectTrigger className="text-sm">
-            <SelectValue placeholder="All accounts" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All bank accounts</SelectItem>
-            {bankAccounts.filter((a) => a.is_active).map((acc) => (
-              <SelectItem key={acc.id} value={acc.id}>
-                {acc.name} — {acc.bank_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label className="text-xs sm:text-sm">Entry Description</Label>
+        <Input
+          value={values.description_template}
+          onChange={(e) => patch({ description_template: e.target.value })}
+          placeholder="Optional — defaults to the bank line description"
+        />
       </div>
 
       {/* Toggles */}
@@ -251,36 +263,36 @@ export function RuleFormBody({
             checked={values.auto_post}
             onCheckedChange={(checked) => patch({ auto_post: checked })}
           />
-          <Label className="text-xs sm:text-sm">Auto-Post JE</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Switch
-            checked={values.stop_processing}
-            onCheckedChange={(checked) => patch({ stop_processing: checked })}
-          />
-          <Label className="text-xs sm:text-sm">Stop Processing</Label>
+          <div>
+            <Label className="text-xs sm:text-sm">Post Automatically</Label>
+            <p className="text-[10px] text-muted-foreground">
+              Off: the rule leaves a proposal for a human to confirm.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-export function buildRulePayload(values: RuleFormValues) {
+export function buildRulePayload(values: RuleFormValues): ReconciliationRuleInput {
+  const pattern = values.pattern.trim();
   return {
-    rule_name: values.rule_name,
-    description_pattern: values.description_pattern,
-    reference_pattern: values.reference_pattern || undefined,
-    min_amount: values.min_amount,
-    max_amount: values.max_amount,
-    transaction_type: values.transaction_type,
-    target_category: values.target_category,
+    name: values.name.trim(),
+    branch_id: values.branch_id || null,
+    bank_account_id: values.bank_account_id || null,
     priority: values.priority,
     is_active: values.is_active,
-    auto_action: values.auto_action || undefined,
-    auto_post: values.auto_post || undefined,
-    auto_offset_account_id: values.auto_offset_account_id || undefined,
-    use_regex: values.use_regex || undefined,
-    stop_processing: values.stop_processing || undefined,
-    bank_account_id: values.bank_account_id || undefined,
+    description_pattern: values.use_regex ? null : pattern || null,
+    description_regex: values.use_regex ? pattern || null : null,
+    reference_pattern: values.reference_pattern.trim() || null,
+    amount_min: values.amount_min ?? null,
+    amount_max: values.amount_max ?? null,
+    amount_sign: values.amount_sign,
+    counterpart_contact_id: null,
+    counterpart_account_id: values.counterpart_account_id,
+    journal_book_id: null,
+    auto_post: values.auto_post,
+    description_template: values.description_template.trim() || null,
   };
 }

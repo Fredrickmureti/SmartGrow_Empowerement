@@ -20,6 +20,8 @@ export interface ReconciliationRule {
   id: string;
   organization_id: string;
   business_id: string;
+  /** NULL = the rule applies to every branch of the business (AR-6). */
+  branch_id: string | null;
   bank_account_id: string | null;
   name: string;
   priority: number;
@@ -40,6 +42,51 @@ export interface ReconciliationRule {
   created_at: string;
   updated_at: string;
 }
+
+/** What an author may submit. Scope and identity are stamped by the server. */
+export type ReconciliationRuleInput = Omit<
+  ReconciliationRule,
+  | "id"
+  | "organization_id"
+  | "business_id"
+  | "match_count"
+  | "last_matched_at"
+  | "created_at"
+  | "updated_at"
+>;
+
+/** One line the executor declined to act on, and why. */
+export interface RuleSkip {
+  bank_transaction_id: string;
+  rule_id: string | null;
+  reason: string;
+}
+
+export interface ApplyRulesResult {
+  processed: number;
+  matched: number;
+  posted: number;
+  skipped: RuleSkip[];
+}
+
+/**
+ * The executor's refusal vocabulary, written for an accountant. A rule that
+ * declines to act is doing its job — documents outrank rules (ADR-0147 §6).
+ */
+export const RULE_SKIP_REASONS: Record<string, string> = {
+  DOCUMENT_CANDIDATE_EXISTS:
+    "An invoice, bill or recorded payment can explain this line, so the rule stood down.",
+  LINE_ALREADY_EXPLAINED: "This line is already matched or has a proposal waiting for a decision.",
+  AMBIGUOUS_RULE_MATCH: "Two rules of equal priority claim this line — give one a higher priority.",
+  AMBIGUOUS_NOT_AUTO_POSTED:
+    "The evidence was ambiguous, so the rule left a proposal instead of posting.",
+  RULE_HAS_NO_COUNTERPART_ACCOUNT: "The rule has no account to post to.",
+};
+
+export function describeRuleSkip(reason: string): string {
+  return RULE_SKIP_REASONS[reason] ?? reason;
+}
+
 
 export function useReconciliationRules() {
   const { currentOrg } = useOrganization();
@@ -83,7 +130,7 @@ export function useReconciliationRules() {
   // Write seam: `bank_reconciliation_rule_upsert` / `_delete` own permission,
   // scope stamping and counterpart-account ownership. The browser only submits.
   const createRule = useCallback(
-    async (rule: Omit<ReconciliationRule, "id" | "organization_id" | "business_id" | "match_count" | "last_matched_at" | "created_at" | "updated_at">) => {
+    async (rule: ReconciliationRuleInput) => {
       if (!currentBusiness?.id) {
         throw new Error("Select a company first");
       }
@@ -99,7 +146,7 @@ export function useReconciliationRules() {
   );
 
   const updateRule = useCallback(
-    async (id: string, updates: Partial<ReconciliationRule>) => {
+    async (id: string, updates: Partial<ReconciliationRuleInput>) => {
       if (!currentBusiness?.id) {
         throw new Error("Select a company first");
       }
@@ -128,10 +175,14 @@ export function useReconciliationRules() {
 
   /**
    * Apply all active rules to the unreconciled transactions of a bank account.
-   * Returns the number of transactions matched and posted.
+   *
+   * The executor returns what it did *and* what it refused to do. A refusal is
+   * the interesting half: a rule that stood down because a document explains
+   * the line is the control working, so the reasons are surfaced rather than
+   * swallowed (ADR-0147 §6).
    */
   const applyRules = useCallback(
-    async (bankAccountId: string, maxRows = 200) => {
+    async (bankAccountId: string, maxRows = 200): Promise<ApplyRulesResult> => {
       setIsApplying(true);
       try {
         const { data, error } = await (supabase as any).rpc(
@@ -143,13 +194,19 @@ export function useReconciliationRules() {
           },
         );
         if (error) throw error;
-        const result = (data ?? {}) as {
-          processed?: number;
-          matched?: number;
+        const raw = (data ?? {}) as Partial<ApplyRulesResult>;
+        const result: ApplyRulesResult = {
+          processed: raw.processed ?? 0,
+          matched: raw.matched ?? 0,
+          posted: raw.posted ?? 0,
+          skipped: (raw.skipped ?? []) as RuleSkip[],
         };
         toast({
           title: "Reconciliation rules applied",
-          description: `${result.matched ?? 0} of ${result.processed ?? 0} transactions matched and posted.`,
+          description:
+            `${result.matched} of ${result.processed} lines matched a rule` +
+            (result.posted > 0 ? `, ${result.posted} posted` : ", all left as proposals") +
+            (result.skipped.length > 0 ? `. ${result.skipped.length} left for review.` : "."),
         });
         await fetchRules();
         return result;
@@ -166,6 +223,7 @@ export function useReconciliationRules() {
     },
     [user?.id, toast, fetchRules],
   );
+
 
   return {
     rules,

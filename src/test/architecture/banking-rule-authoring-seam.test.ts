@@ -1,19 +1,21 @@
 /**
- * Banking Wave 1 (Phase 4d) — rule authoring is a server-owned write seam.
+ * Banking Wave 1 (Phase 4d) + Reconciliation Phase 4 — rule authoring is a
+ * server-owned write seam, and there is exactly ONE rule table.
  *
- * `bank_reconciliation_rules` and `transaction_categorization_rules` drive
- * automated matching and categorization, so a rule row is an accounting
- * instruction, not user preference. Authoring them from the browser meant the
- * client stamped `organization_id` / `business_id` and could point a rule at a
- * counterpart account belonging to another company.
+ * `bank_reconciliation_rules` is the table the executor
+ * (`apply_reconciliation_rules`) actually reads, so it is the only table the
+ * UI may author into. The legacy `transaction_categorization_rules` table was
+ * a parallel store the engine never consulted: rules written there silently
+ * did nothing. This ratchet keeps the browser off both tables and keeps the
+ * dead one out of application code entirely.
  *
  * The only legal writers are:
  *   bank_reconciliation_rule_upsert / bank_reconciliation_rule_delete
- *   transaction_categorization_rule_upsert / transaction_categorization_rule_delete
  *
- * INSERT/UPDATE/DELETE on both tables is revoked from `authenticated`, so any
+ * INSERT/UPDATE/DELETE on the table is revoked from `authenticated`, so any
  * direct browser write is a bug — this ratchet fails first.
  */
+
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, it, expect } from "vitest";
@@ -63,19 +65,29 @@ describe("bank rule authoring seam", () => {
     expect(src).toContain("bank_reconciliation_rule_delete");
   });
 
-  it("useTransactionRules mutates only through the seam RPCs", () => {
-    const src = readFileSync(join(root, "src/hooks/useTransactionRules.ts"), "utf8");
-    expect(src).toContain("transaction_categorization_rule_upsert");
-    expect(src).toContain("transaction_categorization_rule_delete");
+  it("no application code reads or writes the retired categorization rules table", () => {
+    const offenders: string[] = [];
+    for (const file of walk(join(root, "src"))) {
+      if (file.endsWith("integrations/supabase/types.ts")) continue;
+      if (file.endsWith("lib/businessScopedTables.ts")) continue;
+      const src = readFileSync(file, "utf8");
+      if (
+        src.includes("transaction_categorization_rule_upsert") ||
+        src.includes("transaction_categorization_rule_delete") ||
+        /from\(\s*["'`]transaction_categorization_rules["'`]/.test(src)
+      ) {
+        offenders.push(relative(root, file));
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("no client code stamps organization_id onto a rule payload", () => {
-    for (const file of [
-      "src/hooks/finance/useReconciliationRules.ts",
-      "src/hooks/useTransactionRules.ts",
-    ]) {
-      const src = readFileSync(join(root, file), "utf8");
-      expect(src).not.toMatch(/organization_id:\s*(currentOrg|organization)/);
-    }
+    const src = readFileSync(
+      join(root, "src/hooks/finance/useReconciliationRules.ts"),
+      "utf8",
+    );
+    expect(src).not.toMatch(/organization_id:\s*(currentOrg|organization)/);
   });
 });
+
