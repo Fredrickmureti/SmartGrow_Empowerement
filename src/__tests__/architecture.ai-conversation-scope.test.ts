@@ -96,5 +96,56 @@ describe("AI conversation scope", () => {
     // The scope must be derived server-side, never taken from the request body.
     expect(src).toMatch(/userId: callerUserId \?\? null/);
   });
+
+  it("every allowlisted data table declares a module requirement", () => {
+    const tools = readFileSync("supabase/functions/ai-assistant/dataTools.ts", "utf8");
+    const caps = readFileSync("supabase/functions/ai-assistant/capabilities.ts", "utf8");
+    const tablesBlock = tools.slice(tools.indexOf("DATA_TABLES"), tools.indexOf("const MAX_LIMIT"));
+    const tables = [...tablesBlock.matchAll(/^ {2}(\w+): \{/gm)].map((m) => m[1]);
+    expect(tables.length).toBeGreaterThan(10);
+    const mapBlock = caps.slice(caps.indexOf("TABLE_MODULE"), caps.indexOf("TOOL_MODULE"));
+    const mapped = new Set([...mapBlock.matchAll(/^ {2}(\w+): "/gm)].map((m) => m[1]));
+    expect(tables.filter((t) => !mapped.has(t))).toEqual([]);
+  });
+
+  it("every advertised tool is dispatched and capability-gated", () => {
+    const tools = readFileSync("supabase/functions/ai-assistant/dataTools.ts", "utf8");
+    const advertised = [...tools.matchAll(/name: "(\w+)",\n\s+description:/g)].map((m) => m[1]);
+    expect(advertised.length).toBeGreaterThan(3);
+    const exec = tools.slice(tools.indexOf("export async function executeDataTool"));
+    for (const name of advertised) {
+      expect(exec).toContain(`"${name}"`);
+      expect(tools).toMatch(new RegExp(`${name}:`)); // present in TOOL_MODULE import usage
+    }
+    // Deny by default: unknown tools are rejected before any read.
+    expect(exec).toMatch(/if \(!\(name in TOOL_MODULE\)\) return \{ error/);
+    expect(exec).toMatch(/canReadModule\(caps, TOOL_MODULE\[name\]\)/);
+    expect(exec).toMatch(/canReadTable\(caps, table\)/);
+  });
+
+  it("branch narrowing fails closed for non-admin callers", () => {
+    const tools = readFileSync("supabase/functions/ai-assistant/dataTools.ts", "utf8");
+    // No `accessibleBranchIds?.length` guard may gate the branch predicate.
+    expect(tools).not.toMatch(/!scope\.isAdmin && scope\.accessibleBranchIds\?\.length/);
+    expect(tools).toMatch(/ids\.length \? ids : \[IMPOSSIBLE_UUID\]/);
+
+    const index = readFileSync("supabase/functions/ai-assistant/index.ts", "utf8");
+    expect(index).not.toMatch(/if \(!isAdmin && branchIds\.length > 0\) \{\n\s+\/\/ Filter POS/);
+  });
+
+  it("the requested business and branch scope is validated server-side", () => {
+    const src = readFileSync("supabase/functions/ai-assistant/index.ts", "utf8");
+    expect(src).toMatch(/forbidden: business is not part of this organization/);
+    expect(src).toMatch(/forbidden: no access to this business/);
+    expect(src).toMatch(/forbidden: no access to this branch/);
+  });
+
+  it("the context snapshot is trimmed to the caller's readable modules", () => {
+    const src = readFileSync("supabase/functions/ai-assistant/index.ts", "utf8");
+    expect(src).toMatch(/resolveCapabilities\(supabaseClient, callerUserId, organizationId\)/);
+    expect(src).toMatch(/scrubContextByCapabilities\(financialContext, capabilities\)/);
+    expect(src).toMatch(/buildDataToolSpecs\(scope\.capabilities\)/);
+  });
 });
+
 
