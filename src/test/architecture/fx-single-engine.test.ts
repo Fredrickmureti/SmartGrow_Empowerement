@@ -156,3 +156,19 @@ describe("realized FX reporting is a projection of the ledger, not a second engi
 });
 
 
+
+describe("the revaluation run owns neither its reporting currency nor its FX accounts", () => {
+  const hook = read("src/hooks/finance/useFxRevaluation.ts");
+  const panel = read("src/components/finance/FinanceAccountingControls.tsx");
+
+  it("the browser sends no base currency and no gain/loss account to the engine", () => {
+    expect(hook).toMatch(/revalue_fx_balances/);
+    expect(hook).not.toMatch(/_base_currency/);
+    expect(hook).not.toMatch(/_unrealized_gain_account|_unrealized_loss_account/);
+  });
+
+  it("the control panel offers no free-text base currency and no per-run account pickers", () => {
+    expect(panel).not.toMatch(/placeholder="Base currency"/);
+    expect(panel).not.toMatch(/placeholder="Unrealized (gain|loss) account"/);
+  });
+});
