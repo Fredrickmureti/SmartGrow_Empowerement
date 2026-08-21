@@ -823,6 +823,98 @@ export type Database = {
           },
         ]
       }
+      ai_conversation_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          role: string
+          working_context: Json
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          role: string
+          working_context?: Json
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          role?: string
+          working_context?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_conversations: {
+        Row: {
+          app_key: string
+          archived_at: string | null
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          last_message_at: string
+          module_key: string | null
+          organization_id: string
+          record_id: string | null
+          record_type: string | null
+          scope_level: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          app_key?: string
+          archived_at?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          last_message_at?: string
+          module_key?: string | null
+          organization_id: string
+          record_id?: string | null
+          record_type?: string | null
+          scope_level?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          app_key?: string
+          archived_at?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_message_at?: string
+          module_key?: string | null
+          organization_id?: string
+          record_id?: string | null
+          record_type?: string | null
+          scope_level?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_insights_cache: {
         Row: {
           business_id: string | null
@@ -90882,6 +90974,15 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: number
       }
+      can_access_ai_conversation_scope: {
+        Args: {
+          _branch_id: string
+          _business_id: string
+          _organization_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       can_access_branch: {
         Args: { _branch_id: string; _user_id: string }
         Returns: boolean
@@ -90910,6 +91011,10 @@ export type Database = {
           _resource_type: string
           _user_id: string
         }
+        Returns: boolean
+      }
+      can_read_ai_conversation: {
+        Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
       cancel_crossdock_opportunity: {

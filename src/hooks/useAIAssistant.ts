@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -10,6 +10,8 @@ import {
   mapAssistantResponseError,
   mapAssistantThrownError,
 } from "@/lib/ai/assistantErrors";
+import { deriveWorkingContext, type ScopeMode } from "@/lib/ai/workingContext";
+import { useAIConversation } from "@/hooks/useAIConversation";
 
 type AIRequestType = "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions";
 
@@ -26,7 +28,15 @@ interface AIResponse<T = any> {
   error?: string;
 }
 
-export function useAIAssistant() {
+export interface UseAIAssistantOptions {
+  /** Route the assistant is being used from; drives conversation scope. */
+  currentPath?: string;
+  /** Branch-scoped thread (default) or a company-wide one. */
+  scopeMode?: ScopeMode;
+}
+
+export function useAIAssistant(options: UseAIAssistantOptions = {}) {
+  const { currentPath, scopeMode = "branch" } = options;
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const { currentOrg } = useOrganization();
@@ -38,6 +48,42 @@ export function useAIAssistant() {
   const businessId = currentBusiness?.id || null;
   const branchId = currentBranch?.id;
   const accessibleBranchIds = branches.map(b => b.id);
+
+  const workingContext = useMemo(
+    () => deriveWorkingContext(currentPath ?? "/"),
+    [currentPath],
+  );
+
+  const {
+    conversationId,
+    history,
+    isLoadingHistory,
+    ensureConversation,
+    archiveConversation,
+  } = useAIConversation({
+    organizationId,
+    businessId,
+    branchId,
+    appKey: workingContext.appKey,
+    moduleKey: workingContext.moduleKey,
+    scopeMode,
+  });
+
+  // History is the source of truth for the bound thread. Rebinding the scope
+  // (org / business / branch / app / scope mode) replaces the visible thread
+  // instead of letting the previous scope's messages follow the user.
+  useEffect(() => {
+    setMessages(
+      history.map((m) => ({
+        role: m.role,
+        content: m.role === "assistant" ? parseAssistantContent(m.content).text : m.content,
+        ...(m.role === "assistant"
+          ? { actions: parseAssistantContent(m.content).actions }
+          : {}),
+      })),
+    );
+  }, [history, conversationId]);
+
 
   const categorizeExpense = useCallback(async (description: string, amount: number) => {
     setIsLoading(true);
@@ -185,6 +231,11 @@ export function useAIAssistant() {
       const { data: { session } } = await supabase.auth.getSession();
       const authToken = session?.access_token || supabaseKey;
 
+      // Bind the turn to a persisted, scope-keyed thread. When it exists the
+      // server rebuilds history from the database and only the new turn is
+      // trusted from the client.
+      const threadId = await ensureConversation(userMessage);
+
       const response = await fetch(
         `${supabaseUrl}/functions/v1/ai-assistant`,
         {
@@ -196,16 +247,21 @@ export function useAIAssistant() {
           },
           body: JSON.stringify({
             type: "chat",
-            messages: newMessages,
+            messages: threadId
+              ? [{ role: "user", content: userMessage }]
+              : newMessages,
             organizationId,
             businessId,
             branchId,
             userRole,
             accessibleBranchIds,
-            currentPage,
+            currentPage: currentPage ?? workingContext.path,
+            conversationId: threadId,
+            workingContext,
           }),
         }
       );
+
 
       if (!response.ok) {
         const errorData = await response
@@ -325,20 +381,34 @@ export function useAIAssistant() {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, organizationId, businessId, branchId, userRole, accessibleBranchIds]);
+  }, [
+    messages,
+    organizationId,
+    businessId,
+    branchId,
+    userRole,
+    accessibleBranchIds,
+    ensureConversation,
+    workingContext,
+  ]);
 
-  const clearChat = useCallback(() => {
+  /** Archives the bound thread so the next turn starts a fresh one. */
+  const clearChat = useCallback(async () => {
     setMessages([]);
-  }, []);
+    await archiveConversation();
+  }, [archiveConversation]);
 
   return {
-    isLoading,
+    isLoading: isLoading || isLoadingHistory,
     messages,
+    conversationId,
+    workingContext,
     categorizeExpense,
     analyzeInvoice,
     getFinancialInsights,
     suggestActions,
     sendChatMessage,
     clearChat,
+
   };
 }

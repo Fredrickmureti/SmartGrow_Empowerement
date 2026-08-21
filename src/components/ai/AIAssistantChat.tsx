@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
-import { useBusinesses } from "@/hooks/useBusinesses";
+import type { ScopeMode } from "@/lib/ai/workingContext";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,16 +23,16 @@ interface AIAssistantChatProps {
 }
 
 export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistantChatProps) {
-  const { messages, isLoading, sendChatMessage, clearChat } = useAIAssistant();
-  const { currentBusiness } = useBusinesses();
+  const [scopeMode, setScopeMode] = useState<ScopeMode>("branch");
+  const { messages, isLoading, sendChatMessage, clearChat, workingContext } =
+    useAIAssistant({ currentPath, scopeMode });
   const [input, setInput] = useState("");
 
   const contextualPrompts = getContextualPrompts(currentPath);
 
-  // Clear chat when business context changes
-  useEffect(() => {
-    clearChat();
-  }, [currentBusiness?.id]);
+  // Thread binding (org / business / branch / app / scope) is owned by
+  // useAIAssistant — switching any of them reloads that scope's own history
+  // instead of carrying the previous scope's messages over.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +46,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
     sendChatMessage(text, currentPath);
   };
 
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
@@ -56,15 +58,34 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
               </div>
               <div className="flex flex-col items-start">
                 <span className="text-base font-semibold">AccrualFlow AI</span>
-                <span className="text-xs text-muted-foreground font-normal">Your Financial Assistant</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {workingContext.appKey === "global"
+                    ? "Your Financial Assistant"
+                    : `Scoped to ${workingContext.appKey.replace(/_/g, " ")}`}
+                </span>
               </div>
             </SheetTitle>
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearChat} className="h-8 w-8 p-0">
+              <Button variant="ghost" size="sm" onClick={() => void clearChat()} className="h-8 w-8 p-0">
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
+          <div className="flex items-center gap-1 pt-2">
+            {(["branch", "company"] as ScopeMode[]).map((mode) => (
+              <Button
+                key={mode}
+                type="button"
+                size="sm"
+                variant={scopeMode === mode ? "secondary" : "ghost"}
+                className="h-7 px-2 text-xs"
+                onClick={() => setScopeMode(mode)}
+              >
+                {mode === "branch" ? "This branch" : "Company-wide"}
+              </Button>
+            ))}
+          </div>
+
         </SheetHeader>
 
         <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-background to-muted/20">

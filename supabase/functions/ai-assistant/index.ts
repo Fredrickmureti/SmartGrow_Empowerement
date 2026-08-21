@@ -174,6 +174,18 @@ async function buildPayrollDiagnostics(
   }
 }
 
+export interface WorkingContext {
+  /** Route path the user was on when the turn was sent. */
+  path?: string;
+  /** Application key derived from the route (inventory, banking, hr, ...). */
+  appKey?: string;
+  /** Module within the application. */
+  moduleKey?: string;
+  /** Record the user was looking at, when any. */
+  recordType?: string;
+  recordId?: string;
+}
+
 interface AIRequest {
   type: "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions" | "email_assist" | "match_transactions" | "document_text";
   data?: Record<string, any>;
@@ -184,7 +196,17 @@ interface AIRequest {
   userRole?: string;
   accessibleBranchIds?: string[];
   currentPage?: string;
+  /**
+   * Persisted conversation this turn belongs to. When present, the history
+   * used for the prompt is loaded server-side from the database after the
+   * caller's read access to the conversation is verified — the client's
+   * `messages` array is NOT trusted as history.
+   */
+  conversationId?: string;
+  /** Presentation-only working context; never used for authorization. */
+  workingContext?: WorkingContext;
 }
+
 
 interface ProviderConfig {
   id: string;
@@ -1768,6 +1790,78 @@ async function runDataToolLoop(
   return working;
 }
 
+/**
+ * Tees the provider SSE stream so the assistant turn is persisted to the
+ * conversation server-side once the answer completes. The bytes reaching the
+ * browser are unchanged.
+ */
+function createAssistantPersistenceStream(
+  supabaseClient: any,
+  scope: {
+    conversationId: string;
+    organizationId: string | null;
+    workingContext: Record<string, unknown>;
+  },
+): TransformStream<Uint8Array, Uint8Array> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let assistantContent = "";
+
+  const consume = (chunkText: string) => {
+    buffer += chunkText;
+    let idx: number;
+    while ((idx = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, idx).replace(/\r$/, "");
+      buffer = buffer.slice(idx + 1);
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(payload);
+        const delta = parsed?.choices?.[0]?.delta?.content;
+        if (typeof delta === "string") assistantContent += delta;
+      } catch {
+        // Partial JSON frame — it will arrive complete on the next chunk.
+        buffer = line + "\n" + buffer;
+        break;
+      }
+    }
+  };
+
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      controller.enqueue(chunk);
+      try {
+        consume(decoder.decode(chunk, { stream: true }));
+      } catch (e) {
+        console.error("assistant persistence parse failed:", e);
+      }
+    },
+    async flush() {
+      if (!assistantContent.trim()) return;
+      const { error } = await supabaseClient
+        .from("ai_conversation_messages")
+        .insert({
+          conversation_id: scope.conversationId,
+          organization_id: scope.organizationId,
+          role: "assistant",
+          content: assistantContent,
+          working_context: scope.workingContext,
+        });
+      if (error) {
+        console.error("failed to persist assistant turn:", error);
+        return;
+      }
+      const { error: touchErr } = await supabaseClient
+        .from("ai_conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", scope.conversationId);
+      if (touchErr) console.error("failed to touch conversation:", touchErr);
+    },
+  });
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1778,9 +1872,20 @@ serve(async (req) => {
     // IGNORED. They are derived server-side below from the caller's JWT to
     // prevent privilege escalation (a non-admin could otherwise claim
     // admin to bypass branch-scoped data filtering).
-    const { type, data, messages, organizationId, businessId, branchId, currentPage }: AIRequest = await req.json();
+    const {
+      type,
+      data,
+      messages,
+      organizationId,
+      businessId,
+      branchId,
+      currentPage,
+      conversationId,
+      workingContext,
+    }: AIRequest = await req.json();
     let userRole: string | undefined;
     let accessibleBranchIds: string[] | undefined;
+    let callerUserId: string | null = null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1807,6 +1912,7 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+      callerUserId = userData.user.id;
       if (organizationId) {
         const { data: roleRow } = await supabaseClient
           .from("user_roles")
@@ -1834,6 +1940,38 @@ serve(async (req) => {
           .filter((id): id is string => !!id);
       }
     }
+
+    // ─── Conversation gate: the caller must be allowed to read the thread ───
+    // History is loaded from the database, never from the request body, so a
+    // stale or foreign thread cannot be smuggled into the prompt.
+    let persistedHistory: Array<{ role: string; content: string }> | null = null;
+    if (type === "chat" && conversationId) {
+      if (!callerUserId) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: conversation requires a user session" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { data: allowed, error: allowedErr } = await supabaseClient.rpc(
+        "can_read_ai_conversation",
+        { _user_id: callerUserId, _conversation_id: conversationId },
+      );
+      if (allowedErr || allowed !== true) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: conversation not accessible in this scope" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { data: historyRows } = await supabaseClient
+        .from("ai_conversation_messages")
+        .select("role, content")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true })
+        .limit(40);
+      persistedHistory = (historyRows ?? []) as Array<{ role: string; content: string }>;
+    }
+
+
 
 
 
@@ -1939,8 +2077,23 @@ serve(async (req) => {
       { role: "system", content: systemPrompt }
     ];
 
-    if (type === "chat" && messages) {
+    // The newest user turn is the only part of `messages` the server trusts —
+    // and only when there is no persisted conversation to read it from.
+    const latestUserTurn = [...(messages ?? [])]
+      .reverse()
+      .find((m) => m.role === "user");
+
+    if (type === "chat" && persistedHistory) {
+      aiMessages = [
+        ...aiMessages,
+        ...persistedHistory.map((m) => ({ role: m.role, content: m.content })),
+      ];
+      if (latestUserTurn) {
+        aiMessages.push({ role: "user", content: latestUserTurn.content });
+      }
+    } else if (type === "chat" && messages) {
       aiMessages = [...aiMessages, ...messages];
+
     } else if (type === "email_assist" && data?.prompt) {
       aiMessages.push({ 
         role: "user", 
@@ -1999,12 +2152,41 @@ serve(async (req) => {
       });
     }
 
+    // Persist the user turn before streaming so the thread is durable even if
+    // the provider fails mid-answer.
+    if (type === "chat" && conversationId && latestUserTurn) {
+      const { error: userTurnErr } = await supabaseClient
+        .from("ai_conversation_messages")
+        .insert({
+          conversation_id: conversationId,
+          organization_id: organizationId,
+          role: "user",
+          content: latestUserTurn.content,
+          working_context: workingContext ?? {},
+        });
+      if (userTurnErr) console.error("failed to persist user turn:", userTurnErr);
+    }
+
     const isStreaming = type === "chat";
     const response = await makeAIRequest(supabaseClient, aiMessages, type, isStreaming, settings);
+
+    if (isStreaming && response.ok && conversationId && response.body) {
+      return new Response(
+        response.body.pipeThrough(
+          createAssistantPersistenceStream(supabaseClient, {
+            conversationId,
+            organizationId: organizationId ?? null,
+            workingContext: workingContext ?? {},
+          }),
+        ),
+        { status: response.status, headers: response.headers },
+      );
+    }
 
     if (isStreaming || !response.ok) {
       return response;
     }
+
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
