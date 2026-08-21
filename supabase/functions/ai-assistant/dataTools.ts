@@ -829,14 +829,23 @@ export async function executeDataTool(
   currencySummary: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (name === "get_currency_context") {
-    const { data: rates } = await supabaseClient
+    // `effective_date` is the real column; the old `rate_date` silently
+    // returned nothing and left the model to invent a rate.
+    const { data: rates, error } = await supabaseClient
       .from("exchange_rates")
-      .select("from_currency, to_currency, rate, rate_date, source")
+      .select("from_currency, to_currency, rate, effective_date, source")
       .eq("organization_id", scope.organizationId)
-      .order("rate_date", { ascending: false })
+      .order("effective_date", { ascending: false })
       .limit(25);
+    if (error) {
+      return {
+        ...currencySummary,
+        recent_rates_error: `Rate book unavailable (${error.message}). Do NOT convert or quote a rate.`,
+      };
+    }
     return { ...currencySummary, recent_rates: rates ?? [] };
   }
+
 
   if (name === "describe_schema") {
     const only = typeof rawArgs?.table === "string" ? rawArgs.table : null;
