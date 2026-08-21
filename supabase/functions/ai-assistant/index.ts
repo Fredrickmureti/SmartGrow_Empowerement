@@ -2005,8 +2005,23 @@ serve(async (req) => {
       { role: "system", content: systemPrompt }
     ];
 
-    if (type === "chat" && messages) {
+    // The newest user turn is the only part of `messages` the server trusts —
+    // and only when there is no persisted conversation to read it from.
+    const latestUserTurn = [...(messages ?? [])]
+      .reverse()
+      .find((m) => m.role === "user");
+
+    if (type === "chat" && persistedHistory) {
+      aiMessages = [
+        ...aiMessages,
+        ...persistedHistory.map((m) => ({ role: m.role, content: m.content })),
+      ];
+      if (latestUserTurn) {
+        aiMessages.push({ role: "user", content: latestUserTurn.content });
+      }
+    } else if (type === "chat" && messages) {
       aiMessages = [...aiMessages, ...messages];
+
     } else if (type === "email_assist" && data?.prompt) {
       aiMessages.push({ 
         role: "user", 
