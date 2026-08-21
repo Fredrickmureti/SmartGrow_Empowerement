@@ -419,149 +419,125 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
 
 
   /**
-   * Auto-match with deterministic matching FIRST, then AI fallback.
+   * Auto-match — the browser asks the evidence engine; it never decides.
+   *
+   * This used to be a second matching engine living in the client: it fetched
+   * every open invoice and bill, scored them on amount / reference / name, sent
+   * the leftovers to an LLM, and auto-posted anything scoring >= 0.85. That
+   * bypassed `bank_match_candidates` entirely, so a receipt already recorded in
+   * Undeposited Funds was invisible to it and the invoice was settled a second
+   * time — precisely the duplicate ADR-0147 exists to prevent — and it let a
+   * score, not evidence, drive a posting.
+   *
+   * Now the server answers. For each selected line the engine returns a tier
+   * and, for each candidate, the allocations plus the reasons behind them.
+   * Only the `deterministic` tier — one candidate, corroborated by more than
+   * the amount — may be applied without a human, and it is applied through the
+   * same propose + confirm seam and the same per-line idempotency key as a
+   * hand-match, so a retry collapses onto one settlement.
+   *
+   * Everything else is returned for review. Ambiguity is an answer, not a
+   * failure.
    */
+  const AUTO_MATCH_MAX_LINES = 200;
+
   const autoMatchTransactions = async (transactionIds: string[]) => {
     if (!currentOrg?.id) return null;
 
     try {
-      const transactionsToMatch = transactions.filter(t => transactionIds.includes(t.id) && !t.is_reconciled);
-      if (transactionsToMatch.length === 0) return null;
+      const targets = transactions
+        .filter((t) => transactionIds.includes(t.id) && !t.is_reconciled)
+        .slice(0, AUTO_MATCH_MAX_LINES);
+      if (targets.length === 0) return null;
 
-      // Fetch all matchable records
-      const [invoicesRes, billsRes, expensesRes] = await Promise.all([
-        supabase.from("invoices").select("id, invoice_number, total, amount_paid, due_date, contact:contacts(name)").eq("organization_id", currentOrg.id)
-.eq("business_id", currentBusiness.id).in("status", ["sent", "overdue", "partial", "confirmed"]),
-        supabase.from("bills").select("id, bill_number, total, amount_paid, due_date, vendor:contacts(name)").eq("organization_id", currentOrg.id)
-.eq("business_id", currentBusiness.id).in("status", ["draft", "partial", "overdue"]),
-        supabase.from("expenses").select("id, description, amount, expense_date").eq("organization_id", currentOrg.id).eq("business_id", currentBusiness!.id),
-      ]);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id ?? null;
 
-      const invoices = invoicesRes.data || [];
-      const bills = billsRes.data || [];
+      let applied = 0;
+      const needsReview: Array<{
+        transaction_id: string;
+        tier: string;
+        candidates: number;
+      }> = [];
+      const failures: Array<{ transaction_id: string; message: string }> = [];
 
-      // ─── DETERMINISTIC MATCHING ───
-      const deterministicMatches: any[] = [];
-      const unmatchedTxns: any[] = [];
-
-      for (const txn of transactionsToMatch) {
-        const txnAmount = Math.abs(txn.amount);
-        let bestMatch: any = null;
-
-        if (txn.transaction_type === "credit") {
-          // Match credits to invoices
-          for (const inv of invoices) {
-            const remaining = (inv.total || 0) - (inv.amount_paid || 0);
-            if (remaining <= 0) continue;
-
-            const amountMatch = Math.abs(remaining - txnAmount) < 0.01;
-            const refMatch = txn.reference && inv.invoice_number && 
-              txn.reference.toLowerCase().includes(inv.invoice_number.toLowerCase());
-            const descMatch = txn.description && (inv as any).contact?.name && 
-              txn.description.toLowerCase().includes(((inv as any).contact?.name || '').toLowerCase());
-
-            if (amountMatch && refMatch) {
-              bestMatch = { type: "invoice", id: inv.id, confidence: 0.95, label: `Invoice ${inv.invoice_number}` };
-              break;
-            } else if (amountMatch && descMatch) {
-              bestMatch = { type: "invoice", id: inv.id, confidence: 0.85, label: `Invoice ${inv.invoice_number}` };
-            } else if (amountMatch && !bestMatch) {
-              bestMatch = { type: "invoice", id: inv.id, confidence: 0.6, label: `Invoice ${inv.invoice_number}` };
-            }
-          }
-        } else {
-          // Match debits to bills
-          for (const bill of bills) {
-            const remaining = (bill.total || 0) - (bill.amount_paid || 0);
-            if (remaining <= 0) continue;
-
-            const amountMatch = Math.abs(remaining - txnAmount) < 0.01;
-            const refMatch = txn.reference && bill.bill_number && 
-              txn.reference.toLowerCase().includes(bill.bill_number.toLowerCase());
-            const descMatch = txn.description && (bill as any).vendor?.name && 
-              txn.description.toLowerCase().includes(((bill as any).vendor?.name || '').toLowerCase());
-
-            if (amountMatch && refMatch) {
-              bestMatch = { type: "bill", id: bill.id, confidence: 0.95, label: `Bill ${bill.bill_number}` };
-              break;
-            } else if (amountMatch && descMatch) {
-              bestMatch = { type: "bill", id: bill.id, confidence: 0.85, label: `Bill ${bill.bill_number}` };
-            } else if (amountMatch && !bestMatch) {
-              bestMatch = { type: "bill", id: bill.id, confidence: 0.6, label: `Bill ${bill.bill_number}` };
-            }
-          }
+      for (const txn of targets) {
+        const { data: cands, error: candErr } = await (supabase as any).rpc(
+          "bank_match_candidates",
+          { _txn_id: txn.id, _limit: 3 },
+        );
+        if (candErr) {
+          failures.push({ transaction_id: txn.id, message: candErr.message });
+          continue;
         }
 
-        if (bestMatch) {
-          deterministicMatches.push({
-            transaction_id: txn.id,
-            match: bestMatch,
-          });
-        } else {
-          unmatchedTxns.push(txn);
-        }
-      }
+        const tier = (cands?.tier as string) ?? "unresolved";
+        const candidates = (cands?.candidates as Array<Record<string, unknown>>) ?? [];
 
-      // Only call AI for truly unmatched transactions
-      let aiMatches: any = null;
-      if (unmatchedTxns.length > 0) {
+        // Only a corroborated, single-candidate answer may post unattended.
+        if (tier !== "deterministic" || candidates.length !== 1) {
+          needsReview.push({ transaction_id: txn.id, tier, candidates: candidates.length });
+          continue;
+        }
+
         try {
-          const matchData = {
-            transactions: unmatchedTxns.map(t => ({ id: t.id, description: t.description, reference: t.reference, amount: t.amount, transaction_type: t.transaction_type, transaction_date: t.transaction_date })),
-            invoices: invoices,
-            bills: bills,
-            expenses: expensesRes.data || [],
-          };
+          const { data: proposed, error: proposeError } = await (supabase as any).rpc(
+            "bank_match_propose",
+            {
+              _txn_id: txn.id,
+              _allocations: candidates[0].allocations,
+              _fee_amount: 0,
+              _match_type: "manual",
+              _rule_id: (candidates[0].rule_id as string) ?? null,
+              _notes: (candidates[0].label as string) ?? null,
+              _user_id: userId,
+            },
+          );
+          if (proposeError) throw proposeError;
 
-          const response = await supabase.functions.invoke("ai-assistant", {
-            body: { type: "match_transactions", data: matchData, organizationId: currentOrg.id },
+          const matchId = (proposed as { match_id?: string } | null)?.match_id;
+          if (!matchId) throw new Error("Match proposal did not return an identifier.");
+
+          const { error: confirmError } = await (supabase as any).rpc("bank_match_confirm", {
+            _match_id: matchId,
+            _user_id: userId,
+            _client_request_id: `brecon:${txn.id}`,
           });
+          if (confirmError) throw confirmError;
 
-          if (!response.error) {
-            aiMatches = response.data?.data || null;
-          }
-        } catch (e) {
-          console.warn("AI matching failed, using deterministic results only:", e);
+          applied += 1;
+          logAction({
+            action: "confirmed",
+            entityType: "bank_transaction",
+            entityId: txn.id,
+            entityName: txn.description,
+            changesSummary: `Auto-matched: ${candidates[0].label ?? "deterministic candidate"}`,
+          });
+        } catch (e: unknown) {
+          // A line the engine refuses stays open for a human. It is never
+          // downgraded into a weaker posting to make the run look successful.
+          failures.push({
+            transaction_id: txn.id,
+            message: e instanceof Error ? e.message : "Could not apply this match",
+          });
+          needsReview.push({ transaction_id: txn.id, tier, candidates: candidates.length });
         }
       }
 
-      // Auto-apply high-confidence deterministic matches (>= 0.85)
-      let autoAppliedCount = 0;
-      const pendingReview: typeof deterministicMatches = [];
-
-      for (const match of deterministicMatches) {
-        if (match.match.confidence >= 0.85) {
-          try {
-            await reconcileTransaction(match.transaction_id, {
-              reconciled_type: match.match.type,
-              reconciled_entity_id: match.match.id,
-              createGLEntry: true,
-            });
-            autoAppliedCount++;
-          } catch (e) {
-            console.warn(`Auto-apply failed for ${match.transaction_id}:`, e);
-            pendingReview.push(match);
-          }
-        } else {
-          pendingReview.push(match);
-        }
+      if (applied > 0) {
+        toast.success(`Reconciled ${applied} line${applied > 1 ? "s" : ""} with certain matches`);
+        await fetchTransactions();
       }
 
-      if (autoAppliedCount > 0) {
-        toast.success(`Auto-reconciled ${autoAppliedCount} transaction${autoAppliedCount > 1 ? 's' : ''}`);
-      }
-
-      // Combine results — deterministic matches have higher trust
       return {
-        deterministicMatches: pendingReview,
-        aiMatches,
-        autoAppliedCount,
+        applied,
+        needsReview,
+        failures,
         summary: {
-          total: transactionsToMatch.length,
-          deterministicCount: deterministicMatches.length,
-          autoAppliedCount,
-          aiCount: aiMatches ? Object.keys(aiMatches).length : 0,
-          unmatchedCount: unmatchedTxns.length - (aiMatches ? Object.keys(aiMatches).length : 0),
+          total: targets.length,
+          applied,
+          needsReview: needsReview.length,
+          skipped: transactionIds.length - targets.length,
         },
       };
     } catch (error: unknown) {
@@ -570,6 +546,7 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
       return null;
     }
   };
+
 
   const stats = {
     totalTransactions: transactions.length,
