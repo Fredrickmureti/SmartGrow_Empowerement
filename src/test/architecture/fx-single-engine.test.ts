@@ -237,3 +237,46 @@ describe("ADR 0136 §4 — no call site supplies a posting rate", () => {
     expect(client).toMatch(/resolved server-side/);
   });
 });
+
+describe("Phase 8 ratchet — a missing rate is an absence, never a substitute", () => {
+  const OPEN_ITEMS = "src/services/finance/openItems.ts";
+
+  it("open items never substitute a foreign amount for a missing base amount", () => {
+    const src = read(OPEN_ITEMS);
+    // The removed silent 1:1 conversion, in any of its shapes.
+    expect(src).not.toMatch(/base_credit_amount\s*\?\?\s*\w*credit_amount/);
+    expect(src).not.toMatch(/base_credit_amount\s*\|\|\s*\w*credit_amount/);
+    expect(src).not.toMatch(/base_(credit_)?amount\s*\?\?\s*amount\b/);
+  });
+
+  it("open items type base amounts as nullable and skip unrated rows in totals", () => {
+    const src = read(OPEN_ITEMS);
+    expect(src).toMatch(/base_credit_amount:\s*number\s*\|\s*null/);
+    expect(src).toMatch(/base_credit_amount === null/);
+  });
+
+  it("no app file coerces a null base amount to the foreign amount", () => {
+    const walk = (dir: string): string[] => {
+      const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
+      return readdirSync(dir).flatMap((entry: string) => {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) return walk(full);
+        return /\.(ts|tsx)$/.test(full) ? [full] : [];
+      });
+    };
+    const appFiles = walk(join(process.cwd(), "src")).filter(
+      (f) => !f.includes("/test/") && !f.includes("__tests__"),
+    );
+    const offenders = appFiles.filter((f) => {
+      const src = read(f.replace(`${process.cwd()}/`, ""));
+      return /base_(credit_|debit_|)amount[a-z_]*\s*(\?\?|\|\|)\s*(?!null|0\b)[a-z_]*amount/i.test(src);
+    });
+    expect(offenders.map((f) => f.replace(`${process.cwd()}/`, ""))).toEqual([]);
+  });
+
+  it("the client rate book still refuses to invent a rate", () => {
+    const src = read("src/services/fx/rateBook.ts");
+    expect(src).not.toMatch(/\?\?\s*1\b/);
+    expect(src).not.toMatch(/return\s+1;\s*\/\/\s*fallback/i);
+  });
+});
