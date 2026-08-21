@@ -8,8 +8,10 @@ Authoritative status file. Update after every implementation step.
 - Step 1 — Denomination contract safe by construction: **COMPLETE, behaviourally verified**
 - Step 2 — Producer families migrated: **COMPLETE for the currency-bearing callers**
 - Step 3 — Monetary eligibility + line-level currency: **COMPLETE, verified**
-- Step 4 — Realized FX gain/loss report: **NEXT (active phase)**
-- Steps 5–6 (exposure dimensions, rate provenance surface): pending
+- Step 4 — Realized FX gain/loss report: **COMPLETE (RPC + hook + page + guard)**
+- Step 5 — Exposure dimensions (by account, by counterparty): **NEXT (active phase)**
+- Step 6 — Rate register / provenance surface: pending
+
 
 ---
 
