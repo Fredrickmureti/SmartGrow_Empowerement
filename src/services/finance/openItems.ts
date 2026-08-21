@@ -672,10 +672,15 @@ export async function fetchPayableCounterparties(
 
   for (const r of creditRows) {
     if (!r.contact_id) continue;
-    const credit = Number(r.base_credit_amount ?? r.credit_amount) || 0;
+    // ADR 0136: the foreign `credit_amount` is NOT a substitute for a missing
+    // base amount — netting it here would be a silent 1:1 conversion. A credit
+    // whose currency has no rate on file is left out of the base-currency net.
+    if (r.base_credit_amount === null || r.base_credit_amount === undefined) continue;
+    const credit = Number(r.base_credit_amount) || 0;
     const existing = byContact.get(r.contact_id);
     if (existing) existing.netAmount -= credit;
   }
+
 
 
   const rows = Array.from(byContact.values()).filter((r) => r.netAmount > 0.01);
