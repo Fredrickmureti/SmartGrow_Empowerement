@@ -5,14 +5,25 @@
  * Switching tenant, business, branch, app, or scope mode rebinds to a
  * different thread — conversations never bleed across scopes, and history is
  * reloaded from the database rather than carried in volatile React state.
+ *
+ * Every query below carries an explicit `organization_id` predicate (or is
+ * keyed by a `conversation_id` already resolved under one); RLS is the
+ * enforcement point, this is defence in depth.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ScopeMode } from "@/lib/ai/workingContext";
 
 export interface StoredMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
 }
 
 export interface ConversationScope {
@@ -28,10 +39,16 @@ interface UseAIConversationResult {
   conversationId: string | null;
   history: StoredMessage[];
   isLoadingHistory: boolean;
+  /** Threads that exist in the current scope, newest first. */
+  conversations: ConversationSummary[];
   /** Creates the thread on first send and returns its id. */
   ensureConversation: (firstMessage: string) => Promise<string | null>;
   /** Archives the current thread and starts an empty one in the same scope. */
   archiveConversation: () => Promise<void>;
+  /** Leaves the current thread bound but unselected — the next turn opens a new one. */
+  startNewConversation: () => void;
+  /** Binds an existing thread from the same scope and loads its history. */
+  selectConversation: (id: string) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -40,9 +57,13 @@ function scopeLevel(scope: ConversationScope): "branch" | "business" | "organiza
   return scope.businessId ? "business" : "organization";
 }
 
+const HISTORY_LIMIT = 100;
+const THREAD_LIST_LIMIT = 20;
+
 export function useAIConversation(scope: ConversationScope): UseAIConversationResult {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [history, setHistory] = useState<StoredMessage[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const { organizationId, businessId, branchId, appKey, moduleKey, scopeMode } = scope;
@@ -51,10 +72,24 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
   const scopeKeyRef = useRef(scopeKey);
   scopeKeyRef.current = scopeKey;
 
+  const loadMessages = useCallback(async (threadId: string) => {
+    const { data, error } = await supabase
+      .from("ai_conversation_messages")
+      .select("role, content")
+      .eq("conversation_id", threadId)
+      .order("created_at", { ascending: true })
+      .limit(HISTORY_LIMIT);
+    if (error) throw error;
+    return (data ?? [])
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+  }, []);
+
   const resolve = useCallback(async () => {
     if (!organizationId) {
       setConversationId(null);
       setHistory([]);
+      setConversations([]);
       return;
     }
     const requestedScope = scopeKeyRef.current;
@@ -62,12 +97,13 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
     try {
       let query = supabase
         .from("ai_conversations")
-        .select("id")
+        .select("id, title, last_message_at, created_at")
         .eq("organization_id", organizationId)
         .eq("app_key", appKey)
         .is("archived_at", null)
-        .order("last_message_at", { ascending: false })
-        .limit(1);
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(THREAD_LIST_LIMIT);
 
       query = businessId
         ? query.eq("business_id", businessId)
@@ -81,37 +117,35 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
       // A scope switch may have landed while this query was in flight.
       if (requestedScope !== scopeKeyRef.current) return;
 
-      const found = rows?.[0]?.id ?? null;
+      const summaries: ConversationSummary[] = (rows ?? []).map((r) => ({
+        id: r.id,
+        title: r.title,
+        lastMessageAt: r.last_message_at,
+        createdAt: r.created_at,
+      }));
+      setConversations(summaries);
+
+      const found = summaries[0]?.id ?? null;
       setConversationId(found);
 
       if (!found) {
         setHistory([]);
         return;
       }
-      const { data: messageRows, error: messagesError } = await supabase
-        .from("ai_conversation_messages")
-        .select("role, content")
-        .eq("conversation_id", found)
-        .order("created_at", { ascending: true })
-        .limit(100);
-      if (messagesError) throw messagesError;
+      const messages = await loadMessages(found);
       if (requestedScope !== scopeKeyRef.current) return;
-
-      setHistory(
-        (messageRows ?? [])
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-      );
+      setHistory(messages);
     } catch (error) {
       console.error("[ai-conversation] failed to load thread", error);
       if (requestedScope === scopeKeyRef.current) {
         setConversationId(null);
         setHistory([]);
+        setConversations([]);
       }
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [organizationId, businessId, effectiveBranchId, appKey]);
+  }, [organizationId, businessId, effectiveBranchId, appKey, loadMessages]);
 
   useEffect(() => {
     void resolve();
@@ -137,7 +171,7 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
           created_by: userId,
           title: firstMessage.slice(0, 80),
         })
-        .select("id")
+        .select("id, title, last_message_at, created_at")
         .single();
 
       if (error) {
@@ -145,6 +179,15 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
         return null;
       }
       setConversationId(data.id);
+      setConversations((prev) => [
+        {
+          id: data.id,
+          title: data.title,
+          lastMessageAt: data.last_message_at,
+          createdAt: data.created_at,
+        },
+        ...prev.filter((c) => c.id !== data.id),
+      ]);
       return data.id;
     },
     [conversationId, organizationId, businessId, effectiveBranchId, appKey, moduleKey, scope],
@@ -155,21 +198,64 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
       setHistory([]);
       return;
     }
+    const archivedId = conversationId;
     const { error } = await supabase
       .from("ai_conversations")
       .update({ archived_at: new Date().toISOString() })
-      .eq("id", conversationId);
+      .eq("id", archivedId);
     if (error) console.error("[ai-conversation] failed to archive thread", error);
+    setConversations((prev) => prev.filter((c) => c.id !== archivedId));
     setConversationId(null);
     setHistory([]);
   }, [conversationId]);
 
-  return {
-    conversationId,
-    history,
-    isLoadingHistory,
-    ensureConversation,
-    archiveConversation,
-    reload: resolve,
-  };
+  const startNewConversation = useCallback(() => {
+    // The thread row is created lazily on the next send so navigating around
+    // never litters the list with empty threads.
+    setConversationId(null);
+    setHistory([]);
+  }, []);
+
+  const selectConversation = useCallback(
+    async (id: string) => {
+      const requestedScope = scopeKeyRef.current;
+      setIsLoadingHistory(true);
+      try {
+        const messages = await loadMessages(id);
+        if (requestedScope !== scopeKeyRef.current) return;
+        setConversationId(id);
+        setHistory(messages);
+      } catch (error) {
+        console.error("[ai-conversation] failed to open thread", error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    },
+    [loadMessages],
+  );
+
+  return useMemo(
+    () => ({
+      conversationId,
+      history,
+      isLoadingHistory,
+      conversations,
+      ensureConversation,
+      archiveConversation,
+      startNewConversation,
+      selectConversation,
+      reload: resolve,
+    }),
+    [
+      conversationId,
+      history,
+      isLoadingHistory,
+      conversations,
+      ensureConversation,
+      archiveConversation,
+      startNewConversation,
+      selectConversation,
+      resolve,
+    ],
+  );
 }

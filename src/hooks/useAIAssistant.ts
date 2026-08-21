@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranch } from "@/contexts/BranchContext";
-import { useSession } from "@/contexts/SessionContext";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { parseAssistantContent, type ActionBlock } from "@/lib/ai/actionBlocks";
 import {
@@ -40,14 +39,12 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const { currentOrg } = useOrganization();
-  const { currentBranch, branches } = useBranch();
-  const { userRole } = useSession();
+  const { currentBranch } = useBranch();
   const { currentBusiness } = useBusinesses();
 
   const organizationId = currentOrg?.id;
   const businessId = currentBusiness?.id || null;
   const branchId = currentBranch?.id;
-  const accessibleBranchIds = branches.map(b => b.id);
 
   const workingContext = useMemo(
     () => deriveWorkingContext(currentPath ?? "/"),
@@ -58,8 +55,11 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     conversationId,
     history,
     isLoadingHistory,
+    conversations,
     ensureConversation,
     archiveConversation,
+    startNewConversation,
+    selectConversation,
   } = useAIConversation({
     organizationId,
     businessId,
@@ -253,8 +253,6 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
             organizationId,
             businessId,
             branchId,
-            userRole,
-            accessibleBranchIds,
             currentPage: currentPage ?? workingContext.path,
             conversationId: threadId,
             workingContext,
@@ -386,8 +384,6 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     organizationId,
     businessId,
     branchId,
-    userRole,
-    accessibleBranchIds,
     ensureConversation,
     workingContext,
   ]);
@@ -398,10 +394,26 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     await archiveConversation();
   }, [archiveConversation]);
 
+  /** Unselects the thread; the next turn opens a fresh one in the same scope. */
+  const newChat = useCallback(() => {
+    setMessages([]);
+    startNewConversation();
+  }, [startNewConversation]);
+
+  const openConversation = useCallback(
+    async (id: string) => {
+      await selectConversation(id);
+    },
+    [selectConversation],
+  );
+
   return {
     isLoading: isLoading || isLoadingHistory,
     messages,
     conversationId,
+    conversations,
+    newChat,
+    openConversation,
     workingContext,
     categorizeExpense,
     analyzeInvoice,

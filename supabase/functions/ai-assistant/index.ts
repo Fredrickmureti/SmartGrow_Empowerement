@@ -193,8 +193,9 @@ interface AIRequest {
   organizationId?: string;
   businessId?: string;
   branchId?: string;
-  userRole?: string;
-  accessibleBranchIds?: string[];
+  // `userRole` / `accessibleBranchIds` are deliberately NOT part of the
+  // request contract: authorization scope is derived server-side from the
+  // caller's JWT. Anything the client sends under those names is dropped.
   currentPage?: string;
   /**
    * Persisted conversation this turn belongs to. When present, the history
