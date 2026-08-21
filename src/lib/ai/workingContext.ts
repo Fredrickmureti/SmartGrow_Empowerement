@@ -7,7 +7,7 @@
  * derived server-side from the caller's JWT.
  */
 
-export type ScopeMode = "branch" | "company";
+export type ScopeMode = "record" | "branch" | "company";
 
 export interface WorkingContext {
   path: string;

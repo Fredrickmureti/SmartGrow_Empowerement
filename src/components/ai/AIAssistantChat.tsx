@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
-import type { ScopeMode } from "@/lib/ai/workingContext";
+import { deriveWorkingContext, type ScopeMode } from "@/lib/ai/workingContext";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,17 @@ interface AIAssistantChatProps {
 }
 
 export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistantChatProps) {
-  const [scopeMode, setScopeMode] = useState<ScopeMode>("branch");
+  const [requestedScopeMode, setRequestedScopeMode] = useState<ScopeMode>("branch");
+  // "This record" only exists while the route actually identifies a record;
+  // navigating away silently falls back to the branch thread rather than
+  // binding to a stale record.
+  const hasRecord = Boolean(deriveWorkingContext(currentPath).recordId);
+  const scopeMode: ScopeMode =
+    requestedScopeMode === "record" && !hasRecord ? "branch" : requestedScopeMode;
+  const scopeModes: ScopeMode[] = hasRecord
+    ? ["record", "branch", "company"]
+    : ["branch", "company"];
+  const setScopeMode = setRequestedScopeMode;
   const {
     messages,
     isLoading,
@@ -40,9 +50,10 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
 
   const contextualPrompts = getContextualPrompts(currentPath);
 
-  // Thread binding (org / business / branch / app / scope) is owned by
+  // Thread binding (org / business / branch / app / record / scope) is owned by
   // useAIAssistant — switching any of them reloads that scope's own history
   // instead of carrying the previous scope's messages over.
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,7 +122,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
             </div>
           </div>
           <div className="flex items-center gap-1 pt-2">
-            {(["branch", "company"] as ScopeMode[]).map((mode) => (
+            {scopeModes.map((mode) => (
               <Button
                 key={mode}
                 type="button"
@@ -120,10 +131,20 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
                 className="h-7 px-2 text-xs"
                 onClick={() => setScopeMode(mode)}
               >
-                {mode === "branch" ? "This branch" : "Company-wide"}
+                {mode === "record"
+                  ? "This record"
+                  : mode === "branch"
+                    ? "This branch"
+                    : "Company-wide"}
               </Button>
             ))}
           </div>
+          {scopeMode === "record" && (
+            <p className="pt-1 text-[10px] text-muted-foreground">
+              Private notes and questions about this{" "}
+              {(workingContext.recordType ?? "record").replace(/[-_]/g, " ")}.
+            </p>
+          )}
 
           {showThreads && (
             <div className="pt-2 max-h-48 overflow-y-auto rounded-md border bg-background/60">

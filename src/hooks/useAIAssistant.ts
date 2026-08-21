@@ -67,6 +67,8 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     appKey: workingContext.appKey,
     moduleKey: workingContext.moduleKey,
     scopeMode,
+    recordType: workingContext.recordType ?? null,
+    recordId: workingContext.recordId ?? null,
   });
 
   // History is the source of truth for the bound thread. Rebinding the scope

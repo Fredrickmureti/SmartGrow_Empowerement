@@ -33,6 +33,9 @@ export interface ConversationScope {
   appKey: string;
   moduleKey: string | null;
   scopeMode: ScopeMode;
+  /** Record the user is looking at; only used when `scopeMode` is "record". */
+  recordType?: string | null;
+  recordId?: string | null;
 }
 
 interface UseAIConversationResult {
@@ -52,7 +55,10 @@ interface UseAIConversationResult {
   reload: () => Promise<void>;
 }
 
-function scopeLevel(scope: ConversationScope): "branch" | "business" | "organization" {
+function scopeLevel(
+  scope: ConversationScope,
+): "record" | "branch" | "business" | "organization" {
+  if (scope.scopeMode === "record" && scope.recordId) return "record";
   if (scope.scopeMode === "branch" && scope.branchId) return "branch";
   return scope.businessId ? "business" : "organization";
 }
@@ -66,9 +72,30 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  const { organizationId, businessId, branchId, appKey, moduleKey, scopeMode } = scope;
+  const {
+    organizationId,
+    businessId,
+    branchId,
+    appKey,
+    moduleKey,
+    scopeMode,
+    recordType,
+    recordId,
+  } = scope;
   const effectiveBranchId = scopeMode === "branch" ? branchId ?? null : null;
-  const scopeKey = [organizationId, businessId, effectiveBranchId, appKey, scopeMode].join("|");
+  // Record threads live beside the app's other threads but never mix with
+  // them: a scope-level thread carries NULL record columns, a record thread
+  // carries both. The list query is null-aware on both sides.
+  const effectiveRecordId = scopeMode === "record" ? recordId ?? null : null;
+  const effectiveRecordType = effectiveRecordId ? recordType ?? null : null;
+  const scopeKey = [
+    organizationId,
+    businessId,
+    effectiveBranchId,
+    appKey,
+    scopeMode,
+    effectiveRecordId,
+  ].join("|");
   const scopeKeyRef = useRef(scopeKey);
   scopeKeyRef.current = scopeKey;
 
@@ -111,6 +138,9 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
       query = effectiveBranchId
         ? query.eq("branch_id", effectiveBranchId)
         : query.is("branch_id", null);
+      query = effectiveRecordId
+        ? query.eq("record_id", effectiveRecordId)
+        : query.is("record_id", null);
 
       const { data: rows, error } = await query;
       if (error) throw error;
@@ -145,7 +175,7 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [organizationId, businessId, effectiveBranchId, appKey, loadMessages]);
+  }, [organizationId, businessId, effectiveBranchId, effectiveRecordId, appKey, loadMessages]);
 
   useEffect(() => {
     void resolve();
@@ -167,6 +197,8 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
           branch_id: effectiveBranchId,
           app_key: appKey,
           module_key: moduleKey,
+          record_type: effectiveRecordType,
+          record_id: effectiveRecordId,
           scope_level: scopeLevel(scope),
           created_by: userId,
           title: firstMessage.slice(0, 80),
@@ -190,7 +222,17 @@ export function useAIConversation(scope: ConversationScope): UseAIConversationRe
       ]);
       return data.id;
     },
-    [conversationId, organizationId, businessId, effectiveBranchId, appKey, moduleKey, scope],
+    [
+      conversationId,
+      organizationId,
+      businessId,
+      effectiveBranchId,
+      effectiveRecordType,
+      effectiveRecordId,
+      appKey,
+      moduleKey,
+      scope,
+    ],
   );
 
   const archiveConversation = useCallback(async () => {
