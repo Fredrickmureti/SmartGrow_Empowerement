@@ -110,13 +110,16 @@ describe("AI conversation scope", () => {
 
   it("every advertised tool is dispatched and capability-gated", () => {
     const tools = readFileSync("supabase/functions/ai-assistant/dataTools.ts", "utf8");
+    const caps = readFileSync("supabase/functions/ai-assistant/capabilities.ts", "utf8");
     const advertised = [...tools.matchAll(/name: "(\w+)",\n\s+description:/g)].map((m) => m[1]);
     expect(advertised.length).toBeGreaterThan(3);
     const exec = tools.slice(tools.indexOf("export async function executeDataTool"));
+    const toolModuleBlock = caps.slice(caps.indexOf("TOOL_MODULE"));
     for (const name of advertised) {
       expect(exec).toContain(`"${name}"`);
-      expect(tools).toMatch(new RegExp(`${name}:`)); // present in TOOL_MODULE import usage
+      expect(toolModuleBlock).toContain(`${name}:`);
     }
+
     // Deny by default: unknown tools are rejected before any read.
     expect(exec).toMatch(/if \(!\(name in TOOL_MODULE\)\) return \{ error/);
     expect(exec).toMatch(/canReadModule\(caps, TOOL_MODULE\[name\]\)/);
