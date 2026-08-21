@@ -113,3 +113,49 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- 6) Monetary eligibility (IAS 21): only monetary balances are revalued, and
+--    exposure is measured on the currency of the LINE, not of the header.
+DO $$
+DECLARE r record;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = 'fx_is_monetary_account'
+  ) THEN
+    RAISE EXCEPTION 'the FX monetary classifier fx_is_monetary_account is missing';
+  END IF;
+
+  -- Non-monetary items must never be revalued; monetary ones must be.
+  IF public.fx_is_monetary_account('asset','inventory')
+     OR public.fx_is_monetary_account('asset','fixed_asset_software')
+     OR public.fx_is_monetary_account('asset','prepaid_expenses')
+     OR public.fx_is_monetary_account('liability','deferred_revenue')
+     OR public.fx_is_monetary_account('income','sales_income') THEN
+    RAISE EXCEPTION 'fx_is_monetary_account treats a non-monetary account as monetary';
+  END IF;
+  IF NOT (public.fx_is_monetary_account('asset','accounts_receivable')
+      AND public.fx_is_monetary_account('liability','accounts_payable')
+      AND public.fx_is_monetary_account('asset','checking')
+      AND public.fx_is_monetary_account('asset', NULL)) THEN
+    RAISE EXCEPTION 'fx_is_monetary_account drops a monetary account from FX scope';
+  END IF;
+
+  FOR r IN
+    SELECT p.proname, p.prosrc
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname IN ('revalue_fx_balances','fx_exposure_by_currency','fx_exposure_open_items')
+  LOOP
+    IF r.prosrc ~ 'a\.account_type IN \(''asset'',''liability''\)' THEN
+      RAISE EXCEPTION '% still uses the asset-or-liability rule instead of the monetary classifier', r.proname;
+    END IF;
+    IF r.prosrc !~ 'fx_is_monetary_account' THEN
+      RAISE EXCEPTION '% does not restrict FX scope to monetary accounts', r.proname;
+    END IF;
+    IF r.prosrc !~ 'jel\.original_currency' THEN
+      RAISE EXCEPTION '% measures exposure on the header currency instead of the line currency', r.proname;
+    END IF;
+  END LOOP;
+END $$;
+
