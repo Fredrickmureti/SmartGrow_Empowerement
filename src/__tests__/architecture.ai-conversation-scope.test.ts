@@ -24,14 +24,12 @@ const CONVERSATION_TABLES = ["ai_conversations", "ai_conversation_messages"];
 
 describe("AI conversation scope", () => {
   it("no browser module sends userRole or accessibleBranchIds to the assistant", () => {
-    const offenders = SRC_FILES.filter((file) => {
-      const src = readFileSync(file, "utf8");
-      return /\baccessibleBranchIds\b/.test(src) || /\buserRole,\s*$/m.test(src) === false
-        ? /\baccessibleBranchIds\b/.test(src)
-        : false;
-    });
+    const offenders = SRC_FILES.filter((file) =>
+      /\baccessibleBranchIds\b/.test(readFileSync(file, "utf8")),
+    );
     expect(offenders).toEqual([]);
   });
+
 
   it("the assistant edge function does not accept role or branch scope from the body", () => {
     const src = readFileSync("supabase/functions/ai-assistant/index.ts", "utf8");
