@@ -25,7 +25,11 @@ export interface ApAgingBill {
   paid: number;
   credited: number;
   balance: number;
-  baseBalance: number;
+  /**
+   * ADR 0136: `null` when this document's currency has no rate on file. It is
+   * an absence — the browser must say so, never fall back to `balance`.
+   */
+  baseBalance: number | null;
   currency: string | null;
   daysPastDue: number;
   bucket: AgingBucketKey;
@@ -33,37 +37,47 @@ export interface ApAgingBill {
   journalEntryId: string | null;
 }
 
+/**
+ * Base-currency money on this report is `number | null`. `null` means the
+ * figure cannot be stated because a contributing document has no exchange rate
+ * on file; `unconvertibleCount` says how many. A total is never the sum of the
+ * convertible remainder presented as complete.
+ */
 export interface ApAgingVendor {
   vendorId: string;
   vendorName: string;
-  not_due: number;
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  gross: number;
-  credit: number;
-  total: number;
+  not_due: number | null;
+  current: number | null;
+  days30: number | null;
+  days60: number | null;
+  days90: number | null;
+  gross: number | null;
+  credit: number | null;
+  total: number | null;
+  unconvertibleCount: number;
   bills: ApAgingBill[];
 }
 
 export interface ApAgingTotals {
-  not_due: number;
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  gross: number;
-  credit: number;
-  total: number;
+  not_due: number | null;
+  current: number | null;
+  days30: number | null;
+  days60: number | null;
+  days90: number | null;
+  gross: number | null;
+  credit: number | null;
+  total: number | null;
   vendorCount: number;
+  unconvertibleCount: number;
 }
 
 export interface ApAgingReconciliation {
-  agingTotal: number;
-  controlAccountBalance: number;
-  variance: number;
+  agingTotal: number | null;
+  controlAccountBalance: number | null;
+  variance: number | null;
   inBalance: boolean;
+  /** Documents excluded from the base-currency tie-out for want of a rate. */
+  unconvertibleDocumentCount: number;
 }
 
 /** Description of the page the server returned, plus the searched cohort. */
