@@ -671,7 +671,9 @@ export async function fetchPayableCounterparties(
 
   for (const r of openRows) {
     if (!r.contact_id) continue;
-    const amount = Number(r.base_residual_amount ?? r.residual_amount) || 0;
+    // ADR 0136: a payable with no rate on file cannot join a base-currency net.
+    if (r.base_residual_amount === null || r.base_residual_amount === undefined) continue;
+    const amount = Number(r.base_residual_amount) || 0;
     // Overdue days come from the engine (measured against the as-of date), so
     // the cohort ages exactly like Aged Payables.
     const overdue = Number(r.days_past_due) || 0;
