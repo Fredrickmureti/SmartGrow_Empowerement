@@ -49,6 +49,19 @@ export interface HistoryNarrative {
   degraded_reason: string | null;
 }
 
+/**
+ * The assistant is rate limited server-side (Phase 7). A throttle is not a
+ * failure of reconciliation, so it is typed separately and the UI says so
+ * plainly instead of implying something is broken.
+ */
+export class AdvisoryRateLimitedError extends Error {
+  readonly code = "ADVISORY_RATE_LIMITED";
+  constructor(readonly retryAfterSeconds: number, message: string) {
+    super(message);
+    this.name = "AdvisoryRateLimitedError";
+  }
+}
+
 async function invokeAssistant<T>(
   action: "rank_candidates" | "explain_history",
   bankTransactionId: string,
@@ -56,7 +69,25 @@ async function invokeAssistant<T>(
   const { data, error } = await supabase.functions.invoke("reconciliation-assistant", {
     body: { action, bank_transaction_id: bankTransactionId },
   });
-  if (error) throw error;
+  if (error) {
+    // supabase-js buries a non-2xx body in `context`; read it so a 429 is a
+    // throttle rather than a generic "could not be reached".
+    const context = (error as { context?: unknown }).context as Response | undefined;
+    if (context && typeof context.clone === "function" && context.status === 429) {
+      let retryAfter = 60;
+      let message =
+        "You have asked the assistant several times in a row. Reconciliation is unaffected.";
+      try {
+        const payload = await context.clone().json();
+        retryAfter = Number(payload?.retry_after_seconds) || retryAfter;
+        if (typeof payload?.message === "string") message = payload.message;
+      } catch {
+        // Keep the defaults; a throttle is still a throttle.
+      }
+      throw new AdvisoryRateLimitedError(retryAfter, message);
+    }
+    throw error;
+  }
   if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
     throw new Error(String((data as Record<string, unknown>).error));
   }
