@@ -605,7 +605,7 @@ function CurrencyBreakdown({
               <TableCell className="text-right tabular-nums text-muted-foreground">
                 {r.baseNetAmount === null ? (
                   <Link
-                    to="/settings/currency"
+                    to="/settings/company?tab=currency"
                     className="text-destructive underline underline-offset-2"
                     title={`No exchange rate on file for ${r.currency}. ${r.unconvertibleDocumentCount} document(s) cannot be shown in base currency.`}
                   >
