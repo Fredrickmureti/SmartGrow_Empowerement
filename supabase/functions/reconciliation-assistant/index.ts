@@ -238,6 +238,55 @@ serve(async (req) => {
     return json({ error: "bank_transaction_id is required" }, 400);
   }
 
+  // Phase 7 — the throttle and the cost record are the SAME call, and it runs
+  // BEFORE any upstream request. `reconciliation_assistant_consume_quota` also
+  // re-asserts `finance.reconcile_bank` on the line's own business, so the
+  // assistant can never be a softer door than reconciliation itself.
+  const startedAt = Date.now();
+  const { data: quota, error: quotaError } = await supabase.rpc(
+    "reconciliation_assistant_consume_quota",
+    { _bank_transaction_id: bankTransactionId, _action: action },
+  );
+  if (quotaError) {
+    const denied = /INSUFFICIENT_PRIVILEGE_RECONCILE|UNAUTHENTICATED/.test(quotaError.message ?? "");
+    return json({ error: quotaError.message }, denied ? 403 : 400);
+  }
+  if (!(quota as any)?.allowed) {
+    const retryAfter = Number((quota as any)?.retry_after_seconds) || 60;
+    return new Response(
+      JSON.stringify({
+        error: "ADVISORY_RATE_LIMITED",
+        retry_after_seconds: retryAfter,
+        message:
+          "You have asked the assistant too many times in a short period. Reconciliation is unaffected — the engine's own candidates and the recorded history are unchanged.",
+      }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Retry-After": String(retryAfter),
+        },
+      },
+    );
+  }
+  const usageId = (quota as any)?.usage_id ?? null;
+
+  /** Complete the cost record. Best effort: accounting never waits on it. */
+  const recordOutcome = async (degraded: boolean) => {
+    if (!usageId) return;
+    try {
+      await supabase.rpc("reconciliation_assistant_record_outcome", {
+        _usage_id: usageId,
+        _model_used: degraded ? null : MODEL,
+        _was_degraded: degraded,
+        _response_time_ms: Date.now() - startedAt,
+      });
+    } catch (e) {
+      console.error("reconciliation-assistant: failed to record usage outcome", e);
+    }
+  };
+
   try {
     if (action === "rank_candidates") {
       // The database decides WHAT is possible. The model only opines on order.
@@ -245,7 +294,10 @@ serve(async (req) => {
         _txn_id: bankTransactionId,
         _limit: 10,
       });
-      if (error) return json({ error: error.message }, 400);
+      if (error) {
+        await recordOutcome(true);
+        return json({ error: error.message }, 400);
+      }
 
       const tier = (candidateSet as any)?.tier ?? "unresolved";
       const candidates: Record<string, any>[] = Array.isArray((candidateSet as any)?.candidates)
@@ -256,6 +308,7 @@ serve(async (req) => {
       // about a settled or already-proposed line is how a replayed statement
       // becomes a second settlement, so the assistant declines.
       if (tier === "settled" || tier === "proposed" || candidates.length === 0) {
+        await recordOutcome(true);
         return json({
           action,
           tier,
@@ -298,6 +351,8 @@ serve(async (req) => {
         ? parsed!.confidence
         : "low";
 
+      await recordOutcome(!parsed);
+
       return json({
         action,
         tier,
@@ -324,13 +379,17 @@ serve(async (req) => {
     const { data: history, error } = await supabase.rpc("bank_match_history", {
       p_bank_transaction_id: bankTransactionId,
     });
-    if (error) return json({ error: error.message }, 400);
+    if (error) {
+      await recordOutcome(true);
+      return json({ error: error.message }, 400);
+    }
 
     const decisions: Record<string, any>[] = Array.isArray((history as any)?.decisions)
       ? (history as any).decisions
       : [];
 
     if (decisions.length === 0) {
+      await recordOutcome(true);
       return json({
         action,
         decision_count: 0,
@@ -345,6 +404,8 @@ serve(async (req) => {
       JSON.stringify({ decisions: decisions.slice(0, 20).map(projectDecision) }),
     );
     const parsed = parseModelJson(raw);
+
+    await recordOutcome(!parsed);
 
     return json({
       action,
@@ -364,6 +425,7 @@ serve(async (req) => {
         : "The assistant is unavailable; read the recorded decisions directly.",
     });
   } catch (e) {
+    await recordOutcome(true);
     console.error("reconciliation-assistant: unexpected failure", e);
     return json({ error: e instanceof Error ? e.message : "Unexpected failure" }, 500);
   }

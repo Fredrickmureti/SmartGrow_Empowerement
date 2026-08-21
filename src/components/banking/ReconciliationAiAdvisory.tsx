@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  AdvisoryRateLimitedError,
   useCandidateAdvisory,
   useHistoryNarrative,
 } from "@/hooks/useReconciliationAssistant";
@@ -28,6 +29,18 @@ function AskButton({ onClick, label }: { onClick: () => void; label: string }) {
       <Sparkles className="h-3.5 w-3.5" />
       {label}
     </Button>
+  );
+}
+
+/** A throttle is not a breakage: say what happened and what still works. */
+function ThrottleNotice({ error }: { error: unknown }) {
+  if (!(error instanceof AdvisoryRateLimitedError)) return null;
+  const minutes = Math.ceil(error.retryAfterSeconds / 60);
+  return (
+    <p className="text-xs text-muted-foreground">
+      {error.message} Try again in about {minutes} minute{minutes === 1 ? "" : "s"} — the engine's
+      own candidates and the recorded history are unchanged.
+    </p>
   );
 }
 
@@ -73,10 +86,14 @@ export function CandidateAdvisoryPanel({ bankTransactionId }: { bankTransactionI
   if (error) {
     return (
       <Frame>
-        <p className="text-xs text-muted-foreground">
-          The assistant could not be reached. Judge the candidates on the evidence the engine
-          listed — nothing about this line has changed.
-        </p>
+        {error instanceof AdvisoryRateLimitedError ? (
+          <ThrottleNotice error={error} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            The assistant could not be reached. Judge the candidates on the evidence the engine
+            listed — nothing about this line has changed.
+          </p>
+        )}
       </Frame>
     );
   }
@@ -153,10 +170,14 @@ export function HistoryNarrativePanel({ bankTransactionId }: { bankTransactionId
   if (error || !data) {
     return (
       <Frame>
-        <p className="text-xs text-muted-foreground">
-          The assistant could not be reached. The recorded decisions below are the authoritative
-          account.
-        </p>
+        {error instanceof AdvisoryRateLimitedError ? (
+          <ThrottleNotice error={error} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            The assistant could not be reached. The recorded decisions below are the authoritative
+            account.
+          </p>
+        )}
       </Frame>
     );
   }

@@ -64,8 +64,15 @@ describe("reconciliation AI advisory boundary", () => {
 
   it("the assistant reads only the two scoped reconciliation RPCs", () => {
     const fn = read(FN);
-    const rpcs = [...fn.matchAll(/\.rpc\(\s*"([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect([...new Set(rpcs)]).toEqual(["bank_match_candidates", "bank_match_history"]);
+    const rpcs = [...new Set([...fn.matchAll(/\.rpc\(\s*"([a-z_]+)"/g)].map((m) => m[1]))].sort();
+    // Two reads of accounting data, plus the quota seam — which reads and
+    // writes only the assistant's OWN cost record, never anything accounting.
+    expect(rpcs).toEqual([
+      "bank_match_candidates",
+      "bank_match_history",
+      "reconciliation_assistant_consume_quota",
+      "reconciliation_assistant_record_outcome",
+    ]);
     // No direct table reads: everything travels through the RPC seams.
     expect(fn).not.toContain(".from(");
   });
@@ -119,5 +126,52 @@ describe("reconciliation AI advisory boundary", () => {
     expect(sheet).toContain("useBankMatchCandidates");
     const history = read("src/components/banking/BankMatchHistoryPanel.tsx");
     expect(history).toContain("HistoryNarrativePanel");
+  });
+
+  // ---- Phase 7: the assistant is bounded and its cost is attributable ----
+
+  it("every request is throttled and metered before the model is asked", () => {
+    const fn = read(FN);
+    const quotaAt = fn.indexOf("reconciliation_assistant_consume_quota");
+    const askAt = fn.indexOf("await askModel(");
+    expect(quotaAt).toBeGreaterThan(-1);
+    // The guard runs BEFORE any upstream call — a throttle that fires after
+    // the spend is not a throttle.
+    expect(quotaAt).toBeLessThan(askAt);
+    // A refusal is a 429 with a retry hint, not a silent failure.
+    expect(fn).toContain("ADVISORY_RATE_LIMITED");
+    expect(fn).toContain('"Retry-After"');
+    expect(fn).toContain("429");
+    // Every path completes the cost record, degraded paths included.
+    expect(fn).toContain("recordOutcome");
+    expect(fn).toContain("_was_degraded");
+  });
+
+  it("the quota seam is authorised as strictly as reconciliation itself", () => {
+    const fn = read(FN);
+    // A privilege refusal from the quota seam is surfaced as a refusal, not
+    // downgraded into a generic error the UI would retry.
+    expect(fn).toContain("INSUFFICIENT_PRIVILEGE_RECONCILE");
+    expect(fn).toContain("403");
+  });
+
+  it("the client tells the truth about a throttle", () => {
+    const hook = read(HOOK);
+    expect(hook).toContain("AdvisoryRateLimitedError");
+    expect(hook).toContain("retry_after_seconds");
+    // Still no mutation, and still no retry storm against the limit.
+    expect(hook).not.toContain("useMutation");
+    expect(hook).toContain("retry: false");
+
+    const ui = read(UI);
+    expect(ui).toContain("AdvisoryRateLimitedError");
+    // The throttle copy must say reconciliation is unaffected.
+    expect(ui).toContain("unchanged");
+  });
+
+  it("the assistant's JWT verification is declared, not inherited", () => {
+    const config = read("supabase/config.toml");
+    expect(config).toContain("[functions.reconciliation-assistant]");
+    expect(config).toMatch(/\[functions\.reconciliation-assistant\][\s\S]*verify_jwt\s*=\s*true/);
   });
 });

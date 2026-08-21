@@ -725,6 +725,48 @@ export type Database = {
           },
         ]
       }
+      ai_advisory_usage: {
+        Row: {
+          action: string
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          feature: string
+          id: string
+          model_used: string | null
+          response_time_ms: number | null
+          user_id: string
+          was_degraded: boolean
+          was_throttled: boolean
+        }
+        Insert: {
+          action: string
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          feature: string
+          id?: string
+          model_used?: string | null
+          response_time_ms?: number | null
+          user_id: string
+          was_degraded?: boolean
+          was_throttled?: boolean
+        }
+        Update: {
+          action?: string
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          feature?: string
+          id?: string
+          model_used?: string | null
+          response_time_ms?: number | null
+          user_id?: string
+          was_degraded?: boolean
+          was_throttled?: boolean
+        }
+        Relationships: []
+      }
       ai_api_keys: {
         Row: {
           api_key_encrypted: string | null
@@ -100785,6 +100827,19 @@ export type Database = {
           sku: string
           stored_quantity: number
         }[]
+      }
+      reconciliation_assistant_consume_quota: {
+        Args: { _action: string; _bank_transaction_id: string }
+        Returns: Json
+      }
+      reconciliation_assistant_record_outcome: {
+        Args: {
+          _model_used: string
+          _response_time_ms: number
+          _usage_id: string
+          _was_degraded: boolean
+        }
+        Returns: undefined
       }
       record_advance_payment: {
         Args: {

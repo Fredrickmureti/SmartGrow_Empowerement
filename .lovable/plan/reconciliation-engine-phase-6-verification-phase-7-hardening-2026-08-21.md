@@ -69,3 +69,26 @@ each as either out-of-scope with an owner or in-scope with a fix.
 The assistant advises; it cannot change the books. No new write seam, no service-role access,
 no reads outside `bank_match_candidates` and `bank_match_history`, no AI-owned copies of ERP data,
 no widening of scope into unrelated domains.
+
+---
+
+## Completed (2026-08-21, later turn)
+
+- **Phase 7 item 1 — per-user throttle and attributable cost.** `public.ai_advisory_usage`
+  plus `reconciliation_assistant_consume_quota` (throttle and cost record are one
+  SECURITY DEFINER call, run *before* any upstream request, re-asserting
+  `finance.reconcile_bank` on the bank line's own business; 10/minute, 100/hour) and
+  `reconciliation_assistant_record_outcome`, now completed on **every** exit path of the
+  edge function including degraded and error paths.
+- 429 responses carry `ADVISORY_RATE_LIMITED` + `Retry-After`; the client types it as
+  `AdvisoryRateLimitedError` (no retry) and both advisory panels render throttle copy
+  stating the engine's candidates and recorded history are unchanged.
+- `verify_jwt = true` declared for the function in `supabase/config.toml` (was inherited).
+- Recorded as `docs/adr/0149-the-reconciliation-assistant-is-bounded-and-billed.md`.
+- Ratchet extended to 13/13 passing; `tsgo` clean.
+
+### Still open
+
+- Authenticated browser walk-through of both panels (blocked: `external_unmanaged` auth,
+  no session can be minted — needs a human in the preview).
+- Phase 7 items 2 (operator docs) and 3 (full-suite triage of the pre-existing failures).
