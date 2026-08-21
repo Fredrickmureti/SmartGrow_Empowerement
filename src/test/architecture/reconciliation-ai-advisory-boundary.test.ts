@@ -64,8 +64,15 @@ describe("reconciliation AI advisory boundary", () => {
 
   it("the assistant reads only the two scoped reconciliation RPCs", () => {
     const fn = read(FN);
-    const rpcs = [...fn.matchAll(/\.rpc\(\s*"([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect([...new Set(rpcs)]).toEqual(["bank_match_candidates", "bank_match_history"]);
+    const rpcs = [...new Set([...fn.matchAll(/\.rpc\(\s*"([a-z_]+)"/g)].map((m) => m[1]))].sort();
+    // Two reads of accounting data, plus the quota seam — which reads and
+    // writes only the assistant's OWN cost record, never anything accounting.
+    expect(rpcs).toEqual([
+      "bank_match_candidates",
+      "bank_match_history",
+      "reconciliation_assistant_consume_quota",
+      "reconciliation_assistant_record_outcome",
+    ]);
     // No direct table reads: everything travels through the RPC seams.
     expect(fn).not.toContain(".from(");
   });
