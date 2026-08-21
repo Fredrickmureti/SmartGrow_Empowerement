@@ -6,8 +6,10 @@ parity), ADR 0146 (journal numbering), IAS 21 (monetary items).
 
 ## Currently active phase
 
-**Phase 7 — Unrealized FX.** Steps 1 and 2 are complete and verified against the
-live database. Steps 3 and 4 are the remaining work in this phase.
+**Phase 7 — Unrealized FX: COMPLETE (verified 2026-08-21 late, live DB).**
+Next active phase is **Phase 8 — reporting-projection parity remediation** (see
+"Pending work").
+
 
 ## Fully implemented and verified
 
