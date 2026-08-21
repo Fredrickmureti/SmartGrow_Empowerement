@@ -233,12 +233,16 @@ Format your response as a JSON array of strings.`;
       }
     }
 
-    // Log AI usage
+    // Log AI usage. This is a platform-admin surface, so there is no tenant
+    // tuple to attach — but the spend must still be attributable to the admin
+    // who caused it, derived from the verified JWT rather than the body.
     await supabase.from("ai_usage_logs").insert({
       provider_code: provider.provider_code,
       request_type: `email_${action}`,
       tokens_used: aiData.usage?.total_tokens || 0,
       model_used: provider.default_model,
+      user_id: user.id,
+      app_key: "platform_admin",
     });
 
     return new Response(JSON.stringify({ success: true, data: result }), {

@@ -8,6 +8,56 @@
 
 import { NormalizedFeedLine } from './providers/types.ts';
 
+/**
+ * Scope tuple every background AI call must carry.
+ *
+ * A scheduled job has no browser and therefore no UI state to inherit: the
+ * tuple is derived server-side from the row the job is working on (here the
+ * bank account), never from the request body. `userId` is null for cron runs —
+ * the spend belongs to the tenant, not to whoever last opened the page.
+ */
+export interface AdvisoryScope {
+  organizationId: string;
+  businessId: string | null;
+  branchId: string | null;
+  userId: string | null;
+  appKey: string;
+}
+
+const GATEWAY_PROVIDER_CODE = 'lovable_gateway';
+const GATEWAY_MODEL = 'google/gemini-3-flash-preview';
+
+type UsageLogger = {
+  // `insert` on supabase-js returns a thenable builder, not a plain Promise.
+  from: (table: string) => { insert: (row: Record<string, unknown>) => PromiseLike<unknown> };
+};
+
+/** Attributes one advisory model call to the tenant that caused it. */
+async function logAdvisoryUsage(
+  client: UsageLogger,
+  scope: AdvisoryScope,
+  outcome: { responseTimeMs: number; error?: string | null; rateLimited?: boolean },
+): Promise<void> {
+  try {
+    await client.from('ai_usage_logs').insert({
+      provider_code: GATEWAY_PROVIDER_CODE,
+      request_type: 'bank_transaction_categorization',
+      model_used: GATEWAY_MODEL,
+      response_time_ms: outcome.responseTimeMs,
+      was_rate_limited: outcome.rateLimited ?? false,
+      error_message: outcome.error ?? null,
+      organization_id: scope.organizationId,
+      business_id: scope.businessId,
+      branch_id: scope.branchId,
+      user_id: scope.userId,
+      app_key: scope.appKey,
+    });
+  } catch (error) {
+    // Never let accounting-irrelevant telemetry break a feed run.
+    console.error('[AI] usage log failed:', error);
+  }
+}
+
 const CATEGORIES = [
   'Office Supplies',
   'Travel & Transportation',
@@ -35,16 +85,21 @@ export interface AiAdvice {
 }
 
 /** Returns `null` whenever the gateway is unavailable or unhelpful. */
-export async function suggestCategory(line: NormalizedFeedLine): Promise<AiAdvice | null> {
+export async function suggestCategory(
+  line: NormalizedFeedLine,
+  client: UsageLogger,
+  scope: AdvisoryScope,
+): Promise<AiAdvice | null> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) return null;
 
+  const startedAt = Date.now();
   try {
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: GATEWAY_MODEL,
         messages: [
           {
             role: 'system',
@@ -85,10 +140,16 @@ export async function suggestCategory(line: NormalizedFeedLine): Promise<AiAdvic
 
     if (!response.ok) {
       console.error(`[AI] gateway ${response.status}`);
+      await logAdvisoryUsage(client, scope, {
+        responseTimeMs: Date.now() - startedAt,
+        error: `gateway_${response.status}`,
+        rateLimited: response.status === 429,
+      });
       return null;
     }
 
     const data = await response.json();
+    await logAdvisoryUsage(client, scope, { responseTimeMs: Date.now() - startedAt });
     const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!args) return null;
 
@@ -102,6 +163,10 @@ export async function suggestCategory(line: NormalizedFeedLine): Promise<AiAdvic
     };
   } catch (error) {
     console.error('[AI] suggestion failed:', error);
+    await logAdvisoryUsage(client, scope, {
+      responseTimeMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message.slice(0, 500) : 'unknown_error',
+    });
     return null;
   }
 }
@@ -111,14 +176,22 @@ export async function suggestCategory(line: NormalizedFeedLine): Promise<AiAdvic
  * turns into hundreds of model calls inside one request.
  */
 export async function annotateLines(
+  client: UsageLogger,
   lines: NormalizedFeedLine[],
+  scope: AdvisoryScope,
   limit = 25,
 ): Promise<Map<string, AiAdvice>> {
   const out = new Map<string, AiAdvice>();
   if (!Deno.env.get('LOVABLE_API_KEY')) return out;
+  // Fail closed on an undeterminable scope: an AI call we cannot attribute to a
+  // tenant does not happen.
+  if (!scope.organizationId) {
+    console.error('[AI] advisory skipped: no resolved scope');
+    return out;
+  }
 
   for (const line of lines.slice(0, limit)) {
-    const advice = await suggestCategory(line);
+    const advice = await suggestCategory(line, client, scope);
     if (advice) out.set(line.external_transaction_id, advice);
   }
   return out;
