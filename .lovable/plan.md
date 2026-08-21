@@ -1,103 +1,156 @@
-# Currency & FX — settlement convergence programme (authoritative status)
+# Currency & FX — handover verification verdict (2026-08-21) + remaining execution
 
-Last updated: 2026-08-21 14:07 UTC. Authority: ADR 0135 / 0136 / 0138.
-Predecessor plan: `.lovable/plan/currency-fx-handover-verification-verdict-then-producer-cont-2026-08-21.md`
-(findings C1–C6 and the phase numbering below come from it).
+Authority: ADR 0135 / 0136 / 0138. Scope boundary unchanged:
+FX source → settlement → posting → FX engine → FX reporting. No second resolver,
+no client-side conversion, no unrelated module work.
 
-## Current position
+Status vocabulary: VERIFIED FACT (checked in live DB / code this session) ·
+ACCOUNTING PRINCIPLE · INFERENCE · UNVERIFIED.
 
-**Active phase: Phase 6 (realized-FX vs GL tie-out) — not started.**
-Phases 1–5 are complete and verified. Phase 7 is the only other outstanding item.
+## Verdict on the previous engineer's claims
 
-## The FX contract being enforced
+Phases 1–5 were checked against `pg_proc`, the live schema, and the test suite.
+**Most claims hold; four do not.**
 
-1. Denomination lives on the business document and is frozen by the BEFORE stamper.
-2. The booking rate comes from `fx_stamp_document` → `require_exchange_rate`. No caller supplies it.
-3. The settlement rate comes from `resolve_exchange_rate` on the settlement date, server-side.
-4. A monetary balance is relieved at its original booking rate; the delta against the
+Confirmed (VERIFIED FACT):
+- `post_journal_entry_atomic` has exactly one overload; last parameter is
+  `_amounts_in_document_currency boolean DEFAULT NULL`.
+- `convert_po_to_bill_atomic` no longer reads `exchange_rates` and has no parity
+  fallback (the only `COALESCE(...,1)` hit is a comment).
+- `expense_reimburse_direct`: no parity fallback, uses `resolve_exchange_rate`,
+  references `resolve_fx_realized_account`.
+- `pos_payment_session_open`: no `'KES'` literal, resolves server-side.
+- `confirm_bill_atomic` **does** opt in — it passes `_currency`, `_exchange_rate`
+  and `true` **positionally**. The earlier "passes no `_currency`" finding is
+  INVALIDATED, and so is any named-argument regex check over it.
+- `revalue_fx_balances` now groups by line-level `original_currency`, filters
+  eligibility through `fx_is_monetary_account(account_type, detail_type)` (not the
+  old `asset OR liability` rule), fails loudly on a missing rate, and reverses the
+  prior `next_period` run. The old eligibility/grouping defect is FIXED.
+- Grant leak is closed except one: only `set_business_active_currency` still
+  carries `anon=X` (fails closed on `auth.uid() IS NULL`).
+
+Invalidated / newly found defects:
+
+**F1 — Silent parity on the historical leg of realized FX (critical).**
+`record_multi_invoice_payment:240` selects `COALESCE(exchange_rate, 1) AS exchange_rate`
+from `invoices`, and `record_multi_bill_payment:167` selects
+`COALESCE(currency_rate, 1)` from `bills`; the AP/AR relief is then computed as
+`amount * that rate`. `invoices.exchange_rate` is **nullable with no default**
+(VERIFIED schema), so a foreign invoice whose rate was never stamped is relieved at
+1:1 and the realized FX difference is fabricated. This is precisely the
+`COALESCE(rate, 1)` pattern ADR 0136 forbids, surviving inside the two paths the
+plan lists as the realized-FX reference implementation.
+Accounting consequence: AR/AP relieved at the wrong historical rate → realized
+gain/loss misstated, control account drifts from the subledger.
+
+**F2 — The two SQL contract tests now contradict each other.**
+`supabase/tests/journal_denomination_contract_test.sql` asserts
+`_amounts_in_document_currency := true` (named form) for `confirm_bill_atomic`,
+`refund_customer_atomic`, `refund_from_vendor_atomic` and
+`apply_credit_to_invoice_atomic`. In the live DB those four do not contain that
+string: `confirm_bill_atomic` opts in positionally, and the other three
+deliberately pass `_amounts_in_document_currency := false` (Phase 4 made them post
+pre-converted base lines, which `fx_settlement_realized_test.sql` then asserts).
+So the older test would raise on four functions. VERIFIED FACT. The contract, not
+the code, is stale — but until it is reconciled neither test can be trusted as a
+ratchet.
+
+**F3 — Live guard failure, not disclosed in the status file.**
+`src/test/architecture/no-silent-currency-fallback.test.ts` FAILS:
+`src/components/banking/BankAccountCard.tsx:222` renders
+`formatAmount(displayBalance, account.currency || "USD")`. VERIFIED by running the
+suite (1 failed / 38 passed across the four FX guard files).
+
+**F4 — Nothing is accounting-verified. `company_currency_total`/`original_*` are unproven.**
+Live counts: `journal_entries` with a foreign header currency = **0**;
+`journal_entry_lines` with `original_currency` non-null = **0** (28 lines total);
+foreign `bills` = 0; foreign `invoices` = 0; `exchange_rates` = 130 rows;
+`business_active_currencies` = **1** row; `fx_revaluation_runs` = 1.
+Every conclusion about the posting path is catalog-level only. Phase 6's tie-out
+cannot be asserted without a real foreign fixture.
+
+**F5 — Currency literal baked into the schema.**
+`customer_credit_balances.currency` is `NOT NULL DEFAULT 'KES'` (VERIFIED). A
+tenant whose base currency is not KES gets mislabelled credit balances. `bills.currency_rate`
+is `NOT NULL DEFAULT 1` — the default is the enabler for F1 on the AP side.
+
+## Accounting invariants being enforced (unchanged, restated)
+
+1. Denomination is owned by the business document and frozen by the BEFORE stamper.
+2. Booking rate comes only from `fx_stamp_document` → `require_exchange_rate`.
+3. Settlement rate is resolved server-side on the settlement date.
+4. A monetary balance is relieved at its **own booking rate**; the delta vs the
    settlement rate is realized FX via `resolve_fx_realized_account`.
-5. A missing rate raises. No `COALESCE(rate, 1)`, no currency literal.
-6. `post_journal_entry_atomic` is the only converter.
+5. A missing rate raises. Never `COALESCE(rate, 1)`, never a currency literal.
+6. `post_journal_entry_atomic` is the only converter; callers either hand it
+   document-currency lines with the opt-in, or already-base lines with `false`.
+7. Unrealized FX is entity-level (`branch_id NULL`) and only for accounts
+   `fx_is_monetary_account` accepts.
 
-## Completed and verified
+## Execution order (dependency-derived)
 
-### Phase 1 — producer map (investigation) — DONE
-Every settlement producer traced to its journal lines against `pg_proc`:
+**Phase A — close F1 (blocks Phase 6).**
+Remove both `COALESCE(<rate>, 1)` reads. Relieve at the stamped document rate and
+raise `23514` when a foreign document carries no rate. Add a NOT NULL/positive-rate
+check on the foreign path rather than a default. Extend
+`fx_settlement_realized_test.sql` with an explicit "no parity fallback in the
+multi-document settlement RPCs" assertion covering the `invoices`/`bills` reads.
 
-| Producer | Verdict |
-| --- | --- |
-| `bank_match_confirm` | Clean. Derives base currency, uses `require_exchange_rate`, rate 1 only when the transaction is in base. |
-| `approve_sales_return_atomic` | Clean. COGS posts as base with `_currency := NULL`; the credit note it raises is stamped by the trigger. |
-| `purchase_return_raise_credit` | Clean. Passes the purchase return's own document rate; the VCN stamper owns the booking rate. |
-| `record_advance_payment`, `record_vendor_advance_payment`, `apply_vendor_advance_atomic` | No currency or rate columns exist on `payments`; advances are structurally base-currency only. C5 **dropped as a defect**, recorded as a limitation (see below). |
-| `expense_reimburse_direct` | **Defect — promoted to Phase 5.** Fixed. |
-| `pos_payment_session_open` | **Defect — promoted to Phase 5.** Fixed. |
+**Phase B — reconcile the contract tests (F2).**
+Rewrite the `journal_denomination_contract_test.sql` block so it asserts the
+*behaviour* (opt-in present, named **or** positional; base-line posters assert
+`false` plus a base-conversion done by the caller) instead of a literal named
+argument. One contract file must not contradict the other.
 
-### Phase 2 — C1, PO → Bill — DONE
-`convert_po_to_bill_atomic` no longer reads `exchange_rates` or falls back to parity;
-`trg_bills_stamp_currency` owns currency, rate and `company_currency_total`, and the
-function reads the stamped values back via `RETURNING`.
+**Phase C — fix F3 and re-green the ratchets.**
+`BankAccountCard` renders `—` (or the account's own currency with no fallback);
+never `"USD"`. Then all four FX guard files pass.
 
-### Phase 3 — C4, caller-supplied settlement rates — DONE
-`record_multi_invoice_payment` and `record_multi_bill_payment` resolve the rate
-server-side and raise `22023` if a caller passes `_exchange_rate`.
+**Phase D — F5 schema hygiene.**
+Drop the `'KES'` default on `customer_credit_balances.currency` and backfill from
+`businesses.base_currency`; drop the `anon` EXECUTE on
+`set_business_active_currency`.
 
-### Phase 4 — C2 / C3, realized FX on compensation — DONE
-- `apply_credit_to_invoice_atomic`: enforces currency parity, relieves each leg at its own
-  booking rate, posts the delta to the realized FX account.
-- `refund_customer_atomic` / `refund_from_vendor_atomic`: `'KES'` literals removed in favour
-  of the business base currency; realized FX recognised between the booking rate and the
-  refund-date rate.
+**Phase E — Phase 6 from the old plan: realized-FX vs GL tie-out.**
+Requires a foreign fixture (F4). Build one deterministic foreign end-to-end path
+(enable a currency, publish a rate, foreign invoice → partial payment → full
+payment) and assert: line `original_*` populated, header currency+rate stamped,
+sum of realized FX postings = GL movement on the realized gain/loss accounts per
+business and period.
 
-### Phase 5 — the last two producers — DONE (this wave)
-- `expense_reimburse_direct`: the `COALESCE(r.exchange_rate, 1)` parity fallback is gone. The
-  employee payable is relieved at the expense booking rate, cash moves at the server-resolved
-  payment-date rate, and the delta posts as realized FX gain/loss. A foreign expense with no
-  booking rate or no payment-date rate raises `23514`.
-- `pos_payment_session_open`: both `'KES'` literals and `COALESCE(p_fx_rate, 1)` removed. The
-  session currency defaults to the company base currency, the rate is resolved server-side,
-  a caller-supplied `p_fx_rate` raises `22023`, and settling in a non-base currency is
-  refused explicitly rather than guessed.
-- Client: `p_fx_rate` / `fxRate` removed from `src/lib/pos/paymentSessionClient.ts` and
-  `src/hooks/pos/usePaymentSession.ts`.
+**Phase F — Phase 7: period-close interlock.**
+Closing a fiscal period refuses when an enabled currency has no rate on file at
+period end.
 
-Verification performed this wave:
-- Live `pg_proc` assertions: no parity regex match in `expense_reimburse_direct`, realized-FX
-  account referenced, no `'KES'` in the POS opener, rate rejection and server resolution present.
-- `supabase/tests/fx_settlement_realized_test.sql` extended with a Phase 5 contract block.
-- `src/test/architecture/fx-single-engine.test.ts` → **27 passing** (2 new guards: no settlement
-  RPC call site passes a rate; the POS client carries no `fxRate` input).
-- `bunx tsgo --noEmit -p tsconfig.app.json` clean.
+## Tests required
 
-## Pending
+- `supabase/tests/fx_settlement_realized_test.sql` — Phase A assertion.
+- `supabase/tests/journal_denomination_contract_test.sql` — rewritten per Phase B.
+- `src/test/architecture/no-silent-currency-fallback.test.ts` — must pass (Phase C).
+- New SQL contract test for the Phase E tie-out and the Phase F interlock.
 
-- **Phase 6 (next) — realized-FX vs GL tie-out.** Prove that the sum of realized FX postings
-  reconciles to the GL movement on the realized gain/loss accounts, per business and period.
-  Needs a foreign settlement fixture (now creatable via any of the Phase 4/5 paths) and a
-  report or SQL contract test asserting the tie-out.
-- **Phase 7 — period-close interlock.** Closing a period must refuse when an enabled currency
-  has no rate on file for the period end.
-- **Carried limitations (documented, not defects):**
-  - Advances (`payments`, `customer_credit_balances`) have no currency column and are base
-    currency only. Foreign-currency advances would require a schema change — do not start it
-    without an explicit decision.
-  - C6 hygiene: `set_business_active_currency` still carries an `anon` EXECUTE grant. It fails
-    closed on `auth.uid() IS NULL`, so it is cosmetic; drop the grant opportunistically.
-- **Unrelated pre-existing failure (do not attribute to this programme):**
-  `src/test/architecture/bill-payment-allocations-first-class.test.ts` → "reads the canonical
-  vendor_ledger_entries view" fails because `useVendorStatements.ts` was refactored to read
-  through `src/services/finance/vendorStatementLedger.ts`. Untouched by FX work.
+## Carried limitations (documented, not defects)
 
-## Instructions for the next agent
+- `payments` / `customer_credit_balances` have no usable currency+rate pair, so
+  advances are structurally base-currency only. Foreign advances need a schema
+  decision — do not start without one.
+- Unrelated pre-existing failure, not FX:
+  `src/test/architecture/bill-payment-allocations-first-class.test.ts`.
 
-1. **Verify before continuing.** Do not take this file's claims on trust. Re-check against the
-   live database and codebase:
-   - `expense_reimburse_direct` and `pos_payment_session_open` bodies in `pg_proc` — confirm no
-     `COALESCE(<rate>, 1)`, no currency literal, `resolve_exchange_rate` present, and the
-     realized-FX branches balance (the FX line must be signed so the entry stays base-balanced).
-   - Run `bunx vitest run src/test/architecture/fx-single-engine.test.ts` (expect 27 passing) and
-     execute `supabase/tests/fx_settlement_realized_test.sql`.
-   - Confirm no POS or expense UI still sends a rate.
-2. **Then resume at Phase 6**, not elsewhere. Phase 6 → Phase 7 in that order.
-3. **Scope boundary unchanged:** FX source → settlement → posting → FX engine → FX reporting.
-   No new rate table, no second resolver, no client-side conversion, no unrelated module work.
+## Explicit non-goals
+
+No new rate table, no second resolver, no client-side conversion, no reporting-layer
+work, no rewrite of Sales (verified clean), no ERP-wide audit.
+
+## Final answers
+
+**Is the centralized FX engine receiving trustworthy, complete, correctly-denominated
+data from every relevant producer?** Not yet — and not for the reason previously
+recorded. The centre (rate book, resolver pair, stamper, converter, revaluation
+eligibility) is now structurally sound and the producer sweep is genuinely largely
+done. Two things break the contract: the multi-document settlement RPCs still fall
+back to a 1:1 historical rate (F1), and no foreign-currency transaction has ever
+been posted in this database, so the contract is unproven in practice (F4).
+
+**Smallest dependency-ordered sequence:** A → B → C → D → E → F, as above.
