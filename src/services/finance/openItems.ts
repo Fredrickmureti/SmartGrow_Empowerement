@@ -475,7 +475,7 @@ async function fetchVendorCreditByContact(
       : null;
   if (wanted && wanted.length === 0) return out;
 
-  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number | null }>;
   try {
     rows = await fetchApVendorCreditAsOf(orgId, businessId, null, asOf);
   } catch {
@@ -486,7 +486,10 @@ async function fetchVendorCreditByContact(
     const key = row.contact_id;
     if (!key) continue;
     if (wanted && !wanted.includes(key)) continue;
+    // ADR 0136: no rate on file contributes nothing; never converted at parity.
+    if (row.base_credit_amount === null || row.base_credit_amount === undefined) continue;
     out.set(key, (out.get(key) || 0) + (Number(row.base_credit_amount) || 0));
+
   }
   return out;
 }
