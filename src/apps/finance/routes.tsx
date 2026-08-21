@@ -925,6 +925,20 @@ export function FinanceApp() {
           }
         />
 
+        {/* Realized FX Gain/Loss Report (Currency & FX Step 4) */}
+        <Route
+          path="reports/fx-realized"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Realized FX Gain/Loss Report">
+                <FxRealizedReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
+
 
 
         {/* Finance Settings */}
