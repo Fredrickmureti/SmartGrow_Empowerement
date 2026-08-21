@@ -2125,7 +2125,11 @@ serve(async (req) => {
         userRole,
         accessibleBranchIds
       );
+      // The snapshot is assembled with the service-role key, so trim it to the
+      // modules this caller may read before it ever reaches the prompt.
+      financialContext = scrubContextByCapabilities(financialContext, capabilities);
     }
+
 
     let systemPrompt = systemPrompts[type] || systemPrompts.chat;
 
