@@ -2,188 +2,150 @@
 
 Authoritative status file. Update after every implementation step.
 
-## Where we are
+## Where we are (re-verified 2026-08-21 by the incoming engineer)
 
-- Step 0 — FX surface lockdown: **COMPLETE**
-- Step 1 — Denomination contract safe by construction: **COMPLETE, behaviourally verified**
-- Step 2 — Producer families migrated: **COMPLETE for the currency-bearing callers**
-- Step 3 — Monetary eligibility + line-level currency: **COMPLETE, verified**
-- Step 4 — Realized FX gain/loss report: **COMPLETE (RPC + hook + page + guard)**
-- Step 5 — Exposure dimensions (by account, by counterparty): **NEXT (active phase)**
-- Step 6 — Rate register / provenance surface: pending
-
+- Step 0 — FX surface lockdown: **COMPLETE (verified)**
+- Step 1 — Denomination contract in the posting engine: **COMPLETE (verified)**
+- Step 2 — Producer families declare denomination: **COMPLETE (verified)**
+- Step 3 — Monetary eligibility + line-level currency: **COMPLETE (verified)**
+- Step 4 — Realized FX gain/loss report: **COMPLETE (structurally verified; GL tie-out still unproven)**
+- Step 5 — Exposure dimensions (by account, by counterparty): **NOT STARTED**
+- Step 6 — Rate register / provenance surface: **LARGELY ALREADY BUILT — plan entry was stale**
+- Step 7 — FX control-panel hardening (new, from this verification): **NOT STARTED**
 
 ---
 
-## Step 0 — Lockdown (done)
+## Verification of the previous engineer's claims
 
-`anon` EXECUTE revoked across the FX function surface; `describe_exchange_rate`
-now gates on `user_can_access_business`.
+VERIFIED FACT (from `pg_proc` / file reads):
 
-## Step 1 — The posting engine is the denomination authority (done)
+- `fx_realized_gain_loss(_business_id, _from, _to)` exists, is SECURITY DEFINER,
+  calls `user_can_access_business`, `anon` has no EXECUTE.
+- `fx_is_monetary_account`, `fx_exposure_by_currency`, `fx_exposure_open_items`,
+  `revalue_fx_balances`, `reverse_fx_revaluation_run`, `fx_revaluation_readiness`,
+  `resolve_exchange_rate`, `require_exchange_rate`, `fx_stamp_document`,
+  `describe_exchange_rate`, `post_journal_entry_atomic` all exist; none is
+  executable by `anon`; the exposure/realized/readiness/describe surfaces are
+  business-gated.
+- `revalue_fx_balances` scopes on `fx_is_monetary_account` and groups on
+  `COALESCE(jel.original_currency, je.currency)` — the Step 3 claim holds.
+- A missing rate in revaluation now marks the run `failed` and raises; the old
+  silent `CONTINUE WHEN _new_rate IS NULL` is gone.
+- `src/hooks/finance/useFxRealized.ts`, `src/pages/reports/FxRealizedReport.tsx`,
+  `supabase/tests/fx_revaluation_lifecycle_test.sql`,
+  `supabase/tests/journal_denomination_contract_test.sql` all exist.
 
-`post_journal_entry_atomic` treats `_amounts_in_document_currency` as tri-state:
+INVALIDATED / CORRECTED ASSUMPTIONS:
 
-- `NULL` + foreign `_currency` → **raises**. A foreign entry can no longer slip
-  into the ledger at parity because a caller forgot to declare itself.
-- `true` → lines are document amounts; the engine resolves the rate through
-  `require_exchange_rate` (missing rate raises, never 1:1), writes base
-  `debit`/`credit`, stamps `original_currency` / `original_debit` /
-  `original_credit` / `exchange_rate`, validates balance in both denominations
-  and absorbs the rounding residual on the largest line. Per-line `currency`
-  is honoured, so mixed-currency entries convert line by line.
-- `false` → amounts are already base; behaviour byte-identical to before.
+1. **"Step 6 rate register is pending" is wrong.** `src/components/settings/CurrencySettings.tsx`
+   (mounted in `src/pages/settings/CompanySettings.tsx`) already renders the rate book with
+   `source` / `provider_key` / `published_at` / `effective_date`, writes overrides through
+   `set_exchange_rate_override`, and seeds `business_active_currencies` through
+   `set_business_active_currency`. What is actually missing from Step 6 is
+   **discoverability and parity**, not the surface itself.
+2. **Step 4 is claim-complete but tie-out-unproven.** No evidence exists that the report's
+   `realized_amount` sum equals net movement on the `resolve_fx_realized_account` accounts.
+   Treated as pending verification, not pending build.
+3. **Step 5 has not been started.** `useFxExposure` / `FxExposureReport` expose only
+   by-currency and open-item dimensions; no account or counterparty dimension exists.
 
-**Behavioural verification** (run in a transaction that was rolled back, org
-`8e68…`, USD 129.5 / EUR 140.76):
+NEW CRITICAL FINDINGS (VERIFIED FACT):
 
-| probe | result |
-| --- | --- |
-| foreign entry, no declaration | raised ✔ |
-| USD 1000 declared | base 129 500.00, `original_currency=USD`, `original_debit=1000`, rate 129.5 ✔ |
-| mixed USD/EUR lines | each line converted, entry balanced in base ✔ |
-| base-currency entry | unchanged, no `original_*` stamped ✔ |
-| CHF (no rate on file) | raised ✔ |
+- **F1 — revaluation trusts a client-typed base currency.**
+  `revalue_fx_balances(_business_id, _run_date, _base_currency, …)` only `upper()`s
+  `_base_currency`; it is never checked against `businesses.base_currency`, and it
+  drives both the revaluation scope (`<> upper(_base_currency)`) and the value stamped
+  on `fx_revaluation_runs.base_currency`.
+  `src/components/finance/FinanceAccountingControls.tsx:307` feeds it from a free-text
+  `<Input placeholder="Base currency">`. A typo revalues the wrong population — including
+  revaluing the entity's own base-currency balances against themselves.
+  *Accounting consequence:* fabricated unrealized gain/loss posted to the GL.
+- **F2 — unrealized FX accounts are chosen ad hoc per run.** Realized FX resolves its
+  accounts centrally via `resolve_fx_realized_account` (`default_account_settings` keys
+  `fx_realized_gain` / `fx_realized_loss`). There are **no** `fx_unrealized_gain` /
+  `fx_unrealized_loss` setting keys; the operator picks accounts in a dropdown on every
+  run. Two runs can land in different accounts — the same asymmetry the programme exists
+  to remove.
+- **F3 — a second rate resolver name exists: `resolve_sales_exchange_rate`.** Present in
+  `pg_proc` and in migrations. Whether it delegates to `resolve_exchange_rate` or
+  re-implements precedence is **UNVERIFIED** and must be settled before Step 5.
+- **F4 — the FX operations tab and the rate book live on different pages.** The
+  readiness banner says "Add an override in Currency settings" (`/finance/settings` →
+  Company Settings) with no link. Operationally the FX control surface is split.
 
-No probe rows remained afterwards (`journal_entries where source_type='fx_probe'` = 0).
+---
 
-## Step 2 — Producer families (done)
+## Accounting invariants (unchanged, restated)
 
-Each migrated by surgically patching `pg_get_functiondef`, with a hard failure
-if the call site did not match:
+1. Denomination is declared by the producer and enforced by `post_journal_entry_atomic`;
+   an undeclared foreign posting raises.
+2. `override > manual > provider`, latest effective date first — `resolve_exchange_rate`
+   only. A missing rate raises or renders as an absence; never 1:1, never a literal.
+3. Monetary/non-monetary is decided once, by `fx_is_monetary_account` (IAS 21).
+4. Realized FX is created only at settlement, by the settlement engines; every report is
+   a projection of what those postings put in the ledger.
+5. Unrealized FX belongs to the legal entity, not a branch (`branch_id NULL`).
+6. The browser formats; the server resolves, converts and posts.
 
-- AP bills — `confirm_bill_atomic` now passes `bills.currency` +
-  `bills.currency_rate` + the opt-in (previously passed **no** currency at all,
-  so every foreign bill entered the ledger at face value).
-- Credit notes — `issue_credit_note_atomic`, `issue_vendor_credit_note_atomic`
-  (document rate + opt-in).
-- Refunds — `refund_customer_atomic`, `refund_from_vendor_atomic` (opt-in, rate
-  resolved by the engine at the posting date).
-- Credit application — `apply_credit_to_invoice_atomic`.
-- Repair utilities — `post_missing_invoice_journals`,
-  `repair_misposted_ar_invoices`.
-- Correction: `complete_delivery_atomic` passed the customer's document
-  currency onto **cost** lines that are already base. It now passes `NULL`.
+---
 
-Remaining callers pass no currency and post base amounts; the engine's Step 1
-guard now makes any future foreign posting without a declaration impossible.
+## Execution order (dependency-derived)
 
-Guard: `supabase/tests/journal_denomination_contract_test.sql` — one engine
-overload, opt-in defaults to false, undeclared-foreign refusal, `original_*`
-stamping, resolver use, base-balance assertion, residual absorption, no rate
-literal, no anon EXECUTE, per-family denomination declarations, and the delivery
-COGS base-currency assertion.
+### Phase A — Close Step 4's proof gap (no new code unless it fails)
+1. Read-only query: for one period with settlements, sum `realized_amount` from
+   `fx_realized_gain_loss` and compare to net movement on the accounts
+   `resolve_fx_realized_account` returns. Record the numbers in this file.
+2. Run `supabase/tests/fx_revaluation_lifecycle_test.sql`,
+   `supabase/tests/journal_denomination_contract_test.sql`, and
+   `bunx vitest run src/test/architecture/fx-single-engine.test.ts`.
+3. End-to-end probe in a scratch business (rolled back): foreign bill + foreign credit
+   note, settle one at a different rate, confirm sign and presence in the report.
 
-## Step 3 — Monetary eligibility + line-level currency (done)
+### Phase B — Resolve F3 before building anything on the resolver
+Read `resolve_sales_exchange_rate`'s body. If it delegates, document it and add a guard.
+If it re-implements precedence, it is a second engine: collapse it into
+`resolve_exchange_rate` and delete the body (no wrapper-with-fallback).
 
-The old scope rule was `a.account_type IN ('asset','liability')`, which swept
-inventory, fixed assets, prepayments and deferred revenue into revaluation —
-IAS 21 requires those to stay at their historical rate.
+### Phase C — Step 7, FX control-panel hardening (F1, F2, F4)
+1. `revalue_fx_balances`: derive base currency from `businesses.base_currency`; if the
+   caller passes a different code, raise. Keep the parameter for signature stability.
+2. Add `fx_unrealized_gain` / `fx_unrealized_loss` to the default-account settings
+   catalogue; resolve them server-side through the same mechanism as the realized pair;
+   the run inherits them and the UI shows them read-only with a "configure" link.
+3. `FinanceAccountingControls` FX tab: replace the free-text base-currency input with the
+   business's base currency (display-only), drop the per-run account pickers, and link the
+   missing-rate banner directly to the rate book.
+4. Guard: architecture test fails on a free-text currency input in any FX surface and on
+   a revaluation caller passing an unvalidated base currency.
 
-- New single classifier `public.fx_is_monetary_account(account_type, detail_type)`
-  — `IMMUTABLE`, `search_path` pinned, EXECUTE revoked from PUBLIC/`anon`,
-  granted to `authenticated` + `service_role`. It excludes 34 non-monetary
-  detail types and treats a NULL detail type as monetary so an unclassified
-  receivable/payable is never silently dropped.
-- `revalue_fx_balances`, `fx_exposure_by_currency` and `fx_exposure_open_items`
-  all use it, so the summary, the drill-down and the posting engine agree on
-  scope. The drill-down previously used the old rule and disagreed with the
-  summary it drills into.
-- All three now key on `COALESCE(jel.original_currency, je.currency)`, so a
-  mixed-currency entry is measured per line instead of by the header.
+### Phase D — Step 5, exposure dimensions
+Extend `fx_exposure_by_currency` / `fx_exposure_open_items` with account and counterparty
+dimensions reusing `fx_is_monetary_account` and the existing open-item scope. No third
+scope rule, no new resolver. Surface as additional groupings on the existing report.
 
-Verified: classifier truth table (`AR=t INV=f fixed_asset=f AP=t
-deferred_revenue=f NULL=t income=f`, 34 catalog rows excluded), run in a
-rolled-back transaction. Guard: section 6 of
-`supabase/tests/fx_revaluation_lifecycle_test.sql` fails if any FX surface
-returns to the asset-or-liability rule or to header-currency grouping.
+### Phase E — Step 6 completion
+Rate-book parity: reachable from the FX tab, provenance columns already present, override
+entry already server-validated. Only the discoverability and read-only provenance display
+inside the FX tab remain.
 
-## Step 4 — Realized FX gain/loss report (done)
+---
 
-Realized FX is posted at settlement by `record_multi_invoice_payment` /
-`record_multi_bill_payment` (ADR 0123 posting monopoly). Step 4 adds the report
-as a **projection of what those postings actually put in the ledger** — no
-second computation.
+## Tests required
 
-Landed:
+- `supabase/tests/fx_revaluation_lifecycle_test.sql` — extend with: base-currency mismatch
+  raises; unrealized accounts resolved from settings; run inherits them.
+- `supabase/tests/journal_denomination_contract_test.sql` — unchanged, must stay green.
+- `src/test/architecture/fx-single-engine.test.ts` — extend with: no free-text currency
+  input in FX surfaces; single resolver (`resolve_sales_exchange_rate` delegates or is gone).
+- Exposure: account/counterparty dimensions must reconcile to the by-currency totals.
 
-- **Pre-work (safety sweep).** The Step 1 guard would have rejected nine legacy
-  callers that pass a foreign currency without declaring denomination. Patched:
-  `_landed_cost_post_apply`, `landed_cost_reverse_voucher`,
-  `expense_reimburse_direct`, `bank_match_confirm`,
-  `bank_reconciliation_session_complete`, `bank_reconciliation_session_writeoff`,
-  `record_multi_bill_payment`, `record_multi_invoice_payment` → explicit
-  `false` (they compute base themselves); `_bank_account_post_opening_balance`
-  → `true` (needs engine conversion). Confirmed via `pg_proc` that no
-  currency-bearing caller is left undeclared.
-- **`public.fx_realized_gain_loss(_business_id uuid, _from date, _to date)`** —
-  SECURITY DEFINER, gated on `user_can_access_business`, EXECUTE revoked from
-  PUBLIC/`anon`, granted to `authenticated` + `service_role`. Finds journal
-  lines hitting the accounts returned by `resolve_fx_realized_account`, so the
-  report cannot disagree with the GL. Returns `jsonb`: `base_currency`,
-  `from`, `to`, `accounts_configured`, `settlements[]` (entry, date, source,
-  party, currency, settled foreign amount, booked rate, settlement rate, booked
-  base, realized amount, gain/loss kind), `by_currency[]`, `total_gain`,
-  `total_loss`, `net_realized`.
-- **`src/hooks/finance/useFxRealized.ts`** — thin React Query reader over the
-  RPC, business-scoped, no client-side rate work.
-- **`src/pages/reports/FxRealizedReport.tsx`** at
-  `/finance/reports/fx-realized` — KPIs, by-currency summary, settlement detail
-  with journal-entry links, XLSX export, and an explicit alert when the realized
-  FX accounts are unmapped (`accounts_configured = false`) instead of silently
-  reporting zero.
-- Registered in `ReportRegistry` (`fx-realized`, statutory) and under
-  Reports → Currency & FX in `reportsNav`; lazy route in `src/apps/finance/routes.tsx`.
-- Guard: new section in `src/test/architecture/fx-single-engine.test.ts` —
-  the hook and page must not touch `exchange_rates` / `journal_entry_lines`,
-  must not use `rateBook`, and must not fall back to `1`. 20/20 tests pass.
+## Scope boundaries
 
-## Steps 5–6 (pending)
+In scope: FX rate infrastructure, resolver, stamping, revaluation lifecycle, realized FX,
+exposure reporting, and the FX control surfaces named above.
+Out of scope: reporting engine rewrites, unrelated finance modules, cosmetic work, any
+second FX engine or client-side rate maths.
 
-5. **Exposure dimensions (active next)** — exposure by GL account and by
-   counterparty, reusing `fx_is_monetary_account` and the existing open-item
-   scope of `revalue_fx_balances`; extend `fx_exposure_*` rather than adding a
-   third scope rule.
-6. Rate register / provenance surface — the rate book with `source`,
-   `provider_key`, `published_at` and effective date, plus server-validated
-   override entry.
+## Execution status
 
-## Instructions for the next agent
-
-**Verify before you build.** Confirm Step 4 landed correctly and to
-enterprise standard before opening Step 5:
-
-1. `select count(*) from pg_proc where proname='fx_realized_gain_loss'` = 1;
-   it is SECURITY DEFINER, calls `user_can_access_business`, and `anon` has no
-   EXECUTE.
-2. Its numbers tie to the GL: for a period, the sum of `realized_amount` must
-   equal the net movement on the accounts `resolve_fx_realized_account` returns.
-   Prove it with a read-only query, not by reasoning.
-3. `supabase/tests/fx_revaluation_lifecycle_test.sql` and
-   `supabase/tests/journal_denomination_contract_test.sql` still run clean, and
-   `bunx vitest run src/test/architecture/fx-single-engine.test.ts` passes.
-4. Still outstanding from Step 2 and worth doing first for end-to-end proof:
-   post one real foreign bill and one foreign credit note in a scratch business,
-   settle one at a different rate, and confirm the realized figure appears in
-   this report with the right sign.
-
-**Then resume at Step 5** — exposure dimensions. Do not skip to Step 6 and do
-not open unrelated areas of the system.
-
-Working rules that have held so far:
-
-1. Settlement paths (`record_multi_invoice_payment`, `record_multi_bill_payment`,
-   `bank_match_confirm`) do their own base/foreign handling and now declare
-   `_amounts_in_document_currency := false` explicitly — do not flip them.
-2. Migrate call sites by patching `pg_get_functiondef` output inside the
-   migration (with a hard `RAISE` when the fragment does not match), never by
-   retyping a function body.
-3. Behavioural probes: wrap them in a `DO` block that ends with
-   `RAISE EXCEPTION` so the transaction rolls back and the message carries the
-   results — never leave probe rows in a tenant's ledger.
-4. One scope rule, one resolver, one posting engine. Any new FX surface reuses
-   `fx_is_monetary_account`, `resolve_exchange_rate`/`require_exchange_rate` and
-   `post_journal_entry_atomic` — never a second implementation.
-5. Reporting surfaces are projections: the browser formats, the server resolves.
-
-
+Phases A–E all pending. Nothing implemented by the incoming engineer yet.
