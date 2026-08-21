@@ -16,6 +16,14 @@ import {
   type ToolSpec,
 } from "./dataTools.ts";
 import {
+  canReadModule,
+  resolveCapabilities,
+  UNRESTRICTED_CAPABILITIES,
+  NO_CAPABILITIES,
+  type CapabilitySet,
+} from "./capabilities.ts";
+
+import {
   fetchBankPositions,
   fetchLedgerBalances,
   fetchPayables,
