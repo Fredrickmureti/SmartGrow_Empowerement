@@ -269,6 +269,47 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
     namePattern: ["other income", "miscellaneous income", "interest income"],
     group: "advanced",
   },
+  {
+    key: "fx_realized_gain",
+    label: "FX Realized Gain",
+    description: "Exchange gain recognised when a foreign-currency document is settled",
+    icon: TrendingUp,
+    accountType: "income",
+    codePattern: ["4600", "460"],
+    namePattern: ["foreign exchange", "fx gain", "exchange gain", "currency gain"],
+    group: "advanced",
+  },
+  {
+    key: "fx_realized_loss",
+    label: "FX Realized Loss",
+    description: "Exchange loss recognised when a foreign-currency document is settled",
+    icon: Scale,
+    accountType: "expense",
+    codePattern: ["6600", "660"],
+    namePattern: ["foreign exchange", "fx loss", "exchange loss", "currency loss"],
+    group: "advanced",
+  },
+  {
+    key: "fx_unrealized_gain",
+    label: "FX Unrealized Gain",
+    description: "Exchange gain from period-end revaluation of open foreign-currency balances",
+    icon: TrendingUp,
+    accountType: "income",
+    codePattern: ["4610", "461"],
+    namePattern: ["unrealized exchange", "unrealised exchange", "foreign exchange", "fx gain"],
+    group: "advanced",
+  },
+  {
+    key: "fx_unrealized_loss",
+    label: "FX Unrealized Loss",
+    description: "Exchange loss from period-end revaluation of open foreign-currency balances",
+    icon: Scale,
+    accountType: "expense",
+    codePattern: ["6610", "661"],
+    namePattern: ["unrealized exchange", "unrealised exchange", "foreign exchange", "fx loss"],
+    group: "advanced",
+  },
+
 
   // ── Payment Methods (collapsible) ──────────────
   {
