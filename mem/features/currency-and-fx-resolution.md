@@ -71,3 +71,14 @@ type: feature
   `useFxExposureDimensions` gives the counterparty (`journal_entry_lines.contact_id`) and
   ageing (0-30/31-60/61-90/90+ from posting date) cuts. Same scope and resolver as
   `fx_exposure_by_currency`; the browser never buckets or converts.
+
+## Operating currencies (Step 6)
+
+Every company always carries an enabled `business_active_currencies` row for its own base
+currency, seeded by a trigger on `businesses` and protected by
+`_bac_protect_base_currency` (base row can never be disabled or deleted, codes are
+normalised and must exist in the platform catalogue). Any other currency must be enabled
+before a document can be raised in it — expenses, bank accounts and procurement contracts
+all enforce this identically; there is no "empty table means anything goes" hatch.
+The browser never reads or writes the table: read via
+`list_business_active_currencies`, write via `set_business_active_currency`.
