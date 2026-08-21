@@ -104,8 +104,11 @@ BEGIN
         (v_je, c_gain, 0, 500 * v_rate_old, 'USD', 0, 500, 'FXREVAL non-monetary contra');
     END IF;
 
-    -- 5) No rate on file → abort + failed run, never parity. Proven first,
-    --    on a currency the rate book cannot possibly know.
+    -- 5) No rate on file → the run aborts with 23514 and a legible reason,
+    --    never a 1:1 fallback. Proven first, on a currency the rate book cannot
+    --    possibly know. The failed attempt (including its rateless fixture and
+    --    the `failed` run row it stamps) rolls back to this savepoint, which is
+    --    also how the engine behaves for a real caller: the abort is total.
     BEGIN
       INSERT INTO public.journal_entries
         (organization_id, business_id, entry_date, description, status, currency, exchange_rate, source_type)
@@ -119,19 +122,13 @@ BEGIN
       v_run := public.revalue_fx_balances(c_biz, d_run, NULL, NULL, NULL, c_uid);
       RAISE EXCEPTION 'FXREVAL_FAIL a currency with no rate on file did not abort the run';
     EXCEPTION WHEN sqlstate '23514' THEN
-      SELECT status, notes INTO v_state, v_notes FROM public.fx_revaluation_runs
-       WHERE business_id = c_biz ORDER BY created_at DESC LIMIT 1;
-      IF v_state <> 'failed' OR COALESCE(v_notes, '') !~* 'no exchange rate on file' THEN
-        RAISE EXCEPTION 'FXREVAL_FAIL rateless run left status % notes %', v_state, v_notes;
+      IF SQLERRM !~* 'no exchange rate on file' THEN
+        RAISE EXCEPTION 'FXREVAL_FAIL rateless run refused for the wrong reason: %', SQLERRM;
       END IF;
       v_report := v_report || 'rateless-aborts ';
     END;
 
-    -- Remove the rateless exposure so the happy path can proceed.
-    DELETE FROM public.journal_entry_lines WHERE journal_entry_id = v_rev_je;
-    DELETE FROM public.journal_entries WHERE id = v_rev_je;
-    DELETE FROM public.fx_revaluation_runs
-     WHERE business_id = c_biz AND status = 'failed' AND run_date = d_run;
+
 
     -- 1/2/7) The run itself.
     v_run := public.revalue_fx_balances(c_biz, d_run, NULL, NULL, NULL, c_uid);
