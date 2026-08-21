@@ -787,24 +787,50 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     prompt += `| **TOTAL** | **${formatCurrency(totalToday, cur)}** | **${formatCurrency(totalWeek, cur)}** | **${totalCount}** | **${formatCurrency(totalAvg, cur)}** |\n\n`;
   }
 
-  // ===== FINANCIAL SUMMARY =====
-  prompt += `## 💰 Financial Summary\n`;
-  prompt += `- **Total Bank Balance:** ${formatCurrency(summary.totalBankBalance, cur)}\n`;
-  prompt += `- **Accounts Receivable (Money owed to you):** ${formatCurrency(summary.totalReceivables, cur)}\n`;
-  prompt += `- **Overdue Receivables:** ${formatCurrency(summary.overdueReceivables, cur)}\n`;
-  prompt += `- **Accounts Payable (Money you owe):** ${formatCurrency(summary.totalPayables, cur)}\n`;
-  prompt += `- **Net Cash Flow (Last 30 days):** ${formatCurrency(summary.recentRevenue - summary.recentExpenses, cur)}\n`;
-  prompt += `  - Revenue received: ${formatCurrency(summary.recentRevenue, cur)}\n`;
-  prompt += `  - Expenses paid: ${formatCurrency(summary.recentExpenses, cur)}\n\n`;
+  // ===== FINANCIAL SUMMARY (ledger-grounded) =====
+  // `money()` renders an unavailable read honestly. Nothing here may print a
+  // zero that was really a failed query.
+  const bankPositions = (context as any)._bankPositions as Result<BankPositionRow[]> | undefined;
+  const ledger = (context as any)._ledger as Result<LedgerBalances> | undefined;
+  const receivables = (context as any)._receivables as Result<OpenItemsTotal> | undefined;
+  const payables = (context as any)._payables as Result<OpenItemsTotal> | undefined;
 
-  // Bank Accounts
-  if (bankAccounts.length > 0) {
-    prompt += `## 🏦 Bank Accounts\n`;
-    bankAccounts.forEach((acc: any) => {
-      prompt += `- **${acc.name}** (${acc.bank_name || 'Bank'}): ${formatRecordMoney(acc.current_balance, acc.currency, cur)} ${acc.is_primary ? '(Primary)' : ''}\n`;
+  const money = (value: number | null | undefined, source: { ok: boolean; reason?: string } | undefined) => {
+    if (value === null || value === undefined) {
+      return `UNAVAILABLE (${source && !source.ok ? source.reason : 'could not be read'}) — do NOT state a figure`;
+    }
+    return formatCurrency(value, cur);
+  };
+
+  prompt += `## 💰 Financial Summary\n`;
+  prompt += `- **Total Bank Balance (statement position, all active accounts):** ${money(summary.totalBankBalance, bankPositions)}\n`;
+  prompt += `- **Accounts Receivable (Money owed to you):** ${money(summary.totalReceivables, receivables)}\n`;
+  prompt += `- **Overdue Receivables:** ${money(summary.overdueReceivables, receivables)}\n`;
+  prompt += `- **Accounts Payable (Money you owe):** ${money(summary.totalPayables, payables)}\n`;
+  const netCash = summary.recentRevenue !== null && summary.recentExpenses !== null
+    ? summary.recentRevenue - summary.recentExpenses
+    : null;
+  prompt += `- **Net Profit (posted GL, last 30 days):** ${money(netCash, ledger)}\n`;
+  prompt += `  - Revenue (posted income accounts): ${money(summary.recentRevenue, ledger)}\n`;
+  prompt += `  - Expenses (posted expense accounts): ${money(summary.recentExpenses, ledger)}\n`;
+  prompt += `\n*Sources: cash = \`bank_account_positions\`; revenue/expenses = posted journal entries via \`get_account_movements\`; receivables = \`finance_ar_open_items\`; payables = open bills net of payments and vendor credit notes. These are the same seams the finance reports use.*\n\n`;
+
+  // Bank Accounts — per-account positions, with the reconciliation state
+  if (bankPositions && !bankPositions.ok) {
+    prompt += `## 🏦 Bank Accounts\nUNAVAILABLE — the cash position could not be read (${bankPositions.reason}). Do NOT state any bank balance.\n\n`;
+  } else if (bankPositions && bankPositions.value.length > 0) {
+    prompt += `## 🏦 Bank Accounts (as at ${bankPositions.value[0].as_of})\n`;
+    bankPositions.value.forEach((p) => {
+      const gl = p.gl_shared
+        ? 'GL: shared control account (not attributable to this account)'
+        : p.gl_balance === null
+          ? 'GL: not mapped'
+          : `GL: ${formatRecordMoney(p.gl_balance, p.currency, cur)}`;
+      prompt += `- **${p.name}** (${p.bank_name || 'Bank'}): statement ${formatRecordMoney(p.statement_balance, p.currency, cur)} · ${gl} · ${p.unreconciled_count} unreconciled line(s) totalling ${formatRecordMoney(p.unreconciled_amount, p.currency, cur)}${p.is_primary ? ' (Primary)' : ''}\n`;
     });
     prompt += `\n`;
   }
+
 
   // ===== POS SALES =====
   prompt += `## 🛒 POS Sales\n`;
