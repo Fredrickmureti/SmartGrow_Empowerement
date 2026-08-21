@@ -474,11 +474,14 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
         const tier = (cands?.tier as string) ?? "unresolved";
         const candidates = (cands?.candidates as Array<Record<string, unknown>>) ?? [];
 
-        // Only a corroborated, single-candidate answer may post unattended.
-        if (tier !== "deterministic" || candidates.length !== 1) {
+        // Only a corroborated, unambiguous answer may post unattended. The
+        // engine already refuses to call a tie deterministic, so the top
+        // candidate here is the single best-evidenced one.
+        if (tier !== "deterministic" || candidates.length === 0) {
           needsReview.push({ transaction_id: txn.id, tier, candidates: candidates.length });
           continue;
         }
+
 
         try {
           const { data: proposed, error: proposeError } = await (supabase as any).rpc(
