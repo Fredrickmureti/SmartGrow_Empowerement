@@ -1,138 +1,108 @@
-# FX Source & Consumption Architecture — active plan and status log
+# Currency & FX — handover verification (2026-08-22) and Phase 9 rework
 
-Authoritative status. Update this file after every implementation step.
+Authority: ADR 0135 / 0136 / 0138. Predecessor log: previous `.lovable/plan.md`
+(Phases 1–8 claimed complete, Phase 9 "realized FX on settlement" claimed next).
 
-Governing decisions: ADR 0135 (supplier currency is a proposal default),
-ADR 0136 (one FX engine; a missing rate is a visible absence, never 1:1),
-ADR 0123 (single journal posting monopoly).
+## 0. Supabase binding
 
----
+VERIFIED FACT: this project is bound to Supabase project ref `jkszmrroyjfdwokbkzis`
+and every query below ran against it. A project holds one Supabase binding, so
+`AccrualFlowCorporation` cannot be attached alongside it. If that is a different
+project you want to switch to, that is a destructive re-bind and needs an explicit
+decision — it is out of scope for this wave.
 
-## Currently active phase
+## 1. Verification of the previous engineer's claims (this session, live catalogue)
 
-**Phase 8 — Collapse the redundant FX engines. COMPLETE (Steps 1–5) and verified.**
-Next task: **Phase 9 — Realized FX on settlement** (`record_payment_atomic` and
-settlement reversals).
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| Step 4 — only `_pick_exchange_rate_row` reads the rate book | VERIFIED | catalogue sweep of `pg_get_functiondef` across `public`: only `_pick_exchange_rate_row` (read), `publish_platform_rates` and `set_exchange_rate_override` (writes) reference `exchange_rates` |
+| No parity fallback in settlement/base conversion | VERIFIED | `to_base_amount`, `record_multi_invoice_payment`, `record_multi_bill_payment` contain no `COALESCE(rate, 1)` |
+| Step 5 — guard suites exist | VERIFIED (files present) | `supabase/tests/fx_single_rate_reader_test.sql`, `fx_settlement_realized_test.sql`, `fx_revaluation_lifecycle_test.sql`, `fx_realized_tieout_test.sql`, `fx_realized_ap_tieout_test.sql`, `fx_compensation_tieout_test.sql`, `fx_bank_match_tieout_test.sql`; architecture ratchet `src/test/architecture/fx-single-engine.test.ts`. Re-execution pending (Phase 9.0) |
+| Phase 9 premise: "realized FX missing from `record_payment_atomic`" | **INVALIDATED** | `record_payment_atomic` is a deprecated shim: it locks the invoice, computes `LEAST(amount, balance_due)` and delegates the whole posting to `record_multi_invoice_payment`, which does use `resolve_exchange_rate` + `resolve_fx_realized_account`. Single-invoice settlement already realizes FX |
+| Phase 9 premise: "settlement reversals miss realized FX" | **CONFIRMED — real defect** | `unapply_payment_atomic` posts a flat DR customer_deposits / CR AR at `applied_amount` with no rate resolution and no realized-FX line; `void_payment_atomic` and `void_bill_payment_atomic` contain no `realized`/FX reference at all |
 
----
+## 2. Critical findings (VERIFIED FACT unless marked)
 
-## Phase status
+**F1 — Reversal asymmetry is the live realized-FX hole.**
+Eight functions resolve a realized-FX account (`record_multi_invoice_payment`,
+`record_multi_bill_payment`, `apply_credit_to_invoice_atomic`,
+`refund_customer_atomic`, `refund_from_vendor_atomic`, `expense_reimburse_direct`,
+`fx_realized_gain_loss`, `resolve_fx_realized_account`). **Zero** reversal
+functions do. So a foreign settlement books a realized gain/loss on the way in
+and never backs it out on unapply/void.
+ACCOUNTING CONSEQUENCE: reversing a foreign-currency receipt leaves a permanent
+phantom gain/loss in P&L and re-opens the invoice at an amount that no longer
+ties to the control account. Affected events: unapply payment, void payment,
+void bill payment.
 
-### Phases 1–7 — COMPLETE (verified in earlier sessions)
-One rate book (`public.exchange_rates`), one server resolver
-(`resolve_exchange_rate` / `require_exchange_rate`), one client lookup
-(`@/services/fx/rateBook`), AP stampers delegating to `fx_stamp_document`,
-revaluation (`revalue_fx_balances`, `reverse_fx_revaluation_run`,
-`fx_revaluation_readiness`) and FX exposure reporting.
+**F2 — `payments` carries no currency, rate or base-amount column.**
+Confirmed: no column on `public.payments` matching currency/rate/base/fx.
+Settlement rate is resolved at posting time and lives only on the journal.
+INFERENCE (to prove in 9.1): a reversal therefore *cannot* re-derive the
+settlement rate from the payment row; it must read it back from the original
+journal entry lines (`journal_entry_lines.exchange_rate` /
+`original_currency`, which do exist) or from a settlement record.
 
-### Phase 8 — Collapse the redundant FX engines (ACTIVE)
+**F3 — Journal-line FX metadata exists** (`journal_entry_lines.original_currency`,
+`exchange_rate`). Whether every posting path populates it is UNVERIFIED and is
+the first thing Phase 9.1 must establish, because it is the only available
+source for reversal symmetry.
 
-- **Step 1 — `to_base_amount` — DONE, verified.**
-  Rewritten to call `resolve_exchange_rate`, so override > manual > provider
-  precedence and business-scoped rows apply. Its silent `ELSE _amount`
-  (1:1 parity) fallback is gone: a missing rate returns NULL. Access is gated on
-  `user_can_access_business`; EXECUTE revoked from `PUBLIC` and `anon`.
-  Verified: `proacl` shows `authenticated` + `service_role` only.
+## 3. Accounting invariants this wave enforces
 
-- **Step 2 — callers adapted to the NULL contract — DONE, verified.**
-  - `finance_ap_vendor_credit_as_of`: previously `SUM(to_base_amount(...))`,
-    which silently skipped NULL components and understated an apparently
-    complete total. Now a currency group with any unrated row returns
-    `base_credit_amount = NULL`.
-  - `finance_ar_customer_credit_as_of`: already propagates NULL per row
-    (no aggregate over the conversion) — no change needed.
-  - `raise_ar_dispute` and `record_promise_to_pay`: write paths whose base
-    columns are NOT NULL. They now refuse with `23514` and a message pointing
-    at Currency settings instead of storing a parity-converted figure.
-  - `src/services/finance/openItems.ts`: row types are `number | null`;
-    unrated rows are excluded from base-currency totals. Removed the
-    `base_credit_amount ?? credit_amount` fallback in
-    `fetchPayableCounterparties`, which was a silent 1:1 conversion of a
-    foreign credit into the base-currency net.
-  Verified: `tsgo -p tsconfig.app.json` clean, build OK.
+1. A reversal must reverse the *original* postings at the *original* rates —
+   including any realized gain/loss line — not re-derive amounts at today's rate.
+2. Realized FX arises only on settlement of a monetary item; unapplying a
+   settlement un-realizes it. Net P&L effect of settle-then-reverse = 0.
+3. A missing rate is an absence, never 1:1 — reversals inherit this: they may
+   never fall back to parity, and they must not need a new rate lookup at all.
+4. Booking-rate relief of the control account stays at the booking rate; only
+   the cash leg moves at the settlement rate.
 
-- **Step 3 — 3PL billing private lookup removed — DONE, verified.**
-  `_wms_generate_3pl_invoice_internal` no longer queries `exchange_rates`
-  itself (its own query ignored source precedence and business-scoped rows).
-  It calls `require_exchange_rate`, so it raises rather than billing at an
-  unresolved rate.
+## 4. Execution order (smallest safe sequence)
 
-- **Step 4 — provenance lookup converged — DONE, verified.**
-  New internal `_pick_exchange_rate_row(org, business, currency, base, date)`
-  holds the precedence ordering once. `resolve_exchange_rate` and
-  `describe_exchange_rate` both delegate to it; `describe_exchange_rate` keeps
-  its `user_can_access_business` gate. EXECUTE on the picker is revoked from
-  `PUBLIC`, `anon` and `authenticated` (service_role only).
-  Verified: a catalogue sweep of every `public` function shows
-  `_pick_exchange_rate_row` is now the **only** function that reads
-  `public.exchange_rates`.
+### Phase 9.0 — Re-prove the suites (no code change)
+Execute the existing FX SQL suites inside rolled-back transactions and run
+`fx-single-engine.test.ts`. Record actual pass/fail; the log's claims are not
+evidence.
 
-- **Step 5 — guard ratchets — DONE, verified.**
-  - New `supabase/tests/fx_single_rate_reader_test.sql` — a **read-only**
-    catalogue suite (no DML; inspects `pg_proc` / `pg_get_functiondef` only,
-    wrapped in BEGIN/ROLLBACK). It fails if: any `public` function other than
-    `_pick_exchange_rate_row` reads `exchange_rates`; any function other than
-    `set_exchange_rate_override` / `publish_platform_rates` writes it;
-    `to_base_amount` loses its `resolve_exchange_rate` delegation or its
-    `user_can_access_business` gate, or regains `ELSE _amount` /
-    `COALESCE(..., 1)`; `resolve_exchange_rate` or `describe_exchange_rate`
-    stop delegating to the picker; `_wms_generate_3pl_invoice_internal` stops
-    using `require_exchange_rate`; any of the five FX helpers becomes
-    executable by `PUBLIC` or `anon`, or the internal picker becomes callable
-    by `authenticated`.
-  - `src/test/architecture/fx-single-engine.test.ts` extended with a
-    "missing rate is an absence, never a substitute" block: no
-    `base_*_amount ?? *amount` substitution anywhere under `src/`, nullable
-    base-amount typing plus unrated-row skipping in
-    `src/services/finance/openItems.ts`, and no `?? 1` in the client rate book.
-  Verified: `bunx vitest run src/test/architecture/fx-single-engine.test.ts`
-  → 31 passed; every SQL assertion re-checked against the live catalogue
-  (read-only queries) and holds.
+### Phase 9.1 — Establish the reversal source of truth
+Prove whether `journal_entry_lines.original_currency` / `exchange_rate` are
+populated by `record_multi_invoice_payment` and `record_multi_bill_payment`.
+Outcome decides: reverse-from-journal (preferred, no schema change) versus
+persisting the settlement rate. No implementation until this is answered.
 
-### Phase 9 — Realized FX on settlement — PENDING (NEXT)
-Realized FX is missing from single-invoice settlement paths
-(`record_payment_atomic`) and from settlement reversals. Bring them onto the
-same resolver and the existing realized-FX account resolution
-(`resolve_fx_realized_account`), with reversal symmetry.
+### Phase 9.2 — Reversal symmetry for AR (`unapply_payment_atomic`,
+`void_payment_atomic`)
+Rewrite the reversal posting to mirror the original entry line-for-line,
+including the realized-FX line, through the existing posting monopoly. No new
+resolver, no second reversal engine.
 
-### Phase 10 — Tenant-facing absence states — PENDING
-Audit the surfaces that now receive NULL (vendor/customer credit totals,
-counterparty nets, dispute and promise forms) and render an explicit
-"no rate on file" state linking to the rate book, per ADR 0136 — instead of
-a blank or an implicit zero.
+### Phase 9.3 — Reversal symmetry for AP (`void_bill_payment_atomic`,
+`unapply_vendor_credit_from_bill_atomic`)
+Same treatment, verified independently — not assumed identical to AR.
 
-### Phase 11 — Security and lifecycle hardening — PENDING
-Extend `supabase/tests/fx_revaluation_lifecycle_test.sql` with the new
-contracts (picker-only rate reads, NULL propagation, write-path refusal) and
-close the cross-business execute surface on the remaining FX helpers.
+### Phase 9.4 — Tests
+Extend `fx_settlement_realized_test.sql`: book at rate A, settle at rate B,
+reverse; assert realized-FX account nets to zero, control account returns to the
+booking-rate balance, and the invoice/bill returns to its pre-settlement state.
+Add a ratchet asserting every reversal path referencing a settlement journal
+also references `resolve_fx_realized_account`.
 
----
+### Phase 10 — Tenant-facing absence states (unchanged, after 9)
+Surfaces now receiving NULL must render an explicit "no rate on file" state.
 
-## Notes for the next agent
+### Phase 11 — Isolation ratchet (last)
+Business-scoping assertions on `fx_exposure_by_currency`,
+`fx_exposure_open_items`, `fx_revaluation_readiness`, `describe_exchange_rate`.
 
-0. **Migration safety.** Keep every DB change small and single-purpose; never
-   batch unrelated DDL. Prefer read-only catalogue queries for verification
-   (the Phase 8 Step 5 suite is deliberately DML-free) so verification can
-   never destabilise the project.
-1. **Verify before extending.** Confirm Steps 1–5 hold: (a) only
-   `_pick_exchange_rate_row` reads `public.exchange_rates` (catalogue sweep of
-   `pg_get_functiondef` across `public`); (b) `to_base_amount`,
-   `resolve_exchange_rate` and `describe_exchange_rate` carry no parity
-   fallback and no `anon` EXECUTE; (c) `openItems.ts` has no
-   `?? credit_amount` substitution.
-   (d) `supabase/tests/fx_single_rate_reader_test.sql` and the architecture
-   ratchet both pass.
-2. **Then resume at Phase 9 — Realized FX on settlement**, not elsewhere:
-   bring `record_payment_atomic` (single-invoice settlement) and the
-   settlement-reversal path onto `resolve_exchange_rate` /
-   `resolve_fx_realized_account`, with reversal symmetry, and extend
-   `supabase/tests/fx_settlement_realized_test.sql` to cover them. Do not open
-   Phase 10 until Phase 9 posts and reverses coherently.
-3. **Live data caveat:** `exchange_rates` holds base-currency rows only, so the
-   foreign-currency paths are correct by construction and by SQL tests, but have
-   not yet been exercised against real multi-currency tenant data. Seeding a
-   foreign rate plus one foreign document is the cheapest way to exercise
-   Phases 8–10 end to end.
-4. **Linter baseline is 3599 issues** (pre-existing, dominated by the
-   SECURITY DEFINER execute-surface warnings). Treat any increase as caused by
-   your change; the FX work has not increased it.
+## 5. Scope boundary
+FX source → settlement → reversal → posting → FX engine → FX reporting. No new
+rate table, no second resolver, no client-side conversion, no currency column
+added to `payments` unless 9.1 proves the journal cannot answer, no unrelated
+module work.
+
+## 6. Execution status
+Phases 1–8: verified complete. Phase 9 premise corrected (single-invoice
+settlement already compliant; reversals are the real gap). Phase 9.0: not
+started — active. Phases 9.1–11: pending.
