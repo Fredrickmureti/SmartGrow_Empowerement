@@ -1907,7 +1907,7 @@ function createAssistantPersistenceStream(
   scope: {
     conversationId: string;
     organizationId: string | null;
-    workingContext: Record<string, unknown>;
+    workingContext: WorkingContext | Record<string, unknown>;
   },
 ): TransformStream<Uint8Array, Uint8Array> {
   const decoder = new TextDecoder();
