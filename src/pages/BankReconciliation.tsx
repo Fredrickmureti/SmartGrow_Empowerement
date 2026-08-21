@@ -266,11 +266,20 @@ export default function BankReconciliation() {
     setIsAutoMatching(true);
     try {
       const result = await autoMatchTransactions(txIds);
-      if (result?.deterministicMatches && result.deterministicMatches.length > 0) {
-        toast.info(`Found ${result.deterministicMatches.length} deterministic matches and ${result.summary.aiCount} AI suggestions.`);
-      } else {
-        toast.info("No automatic matches found. Try reconciling transactions manually.");
+      if (!result) return;
+      // The run reports what it did and what it refused to decide. A line the
+      // engine could not explain with one corroborated candidate is left for a
+      // human rather than posted on a score.
+      if (result.summary.needsReview > 0) {
+        toast.info(
+          result.applied > 0
+            ? `Reconciled ${result.applied}. ${result.summary.needsReview} need a decision.`
+            : `${result.summary.needsReview} line${result.summary.needsReview > 1 ? "s" : ""} need a decision — open one to see the evidence.`,
+        );
+      } else if (result.applied === 0) {
+        toast.info("No certain matches found. Try reconciling these lines manually.");
       }
+
     } finally {
       setIsAutoMatching(false);
       setSelectedTransactions([]);
