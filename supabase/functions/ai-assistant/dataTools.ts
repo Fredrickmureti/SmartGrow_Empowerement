@@ -330,8 +330,14 @@ export interface ToolSpec {
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }
 
-export function buildDataToolSpecs(): ToolSpec[] {
-  return [
+/**
+ * The tool catalogue. When `caps` is supplied the model is only told about
+ * tools it may actually use, so it never proposes a capability the gate would
+ * refuse. The gate in `executeDataTool` is re-checked per invocation regardless.
+ */
+export function buildDataToolSpecs(caps?: CapabilitySet): ToolSpec[] {
+  const all: ToolSpec[] = [
+
     {
       type: "function",
       function: {
