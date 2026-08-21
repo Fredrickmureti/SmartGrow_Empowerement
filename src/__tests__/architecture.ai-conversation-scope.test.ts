@@ -68,6 +68,30 @@ describe("AI conversation scope", () => {
     expect(src).toMatch(/\[\{ role: "user", content: userMessage \}\]/);
   });
 
+  it("record threads are separated from scope threads by a null-aware predicate", () => {
+    const src = readFileSync("src/hooks/useAIConversation.ts", "utf8");
+    // A record thread carries both record columns; a scope thread carries
+    // neither, and the list query must never mix the two.
+    expect(src).toMatch(/eq\("record_id", effectiveRecordId\)/);
+    expect(src).toMatch(/is\("record_id", null\)/);
+    expect(src).toMatch(/record_type: effectiveRecordType/);
+    expect(src).toMatch(/record_id: effectiveRecordId/);
+    // Record binding only applies in record mode…
+    expect(src).toMatch(/scopeMode === "record" \? recordId \?\? null : null/);
+    // …and the thread key includes the record so switching records rebinds.
+    expect(src).toMatch(/scopeKey = \[[\s\S]{0,200}effectiveRecordId,/);
+    // Threads stay creator-private.
+    expect(src).toMatch(/created_by: userId/);
+  });
+
+  it("the record scope mode is unavailable when the route has no record", () => {
+    const src = readFileSync("src/components/ai/AIAssistantChat.tsx", "utf8");
+    expect(src).toMatch(/requestedScopeMode === "record" && !hasRecord \? "branch"/);
+    expect(src).toMatch(/hasRecord[\s\S]{0,80}\["record", "branch", "company"\]/);
+  });
+
+
+
   it("the AI insights cache is keyed on the full tenant/branch/app scope", () => {
     const src = readFileSync("src/hooks/useAIInsightsCache.ts", "utf8");
     // Cache reads and writes must always carry the tenant predicate…
