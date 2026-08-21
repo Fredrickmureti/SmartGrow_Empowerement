@@ -2588,7 +2588,7 @@ export type Database = {
           client_request_id?: string | null
           contact_id: string
           created_at?: string
-          currency?: string
+          currency: string
           dispute_type?: string
           document_id?: string | null
           id?: string
@@ -2669,7 +2669,7 @@ export type Database = {
           contact_id: string
           created_at?: string
           created_by?: string | null
-          currency?: string
+          currency: string
           document_id?: string | null
           expected_payment_date: string
           id?: string
