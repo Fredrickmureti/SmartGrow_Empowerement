@@ -603,7 +603,17 @@ function CurrencyBreakdown({
                 {formatCurrency(r.netAmount, r.currency)}
               </TableCell>
               <TableCell className="text-right tabular-nums text-muted-foreground">
-                {formatCurrency(r.baseNetAmount)}
+                {r.baseNetAmount === null ? (
+                  <Link
+                    to="/settings/currency"
+                    className="text-destructive underline underline-offset-2"
+                    title={`No exchange rate on file for ${r.currency}. ${r.unconvertibleDocumentCount} document(s) cannot be shown in base currency.`}
+                  >
+                    No rate on file
+                  </Link>
+                ) : (
+                  formatCurrency(r.baseNetAmount)
+                )}
               </TableCell>
               <TableCell className="text-right tabular-nums text-destructive">
                 {formatCurrency(r.days90, r.currency)}
