@@ -95017,6 +95017,10 @@ export type Database = {
         Args: { _account_type: string; _detail_type: string }
         Returns: boolean
       }
+      fx_realized_gain_loss: {
+        Args: { _business_id: string; _from?: string; _to?: string }
+        Returns: Json
+      }
       fx_revaluation_readiness: {
         Args: { _as_of: string; _business_id: string }
         Returns: Json
