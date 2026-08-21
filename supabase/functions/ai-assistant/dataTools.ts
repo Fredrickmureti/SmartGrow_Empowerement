@@ -891,6 +891,14 @@ export async function executeDataTool(
   scope: ToolScope,
   currencySummary: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const caps = scope.capabilities;
+
+  // ---- Capability gate (deny by default) -----------------------------------
+  if (!(name in TOOL_MODULE)) return { error: `Unknown tool "${name}".` };
+  if (!canReadModule(caps, TOOL_MODULE[name])) {
+    return notPermitted(`the ${name} tool`, TOOL_MODULE[name]);
+  }
+
   if (name === "get_currency_context") {
     // `effective_date` is the real column; the previous (non-existent) one
     // returned nothing and left the model to invent a rate.
@@ -909,24 +917,65 @@ export async function executeDataTool(
     return { ...currencySummary, recent_rates: rates ?? [] };
   }
 
-
   if (name === "describe_schema") {
+    // The model is only shown the tables this caller may read, so it cannot
+    // even learn the shape of a module that is off limits.
+    const allowed = readableTables(caps, Object.keys(DATA_TABLES));
     const only = typeof rawArgs?.table === "string" ? rawArgs.table : null;
-    const entries = Object.entries(DATA_TABLES)
-      .filter(([t]) => !only || t === only)
-      .map(([table, spec]) => ({ table, description: spec.description, columns: spec.columns }));
-    if (only && entries.length === 0) {
-      return { error: `Unknown table "${only}".`, available: Object.keys(DATA_TABLES) };
+    if (only && !allowed.includes(only)) {
+      return DATA_TABLES[only]
+        ? notPermitted(`the ${only} table`, TABLE_MODULE[only])
+        : { error: `Unknown table "${only}".`, available: allowed };
     }
+    const entries = allowed
+      .filter((t) => !only || t === only)
+      .map((table) => ({
+        table,
+        description: DATA_TABLES[table].description,
+        columns: DATA_TABLES[table].columns,
+      }));
     return { tables: entries };
   }
 
-  if (name !== "query_data") return { error: `Unknown tool "${name}".` };
+  if (name === "get_inventory_overview") return await inventoryOverview(supabaseClient, rawArgs, scope);
+  if (name === "list_products") return await listProducts(supabaseClient, rawArgs, scope);
+  if (name === "get_product_inventory") return await productInventory(supabaseClient, rawArgs, scope);
+
+  if (name !== "query_data" && name !== "count_rows") return { error: `Unknown tool "${name}".` };
 
   const table = String(rawArgs?.table ?? "");
   const spec = DATA_TABLES[table];
   if (!spec) {
-    return { error: `Table "${table}" is not queryable.`, available: Object.keys(DATA_TABLES) };
+    return {
+      error: `Table "${table}" is not queryable.`,
+      available: readableTables(caps, Object.keys(DATA_TABLES)),
+    };
+  }
+  if (!canReadTable(caps, table)) {
+    return notPermitted(`the ${table} table`, TABLE_MODULE[table]);
+  }
+
+  const filters = Array.isArray(rawArgs?.filters) ? rawArgs.filters : [];
+
+  if (name === "count_rows") {
+    let countQuery = supabaseClient.from(table).select(spec.orgColumn, { count: "exact", head: true });
+    countQuery = applyScope(countQuery, spec, scope);
+    const applied = applyFilters(countQuery, spec, table, filters);
+    if (applied.error) return applied.error;
+    const { count, error } = await applied.query;
+    if (error) {
+      console.error(`count_rows(${table}) failed`, error);
+      return { error: `Count failed: ${error.message}` };
+    }
+    return {
+      table,
+      count: count ?? 0,
+      scope: {
+        organization_id: scope.organizationId,
+        business_id: scope.businessId ?? null,
+        branch_filtered: branchFiltered(spec, scope),
+      },
+    };
   }
 
   const requested: string[] = Array.isArray(rawArgs?.columns) && rawArgs.columns.length
@@ -940,21 +989,9 @@ export async function executeDataTool(
   let query = supabaseClient.from(table).select(requested.join(", "));
   query = applyScope(query, spec, scope);
 
-  const filters = Array.isArray(rawArgs?.filters) ? rawArgs.filters : [];
-  for (const f of filters) {
-    const col = String(f?.column ?? "");
-    const op = String(f?.op ?? "") as Op;
-    if (!spec.columns.includes(col)) {
-      return { error: `Filter column "${col}" is not allowed on ${table}.`, allowed_columns: spec.columns };
-    }
-    if (!OPS.includes(op)) {
-      return { error: `Unsupported operator "${op}".`, allowed_operators: OPS };
-    }
-    if (op === "is_null") query = query.is(col, null);
-    else if (op === "not_null") query = query.not(col, "is", null);
-    else if (op === "in") query = query.in(col, Array.isArray(f.value) ? f.value : [f.value]);
-    else query = (query as any)[op](col, f.value);
-  }
+  const applied = applyFilters(query, spec, table, filters);
+  if (applied.error) return applied.error;
+  query = applied.query;
 
   if (rawArgs?.order_by) {
     const col = String(rawArgs.order_by);
@@ -980,11 +1017,12 @@ export async function executeDataTool(
     scope: {
       organization_id: scope.organizationId,
       business_id: scope.businessId ?? null,
-      branch_filtered: Boolean(spec.branchColumn && !scope.isAdmin && scope.accessibleBranchIds?.length),
+      branch_filtered: branchFiltered(spec, scope),
     },
     rows: data ?? [],
   };
 }
+
 
 export const DATA_TOOLS_PROMPT = `
 ## 🔎 Live data access (tools)
