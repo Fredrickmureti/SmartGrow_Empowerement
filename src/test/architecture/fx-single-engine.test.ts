@@ -172,3 +172,20 @@ describe("the revaluation run owns neither its reporting currency nor its FX acc
     expect(panel).not.toMatch(/placeholder="Unrealized (gain|loss) account"/);
   });
 });
+
+describe("exposure dimensions are a projection, not a second engine", () => {
+  const hook = read("src/hooks/finance/useFxExposure.ts");
+  const page = read("src/pages/reports/FxExposureReport.tsx");
+
+  it("counterparty and ageing cuts come from the server function", () => {
+    expect(hook).toMatch(/fx_exposure_dimensions/);
+    expect(hook).not.toMatch(/from\("exchange_rates"\)/);
+    expect(hook).not.toMatch(/resolveRateFromBook|convertWithBook/);
+  });
+
+  it("the browser neither resolves a rate nor buckets the ageing itself", () => {
+    expect(page).not.toMatch(/resolveRateFromBook|convertWithBook/);
+    expect(page).not.toMatch(/rate\s*\?\?\s*1\b/);
+    expect(page).not.toMatch(/0-30|31-60|61-90/);
+  });
+});
