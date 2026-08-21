@@ -55,3 +55,15 @@ type: feature
   effective date); it never converts an accounting amount.
 - Guards: `src/test/architecture/landed-cost-currency.test.ts`,
   `supabase/tests/landed_cost_currency_fx_test.sql`.
+
+## FX result accounts and revaluation inputs (2026-08-21)
+
+- `public.resolve_fx_account(business_id, purpose)` is the ONE resolver for
+  `fx_realized_gain/loss` and `fx_unrealized_gain/loss`: Default Accounts mapping →
+  `default_accounts.purpose` → `account_role_eligibility` → name heuristic → raise.
+  `resolve_fx_realized_account` / `resolve_fx_unrealized_account` are thin wrappers.
+- `revalue_fx_balances` derives the reporting currency from `businesses.base_currency`
+  and resolves both FX accounts itself. The browser sends only a run date; a mismatched
+  currency or a differing account raises. Never re-add per-run account pickers.
+- `resolve_sales_exchange_rate` is a verified alias of `resolve_exchange_rate`, not a
+  second engine.

@@ -71,7 +71,7 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   const [journalDraft, setJournalDraft] = useState({ code: "", name: "", journal_type: "general" as JournalType, default_account_id: "", description: "" });
   const [ruleDraft, setRuleDraft] = useState({ name: "", bank_account_id: "", description_pattern: "", amount_sign: "any", counterpart_account_id: "", auto_post: false, description_template: "" });
   const [applyBankAccountId, setApplyBankAccountId] = useState("");
-  const [fxDraft, setFxDraft] = useState({ run_date: new Date().toISOString().slice(0, 10), base_currency: currentBusiness?.base_currency ?? "", unrealized_gain_account_id: "", unrealized_loss_account_id: "" });
+  const [fxDraft, setFxDraft] = useState({ run_date: new Date().toISOString().slice(0, 10) });
 
   const { data: readiness } = useFxRevaluationReadiness(fxDraft.run_date);
   const periodBlocked = !!readiness?.fiscal_period_id && readiness.fiscal_period_status !== "open";
@@ -136,9 +136,9 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   };
 
   const runFx = async () => {
-    if (!fxDraft.unrealized_gain_account_id || !fxDraft.unrealized_loss_account_id) return;
-    await fx.runRevaluation(fxDraft);
+    await fx.runRevaluation({ run_date: fxDraft.run_date });
   };
+
 
   const applyRules = async () => {
     if (!applyBankAccountId) return;
@@ -303,17 +303,23 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
               readOnly={fxReadOnly}
             />
             <div className="grid gap-3 md:grid-cols-2">
-              <Input type="date" value={fxDraft.run_date} onChange={(event) => setFxDraft((draft) => ({ ...draft, run_date: event.target.value }))} />
-              <Input placeholder="Base currency" value={fxDraft.base_currency} onChange={(event) => setFxDraft((draft) => ({ ...draft, base_currency: event.target.value.toUpperCase() }))} />
-              <Select value={fxDraft.unrealized_gain_account_id} onValueChange={(value) => setFxDraft((draft) => ({ ...draft, unrealized_gain_account_id: value }))}>
-                <SelectTrigger><SelectValue placeholder="Unrealized gain account" /></SelectTrigger>
-                <SelectContent>{incomeAccounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.code} — {account.name}</SelectItem>)}</SelectContent>
-              </Select>
-              <Select value={fxDraft.unrealized_loss_account_id} onValueChange={(value) => setFxDraft((draft) => ({ ...draft, unrealized_loss_account_id: value }))}>
-                <SelectTrigger><SelectValue placeholder="Unrealized loss account" /></SelectTrigger>
-                <SelectContent>{expenseAccounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.code} — {account.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Revaluation date</p>
+                <Input type="date" value={fxDraft.run_date} onChange={(event) => setFxDraft((draft) => ({ ...draft, run_date: event.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Reporting currency</p>
+                <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                  {currentBusiness?.base_currency ?? "—"}
+                </div>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Unrealized gain and loss are posted to the accounts mapped under
+              Settings → Default Accounts (FX Unrealized Gain / Loss). They are resolved
+              server-side so every run hits the same accounts.
+            </p>
+
             {readiness && (
               <div className="rounded-md border p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -360,13 +366,12 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
               onClick={runFx}
               disabled={
                 fx.isRunning ||
-                !fxDraft.unrealized_gain_account_id ||
-                !fxDraft.unrealized_loss_account_id ||
                 fxReadOnly ||
                 periodBlocked ||
                 (readiness?.missing_rates.length ?? 0) > 0
               }
             >
+
               {fx.isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
               Run Revaluation
             </Button>

@@ -102566,7 +102566,15 @@ export type Database = {
         Args: { p_branch_id: string; p_org_id: string }
         Returns: string
       }
+      resolve_fx_account: {
+        Args: { p_business_id: string; p_purpose: string }
+        Returns: string
+      }
       resolve_fx_realized_account: {
+        Args: { p_business_id: string; p_kind: string }
+        Returns: string
+      }
+      resolve_fx_unrealized_account: {
         Args: { p_business_id: string; p_kind: string }
         Returns: string
       }
@@ -103201,11 +103209,11 @@ export type Database = {
       retry_label_run_failures: { Args: { p_run_id: string }; Returns: number }
       revalue_fx_balances: {
         Args: {
-          _base_currency: string
+          _base_currency?: string
           _business_id: string
           _run_date: string
-          _unrealized_gain_account: string
-          _unrealized_loss_account: string
+          _unrealized_gain_account?: string
+          _unrealized_loss_account?: string
           _user_id?: string
         }
         Returns: Json

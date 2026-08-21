@@ -94,13 +94,14 @@ export function useFxRevaluation() {
     fetchRuns();
   }, [fetchRuns]);
 
+  /**
+   * The run date is the only thing the browser gets to choose. The reporting
+   * currency is a property of the legal entity and the unrealized gain/loss
+   * accounts come from Settings > Default Accounts — both are resolved and
+   * enforced server-side, so neither is sent from here.
+   */
   const runRevaluation = useCallback(
-    async (params: {
-      run_date: string;
-      base_currency: string;
-      unrealized_gain_account_id: string;
-      unrealized_loss_account_id: string;
-    }) => {
+    async (params: { run_date: string }) => {
       if (!currentBusiness?.id) {
         throw new Error("Select a company first");
       }
@@ -111,13 +112,11 @@ export function useFxRevaluation() {
           {
             _business_id: currentBusiness.id,
             _run_date: params.run_date,
-            _base_currency: params.base_currency,
-            _unrealized_gain_account: params.unrealized_gain_account_id,
-            _unrealized_loss_account: params.unrealized_loss_account_id,
             _user_id: user?.id ?? null,
           },
         );
         if (error) throw error;
+
         const result = (data ?? {}) as {
           lines?: number;
           unrealized_gain?: number;
