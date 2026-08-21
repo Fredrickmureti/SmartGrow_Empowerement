@@ -15,6 +15,17 @@ import {
   type ToolScope,
   type ToolSpec,
 } from "./dataTools.ts";
+import {
+  fetchBankPositions,
+  fetchLedgerBalances,
+  fetchPayables,
+  fetchReceivables,
+  type BankPositionRow,
+  type LedgerBalances,
+  type OpenItemsTotal,
+  type Result,
+} from "../_shared/financialSnapshot.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
