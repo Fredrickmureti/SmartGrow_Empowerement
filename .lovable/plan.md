@@ -72,25 +72,80 @@ stamping, resolver use, base-balance assertion, residual absorption, no rate
 literal, no anon EXECUTE, per-family denomination declarations, and the delivery
 COGS base-currency assertion.
 
-## Step 3 — Monetary eligibility (next)
+## Step 3 — Monetary eligibility + line-level currency (done)
 
-`revalue_fx_balances` currently selects exposure with an `asset OR liability`
-rule, which sweeps in inventory, fixed assets, prepayments and deferred revenue.
-Drive eligibility from `account_detail_type_catalog` (monetary detail types
-only) and group exposure by line-level `original_currency` rather than the
-header currency. No new schema needed.
+The old scope rule was `a.account_type IN ('asset','liability')`, which swept
+inventory, fixed assets, prepayments and deferred revenue into revaluation —
+IAS 21 requires those to stay at their historical rate.
 
-## Steps 4–6
+- New single classifier `public.fx_is_monetary_account(account_type, detail_type)`
+  — `IMMUTABLE`, `search_path` pinned, EXECUTE revoked from PUBLIC/`anon`,
+  granted to `authenticated` + `service_role`. It excludes 34 non-monetary
+  detail types and treats a NULL detail type as monetary so an unclassified
+  receivable/payable is never silently dropped.
+- `revalue_fx_balances`, `fx_exposure_by_currency` and `fx_exposure_open_items`
+  all use it, so the summary, the drill-down and the posting engine agree on
+  scope. The drill-down previously used the old rule and disagreed with the
+  summary it drills into.
+- All three now key on `COALESCE(jel.original_currency, je.currency)`, so a
+  mixed-currency entry is measured per line instead of by the header.
 
-Realized FX gain/loss report; exposure by account and counterparty; rate
-register / provenance surface.
+Verified: classifier truth table (`AR=t INV=f fixed_asset=f AP=t
+deferred_revenue=f NULL=t income=f`, 34 catalog rows excluded), run in a
+rolled-back transaction. Guard: section 6 of
+`supabase/tests/fx_revaluation_lifecycle_test.sql` fails if any FX surface
+returns to the asset-or-liability rule or to header-currency grouping.
 
-## Notes for the next agent
+## Step 4 — Realized FX gain/loss report (next, active)
+
+Realized FX is already posted at settlement by `record_multi_invoice_payment` /
+`record_multi_bill_payment`. What is missing is the report: settled documents
+with booking rate vs settlement rate, the realized gain/loss per document and
+per currency, tied back to the posted journal line so the report and the ledger
+cannot diverge. Build it as a SECURITY DEFINER RPC gated on
+`user_can_access_business` (same shape as `fx_exposure_by_currency`), then a
+read-only page under `/finance/reports/`; the browser formats only.
+
+## Steps 5–6 (pending)
+
+5. Exposure dimensions — by account and by counterparty, reusing the Step 3
+   classifier rather than a second scope rule.
+6. Rate register / provenance surface — the rate book with `source`,
+   `provider_key`, `published_at` and effective date, plus server-validated
+   override entry.
+
+## Instructions for the next agent
+
+**Verify before you build.** Do not start Step 4 until you have confirmed
+Step 3 landed correctly:
+
+1. `supabase/tests/fx_revaluation_lifecycle_test.sql` and
+   `supabase/tests/journal_denomination_contract_test.sql` both run clean.
+2. `select count(*) from pg_proc where proname='post_journal_entry_atomic'` = 1,
+   and its argument list still ends with
+   `_amounts_in_document_currency boolean DEFAULT false`.
+3. No FX surface has regressed to `a.account_type IN ('asset','liability')`.
+4. Still outstanding from Step 2, and worth doing first if you want end-to-end
+   proof: post one real foreign bill and one foreign credit note in a scratch
+   business and confirm base amounts equal `original × rate` and that a
+   currency with no rate on file fails loudly.
+
+**Then resume at Step 4** — do not skip ahead to Steps 5–6 and do not open
+unrelated areas of the system.
+
+Working rules that have held so far:
 
 1. Settlement paths (`record_multi_invoice_payment`, `record_multi_bill_payment`,
    `bank_match_confirm`) already do their own base/foreign handling — do **not**
-   flip them blindly; confirm line denomination first.
+   flip them to the document-currency opt-in blindly; confirm line denomination
+   first. Step 4 reads their output, so start by reading those functions.
 2. Migrate call sites by patching `pg_get_functiondef` output inside the
-   migration, never by retyping a function body.
-3. Behavioural probes: wrap in a `DO` block that ends with `RAISE EXCEPTION`
-   so the transaction rolls back; the message carries the results.
+   migration (with a hard `RAISE` when the fragment does not match), never by
+   retyping a function body.
+3. Behavioural probes: wrap them in a `DO` block that ends with
+   `RAISE EXCEPTION` so the transaction rolls back and the message carries the
+   results — never leave probe rows in a tenant's ledger.
+4. One scope rule, one resolver, one posting engine. Any new FX surface reuses
+   `fx_is_monetary_account`, `resolve_exchange_rate`/`require_exchange_rate` and
+   `post_journal_entry_atomic` — never a second implementation.
+
