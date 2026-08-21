@@ -12373,7 +12373,7 @@ export type Database = {
           contact_id: string
           created_at?: string
           credited_total?: number
-          currency?: string
+          currency: string
           expired_total?: number
           id?: string
           organization_id: string
