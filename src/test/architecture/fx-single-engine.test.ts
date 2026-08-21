@@ -137,3 +137,22 @@ describe("FX exposure reporting is a server-side projection", () => {
   });
 });
 
+describe("realized FX reporting is a projection of the ledger, not a second engine", () => {
+  const hook = read("src/hooks/finance/useFxRealized.ts");
+  const page = read("src/pages/reports/FxRealizedReport.tsx");
+
+  it("reads realized FX only through the guarded server RPC", () => {
+    expect(hook).toMatch(/fx_realized_gain_loss/);
+    expect(hook).not.toMatch(/from\("exchange_rates"\)/);
+    expect(hook).not.toMatch(/from\("journal_entry_lines"\)/);
+  });
+
+  it("the realized surface resolves no rate and computes no posted amount", () => {
+    expect(page).not.toMatch(/from\("exchange_rates"\)/);
+    expect(page).not.toMatch(/from\("journal_entry_lines"\)/);
+    expect(page).not.toMatch(/resolveRateFromBook|convertWithBook/);
+    expect(page).not.toMatch(/rate\s*\?\?\s*1\b/);
+  });
+});
+
+
