@@ -422,6 +422,19 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "fx-exposure",
     keywords: ["fx", "exposure", "foreign exchange", "currency", "receivable", "payable", "unrealized"],
   },
+  {
+    id: "fx-realized",
+    name: "Realized FX Gain/Loss",
+    description: "Gains and losses posted when foreign-currency documents were settled",
+    category: "statutory",
+    path: "/finance/reports/fx-realized",
+    icon: TrendingUp,
+    requiredFeature: "reports_financial",
+    permission: "viewReports",
+    reportType: "fx-realized",
+    keywords: ["fx", "realized", "gain", "loss", "settlement", "foreign exchange", "currency"],
+  },
+
 
 
 
