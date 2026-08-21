@@ -100268,6 +100268,7 @@ export type Database = {
       post_expense_gl: { Args: { p_expense_id: string }; Returns: Json }
       post_journal_entry_atomic: {
         Args: {
+          _amounts_in_document_currency?: boolean
           _branch_id?: string
           _business_id: string
           _created_by: string
