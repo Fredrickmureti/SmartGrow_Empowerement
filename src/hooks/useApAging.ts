@@ -89,8 +89,8 @@ export interface ApAgingPage {
   hasMore: boolean;
   /** Vendors matching the search across ALL pages. */
   filteredVendorCount: number;
-  /** Net payable for the searched cohort across ALL pages. */
-  filteredTotal: number;
+  /** Net payable for the searched cohort across ALL pages; `null` if unstatable. */
+  filteredTotal: number | null;
 }
 
 export interface ApAgingResult {
