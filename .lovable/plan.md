@@ -134,3 +134,5 @@ exemption.
 3. **Then resume at Phase 12**, not elsewhere. Finish each phase to a
    production-ready state — schema, engine, UI absence state and ratchet test —
    before starting the next.
+
+   when the system is now clean close the wave
