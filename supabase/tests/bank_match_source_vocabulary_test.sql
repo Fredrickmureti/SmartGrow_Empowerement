@@ -57,3 +57,21 @@ BEGIN
     RAISE EXCEPTION 'unreconcile_bank_transaction must clear match_source to NULL';
   END IF;
 END $$;
+
+-- 4) No function *builds* a match_source by concatenation. The vocabulary is a
+--    closed set, so `'rule:' || rule.name` is not a richer token — it is a
+--    23514 that aborts the whole rule run (CD-4). Which rule matched belongs on
+--    bank_reconciliation_matches.rule_id.
+DO $$
+DECLARE bad text[];
+BEGIN
+  SELECT array_agg(DISTINCT p.proname) INTO bad
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public'
+    AND pg_get_functiondef(p.oid) ~ 'match_source\s*(?::=|=)\s*[^,;]*\|\|';
+
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'function(s) concatenate a match_source token: %', bad;
+  END IF;
+END $$;
