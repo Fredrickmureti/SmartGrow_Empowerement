@@ -55,19 +55,46 @@ rates, which is why downstream surfaces could show a confident wrong number.
   `disputes-work-queue`, `promise-to-pay`.
 - Linter baseline unchanged at 3599 across all four migrations.
 
+### Phase 11 — FX tenant isolation ratchet — DONE (this wave)
+The FX engine is entirely SECURITY DEFINER, so RLS is bypassed by construction
+and each function's own check is the only boundary. Two real holes were found
+and closed:
+- `resolve_exchange_rate`, `require_exchange_rate`, `resolve_sales_exchange_rate`
+  and `fx_stamp_document` were granted to `authenticated` and took an arbitrary
+  `(org, business)` pair with no membership check — any signed-in user could read
+  another tenant's rate book through the Data API. EXECUTE revoked from
+  `anon`/`authenticated`; every in-database caller runs as the owner and keeps
+  its rights, so no posting path changed. `_pick_exchange_rate_row` was already
+  internal-only.
+- `reverse_fx_revaluation_run` posted a reversing journal and was reachable from
+  the Data API with nothing but a run id — no membership, no permission. EXECUTE
+  revoked, plus a defense-in-depth guard that authorises
+  `finance.manage_periods` against `_run.business_id` (the run's own business,
+  never a caller argument).
+- Verified already-correct, left alone: `fx_exposure_by_currency`,
+  `fx_exposure_open_items`, `fx_exposure_dimensions`, `fx_revaluation_readiness`,
+  `fx_realized_gain_loss`, `describe_exchange_rate`, `set_exchange_rate_override`
+  (all call `user_can_access_business`) and `revalue_fx_balances` (gated on
+  `finance.manage_periods`). `describe_exchange_rate` stays the tenant-facing
+  rate surface and the Exchange Rate panel still works.
+- `exchange_rates`, `fx_revaluation_runs`, `fx_revaluation_lines`: RLS enabled
+  with policies — confirmed, unchanged.
+- Ratchets: `supabase/tests/fx_tenant_isolation_test.sql` (no exposed FX function
+  without a per-business check; the six engine internals stay off the Data API;
+  the reversal guard binds to `_run.business_id`; the three FX tables keep RLS)
+  and `src/test/architecture/fx-tenant-isolation.test.ts` (no client `.rpc()`
+  call to a revoked internal). Both verified: 0 offenders live, 40/40 vitest
+  pass with `fx-single-engine` and `currency-integrity`.
+- Linter moved 3599 → 3594 (five fewer exposed SECURITY DEFINER functions); no
+  new issue class introduced.
+
 ## Active phase
 
-None — Phase 10 is closed. Phase 11 is the next milestone.
+None — Phase 11 is closed. Phase 12 is the next milestone.
 
 ## Pending
 
-### Phase 11 — isolation ratchet (NEXT)
-Assert business/org scoping on the FX reporting surfaces: a member of Business A
-must never resolve or read Business B's rates or exposure. Cover
-`fx_exposure_by_currency`, `fx_exposure_open_items`, `fx_revaluation_readiness`
-and `describe_exchange_rate`, and add the assertions to the architecture guard.
-
-### Phase 12 — AP-side absence parity (after 11)
+### Phase 12 — AP-side absence parity (NEXT)
 Phase 10 corrected the AR projections. Apply the same treatment to the payables
 side (`finance_ap_open_items_as_of` and the vendor-credit/net-position
 surfaces): no parity fallback, NULL propagation, an unconvertible count, and an
@@ -97,9 +124,13 @@ exemption.
    catalogue assertions live (the two `supabase/tests/fx_*` files list them).
    Confirm `finance_ar_open_items.base_residual_amount` really is NULL for an
    unstamped foreign document and that Collections renders the absence state.
+   For Phase 11, also re-run `bunx vitest run
+   src/test/architecture/fx-tenant-isolation.test.ts` and re-check the function
+   ACLs: the six engine internals must show no `authenticated=X` grant, and
+   `describe_exchange_rate` must still have one.
 2. **Do not trust this log over the database.** Every claim above was checked
    against the live catalogue at the time of writing; re-check rather than
    assume.
-3. **Then resume at Phase 11**, not elsewhere. Finish each phase to a
+3. **Then resume at Phase 12**, not elsewhere. Finish each phase to a
    production-ready state — schema, engine, UI absence state and ratchet test —
    before starting the next.
