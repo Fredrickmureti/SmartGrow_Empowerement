@@ -415,7 +415,7 @@ export async function fetchUnappliedCustomerCredit(
   const wanted = Array.isArray(contactId) ? contactId : contactId ? [contactId] : null;
   if (wanted && wanted.length === 0) return 0;
 
-  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number | null }>;
   try {
     rows = await fetchArCustomerCreditAsOf(orgId, businessId, null, asOf);
   } catch {
@@ -425,9 +425,13 @@ export async function fetchUnappliedCustomerCredit(
   let total = 0;
   for (const row of rows) {
     if (wanted && (!row.contact_id || !wanted.includes(row.contact_id))) continue;
+    // ADR 0136: a row with no rate on file contributes nothing to a base-currency
+    // total. It is never converted at parity from its foreign amount.
+    if (row.base_credit_amount === null || row.base_credit_amount === undefined) continue;
     total += Number(row.base_credit_amount) || 0;
   }
   return total;
+
 }
 
 /**
