@@ -136,9 +136,9 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   };
 
   const runFx = async () => {
-    if (!fxDraft.unrealized_gain_account_id || !fxDraft.unrealized_loss_account_id) return;
-    await fx.runRevaluation(fxDraft);
+    await fx.runRevaluation({ run_date: fxDraft.run_date });
   };
+
 
   const applyRules = async () => {
     if (!applyBankAccountId) return;
