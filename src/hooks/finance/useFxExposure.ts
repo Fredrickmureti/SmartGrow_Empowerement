@@ -105,3 +105,56 @@ export function useFxExposureOpenItems(currency: string | null, asOf: string) {
     },
   });
 }
+/**
+ * Exposure dimensions: the same open-balance scope and the same server-side
+ * resolver, cut by counterparty and by how long the amount has been open.
+ * Purely a projection — no rate, no conversion and no ageing arithmetic here.
+ */
+export interface FxExposureCounterparty {
+  currency: string;
+  contact_id: string | null;
+  contact_name: string;
+  foreign_balance: number;
+  booked_base_amount: number;
+  rate: number | null;
+  revalued_base_amount: number | null;
+  unrealized_difference: number | null;
+}
+
+export interface FxExposureAgeBucket {
+  currency: string;
+  bucket: string;
+  bucket_order: number;
+  foreign_balance: number;
+  booked_base_amount: number;
+  rate: number | null;
+  revalued_base_amount: number | null;
+  unrealized_difference: number | null;
+}
+
+export interface FxExposureDimensions {
+  base_currency: string;
+  as_of: string;
+  currency_filter: string | null;
+  by_counterparty: FxExposureCounterparty[];
+  by_age_bucket: FxExposureAgeBucket[];
+  missing_rates: string[];
+}
+
+export function useFxExposureDimensions(asOf: string, currency?: string | null) {
+  const { currentBusiness } = useBusinesses();
+
+  return useQuery({
+    queryKey: ["fx-exposure-dimensions", currentBusiness?.id, asOf, currency ?? null],
+    enabled: !!currentBusiness?.id && !!asOf,
+    queryFn: async (): Promise<FxExposureDimensions> => {
+      const { data, error } = await (supabase as any).rpc("fx_exposure_dimensions", {
+        _business_id: currentBusiness!.id,
+        _as_of: asOf,
+        _currency: currency ?? null,
+      });
+      if (error) throw error;
+      return data as FxExposureDimensions;
+    },
+  });
+}

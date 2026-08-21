@@ -41,6 +41,7 @@ import type {
 import {
   useFxExposure,
   useFxExposureOpenItems,
+  useFxExposureDimensions,
   type FxExposureCurrency,
 } from "@/hooks/finance/useFxExposure";
 
@@ -82,6 +83,8 @@ function FxExposureReportInner() {
 
   const { data, isLoading, error } = useFxExposure(asOf);
   const { data: drill, isLoading: drillLoading } = useFxExposureOpenItems(selected, asOf);
+  const { data: dimensions } = useFxExposureDimensions(asOf, selected);
+
 
   const base = data?.base_currency ?? "";
   const currencies = useMemo<FxExposureCurrency[]>(() => data?.currencies ?? [], [data]);
@@ -231,6 +234,59 @@ function FxExposureReportInner() {
     [drill],
   );
 
+  // Dimensions: the same scope and resolver, cut by counterparty and by age.
+  const dimColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "currency", header: "Currency", width: "w-[100px]" },
+      { key: "dimension", header: "Counterparty", width: "w-[240px]" },
+      { key: "foreign_balance", header: "Net exposure", format: "number", width: "w-[150px]" },
+      { key: "booked", header: "Booked base", format: "currency", width: "w-[150px]" },
+      { key: "revalued", header: "Revalued base", format: "currency", width: "w-[150px]" },
+      { key: "difference", header: "Unrealized", format: "currency", width: "w-[150px]" },
+    ],
+    [],
+  );
+
+  const ageColumns = useMemo<ReportColumn[]>(
+    () => dimColumns.map((c) => (c.key === "dimension" ? { ...c, header: "Age" } : c)),
+    [dimColumns],
+  );
+
+  const counterpartyRows = useMemo<ReportRow[]>(
+    () =>
+      (dimensions?.by_counterparty ?? []).map((r, idx) => ({
+        id: `${r.currency}-${r.contact_id ?? "none"}-${idx}`,
+        tone: r.rate === null ? "warning" : (r.unrealized_difference ?? 0) < 0 ? "danger" : "default",
+        values: {
+          currency: r.currency,
+          dimension: r.contact_name,
+          foreign_balance: r.foreign_balance,
+          booked: r.booked_base_amount,
+          revalued: r.revalued_base_amount,
+          difference: r.unrealized_difference,
+        },
+      })),
+    [dimensions],
+  );
+
+  const ageRows = useMemo<ReportRow[]>(
+    () =>
+      (dimensions?.by_age_bucket ?? []).map((r) => ({
+        id: `${r.currency}-${r.bucket}`,
+        tone: r.rate === null ? "warning" : (r.unrealized_difference ?? 0) < 0 ? "danger" : "default",
+        values: {
+          currency: r.currency,
+          dimension: `${r.bucket} days`,
+          foreign_balance: r.foreign_balance,
+          booked: r.booked_base_amount,
+          revalued: r.revalued_base_amount,
+          difference: r.unrealized_difference,
+        },
+      })),
+    [dimensions],
+  );
+
+
   const getExportConfig = useCallback((): ExportConfig => {
     const exportColumns: ExportColumn[] = [
       { key: "currency", header: "Currency", width: 12 },
@@ -318,6 +374,38 @@ function FxExposureReportInner() {
             emptyMessage="No open foreign-currency monetary balances as of this date."
           />
         </ReportSurface>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ReportSurface
+            title={selected ? `Exposure by counterparty — ${selected}` : "Exposure by counterparty"}
+            profile="operational"
+            asOfDate={`As of ${asOf}`}
+          >
+            <ReportTable
+              columns={dimColumns}
+              rows={counterpartyRows}
+              currency={base}
+              caption="Who the open foreign-currency balance sits with. Same scope and same resolved rate as the currency view."
+              emptyMessage="No counterparty-attributed foreign-currency balances as of this date."
+            />
+          </ReportSurface>
+
+          <ReportSurface
+            title={selected ? `Exposure by age — ${selected}` : "Exposure by age"}
+            profile="operational"
+            asOfDate={`As of ${asOf}`}
+          >
+            <ReportTable
+              columns={ageColumns}
+              rows={ageRows}
+              currency={base}
+              caption="How long each open foreign-currency balance has been outstanding, measured from the posting date."
+              emptyMessage="No open foreign-currency balances as of this date."
+            />
+          </ReportSurface>
+        </div>
+
+
 
         {selected && (
           <ReportSurface
