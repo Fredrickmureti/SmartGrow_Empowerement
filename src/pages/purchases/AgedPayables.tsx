@@ -14,7 +14,7 @@
  * whatever happened to be loaded.
  */
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -259,6 +259,21 @@ export default function AgedPayables() {
           </Alert>
         )}
 
+
+        {unconvertible > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {unconvertible} open document(s) are in a currency with no exchange rate on file as
+              of {fmtDate(asOfDate)}. Base-currency totals that depend on them are shown as “No
+              rate on file” rather than an understated figure. Add the rate in{" "}
+              <Link to="/settings/company?tab=currency" className="underline underline-offset-2">
+                Currency settings
+              </Link>
+              .
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {summaryCards.map((card) => (
