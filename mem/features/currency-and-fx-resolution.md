@@ -67,3 +67,7 @@ type: feature
   currency or a differing account raises. Never re-add per-run account pickers.
 - `resolve_sales_exchange_rate` is a verified alias of `resolve_exchange_rate`, not a
   second engine.
+- **Exposure dimensions**: `fx_exposure_dimensions(business, as_of, currency)` →
+  `useFxExposureDimensions` gives the counterparty (`journal_entry_lines.contact_id`) and
+  ageing (0-30/31-60/61-90/90+ from posting date) cuts. Same scope and resolver as
+  `fx_exposure_by_currency`; the browser never buckets or converts.
