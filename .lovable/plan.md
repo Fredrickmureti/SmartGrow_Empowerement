@@ -7,8 +7,9 @@ Authoritative status file. Update after every implementation step.
 - Step 0 — FX surface lockdown: **COMPLETE**
 - Step 1 — Denomination contract safe by construction: **COMPLETE, behaviourally verified**
 - Step 2 — Producer families migrated: **COMPLETE for the currency-bearing callers**
-- Step 3 — Monetary eligibility for revaluation: **NEXT**
-- Steps 4–6 (realized FX report, exposure dimensions, rate provenance surface): pending
+- Step 3 — Monetary eligibility + line-level currency: **COMPLETE, verified**
+- Step 4 — Realized FX gain/loss report: **NEXT (active phase)**
+- Steps 5–6 (exposure dimensions, rate provenance surface): pending
 
 ---
 
