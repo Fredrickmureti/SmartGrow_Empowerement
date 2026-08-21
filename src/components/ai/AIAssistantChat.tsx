@@ -23,7 +23,17 @@ interface AIAssistantChatProps {
 }
 
 export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistantChatProps) {
-  const [scopeMode, setScopeMode] = useState<ScopeMode>("branch");
+  const [requestedScopeMode, setRequestedScopeMode] = useState<ScopeMode>("branch");
+  // "This record" only exists while the route actually identifies a record;
+  // navigating away silently falls back to the branch thread rather than
+  // binding to a stale record.
+  const hasRecord = Boolean(deriveWorkingContext(currentPath).recordId);
+  const scopeMode: ScopeMode =
+    requestedScopeMode === "record" && !hasRecord ? "branch" : requestedScopeMode;
+  const scopeModes: ScopeMode[] = hasRecord
+    ? ["record", "branch", "company"]
+    : ["branch", "company"];
+  const setScopeMode = setRequestedScopeMode;
   const {
     messages,
     isLoading,
@@ -40,9 +50,10 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
 
   const contextualPrompts = getContextualPrompts(currentPath);
 
-  // Thread binding (org / business / branch / app / scope) is owned by
+  // Thread binding (org / business / branch / app / record / scope) is owned by
   // useAIAssistant — switching any of them reloads that scope's own history
   // instead of carrying the previous scope's messages over.
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
