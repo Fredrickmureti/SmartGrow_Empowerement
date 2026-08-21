@@ -472,7 +472,19 @@ export function buildDataToolSpecs(caps?: CapabilitySet): ToolSpec[] {
       },
     },
   ];
+
+  if (!caps) return all;
+  return all.filter((t) => {
+    const name = t.function.name;
+    if (!(name in TOOL_MODULE)) return false; // deny by default
+    if (!canReadModule(caps, TOOL_MODULE[name])) return false;
+    // Generic table tools are pointless with no readable table.
+    if ((name === "query_data" || name === "count_rows") &&
+        readableTables(caps, Object.keys(DATA_TABLES)).length === 0) return false;
+    return true;
+  });
 }
+
 
 
 /** A uuid that cannot exist, used to make a fail-closed filter return no rows. */
