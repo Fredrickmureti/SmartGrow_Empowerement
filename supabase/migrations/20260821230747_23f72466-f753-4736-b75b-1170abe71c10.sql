@@ -1,0 +1,1 @@
+ALTER VIEW public.finance_ar_net_position_by_currency SET (security_invoker = on);
