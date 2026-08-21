@@ -1800,9 +1800,20 @@ serve(async (req) => {
     // IGNORED. They are derived server-side below from the caller's JWT to
     // prevent privilege escalation (a non-admin could otherwise claim
     // admin to bypass branch-scoped data filtering).
-    const { type, data, messages, organizationId, businessId, branchId, currentPage }: AIRequest = await req.json();
+    const {
+      type,
+      data,
+      messages,
+      organizationId,
+      businessId,
+      branchId,
+      currentPage,
+      conversationId,
+      workingContext,
+    }: AIRequest = await req.json();
     let userRole: string | undefined;
     let accessibleBranchIds: string[] | undefined;
+    let callerUserId: string | null = null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1829,6 +1840,7 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+      callerUserId = userData.user.id;
       if (organizationId) {
         const { data: roleRow } = await supabaseClient
           .from("user_roles")
@@ -1856,6 +1868,38 @@ serve(async (req) => {
           .filter((id): id is string => !!id);
       }
     }
+
+    // ─── Conversation gate: the caller must be allowed to read the thread ───
+    // History is loaded from the database, never from the request body, so a
+    // stale or foreign thread cannot be smuggled into the prompt.
+    let persistedHistory: Array<{ role: string; content: string }> | null = null;
+    if (type === "chat" && conversationId) {
+      if (!callerUserId) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: conversation requires a user session" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { data: allowed, error: allowedErr } = await supabaseClient.rpc(
+        "can_read_ai_conversation",
+        { _user_id: callerUserId, _conversation_id: conversationId },
+      );
+      if (allowedErr || allowed !== true) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: conversation not accessible in this scope" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { data: historyRows } = await supabaseClient
+        .from("ai_conversation_messages")
+        .select("role, content")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true })
+        .limit(40);
+      persistedHistory = (historyRows ?? []) as Array<{ role: string; content: string }>;
+    }
+
+
 
 
 
