@@ -142,7 +142,12 @@ export interface ApOpenItemAsOfRow {
   credited_amount: number;
   residual_amount: number;
   currency: string | null;
-  base_residual_amount: number;
+  /**
+   * ADR 0136: `null` when the document's currency has no rate on file. It is an
+   * absence, never the raw `residual_amount` — substituting that would be a
+   * silent 1:1 conversion into the base currency.
+   */
+  base_residual_amount: number | null;
   source_kind: "bill" | "invoice" | "journal";
   aging_bucket: string;
   days_past_due: number;
