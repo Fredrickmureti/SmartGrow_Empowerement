@@ -78,9 +78,19 @@ act voids it by a dated reversing entry. That is the majority convention (Xero
 match", SAP reset-clearing from the reconciliation item). Sending an accountant
 to the journal page is never the cure for a posting the reconciliation created.
 
+A second defect sat immediately behind it: after reversing correctly, the RPC
+released the line with `match_source = 'unreconciled'`. `match_source` records
+*how* a line was matched (`manual | rule | ai`); it is not a lifecycle field,
+and the CHECK constraint rejected the token, aborting the whole transaction at
+the last statement. A line with no match has no match source, so it is now
+cleared to NULL — the lifecycle is carried, as it always was, by
+`is_reconciled = false` and `lifecycle_status = 'for_review'`.
+
 ## Enforcement
 
 - `supabase/tests/bank_unmatch_preflight_invariants_test.sql`
 - `supabase/tests/journal_void_recompute_invariants_test.sql`
+- `supabase/tests/bank_match_source_vocabulary_test.sql`
+
 - `src/test/architecture/banking-unmatch-preflight.test.ts`
 
