@@ -16,7 +16,19 @@
  *      PostgREST filter string the model composes itself.
  *   5. Reads only. There is no insert/update/delete path in this module.
  *   6. Hard row cap.
+ *   7. Module capability gate. Every table and tool read is checked against the
+ *      caller's own module permissions (see `capabilities.ts`).
  */
+
+import {
+  type CapabilitySet,
+  canReadModule,
+  canReadTable,
+  readableTables,
+  TABLE_MODULE,
+  TOOL_MODULE,
+} from "./capabilities.ts";
+
 
 export interface ToolScope {
   organizationId: string;
