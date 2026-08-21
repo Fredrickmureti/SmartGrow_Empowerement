@@ -129,7 +129,9 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
                   </div>
                 </div>
               ))}
-              {isLoading && messages[messages.length - 1]?.role === "user" && (
+              {isLoading &&
+                (messages[messages.length - 1]?.role === "user" ||
+                  !messages[messages.length - 1]?.content) && (
                 <div className="flex justify-start">
                   <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center mr-2 flex-shrink-0">
                     <Bot className="h-3.5 w-3.5 text-primary-foreground" />
