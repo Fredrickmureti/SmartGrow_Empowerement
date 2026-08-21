@@ -1012,21 +1012,25 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     prompt += `\n`;
   }
 
-  // ===== CHART OF ACCOUNTS SUMMARY =====
-  if (accounts.length > 0) {
-    const accountsByType: Record<string, number> = {};
-    accounts.forEach((acc: any) => {
-      const type = acc.account_type || 'Other';
-      accountsByType[type] = (accountsByType[type] || 0) + (acc.current_balance || 0);
-    });
-    
-    prompt += `## 📒 Account Balances by Type\n`;
-    Object.entries(accountsByType)
-      .forEach(([type, balance]) => {
-        prompt += `- **${type}:** ${formatCurrency(balance, cur)}\n`;
+  // ===== ACCOUNT BALANCES BY TYPE (posted ledger, ALL accounts) =====
+  // Previously summed a 50-row page of a denormalised column, which silently
+  // truncated the totals. Now derived from posted journal entries over the
+  // complete chart of accounts.
+  prompt += `## 📒 Account Balances by Type (posted journal entries, all accounts)\n`;
+  if (!ledger || !ledger.ok) {
+    prompt += `UNAVAILABLE — the ledger could not be read (${ledger && !ledger.ok ? ledger.reason : 'no ledger read'}). Do NOT state balances by type.\n\n`;
+  } else {
+    const entries = Object.entries(ledger.value.byType).filter(([, v]) => Math.abs(v) > 0.005);
+    if (entries.length === 0) {
+      prompt += `No posted journal entries yet — every account type is at zero.\n`;
+    } else {
+      entries.forEach(([type, balance]) => {
+        prompt += `- **${type}:** ${formatCurrency(balance, cur)} (positive = normal balance for the type)\n`;
       });
-    prompt += `\n`;
+    }
+    prompt += `*Covers all ${ledger.value.accountCount} accounts in the chart, not a sample.*\n\n`;
   }
+
 
   prompt += `---\n\nUse the above real-time data to answer questions. Be specific with numbers. Do not ask the user for information that is already provided above.\n`;
   
