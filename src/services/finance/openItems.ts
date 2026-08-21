@@ -560,7 +560,14 @@ export interface CurrencyNetPositionRow {
   openAmount: number;
   creditAmount: number;
   netAmount: number;
-  baseNetAmount: number;
+  /**
+   * ADR 0136: `null` when at least one open document in this currency has no
+   * rate on file. The caller MUST render an absence, never 0 — a partial sum
+   * dressed as a total is the failure this replaces.
+   */
+  baseNetAmount: number | null;
+  /** Open documents in this currency that could not be converted to base. */
+  unconvertibleDocumentCount: number;
   notDue: number;
   current: number;
   days30: number;
@@ -585,7 +592,7 @@ export async function fetchNetPositionByCurrency(
   let q = supabase
     .from("finance_ar_net_position_by_currency" as any)
     .select(
-      "contact_id, contact_name, currency, open_document_count, open_amount, credit_amount, net_amount, base_net_amount, not_due, current_bucket, days30, days60, days90, max_days_overdue",
+      "contact_id, contact_name, currency, open_document_count, open_amount, credit_amount, net_amount, base_net_amount, not_due, current_bucket, days30, days60, days90, max_days_overdue, unconvertible_document_count",
     )
     .eq("organization_id", orgId)
     .gt("net_amount", 0.01)
@@ -606,7 +613,11 @@ export async function fetchNetPositionByCurrency(
       openAmount: Number(r.open_amount) || 0,
       creditAmount: Number(r.credit_amount) || 0,
       netAmount: Number(r.net_amount) || 0,
-      baseNetAmount: Number(r.base_net_amount) || 0,
+      baseNetAmount:
+        r.base_net_amount === null || r.base_net_amount === undefined
+          ? null
+          : Number(r.base_net_amount),
+      unconvertibleDocumentCount: Number(r.unconvertible_document_count) || 0,
       notDue: Number(r.not_due) || 0,
       current: Number(r.current_bucket) || 0,
       days30: Number(r.days30) || 0,
