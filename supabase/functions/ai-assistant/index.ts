@@ -2240,7 +2240,9 @@ serve(async (req) => {
         branchId: branchId ?? null,
         accessibleBranchIds,
         isAdmin: isAdminRole(userRole),
+        capabilities,
       };
+
       aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, usageScope, {
         base_currency: currencyCtx.baseCurrency,
         mixed_across_businesses: currencyCtx.mixed,
