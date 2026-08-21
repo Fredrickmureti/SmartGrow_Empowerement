@@ -23,6 +23,7 @@ import { Loader2, Scale, ChevronDown, CheckCircle2, XCircle, ExternalLink } from
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
+import { BankSessionAuditTrail } from "@/components/banking/BankSessionAuditTrail";
 
 interface HistorySession {
   id: string;
@@ -343,7 +344,22 @@ export function ReconciliationHistoryTab({
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-2">No cleared items recorded for this session</p>
                 )}
+
+                {/*
+                  Phase 5 — explainability. The balances above say the session
+                  agreed; this says on whose authority and on what evidence each
+                  line was explained. Read-only, and scoped in the database.
+                */}
+                <div className="pt-2 border-t">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Audit trail</p>
+                  <BankSessionAuditTrail
+                    sessionId={session.id}
+                    formatAmount={formatCurrency}
+                    enabled={expandedSession === session.id}
+                  />
+                </div>
               </div>
+
             </CollapsibleContent>
           </Collapsible>
           );

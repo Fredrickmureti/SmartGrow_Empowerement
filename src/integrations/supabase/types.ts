@@ -86959,6 +86959,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _assert_can_read_bank_history: {
+        Args: { _branch_id: string; _business_id: string }
+        Returns: undefined
+      }
       _assert_currency_is_active: {
         Args: { _code: string }
         Returns: undefined
@@ -87005,6 +87009,13 @@ export type Database = {
       _bank_doc_is_spoken_for: {
         Args: { _doc_id: string; _kind: string }
         Returns: boolean
+      }
+      _bank_history_actor: { Args: { _user_id: string }; Returns: string }
+      _bank_match_history_row: {
+        Args: {
+          _m: Database["public"]["Tables"]["bank_reconciliation_matches"]["Row"]
+        }
+        Returns: Json
       }
       _bank_match_validate: {
         Args: {
@@ -90685,6 +90696,10 @@ export type Database = {
         }
         Returns: Json
       }
+      bank_match_history: {
+        Args: { p_bank_transaction_id: string }
+        Returns: Json
+      }
       bank_match_propose: {
         Args: {
           _allocations: Json
@@ -90703,6 +90718,10 @@ export type Database = {
       }
       bank_match_reverse: {
         Args: { _match_id: string; _reason?: string; _user_id?: string }
+        Returns: Json
+      }
+      bank_match_session_history: {
+        Args: { p_session_id: string }
         Returns: Json
       }
       bank_reconciliation_item_set: {
