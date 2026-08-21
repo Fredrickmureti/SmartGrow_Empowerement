@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
-import { useBusinesses } from "@/hooks/useBusinesses";
+import type { ScopeMode } from "@/lib/ai/workingContext";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
