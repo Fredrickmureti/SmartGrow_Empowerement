@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Sparkles, Send, Loader2, Trash2, Bot, ArrowRight, Wrench, Package } from "lucide-react";
+import { Sparkles, Send, Loader2, Trash2, Bot, ArrowRight, Wrench, Package, History, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
 import { getContextualPrompts } from "@/lib/ai/contextualPrompts";
