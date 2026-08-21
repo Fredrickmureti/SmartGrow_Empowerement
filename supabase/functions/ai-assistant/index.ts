@@ -174,6 +174,18 @@ async function buildPayrollDiagnostics(
   }
 }
 
+export interface WorkingContext {
+  /** Route path the user was on when the turn was sent. */
+  path?: string;
+  /** Application key derived from the route (inventory, banking, hr, ...). */
+  appKey?: string;
+  /** Module within the application. */
+  moduleKey?: string;
+  /** Record the user was looking at, when any. */
+  recordType?: string;
+  recordId?: string;
+}
+
 interface AIRequest {
   type: "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions" | "email_assist" | "match_transactions" | "document_text";
   data?: Record<string, any>;
@@ -184,7 +196,17 @@ interface AIRequest {
   userRole?: string;
   accessibleBranchIds?: string[];
   currentPage?: string;
+  /**
+   * Persisted conversation this turn belongs to. When present, the history
+   * used for the prompt is loaded server-side from the database after the
+   * caller's read access to the conversation is verified — the client's
+   * `messages` array is NOT trusted as history.
+   */
+  conversationId?: string;
+  /** Presentation-only working context; never used for authorization. */
+  workingContext?: WorkingContext;
 }
+
 
 interface ProviderConfig {
   id: string;
