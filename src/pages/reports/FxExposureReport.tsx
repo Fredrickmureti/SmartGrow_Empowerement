@@ -375,6 +375,38 @@ function FxExposureReportInner() {
           />
         </ReportSurface>
 
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ReportSurface
+            title={selected ? `Exposure by counterparty — ${selected}` : "Exposure by counterparty"}
+            profile="operational"
+            asOfDate={`As of ${asOf}`}
+          >
+            <ReportTable
+              columns={dimColumns}
+              rows={counterpartyRows}
+              currency={base}
+              caption="Who the open foreign-currency balance sits with. Same scope and same resolved rate as the currency view."
+              emptyMessage="No counterparty-attributed foreign-currency balances as of this date."
+            />
+          </ReportSurface>
+
+          <ReportSurface
+            title={selected ? `Exposure by age — ${selected}` : "Exposure by age"}
+            profile="operational"
+            asOfDate={`As of ${asOf}`}
+          >
+            <ReportTable
+              columns={ageColumns}
+              rows={ageRows}
+              currency={base}
+              caption="How long each open foreign-currency balance has been outstanding, measured from the posting date."
+              emptyMessage="No open foreign-currency balances as of this date."
+            />
+          </ReportSurface>
+        </div>
+
+
+
         {selected && (
           <ReportSurface
             title={`${selected} open items`}
