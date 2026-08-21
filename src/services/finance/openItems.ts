@@ -560,7 +560,14 @@ export interface CurrencyNetPositionRow {
   openAmount: number;
   creditAmount: number;
   netAmount: number;
-  baseNetAmount: number;
+  /**
+   * ADR 0136: `null` when at least one open document in this currency has no
+   * rate on file. The caller MUST render an absence, never 0 — a partial sum
+   * dressed as a total is the failure this replaces.
+   */
+  baseNetAmount: number | null;
+  /** Open documents in this currency that could not be converted to base. */
+  unconvertibleDocumentCount: number;
   notDue: number;
   current: number;
   days30: number;
