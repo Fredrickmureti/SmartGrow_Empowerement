@@ -226,12 +226,15 @@ interface FinancialContext {
   purchaseOrders: any[];
   accounts: any[];
   summary: {
-    totalBankBalance: number;
-    totalReceivables: number;
-    totalPayables: number;
-    overdueReceivables: number;
-    recentRevenue: number;
-    recentExpenses: number;
+    // `null` means the sanctioned read failed. It is rendered as
+    // "unavailable" — never as 0, which the model would quote as fact.
+    totalBankBalance: number | null;
+    totalReceivables: number | null;
+    totalPayables: number | null;
+    overdueReceivables: number | null;
+    recentRevenue: number | null;
+    recentExpenses: number | null;
+
     // Extended summaries
     totalProducts: number;
     lowStockCount: number;
