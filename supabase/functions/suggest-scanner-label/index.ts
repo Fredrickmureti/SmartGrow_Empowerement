@@ -10,6 +10,52 @@
  * "Suggest" chip in DevicePresenceList never breaks the rename UX.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const GATEWAY_MODEL = "google/gemini-3-flash-preview";
+
+/**
+ * Attributes this gateway call to the caller's tenant. The scope tuple is
+ * derived from the verified JWT (`user_roles`), never from the request body, so
+ * a suggestion made from one workspace can never be billed to another.
+ */
+async function logUsage(
+  req: Request,
+  outcome: { responseTimeMs: number; error?: string | null; rateLimited?: boolean },
+): Promise<void> {
+  try {
+    const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!token) return;
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: userData } = await admin.auth.getUser(token);
+    const userId = userData?.user?.id ?? null;
+    if (!userId) return;
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    await admin.from("ai_usage_logs").insert({
+      provider_code: "lovable_gateway",
+      request_type: "scanner_label_suggestion",
+      model_used: GATEWAY_MODEL,
+      response_time_ms: outcome.responseTimeMs,
+      was_rate_limited: outcome.rateLimited ?? false,
+      error_message: outcome.error ?? null,
+      organization_id: roleRow?.organization_id ?? null,
+      user_id: userId,
+      app_key: "wms",
+    });
+  } catch (error) {
+    // Telemetry must never break the rename UX.
+    console.error("[suggest-scanner-label] usage log failed", error);
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +110,7 @@ serve(async (req) => {
   const sys = "You name handheld barcode scanners in a warehouse / retail context. Return ONLY a JSON object {\"suggestions\":[\"...\",\"...\",\"...\"]} with exactly 3 short labels, each at most 28 characters, no quotes inside, no emojis, no trailing punctuation. Mix register name, device, and workflow when useful. Prefer concrete operator-friendly names like 'Receiving · iPhone' or 'Till 2 Backup'.";
   const user = `register_name=${reg || "(unknown)"}, device_label=${dev}, top_workflow=${wf ?? "(none)"}`;
 
+  const startedAt = Date.now();
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -72,7 +119,7 @@ serve(async (req) => {
         authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: GATEWAY_MODEL,
         messages: [
           { role: "system", content: sys },
           { role: "user", content: user },
@@ -83,6 +130,11 @@ serve(async (req) => {
     });
 
     if (r.status === 429 || r.status === 402) {
+      await logUsage(req, {
+        responseTimeMs: Date.now() - startedAt,
+        error: r.status === 429 ? "rate_limit" : "credits",
+        rateLimited: r.status === 429,
+      });
       return Response.json(
         { suggestions: fallback(body), source: "fallback", reason: r.status === 429 ? "rate_limit" : "credits" },
         { headers: { ...corsHeaders, "content-type": "application/json" } },
@@ -91,6 +143,7 @@ serve(async (req) => {
     if (!r.ok) throw new Error(`gateway ${r.status}`);
 
     const j = await r.json();
+    await logUsage(req, { responseTimeMs: Date.now() - startedAt });
     const raw = j?.choices?.[0]?.message?.content ?? "{}";
     let parsed: { suggestions?: unknown } = {};
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
@@ -113,6 +166,10 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "content-type": "application/json" } },
     );
   } catch (e) {
+    await logUsage(req, {
+      responseTimeMs: Date.now() - startedAt,
+      error: (e as Error).message?.slice(0, 500) ?? "unknown_error",
+    });
     return Response.json(
       { suggestions: fallback(body), source: "fallback", reason: (e as Error).message },
       { headers: { ...corsHeaders, "content-type": "application/json" } },
