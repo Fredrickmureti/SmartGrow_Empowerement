@@ -469,16 +469,42 @@ export function buildDataToolSpecs(): ToolSpec[] {
 }
 
 
+/** A uuid that cannot exist, used to make a fail-closed filter return no rows. */
+const IMPOSSIBLE_UUID = "00000000-0000-0000-0000-000000000000";
+
 function applyScope(query: any, spec: TableSpec, scope: ToolScope) {
   query = query.eq(spec.orgColumn, scope.organizationId);
   if (spec.businessColumn && scope.businessId) {
     query = query.eq(spec.businessColumn, scope.businessId);
   }
-  if (spec.branchColumn && !scope.isAdmin && scope.accessibleBranchIds?.length) {
-    query = query.in(spec.branchColumn, scope.accessibleBranchIds);
+  // FAIL CLOSED: a non-admin with no viewable branches reads nothing from a
+  // branch-scoped table. The previous `&& length` guard silently returned every
+  // branch for a user who had no branch assignment at all.
+  if (spec.branchColumn && !scope.isAdmin) {
+    const ids = scope.accessibleBranchIds ?? [];
+    query = query.in(spec.branchColumn, ids.length ? ids : [IMPOSSIBLE_UUID]);
   }
   return query;
 }
+
+/** Whether branch narrowing is in force for this table/caller. */
+function branchFiltered(spec: TableSpec | undefined, scope: ToolScope): boolean {
+  return Boolean(spec?.branchColumn && !scope.isAdmin);
+}
+
+/** Structured refusal handed back to the model when a capability is missing. */
+function notPermitted(subject: string, module: string | null | undefined) {
+  return {
+    error: "not_permitted",
+    subject,
+    module: module ?? null,
+    message:
+      `You do not have permission to read ${subject}` +
+      (module ? ` (module: ${module})` : "") +
+      ". Tell the user this data is outside their access rights and do not guess a figure.",
+  };
+}
+
 
 /** Apply the model's structured filters; returns an error object when invalid. */
 function applyFilters(query: any, spec: TableSpec, table: string, filters: any[]): { query?: any; error?: Record<string, unknown> } {
