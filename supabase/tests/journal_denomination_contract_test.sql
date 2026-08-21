@@ -73,34 +73,73 @@ BEGIN
 END $$;
 
 -- 5) Migrated document families must declare their denomination.
+--    Two legal shapes exist and the contract asserts BEHAVIOUR, not one literal
+--    argument style:
+--      (a) document-currency posters — hand raw document amounts to the engine
+--          with the opt-in TRUE (named or positional) plus their currency;
+--      (b) base-currency posters — convert in the caller and declare FALSE.
+--    Neither may post a foreign amount without declaring which it is.
 DO $$
 DECLARE r record; v_src text;
 BEGIN
+  -- (a) document-currency posters, named opt-in.
   FOR r IN
     SELECT * FROM (VALUES
-      ('_confirm_invoice_core',           'v_inv\.currency'),
-      ('confirm_bill_atomic',             'v_bill\.currency'),
-      ('issue_credit_note_atomic',        'v_cn\.currency'),
-      ('issue_vendor_credit_note_atomic', 'v_vcn\.currency'),
-      ('refund_customer_atomic',          'v_currency'),
-      ('refund_from_vendor_atomic',       'v_vcn\.currency'),
-      ('apply_credit_to_invoice_atomic',  'v_cn\.currency'),
-      ('post_missing_invoice_journals',   'v_inv\.currency'),
-      ('repair_misposted_ar_invoices',    'r\.currency')
+      ('_confirm_invoice_core',          'v_inv\.currency'),
+      ('issue_credit_note_atomic',       'v_cn\.currency'),
+      ('issue_vendor_credit_note_atomic','v_vcn\.currency'),
+      ('post_missing_invoice_journals',  'v_inv\.currency'),
+      ('repair_misposted_ar_invoices',   'r\.currency')
     ) AS t(fname, ccy)
   LOOP
     SELECT p.prosrc INTO v_src
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public' AND p.proname = r.fname;
-
-    IF v_src IS NULL THEN
-      RAISE EXCEPTION '% is missing', r.fname;
-    END IF;
+    IF v_src IS NULL THEN RAISE EXCEPTION '% is missing', r.fname; END IF;
     IF v_src !~ '_amounts_in_document_currency\s*:=\s*true' THEN
       RAISE EXCEPTION '% no longer declares its line amounts as document currency', r.fname;
     END IF;
     IF v_src !~ r.ccy THEN
       RAISE EXCEPTION '% no longer passes its document currency', r.fname;
+    END IF;
+  END LOOP;
+
+  -- (a') confirm_bill_atomic opts in POSITIONALLY: it must still hand the engine
+  --      the bill's own currency and stamped rate, and must NOT claim its lines
+  --      are already base currency.
+  SELECT p.prosrc INTO v_src
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'confirm_bill_atomic';
+  IF v_src IS NULL THEN RAISE EXCEPTION 'confirm_bill_atomic is missing'; END IF;
+  IF v_src !~ 'v_bill\.currency' OR v_src !~ 'v_bill\.currency_rate' THEN
+    RAISE EXCEPTION 'confirm_bill_atomic no longer passes the bill currency and its stamped rate';
+  END IF;
+  IF v_src ~ '_amounts_in_document_currency\s*:=\s*false' THEN
+    RAISE EXCEPTION 'confirm_bill_atomic posts document-currency lines but declares them as base currency';
+  END IF;
+
+  -- (b) base-currency posters: they convert in the caller, so they must declare
+  --     FALSE explicitly (never leave the denomination undeclared) and must not
+  --     also claim the document-currency opt-in.
+  FOR r IN
+    SELECT * FROM (VALUES
+      ('refund_customer_atomic',        'v_currency'),
+      ('refund_from_vendor_atomic',     'v_vcn\.currency'),
+      ('apply_credit_to_invoice_atomic','v_cn\.currency')
+    ) AS t(fname, ccy)
+  LOOP
+    SELECT p.prosrc INTO v_src
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = r.fname;
+    IF v_src IS NULL THEN RAISE EXCEPTION '% is missing', r.fname; END IF;
+    IF v_src !~ '_amounts_in_document_currency\s*:=\s*false' THEN
+      RAISE EXCEPTION '% no longer declares its lines as already base currency', r.fname;
+    END IF;
+    IF v_src ~ '_amounts_in_document_currency\s*:=\s*true' THEN
+      RAISE EXCEPTION '% declares both denominations; exactly one is legal', r.fname;
+    END IF;
+    IF v_src !~ r.ccy THEN
+      RAISE EXCEPTION '% no longer reads its document currency', r.fname;
     END IF;
   END LOOP;
 END $$;
