@@ -104,6 +104,8 @@ const LotTraceabilityReport = lazy(() => import("@/pages/reports/LotTraceability
 const StockTransfersReport = lazy(() => import("@/pages/reports/StockTransfersReport"));
 const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationReport"));
 const FxExposureReport = lazy(() => import("@/pages/reports/FxExposureReport"));
+const FxRealizedReport = lazy(() => import("@/pages/reports/FxRealizedReport"));
+
 
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
 const FinanceIntegrity = lazy(() => import("@/pages/finance/FinanceIntegrity"));
@@ -924,6 +926,20 @@ export function FinanceApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Realized FX Gain/Loss Report (Currency & FX Step 4) */}
+        <Route
+          path="reports/fx-realized"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Realized FX Gain/Loss Report">
+                <FxRealizedReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
 
 
 

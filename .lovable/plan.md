@@ -8,8 +8,10 @@ Authoritative status file. Update after every implementation step.
 - Step 1 — Denomination contract safe by construction: **COMPLETE, behaviourally verified**
 - Step 2 — Producer families migrated: **COMPLETE for the currency-bearing callers**
 - Step 3 — Monetary eligibility + line-level currency: **COMPLETE, verified**
-- Step 4 — Realized FX gain/loss report: **NEXT (active phase)**
-- Steps 5–6 (exposure dimensions, rate provenance surface): pending
+- Step 4 — Realized FX gain/loss report: **COMPLETE (RPC + hook + page + guard)**
+- Step 5 — Exposure dimensions (by account, by counterparty): **NEXT (active phase)**
+- Step 6 — Rate register / provenance surface: pending
+
 
 ---
 
@@ -96,49 +98,83 @@ rolled-back transaction. Guard: section 6 of
 `supabase/tests/fx_revaluation_lifecycle_test.sql` fails if any FX surface
 returns to the asset-or-liability rule or to header-currency grouping.
 
-## Step 4 — Realized FX gain/loss report (next, active)
+## Step 4 — Realized FX gain/loss report (done)
 
-Realized FX is already posted at settlement by `record_multi_invoice_payment` /
-`record_multi_bill_payment`. What is missing is the report: settled documents
-with booking rate vs settlement rate, the realized gain/loss per document and
-per currency, tied back to the posted journal line so the report and the ledger
-cannot diverge. Build it as a SECURITY DEFINER RPC gated on
-`user_can_access_business` (same shape as `fx_exposure_by_currency`), then a
-read-only page under `/finance/reports/`; the browser formats only.
+Realized FX is posted at settlement by `record_multi_invoice_payment` /
+`record_multi_bill_payment` (ADR 0123 posting monopoly). Step 4 adds the report
+as a **projection of what those postings actually put in the ledger** — no
+second computation.
+
+Landed:
+
+- **Pre-work (safety sweep).** The Step 1 guard would have rejected nine legacy
+  callers that pass a foreign currency without declaring denomination. Patched:
+  `_landed_cost_post_apply`, `landed_cost_reverse_voucher`,
+  `expense_reimburse_direct`, `bank_match_confirm`,
+  `bank_reconciliation_session_complete`, `bank_reconciliation_session_writeoff`,
+  `record_multi_bill_payment`, `record_multi_invoice_payment` → explicit
+  `false` (they compute base themselves); `_bank_account_post_opening_balance`
+  → `true` (needs engine conversion). Confirmed via `pg_proc` that no
+  currency-bearing caller is left undeclared.
+- **`public.fx_realized_gain_loss(_business_id uuid, _from date, _to date)`** —
+  SECURITY DEFINER, gated on `user_can_access_business`, EXECUTE revoked from
+  PUBLIC/`anon`, granted to `authenticated` + `service_role`. Finds journal
+  lines hitting the accounts returned by `resolve_fx_realized_account`, so the
+  report cannot disagree with the GL. Returns `jsonb`: `base_currency`,
+  `from`, `to`, `accounts_configured`, `settlements[]` (entry, date, source,
+  party, currency, settled foreign amount, booked rate, settlement rate, booked
+  base, realized amount, gain/loss kind), `by_currency[]`, `total_gain`,
+  `total_loss`, `net_realized`.
+- **`src/hooks/finance/useFxRealized.ts`** — thin React Query reader over the
+  RPC, business-scoped, no client-side rate work.
+- **`src/pages/reports/FxRealizedReport.tsx`** at
+  `/finance/reports/fx-realized` — KPIs, by-currency summary, settlement detail
+  with journal-entry links, XLSX export, and an explicit alert when the realized
+  FX accounts are unmapped (`accounts_configured = false`) instead of silently
+  reporting zero.
+- Registered in `ReportRegistry` (`fx-realized`, statutory) and under
+  Reports → Currency & FX in `reportsNav`; lazy route in `src/apps/finance/routes.tsx`.
+- Guard: new section in `src/test/architecture/fx-single-engine.test.ts` —
+  the hook and page must not touch `exchange_rates` / `journal_entry_lines`,
+  must not use `rateBook`, and must not fall back to `1`. 20/20 tests pass.
 
 ## Steps 5–6 (pending)
 
-5. Exposure dimensions — by account and by counterparty, reusing the Step 3
-   classifier rather than a second scope rule.
+5. **Exposure dimensions (active next)** — exposure by GL account and by
+   counterparty, reusing `fx_is_monetary_account` and the existing open-item
+   scope of `revalue_fx_balances`; extend `fx_exposure_*` rather than adding a
+   third scope rule.
 6. Rate register / provenance surface — the rate book with `source`,
    `provider_key`, `published_at` and effective date, plus server-validated
    override entry.
 
 ## Instructions for the next agent
 
-**Verify before you build.** Do not start Step 4 until you have confirmed
-Step 3 landed correctly:
+**Verify before you build.** Confirm Step 4 landed correctly and to
+enterprise standard before opening Step 5:
 
-1. `supabase/tests/fx_revaluation_lifecycle_test.sql` and
-   `supabase/tests/journal_denomination_contract_test.sql` both run clean.
-2. `select count(*) from pg_proc where proname='post_journal_entry_atomic'` = 1,
-   and its argument list still ends with
-   `_amounts_in_document_currency boolean DEFAULT false`.
-3. No FX surface has regressed to `a.account_type IN ('asset','liability')`.
-4. Still outstanding from Step 2, and worth doing first if you want end-to-end
-   proof: post one real foreign bill and one foreign credit note in a scratch
-   business and confirm base amounts equal `original × rate` and that a
-   currency with no rate on file fails loudly.
+1. `select count(*) from pg_proc where proname='fx_realized_gain_loss'` = 1;
+   it is SECURITY DEFINER, calls `user_can_access_business`, and `anon` has no
+   EXECUTE.
+2. Its numbers tie to the GL: for a period, the sum of `realized_amount` must
+   equal the net movement on the accounts `resolve_fx_realized_account` returns.
+   Prove it with a read-only query, not by reasoning.
+3. `supabase/tests/fx_revaluation_lifecycle_test.sql` and
+   `supabase/tests/journal_denomination_contract_test.sql` still run clean, and
+   `bunx vitest run src/test/architecture/fx-single-engine.test.ts` passes.
+4. Still outstanding from Step 2 and worth doing first for end-to-end proof:
+   post one real foreign bill and one foreign credit note in a scratch business,
+   settle one at a different rate, and confirm the realized figure appears in
+   this report with the right sign.
 
-**Then resume at Step 4** — do not skip ahead to Steps 5–6 and do not open
-unrelated areas of the system.
+**Then resume at Step 5** — exposure dimensions. Do not skip to Step 6 and do
+not open unrelated areas of the system.
 
 Working rules that have held so far:
 
 1. Settlement paths (`record_multi_invoice_payment`, `record_multi_bill_payment`,
-   `bank_match_confirm`) already do their own base/foreign handling — do **not**
-   flip them to the document-currency opt-in blindly; confirm line denomination
-   first. Step 4 reads their output, so start by reading those functions.
+   `bank_match_confirm`) do their own base/foreign handling and now declare
+   `_amounts_in_document_currency := false` explicitly — do not flip them.
 2. Migrate call sites by patching `pg_get_functiondef` output inside the
    migration (with a hard `RAISE` when the fragment does not match), never by
    retyping a function body.
@@ -148,4 +184,6 @@ Working rules that have held so far:
 4. One scope rule, one resolver, one posting engine. Any new FX surface reuses
    `fx_is_monetary_account`, `resolve_exchange_rate`/`require_exchange_rate` and
    `post_journal_entry_atomic` — never a second implementation.
+5. Reporting surfaces are projections: the browser formats, the server resolves.
+
 
