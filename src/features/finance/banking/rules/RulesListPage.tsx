@@ -154,11 +154,12 @@ export default function RulesListPage() {
                             size="icon"
                             className="h-7 w-7"
                             disabled={isLoading}
-                            disabled={isSaving}
+                            onClick={() => deleteRule(rule.id)}
                             aria-label="Delete rule"
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
+
                         </div>
                       </TableCell>
                     </TableRow>
