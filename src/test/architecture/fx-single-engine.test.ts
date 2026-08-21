@@ -114,7 +114,13 @@ describe("FX admin surface (ADR 0136 provenance)", () => {
     expect(settings).toMatch(/set_business_active_currency/);
     expect(settings).not.toMatch(/from\("business_active_currencies"\)[\s\S]{0,160}\.(insert|update|upsert|delete)\(/);
   });
+
+  it("the enabled set and the base flag are resolved server-side", () => {
+    expect(settings).toMatch(/list_business_active_currencies/);
+    expect(settings).not.toMatch(/from\("business_active_currencies"\)/);
+  });
 });
+
 
 describe("FX exposure reporting is a server-side projection", () => {
   const hook = read("src/hooks/finance/useFxExposure.ts");

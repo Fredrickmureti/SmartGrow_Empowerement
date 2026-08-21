@@ -65,7 +65,9 @@ interface ExchangeRate {
 interface ActiveCurrency {
   currency_code: string;
   is_enabled: boolean;
+  is_base: boolean;
 }
+
 
 const SOURCE_LABEL: Record<string, string> = {
   override: "Override",
@@ -135,16 +137,17 @@ export function CurrencySettings() {
 
   const fetchActiveCurrencies = useCallback(async () => {
     if (!currentBusiness) return;
-    const { data, error } = await supabase
-      .from("business_active_currencies")
-      .select("currency_code, is_enabled")
-      .eq("business_id", currentBusiness.id);
+    // Server-resolved: the base currency is flagged there, never inferred here.
+    const { data, error } = await supabase.rpc("list_business_active_currencies", {
+      _business_id: currentBusiness.id,
+    });
     if (error) {
       console.error("Error fetching active currencies:", error);
       return;
     }
     setActiveCurrencies((data ?? []) as ActiveCurrency[]);
   }, [currentBusiness]);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -273,6 +276,10 @@ export function CurrencySettings() {
   const enabledSet = new Set(
     activeCurrencies.filter((c) => c.is_enabled).map((c) => c.currency_code),
   );
+  const serverBaseSet = new Set(
+    activeCurrencies.filter((c) => c.is_base).map((c) => c.currency_code),
+  );
+
 
   return (
     <div className="space-y-6">
@@ -316,13 +323,14 @@ export function CurrencySettings() {
           <CardTitle>Operating Currencies</CardTitle>
           <CardDescription>
             Currencies this company is allowed to transact in. The base currency is always
-            enabled. Leave everything off to allow any currency that has a rate on file.
+            enabled and cannot be switched off. Any other currency must be enabled here
+            before a document can be raised in it — and it still needs a rate on file.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
             {currencies.map((c) => {
-              const isBase = c.code === base;
+              const isBase = serverBaseSet.has(c.code) || c.code === base;
               return (
                 <label
                   key={c.id}
@@ -341,6 +349,7 @@ export function CurrencySettings() {
           </div>
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
