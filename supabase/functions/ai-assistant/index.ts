@@ -653,7 +653,13 @@ async function getFinancialContext(
         totalAssetValue,
         todayPOSSales,
       },
+      // Ledger-grounded reads (Result-typed: a failed read is reported, never zeroed)
+      _bankPositions: bankPositions,
+      _ledger: ledger,
+      _receivables: receivables,
+      _payables: payables,
       // Extra data for branch-aware prompts
+
       _branches: branches,
       _isAdmin: isAdmin,
       _branchIds: branchIds,
