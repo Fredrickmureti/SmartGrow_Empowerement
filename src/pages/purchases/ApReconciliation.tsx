@@ -8,12 +8,13 @@
  * the header exactly. Nothing on this screen is recomputed in the browser.
  */
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
+import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useApAging } from "@/hooks/useApAging";
 import {
@@ -95,10 +96,13 @@ export default function ApReconciliation() {
 
   const { data: rows = [], isLoading, isFetching, refetch } = useApReconciliationDetail(scope);
 
+  // ADR 0136: keep `null` intact — a variance that cannot be computed is not a
+  // variance of zero, and this screen exists precisely to explain the gap.
+  const unconvertible = reconciliation?.unconvertibleDocumentCount ?? 0;
   const headerCards = [
-    { label: "Aging total (net of credits)", value: reconciliation?.agingTotal ?? 0 },
-    { label: "AP control account", value: reconciliation?.controlAccountBalance ?? 0 },
-    { label: "Variance", value: reconciliation?.variance ?? 0, emphasise: true },
+    { label: "Aging total (net of credits)", value: reconciliation?.agingTotal ?? null },
+    { label: "AP control account", value: reconciliation?.controlAccountBalance ?? null },
+    { label: "Variance", value: reconciliation?.variance ?? null, emphasise: true },
   ];
 
   return (
@@ -157,7 +161,12 @@ export default function ApReconciliation() {
                     : "text-foreground"
                 }`}
               >
-                {formatCurrency(card.value)}
+                <BaseCurrencyAmount
+                  value={card.value}
+                  format={formatCurrency}
+                  unconvertibleCount={unconvertible}
+                  label={card.label}
+                />
               </p>
             </CardContent>
           </Card>
@@ -178,8 +187,22 @@ export default function ApReconciliation() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Variance {formatCurrency(reconciliation.variance)} as of {fmtDate(asOfDate)}. The rows
-            below account for it, largest first.
+            {reconciliation.variance === null ? (
+              <>
+                The variance cannot be stated as of {fmtDate(asOfDate)}: {unconvertible} open
+                document(s) are in a currency with no exchange rate on file, so the subledger has
+                no base-currency total to compare with the control account. Add the rate in{" "}
+                <Link to="/settings/company?tab=currency" className="underline underline-offset-2">
+                  Currency settings
+                </Link>
+                , then re-run.
+              </>
+            ) : (
+              <>
+                Variance {formatCurrency(reconciliation.variance)} as of {fmtDate(asOfDate)}. The
+                rows below account for it, largest first.
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -241,19 +264,41 @@ export default function ApReconciliation() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{row.documentCount}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatCurrency(row.projectionOpen)}
+                    <BaseCurrencyAmount
+                      value={row.projectionOpen}
+                      format={formatCurrency}
+                      unconvertibleCount={row.unconvertibleDocumentCount}
+                    />
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {row.projectionCredit > 0 ? `(${formatCurrency(row.projectionCredit)})` : "—"}
+                    {row.projectionCredit === null ? (
+                      <BaseCurrencyAmount
+                        value={null}
+                        format={formatCurrency}
+                        unconvertibleCount={row.unconvertibleDocumentCount}
+                      />
+                    ) : row.projectionCredit > 0 ? (
+                      `(${formatCurrency(row.projectionCredit)})`
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatCurrency(row.projectionNet)}
+                    <BaseCurrencyAmount
+                      value={row.projectionNet}
+                      format={formatCurrency}
+                      unconvertibleCount={row.unconvertibleDocumentCount}
+                    />
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(row.ledgerNet)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-bold text-destructive">
-                    {formatCurrency(row.variance)}
+                    <BaseCurrencyAmount
+                      value={row.variance}
+                      format={formatCurrency}
+                      unconvertibleCount={row.unconvertibleDocumentCount}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
