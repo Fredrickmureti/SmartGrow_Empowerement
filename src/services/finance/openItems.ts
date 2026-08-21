@@ -592,7 +592,7 @@ export async function fetchNetPositionByCurrency(
   let q = supabase
     .from("finance_ar_net_position_by_currency" as any)
     .select(
-      "contact_id, contact_name, currency, open_document_count, open_amount, credit_amount, net_amount, base_net_amount, not_due, current_bucket, days30, days60, days90, max_days_overdue",
+      "contact_id, contact_name, currency, open_document_count, open_amount, credit_amount, net_amount, base_net_amount, not_due, current_bucket, days30, days60, days90, max_days_overdue, unconvertible_document_count",
     )
     .eq("organization_id", orgId)
     .gt("net_amount", 0.01)
