@@ -1,7 +1,1 @@
 project_id = "jkszmrroyjfdwokbkzis"
-
-# The reconciliation assistant is advisory only, but it reads a tenant's bank
-# lines through the caller's own token — an anonymous caller must never reach
-# it. Declared explicitly rather than inherited (ADR-0149).
-[functions.reconciliation-assistant]
-verify_jwt = true
