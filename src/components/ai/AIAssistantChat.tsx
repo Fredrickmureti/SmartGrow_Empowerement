@@ -22,16 +22,16 @@ interface AIAssistantChatProps {
 }
 
 export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistantChatProps) {
-  const { messages, isLoading, sendChatMessage, clearChat } = useAIAssistant();
-  const { currentBusiness } = useBusinesses();
+  const [scopeMode, setScopeMode] = useState<ScopeMode>("branch");
+  const { messages, isLoading, sendChatMessage, clearChat, workingContext } =
+    useAIAssistant({ currentPath, scopeMode });
   const [input, setInput] = useState("");
 
   const contextualPrompts = getContextualPrompts(currentPath);
 
-  // Clear chat when business context changes
-  useEffect(() => {
-    clearChat();
-  }, [currentBusiness?.id]);
+  // Thread binding (org / business / branch / app / scope) is owned by
+  // useAIAssistant — switching any of them reloads that scope's own history
+  // instead of carrying the previous scope's messages over.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +44,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
   const handlePromptClick = (text: string) => {
     sendChatMessage(text, currentPath);
   };
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
