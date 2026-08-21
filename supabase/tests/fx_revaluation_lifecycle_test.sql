@@ -232,23 +232,29 @@ BEGIN
   END LOOP;
 END $$;
 
--- 9) ADR 0136 parity ratchet on the posting paths: no engine may value a
---    foreign document at 1:1 because its rate is absent.
+-- 9) ADR 0136 parity ratchet, swept across EVERY public routine: no engine may
+--    value a foreign document at 1:1 because its rate is absent. The sweep
+--    strips `--` comments first, so a comment that *documents* the absence of a
+--    fallback (e.g. "no COALESCE(rate, 1) here") does not trip the ratchet.
 DO $$
-DECLARE r record;
+DECLARE r record; v_src text; v_bad text[] := '{}';
 BEGIN
   FOR r IN
     SELECT p.proname, p.prosrc
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'public'
-       AND p.proname IN ('post_expense_gl', 'revalue_fx_balances', 'reverse_fx_revaluation_run')
+     WHERE n.nspname = 'public' AND p.prokind = 'f'
   LOOP
-    IF r.prosrc ~* 'COALESCE\s*\(\s*[a-z_.]*exchange_rate\s*,\s*1\s*\)'
-       OR r.prosrc ~* 'COALESCE\s*\(\s*NULLIF\s*\(\s*[a-z_.]*(currency_rate|exchange_rate)[^)]*\)\s*,\s*1\s*\)' THEN
-      RAISE EXCEPTION '% falls back to a 1:1 exchange rate (ADR 0136)', r.proname;
+    v_src := regexp_replace(r.prosrc, '--[^\n]*', '', 'g');
+    IF v_src ~* 'COALESCE\s*\(\s*(NULLIF\s*\(\s*)?[a-z_."]*(exchange_rate|currency_rate|fx_rate|_rate|\mrate\M)[^)]*\)?\s*,\s*1(\.0+)?\s*\)' THEN
+      v_bad := v_bad || r.proname;
     END IF;
   END LOOP;
+
+  IF array_length(v_bad, 1) > 0 THEN
+    RAISE EXCEPTION '% fall(s) back to a 1:1 exchange rate (ADR 0136)', array_to_string(v_bad, ', ');
+  END IF;
 END $$;
+
 
 -- 10) The expense posting path refuses, loudly, when no rate is on file.
 DO $$
