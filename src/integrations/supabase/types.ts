@@ -97167,6 +97167,14 @@ export type Database = {
               status: string
             }[]
           }
+      list_business_active_currencies: {
+        Args: { _business_id: string }
+        Returns: {
+          currency_code: string
+          is_base: boolean
+          is_enabled: boolean
+        }[]
+      }
       list_employee_ids_matching: {
         Args: {
           p_branch_ids?: string[]
