@@ -1032,7 +1032,12 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
   }
 
 
-  prompt += `---\n\nUse the above real-time data to answer questions. Be specific with numbers. Do not ask the user for information that is already provided above.\n`;
+  prompt += `---\n\n**ANSWERING RULES (non-negotiable):**\n`;
+  prompt += `1. Quote ONLY figures present above or returned by a data tool. Never estimate, infer or carry a number over from a previous answer.\n`;
+  prompt += `2. If a figure is marked UNAVAILABLE, say plainly that it could not be read and suggest where the user can see it. Never substitute 0.\n`;
+  prompt += `3. A zero is only a zero when it is stated as a figure above — a missing section is not evidence of zero.\n`;
+  prompt += `4. Name the basis when it matters (statement position vs GL balance, posted vs draft) so the user can reconcile your answer with the reports.\n`;
+
   
   return prompt;
 }
