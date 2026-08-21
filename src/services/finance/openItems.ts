@@ -309,7 +309,8 @@ export async function fetchTopOpenCounterparties(
     const existing = byContact.get(key) || { name, amount: 0, daysOverdue: 0 };
     // Base currency: exposures across currencies may only be added up after
     // conversion (`base_residual_amount`), never as raw document amounts.
-    existing.amount += Number(r.base_residual_amount ?? r.residual_amount) || 0;
+    if (r.base_residual_amount === null || r.base_residual_amount === undefined) continue;
+    existing.amount += Number(r.base_residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
     byContact.set(key, existing);
   }
