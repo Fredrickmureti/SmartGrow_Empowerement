@@ -79403,6 +79403,7 @@ export type Database = {
           open_amount: number | null
           open_document_count: number | null
           organization_id: string | null
+          unconvertible_document_count: number | null
         }
         Relationships: []
       }
