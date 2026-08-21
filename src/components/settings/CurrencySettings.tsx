@@ -323,13 +323,14 @@ export function CurrencySettings() {
           <CardTitle>Operating Currencies</CardTitle>
           <CardDescription>
             Currencies this company is allowed to transact in. The base currency is always
-            enabled. Leave everything off to allow any currency that has a rate on file.
+            enabled and cannot be switched off. Any other currency must be enabled here
+            before a document can be raised in it — and it still needs a rate on file.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
             {currencies.map((c) => {
-              const isBase = c.code === base;
+              const isBase = serverBaseSet.has(c.code) || c.code === base;
               return (
                 <label
                   key={c.id}
@@ -348,6 +349,7 @@ export function CurrencySettings() {
           </div>
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
