@@ -199,7 +199,7 @@ export async function fetchApAging({
       paid: num(b.paid),
       credited: num(b.credited),
       balance: num(b.balance),
-      baseBalance: num(b.base_balance),
+      baseBalance: money(b.base_balance),
       currency: (b.currency as string) ?? null,
       daysPastDue: num(b.days_past_due),
       bucket: (b.bucket as AgingBucketKey) ?? "current",
