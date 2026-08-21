@@ -19,22 +19,29 @@ import { useBranch } from "@/contexts/BranchContext";
 export interface ApSummary {
   /** Count of open (residual > 0) posted AP documents. */
   openDocumentCount: number;
-  /** Total residual outstanding, company base currency. */
-  totalOutstanding: number;
+  /**
+   * ADR 0136: every base-currency figure below is `number | null`. `null` means
+   * a contributing document has no exchange rate on file, so the figure cannot
+   * honestly be stated — it is NOT zero, and it is not the sum of the
+   * convertible remainder. `unconvertibleDocumentCount` says how many.
+   */
+  totalOutstanding: number | null;
   /** Residual not yet due. */
-  notDue: number;
+  notDue: number | null;
   /** Aging buckets by days past due. */
-  days0to30: number;
-  days31to60: number;
-  days61to90: number;
-  days90Plus: number;
+  days0to30: number | null;
+  days31to60: number | null;
+  days61to90: number | null;
+  days90Plus: number | null;
   /** Documents past their due date. */
   overdueCount: number;
   /** Total overdue residual (all past-due buckets). */
-  totalOverdue: number;
+  totalOverdue: number | null;
   /** Posted-state bills with no posted journal entry — an integrity signal. */
   unpostedDocumentCount: number;
   unpostedAmount: number;
+  /** Open documents whose currency has no rate on file. */
+  unconvertibleDocumentCount: number;
 }
 
 const EMPTY: ApSummary = {
@@ -49,6 +56,7 @@ const EMPTY: ApSummary = {
   totalOverdue: 0,
   unpostedDocumentCount: 0,
   unpostedAmount: 0,
+  unconvertibleDocumentCount: 0,
 };
 
 export function useApSummary(asOf?: string) {
@@ -82,22 +90,29 @@ export function useApSummary(asOf?: string) {
         return;
       }
       const n = (v: unknown) => Number(v ?? 0);
-      const current = n(row.current_bucket);
-      const d30 = n(row.days30);
-      const d60 = n(row.days60);
-      const d90 = n(row.days90);
+      // Absence must survive the trip through the browser: a NULL base-currency
+      // figure stays null instead of becoming a confident zero.
+      const m = (v: unknown): number | null =>
+        v === null || v === undefined ? null : Number(v) || 0;
+      const sum = (parts: Array<number | null>): number | null =>
+        parts.some((p) => p === null) ? null : parts.reduce((a, b) => a + (b ?? 0), 0);
+      const current = m(row.current_bucket);
+      const d30 = m(row.days30);
+      const d60 = m(row.days60);
+      const d90 = m(row.days90);
       setSummary({
         openDocumentCount: n(row.open_document_count),
-        totalOutstanding: n(row.total_residual),
-        notDue: n(row.not_due),
+        totalOutstanding: m(row.total_residual),
+        notDue: m(row.not_due),
         days0to30: current,
         days31to60: d30,
         days61to90: d60,
         days90Plus: d90,
         overdueCount: n(row.overdue_count),
-        totalOverdue: current + d30 + d60 + d90,
+        totalOverdue: sum([current, d30, d60, d90]),
         unpostedDocumentCount: n(row.unposted_document_count),
         unpostedAmount: n(row.unposted_amount),
+        unconvertibleDocumentCount: n(row.unconvertible_document_count),
       });
     } catch (e: any) {
       console.error("Error loading AP summary:", e);
