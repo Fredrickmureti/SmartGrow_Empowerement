@@ -1,100 +1,124 @@
-# Currency & FX — engine trust programme (authoritative status)
+# Currency & FX — handover verification verdict, then producer-contract convergence
 
-Last updated: 2026-08-21. Authority: ADR 0135 / 0136 / 0138 and
-`mem://features/currency-and-fx-resolution`.
+Last updated: 2026-08-21. Authority: ADR 0135 / 0136 / 0138.
+Legend: **[V]** verified fact (code/DB evidence this session) · **[A]** accounting principle ·
+**[I]** inference · **[R]** research-based.
 
-## Verdict on the contract
+## 1. Verification of the previous engineer's claims
 
-**Is the centralized FX engine receiving trustworthy, complete, correctly-denominated
-data from every producer?** It is now, for the producer paths audited. Three real defects
-were found and closed; one suspected defect was disproven.
+Re-checked live against `pg_proc` / `pg_trigger` / the codebase, not the log.
 
-- F1 (closed) — `revalue_fx_balances` took the reporting currency from the caller.
-- F2 (closed) — unrealized gain/loss accounts were chosen per run in the browser while
-  realized FX used a central resolver.
-- F4 (closed) — the FX control panel exposed a free-text base currency and account pickers.
-- F3 (not a defect) — `resolve_sales_exchange_rate` is a one-line delegation to
-  `resolve_exchange_rate`. An alias, not a second engine.
+| Claim | Verdict |
+| --- | --- |
+| Phase C — `resolve_fx_account` + realized/unrealized wrappers, `revalue_fx_balances` derives base currency from `businesses.base_currency`, rejects caller value and caller-supplied FX accounts | **[V] True.** Bodies confirm the entity-base derivation, the two `23514` raises and the central account resolution. |
+| Phase D — `fx_exposure_dimensions`, `SECURITY DEFINER`, `user_can_access_business`, `EXECUTE` not granted to anon | **[V] True.** ACL = `postgres, authenticated, service_role` only. Same for `fx_exposure_by_currency`, `describe_exchange_rate`, `list_business_active_currencies`, `resolve_*`, `fx_stamp_document`. |
+| Phase E — base-currency seed + `_bac_protect_base_currency` + `list_business_active_currencies`; `_expenses_derive_base_amount` lost its `count(*)` hatch | **[V] True.** The expense trigger now raises `22023` unconditionally for a non-enabled currency; the single business carries exactly one enabled row matching its `KES` base. |
+| Guard suite "25 passing" | **[V] True.** `bunx vitest run src/test/architecture/fx-single-engine.test.ts` → 25 passed. |
+| F4 — settings no longer free-text currency | **[V] True.** `CurrencySettings.tsx` selects from the `currencies` catalogue and writes only via `set_business_active_currency` / `set_exchange_rate_override`. |
+| "Nothing is half-built; only Steps 7–8 pending" | **[V] False.** The prior waves audited AR, expenses and landed cost. Four producer/settlement defects below were never in scope and are still live. |
 
-## Fully implemented and verified
+Invalidated assumption: the audit scope was treated as complete because the
+*engine* is sound. The engine is sound; several **producers and settlement paths**
+are not.
 
-### Phase C — result-account and revaluation-input hardening (complete)
-1. `system_account_roles` + `account_role_eligibility` carry `fx_unrealized_gain` and
-   `fx_unrealized_loss`, mirroring the realized pair.
-2. `resolve_fx_account(business_id, purpose)` — one resolution order for all four FX P&L
-   roles: Default Accounts mapping → legacy `default_accounts.purpose` → eligibility
-   catalogue → name heuristic → raise. `resolve_fx_realized_account` and
-   `resolve_fx_unrealized_account` are wrappers over it.
-3. `revalue_fx_balances` derives the reporting currency from `businesses.base_currency`,
-   rejects a mismatched caller value, and resolves both FX accounts server-side.
-4. `useFxRevaluation.runRevaluation` takes only a run date; the control panel shows the
-   entity's reporting currency read-only and names where the accounts come from.
-5. All four FX accounts are mappable in Settings → Default Accounts.
-   Verified: `bunx tsgo --noEmit -p tsconfig.app.json` clean.
+## 2. New critical findings (all [V] with the evidence noted)
 
-### Phase D / Step 5 — exposure dimensions (complete)
-6. `public.fx_exposure_dimensions(_business_id, _as_of, _currency)` — counterparty
-   (`journal_entry_lines.contact_id`, unattributed rows labelled) and ageing
-   (0-30 / 31-60 / 61-90 / 90+ from the posting date) cuts. Same open-balance scope,
-   same `fx_is_monetary_account` filter and the same `describe_exchange_rate` resolution
-   as `fx_exposure_by_currency` and `revalue_fx_balances`, so the three can never disagree.
-   Currencies with no rate return `NULL` conversions and are listed in `missing_rates`.
-   `SECURITY DEFINER`, `user_can_access_business` gated, `EXECUTE` revoked from anon.
-7. `useFxExposureDimensions` + two sections on `/finance/reports/fx-exposure`; selecting a
-   currency filters both cuts. The browser buckets nothing and resolves no rate.
-8. Guards in `src/test/architecture/fx-single-engine.test.ts` (24 passing): the browser may
-   not send `_base_currency` or an `_unrealized_*_account`, the panel may not offer a
-   free-text currency or per-run account picker, and the exposure page may not carry
-   ageing-bucket or rate logic of its own.
+**C1 — `convert_po_to_bill_atomic` is a second FX engine with silent parity.**
+It reads `public.exchange_rates` directly (`ORDER BY effective_date DESC LIMIT 1`,
+`CURRENT_DATE`, no `source` precedence) and then `v_rate := COALESCE(v_rate, 1)`,
+writing `bills.currency_rate` / `company_currency_total`.
+Mitigating [V]: `trg_bills_stamp_currency` is **BEFORE INSERT** and unconditionally
+re-stamps through `fx_stamp_document`, so the wrong rate is overwritten today.
+Consequence: dead-but-loaded gun — duplicate engine, wrong-date rate, parity
+fallback, and a `company_currency_total` computed twice. Must be deleted, not kept.
 
-### Phase E / Step 6 — operating-currency enablement (complete)
-9. `_seed_business_base_currency` (AFTER INSERT OR UPDATE OF `base_currency` on
-   `businesses`) guarantees every company carries an enabled row for its own base
-   currency. Existing companies were backfilled; `business_active_currencies` is no
-   longer empty anywhere, so the gate is live rather than inert.
-10. `_bac_protect_base_currency` (BEFORE INSERT/UPDATE/DELETE) normalises the code,
-    rejects codes absent from the platform catalogue, and refuses to disable or delete
-    the base-currency row on any path — RPC, Data API or admin SQL.
-    Verified live: `UPDATE ... SET is_enabled = false` on the base row raises 22023.
-11. `_expenses_derive_base_amount` lost the `count(*) > 0` escape hatch. Expenses now
-    refuse a non-enabled currency unconditionally, matching `bank_accounts` and
-    `procurement_contracts`. Safe because the seed guarantees the base row exists.
-12. `list_business_active_currencies(_business_id)` — `SECURITY DEFINER`,
-    `user_can_access_business` gated, `authenticated` only — returns the enabled set with
-    a server-resolved `is_base` flag. Settings → Currency reads through it and writes only
-    through `set_business_active_currency`; it no longer touches the table directly.
-13. Guard added (25 passing): the settings screen may not query
-    `business_active_currencies` at all, read or write.
+**C2 — applying a credit note to an invoice never realizes FX.**
+`apply_credit_to_invoice_atomic` posts both legs (customer-credit debit, AR credit)
+at `v_cn.currency` with `_exchange_rate := NULL`, i.e. the *credit note's* rate.
+[A] Settling a foreign monetary receivable with a credit issued at a different rate
+realizes an FX gain/loss; AR must be relieved at the invoice's booking rate.
+Consequence: AR sub-ledger and GL diverge in base currency by the rate delta, and
+realized FX is understated. Compare the correct pattern in
+`record_multi_invoice_payment` (relieves each invoice at `invoices.exchange_rate`,
+computes `v_fx_delta`, posts to `resolve_fx_realized_account`).
 
-## Currently active phase
+**C3 — refunds and vendor refunds have no realized-FX leg and carry a currency literal.**
+`refund_customer_atomic` falls back to `'KES'` twice when the source has no currency
+and never resolves a refund-date rate; `refund_from_vendor_atomic` is the same shape.
+[V] Neither references `resolve_fx_realized_account`.
+[A] A refund settles a monetary liability at the refund-date rate → realized FX.
+Consequence: hardcoded currency (ADR 0136 violation) plus unrecognised realized FX.
 
-None in flight — Phase E closed cleanly. Nothing is half-built.
+**C4 — settlement rate is caller-supplied.**
+`record_multi_invoice_payment` / `record_multi_bill_payment` accept `_exchange_rate`
+and prefer it over `resolve_exchange_rate` (`COALESCE(_exchange_rate, resolve…)`).
+[V] `useGLPosting.ts:255` and `useVendorCreditNotes.ts:214` pass rates from the browser.
+[A]/ADR 0136 §4: booking and settlement rates are stamped server-side; the browser may
+display a rate, never determine a posted amount.
 
-## Pending, in the order it should be taken
+**C5 — advances and POS.** `record_advance_payment`, `record_vendor_advance_payment`,
+`apply_vendor_advance_atomic` mention no currency or rate at all [V]; a foreign-currency
+advance is a monetary item [A] and its application at a later rate realizes FX.
+`pos_payment_session_open` takes `p_fx_rate` from the client with `COALESCE(p_fx_rate,1)` [V].
+Classification of these as in-scope defects is **unverified** until their journal impact
+is traced (Phase 1 below).
 
-1. **Step 7 — realized-FX GL tie-out proof (next).** Unprovable today for lack of data,
-   not failing: no tenant has a posted journal line on a realized FX account, so
-   realized-report vs GL is 0 = 0. Seed a foreign-currency settlement in a test fixture,
-   re-run the tie-out, and land it as a SQL test under `supabase/tests/`.
-2. **Step 8 — period-close interlock.** A period should not close while
-   `fx_exposure_by_currency` reports a currency with no rate on file.
+**C6 — minor.** `set_business_active_currency` carries an `anon` EXECUTE grant. It
+fails closed on `auth.uid() IS NULL` [V], so this is hygiene, not a hole.
 
-## Instructions for the next agent
+Not defects: `resolve_sales_exchange_rate` is a one-line delegation; the bill /
+credit-note / VCN / purchase-return / PO / SO / estimate / landed-cost stampers all
+route through `fx_stamp_document` (BEFORE triggers, verified in `pg_trigger`).
 
-1. **Verify before continuing.** Do not trust this file. Confirm in the live database that
-   `list_business_active_currencies`, `_seed_business_base_currency` and
-   `_bac_protect_base_currency` exist with the described bodies and triggers attached, that
-   every business has an enabled base-currency row, that disabling a base row raises, and
-   that `_expenses_derive_base_amount` no longer contains a `count(*)` hatch. Also re-verify
-   Phase C/D: `resolve_fx_account`, `resolve_fx_unrealized_account`,
-   `fx_exposure_dimensions`, and that `revalue_fx_balances` raises on a caller-supplied
-   currency differing from `businesses.base_currency`. `EXECUTE` on each should be
-   `authenticated` only. Then run
-   `bunx vitest run src/test/architecture/fx-single-engine.test.ts` (expect 25 passing) and
-   `bunx tsgo --noEmit -p tsconfig.app.json`.
-2. **Then resume at Step 7**, not at unrelated work. Bring it to a production-ready state —
-   fixture, tie-out query and SQL test together — before opening Step 8.
-3. Keep the invariants: one rate book, one resolver, server-side booking rates, missing rate
-   renders as an absence, no per-run account or currency choice in the browser, and every
-   company always able to transact in its own base currency.
+## 3. FX contract (the invariant set to enforce)
 
+1. Denomination is authoritative on the **business document** (`currency`) and is
+   frozen with the document's rate by the BEFORE stamper.
+2. The **booking rate** is `fx_stamp_document` → `require_exchange_rate` on the
+   document date. No caller, browser or otherwise, supplies it.
+3. The **settlement rate** is `resolve_exchange_rate` on the settlement date, server-side.
+4. Relief of a monetary balance is always at the **original booking rate**; the delta
+   against the settlement rate is realized FX to `resolve_fx_realized_account`.
+5. A missing rate raises. There is no `COALESCE(rate, 1)` and no currency literal.
+6. Journal lines carry `original_currency` / `original_debit` / `original_credit`;
+   `post_journal_entry_atomic` is the only converter.
+
+## 4. Execution order (dependency-derived)
+
+- **Phase 1 — finish the producer map (investigation, no code).** Trace advances, POS
+  settlement, `bank_match_confirm`, `approve_sales_return_atomic`,
+  `purchase_return_raise_credit`, `expense_reimburse_direct` and write-offs to their
+  journal lines; record for each whether a foreign monetary balance is relieved and at
+  which rate. Promote or drop C5 on the evidence.
+- **Phase 2 — C1.** Delete the hand-rolled lookup in `convert_po_to_bill_atomic`; let the
+  stamper own currency/rate/`company_currency_total`.
+- **Phase 3 — C4.** Remove `_exchange_rate` from the settlement RPC signatures and from
+  the two client call sites; resolve server-side only.
+- **Phase 4 — C2 then C3.** Give credit application, customer refunds and vendor refunds
+  the same relieve-at-booking-rate + realized-FX-delta shape as the payment engines.
+  One shared helper (`_settle_monetary_leg`) rather than three copies.
+- **Phase 5 — whatever Phase 1 promotes** (advances / POS / bank match).
+- **Phase 6 — Step 7 carry-over.** Realized-FX vs GL tie-out, provable once Phase 4 seeds
+  a foreign settlement fixture.
+- **Phase 7 — Step 8 carry-over.** Period-close interlock on a currency with no rate.
+
+## 5. Tests required
+
+- SQL (`supabase/tests/`): cross-rate credit application posts a realized-FX line and
+  leaves AR base-balanced; a foreign refund with no rate raises instead of using `'KES'`;
+  `convert_po_to_bill_atomic` never reads `exchange_rates`; realized-FX report ties to GL.
+- Guards (`src/test/architecture/fx-single-engine.test.ts`): no client call site may pass
+  `_exchange_rate`; no `COALESCE(<rate>, 1)` in any posting path.
+- Isolation: every new/edited RPC keeps `user_can_access_business` and
+  `authenticated`-only EXECUTE; drop the `anon` grant on `set_business_active_currency`.
+
+## 6. Scope boundary
+
+FX source → settlement → posting → FX engine → FX reporting only. No reporting-engine
+rewrite, no new rate table, no second resolver, no client-side conversion, no unrelated
+module work.
+
+## 7. Status
+
+Verification complete. No implementation performed this wave. Awaiting approval to start
+Phase 1.
