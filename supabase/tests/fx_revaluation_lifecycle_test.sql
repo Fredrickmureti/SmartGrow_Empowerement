@@ -159,3 +159,110 @@ BEGIN
   END LOOP;
 END $$;
 
+
+-- 7) Readiness is a projection of the revaluation engine, not a second opinion.
+--    The historical defect: readiness read a non-existent
+--    `businesses.default_currency` (so every period-close check raised) and
+--    scoped on the raw asset/liability rule, so it warned about balances the
+--    engine would never revalue (and stayed silent on ones it would).
+DO $$
+DECLARE v_ready text; v_reval text;
+BEGIN
+  SELECT p.prosrc INTO v_ready FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'fx_revaluation_readiness';
+  SELECT p.prosrc INTO v_reval FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'revalue_fx_balances';
+
+  IF v_ready IS NULL THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness is missing';
+  END IF;
+
+  IF v_ready ~ 'default_currency' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness references businesses.default_currency, which does not exist';
+  END IF;
+  IF v_ready !~ 'base_currency' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness does not derive the reporting currency from businesses.base_currency';
+  END IF;
+
+  -- Same eligibility rule, same currency source, same open-balance threshold
+  -- as the engine, so the warning can never disagree with the run.
+  IF v_ready !~ 'fx_is_monetary_account' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness does not restrict scope to monetary accounts';
+  END IF;
+  IF v_ready ~ 'a\.account_type IN \(''asset'',''liability''\)' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness still uses the asset-or-liability rule';
+  END IF;
+  IF v_ready !~ 'jel\.original_currency' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness measures exposure on the header currency instead of the line currency';
+  END IF;
+  IF v_ready !~ 'resolve_exchange_rate' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness resolves rates outside the single resolver';
+  END IF;
+  IF v_ready !~ 'jel\.account_id' OR v_ready !~ 'GROUP BY jel\.account_id' THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness does not measure balances per account like the engine does';
+  END IF;
+  IF (v_ready ~ '0\.01') IS DISTINCT FROM (v_reval ~ '0\.01') THEN
+    RAISE EXCEPTION 'fx_revaluation_readiness and revalue_fx_balances disagree on the open-balance threshold';
+  END IF;
+END $$;
+
+-- 8) No FX-facing routine may reference a column the schema does not have.
+--    `businesses` carries `base_currency` only; a stale `default_currency`
+--    reference is a runtime landmine that only fires at period close.
+DO $$
+DECLARE r record;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'businesses' AND column_name = 'default_currency'
+  ) THEN
+    RAISE EXCEPTION 'businesses.default_currency exists again — the FX currency source must stay single';
+  END IF;
+
+  FOR r IN
+    SELECT p.proname, p.prosrc
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND (p.proname LIKE 'fx_%' OR p.proname LIKE '%_fx_%' OR p.proname LIKE '%exchange_rate%')
+       AND p.prosrc ~ 'public\.businesses'
+  LOOP
+    IF r.prosrc ~ 'default_currency' THEN
+      RAISE EXCEPTION '% reads businesses.default_currency, which does not exist', r.proname;
+    END IF;
+  END LOOP;
+END $$;
+
+-- 9) ADR 0136 parity ratchet on the posting paths: no engine may value a
+--    foreign document at 1:1 because its rate is absent.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT p.proname, p.prosrc
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname IN ('post_expense_gl', 'revalue_fx_balances', 'reverse_fx_revaluation_run')
+  LOOP
+    IF r.prosrc ~* 'COALESCE\s*\(\s*[a-z_.]*exchange_rate\s*,\s*1\s*\)'
+       OR r.prosrc ~* 'COALESCE\s*\(\s*NULLIF\s*\(\s*[a-z_.]*(currency_rate|exchange_rate)[^)]*\)\s*,\s*1\s*\)' THEN
+      RAISE EXCEPTION '% falls back to a 1:1 exchange rate (ADR 0136)', r.proname;
+    END IF;
+  END LOOP;
+END $$;
+
+-- 10) The expense posting path refuses, loudly, when no rate is on file.
+DO $$
+DECLARE v_src text;
+BEGIN
+  SELECT p.prosrc INTO v_src FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'post_expense_gl';
+  IF v_src IS NULL THEN
+    RAISE EXCEPTION 'post_expense_gl is missing';
+  END IF;
+  IF v_src !~* 'no exchange rate on file' THEN
+    RAISE EXCEPTION 'post_expense_gl does not refuse an expense with no exchange rate';
+  END IF;
+  IF v_src !~ 'post_journal_entry_atomic' THEN
+    RAISE EXCEPTION 'post_expense_gl must post only through post_journal_entry_atomic (ADR 0123)';
+  END IF;
+END $$;
