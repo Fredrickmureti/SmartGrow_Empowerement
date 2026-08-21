@@ -368,6 +368,11 @@ const CONFIG_KEY_TO_SETTING_KEY: Record<string, string> = {
   inventory_adjustment: "inventory_adjustment",
   cash_short_over: "cash_short_over",
   other_income: "other_income",
+  fx_realized_gain: "fx_realized_gain",
+  fx_realized_loss: "fx_realized_loss",
+  fx_unrealized_gain: "fx_unrealized_gain",
+  fx_unrealized_loss: "fx_unrealized_loss",
+
   credit_card_clearing: "credit_card_clearing",
   mobile_money: "mobile_money",
   mpesa: "mpesa",
