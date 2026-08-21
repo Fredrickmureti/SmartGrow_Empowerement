@@ -8,6 +8,7 @@ import { Loader2, History } from "lucide-react";
 import { format } from "date-fns";
 import { useBankMatchHistory } from "@/hooks/useBankMatchHistory";
 import { BankMatchDecisionCard } from "@/components/banking/BankMatchDecisionCard";
+import { HistoryNarrativePanel } from "@/components/banking/ReconciliationAiAdvisory";
 
 interface Props {
   bankTransactionId?: string;
@@ -60,6 +61,12 @@ export function BankMatchHistoryPanel({ bankTransactionId, formatAmount, enabled
         </div>
       ) : (
         <div className="space-y-3">
+          {/*
+            Phase 6 — an optional narration of the record below, asked for by
+            the operator. The cards remain the evidence; this only reads them
+            back in prose. It changes nothing and is never shown by default.
+          */}
+          <HistoryNarrativePanel bankTransactionId={bankTransactionId} />
           {data.decisions.map((decision) => (
             <BankMatchDecisionCard
               key={decision.match_id}
@@ -69,6 +76,7 @@ export function BankMatchHistoryPanel({ bankTransactionId, formatAmount, enabled
           ))}
         </div>
       )}
+
     </div>
   );
 }
