@@ -27,6 +27,8 @@ BEGIN
     WHERE n.nspname = 'public'
       AND p.prosecdef
       AND (p.proname LIKE 'fx\_%' OR p.proname LIKE '%exchange\_rate%' OR p.proname LIKE '%revaluation%')
+      AND p.proname NOT LIKE '%inventory%'      -- inventory cost revaluation is a different engine
+      AND p.prorettype <> 'trigger'::regtype    -- trigger bodies are not a callable surface
       AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
       AND pg_get_functiondef(p.oid) !~* '(user_can_access_business|has_finance_permission)'
   ) s;
