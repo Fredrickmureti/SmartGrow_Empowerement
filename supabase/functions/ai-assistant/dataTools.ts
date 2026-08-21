@@ -22,10 +22,16 @@ export interface ToolScope {
   organizationId: string;
   businessId?: string | null;
   branchId?: string | null;
-  /** Branch ids the caller may see; empty means "all" (admin). */
+  /**
+   * Branch ids the caller may see. Fail-CLOSED: for a non-admin an empty list
+   * means "no branch is visible", not "all branches".
+   */
   accessibleBranchIds?: string[];
   isAdmin: boolean;
+  /** Modules this caller may read; resolved server-side per request. */
+  capabilities: CapabilitySet;
 }
+
 
 interface TableSpec {
   /** Columns the model may project and filter on. */
