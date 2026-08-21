@@ -25,7 +25,11 @@ export interface ApAgingBill {
   paid: number;
   credited: number;
   balance: number;
-  baseBalance: number;
+  /**
+   * ADR 0136: `null` when this document's currency has no rate on file. It is
+   * an absence — the browser must say so, never fall back to `balance`.
+   */
+  baseBalance: number | null;
   currency: string | null;
   daysPastDue: number;
   bucket: AgingBucketKey;
@@ -33,37 +37,47 @@ export interface ApAgingBill {
   journalEntryId: string | null;
 }
 
+/**
+ * Base-currency money on this report is `number | null`. `null` means the
+ * figure cannot be stated because a contributing document has no exchange rate
+ * on file; `unconvertibleCount` says how many. A total is never the sum of the
+ * convertible remainder presented as complete.
+ */
 export interface ApAgingVendor {
   vendorId: string;
   vendorName: string;
-  not_due: number;
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  gross: number;
-  credit: number;
-  total: number;
+  not_due: number | null;
+  current: number | null;
+  days30: number | null;
+  days60: number | null;
+  days90: number | null;
+  gross: number | null;
+  credit: number | null;
+  total: number | null;
+  unconvertibleCount: number;
   bills: ApAgingBill[];
 }
 
 export interface ApAgingTotals {
-  not_due: number;
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  gross: number;
-  credit: number;
-  total: number;
+  not_due: number | null;
+  current: number | null;
+  days30: number | null;
+  days60: number | null;
+  days90: number | null;
+  gross: number | null;
+  credit: number | null;
+  total: number | null;
   vendorCount: number;
+  unconvertibleCount: number;
 }
 
 export interface ApAgingReconciliation {
-  agingTotal: number;
-  controlAccountBalance: number;
-  variance: number;
+  agingTotal: number | null;
+  controlAccountBalance: number | null;
+  variance: number | null;
   inBalance: boolean;
+  /** Documents excluded from the base-currency tie-out for want of a rate. */
+  unconvertibleDocumentCount: number;
 }
 
 /** Description of the page the server returned, plus the searched cohort. */
@@ -75,8 +89,8 @@ export interface ApAgingPage {
   hasMore: boolean;
   /** Vendors matching the search across ALL pages. */
   filteredVendorCount: number;
-  /** Net payable for the searched cohort across ALL pages. */
-  filteredTotal: number;
+  /** Net payable for the searched cohort across ALL pages; `null` if unstatable. */
+  filteredTotal: number | null;
 }
 
 export interface ApAgingResult {
@@ -98,9 +112,18 @@ export const EMPTY_AP_AGING_TOTALS: ApAgingTotals = {
   credit: 0,
   total: 0,
   vendorCount: 0,
+  unconvertibleCount: 0,
 };
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
+
+/**
+ * Base-currency money reader. ADR 0136: the engine returns SQL NULL when a
+ * contributing document has no rate on file; that absence is preserved, never
+ * coerced to 0 (which would read as "nothing owed").
+ */
+const money = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v) || 0;
 
 export interface UseApAgingArgs {
   organizationId?: string | null;
@@ -158,14 +181,15 @@ export async function fetchApAging({
   const vendors: ApAgingVendor[] = rawVendors.map((v) => ({
     vendorId: String(v.vendor_id ?? "unknown"),
     vendorName: String(v.vendor_name ?? "Unknown Vendor"),
-    not_due: num(v.not_due),
-    current: num(v.current),
-    days30: num(v.days30),
-    days60: num(v.days60),
-    days90: num(v.days90),
-    gross: num(v.gross),
-    credit: num(v.credit),
-    total: num(v.total),
+    not_due: money(v.not_due),
+    current: money(v.current),
+    days30: money(v.days30),
+    days60: money(v.days60),
+    days90: money(v.days90),
+    gross: money(v.gross),
+    credit: money(v.credit),
+    total: money(v.total),
+    unconvertibleCount: num(v.unconvertible_count),
     bills: ((v.bills ?? []) as Record<string, unknown>[]).map((b) => ({
       id: String(b.id),
       billNumber: String(b.bill_number ?? String(b.id).slice(0, 8)),
@@ -175,7 +199,7 @@ export async function fetchApAging({
       paid: num(b.paid),
       credited: num(b.credited),
       balance: num(b.balance),
-      baseBalance: num(b.base_balance),
+      baseBalance: money(b.base_balance),
       currency: (b.currency as string) ?? null,
       daysPastDue: num(b.days_past_due),
       bucket: (b.bucket as AgingBucketKey) ?? "current",
@@ -194,15 +218,16 @@ export async function fetchApAging({
     currency: (payload.currency as string) ?? null,
     vendors,
     totals: {
-      not_due: num(rawTotals.not_due),
-      current: num(rawTotals.current),
-      days30: num(rawTotals.days30),
-      days60: num(rawTotals.days60),
-      days90: num(rawTotals.days90),
-      gross: num(rawTotals.gross),
-      credit: num(rawTotals.credit),
-      total: num(rawTotals.total),
+      not_due: money(rawTotals.not_due),
+      current: money(rawTotals.current),
+      days30: money(rawTotals.days30),
+      days60: money(rawTotals.days60),
+      days90: money(rawTotals.days90),
+      gross: money(rawTotals.gross),
+      credit: money(rawTotals.credit),
+      total: money(rawTotals.total),
       vendorCount: num(rawTotals.vendor_count),
+      unconvertibleCount: num(rawTotals.unconvertible_count),
     },
     page: {
       limit: rawPage.limit == null ? null : num(rawPage.limit),
@@ -211,15 +236,16 @@ export async function fetchApAging({
       returned: num(rawPage.returned) || vendors.length,
       hasMore: Boolean(rawPage.has_more),
       filteredVendorCount: num(rawFiltered.vendor_count),
-      filteredTotal: num(rawFiltered.total),
+      filteredTotal: money(rawFiltered.total),
     },
     reconciliation:
       !recon.error && reconRow
         ? {
-            agingTotal: num(reconRow.aging_total),
-            controlAccountBalance: num(reconRow.control_account_balance),
-            variance: num(reconRow.variance),
+            agingTotal: money(reconRow.aging_total),
+            controlAccountBalance: money(reconRow.control_account_balance),
+            variance: money(reconRow.variance),
             inBalance: Boolean(reconRow.in_balance),
+            unconvertibleDocumentCount: num(reconRow.unconvertible_document_count),
           }
         : null,
   };
