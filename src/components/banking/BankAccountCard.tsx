@@ -217,9 +217,9 @@ export function BankAccountCard({
                 {balanceLabel}
               </p>
               <p className="text-2xl font-bold">
-                {displayBalance == null
+                {displayBalance == null || !account.currency
                   ? "—"
-                  : formatAmount(displayBalance, account.currency || "USD")}
+                  : formatAmount(displayBalance, account.currency)}
               </p>
               {account.account_id == null && (
                 <p className="text-xs text-amber-600 mt-0.5">⚠ No GL link — balance is not ledger-derived</p>
