@@ -313,12 +313,14 @@ async function getFinancialContext(
         .eq("id", organizationId)
         .single(),
       
-      // Bank accounts with balances
+      // Bank account identity only. Balances NEVER come from a column here —
+      // they come from the `bank_account_positions` projection below.
       biz(supabaseClient
         .from("bank_accounts")
-        .select("id, name, bank_name, current_balance, currency, is_primary")
+        .select("id, name, bank_name, currency, is_primary")
         .eq("organization_id", organizationId)
         .eq("is_active", true)),
+
       
       // Recent invoices (last 30 days + all unpaid)
       biz(supabaseClient
