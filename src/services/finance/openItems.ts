@@ -613,7 +613,11 @@ export async function fetchNetPositionByCurrency(
       openAmount: Number(r.open_amount) || 0,
       creditAmount: Number(r.credit_amount) || 0,
       netAmount: Number(r.net_amount) || 0,
-      baseNetAmount: Number(r.base_net_amount) || 0,
+      baseNetAmount:
+        r.base_net_amount === null || r.base_net_amount === undefined
+          ? null
+          : Number(r.base_net_amount),
+      unconvertibleDocumentCount: Number(r.unconvertible_document_count) || 0,
       notDue: Number(r.not_due) || 0,
       current: Number(r.current_bucket) || 0,
       days30: Number(r.days30) || 0,
