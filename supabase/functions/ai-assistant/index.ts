@@ -2164,6 +2164,15 @@ serve(async (req) => {
       });
     }
 
+    // Usage attribution scope: derived server-side only.
+    const usageScope: UsageScope = {
+      organizationId: organizationId ?? null,
+      businessId: businessId ?? null,
+      branchId: branchId ?? null,
+      userId: callerUserId ?? null,
+      appKey: (workingContext?.appKey as string | undefined) ?? null,
+    };
+
     // Ground the answer in live, tenant-scoped rows before streaming it.
     if (type === "chat" && organizationId) {
       const scope: ToolScope = {
@@ -2173,7 +2182,7 @@ serve(async (req) => {
         accessibleBranchIds,
         isAdmin: isAdminRole(userRole),
       };
-      aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, {
+      aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, usageScope, {
         base_currency: currencyCtx.baseCurrency,
         mixed_across_businesses: currencyCtx.mixed,
         business_currencies: currencyCtx.businessCurrencies,
