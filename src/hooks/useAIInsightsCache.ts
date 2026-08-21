@@ -49,10 +49,11 @@ interface UseAIInsightsCacheResult<T> {
   updatedAt: Date | null;
 }
 
-type ScopedQuery<Q extends {
-  eq: (c: string, v: string) => Q;
-  is: (c: string, v: null) => Q;
-}> = Q;
+/** Minimal structural shape shared by PostgREST select/delete builders. */
+interface ScopeFilterable {
+  eq(column: string, value: string): ScopeFilterable;
+  is(column: string, value: null): ScopeFilterable;
+}
 
 export function useAIInsightsCache<T>({
   insightType,
@@ -82,12 +83,12 @@ export function useAIInsightsCache<T>({
 
   // Apply the full scope tuple to a select/delete builder.
   const applyScope = useCallback(
-    <Q extends ScopedQuery<Q>>(query: Q): Q => {
-      let q = query;
+    <Q>(query: Q): Q => {
+      let q = query as unknown as ScopeFilterable;
       q = businessId ? q.eq("business_id", businessId) : q.is("business_id", null);
       q = branchId ? q.eq("branch_id", branchId) : q.is("branch_id", null);
       q = scopedAppKey ? q.eq("app_key", scopedAppKey) : q.is("app_key", null);
-      return q;
+      return q as unknown as Q;
     },
     [businessId, branchId, scopedAppKey]
   );
