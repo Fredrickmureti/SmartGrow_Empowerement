@@ -100266,28 +100266,52 @@ export type Database = {
       }
       post_count_session: { Args: { p_session_id: string }; Returns: Json }
       post_expense_gl: { Args: { p_expense_id: string }; Returns: Json }
-      post_journal_entry_atomic: {
-        Args: {
-          _branch_id?: string
-          _business_id: string
-          _created_by: string
-          _currency?: string
-          _description: string
-          _entry_date: string
-          _entry_number: string
-          _exchange_rate?: number
-          _is_adjusting: boolean
-          _is_closing: boolean
-          _is_opening_entry?: boolean
-          _lines: Json
-          _org_id: string
-          _reference: string
-          _source_id: string
-          _source_subtype?: string
-          _source_type: string
-        }
-        Returns: string
-      }
+      post_journal_entry_atomic:
+        | {
+            Args: {
+              _branch_id?: string
+              _business_id: string
+              _created_by: string
+              _currency?: string
+              _description: string
+              _entry_date: string
+              _entry_number: string
+              _exchange_rate?: number
+              _is_adjusting: boolean
+              _is_closing: boolean
+              _is_opening_entry?: boolean
+              _lines: Json
+              _org_id: string
+              _reference: string
+              _source_id: string
+              _source_subtype?: string
+              _source_type: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _amounts_in_document_currency?: boolean
+              _branch_id?: string
+              _business_id: string
+              _created_by: string
+              _currency?: string
+              _description: string
+              _entry_date: string
+              _entry_number: string
+              _exchange_rate?: number
+              _is_adjusting: boolean
+              _is_closing: boolean
+              _is_opening_entry?: boolean
+              _lines: Json
+              _org_id: string
+              _reference: string
+              _source_id: string
+              _source_subtype?: string
+              _source_type: string
+            }
+            Returns: string
+          }
       post_journal_entry_status: {
         Args: { _entry_id: string; _user_id: string }
         Returns: undefined
