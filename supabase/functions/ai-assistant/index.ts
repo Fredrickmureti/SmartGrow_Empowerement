@@ -16,6 +16,14 @@ import {
   type ToolSpec,
 } from "./dataTools.ts";
 import {
+  canReadModule,
+  resolveCapabilities,
+  UNRESTRICTED_CAPABILITIES,
+  NO_CAPABILITIES,
+  type CapabilitySet,
+} from "./capabilities.ts";
+
+import {
   fetchBankPositions,
   fetchLedgerBalances,
   fetchPayables,
@@ -274,6 +282,70 @@ interface FinancialContext {
 function isAdminRole(role: string | undefined): boolean {
   return ['super_admin', 'owner', 'admin'].includes(role || '');
 }
+
+/** Which module each snapshot collection belongs to. */
+const CONTEXT_FIELD_MODULE: Record<string, string> = {
+  bankAccounts: "financials",
+  recentExpenses: "financials",
+  accounts: "financials",
+  fixedAssets: "financials",
+  recentInvoices: "sales",
+  recentPayments: "sales",
+  estimates: "sales",
+  salesOrders: "sales",
+  creditNotes: "sales",
+  crmLeads: "sales",
+  pendingBills: "purchases",
+  purchaseOrders: "purchases",
+  contacts: "contacts",
+  products: "products",
+  lowStockProducts: "inventory",
+  posTransactions: "pos",
+  employees: "hr",
+  leaveRequests: "leave",
+  projects: "projects",
+  projectTasks: "projects",
+};
+
+/** Summary figures that must be hidden with their module. */
+const CONTEXT_SUMMARY_MODULE: Record<string, string> = {
+  totalBankBalance: "financials",
+  recentExpenses: "financials",
+  totalAssetValue: "financials",
+  totalReceivables: "sales",
+  overdueReceivables: "sales",
+  recentRevenue: "sales",
+  openLeads: "sales",
+  totalPayables: "purchases",
+  totalProducts: "products",
+  lowStockCount: "inventory",
+  todayPOSSales: "pos",
+  totalEmployees: "hr",
+  pendingLeaveRequests: "leave",
+  activeProjects: "projects",
+};
+
+/**
+ * Remove every part of the context snapshot the caller may not read. Blanked
+ * collections become empty arrays and blanked figures become `null`, which the
+ * prompt builder already renders as "unavailable" rather than as zero.
+ */
+function scrubContextByCapabilities(
+  context: FinancialContext | null,
+  caps: CapabilitySet,
+): FinancialContext | null {
+  if (!context || caps.unrestricted) return context;
+  const out: any = { ...context, summary: { ...context.summary } };
+  for (const [field, module] of Object.entries(CONTEXT_FIELD_MODULE)) {
+    if (!canReadModule(caps, module) && Array.isArray(out[field])) out[field] = [];
+  }
+  for (const [field, module] of Object.entries(CONTEXT_SUMMARY_MODULE)) {
+    if (!canReadModule(caps, module)) out.summary[field] = null;
+  }
+  return out as FinancialContext;
+}
+
+
 
 // Fetch financial context for the organization with branch filtering
 async function getFinancialContext(
@@ -597,14 +669,16 @@ async function getFinancialContext(
     const accounts = accountsResult.data || [];
     const branches = branchesResult.data || [];
 
-    // Apply branch filtering for non-admin users
-    if (!isAdmin && branchIds.length > 0) {
+    // Apply branch filtering for non-admin users. FAIL CLOSED: with no viewable
+    // branch the caller sees no branch-scoped rows — the old `length > 0` guard
+    // skipped filtering entirely and leaked every branch to an unassigned user.
+    if (!isAdmin) {
       // Filter POS transactions by branch
       posTransactions = posTransactions.filter((t: any) => 
         t.register?.branch_id && branchIds.includes(t.register.branch_id)
       );
 
-      // Filter employees by branch
+      // Filter employees by branch (branch-less records stay company-wide)
       employees = employees.filter((e: any) => 
         !e.branch_id || branchIds.includes(e.branch_id)
       );
@@ -614,6 +688,7 @@ async function getFinancialContext(
         !lr.employee?.branch_id || branchIds.includes(lr.employee.branch_id)
       );
     }
+
 
     // ─── Ledger-grounded financial truth ───────────────────────────────────
     // Every money figure below comes from a sanctioned projection, and a failed
@@ -1764,7 +1839,9 @@ async function runDataToolLoop(
   currencySummary: Record<string, unknown>,
   maxRounds = 4,
 ): Promise<Array<Record<string, any>>> {
-  const tools = buildDataToolSpecs();
+  // Only advertise tools this caller is allowed to use.
+  const tools = buildDataToolSpecs(scope.capabilities);
+
   let working = [...aiMessages];
 
   for (let round = 0; round < maxRounds; round++) {
@@ -1830,7 +1907,7 @@ function createAssistantPersistenceStream(
   scope: {
     conversationId: string;
     organizationId: string | null;
-    workingContext: Record<string, unknown>;
+    workingContext: WorkingContext | Record<string, unknown>;
   },
 ): TransformStream<Uint8Array, Uint8Array> {
   const decoder = new TextDecoder();
@@ -1971,6 +2048,55 @@ serve(async (req) => {
       }
     }
 
+    // ─── Requested scope validation ───
+    // `businessId` / `branchId` arrive from the browser. They are working
+    // context, but they also narrow every read below, so a caller must not be
+    // able to point them at a business or branch they cannot see.
+    if (callerUserId && organizationId && businessId) {
+      const { data: bizRow } = await supabaseClient
+        .from("businesses")
+        .select("id")
+        .eq("id", businessId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (!bizRow) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: business is not part of this organization" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!isAdminRole(userRole)) {
+        const { data: access } = await supabaseClient
+          .from("user_business_access")
+          .select("business_id")
+          .eq("user_id", callerUserId)
+          .eq("business_id", businessId)
+          .maybeSingle();
+        if (!access) {
+          return new Response(
+            JSON.stringify({ error: "forbidden: no access to this business" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+    }
+    if (callerUserId && branchId && !isAdminRole(userRole) && !(accessibleBranchIds ?? []).includes(branchId)) {
+      return new Response(
+        JSON.stringify({ error: "forbidden: no access to this branch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ─── Capability scope: which modules may this caller read? ───
+    // Derived per request from the caller's own permissions. Independent of the
+    // conversation's app_key: cross-app questions stay allowed when authorized.
+    const capabilities: CapabilitySet = !callerUserId
+      ? UNRESTRICTED_CAPABILITIES // service-role / cron caller
+      : organizationId
+        ? await resolveCapabilities(supabaseClient, callerUserId, organizationId)
+        : NO_CAPABILITIES;
+
+
     // ─── Conversation gate: the caller must be allowed to read the thread ───
     // History is loaded from the database, never from the request body, so a
     // stale or foreign thread cannot be smuggled into the prompt.
@@ -2066,7 +2192,11 @@ serve(async (req) => {
         userRole,
         accessibleBranchIds
       );
+      // The snapshot is assembled with the service-role key, so trim it to the
+      // modules this caller may read before it ever reaches the prompt.
+      financialContext = scrubContextByCapabilities(financialContext, capabilities);
     }
+
 
     let systemPrompt = systemPrompts[type] || systemPrompts.chat;
 
@@ -2181,7 +2311,9 @@ serve(async (req) => {
         branchId: branchId ?? null,
         accessibleBranchIds,
         isAdmin: isAdminRole(userRole),
+        capabilities,
       };
+
       aiMessages = await runDataToolLoop(supabaseClient, aiMessages, settings, scope, usageScope, {
         base_currency: currencyCtx.baseCurrency,
         mixed_across_businesses: currencyCtx.mixed,
