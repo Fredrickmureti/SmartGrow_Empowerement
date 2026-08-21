@@ -44,50 +44,82 @@ Next active phase is **Phase 8 — reporting-projection parity remediation** (se
     `post_journal_entry_atomic`.
 - All ten blocks were executed against the live database and pass.
 
-### Step 3 (partial) — Expense posting parity hole closed (done, verified 2026-08-21)
+### Step 3 — Expense posting parity hole closed (done, verified 2026-08-21)
 - `post_expense_gl` no longer carries `COALESCE(e.exchange_rate, 1)`. A NULL or
   non-positive rate now raises `23514` with a legible message instead of posting a
   foreign expense at 1:1. The stamping trigger `_expenses_derive_base_amount`
   already resolves through `require_exchange_rate`, so this closes the last-mile
   hole rather than duplicating the check.
 
+### Step 3 (remainder) — Behavioural revaluation suite (done, written 2026-08-21)
+`supabase/tests/fx_revaluation_behaviour_test.sql` seeds its own fixtures in a
+self-aborting transaction and asserts behaviour, not shape:
+- run → posted journal balances; both legs hit the resolved unrealized
+  gain/loss accounts with `branch_id NULL` (entity-level, IAS 21);
+- a second run in the same fiscal period is refused;
+- a currency with no rate on file aborts the run — never parity;
+- `reverse_fx_revaluation_run` nets the remeasurement to zero, exactly once;
+- non-monetary balances excluded while AR/AP/bank in the same currency are in.
+It runs under `supabase test db` on a local stack (`supabase start`,
+`supabase db reset`); it is deliberately transactional so it leaves no residue.
+
+### Step 4 — Parity sweep and ratchets (done, verified 2026-08-21 late)
+- `purchase_return_create` was the last posting-path offender: it did a private
+  lookup against `public.exchange_rates` then `COALESCE(v_rate, 1)`. It now
+  resolves through `require_exchange_rate`, so a rateless foreign return refuses.
+- Block 9 of the lifecycle suite is now a **global** sweep over every public
+  function (comments stripped) for `COALESCE(<rate>, 1)`, and block 11 pins
+  `purchase_return_create` to the resolver by name.
+- Sweep executed against the live database: **zero posting, settlement,
+  revaluation or document engine carries a parity fallback.**
+
 ## Pending work
 
-### Step 3 (remainder) — Behavioural proof of the revaluation lifecycle
-The suite proves *shape*, not *behaviour*. Still to add, as a transactional suite
-that seeds its own fixtures and rolls back (see `supabase/tests/README.md`):
-- run → posted journal balances, and both legs hit the resolved unrealized
-  gain/loss accounts with `branch_id NULL`;
-- second run in the same period refused (`23505`);
-- closed period refused (`23514`);
-- `reverse_fx_revaluation_run` reverses the prior `next_period` run exactly once
-  and the pair nets to zero;
-- a currency with no rate on file aborts the run and marks it `failed` with notes;
-- non-monetary balances (inventory, fixed assets, deferred revenue) are excluded
-  while AR/AP/bank in the same currency are included.
-These require a local Postgres with migrations applied (`supabase start`,
-`supabase db reset`, `supabase test db`); they cannot be proven from catalogue
-assertions alone.
+### Phase 8 — reporting-projection parity remediation (next, active)
+The global sweep found six **read-only reporting** functions that still translate
+a document total with `COALESCE(NULLIF(rate, 0), 1)`:
+`finance_purchase_analysis`, `finance_purchase_expense_reconciliation`,
+`finance_sales_analysis`, `finance_sales_revenue_reconciliation`,
+`get_salesperson_performance`, `get_salesperson_performance_documents`.
+They post nothing, so the ledger is safe, but they report a rateless foreign
+document as though it were base currency — ADR 0136 says an absent rate is an
+absence. They are listed by name as an explicit exemption in block 9 so the
+ratchet cannot widen silently and no new function can join them.
 
-### Step 4 — Ratchets and surface completion
-- Sweep the remaining posting/settlement engines for a parity fallback on any
-  rate column (`currency_rate`, `exchange_rate`) and, where one exists, remove it
-  and widen block 9 to cover that function by name.
+Remediation, one function per migration (small, reversible — the database has
+been sensitive to large migrations):
+1. Replace each fallback with the resolved rate (`resolve_exchange_rate`, NULL
+   allowed) and return a NULL/flagged figure plus an `unrated_count` rather than
+   a parity-valued number.
+2. Surface that flag in the consuming report UI as "excludes N unrated foreign
+   documents" — display only, no client-side conversion.
+3. Remove the function from the block 9 exemption array as each is fixed; the
+   array must reach empty.
+
+### Phase 9 — surface confirmation
 - Confirm the readiness panel renders `missing_rates` as an actionable blocker at
-  period close (display only — no client-side conversion, ADR 0136).
+  period close (display only, ADR 0136).
+- Isolation ratchet: assert business-scoping on `fx_exposure_by_currency`,
+  `fx_exposure_open_items`, `fx_revaluation_readiness`, `describe_exchange_rate`.
 
 ## Next milestone for the following agent
 
-1. **Verify Step 1-3 first, do not trust this log.** Re-read
-   `fx_revaluation_readiness`, `revalue_fx_balances` and `post_expense_gl` from
-   `pg_get_functiondef` and confirm: no `default_currency`, no
-   `COALESCE(..., 1)` on a rate, monetary classifier and line currency in both FX
-   scope queries, identical thresholds, `resolve_exchange_rate` as the only
-   resolver. Then run every block of
-   `supabase/tests/fx_revaluation_lifecycle_test.sql`.
-2. **Then resume at Step 3 (remainder)** — the behavioural revaluation suite —
-   followed by Step 4. Do not start unrelated domains; Phase 7 is not closed until
-   the behavioural proof exists and the parity sweep is complete.
+1. **Verify Phase 7 first, do not trust this log.** Re-read
+   `fx_revaluation_readiness`, `revalue_fx_balances`, `post_expense_gl` and
+   `purchase_return_create` from `pg_get_functiondef` and confirm: no
+   `default_currency`, no `COALESCE(..., 1)` on a rate, monetary classifier and
+   line currency in both FX scope queries, identical thresholds, and
+   `resolve_exchange_rate` / `require_exchange_rate` as the only resolvers. Then
+   run every block of `supabase/tests/fx_revaluation_lifecycle_test.sql` and the
+   behavioural suite on a local stack.
+2. **Then start Phase 8** — the reporting-projection remediation above, one
+   function per small migration, emptying the block 9 exemption array as you go.
+   Then Phase 9. Do not start unrelated domains.
+
+**Migration discipline (operational, learned the hard way):** keep migrations
+small and single-purpose — one function per migration. Large multi-object
+migrations have destabilised this database and forced a project restart.
+
 
 ## Technical notes
 
