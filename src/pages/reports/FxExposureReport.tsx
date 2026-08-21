@@ -41,6 +41,7 @@ import type {
 import {
   useFxExposure,
   useFxExposureOpenItems,
+  useFxExposureDimensions,
   type FxExposureCurrency,
 } from "@/hooks/finance/useFxExposure";
 
