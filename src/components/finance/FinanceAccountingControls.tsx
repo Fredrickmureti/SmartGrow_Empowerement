@@ -366,13 +366,12 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
               onClick={runFx}
               disabled={
                 fx.isRunning ||
-                !fxDraft.unrealized_gain_account_id ||
-                !fxDraft.unrealized_loss_account_id ||
                 fxReadOnly ||
                 periodBlocked ||
                 (readiness?.missing_rates.length ?? 0) > 0
               }
             >
+
               {fx.isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
               Run Revaluation
             </Button>
