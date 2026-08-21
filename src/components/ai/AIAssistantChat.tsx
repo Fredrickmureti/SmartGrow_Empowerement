@@ -24,9 +24,19 @@ interface AIAssistantChatProps {
 
 export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistantChatProps) {
   const [scopeMode, setScopeMode] = useState<ScopeMode>("branch");
-  const { messages, isLoading, sendChatMessage, clearChat, workingContext } =
-    useAIAssistant({ currentPath, scopeMode });
+  const {
+    messages,
+    isLoading,
+    sendChatMessage,
+    clearChat,
+    workingContext,
+    conversations,
+    conversationId,
+    newChat,
+    openConversation,
+  } = useAIAssistant({ currentPath, scopeMode });
   const [input, setInput] = useState("");
+  const [showThreads, setShowThreads] = useState(false);
 
   const contextualPrompts = getContextualPrompts(currentPath);
 
@@ -65,11 +75,40 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
                 </span>
               </div>
             </SheetTitle>
-            {messages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => void clearChat()} className="h-8 w-8 p-0">
-                <Trash2 className="h-4 w-4" />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Conversations in this scope"
+                onClick={() => setShowThreads((v) => !v)}
+                className="h-8 w-8 p-0"
+              >
+                <History className="h-4 w-4" />
               </Button>
-            )}
+              <Button
+                variant="ghost"
+                size="sm"
+                title="New conversation"
+                onClick={() => {
+                  setShowThreads(false);
+                  newChat();
+                }}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              {messages.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Archive this conversation"
+                  onClick={() => void clearChat()}
+                  className="h-8 w-8 p-0"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1 pt-2">
             {(["branch", "company"] as ScopeMode[]).map((mode) => (
@@ -86,7 +125,43 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
             ))}
           </div>
 
+          {showThreads && (
+            <div className="pt-2 max-h-48 overflow-y-auto rounded-md border bg-background/60">
+              {conversations.length === 0 ? (
+                <p className="p-3 text-xs text-muted-foreground">
+                  No saved conversations in this scope yet.
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {conversations.map((thread) => (
+                    <li key={thread.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowThreads(false);
+                          void openConversation(thread.id);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs hover:bg-muted/60 transition-colors",
+                          thread.id === conversationId && "bg-muted",
+                        )}
+                      >
+                        <span className="block truncate font-medium">
+                          {thread.title || "Untitled conversation"}
+                        </span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          {new Date(thread.lastMessageAt || thread.createdAt).toLocaleString()}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
         </SheetHeader>
+
 
         <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-background to-muted/20">
           {messages.length === 0 ? (
