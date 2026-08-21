@@ -210,10 +210,26 @@ describe("ADR 0136 §4 — no call site supplies a posting rate", () => {
     (f) => !f.includes("/test/") && !f.includes("__tests__") && !f.endsWith("types.ts"),
   );
 
+  // Settlement RPCs resolve their own rate server-side and REJECT a supplied one,
+  // so a call site that still passes it would fail at runtime.
+  const SETTLEMENT_RPCS = [
+    "record_multi_invoice_payment",
+    "record_multi_bill_payment",
+    "apply_credit_to_invoice_atomic",
+    "refund_customer_atomic",
+    "refund_from_vendor_atomic",
+    "pos_payment_session_open",
+  ];
+
   it("no client call passes _exchange_rate or p_fx_rate to a settlement RPC", () => {
-    const offenders = appFiles.filter((f) => /(\b_exchange_rate|\bp_fx_rate)\s*:/.test(read(f.replace(`${process.cwd()}/`, ""))));
+    const offenders = appFiles.filter((f) => {
+      const src = read(f.replace(`${process.cwd()}/`, ""));
+      if (!SETTLEMENT_RPCS.some((rpc) => src.includes(rpc))) return false;
+      return /(\b_exchange_rate|\bp_fx_rate)\s*:/.test(src);
+    });
     expect(offenders.map((f) => f.replace(`${process.cwd()}/`, ""))).toEqual([]);
   });
+
 
   it("the POS session client no longer carries an fxRate input", () => {
     const client = read("src/lib/pos/paymentSessionClient.ts");
