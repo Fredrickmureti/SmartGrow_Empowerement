@@ -10,129 +10,146 @@ no client-side conversion that posts, no unrelated module work.
 One rate book (`public.exchange_rates`), one server resolver
 (`resolve_exchange_rate` / `require_exchange_rate`), one client lookup
 (`@/services/fx/rateBook`). Booking, settlement, compensation and POS paths all
-refuse a missing rate instead of posting at parity. Re-verified live this wave.
+refuse a missing rate instead of posting at parity.
 
 ### Phase 9 — reversal symmetry — DONE
-- `void_journal_entry_atomic` now carries `original_currency` / `exchange_rate`
-  onto reversal lines, mirrors `original_debit` / `original_credit` to the
-  opposite side, and the reversal header inherits the original currency + rate.
+- `void_journal_entry_atomic` carries `original_currency` / `exchange_rate` onto
+  reversal lines, mirrors `original_debit` / `original_credit` to the opposite
+  side; the reversal header inherits the original currency + rate.
 - `unapply_payment_atomic` mirrors the original settlement journal line-for-line
-  (excluding the cash leg, which is reclassified to customer deposits), so the
-  receivable is restored at the rate it was relieved at and any realised
-  gain/loss is backed out. No rate is re-resolved on a reversal.
+  (cash leg reclassified to customer deposits). No rate is re-resolved on a
+  reversal.
 - AP reversals (`void_payment_atomic`, `void_bill_payment_atomic`,
   `unapply_vendor_credit_from_bill_atomic`) delegate to
-  `void_journal_entry_atomic` and inherit the fix — verified, no duplicate
-  reversal engine exists.
-- Ratchet: `supabase/tests/fx_reversal_symmetry_test.sql` (read-only). All
-  assertions re-checked live and hold.
+  `void_journal_entry_atomic`; no duplicate reversal engine exists.
+- Ratchet: `supabase/tests/fx_reversal_symmetry_test.sql`.
 
-### Phase 10 — honest absence in the open-item projections — DONE (this wave)
-Root defect found and fixed: the canonical AR projection itself was inventing
-rates, which is why downstream surfaces could show a confident wrong number.
-- `finance_ar_open_items`: removed `COALESCE(NULLIF(exchange_rate,0), 1)` and
-  the literal `'USD'`. `base_residual_amount` is now NULL for a foreign document
-  with no stamped rate; a same-currency document still resolves to 1 (identity,
-  not an invented rate).
-- `finance_ar_net_position_by_currency`: `base_open_amount` / `base_net_amount`
-  are NULL when any contributing document is unconvertible (previously a partial
-  sum read as a complete total), plus a new `unconvertible_document_count`.
-  `security_invoker` preserved.
-- `raise_ar_dispute` / `record_promise_to_pay`: `'KES'` literals removed; the
-  currency is derived from the business base currency and the write refuses when
-  none is configured. `currency` column defaults `'KES'` dropped on
-  `ar_disputes` and `ar_promises_to_pay`. Both already refused a missing rate.
-- Client: `CurrencyNetPositionRow.baseNetAmount` is `number | null` and carries
-  `unconvertibleDocumentCount`; Collections renders "No rate on file" linking to
-  `/settings/company?tab=currency` instead of a coerced 0.
-  `?? "KES"` removed from the dispute and promise mappers.
-- Ratchet: `supabase/tests/fx_open_items_absence_test.sql` (read-only) — no
-  parity fallback and no currency literal in any `finance_*` view, absence
-  propagates through the per-currency aggregate, and both collections writers
-  derive their currency and refuse a missing rate. Verified live: 0 offending
-  views, both writers clean.
-- `tsgo --noEmit`: clean. `vitest`: 44/44 pass across `fx-single-engine`,
-  `disputes-work-queue`, `promise-to-pay`.
-- Linter baseline unchanged at 3599 across all four migrations.
+### Phase 10 — honest absence in the AR open-item projections — DONE
+- `finance_ar_open_items`: parity fallback and `'USD'` literal removed;
+  `base_residual_amount` is NULL for a foreign document with no stamped rate.
+- `finance_ar_net_position_by_currency`: base columns NULL when any contributing
+  document is unconvertible, plus `unconvertible_document_count`.
+- `raise_ar_dispute` / `record_promise_to_pay`: `'KES'` literals removed,
+  currency derived from the business base currency, writes refuse without one.
+- Client: Collections renders "No rate on file" instead of a coerced 0.
+- Ratchet: `supabase/tests/fx_open_items_absence_test.sql`.
 
-### Phase 11 — FX tenant isolation ratchet — DONE (this wave)
-The FX engine is entirely SECURITY DEFINER, so RLS is bypassed by construction
-and each function's own check is the only boundary. Two real holes were found
-and closed:
-- `resolve_exchange_rate`, `require_exchange_rate`, `resolve_sales_exchange_rate`
-  and `fx_stamp_document` were granted to `authenticated` and took an arbitrary
-  `(org, business)` pair with no membership check — any signed-in user could read
-  another tenant's rate book through the Data API. EXECUTE revoked from
-  `anon`/`authenticated`; every in-database caller runs as the owner and keeps
-  its rights, so no posting path changed. `_pick_exchange_rate_row` was already
-  internal-only.
-- `reverse_fx_revaluation_run` posted a reversing journal and was reachable from
-  the Data API with nothing but a run id — no membership, no permission. EXECUTE
-  revoked, plus a defense-in-depth guard that authorises
-  `finance.manage_periods` against `_run.business_id` (the run's own business,
-  never a caller argument).
-- Verified already-correct, left alone: `fx_exposure_by_currency`,
-  `fx_exposure_open_items`, `fx_exposure_dimensions`, `fx_revaluation_readiness`,
-  `fx_realized_gain_loss`, `describe_exchange_rate`, `set_exchange_rate_override`
-  (all call `user_can_access_business`) and `revalue_fx_balances` (gated on
-  `finance.manage_periods`). `describe_exchange_rate` stays the tenant-facing
-  rate surface and the Exchange Rate panel still works.
-- `exchange_rates`, `fx_revaluation_runs`, `fx_revaluation_lines`: RLS enabled
-  with policies — confirmed, unchanged.
-- Ratchets: `supabase/tests/fx_tenant_isolation_test.sql` (no exposed FX function
-  without a per-business check; the six engine internals stay off the Data API;
-  the reversal guard binds to `_run.business_id`; the three FX tables keep RLS)
-  and `src/test/architecture/fx-tenant-isolation.test.ts` (no client `.rpc()`
-  call to a revoked internal). Both verified: 0 offenders live, 40/40 vitest
-  pass with `fx-single-engine` and `currency-integrity`.
-- Linter moved 3599 → 3594 (five fewer exposed SECURITY DEFINER functions); no
-  new issue class introduced.
+### Phase 11 — FX tenant isolation ratchet — DONE — RE-VERIFIED THIS WAVE
+VERIFIED FACT (live catalogue, this wave):
+`resolve_exchange_rate`, `require_exchange_rate`, `resolve_sales_exchange_rate`,
+`fx_stamp_document`, `_pick_exchange_rate_row`, `reverse_fx_revaluation_run`
+all show `authenticated=false, anon=false`; `describe_exchange_rate` retains
+`authenticated=true`. `bunx vitest run fx-tenant-isolation + fx-single-engine`:
+34/34 pass. Phase 11 is genuinely closed.
 
 ## Active phase
 
-None — Phase 11 is closed. Phase 12 is the next milestone.
+### Phase 12 — AP-side absence parity (IN PROGRESS)
+
+Investigation results (all VERIFIED FACT, read from live function bodies and
+`src/services/finance/openItems.ts` this wave):
+
+1. `finance_ap_open_items_as_of` and `finance_ar_open_items_as_of` are already
+   rate-honest at row level: document snapshot rate → identity for a
+   same-currency document → `resolve_exchange_rate`, else NULL, and
+   `base_residual_amount = residual * rate` propagates the NULL. The Phase 12
+   premise "the AP row projection fabricates a parity rate" is INVALIDATED.
+   No `COALESCE(...,1)` exists in either.
+
+2. **The real defect is one layer up — absence is destroyed by the aggregates.**
+   `get_ap_summary`, `get_ap_aging_summary`, `finance_ap_aging_reconciliation`
+   and `finance_ap_reconciliation_detail` all use
+   `COALESCE(SUM(o.base_residual_amount), 0)`. SQL `SUM` skips NULLs, so an
+   unconvertible foreign bill silently drops out and an **understated** payable
+   total is presented as complete. This is the exact class Phase 10 fixed for
+   the AR net-position view, unfixed on the AP side.
+   ACCOUNTING CONSEQUENCE: understated liabilities, aging buckets that do not
+   tie to the AP control account, and a reconciliation report that reports a
+   clean tie-out while omitting the item causing the break.
+
+3. **A second, opposite-signed defect on the client.**
+   `src/services/finance/openItems.ts` lines 307, 377, 666 read
+   `Number(r.base_residual_amount ?? r.residual_amount)`. When the base amount
+   is absent the FOREIGN amount is added into a base-currency total — a silent
+   1:1, forbidden by ADR 0136. Affects top-payables exposure, contact statement
+   aging (AR and AP), and the `fetchPayableCounterparties` cohort that drives
+   vendor statement runs and payment sweeps. The same file already handles
+   `base_credit_amount === null` correctly, so the omission is inconsistent, not
+   deliberate. `ApOpenItemAsOfRow.base_residual_amount` is typed `number`, which
+   hid it from the type checker; the engine can return null.
+
+4. Residual currency literals: `finance_ap_open_items_as_of`,
+   `finance_ap_vendor_credit_as_of` and `finance_ar_open_items_as_of` still
+   carry `COALESCE(..., 'USD')` as a last-resort currency when
+   `businesses.base_currency` is null. Lower severity than 2/3 (a business
+   without a base currency is already misconfigured) but it is a fabricated
+   denomination and must become a refusal.
+
+5. `finance_ap_vendor_credit_as_of` is already correct — it nulls
+   `base_credit_amount` when any component is unconvertible. Leave it alone
+   apart from the `'USD'` literal.
+
+Work, in dependency order:
+- **12a (SQL, root)** — teach the four AP aggregates to distinguish absence
+  from zero: return `NULL` for a base-currency total when any contributing row
+  has `base_residual_amount IS NULL`, and expose
+  `unconvertible_document_count` alongside, mirroring
+  `finance_ar_net_position_by_currency`. Same treatment for `get_ar_summary`
+  where it shares the pattern (verify before changing).
+- **12b (SQL)** — replace the `'USD'` fallbacks in the three `*_as_of`
+  functions with a raise/NULL denomination; a business with no base currency
+  must not silently report in USD.
+- **12c (client)** — type `base_residual_amount` as `number | null`; delete the
+  three `?? r.residual_amount` fallbacks; skip unconvertible rows from
+  base-currency sums and carry a count out of each helper.
+- **12d (UI)** — Aged Payables, AP summary tiles, vendor statements and the
+  payables cohort screens render the absence state ("N documents have no rate
+  on file", linking to `/settings/company?tab=currency`) instead of a confident
+  number, matching Collections.
+- **12e (ratchet)** — extend `supabase/tests/fx_open_items_absence_test.sql`
+  with the AP aggregates (no bare `COALESCE(SUM(base_*),0)` in a `finance_*` /
+  `get_a[pr]_*` aggregate; an unconvertible count must exist) and add a
+  client-side guard forbidding `base_*_amount ?? <foreign amount>` in
+  `src/services/finance/**`.
 
 ## Pending
-
-### Phase 12 — AP-side absence parity (NEXT)
-Phase 10 corrected the AR projections. Apply the same treatment to the payables
-side (`finance_ap_open_items_as_of` and the vendor-credit/net-position
-surfaces): no parity fallback, NULL propagation, an unconvertible count, and an
-absence state in the vendor-facing UI.
 
 ### Phase 13 — `finance_open_items_tieout`
 The only `finance_*` view still holding a currency literal; currently exempted
 in the ratchet. Decide whether the literal is diagnostic-only and remove the
 exemption.
 
+### Phase 14 — FX settings surface (from the parent prompt, not yet actioned)
+The parent prompt calls out `/finance/settings` → Accounting Controls → FX:
+currency is typed free-hand instead of being chosen from the catalogue as
+landed cost does (`CurrencyCombobox` + `useCurrencies`), and the override /
+provider-rate precedence is not explained in the UI. Audit
+`FinanceAccountingControls.tsx` and `ExchangeRatePanel.tsx` against the
+landed-cost pattern; reuse the existing components, do not build new ones.
+UNVERIFIED — not yet inspected this wave.
+
 ## Carried limitations (documented, not defects)
 - `payments` / `customer_credit_balances` carry no currency column: advances are
-  structurally base-currency only. A schema change is out of scope without an
-  explicit decision.
+  structurally base-currency only. Schema change out of scope without a decision.
 - Live `exchange_rates` holds base-currency rows only, so foreign paths are
   proven by catalogue tests and construction, not by exercised tenant data.
 - The `.sql` suites under `supabase/tests/` cannot be executed from this
   environment (SELECT-only tooling); their catalogue assertions are re-run as
-  read-only SELECTs instead. The DML fixtures inside them remain UNVERIFIED.
+  read-only SELECTs. The DML fixtures inside them remain UNVERIFIED.
 - Pre-existing unrelated failure: `bill-payment-allocations-first-class.test.ts`.
-- Supabase binding is `jkszmrroyjfdwokbkzis`; attaching a different project
-  would be a destructive re-bind and is out of scope.
+- Supabase binding is `jkszmrroyjfdwokbkzis`; connecting a different project
+  (`AccrualFlowCorporation`) would be a destructive re-bind and is out of scope
+  for this wave.
 
-## Instructions for the next agent
-1. **Verify before extending.** Re-run `bunx vitest run
-   src/test/architecture/fx-single-engine.test.ts` and re-check the Phase 9/10
-   catalogue assertions live (the two `supabase/tests/fx_*` files list them).
-   Confirm `finance_ar_open_items.base_residual_amount` really is NULL for an
-   unstamped foreign document and that Collections renders the absence state.
-   For Phase 11, also re-run `bunx vitest run
-   src/test/architecture/fx-tenant-isolation.test.ts` and re-check the function
-   ACLs: the six engine internals must show no `authenticated=X` grant, and
-   `describe_exchange_rate` must still have one.
-2. **Do not trust this log over the database.** Every claim above was checked
-   against the live catalogue at the time of writing; re-check rather than
-   assume.
-3. **Then resume at Phase 12**, not elsewhere. Finish each phase to a
-   production-ready state — schema, engine, UI absence state and ratchet test —
-   before starting the next.
+## Tests required for Phase 12
+- Extended `supabase/tests/fx_open_items_absence_test.sql` (catalogue, read-only).
+- New/extended vitest architecture guard for the client fallback pattern.
+- Re-run `fx-single-engine`, `fx-tenant-isolation`, `currency-integrity`,
+  `ap-aging-scenario-fixtures`, `aging-single-source`, `reports-data-source-contract`.
+- `tsgo --noEmit` must stay clean after the nullable type change (it will surface
+  every remaining unhandled null — that is the point).
 
-   when the system is now clean close the wave
+## Scope boundaries
+No changes to the resolver, the rate book, stamping, settlement or revaluation
+in Phase 12 — they are verified correct. No new views, no second aggregation
+path, no client-side rate maths.
