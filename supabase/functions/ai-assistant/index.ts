@@ -1760,8 +1760,8 @@ async function runDataToolLoop(
   aiMessages: Array<Record<string, any>>,
   settings: Record<string, string>,
   scope: ToolScope,
-  currencySummary: Record<string, unknown>,
   usageScope: UsageScope,
+  currencySummary: Record<string, unknown>,
   maxRounds = 4,
 ): Promise<Array<Record<string, any>>> {
   const tools = buildDataToolSpecs();
