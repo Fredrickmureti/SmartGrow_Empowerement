@@ -95009,6 +95009,10 @@ export type Database = {
         Args: { _as_of?: string; _business_id: string }
         Returns: Json
       }
+      fx_exposure_dimensions: {
+        Args: { _as_of?: string; _business_id: string; _currency?: string }
+        Returns: Json
+      }
       fx_exposure_open_items: {
         Args: { _as_of?: string; _business_id: string; _currency: string }
         Returns: Json
