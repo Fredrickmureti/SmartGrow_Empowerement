@@ -30,10 +30,12 @@ Every Phase 1–4 claim was re-checked against the live database and source. Res
 - Phase 2 — server-owned history & working context: **DONE (verified)**
 - Phase 3 — client trust reduction & conversation list: **DONE (verified)**
 - Phase 4 — AI cache & usage scope keying: **DONE (verified)**
-- Phase 4b — authorization hardening: **NEW, NEXT**
-- Phase 5 — tool/capability scope: **PENDING**
-- Phase 6 — record-scoped threads: **PENDING**
-- Phase 7 — background jobs: **PENDING**
+- Phase 4b — authorization hardening: **DONE**
+- Phase 5 — tool/capability scope: **DONE**
+- Phase 6 — record-scoped threads: **DONE** (record threads are creator-private,
+  null-aware separated from scope threads, and the "This record" mode only appears
+  when the route identifies a record; shared/team threads remain out of scope)
+- Phase 7 — background jobs: **PENDING (next)**
 
 ## Phase 4b — Authorization hardening (do first; Phase 5 builds on it)
 
