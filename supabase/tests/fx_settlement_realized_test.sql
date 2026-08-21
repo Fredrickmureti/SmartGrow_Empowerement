@@ -122,3 +122,36 @@ BEGIN
     RAISE EXCEPTION 'pos_payment_session_open does not resolve its rate server-side';
   END IF;
 END $$;
+
+-- Phase A (ADR 0136) — the multi-document settlement RPCs must relieve each
+-- document at its OWN stamped booking rate. A COALESCE(<rate>, 1) read of
+-- invoices.exchange_rate / bills.currency_rate fabricates the realised FX
+-- difference on a foreign document whose rate was never stamped.
+DO $$
+DECLARE r record; v_src text;
+BEGIN
+  FOR r IN
+    SELECT * FROM (VALUES
+      ('record_multi_invoice_payment', 'exchange_rate', 'Invoice'),
+      ('record_multi_bill_payment',    'currency_rate', 'Bill')
+    ) AS t(fname, ratecol, noun)
+  LOOP
+    SELECT p.prosrc INTO v_src
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = r.fname;
+    IF v_src IS NULL THEN RAISE EXCEPTION '% is missing', r.fname; END IF;
+
+    IF v_src ~* ('coalesce\s*\(\s*' || r.ratecol || '\s*,\s*1\s*\)') THEN
+      RAISE EXCEPTION '% falls back to a 1:1 historical rate when reading %', r.fname, r.ratecol;
+    END IF;
+    IF v_src !~* 'carries no booking exchange rate' THEN
+      RAISE EXCEPTION '% does not refuse a foreign document with no stamped booking rate', r.fname;
+    END IF;
+    IF v_src !~* 'v_book_rate' THEN
+      RAISE EXCEPTION '% no longer relieves each document at its own booking rate', r.fname;
+    END IF;
+    IF v_src !~* 'resolve_fx_realized_account' THEN
+      RAISE EXCEPTION '% settles a foreign balance without recognising realised FX', r.fname;
+    END IF;
+  END LOOP;
+END $$;
