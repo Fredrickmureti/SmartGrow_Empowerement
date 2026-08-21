@@ -231,7 +231,7 @@ export async function fetchApVendorCreditAsOf(
   businessId?: string | null,
   branchId?: string | null,
   asOf?: string,
-): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number | null }>> {
   const { data, error } = await supabase.rpc("finance_ap_vendor_credit_as_of" as never, {
     _org_id: orgId,
     _business_id: businessId ?? null,
