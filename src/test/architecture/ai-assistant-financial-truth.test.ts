@@ -59,3 +59,28 @@ describe("ai-assistant financial truth", () => {
     expect(assistant).toMatch(/Never substitute 0/);
   });
 });
+
+describe("ai-assistant data tool whitelist", () => {
+  const tools = read("supabase/functions/ai-assistant/dataTools.ts");
+
+  it("exposes no column that does not exist on the table", () => {
+    // Each of these was in the whitelist and would make `query_data` fail,
+    // leaving the model to answer from imagination.
+    for (const phantom of [
+      "current_balance",
+      "account_number_masked",
+      "expected_delivery_date",
+      "rate_date",
+      '"valid_until"',
+      '"leave_type"',
+      '"progress", "business_id"',
+    ]) {
+      expect(tools).not.toContain(phantom);
+    }
+  });
+
+  it("tells the model that account balances are not stored on the tables", () => {
+    expect(tools).toMatch(/bank_account_positions/);
+    expect(tools).toMatch(/posted journal entries/);
+  });
+});
