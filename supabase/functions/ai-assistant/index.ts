@@ -526,7 +526,7 @@ async function getFinancialContext(
       // Accounts summary
       supabaseClient
         .from("accounts")
-        .select("id, name, code, account_type, current_balance, is_active")
+        .select("id, name, code, account_type, is_active")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .order("code")
