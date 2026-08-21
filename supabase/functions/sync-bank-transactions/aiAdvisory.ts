@@ -28,7 +28,8 @@ const GATEWAY_PROVIDER_CODE = 'lovable_gateway';
 const GATEWAY_MODEL = 'google/gemini-3-flash-preview';
 
 type UsageLogger = {
-  from: (table: string) => { insert: (row: Record<string, unknown>) => Promise<unknown> };
+  // `insert` on supabase-js returns a thenable builder, not a plain Promise.
+  from: (table: string) => { insert: (row: Record<string, unknown>) => PromiseLike<unknown> };
 };
 
 /** Attributes one advisory model call to the tenant that caused it. */
