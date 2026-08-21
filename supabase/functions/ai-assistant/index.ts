@@ -283,6 +283,70 @@ function isAdminRole(role: string | undefined): boolean {
   return ['super_admin', 'owner', 'admin'].includes(role || '');
 }
 
+/** Which module each snapshot collection belongs to. */
+const CONTEXT_FIELD_MODULE: Record<string, string> = {
+  bankAccounts: "financials",
+  recentExpenses: "financials",
+  accounts: "financials",
+  fixedAssets: "financials",
+  recentInvoices: "sales",
+  recentPayments: "sales",
+  estimates: "sales",
+  salesOrders: "sales",
+  creditNotes: "sales",
+  crmLeads: "sales",
+  pendingBills: "purchases",
+  purchaseOrders: "purchases",
+  contacts: "contacts",
+  products: "products",
+  lowStockProducts: "inventory",
+  posTransactions: "pos",
+  employees: "hr",
+  leaveRequests: "leave",
+  projects: "projects",
+  projectTasks: "projects",
+};
+
+/** Summary figures that must be hidden with their module. */
+const CONTEXT_SUMMARY_MODULE: Record<string, string> = {
+  totalBankBalance: "financials",
+  recentExpenses: "financials",
+  totalAssetValue: "financials",
+  totalReceivables: "sales",
+  overdueReceivables: "sales",
+  recentRevenue: "sales",
+  openLeads: "sales",
+  totalPayables: "purchases",
+  totalProducts: "products",
+  lowStockCount: "inventory",
+  todayPOSSales: "pos",
+  totalEmployees: "hr",
+  pendingLeaveRequests: "leave",
+  activeProjects: "projects",
+};
+
+/**
+ * Remove every part of the context snapshot the caller may not read. Blanked
+ * collections become empty arrays and blanked figures become `null`, which the
+ * prompt builder already renders as "unavailable" rather than as zero.
+ */
+function scrubContextByCapabilities(
+  context: FinancialContext | null,
+  caps: CapabilitySet,
+): FinancialContext | null {
+  if (!context || caps.unrestricted) return context;
+  const out: any = { ...context, summary: { ...context.summary } };
+  for (const [field, module] of Object.entries(CONTEXT_FIELD_MODULE)) {
+    if (!canReadModule(caps, module) && Array.isArray(out[field])) out[field] = [];
+  }
+  for (const [field, module] of Object.entries(CONTEXT_SUMMARY_MODULE)) {
+    if (!canReadModule(caps, module)) out.summary[field] = null;
+  }
+  return out as FinancialContext;
+}
+
+
+
 // Fetch financial context for the organization with branch filtering
 async function getFinancialContext(
   supabaseClient: any, 
