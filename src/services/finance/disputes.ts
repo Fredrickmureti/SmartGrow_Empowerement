@@ -85,7 +85,8 @@ function mapRow(r: DisputeRow): ArDispute {
     disputeType: String(r.dispute_type ?? "other"),
     reason: (r.reason as string) ?? null,
     amountDisputed: Number(r.amount_disputed) || 0,
-    currency: String(r.currency ?? "KES"),
+    // ADR 0136: no currency literal. The row always carries its own code.
+    currency: String(r.currency ?? ""),
     baseAmountDisputed: Number(r.base_amount_disputed) || 0,
     status: (r.status as DisputeStatus) ?? "open",
     resolutionNote: (r.resolution_note as string) ?? null,

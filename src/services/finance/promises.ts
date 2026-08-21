@@ -64,7 +64,8 @@ function mapRow(r: PromiseRow): PromiseToPay {
     contactName: r.contact?.name ?? null,
     documentId: (r.document_id as string) ?? null,
     promisedAmount: Number(r.promised_amount) || 0,
-    currency: String(r.currency ?? "KES"),
+    // ADR 0136: no currency literal. The row always carries its own code.
+    currency: String(r.currency ?? ""),
     basePromisedAmount: Number(r.base_promised_amount) || 0,
     expectedPaymentDate: String(r.expected_payment_date),
     status: (r.status as PromiseStatus) ?? "open",
