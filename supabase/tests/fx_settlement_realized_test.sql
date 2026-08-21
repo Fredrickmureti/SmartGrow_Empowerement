@@ -81,3 +81,44 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- Phase 5 (ADR 0136) — the last producers: employee reimbursement and POS sessions.
+DO $$
+DECLARE v_src text;
+BEGIN
+  SELECT p.prosrc INTO v_src
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'expense_reimburse_direct';
+  IF v_src IS NULL THEN RAISE EXCEPTION 'expense_reimburse_direct is missing'; END IF;
+
+  IF v_src ~* 'coalesce\s*\(\s*[a-z_.]*(exchange_)?rate\s*,\s*1\s*\)' THEN
+    RAISE EXCEPTION 'expense_reimburse_direct falls back to a 1:1 exchange rate';
+  END IF;
+  IF v_src !~* 'resolve_exchange_rate' THEN
+    RAISE EXCEPTION 'expense_reimburse_direct does not resolve the payment-date rate server-side';
+  END IF;
+  IF v_src !~* 'resolve_fx_realized_account' THEN
+    RAISE EXCEPTION 'expense_reimburse_direct settles a foreign payable without recognising realised FX';
+  END IF;
+  IF v_src !~* 'base_currency' THEN
+    RAISE EXCEPTION 'expense_reimburse_direct does not derive the company base currency';
+  END IF;
+
+  SELECT p.prosrc INTO v_src
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'pos_payment_session_open';
+  IF v_src IS NULL THEN RAISE EXCEPTION 'pos_payment_session_open is missing'; END IF;
+
+  IF v_src ~ '''KES''' THEN
+    RAISE EXCEPTION 'pos_payment_session_open carries a hardcoded currency code';
+  END IF;
+  IF v_src ~* 'coalesce\s*\(\s*p_fx_rate\s*,\s*1\s*\)' THEN
+    RAISE EXCEPTION 'pos_payment_session_open opens a session at a silent 1:1 rate';
+  END IF;
+  IF v_src !~* 'p_fx_rate is not accepted' THEN
+    RAISE EXCEPTION 'pos_payment_session_open still accepts a client-supplied FX rate';
+  END IF;
+  IF v_src !~* 'resolve_exchange_rate' THEN
+    RAISE EXCEPTION 'pos_payment_session_open does not resolve its rate server-side';
+  END IF;
+END $$;

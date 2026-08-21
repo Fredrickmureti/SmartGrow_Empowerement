@@ -85,9 +85,12 @@ export interface OpenSessionArgs {
   idempotencyKey: string;
   tipAmount?: number;
   cashierId?: string | null;
-  /** Wave 3 · Phase 4.d — frozen at session-open, immutable after. */
-  fxRate?: number;
+  /**
+   * ADR 0136 — the FX rate is resolved server-side at session-open and frozen
+   * for the life of the session. The till may not supply one.
+   */
   settlementCurrency?: string | null;
+
   tipPolicy?: string | null;
 }
 
@@ -256,7 +259,6 @@ export async function openSession(args: OpenSessionArgs): Promise<string> {
     p_idempotency_key: args.idempotencyKey,
     p_tip_amount: args.tipAmount ?? 0,
     p_cashier_id: args.cashierId ?? undefined,
-    p_fx_rate: args.fxRate ?? 1,
     p_settlement_currency: args.settlementCurrency ?? args.currency,
     p_tip_policy: args.tipPolicy ?? "none",
   } as never);
