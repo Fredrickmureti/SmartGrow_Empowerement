@@ -95013,6 +95013,10 @@ export type Database = {
         Args: { _as_of?: string; _business_id: string; _currency: string }
         Returns: Json
       }
+      fx_is_monetary_account: {
+        Args: { _account_type: string; _detail_type: string }
+        Returns: boolean
+      }
       fx_revaluation_readiness: {
         Args: { _as_of: string; _business_id: string }
         Returns: Json
