@@ -56,8 +56,7 @@ export interface PaymentSessionCartTotals {
   grandTotal: number;
   currency: string;
   tipAmount?: number;
-  /** Optional frozen-at-open snapshot fields (Phase 4.d). */
-  fxRate?: number;
+  /** Settlement currency snapshot; the FX rate is resolved server-side (ADR 0136). */
   settlementCurrency?: string | null;
   tipPolicy?: string | null;
 }
@@ -273,7 +272,6 @@ export function usePaymentSession(params: PaymentSessionParams): UsePaymentSessi
       idempotencyKey,
       tipAmount: params.totals.tipAmount ?? 0,
       cashierId: params.cashierId ?? undefined,
-      fxRate: params.totals.fxRate,
       settlementCurrency: params.totals.settlementCurrency,
       tipPolicy: params.totals.tipPolicy,
     });
