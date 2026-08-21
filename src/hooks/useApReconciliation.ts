@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type ApVarianceReason =
+  | "unconvertible_currency"
   | "unattributed_ledger"
   | "missing_from_projection"
   | "missing_from_ledger"
@@ -22,16 +23,24 @@ export type ApVarianceReason =
 export interface ApReconciliationRow {
   contactId: string | null;
   contactName: string;
-  projectionOpen: number;
-  projectionCredit: number;
-  projectionNet: number;
+  /**
+   * ADR 0136: projection and variance figures are `number | null`. `null` means
+   * a document under this vendor has no exchange rate on file, so no
+   * base-currency comparison against the ledger is possible — the row is a
+   * genuine unknown, not a zero variance.
+   */
+  projectionOpen: number | null;
+  projectionCredit: number | null;
+  projectionNet: number | null;
   ledgerNet: number;
-  variance: number;
+  variance: number | null;
   reason: ApVarianceReason;
   documentCount: number;
+  unconvertibleDocumentCount: number;
 }
 
 export const AP_VARIANCE_REASON_LABELS: Record<ApVarianceReason, string> = {
+  unconvertible_currency: "No exchange rate on file",
   unattributed_ledger: "Ledger entry with no vendor",
   missing_from_projection: "In the ledger, absent from aging",
   missing_from_ledger: "In aging, absent from the ledger",
@@ -39,6 +48,8 @@ export const AP_VARIANCE_REASON_LABELS: Record<ApVarianceReason, string> = {
 };
 
 export const AP_VARIANCE_REASON_HINTS: Record<ApVarianceReason, string> = {
+  unconvertible_currency:
+    "A document for this vendor is in a currency with no rate on file for this date, so it cannot be compared with the base-currency control account. Add the rate in Currency settings, then re-run.",
   unattributed_ledger:
     "A journal posted to the AP control account without a vendor. It moves the control account but can never be aged — attach a vendor to the line.",
   missing_from_projection:
@@ -50,6 +61,9 @@ export const AP_VARIANCE_REASON_HINTS: Record<ApVarianceReason, string> = {
 };
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
+/** Preserves a NULL base-currency figure instead of coercing it to zero. */
+const money = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v) || 0;
 
 export interface UseApReconciliationArgs {
   organizationId?: string | null;
@@ -77,13 +91,14 @@ export async function fetchApReconciliationDetail({
   return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     contactId: (r.contact_id as string) ?? null,
     contactName: String(r.contact_name ?? "Unknown vendor"),
-    projectionOpen: num(r.projection_open),
-    projectionCredit: num(r.projection_credit),
-    projectionNet: num(r.projection_net),
+    projectionOpen: money(r.projection_open),
+    projectionCredit: money(r.projection_credit),
+    projectionNet: money(r.projection_net),
     ledgerNet: num(r.ledger_net),
-    variance: num(r.variance),
+    variance: money(r.variance),
     reason: (r.reason as ApVarianceReason) ?? "amount_mismatch",
     documentCount: num(r.document_count),
+    unconvertibleDocumentCount: num(r.unconvertible_document_count),
   }));
 }
 
