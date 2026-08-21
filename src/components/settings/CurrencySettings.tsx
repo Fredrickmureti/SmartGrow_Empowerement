@@ -276,6 +276,10 @@ export function CurrencySettings() {
   const enabledSet = new Set(
     activeCurrencies.filter((c) => c.is_enabled).map((c) => c.currency_code),
   );
+  const serverBaseSet = new Set(
+    activeCurrencies.filter((c) => c.is_base).map((c) => c.currency_code),
+  );
+
 
   return (
     <div className="space-y-6">
