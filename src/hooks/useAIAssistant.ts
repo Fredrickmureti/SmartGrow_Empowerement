@@ -225,12 +225,25 @@ export function useAIAssistant() {
       const decoder = new TextDecoder();
       let assistantContent = "";
       let textBuffer = "";
-
-      // Add empty assistant message that we'll update
-      setMessages((prev) => [...prev, { role: "assistant", content: "", actions: [] }]);
+      let bubbleAdded = false;
+      let streamError: string | null = null;
 
       const flush = () => {
         const parsed = parseAssistantContent(assistantContent);
+        // Only materialise the assistant bubble once there is something to
+        // show. Adding it up-front produced the "empty reply" thread: the
+        // typing indicator disappeared (last message was no longer the user's)
+        // and a blank bubble was left behind whenever the stream carried no
+        // content at all.
+        if (!bubbleAdded) {
+          if (!parsed.text && parsed.actions.length === 0) return;
+          bubbleAdded = true;
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: parsed.text, actions: parsed.actions },
+          ]);
+          return;
+        }
         setMessages((prev) => {
           const updated = [...prev];
           updated[updated.length - 1] = {
@@ -262,6 +275,16 @@ export function useAIAssistant() {
 
           try {
             const parsed = JSON.parse(jsonStr);
+            // Providers signal mid-stream failures as a data frame carrying an
+            // `error` object. Previously this was silently dropped, so the user
+            // got a blank bubble instead of the reason.
+            const errObj = parsed?.error;
+            if (errObj) {
+              streamError =
+                (typeof errObj === "string" ? errObj : errObj?.message) ||
+                "The AI provider ended the response with an error.";
+              continue;
+            }
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
@@ -276,6 +299,23 @@ export function useAIAssistant() {
 
       // Final parse to make sure trailing action lines are picked up.
       flush();
+
+      // An empty stream is a failure, not an answer. Surface it instead of
+      // leaving a silent, empty reply thread.
+      if (!bubbleAdded) {
+        const reason =
+          streamError ??
+          "The assistant returned an empty response. Nothing was saved — please try again.";
+        console.error("[ai-assistant] empty stream", { reason });
+        toast.error(reason);
+        setMessages([
+          ...newMessages,
+          { role: "assistant", content: `⚠️ ${reason}`, actions: [] },
+        ]);
+      } else if (streamError) {
+        toast.error(streamError);
+      }
+
     } catch (error: unknown) {
       const mapped = mapAssistantThrownError(error);
       console.error("[ai-assistant] chat failed", mapped, error);
