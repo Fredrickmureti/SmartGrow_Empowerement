@@ -1979,6 +1979,55 @@ serve(async (req) => {
       }
     }
 
+    // ─── Requested scope validation ───
+    // `businessId` / `branchId` arrive from the browser. They are working
+    // context, but they also narrow every read below, so a caller must not be
+    // able to point them at a business or branch they cannot see.
+    if (callerUserId && organizationId && businessId) {
+      const { data: bizRow } = await supabaseClient
+        .from("businesses")
+        .select("id")
+        .eq("id", businessId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (!bizRow) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: business is not part of this organization" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!isAdminRole(userRole)) {
+        const { data: access } = await supabaseClient
+          .from("user_business_access")
+          .select("business_id")
+          .eq("user_id", callerUserId)
+          .eq("business_id", businessId)
+          .maybeSingle();
+        if (!access) {
+          return new Response(
+            JSON.stringify({ error: "forbidden: no access to this business" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+    }
+    if (callerUserId && branchId && !isAdminRole(userRole) && !(accessibleBranchIds ?? []).includes(branchId)) {
+      return new Response(
+        JSON.stringify({ error: "forbidden: no access to this branch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ─── Capability scope: which modules may this caller read? ───
+    // Derived per request from the caller's own permissions. Independent of the
+    // conversation's app_key: cross-app questions stay allowed when authorized.
+    const capabilities: CapabilitySet = !callerUserId
+      ? UNRESTRICTED_CAPABILITIES // service-role / cron caller
+      : organizationId
+        ? await resolveCapabilities(supabaseClient, callerUserId, organizationId)
+        : NO_CAPABILITIES;
+
+
     // ─── Conversation gate: the caller must be allowed to read the thread ───
     // History is loaded from the database, never from the request body, so a
     // stale or foreign thread cannot be smuggled into the prompt.
