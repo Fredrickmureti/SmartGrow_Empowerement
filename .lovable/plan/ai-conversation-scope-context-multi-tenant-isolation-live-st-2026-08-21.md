@@ -35,7 +35,7 @@ Every Phase 1–4 claim was re-checked against the live database and source. Res
 - Phase 6 — record-scoped threads: **DONE** (record threads are creator-private,
   null-aware separated from scope threads, and the "This record" mode only appears
   when the route identifies a record; shared/team threads remain out of scope)
-- Phase 7 — background jobs: **PENDING (next)**
+- Phase 7 — background jobs: **DONE** — wave closed
 
 ## Phase 4b — Authorization hardening (do first; Phase 5 builds on it)
 
@@ -76,10 +76,27 @@ Every Phase 1–4 claim was re-checked against the live database and source. Res
 - Surface `record_type` / `record_id` threads on record pages; creator-private.
 - Shared/team threads stay out of scope until explicitly requested.
 
-## Phase 7 — Background jobs
+## Phase 7 — Background jobs — DONE (wave closed)
 
-- Any scheduled AI job carries the full scope tuple and re-derives permissions server-side
-  rather than inheriting a user's UI state.
+- `sync-bank-transactions` now derives `{ organization_id, business_id, branch_id }` from the
+  bank account row itself; a request body naming a different organization is refused with
+  `SCOPE_MISMATCH` (403) instead of being trusted for entitlement or spend.
+- `aiAdvisory.ts` takes an `AdvisoryScope` and writes one `ai_usage_logs` row per gateway call
+  (success, gateway error, rate limit, exception). A call whose tenant cannot be resolved is
+  skipped rather than made. Cron runs attribute to the tenant with `user_id = null`.
+- `ai-generate-email` (platform-admin surface) attributes usage to the admin from the verified
+  JWT with `app_key = 'platform_admin'`; `suggest-scanner-label` gained tenant/user attribution
+  derived from the JWT, never from the body.
+- `reconciliation-assistant` was left as-is: its quota RPC already is the cost record and
+  re-asserts `finance.reconcile_bank` on the line's own business.
+- Ratchets: background scope tuple + fail-closed attribution, and a sweep asserting every edge
+  function calling the AI gateway records usage. 16/16 scope tests + 3/3 boundary tests pass;
+  `deno check` clean.
+
+### Deliberately still out of scope
+
+- Shared/team conversation threads.
+- Retiring the barely-used `ai_advisory_usage` table in favour of `ai_usage_logs`.
 
 ## Do NOT change
 
