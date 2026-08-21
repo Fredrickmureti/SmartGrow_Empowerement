@@ -1790,6 +1790,78 @@ async function runDataToolLoop(
   return working;
 }
 
+/**
+ * Tees the provider SSE stream so the assistant turn is persisted to the
+ * conversation server-side once the answer completes. The bytes reaching the
+ * browser are unchanged.
+ */
+function createAssistantPersistenceStream(
+  supabaseClient: any,
+  scope: {
+    conversationId: string;
+    organizationId: string | null;
+    workingContext: Record<string, unknown>;
+  },
+): TransformStream<Uint8Array, Uint8Array> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let assistantContent = "";
+
+  const consume = (chunkText: string) => {
+    buffer += chunkText;
+    let idx: number;
+    while ((idx = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, idx).replace(/\r$/, "");
+      buffer = buffer.slice(idx + 1);
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(payload);
+        const delta = parsed?.choices?.[0]?.delta?.content;
+        if (typeof delta === "string") assistantContent += delta;
+      } catch {
+        // Partial JSON frame — it will arrive complete on the next chunk.
+        buffer = line + "\n" + buffer;
+        break;
+      }
+    }
+  };
+
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      controller.enqueue(chunk);
+      try {
+        consume(decoder.decode(chunk, { stream: true }));
+      } catch (e) {
+        console.error("assistant persistence parse failed:", e);
+      }
+    },
+    async flush() {
+      if (!assistantContent.trim()) return;
+      const { error } = await supabaseClient
+        .from("ai_conversation_messages")
+        .insert({
+          conversation_id: scope.conversationId,
+          organization_id: scope.organizationId,
+          role: "assistant",
+          content: assistantContent,
+          working_context: scope.workingContext,
+        });
+      if (error) {
+        console.error("failed to persist assistant turn:", error);
+        return;
+      }
+      const { error: touchErr } = await supabaseClient
+        .from("ai_conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", scope.conversationId);
+      if (touchErr) console.error("failed to touch conversation:", touchErr);
+    },
+  });
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
