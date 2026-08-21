@@ -218,15 +218,16 @@ export async function fetchApAging({
     currency: (payload.currency as string) ?? null,
     vendors,
     totals: {
-      not_due: num(rawTotals.not_due),
-      current: num(rawTotals.current),
-      days30: num(rawTotals.days30),
-      days60: num(rawTotals.days60),
-      days90: num(rawTotals.days90),
-      gross: num(rawTotals.gross),
-      credit: num(rawTotals.credit),
-      total: num(rawTotals.total),
+      not_due: money(rawTotals.not_due),
+      current: money(rawTotals.current),
+      days30: money(rawTotals.days30),
+      days60: money(rawTotals.days60),
+      days90: money(rawTotals.days90),
+      gross: money(rawTotals.gross),
+      credit: money(rawTotals.credit),
+      total: money(rawTotals.total),
       vendorCount: num(rawTotals.vendor_count),
+      unconvertibleCount: num(rawTotals.unconvertible_count),
     },
     page: {
       limit: rawPage.limit == null ? null : num(rawPage.limit),
@@ -235,15 +236,16 @@ export async function fetchApAging({
       returned: num(rawPage.returned) || vendors.length,
       hasMore: Boolean(rawPage.has_more),
       filteredVendorCount: num(rawFiltered.vendor_count),
-      filteredTotal: num(rawFiltered.total),
+      filteredTotal: money(rawFiltered.total),
     },
     reconciliation:
       !recon.error && reconRow
         ? {
-            agingTotal: num(reconRow.aging_total),
-            controlAccountBalance: num(reconRow.control_account_balance),
-            variance: num(reconRow.variance),
+            agingTotal: money(reconRow.aging_total),
+            controlAccountBalance: money(reconRow.control_account_balance),
+            variance: money(reconRow.variance),
             inBalance: Boolean(reconRow.in_balance),
+            unconvertibleDocumentCount: num(reconRow.unconvertible_document_count),
           }
         : null,
   };
