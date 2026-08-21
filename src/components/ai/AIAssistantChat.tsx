@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
-import type { ScopeMode } from "@/lib/ai/workingContext";
+import { deriveWorkingContext, type ScopeMode } from "@/lib/ai/workingContext";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
