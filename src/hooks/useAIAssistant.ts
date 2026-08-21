@@ -231,6 +231,11 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
       const { data: { session } } = await supabase.auth.getSession();
       const authToken = session?.access_token || supabaseKey;
 
+      // Bind the turn to a persisted, scope-keyed thread. When it exists the
+      // server rebuilds history from the database and only the new turn is
+      // trusted from the client.
+      const threadId = await ensureConversation(userMessage);
+
       const response = await fetch(
         `${supabaseUrl}/functions/v1/ai-assistant`,
         {
@@ -242,16 +247,21 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
           },
           body: JSON.stringify({
             type: "chat",
-            messages: newMessages,
+            messages: threadId
+              ? [{ role: "user", content: userMessage }]
+              : newMessages,
             organizationId,
             businessId,
             branchId,
             userRole,
             accessibleBranchIds,
-            currentPage,
+            currentPage: currentPage ?? workingContext.path,
+            conversationId: threadId,
+            workingContext,
           }),
         }
       );
+
 
       if (!response.ok) {
         const errorData = await response
