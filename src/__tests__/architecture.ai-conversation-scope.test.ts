@@ -92,6 +92,47 @@ describe("AI conversation scope", () => {
 
 
 
+  it("background AI jobs derive their scope tuple from the row, not the request", () => {
+    const advisory = readFileSync(
+      "supabase/functions/sync-bank-transactions/aiAdvisory.ts",
+      "utf8",
+    );
+    expect(advisory).toMatch(/export interface AdvisoryScope/);
+    // Every advisory call is attributed to the tenant that caused it…
+    expect(advisory).toMatch(/from\("ai_usage_logs"\)|from\('ai_usage_logs'\)/);
+    expect(advisory).toMatch(/organization_id: scope\.organizationId/);
+    expect(advisory).toMatch(/business_id: scope\.businessId/);
+    expect(advisory).toMatch(/branch_id: scope\.branchId/);
+    // …and an unattributable call does not happen at all.
+    expect(advisory).toMatch(/if \(!scope\.organizationId\)[\s\S]{0,160}return out;/);
+
+    const job = readFileSync("supabase/functions/sync-bank-transactions/index.ts", "utf8");
+    // Scope comes from the bank account row; a disagreeing body is refused.
+    expect(job).toMatch(/from\('bank_accounts'\)[\s\S]{0,200}organization_id, business_id, branch_id/);
+    expect(job).toMatch(/SCOPE_MISMATCH/);
+    expect(job).toMatch(/annotateLines\(supabase, lines, advisoryScope\)/);
+    // Cron runs are not attributed to a user's UI session.
+    expect(job).toMatch(/triggerSource === 'manual' \? \(body\?\.user_id \?\? null\) : null/);
+  });
+
+  it("every edge function that calls the AI gateway records its usage", () => {
+    const fnFiles = globSync("supabase/functions/**/*.ts", { nodir: true }).filter(
+      (f) => !f.endsWith(".test.ts"),
+    );
+    const offenders: string[] = [];
+    for (const file of fnFiles) {
+      const src = readFileSync(file, "utf8");
+      if (!src.includes("ai.gateway.lovable.dev")) continue;
+      const logs =
+        /ai_usage_logs/.test(src) ||
+        /ai_advisory_usage/.test(src) ||
+        /logUsage\(/.test(src) ||
+        /consume_quota/.test(src);
+      if (!logs) offenders.push(file);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("the AI insights cache is keyed on the full tenant/branch/app scope", () => {
     const src = readFileSync("src/hooks/useAIInsightsCache.ts", "utf8");
     // Cache reads and writes must always carry the tenant predicate…
