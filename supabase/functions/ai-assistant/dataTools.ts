@@ -66,9 +66,10 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Customer payments received, in the workspace base currency. Allocation to invoices lives in payment_allocations, not here.",
   },
   bank_accounts: {
-    // NOTE: there is no `current_balance` column on this table. A balance is a
+    // NOTE: this table stores no running balance column at all. A balance is a
     // projection (`bank_account_positions`), never a stored column — the
     // assistant's snapshot already carries the positions.
+
     columns: ["id", "name", "bank_name", "account_number", "currency", "opening_balance", "bank_reported_balance", "bank_balance_as_of", "is_primary", "is_active", "lifecycle_status", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
