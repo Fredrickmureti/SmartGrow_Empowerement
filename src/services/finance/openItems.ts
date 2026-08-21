@@ -242,7 +242,7 @@ export async function fetchApVendorCreditAsOf(
   return (data ?? []) as unknown as Array<{
     contact_id: string | null;
     credit_amount: number;
-    base_credit_amount: number;
+    base_credit_amount: number | null;
   }>;
 }
 
