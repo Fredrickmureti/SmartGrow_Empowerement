@@ -1772,7 +1772,9 @@ async function runDataToolLoop(
   currencySummary: Record<string, unknown>,
   maxRounds = 4,
 ): Promise<Array<Record<string, any>>> {
-  const tools = buildDataToolSpecs();
+  // Only advertise tools this caller is allowed to use.
+  const tools = buildDataToolSpecs(scope.capabilities);
+
   let working = [...aiMessages];
 
   for (let round = 0; round < maxRounds; round++) {
