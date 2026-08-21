@@ -272,3 +272,23 @@ BEGIN
     RAISE EXCEPTION 'post_expense_gl must post only through post_journal_entry_atomic (ADR 0123)';
   END IF;
 END $$;
+
+-- 11) Purchase returns take their rate from the one resolver, like every other
+--     document. The historical defect: a private lookup against
+--     public.exchange_rates followed by COALESCE(v_rate, 1), which valued a
+--     rateless foreign return at parity (ADR 0135/0136).
+DO $$
+DECLARE v_src text;
+BEGIN
+  SELECT p.prosrc INTO v_src FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'purchase_return_create';
+  IF v_src IS NULL THEN
+    RAISE EXCEPTION 'purchase_return_create is missing';
+  END IF;
+  IF v_src !~ 'require_exchange_rate' THEN
+    RAISE EXCEPTION 'purchase_return_create does not resolve its rate through require_exchange_rate';
+  END IF;
+  IF v_src ~ 'FROM public\.exchange_rates' THEN
+    RAISE EXCEPTION 'purchase_return_create still reads the rate book directly instead of using the resolver';
+  END IF;
+END $$;
