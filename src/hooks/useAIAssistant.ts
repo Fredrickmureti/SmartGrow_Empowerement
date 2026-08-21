@@ -381,20 +381,34 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, organizationId, businessId, branchId, userRole, accessibleBranchIds]);
+  }, [
+    messages,
+    organizationId,
+    businessId,
+    branchId,
+    userRole,
+    accessibleBranchIds,
+    ensureConversation,
+    workingContext,
+  ]);
 
-  const clearChat = useCallback(() => {
+  /** Archives the bound thread so the next turn starts a fresh one. */
+  const clearChat = useCallback(async () => {
     setMessages([]);
-  }, []);
+    await archiveConversation();
+  }, [archiveConversation]);
 
   return {
-    isLoading,
+    isLoading: isLoading || isLoadingHistory,
     messages,
+    conversationId,
+    workingContext,
     categorizeExpense,
     analyzeInvoice,
     getFinancialInsights,
     suggestActions,
     sendChatMessage,
     clearChat,
+
   };
 }
