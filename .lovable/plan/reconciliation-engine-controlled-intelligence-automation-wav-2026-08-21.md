@@ -4,7 +4,7 @@ Authoritative status. Update after every implementation.
 
 ## Current state
 
-**Active phase: Phase 5 (History & Explainability) — IN PROGRESS. Phases 0–4 verified.**
+**Active phase: Phase 6 (AI — assistive only) — NOT STARTED. Phases 0–5 implemented and verified.**
 
 ### Phase 0 — Discovery & verdict — DONE
 Archived at `.lovable/plan/reconciliation-engine-phase-0-verdict-and-phased-plan-2026-08-21.md`.
@@ -31,7 +31,7 @@ Verification evidence:
 
 Residual nit (not a defect): `src/lib/businessScopedTables.ts` still lists the retired table name. Clean up during Phase 7 ratchets.
 
-## Phase 5 — History & explainability (CURRENT)
+## Phase 5 — History & explainability — DONE (implemented and verified 2026-08-21)
 
 Findings established this session:
 
@@ -48,7 +48,31 @@ Findings established this session:
 4. **UI.** A read-only history panel on the bank line detail in `src/pages/BankReconciliation.tsx` and a session-level audit list on the reconciliation session view. Each entry states what was matched, on what evidence, by whom, when, by which rule (or `manual`), and — when reversed — that it was corrected, linking the reversal to the original decision. No action buttons; explaining is not deciding.
 5. **Ratchet.** Extend `src/test/architecture/banking-match-resolution.test.ts` (or a new `banking-match-history-read-seam.test.ts`): no browser module SELECTs `bank_reconciliation_matches` outside the two allowed hooks; the history RPCs contain no INSERT/UPDATE/DELETE; the SELECT policy is business-scoped (SQL test alongside `bank_matching_seam_invariants_test.sql`).
 
-Validation before marking Phase 5 done: typecheck, the new + existing banking ratchets green, and the history panel exercised in the preview against a line that was proposed, confirmed and reversed.
+### Delivered (verified against the live database and a typecheck)
+
+1. **Read boundary tightened (F5-3 closed).** The org-wide SELECT policy is gone. `bank_reconciliation_matches` now carries exactly two policies, both business- and branch-scoped:
+   - `bank_recon_matches_select_perm_v1` — `business_id IS NOT NULL AND user_can_access_business(auth.uid(), business_id) AND (branch_id IS NULL OR user_can_access_branch(...) OR has_finance_permission(..., 'finance.view_consolidated', business_id))`
+   - `bank_recon_matches_write_perm_v1` — as before, plus `finance.reconcile_bank`.
+2. **One read authority (DB).** `bank_match_history(p_bank_transaction_id uuid)` and `bank_match_session_history(p_session_id uuid)`. VERIFIED in `pg_proc`: both SECURITY DEFINER, `search_path=public`, EXECUTE to `authenticated`/`service_role` only (no `anon`/PUBLIC), single-overload, and both call `_assert_can_read_bank_history`. Helpers `_assert_can_read_bank_history`, `_bank_history_actor`, `_bank_match_history_row` are SECURITY DEFINER with EXECUTE revoked from `authenticated` — they are reachable only through the two RPCs.
+3. **Client seam.** `src/hooks/useBankMatchHistory.ts` — `useBankMatchHistory` / `useBankSessionMatchHistory`, RPC-only, query-only (no `useMutation`, no table select).
+4. **UI (F5-4 closed).**
+   - `src/components/banking/BankMatchDecisionCard.tsx` — one decision: what it was matched to, the evidence, the rule or the hand, the allocations, and whether it was later corrected.
+   - `src/components/banking/BankMatchHistoryPanel.tsx` — per-line timeline.
+   - `src/components/banking/BankSessionAuditTrail.tsx` — per-session trail.
+   - Wired: `src/pages/BankReconciliation.tsx` opens a read-only "Why is this matched?" / "Decision history" side rail from both the reconciled and unreconciled row menus; `src/components/banking/ReconciliationHistoryTab.tsx` renders the session audit trail inside the expanded session (lazily, only while expanded). No action buttons on either surface.
+5. **Ratchets.**
+   - `src/test/architecture/banking-match-history-read-seam.test.ts` — 5/5 green. Forbids new browser modules selecting `bank_reconciliation_matches` (allow-list: `useBankPendingMatch`, `useClearableRecordedPayments`), forbids decision/mutation seams in the history hook and UI, and asserts the UI is wired.
+   - `supabase/tests/bank_match_history_read_seam_test.sql` — asserts no org-wide read policy returns, the RPCs are hardened/read-only/scope-asserting, and the helpers are not client-callable.
+6. **Also fixed this session:** the delete button in `src/features/finance/banking/rules/RulesListPage.tsx` had a duplicate `disabled` prop and no `onClick`; it is now wired to `deleteRule`.
+
+Typecheck: clean.
+
+### Known-unrelated red tests (pre-existing, NOT caused by this phase)
+A full `src/test/architecture` run is broadly red across other domains (WMS, POS, payroll, localization). Banking-adjacent pre-existing failures to be triaged in their own wave, not here: `bank-export-template-metadata`, `bank-feeds-business-level-gating` (branch re-fetch assertion), `banking-business-level-gating` (branch filter assertion). None of them touch the match-history seam.
+
+### Residual for Phase 5 closure
+- Preview walk-through of a line that was proposed → confirmed → reversed has NOT been executed. UNVERIFIED end-to-end in the browser; the DB and seam facts above are verified.
+
 
 ## Pending
 
@@ -61,5 +85,11 @@ Validation before marking Phase 5 done: typecheck, the new + existing banking ra
 
 ## Instructions for the next agent
 
-1. Phases 0–4 were independently verified on 2026-08-21 (evidence above). Do not re-litigate them; do not start Phase 6 before Phase 5 is complete and verified.
+1. **Verify before you build.** Phases 0–5 are recorded as implemented above. Independently confirm Phase 5 before starting Phase 6:
+   - `select polname, pg_get_expr(polqual, polrelid) from pg_policy p join pg_class c on c.oid=p.polrelid where c.relname='bank_reconciliation_matches'` — both policies must be business- AND branch-scoped; no `user_belongs_to_org` read.
+   - `pg_proc` check on `bank_match_history` / `bank_match_session_history` (SECURITY DEFINER, pinned search_path, no anon EXECUTE) and on the three `_bank_*` helpers (no `authenticated` EXECUTE).
+   - `bunx vitest run src/test/architecture/banking-match-history-read-seam.test.ts` must stay 5/5.
+   - Close the residual: drive the preview through a line that was proposed, confirmed and reversed and confirm the side rail renders all three decisions with actor, rule and evidence.
+2. **Then start Phase 6, not something else.** AI is assistive only: it may rank server-produced candidates and draft explanations from the Phase 5 history RPCs, retrieved per decision. It must never call `bank_match_confirm`/`propose`, never post, and never receive bulk tenant data. Route through the AI gateway server-side.
+3. Phases 0–4 were independently verified on 2026-08-21 (evidence above). Do not re-litigate them.
 2. Bring each phase to a coherent, production-ready state (UI + DB + ratchet) before moving on. No orphaned functionality.
