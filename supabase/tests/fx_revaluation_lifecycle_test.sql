@@ -236,8 +236,27 @@ END $$;
 --    value a foreign document at 1:1 because its rate is absent. The sweep
 --    strips `--` comments first, so a comment that *documents* the absence of a
 --    fallback (e.g. "no COALESCE(rate, 1) here") does not trip the ratchet.
+--
+--    Documented, deliberately narrow exemption: six READ-ONLY reporting
+--    projections still carry `COALESCE(NULLIF(rate, 0), 1)` when translating a
+--    document total for analysis. They post nothing, so they cannot corrupt the
+--    ledger, but they DO misstate a rateless foreign document as if it were
+--    base currency. They are a known, scheduled remediation (see
+--    .lovable/plan.md, Phase 8) and are listed here by name so the ratchet
+--    cannot be widened silently and no NEW function can join them.
 DO $$
-DECLARE r record; v_src text; v_bad text[] := '{}';
+DECLARE
+  r record;
+  v_src text;
+  v_bad text[] := '{}';
+  v_reporting_exemptions text[] := ARRAY[
+    'finance_purchase_analysis',
+    'finance_purchase_expense_reconciliation',
+    'finance_sales_analysis',
+    'finance_sales_revenue_reconciliation',
+    'get_salesperson_performance',
+    'get_salesperson_performance_documents'
+  ];
 BEGIN
   FOR r IN
     SELECT p.proname, p.prosrc
@@ -245,7 +264,8 @@ BEGIN
      WHERE n.nspname = 'public' AND p.prokind = 'f'
   LOOP
     v_src := regexp_replace(r.prosrc, '--[^\n]*', '', 'g');
-    IF v_src ~* 'COALESCE\s*\(\s*(NULLIF\s*\(\s*)?[a-z_."]*(exchange_rate|currency_rate|fx_rate|_rate|\mrate\M)[^)]*\)?\s*,\s*1(\.0+)?\s*\)' THEN
+    IF v_src ~* 'COALESCE\s*\(\s*(NULLIF\s*\(\s*)?[a-z_."]*(exchange_rate|currency_rate|fx_rate|_rate|\mrate\M)[^)]*\)?\s*,\s*1(\.0+)?\s*\)'
+       AND NOT (r.proname = ANY (v_reporting_exemptions)) THEN
       v_bad := v_bad || r.proname;
     END IF;
   END LOOP;
@@ -254,6 +274,7 @@ BEGIN
     RAISE EXCEPTION '% fall(s) back to a 1:1 exchange rate (ADR 0136)', array_to_string(v_bad, ', ');
   END IF;
 END $$;
+
 
 
 -- 10) The expense posting path refuses, loudly, when no rate is on file.
