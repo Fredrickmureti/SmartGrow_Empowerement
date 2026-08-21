@@ -184,7 +184,7 @@ export async function fetchArCustomerCreditAsOf(
   businessId?: string | null,
   branchId?: string | null,
   asOf?: string,
-): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number | null }>> {
   const { data, error } = await supabase.rpc("finance_ar_customer_credit_as_of" as never, {
     _org_id: orgId,
     _business_id: businessId ?? null,
@@ -192,12 +192,15 @@ export async function fetchArCustomerCreditAsOf(
     _as_of: asOf ?? today(),
   } as never);
   if (error) throw error;
+  // ADR 0136: `base_credit_amount` is NULL when the row's currency has no rate
+  // on file. It is an absence, never the foreign amount.
   return (data ?? []) as unknown as Array<{
     contact_id: string | null;
     credit_amount: number;
-    base_credit_amount: number;
+    base_credit_amount: number | null;
   }>;
 }
+
 
 /**
  * The ONE payables read. `finance_ap_open_items_as_of` is the point-in-time AP
