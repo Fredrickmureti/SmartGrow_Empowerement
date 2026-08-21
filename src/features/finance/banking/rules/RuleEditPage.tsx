@@ -1,6 +1,5 @@
 /**
- * RuleEditPage — routed `/finance/banking/rules/:id/edit` replacement for
- * the legacy `TransactionRulesDialog` in edit mode.
+ * RuleEditPage — routed `/finance/banking/rules/:id/edit`.
  */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -11,9 +10,10 @@ import {
   RecordFormShell,
   useRecordFormSubmit,
 } from "@/design-system";
-import { useTransactionRules } from "@/hooks/useTransactionRules";
+import { useReconciliationRules } from "@/hooks/finance/useReconciliationRules";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
+import { useBranches } from "@/hooks/useBranches";
 import {
   RuleFormBody,
   buildRulePayload,
@@ -24,9 +24,10 @@ import {
 export default function RuleEditPage() {
   const { id: ruleId = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { rules, isLoading, updateRule } = useTransactionRules();
+  const { rules, isLoading, updateRule } = useReconciliationRules();
   const { accounts: glAccounts } = useAccounts();
   const { accounts: bankAccounts } = useBankAccounts();
+  const { branches } = useBranches();
 
   const rule = rules.find((r) => r.id === ruleId) || null;
   const [values, setValues] = useState<RuleFormValues>(emptyRuleForm);
@@ -35,21 +36,20 @@ export default function RuleEditPage() {
   useEffect(() => {
     if (!rule || hydrated) return;
     setValues({
-      rule_name: rule.rule_name,
-      description_pattern: rule.description_pattern || "",
+      name: rule.name,
+      pattern: rule.description_regex || rule.description_pattern || "",
+      use_regex: !!rule.description_regex,
       reference_pattern: rule.reference_pattern || "",
-      min_amount: rule.min_amount ?? undefined,
-      max_amount: rule.max_amount ?? undefined,
-      transaction_type: rule.transaction_type || "both",
-      target_category: rule.target_category,
-      priority: rule.priority || 0,
+      amount_min: rule.amount_min ?? undefined,
+      amount_max: rule.amount_max ?? undefined,
+      amount_sign: rule.amount_sign || "any",
+      counterpart_account_id: rule.counterpart_account_id,
+      description_template: rule.description_template || "",
+      priority: rule.priority ?? 100,
       is_active: rule.is_active ?? true,
-      auto_action: rule.auto_action || "categorize",
       auto_post: rule.auto_post ?? false,
-      auto_offset_account_id: rule.auto_offset_account_id || "",
-      use_regex: rule.use_regex ?? false,
-      stop_processing: rule.stop_processing ?? false,
       bank_account_id: rule.bank_account_id || "",
+      branch_id: rule.branch_id || "",
     });
     setHydrated(true);
   }, [rule, hydrated]);
@@ -64,9 +64,8 @@ export default function RuleEditPage() {
     e.preventDefault();
     if (!rule) return;
     submit.run(async () => {
-      const success = await updateRule(rule.id, buildRulePayload(values));
-      if (!success) throw new Error("Failed to update rule");
-      return success;
+      await updateRule(rule.id, buildRulePayload(values));
+      return true;
     });
   };
 
@@ -82,13 +81,13 @@ export default function RuleEditPage() {
   }
 
   const canSubmit =
-    !!values.rule_name && !!values.description_pattern && !!values.target_category;
+    !!values.name && !!values.pattern && !!values.counterpart_account_id;
 
   return (
     <RecordFormShell
       mode="edit"
       entityLabel="Rule"
-      recordRef={rule.rule_name}
+      recordRef={rule.name}
       cancelHref="/finance/banking/rules"
       onSubmit={onSubmit}
       isSubmitting={submit.isSubmitting}
@@ -99,6 +98,7 @@ export default function RuleEditPage() {
         onChange={setValues}
         glAccounts={glAccounts || []}
         bankAccounts={bankAccounts || []}
+        branches={branches || []}
       />
     </RecordFormShell>
   );

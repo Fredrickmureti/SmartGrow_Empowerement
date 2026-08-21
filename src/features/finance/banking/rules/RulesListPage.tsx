@@ -26,13 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useTransactionRules } from "@/hooks/useTransactionRules";
+import { useReconciliationRules } from "@/hooks/finance/useReconciliationRules";
 import { useAccounts } from "@/hooks/useAccounts";
 
 export default function RulesListPage() {
   const navigate = useNavigate();
-  const { rules, isLoading, isSaving, deleteRule, toggleRuleActive } =
-    useTransactionRules();
+  const { rules, isLoading, deleteRule, updateRule } = useReconciliationRules();
   const { accounts: glAccounts } = useAccounts();
 
   const getAccountName = (accountId: string) => {
@@ -85,9 +84,9 @@ export default function RulesListPage() {
                   <TableRow>
                     <TableHead className="text-xs sm:text-sm">Rule</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Pattern</TableHead>
-                    <TableHead className="text-xs sm:text-sm hidden xs:table-cell">Type</TableHead>
-                    <TableHead className="text-xs sm:text-sm">Account</TableHead>
-                    <TableHead className="text-xs sm:text-sm hidden md:table-cell">Action</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden xs:table-cell">Applies To</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Posts To</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden md:table-cell">Posting</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden xs:table-cell">Active</TableHead>
                     <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
                   </TableRow>
@@ -97,22 +96,22 @@ export default function RulesListPage() {
                     <TableRow key={rule.id}>
                       <TableCell className="font-medium text-xs sm:text-sm py-2">
                         <span className="truncate max-w-[100px] sm:max-w-none block">
-                          {rule.rule_name}
+                          {rule.name}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground font-mono text-[10px] sm:text-xs max-w-[150px] truncate hidden sm:table-cell">
-                        {rule.description_pattern}
-                        {rule.use_regex && (
+                        {rule.description_regex || rule.description_pattern || "—"}
+                        {rule.description_regex && (
                           <Badge variant="outline" className="ml-1 text-[9px]">regex</Badge>
                         )}
                       </TableCell>
                       <TableCell className="hidden xs:table-cell">
                         <Badge variant="outline" className="text-[10px] sm:text-xs">
-                          {rule.transaction_type === "both"
+                          {rule.amount_sign === "any"
                             ? "All"
-                            : rule.transaction_type === "credit"
-                              ? "Deposit"
-                              : "Payment"}
+                            : rule.amount_sign === "credit"
+                              ? "Money in"
+                              : "Money out"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -120,25 +119,23 @@ export default function RulesListPage() {
                           variant="secondary"
                           className="text-[10px] sm:text-xs max-w-[120px] truncate block"
                         >
-                          {rule.target_category && rule.target_category.includes("-")
-                            ? getAccountName(rule.target_category)
-                            : rule.target_category}
+                          {getAccountName(rule.counterpart_account_id)}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Badge variant="outline" className="text-[10px]">
-                          {rule.auto_action || "categorize"}
+                          {rule.auto_post ? "Auto-post" : "Propose"}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden xs:table-cell">
                         <Switch
                           checked={rule.is_active ?? true}
                           onCheckedChange={() =>
-                            toggleRuleActive(rule.id, !(rule.is_active ?? true))
+                            updateRule(rule.id, { is_active: !(rule.is_active ?? true) })
                           }
-                          disabled={isSaving}
                         />
                       </TableCell>
+
                       <TableCell className="text-right py-2">
                         <div className="flex justify-end gap-0.5">
                           <Button
@@ -156,7 +153,7 @@ export default function RulesListPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => deleteRule(rule.id)}
+                            disabled={isLoading}
                             disabled={isSaving}
                             aria-label="Delete rule"
                           >

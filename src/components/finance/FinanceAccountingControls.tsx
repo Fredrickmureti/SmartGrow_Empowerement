@@ -13,7 +13,11 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { supabase } from "@/integrations/supabase/client";
 import { useJournalBooks, type JournalType } from "@/hooks/finance/useJournalBooks";
-import { useReconciliationRules } from "@/hooks/finance/useReconciliationRules";
+import {
+  describeRuleSkip,
+  useReconciliationRules,
+  type ApplyRulesResult,
+} from "@/hooks/finance/useReconciliationRules";
 import { useFxRevaluation, useFxRevaluationReadiness } from "@/hooks/finance/useFxRevaluation";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -48,6 +52,7 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   const journalBooks = useJournalBooks();
   const reconRules = useReconciliationRules();
   const fx = useFxRevaluation();
+  const [lastRuleRun, setLastRuleRun] = useState<ApplyRulesResult | null>(null);
   // One batched, cached round-trip for all three gates. While unresolved we
   // disable inputs but never render a denial banner (tri-state contract).
   const { permissions, isLoading: permLoading } = useFinancePermissions([
@@ -108,6 +113,9 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
     if (!ruleDraft.name.trim() || !ruleDraft.counterpart_account_id) return;
     await reconRules.createRule({
       bank_account_id: ruleDraft.bank_account_id || null,
+      // This inline authoring surface is company-wide; per-branch scoping is
+      // set on the full rule form.
+      branch_id: null,
       name: ruleDraft.name.trim(),
       priority: 100,
       is_active: true,
@@ -134,7 +142,10 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
 
   const applyRules = async () => {
     if (!applyBankAccountId) return;
-    await reconRules.applyRules(applyBankAccountId);
+    // A refusal is evidence, not an error: show the accountant which lines the
+    // rules deliberately left alone and why.
+    const result = await reconRules.applyRules(applyBankAccountId);
+    setLastRuleRun(result);
   };
 
   return (
@@ -251,6 +262,24 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
                 Apply Rules
               </Button>
             </div>
+            {lastRuleRun && lastRuleRun.skipped.length > 0 && (
+              <div className="rounded-md border border-dashed p-3 space-y-1">
+                <p className="text-xs font-medium">
+                  {lastRuleRun.skipped.length} line
+                  {lastRuleRun.skipped.length === 1 ? "" : "s"} left for review
+                </p>
+                {Object.entries(
+                  lastRuleRun.skipped.reduce<Record<string, number>>((acc, skip) => {
+                    acc[skip.reason] = (acc[skip.reason] ?? 0) + 1;
+                    return acc;
+                  }, {}),
+                ).map(([reason, count]) => (
+                  <p key={reason} className="text-xs text-muted-foreground">
+                    {count} × {describeRuleSkip(reason)}
+                  </p>
+                ))}
+              </div>
+            )}
             <div className="space-y-2">
               {reconRules.rules.map((rule) => (
                 <div key={rule.id} className="rounded-md border p-3">
