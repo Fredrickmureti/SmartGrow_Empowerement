@@ -94719,6 +94719,7 @@ export type Database = {
           aging_total: number
           control_account_balance: number
           in_balance: boolean
+          unconvertible_document_count: number
           variance: number
         }[]
       }
@@ -94768,6 +94769,7 @@ export type Database = {
           projection_net: number
           projection_open: number
           reason: string
+          unconvertible_document_count: number
           variance: number
         }[]
       }
@@ -95451,6 +95453,7 @@ export type Database = {
           open_document_count: number
           overdue_count: number
           total_residual: number
+          unconvertible_document_count: number
           unposted_amount: number
           unposted_document_count: number
         }[]
@@ -95496,6 +95499,7 @@ export type Database = {
           open_document_count: number
           overdue_count: number
           total_residual: number
+          unconvertible_document_count: number
           unposted_amount: number
           unposted_document_count: number
         }[]

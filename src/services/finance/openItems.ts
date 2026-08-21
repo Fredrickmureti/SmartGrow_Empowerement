@@ -142,7 +142,12 @@ export interface ApOpenItemAsOfRow {
   credited_amount: number;
   residual_amount: number;
   currency: string | null;
-  base_residual_amount: number;
+  /**
+   * ADR 0136: `null` when the document's currency has no rate on file. It is an
+   * absence, never the raw `residual_amount` — substituting that would be a
+   * silent 1:1 conversion into the base currency.
+   */
+  base_residual_amount: number | null;
   source_kind: "bill" | "invoice" | "journal";
   aging_bucket: string;
   days_past_due: number;
@@ -304,7 +309,8 @@ export async function fetchTopOpenCounterparties(
     const existing = byContact.get(key) || { name, amount: 0, daysOverdue: 0 };
     // Base currency: exposures across currencies may only be added up after
     // conversion (`base_residual_amount`), never as raw document amounts.
-    existing.amount += Number(r.base_residual_amount ?? r.residual_amount) || 0;
+    if (r.base_residual_amount === null || r.base_residual_amount === undefined) continue;
+    existing.amount += Number(r.base_residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
     byContact.set(key, existing);
   }
@@ -374,7 +380,9 @@ export async function fetchContactOpenItemAging(
   const buckets = emptyAgingBuckets();
   for (const row of (data || []) as any[]) {
     // Aging is a summed figure, so it must use the base-currency residual.
-    const residual = Number(row.base_residual_amount ?? row.residual_amount) || 0;
+    // ADR 0136: a document with no rate on file is excluded, not converted 1:1.
+    if (row.base_residual_amount === null || row.base_residual_amount === undefined) continue;
+    const residual = Number(row.base_residual_amount) || 0;
     if (residual <= 0.01) continue;
     addToAgingBuckets(
       buckets,
@@ -663,7 +671,9 @@ export async function fetchPayableCounterparties(
 
   for (const r of openRows) {
     if (!r.contact_id) continue;
-    const amount = Number(r.base_residual_amount ?? r.residual_amount) || 0;
+    // ADR 0136: a payable with no rate on file cannot join a base-currency net.
+    if (r.base_residual_amount === null || r.base_residual_amount === undefined) continue;
+    const amount = Number(r.base_residual_amount) || 0;
     // Overdue days come from the engine (measured against the as-of date), so
     // the cohort ages exactly like Aged Payables.
     const overdue = Number(r.days_past_due) || 0;
