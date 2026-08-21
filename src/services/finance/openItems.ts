@@ -184,7 +184,7 @@ export async function fetchArCustomerCreditAsOf(
   businessId?: string | null,
   branchId?: string | null,
   asOf?: string,
-): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number | null }>> {
   const { data, error } = await supabase.rpc("finance_ar_customer_credit_as_of" as never, {
     _org_id: orgId,
     _business_id: businessId ?? null,
@@ -192,12 +192,15 @@ export async function fetchArCustomerCreditAsOf(
     _as_of: asOf ?? today(),
   } as never);
   if (error) throw error;
+  // ADR 0136: `base_credit_amount` is NULL when the row's currency has no rate
+  // on file. It is an absence, never the foreign amount.
   return (data ?? []) as unknown as Array<{
     contact_id: string | null;
     credit_amount: number;
-    base_credit_amount: number;
+    base_credit_amount: number | null;
   }>;
 }
+
 
 /**
  * The ONE payables read. `finance_ap_open_items_as_of` is the point-in-time AP
@@ -228,7 +231,7 @@ export async function fetchApVendorCreditAsOf(
   businessId?: string | null,
   branchId?: string | null,
   asOf?: string,
-): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number }>> {
+): Promise<Array<{ contact_id: string | null; credit_amount: number; base_credit_amount: number | null }>> {
   const { data, error } = await supabase.rpc("finance_ap_vendor_credit_as_of" as never, {
     _org_id: orgId,
     _business_id: businessId ?? null,
@@ -239,7 +242,7 @@ export async function fetchApVendorCreditAsOf(
   return (data ?? []) as unknown as Array<{
     contact_id: string | null;
     credit_amount: number;
-    base_credit_amount: number;
+    base_credit_amount: number | null;
   }>;
 }
 
@@ -412,7 +415,7 @@ export async function fetchUnappliedCustomerCredit(
   const wanted = Array.isArray(contactId) ? contactId : contactId ? [contactId] : null;
   if (wanted && wanted.length === 0) return 0;
 
-  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number | null }>;
   try {
     rows = await fetchArCustomerCreditAsOf(orgId, businessId, null, asOf);
   } catch {
@@ -422,9 +425,13 @@ export async function fetchUnappliedCustomerCredit(
   let total = 0;
   for (const row of rows) {
     if (wanted && (!row.contact_id || !wanted.includes(row.contact_id))) continue;
+    // ADR 0136: a row with no rate on file contributes nothing to a base-currency
+    // total. It is never converted at parity from its foreign amount.
+    if (row.base_credit_amount === null || row.base_credit_amount === undefined) continue;
     total += Number(row.base_credit_amount) || 0;
   }
   return total;
+
 }
 
 /**
@@ -468,7 +475,7 @@ async function fetchVendorCreditByContact(
       : null;
   if (wanted && wanted.length === 0) return out;
 
-  let rows: Array<{ contact_id: string | null; base_credit_amount: number }>;
+  let rows: Array<{ contact_id: string | null; base_credit_amount: number | null }>;
   try {
     rows = await fetchApVendorCreditAsOf(orgId, businessId, null, asOf);
   } catch {
@@ -479,7 +486,10 @@ async function fetchVendorCreditByContact(
     const key = row.contact_id;
     if (!key) continue;
     if (wanted && !wanted.includes(key)) continue;
+    // ADR 0136: no rate on file contributes nothing; never converted at parity.
+    if (row.base_credit_amount === null || row.base_credit_amount === undefined) continue;
     out.set(key, (out.get(key) || 0) + (Number(row.base_credit_amount) || 0));
+
   }
   return out;
 }
@@ -662,10 +672,15 @@ export async function fetchPayableCounterparties(
 
   for (const r of creditRows) {
     if (!r.contact_id) continue;
-    const credit = Number(r.base_credit_amount ?? r.credit_amount) || 0;
+    // ADR 0136: the foreign `credit_amount` is NOT a substitute for a missing
+    // base amount — netting it here would be a silent 1:1 conversion. A credit
+    // whose currency has no rate on file is left out of the base-currency net.
+    if (r.base_credit_amount === null || r.base_credit_amount === undefined) continue;
+    const credit = Number(r.base_credit_amount) || 0;
     const existing = byContact.get(r.contact_id);
     if (existing) existing.netAmount -= credit;
   }
+
 
 
   const rows = Array.from(byContact.values()).filter((r) => r.netAmount > 0.01);
