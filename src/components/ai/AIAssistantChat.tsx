@@ -111,7 +111,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
             </div>
           </div>
           <div className="flex items-center gap-1 pt-2">
-            {(["branch", "company"] as ScopeMode[]).map((mode) => (
+            {scopeModes.map((mode) => (
               <Button
                 key={mode}
                 type="button"
@@ -120,10 +120,20 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
                 className="h-7 px-2 text-xs"
                 onClick={() => setScopeMode(mode)}
               >
-                {mode === "branch" ? "This branch" : "Company-wide"}
+                {mode === "record"
+                  ? "This record"
+                  : mode === "branch"
+                    ? "This branch"
+                    : "Company-wide"}
               </Button>
             ))}
           </div>
+          {scopeMode === "record" && (
+            <p className="pt-1 text-[10px] text-muted-foreground">
+              Private notes and questions about this{" "}
+              {(workingContext.recordType ?? "record").replace(/[-_]/g, " ")}.
+            </p>
+          )}
 
           {showThreads && (
             <div className="pt-2 max-h-48 overflow-y-auto rounded-md border bg-background/60">
