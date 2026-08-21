@@ -102,6 +102,7 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
+import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useApSummary } from "@/hooks/useApSummary";
 import { useBillMatchResults } from "@/hooks/useBillMatch";
 import { deriveBillStatus } from "@/features/purchases/bills/billStatus";
@@ -784,9 +785,18 @@ export default function Bills() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{formatCurrency(totals.outstanding, baseCurrency)}</div>
+              <div className="text-2xl font-bold text-amber-600">
+                <BaseCurrencyAmount
+                  value={totals.outstanding}
+                  format={(v) => formatCurrency(v, baseCurrency)}
+                  unconvertibleCount={apSummary.unconvertibleDocumentCount}
+                  label="Outstanding"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
                 {apSummary.openDocumentCount} open AP documents
+                {apSummary.unconvertibleDocumentCount > 0 &&
+                  ` — ${apSummary.unconvertibleDocumentCount} with no rate on file`}
               </p>
             </CardContent>
           </Card>
@@ -797,7 +807,14 @@ export default function Bills() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{formatCurrency(totals.overdue, baseCurrency)}</div>
+              <div className="text-2xl font-bold text-destructive">
+                <BaseCurrencyAmount
+                  value={totals.overdue}
+                  format={(v) => formatCurrency(v, baseCurrency)}
+                  unconvertibleCount={apSummary.unconvertibleDocumentCount}
+                  label="Overdue"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">{apSummary.overdueCount} past due</p>
             </CardContent>
           </Card>
