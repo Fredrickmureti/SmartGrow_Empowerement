@@ -118,3 +118,45 @@ export/PDF parity with the on-screen table.
 ## Scope boundaries
 No changes to `resolve_exchange_rate` precedence, `post_journal_entry_atomic`, the reporting infrastructure, or
 any non-FX report. No new FX calculation anywhere in the client. No new reporting engine.
+
+---
+
+## Execution status — 2026-08-21
+
+### Phase 1 — COMPLETE
+- `reverse_fx_revaluation_run` repaired: organisation derived from the run row
+  (`_run.organization_id`), the non-existent `reversal_of_run_id` reference removed.
+  Reversal — and therefore every revaluation run after the first — used to fail at runtime.
+- `revalue_fx_balances` repaired: journal numbering delegated to
+  `post_journal_entry_atomic` (ADR-0146), unrealized gain/loss posted at entity level
+  (`branch_id = NULL`) instead of an arbitrary `MIN(branch_id)`.
+- Guard added: `supabase/tests/fx_revaluation_lifecycle_test.sql` (catalog assertions for
+  the reversal identifiers, no hand-built numbers, no branch guessing, period/permission/
+  missing-rate gates, SECURITY DEFINER + business gate on the read RPCs).
+- `src/test/architecture/fx-single-engine.test.ts` still green (18 tests).
+
+### Phase 2 — blocked on a decision, root cause now confirmed
+The denomination defect is deeper than "group by header currency":
+
+1. `post_journal_entry_atomic` — the only journal writer — never writes
+   `original_currency`, `original_debit`, `original_credit`. Those columns are
+   effectively always NULL, so every FX report that reads them is reading nothing.
+2. Document posters pass **document-currency** amounts as if they were base amounts.
+   `build_invoice_je_lines` builds the AR debit from `invoices.total` (document
+   currency) and `_confirm_invoice_core` posts it with `_currency := v_inv.currency`
+   and `_exchange_rate := NULL`. `confirm_bill_atomic` does not pass a currency at all,
+   so a foreign bill is recorded as base.
+
+Consequence: a foreign-currency document enters the ledger unconverted. Trial balance,
+P&L and every FX report are wrong the moment a non-base document is posted — this is
+a general-ledger integrity defect, not only a reporting one.
+
+The fix is a posting-engine change: `post_journal_entry_atomic` must accept
+document-currency line amounts, resolve the rate through `require_exchange_rate`,
+stamp `original_*` per line and store base amounts, with a rounding residual applied to
+keep the entry balanced. Blast radius: ~50 caller functions, of which a few
+(`record_multi_invoice_payment`, `record_multi_bill_payment`, `bank_match_confirm`)
+already do their own base/foreign handling and must be migrated deliberately rather
+than inferred. Recommended sequencing: engine gains an explicit opt-in flag (default
+preserves today's behaviour), then callers migrate one document family at a time with a
+SQL contract test each.
