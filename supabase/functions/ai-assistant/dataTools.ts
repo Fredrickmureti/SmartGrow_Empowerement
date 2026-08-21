@@ -1033,7 +1033,12 @@ saying you have no access:
 
 - \`describe_schema\` — list the tables and columns you may read.
 - \`query_data\` — read rows from one table with structured filters, ordering and a limit.
+- \`count_rows\` — count matching rows without pulling them back.
+- \`get_inventory_overview\`, \`list_products\`, \`get_product_inventory\` — stock and product reads.
 - \`get_currency_context\` — the workspace base currency, enabled currencies and the rate book.
+
+Only the tools you are offered are available to this user; the catalogue is
+narrowed to what their permissions allow.
 
 Rules:
 1. If a question needs a number you cannot see in the snapshot, call \`query_data\` before answering.
@@ -1048,4 +1053,7 @@ Rules:
    point them at the right screen with an action button instead.
 5. Results carry \`truncated: true\` when the row cap was hit — say the list is partial
    rather than presenting it as complete.
+6. A \`not_permitted\` result means this user may not read that module. Say so
+   plainly, name nothing from it, and never estimate the figure instead.
+
 `;
