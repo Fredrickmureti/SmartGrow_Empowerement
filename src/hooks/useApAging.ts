@@ -112,9 +112,18 @@ export const EMPTY_AP_AGING_TOTALS: ApAgingTotals = {
   credit: 0,
   total: 0,
   vendorCount: 0,
+  unconvertibleCount: 0,
 };
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
+
+/**
+ * Base-currency money reader. ADR 0136: the engine returns SQL NULL when a
+ * contributing document has no rate on file; that absence is preserved, never
+ * coerced to 0 (which would read as "nothing owed").
+ */
+const money = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v) || 0;
 
 export interface UseApAgingArgs {
   organizationId?: string | null;
