@@ -231,6 +231,59 @@ function FxExposureReportInner() {
     [drill],
   );
 
+  // Dimensions: the same scope and resolver, cut by counterparty and by age.
+  const dimColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "currency", header: "Currency", width: "w-[100px]" },
+      { key: "dimension", header: "Counterparty", width: "w-[240px]" },
+      { key: "foreign_balance", header: "Net exposure", format: "number", width: "w-[150px]" },
+      { key: "booked", header: "Booked base", format: "currency", width: "w-[150px]" },
+      { key: "revalued", header: "Revalued base", format: "currency", width: "w-[150px]" },
+      { key: "difference", header: "Unrealized", format: "currency", width: "w-[150px]" },
+    ],
+    [],
+  );
+
+  const ageColumns = useMemo<ReportColumn[]>(
+    () => dimColumns.map((c) => (c.key === "dimension" ? { ...c, header: "Age" } : c)),
+    [dimColumns],
+  );
+
+  const counterpartyRows = useMemo<ReportRow[]>(
+    () =>
+      (dimensions?.by_counterparty ?? []).map((r, idx) => ({
+        id: `${r.currency}-${r.contact_id ?? "none"}-${idx}`,
+        tone: r.rate === null ? "warning" : (r.unrealized_difference ?? 0) < 0 ? "danger" : "default",
+        values: {
+          currency: r.currency,
+          dimension: r.contact_name,
+          foreign_balance: r.foreign_balance,
+          booked: r.booked_base_amount,
+          revalued: r.revalued_base_amount,
+          difference: r.unrealized_difference,
+        },
+      })),
+    [dimensions],
+  );
+
+  const ageRows = useMemo<ReportRow[]>(
+    () =>
+      (dimensions?.by_age_bucket ?? []).map((r) => ({
+        id: `${r.currency}-${r.bucket}`,
+        tone: r.rate === null ? "warning" : (r.unrealized_difference ?? 0) < 0 ? "danger" : "default",
+        values: {
+          currency: r.currency,
+          dimension: `${r.bucket} days`,
+          foreign_balance: r.foreign_balance,
+          booked: r.booked_base_amount,
+          revalued: r.revalued_base_amount,
+          difference: r.unrealized_difference,
+        },
+      })),
+    [dimensions],
+  );
+
+
   const getExportConfig = useCallback((): ExportConfig => {
     const exportColumns: ExportColumn[] = [
       { key: "currency", header: "Currency", width: 12 },
