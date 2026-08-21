@@ -25,7 +25,7 @@ import {
   FeedWindow,
   NormalizedFeedLine,
 } from './providers/types.ts';
-import { annotateLines } from './aiAdvisory.ts';
+import { annotateLines, type AdvisoryScope } from './aiAdvisory.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -78,6 +78,36 @@ Deno.serve(async (req) => {
     if (!bankAccountId || !organizationId) {
       return json({ error: 'bank_account_id and organization_id are required' }, 400);
     }
+
+    // ─── Scope is owned by the row, not by the caller ───
+    // The tenant tuple used for entitlement and for any AI attribution comes
+    // from the bank account itself. A body `organization_id` that disagrees is
+    // refused rather than silently trusted (it would let a member of tenant A
+    // spend/entitle against tenant B's account).
+    const { data: scopeRow, error: scopeError } = await supabase
+      .from('bank_accounts')
+      .select('organization_id, business_id, branch_id')
+      .eq('id', bankAccountId)
+      .maybeSingle();
+
+    if (scopeError || !scopeRow) {
+      return json({ error: 'Bank account not found' }, 404);
+    }
+    if (scopeRow.organization_id !== organizationId) {
+      return json(
+        { error: 'This bank account belongs to a different organization.', code: 'SCOPE_MISMATCH' },
+        403,
+      );
+    }
+
+    const advisoryScope: AdvisoryScope = {
+      organizationId: scopeRow.organization_id,
+      businessId: scopeRow.business_id ?? null,
+      branchId: scopeRow.branch_id ?? null,
+      // Cron runs have no user: attribute the spend to the tenant only.
+      userId: triggerSource === 'manual' ? (body?.user_id ?? null) : null,
+      appKey: 'banking',
+    };
 
     // ─── Subscription entitlement check ───
     const { checkAppEntitlement, entitlementDeniedResponse } = await import(
@@ -156,7 +186,7 @@ Deno.serve(async (req) => {
 
     // ── 3. Persist through the one ingestion engine. ──
     // Advisory AI hints only; `category` is left for the database rules.
-    const advice = await annotateLines(lines);
+    const advice = await annotateLines(supabase, lines, advisoryScope);
 
     let inserted = 0;
     let duplicates = 0;
