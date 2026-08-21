@@ -294,7 +294,10 @@ serve(async (req) => {
         _txn_id: bankTransactionId,
         _limit: 10,
       });
-      if (error) return json({ error: error.message }, 400);
+      if (error) {
+        await recordOutcome(true);
+        return json({ error: error.message }, 400);
+      }
 
       const tier = (candidateSet as any)?.tier ?? "unresolved";
       const candidates: Record<string, any>[] = Array.isArray((candidateSet as any)?.candidates)
@@ -305,6 +308,7 @@ serve(async (req) => {
       // about a settled or already-proposed line is how a replayed statement
       // becomes a second settlement, so the assistant declines.
       if (tier === "settled" || tier === "proposed" || candidates.length === 0) {
+        await recordOutcome(true);
         return json({
           action,
           tier,
@@ -347,6 +351,8 @@ serve(async (req) => {
         ? parsed!.confidence
         : "low";
 
+      await recordOutcome(!parsed);
+
       return json({
         action,
         tier,
@@ -373,13 +379,17 @@ serve(async (req) => {
     const { data: history, error } = await supabase.rpc("bank_match_history", {
       p_bank_transaction_id: bankTransactionId,
     });
-    if (error) return json({ error: error.message }, 400);
+    if (error) {
+      await recordOutcome(true);
+      return json({ error: error.message }, 400);
+    }
 
     const decisions: Record<string, any>[] = Array.isArray((history as any)?.decisions)
       ? (history as any).decisions
       : [];
 
     if (decisions.length === 0) {
+      await recordOutcome(true);
       return json({
         action,
         decision_count: 0,
@@ -394,6 +404,8 @@ serve(async (req) => {
       JSON.stringify({ decisions: decisions.slice(0, 20).map(projectDecision) }),
     );
     const parsed = parseModelJson(raw);
+
+    await recordOutcome(!parsed);
 
     return json({
       action,
@@ -413,6 +425,7 @@ serve(async (req) => {
         : "The assistant is unavailable; read the recorded decisions directly.",
     });
   } catch (e) {
+    await recordOutcome(true);
     console.error("reconciliation-assistant: unexpected failure", e);
     return json({ error: e instanceof Error ? e.message : "Unexpected failure" }, 500);
   }
