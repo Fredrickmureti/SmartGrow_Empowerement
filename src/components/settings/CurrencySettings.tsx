@@ -65,7 +65,9 @@ interface ExchangeRate {
 interface ActiveCurrency {
   currency_code: string;
   is_enabled: boolean;
+  is_base: boolean;
 }
+
 
 const SOURCE_LABEL: Record<string, string> = {
   override: "Override",
