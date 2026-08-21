@@ -2080,12 +2080,41 @@ serve(async (req) => {
       });
     }
 
+    // Persist the user turn before streaming so the thread is durable even if
+    // the provider fails mid-answer.
+    if (type === "chat" && conversationId && latestUserTurn) {
+      const { error: userTurnErr } = await supabaseClient
+        .from("ai_conversation_messages")
+        .insert({
+          conversation_id: conversationId,
+          organization_id: organizationId,
+          role: "user",
+          content: latestUserTurn.content,
+          working_context: workingContext ?? {},
+        });
+      if (userTurnErr) console.error("failed to persist user turn:", userTurnErr);
+    }
+
     const isStreaming = type === "chat";
     const response = await makeAIRequest(supabaseClient, aiMessages, type, isStreaming, settings);
+
+    if (isStreaming && response.ok && conversationId && response.body) {
+      return new Response(
+        response.body.pipeThrough(
+          createAssistantPersistenceStream(supabaseClient, {
+            conversationId,
+            organizationId: organizationId ?? null,
+            workingContext: workingContext ?? {},
+          }),
+        ),
+        { status: response.status, headers: response.headers },
+      );
+    }
 
     if (isStreaming || !response.ok) {
       return response;
     }
+
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
