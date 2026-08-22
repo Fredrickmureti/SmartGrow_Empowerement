@@ -6,9 +6,13 @@ principle · **[UV]** unverified. Full audit findings live in
 
 ## Currently active phase
 
-**Phase D (hierarchy correctness) — code complete, verification pending.**
-Phases A, B and C are code complete; the outstanding work on all of them is
-automated test coverage (see "Tests required").
+**Phase T (test coverage for A–D) — active, nothing written yet.**
+Phases A, B, C and D are code complete and live-DB verified. The Balance Sheet
+equity presentation (current-year earnings and prior-years result as explicit
+lines) has also landed on the screen — that was the last code change. The one
+thing standing between A–D and sign-off is automated tests (see "Tests
+required"). No new feature work starts before those exist.
+
 
 ## Phase status
 
