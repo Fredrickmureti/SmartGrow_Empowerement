@@ -668,6 +668,10 @@ serve(async (req) => {
       title,
       dateRange: `${dateFrom} to ${dateTo}`,
       rows: result.data as Parameters<typeof renderReport>[1]["rows"],
+      // Ledger builders widen their own columns when the run contains a
+      // foreign-currency line; the registry spec stands in otherwise.
+      columns: (result as { columns?: Parameters<typeof renderReport>[1]["columns"] }).columns,
+
       userId: caller.userId,
       userName: caller.userName,
       params: { mode: "server-build", dateFrom, dateTo },
