@@ -75,6 +75,13 @@ required"). No new feature work starts before those exist.
   carries its own postings is no longer excluded from the section total, and nothing
   is double counted.
 
+### Balance Sheet equity presentation [VF]
+- `FinancialReports.tsx` renders equity as: equity accounts (which already carry every
+  **closed** year's result via the SQL opening balances), then an explicit
+  "Current year earnings" line from `balanceSheetTotals.currentYearEarnings`, then a
+  "Prior years result" line when non-zero, then Total equity and Total liabilities and
+  equity. No client-side re-derivation of either figure.
+
 ## What is still pending
 
 1. **Tests** (blocking sign-off on A–D) — see below.
