@@ -147,22 +147,45 @@ function totals(rows: BudgetVarianceRow[], creditNormal: boolean): BudgetVarianc
   };
 }
 
-function monthSeries(rows: BudgetVarianceRow[], creditNormal: boolean): BudgetMonthPoint[] {
-  return MONTHS.map((month, index) => {
-    const monthNumber = index + 1;
-    const monthRows = rows.filter((r) => r.month === monthNumber);
+/**
+ * The period axis of the budget's own fiscal year, in fiscal order. Derived
+ * from the periods the report returned — never from the calendar — so a
+ * business whose year starts in July charts July first. Falls back to the
+ * calendar year when the report is empty.
+ */
+function periodAxis(allRows: BudgetVarianceRow[]): Array<{ ordinal: number; month: number }> {
+  const seen = new Map<number, { ordinal: number; month: number }>();
+  for (const r of allRows) {
+    if (!r.periodOrdinal) continue;
+    if (!seen.has(r.periodOrdinal)) seen.set(r.periodOrdinal, { ordinal: r.periodOrdinal, month: r.month });
+  }
+  if (seen.size === 0) {
+    return MONTHS.map((_, i) => ({ ordinal: i + 1, month: i + 1 }));
+  }
+  return Array.from(seen.values()).sort((a, b) => a.ordinal - b.ordinal);
+}
+
+function monthSeries(
+  rows: BudgetVarianceRow[],
+  creditNormal: boolean,
+  axis: Array<{ ordinal: number; month: number }>,
+): BudgetMonthPoint[] {
+  return axis.map(({ ordinal, month }) => {
+    const label = MONTHS[Math.min(Math.max(month, 1), 12) - 1];
+    const monthRows = rows.filter((r) => r.periodOrdinal === ordinal);
     const budgeted = monthRows.reduce((s, r) => s + r.budgeted, 0);
     const actual = monthRows.reduce((s, r) => s + r.actual, 0);
     return {
-      month: month.substring(0, 3),
-      fullMonth: month,
-      monthNumber,
+      month: label.substring(0, 3),
+      fullMonth: label,
+      monthNumber: month,
       budgeted,
       actual,
       variance: creditNormal ? actual - budgeted : budgeted - actual,
     };
   });
 }
+
 
 export function useBudgetVsActual(budgetId?: string) {
   const { budgets } = useBudgets();
