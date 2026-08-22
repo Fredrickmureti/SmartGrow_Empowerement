@@ -419,10 +419,11 @@ function FinancialReportsInner() {
         values: { name: acct.name, balance: acct.closing_balance },
       });
     }
-    // Equity accounts above already carry every CLOSED year's result (SQL folds
-    // it into the retained-earnings account's opening balance). Only the
-    // current fiscal year's result is added as a separate line, so no year is
-    // presented twice.
+    // The retained-earnings account listed above carries every CLOSED fiscal
+    // year's result, because the engine now reads the opening position AT the
+    // fiscal-year start — which is where `get_ledger_opening_balances` performs
+    // the fold. Only the current fiscal year's result is added as a separate
+    // line, so no year is presented twice.
     if (bsData?.balanceSheetTotals?.currentYearEarnings) {
       out.push({
         id: "current-year-earnings",
@@ -433,20 +434,25 @@ function FinancialReportsInner() {
         },
       });
     }
+    // With no retained-earnings account, SQL has nowhere to fold the closed
+    // years' result. It is presented as an unallocated equity line — and
+    // included in total equity — so the statement still balances instead of
+    // silently losing the amount.
     if (
       bsData?.balanceSheetTotals &&
       !bsData.balanceSheetTotals.hasRetainedEarningsAccount &&
       bsData.balanceSheetTotals.priorYearsResult !== 0
     ) {
       out.push({
-        id: "retained-earnings-missing",
+        id: "retained-earnings-unallocated",
         depth: 2,
         values: {
-          name: "No retained earnings account — prior years' result is not presented",
+          name: "Prior years' result (unallocated — no retained earnings account)",
           balance: bsData.balanceSheetTotals.priorYearsResult,
         },
       });
     }
+
 
     out.push({
       id: "total-equity",
