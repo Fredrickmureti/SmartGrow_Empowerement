@@ -256,6 +256,7 @@ export function ScheduledReportsManager() {
       include_charts: true,
       date_range_type: "last_month",
       recipients: "",
+      branch_id: "",
     });
     setDialogOpen(true);
   };
