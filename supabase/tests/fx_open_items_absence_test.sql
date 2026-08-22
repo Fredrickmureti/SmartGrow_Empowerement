@@ -36,7 +36,6 @@ BEGIN
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm') AND c.relname LIKE 'finance\_%'
       AND pg_get_viewdef(c.oid, true) ~ '''(USD|KES|EUR|GBP)'''
-      AND c.relname <> 'finance_open_items_tieout'   -- diagnostic-only, tracked separately
   ) s;
   IF v_offenders IS NOT NULL THEN
     RAISE EXCEPTION 'ADR 0136: these finance views hardcode a currency: %', v_offenders;
@@ -95,6 +94,16 @@ BEGIN
   END IF;
   IF v_def ~* '(cc|vc)\.credit_amount AS credit_amount' THEN
     RAISE EXCEPTION 'ADR 0136: get_ar_ap_aging_from_ledger must use the BASE credit amount';
+  END IF;
+
+  -- 7. The projection/ledger drift sensor declares absence too: a tie-out that
+  --    sums around an unconvertible document reports a fabricated drift.
+  v_def := pg_get_viewdef('public.finance_open_items_tieout'::regclass, true);
+  IF v_def !~* 'unconvertible_document_count' THEN
+    RAISE EXCEPTION 'ADR 0136: finance_open_items_tieout must report its unconvertible document count';
+  END IF;
+  IF v_def !~* 'base_residual_amount IS NULL\) > 0' THEN
+    RAISE EXCEPTION 'ADR 0136: finance_open_items_tieout must null the projection total when a document is unconvertible';
   END IF;
 
   RAISE NOTICE 'fx_open_items_absence_test: all contracts hold';
