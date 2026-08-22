@@ -43,6 +43,8 @@ import {
   type ReportResult,
 } from "../_shared/reportDataEngine.ts";
 import { renderReport, getReportTitle } from "../_shared/reports/index.ts";
+import { scopeBranchForReport } from "../_shared/reports/branchScopability.ts";
+
 import { resolveReportColumns } from "../_shared/reports/resolveColumns.ts";
 import { logReportRun } from "../_shared/reports/logReportRun.ts";
 import {
