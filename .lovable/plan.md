@@ -1,114 +1,159 @@
-# Currency & FX — authoritative status (2026-08-22, Phases 13–17 complete)
+# Ledgers & Journals — investigation findings and phased fix plan
 
-Authority: ADR 0135 / 0136 / 0138. Scope boundary: FX source → settlement →
-posting → FX engine → FX reporting. No second rate table, no second resolver,
-no client-side conversion that posts, no unrelated module work.
+Scope: Trial Balance, General Ledger, Journal Report, plus the Account Register that
+shares their data path. Investigation only so far; nothing has been changed.
 
-## Currently active phase
+## A. Accounting model (established, then checked against the code)
 
-None in flight. Phases 13–17 are closed. The next agent starts with the
-verification pass below, then opens **Phase 18**.
+These are three distinct accounting artifacts, not three skins on one query. The
+current three-way split is **correct and must be preserved**:
 
-## Done and verified
+- **Trial Balance** — account-level proof, point in time or per period. Unit = account.
+  Must show opening / period movement / closing, and prove total debits = total credits.
+- **General Ledger** — account-centric detail for a period, multi-account. Unit = journal
+  line grouped under its account. Must show opening balance, movements, running balance,
+  closing balance, and a debit=credit proof across the run.
+- **Journal Report (posting journal)** — entry-centric chronological record. Unit = journal
+  entry. Must show each entry whole (all its lines, balanced), with journal book, source
+  document, status, reversal linkage and author. It must **not** carry account opening or
+  running balances — that would be pretending to be a ledger.
+- **Account Register** — single-account operational running record; a drill-down view of
+  the GL, not a fourth report engine. Already exists at `/finance/account-register`.
 
-### Phase 11–12 (earlier waves) — verified by catalogue reads
-AP aggregates guard on absence and expose `unconvertible_document_count`; no
-`'USD'` literal in the AP/AR open-item projections; the client no longer falls
-back to a foreign amount when the base amount is null; AP UI renders through
-`BaseCurrencyAmount`.
+Conclusion on completeness: no new report engines are required. The gaps are inside the
+three existing reports plus a missing *journal-entry-level* view in the Journal Report.
+A "comparative / adjusted / detailed trial balance" is a filter and column variation of
+Trial Balance, not a separate report.
 
-### Phase 13 — AR absence parity (SQL) — DONE
-- `finance_ar_aging_reconciliation` nulls its aging and credit totals when any
-  contributing row is unconvertible and returns `unconvertible_document_count`.
-- `finance_ar_customer_credit_as_of` derives the currency from the business base
-  currency instead of a `'USD'` literal.
-- `get_ar_ap_aging_from_ledger` ages the **base** residual and contributes the
-  **base** credit amount, so a foreign credit with no rate contributes NULL, not
-  its face amount at a silent 1:1.
+## B. Verified implementation facts
 
-### Phase 14 — AR client + UI parity — DONE
-- `useAgingReport.ts` carries a nullable `balance_due` and an
-  `unconvertibleDocumentCount` at report and contact level; no zero coercion.
-- `AccountsReceivable`, `AccountsPayable`, `Collections` render document balances
-  through `BaseCurrencyAmount` ("No rate on file").
-- `AgingReport` shows an incomplete-total banner linking to currency settings.
-- `services/finance/aging.ts` + `fetchContactOpenItemAging` carry
-  `unconvertible_document_count` through the shared statement engine.
-- Customer and vendor statement previews **and** the printed statement snapshots
-  (`salesCustomerStatement.ts`, `purchasesVendorStatement.ts`) disclose excluded
-  documents on the face of the document; `ContactAgingBreakdown` shows the same.
+Data path, screen:
+- TB → `useFinancialReport` → RPC `get_account_movements` + `accounts` read (client-side math).
+- GL and Account Register → `useGeneralLedger` → RPC `get_general_ledger` (server SQL,
+  client running-balance math).
+- Journal Report → direct PostgREST select on `journal_entries` + nested lines. No RPC.
 
-### Phase 15 — ratchets — DONE
-- `supabase/tests/fx_open_items_absence_test.sql` clauses 5 and 6: every
-  AR/AP aggregate over the open-item projections must carry the absence guard and
-  an unconvertible count; the ledger aging feed must read base amounts.
-- `src/test/architecture/fx-base-amount-fallback.test.ts`: no
-  `base_*_amount ?? <foreign amount>` anywhere under `src/services/finance/**`.
-- `src/test/architecture/fx-aging-absence.test.ts` extended to the statements,
-  the shared helper and the FX settings surfaces.
+Data path, PDF/CSV/scheduled:
+- Screen exports pass prebuilt client rows (no `dateFrom`/`dateTo` in the export config),
+  so on-demand exports currently match the screen.
+- Scheduled reports and the preview dialog use `supabase/functions/_shared/reportDataEngine.ts`
+  (`buildTrialBalance`, `buildGeneralLedger`, `buildJournalReport`) — a **second, independent
+  implementation** of the same accounting math.
 
-### Phase 16 — `finance_open_items_tieout` — DONE
-View rewritten (migration applied): the `'USD'` literal is gone, the AP side
-resolves through `to_base_amount` (stamped rate first), the projection total is
-NULL when any contributing document is unconvertible, and the view now exposes
-`unconvertible_document_count` per side. The ratchet exemption was removed and
-clause 7 now enforces this. Grants (`anon`/`authenticated`/`service_role`) verified
-intact after the replace.
+Both RPCs are SECURITY DEFINER, call `finance_can_read_org(_org_id)`, and validate that the
+business and branch belong to the org. Cross-org / cross-business isolation on TB and GL is
+**correct** and must be preserved.
 
-### Phase 17 — FX settings surface audit — DONE
-`CurrencySettings.tsx` picks currencies from the catalogue (no free-typed code),
-shows `source`, `provider_key`, `published_at`, and states precedence
-(override > manual > provider, latest effective date wins, documents keep their
-stamped rate). `FinanceAccountingControls.tsx` FX tab now renders the canonical
-`ExchangeRatePanel` beside each foreign balance so a displayed rate always carries
-its provenance. A ratchet locks both surfaces.
+## C. Confirmed defects (evidence-backed)
 
-## Pending work
+1. **Reversed originals vanish from the ledger — critical accounting defect.**
+   Every read path filters `status = 'posted'`. In live data, `JE-00009` (KES 50,000)
+   has `status = 'reversed'` while its reversal `JE-00009-REV` (KES 50,000) is `posted`.
+   Result: the reversal is reported without the original. Account balances are wrong by
+   the reversal amount, and history is rewritten. Correct treatment: a reversed entry
+   stays in the ledger, marked reversed, alongside its reversal. Only `draft` and `void`
+   are excluded from balances (void may still be listed in the Journal Report as void).
 
-### Phase 18 — currency literals in the document snapshot builders  ← NEXT
-`src/services/documents/snapshots/*.ts` still contain `|| "USD"` fallbacks
-(`salesOrder`, `salesProforma`, `purchasesPo`, `purchasesRfq`,
-`purchasesRequisition`, `purchasesReturn`, `purchasesVendorCreditNote`,
-`financeJournalEntry`, `wmsReturn`, and the two statement builders). A printed
-document that invents "USD" misstates the denomination. Fix as a class:
-fall back to the business base currency, and when that is absent render the
-document without a currency label rather than asserting one. Add a vitest
-ratchet over `src/services/documents/snapshots/**` forbidding a currency literal.
+2. **Broken reversal linkage.** `JE-00009.reversed_by_id` points to a UUID that does not
+   exist in `journal_entries`, while `JE-00009-REV.reversal_of_id` is correct. The
+   back-pointer is unreliable; reports must not depend on it until it is repaired.
 
-### Phase 19 — exercised-data proof
-Live `exchange_rates` holds base-currency rows only, so foreign paths are proven
-by catalogue tests and construction. Consider a seeded scenario fixture that
-exercises an unconvertible document end to end (projection → aggregate → UI).
+3. **Trial Balance has no period.** The page hardcodes `dateFrom = '1970-01-01'` and only
+   exposes an "as of" date. So the Opening column is always just `accounts.opening_balance`
+   (zero for all 154 accounts in this tenant) and Movement = inception-to-date. The
+   six-column opening/movement/closing presentation is therefore not what it claims to be.
+   TB needs a real period (from/to) with opening = balance before `from`.
 
-## Carried limitations (documented, not defects)
-- `payments` / `customer_credit_balances` carry no currency column: advances are
-  structurally base-currency only. Schema change out of scope without a decision.
-- `.sql` suites under `supabase/tests/` cannot be executed from this environment;
-  their catalogue assertions were re-run as read-only SELECTs.
-- Pre-existing unrelated failures: `bill-payment-allocations-first-class.test.ts`,
-  `financial-reports-scope-labeling.test.ts`.
-- Supabase binding is `jkszmrroyjfdwokbkzis`. Connecting `AccrualFlowCorporation`
-  would be a destructive re-bind and stays out of scope.
+4. **Journal Report is silently truncated and mis-scoped.**
+   - No pagination: PostgREST caps the result at 1000 entries with no warning.
+   - Branch filter uses `branch_id.eq.X OR branch_id.is.null`, while TB and GL use strict
+     equality. Same filter, three different answers.
+   - Missing entry-level accounting fields: journal book, status, reversal linkage,
+     created/posted by, currency, branch, entry-level reference. It is currently a line
+     dump grouped by entry, not a posting journal.
 
-## Scope boundaries
-No changes to the resolver, the rate book, stamping, settlement or revaluation
-mechanics — verified correct in earlier waves. No new views, no second
-aggregation path, no client-side rate maths.
+5. **Server (scheduled/PDF) engine diverges from the screen.**
+   - `buildTrialBalance` / `buildGeneralLedger` / `buildJournalReport` take no `branchId` —
+     a branch-scoped schedule silently prints whole-business figures under a branch masthead.
+   - `getGLAccountBalances` and the GL/JR builders read raw `journal_entry_lines` with no
+     pagination → **balances themselves are wrong past 1000 lines**.
+   - Account scoping differs: server uses strict `business_id = X`; the client hook uses
+     `business_id = X OR business_id IS NULL`.
+   - `buildJournalReport` returns a flat line list with no entry grouping or entry subtotals,
+     so the scheduled PDF is a different document from the screen.
 
-## Instructions for the next agent
+6. **Branch-scoped opening balances are overstated.** `get_general_ledger` adds
+   `accounts.opening_balance` in full for every branch filter, then adds branch-filtered
+   prior movement. Harmless today (all opening balances are 0) but wrong by construction.
 
-1. **Verify before you build.** Re-read this file, then confirm against the live
-   catalogue and the code — not against these claims:
-   - `finance_ar_aging_reconciliation`, `get_ar_ap_aging_from_ledger`,
-     `finance_open_items_tieout` behave as described above;
-   - `unconvertible_document_count` reaches the UI on both AR and AP;
-   - `bunx vitest run src/test/architecture/fx-*.test.ts
-     src/test/architecture/aging-single-source.test.ts
-     src/test/architecture/reports-data-source-contract.test.ts` is green;
-   - `npx tsgo --noEmit -p tsconfig.app.json` is clean.
-2. **Then resume at Phase 18** — the snapshot currency literals — and finish it
-   to a coherent, production-ready state (fix + ratchet + typecheck) before
-   opening Phase 19. Do not start unrelated modules, and do not leave a phase
-   partially applied.
-3. **Update this file at the end of every implementation** with what is done,
-   what is pending, the active phase and the next one.
+7. **Duplicated accounting math.** Opening/closing/running-balance and debit-normal logic
+   exist in at least four places: `useFinancialReport`, `useGeneralLedger`,
+   `get_general_ledger` SQL, and `reportDataEngine.ts`. This is the root cause of items 3–6.
+
+## D. Correct behaviour that must be preserved
+
+- Three separate reports with separate accounting purposes (§A).
+- SECURITY DEFINER RPCs with `finance_can_read_org` + business/branch ownership checks.
+- The consolidation gate: refusing to render a cross-company statement instead of summing
+  ledgers without eliminations.
+- Reference model: `entry_number` (ledger identity), `reference` (source document number),
+  `source_type`/`source_id` (internal drill-down FK). No new identifiers.
+- ADR-0020 narration convention and ADR-0123 single-posting-monopoly.
+- Screen exports built from the same rows the screen renders.
+
+## E. Phased execution order (one capability finished before the next)
+
+**Phase 1 — Ledger visibility contract (shared prerequisite).**
+Define, in one place, which journal statuses are ledger-visible: `posted` and `reversed`
+count toward balances; `draft` never; `void` excluded from balances, listed as void in the
+Journal Report only. Apply it to `get_account_movements`, `get_general_ledger`, the Journal
+Report query and the server builders. Repair the dangling `reversed_by_id` and add a
+constraint/trigger keeping the pair consistent. Tests: a reversed entry plus its reversal
+nets to zero in TB and appears as two lines in GL.
+
+**Phase 2 — Trial Balance.**
+Real period selection (from/to, fiscal-period aware) with opening = pre-period balance;
+keep the as-of preset. Fix branch-aware opening. Balance proof on closing debits vs credits.
+Comparative period column reuse of the existing `comparisonDateFrom/To` support. Tests:
+opening + movement = closing per account; totals balance; date and fiscal-year boundaries.
+
+**Phase 3 — General Ledger.**
+Branch-correct opening balance in `get_general_ledger`. Add entry status / reversal flag,
+journal book, branch and currency to the RPC output and the columns. Keep the existing
+running balance and drill-through. Reconciliation test: GL closing per account = TB closing
+per account for the same scope and period.
+
+**Phase 4 — Journal Report → posting journal.**
+Move to a paginated RPC (`get_journal_report`) mirroring the GL security checks; strict
+branch equality; add journal book, status, reversal linkage, posted-by, currency, entry
+reference; keep entry grouping with per-entry balanced subtotals and add a period grand
+total. No opening/closing balances. Tests: entry-level debit = credit; no truncation at
+>1000 entries; branch and business isolation.
+
+**Phase 5 — Collapse the duplicate engines.**
+Make the server builders call the same RPCs the screen uses (with `branchId` threaded
+through), deleting the parallel PostgREST math in `reportDataEngine.ts`. Add an architecture
+test forbidding new client- or edge-side ledger balance math outside the RPCs.
+
+**Phase 6 — Multi-currency presentation.**
+Report in base currency as today; surface `journal_entries.currency` / `exchange_rate` as
+informational columns in GL and the Journal Report. No new FX logic — reuse the existing
+FX engine. Deferred deliberately until 1–5 land.
+
+## F. Validation
+
+Reconciliation tests derived independently from `journal_entry_lines`, not from the report
+code: TB balances; TB ↔ GL ↔ Account Register agreement for the same account and period;
+reversal and void treatment; draft exclusion; locked-period reads; date/fiscal boundaries;
+branch and business isolation (including a multi-business user); >1000-row runs; screen vs
+PDF vs scheduled-PDF parity.
+
+## G. Scope boundaries
+
+Out of scope for this wave: new report types, UI restyling, consolidation/eliminations,
+FX revaluation logic, and any change to the posting engine. `supabase/functions/_shared/pdf`
+is not touched; if Phase 5 changes `_shared/reports`, redeploy `render-report` and
+`process-scheduled-reports` and bump `v` in `src/services/reports/pdfCache.ts`.
+
+Note: the Supabase project is already connected (`jkszmrroyjfdwokbkzis`); no new connection
+is needed for this work.
