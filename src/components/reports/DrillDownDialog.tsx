@@ -177,6 +177,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
           credit: partnerKind === "bill" ? total : 0,
           source_type: partnerKind,
           source_id: row.id as string,
+          journal_entry_id: null,
         } satisfies DrillDownTransaction;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     },
