@@ -7,13 +7,18 @@ import { financeKey } from "@/lib/finance/financeKey";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 
+export type BudgetStatus = 'draft' | 'active' | 'closed';
+
 export interface Budget {
   id: string;
   organization_id: string;
+  business_id: string;
+  branch_id: string | null;
   name: string;
   fiscal_year: number;
+  currency_code: string | null;
   description: string | null;
-  status: 'draft' | 'active' | 'closed';
+  status: BudgetStatus;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -24,8 +29,12 @@ export interface Budget {
 export interface BudgetItem {
   id: string;
   budget_id: string;
+  business_id: string | null;
   account_id: string;
+  /** Derived server-side from the linked fiscal period — display only. */
   period_month: number;
+  /** Authoritative accounting period this line belongs to. */
+  fiscal_period_id: string | null;
   budgeted_amount: number;
   notes: string | null;
   created_at: string;
@@ -38,17 +47,22 @@ export interface BudgetItem {
   };
 }
 
+export interface BudgetLineInput {
+  account_id: string;
+  period_month: number;
+  budgeted_amount: number;
+  notes?: string;
+}
+
 export interface CreateBudgetInput {
   name: string;
   fiscal_year: number;
   description?: string;
-  items?: {
-    account_id: string;
-    period_month: number;
-    budgeted_amount: number;
-    notes?: string;
-  }[];
+  items?: BudgetLineInput[];
 }
+
+const lineKey = (accountId: string, periodMonth: number) => `${accountId}|${periodMonth}`;
+
 
 export function useBudgets() {
   const { currentOrg } = useOrganization();
@@ -98,19 +112,27 @@ export function useBudgets() {
     enabled: !!organizationId,
   });
 
-  // Create budget
+  // Budgets are scoped data: every mutation must invalidate the scoped finance
+  // keys, not the bare ["budgets"] prefix (which no query actually uses).
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: financeKey(scope, "budgets") });
+    queryClient.invalidateQueries({ queryKey: ["finance"] });
+    queryClient.invalidateQueries({ queryKey: ["budget-vs-actual"] });
+  };
+
+  // Create budget (always starts as a draft — activation is a separate action)
   const createBudget = useMutation({
     mutationFn: async (input: CreateBudgetInput) => {
       if (!organizationId) throw new Error("No organization selected");
+      if (!currentBusiness?.id) throw new Error("Select a company before creating a budget");
 
       const { data: userData } = await supabase.auth.getUser();
 
-      // Create budget — stamp business_id (NOT NULL) and branch_id from active scope
       const { data: budget, error: budgetError } = await supabase
         .from("budgets")
         .insert({
           organization_id: organizationId,
-          business_id: currentBusiness?.id || null,
+          business_id: currentBusiness.id,
           branch_id: scope.branchId,
           name: input.name,
           fiscal_year: input.fiscal_year,
@@ -123,27 +145,23 @@ export function useBudgets() {
 
       if (budgetError) throw budgetError;
 
-      // Create budget items if provided
       if (input.items && input.items.length > 0) {
-        const items = input.items.map(item => ({
-          budget_id: budget.id,
-          account_id: item.account_id,
-          period_month: item.period_month,
-          budgeted_amount: item.budgeted_amount,
-          notes: item.notes,
-        }));
-
-        const { error: itemsError } = await supabase
-          .from("budget_items")
-          .insert(items);
-
+        const { error: itemsError } = await supabase.from("budget_items").insert(
+          input.items.map(item => ({
+            budget_id: budget.id,
+            account_id: item.account_id,
+            period_month: item.period_month,
+            budgeted_amount: item.budgeted_amount,
+            notes: item.notes,
+          })),
+        );
         if (itemsError) throw itemsError;
       }
 
       return budget;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
       toast.success("Budget created");
     },
     onError: (error) => {
@@ -151,50 +169,91 @@ export function useBudgets() {
     },
   });
 
-  // Update budget
+  /**
+   * Update a DRAFT budget non-destructively.
+   *
+   * The previous implementation deleted every line and re-inserted it, which
+   * churned primary keys that revisions and reports reference. We now diff on
+   * (account_id, period_month): update changed amounts, insert new lines, and
+   * delete only lines the user actually removed.
+   * Active budgets are rejected by the database — use applyRevision instead.
+   */
   const updateBudget = useMutation({
     mutationFn: async ({ id, ...input }: CreateBudgetInput & { id: string }) => {
-      // Update budget
       const { error: budgetError } = await supabase
         .from("budgets")
         .update({
           name: input.name,
           fiscal_year: input.fiscal_year,
           description: input.description,
-          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
 
       if (budgetError) throw budgetError;
 
-      // If items provided, replace all items
-      if (input.items) {
-        // Delete existing items
-        await supabase
-          .from("budget_items")
-          .delete()
-          .eq("budget_id", id);
+      if (!input.items) return;
 
-        // Insert new items
-        if (input.items.length > 0) {
-          const items = input.items.map(item => ({
+      const { data: existing, error: existingError } = await supabase
+        .from("budget_items")
+        .select("id, account_id, period_month, budgeted_amount, notes")
+        .eq("budget_id", id);
+
+      if (existingError) throw existingError;
+
+      const existingByKey = new Map(
+        (existing ?? []).map(row => [lineKey(row.account_id, row.period_month), row]),
+      );
+      const desiredKeys = new Set<string>();
+
+      const toInsert: Array<Record<string, unknown>> = [];
+      const toUpdate: Array<{ id: string; budgeted_amount: number; notes?: string | null }> = [];
+
+      for (const item of input.items) {
+        const key = lineKey(item.account_id, item.period_month);
+        desiredKeys.add(key);
+        const current = existingByKey.get(key);
+        if (!current) {
+          toInsert.push({
             budget_id: id,
             account_id: item.account_id,
             period_month: item.period_month,
             budgeted_amount: item.budgeted_amount,
-            notes: item.notes,
-          }));
-
-          const { error: itemsError } = await supabase
-            .from("budget_items")
-            .insert(items);
-
-          if (itemsError) throw itemsError;
+            notes: item.notes ?? null,
+          });
+        } else if (
+          Number(current.budgeted_amount) !== Number(item.budgeted_amount) ||
+          (current.notes ?? null) !== (item.notes ?? null)
+        ) {
+          toUpdate.push({
+            id: current.id,
+            budgeted_amount: item.budgeted_amount,
+            notes: item.notes ?? null,
+          });
         }
+      }
+
+      const removedIds = (existing ?? [])
+        .filter(row => !desiredKeys.has(lineKey(row.account_id, row.period_month)))
+        .map(row => row.id);
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("budget_items").insert(toInsert as never);
+        if (error) throw error;
+      }
+      for (const row of toUpdate) {
+        const { error } = await supabase
+          .from("budget_items")
+          .update({ budgeted_amount: row.budgeted_amount, notes: row.notes })
+          .eq("id", row.id);
+        if (error) throw error;
+      }
+      if (removedIds.length > 0) {
+        const { error } = await supabase.from("budget_items").delete().in("id", removedIds);
+        if (error) throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
       toast.success("Budget updated");
     },
     onError: (error) => {
@@ -202,18 +261,17 @@ export function useBudgets() {
     },
   });
 
-  // Activate budget
+  // Activate budget — permission + transition enforced server-side
   const activateBudget = useMutation({
     mutationFn: async (budgetId: string) => {
-      const { error } = await supabase
-        .from("budgets")
-        .update({ status: "active" })
-        .eq("id", budgetId);
-
+      const { error } = await supabase.rpc("set_budget_status", {
+        _budget_id: budgetId,
+        _status: "active",
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
       toast.success("Budget activated");
     },
     onError: (error) => {
@@ -221,18 +279,17 @@ export function useBudgets() {
     },
   });
 
-  // Close budget
+  // Close budget — terminal state, no reopening
   const closeBudget = useMutation({
     mutationFn: async (budgetId: string) => {
-      const { error } = await supabase
-        .from("budgets")
-        .update({ status: "closed" })
-        .eq("id", budgetId);
-
+      const { error } = await supabase.rpc("set_budget_status", {
+        _budget_id: budgetId,
+        _status: "closed",
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
       toast.success("Budget closed");
     },
     onError: (error) => {
@@ -240,25 +297,54 @@ export function useBudgets() {
     },
   });
 
-  // Delete budget
+  /**
+   * Change an ACTIVE budget through a recorded revision. Previous and new
+   * amounts are stored per line so variance history stays explainable.
+   */
+  const applyRevision = useMutation({
+    mutationFn: async ({
+      budgetId,
+      reason,
+      note,
+      lines,
+    }: {
+      budgetId: string;
+      reason: string;
+      note?: string;
+      lines: Array<{ account_id: string; period_month: number; budgeted_amount: number }>;
+    }) => {
+      const { data, error } = await supabase.rpc("apply_budget_revision", {
+        _budget_id: budgetId,
+        _reason: reason,
+        _lines: lines as never,
+        _note: note ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Budget revision recorded");
+    },
+    onError: (error) => {
+      toast.error("Failed to record revision: " + normalizeError(error).message);
+    },
+  });
+
+  // Delete budget — the database allows this for drafts only
   const deleteBudget = useMutation({
     mutationFn: async (budgetId: string) => {
-      // Delete items first
-      await supabase
+      const { error: itemsError } = await supabase
         .from("budget_items")
         .delete()
         .eq("budget_id", budgetId);
+      if (itemsError) throw itemsError;
 
-      // Delete budget
-      const { error } = await supabase
-        .from("budgets")
-        .delete()
-        .eq("id", budgetId);
-
+      const { error } = await supabase.from("budgets").delete().eq("id", budgetId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
       toast.success("Budget deleted");
     },
     onError: (error) => {
@@ -266,7 +352,7 @@ export function useBudgets() {
     },
   });
 
-  // Add/Update budget item
+  // Add/Update a single budget line (draft budgets only)
   const upsertBudgetItem = useMutation({
     mutationFn: async (item: {
       budget_id: string;
@@ -284,16 +370,14 @@ export function useBudgets() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
     },
     onError: (error) => {
       toast.error("Failed to update budget item: " + normalizeError(error).message);
     },
   });
 
-  // Delete budget item — required by the inline items grid on
-  // BudgetEditPage. The legacy BudgetItemSheet flow only supported
-  // upsert; row-level delete is a new affordance of the routed page.
+  // Delete a single budget line (draft budgets only)
   const deleteBudgetItem = useMutation({
     mutationFn: async (itemId: string) => {
       const { error } = await supabase
@@ -303,7 +387,7 @@ export function useBudgets() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      invalidate();
     },
     onError: (error) => {
       toast.error("Failed to delete budget item: " + normalizeError(error).message);
@@ -317,8 +401,10 @@ export function useBudgets() {
     updateBudget,
     activateBudget,
     closeBudget,
+    applyRevision,
     deleteBudget,
     upsertBudgetItem,
     deleteBudgetItem,
   };
 }
+

@@ -389,13 +389,17 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           _date_to: priorEndDate,
           _business_id: businessId || null,
         }),
-        // Budget items for this period's month/year
+        // Budget items for this period's month/year — scoped to the business
+        // that owns the period. Never aggregate another business's plan.
         supabase
           .from("budget_items")
-          .select("account_id, budgeted_amount, budget_id, budgets!inner(fiscal_year, organization_id, status)")
+          .select("account_id, budgeted_amount, budget_id, budgets!inner(fiscal_year, organization_id, business_id, status)")
           .eq("budgets.organization_id", orgId)
+          .eq("budgets.business_id", businessId)
+          .eq("budgets.fiscal_year", new Date(startDate).getFullYear())
           .eq("budgets.status", "active")
           .eq("period_month", new Date(startDate).getMonth() + 1),
+
         // Fixed asset additions
         supabase
           .from("fixed_assets")

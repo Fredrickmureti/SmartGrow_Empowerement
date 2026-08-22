@@ -201,18 +201,29 @@ export function useGLPosting() {
       const entryNumber = await getNextJournalNumber();
       const description = options.memo || `Auto-posted from ${options.source_type}`;
 
-      // Budget enforcement: check if any expense/asset accounts would exceed budget
+      // Budget enforcement: warn if any debit-side accounts would exceed the
+      // active budget for THIS business/branch. Scope is mandatory — the RPC
+      // authorizes the caller against it and refuses cross-business reads.
       const expenseEntries = options.entries.filter(e => e.debit_amount > 0);
-      if (expenseEntries.length > 0 && options.source_type !== "year_end_closing") {
+      const budgetCheckBranchId =
+        options.branch_id !== undefined ? options.branch_id : (currentBranch?.id ?? null);
+      if (
+        expenseEntries.length > 0 &&
+        options.source_type !== "year_end_closing" &&
+        currentBusiness?.id
+      ) {
         try {
           const accountIds = expenseEntries.map(e => e.account_id);
           const amounts = expenseEntries.map(e => e.debit_amount);
           const { data: budgetWarnings } = await supabase.rpc("check_budget_variance", {
             _org_id: currentOrg.id,
+            _business_id: currentBusiness.id,
+            _branch_id: budgetCheckBranchId ?? undefined,
             _account_ids: accountIds,
             _amounts: amounts,
             _entry_date: options.entry_date,
           });
+
           if (budgetWarnings && Array.isArray(budgetWarnings) && budgetWarnings.length > 0) {
             const warnings = budgetWarnings.map((w: any) =>
               `${w.account_name}: budget ${w.budgeted}, projected ${w.projected_total}`
