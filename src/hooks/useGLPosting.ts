@@ -6,6 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { useFiscalPeriods } from "./useFiscalPeriods";
 import { usePermissions } from "./usePermissions";
+import { consumesBudget } from "@/lib/finance/budgetConsumption";
+
 
 export interface GLEntry {
   account_id: string;
