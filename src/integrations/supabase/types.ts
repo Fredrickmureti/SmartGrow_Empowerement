@@ -7903,6 +7903,8 @@ export type Database = {
           budget_id: string
           business_id: string
           calculated_at: string | null
+          calculated_by: string | null
+          fiscal_period_id: string | null
           fiscal_year: number
           id: string
           organization_id: string
@@ -7914,6 +7916,8 @@ export type Database = {
           budget_id: string
           business_id: string
           calculated_at?: string | null
+          calculated_by?: string | null
+          fiscal_period_id?: string | null
           fiscal_year: number
           id?: string
           organization_id: string
@@ -7925,6 +7929,8 @@ export type Database = {
           budget_id?: string
           business_id?: string
           calculated_at?: string | null
+          calculated_by?: string | null
+          fiscal_period_id?: string | null
           fiscal_year?: number
           id?: string
           organization_id?: string
@@ -7981,6 +7987,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "budget_actuals_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "budget_actuals_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -8008,7 +8021,9 @@ export type Database = {
           account_id: string
           budget_id: string
           budgeted_amount: number
+          business_id: string | null
           created_at: string
+          fiscal_period_id: string | null
           id: string
           notes: string | null
           period_month: number
@@ -8018,7 +8033,9 @@ export type Database = {
           account_id: string
           budget_id: string
           budgeted_amount?: number
+          business_id?: string | null
           created_at?: string
+          fiscal_period_id?: string | null
           id?: string
           notes?: string | null
           period_month: number
@@ -8028,7 +8045,9 @@ export type Database = {
           account_id?: string
           budget_id?: string
           budgeted_amount?: number
+          business_id?: string | null
           created_at?: string
+          fiscal_period_id?: string | null
           id?: string
           notes?: string | null
           period_month?: number
@@ -8063,6 +8082,189 @@ export type Database = {
             referencedRelation: "budgets"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "budget_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_items_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_revision_lines: {
+        Row: {
+          account_id: string
+          created_at: string
+          fiscal_period_id: string
+          id: string
+          new_amount: number
+          period_month: number
+          previous_amount: number
+          revision_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          fiscal_period_id: string
+          id?: string
+          new_amount?: number
+          period_month: number
+          previous_amount?: number
+          revision_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          fiscal_period_id?: string
+          id?: string
+          new_amount?: number
+          period_month?: number
+          previous_amount?: number
+          revision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_revision_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revision_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "budget_revision_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revision_lines_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revision_lines_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_revisions: {
+        Row: {
+          budget_id: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          organization_id: string
+          reason: string
+          revision_number: number
+        }
+        Insert: {
+          budget_id: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          organization_id: string
+          reason: string
+          revision_number: number
+        }
+        Update: {
+          budget_id?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          organization_id?: string
+          reason?: string
+          revision_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_revisions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       budgets: {
@@ -8071,12 +8273,13 @@ export type Database = {
           business_id: string
           created_at: string
           created_by: string | null
+          currency_code: string | null
           description: string | null
           fiscal_year: number
           id: string
           name: string
           organization_id: string
-          status: string
+          status: Database["public"]["Enums"]["budget_status"]
           updated_at: string
         }
         Insert: {
@@ -8084,12 +8287,13 @@ export type Database = {
           business_id: string
           created_at?: string
           created_by?: string | null
+          currency_code?: string | null
           description?: string | null
           fiscal_year: number
           id?: string
           name: string
           organization_id: string
-          status?: string
+          status?: Database["public"]["Enums"]["budget_status"]
           updated_at?: string
         }
         Update: {
@@ -8097,12 +8301,13 @@ export type Database = {
           business_id?: string
           created_at?: string
           created_by?: string | null
+          currency_code?: string | null
           description?: string | null
           fiscal_year?: number
           id?: string
           name?: string
           organization_id?: string
-          status?: string
+          status?: Database["public"]["Enums"]["budget_status"]
           updated_at?: string
         }
         Relationships: [
@@ -87277,6 +87482,52 @@ export type Database = {
         Args: { _session_id: string }
         Returns: Json
       }
+      _budget_assert_manage: {
+        Args: { _budget_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string | null
+          description: string | null
+          fiscal_year: number
+          id: string
+          name: string
+          organization_id: string
+          status: Database["public"]["Enums"]["budget_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "budgets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _budget_assert_read: {
+        Args: { _budget_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string | null
+          description: string | null
+          fiscal_year: number
+          id: string
+          name: string
+          organization_id: string
+          status: Database["public"]["Enums"]["budget_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "budgets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _confirm_invoice_core: {
         Args: {
           p_final_status?: string
@@ -89188,6 +89439,15 @@ export type Database = {
       }
       app_state_for_org: {
         Args: { _app_id: string; _org_id: string }
+        Returns: string
+      }
+      apply_budget_revision: {
+        Args: {
+          _budget_id: string
+          _lines: Json
+          _note?: string
+          _reason: string
+        }
         Returns: string
       }
       apply_credit_to_invoice_atomic: {
@@ -91455,6 +91715,8 @@ export type Database = {
         Args: {
           _account_ids: string[]
           _amounts: number[]
+          _branch_id?: string
+          _business_id: string
           _entry_date: string
           _org_id: string
         }
@@ -95653,6 +95915,22 @@ export type Database = {
               status: string
             }[]
           }
+      get_budget_variance_report: {
+        Args: { _budget_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual_amount: number
+          budgeted_amount: number
+          fiscal_period_id: string
+          period_month: number
+          period_status: string
+          variance_amount: number
+          variance_percent: number
+        }[]
+      }
       get_business_transit_location: {
         Args: { p_business_id: string }
         Returns: string
@@ -101003,6 +101281,15 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: Json
       }
+      recalculate_budget_actuals: {
+        Args: { _budget_id: string }
+        Returns: {
+          account_id: string
+          actual_amount: number
+          fiscal_period_id: string
+          period_month: number
+        }[]
+      }
       recall_lot: {
         Args: {
           p_business_id: string
@@ -103773,6 +104060,32 @@ export type Database = {
           p_setting_value: Json
         }
         Returns: Json
+      }
+      set_budget_status: {
+        Args: {
+          _budget_id: string
+          _status: Database["public"]["Enums"]["budget_status"]
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string | null
+          description: string | null
+          fiscal_year: number
+          id: string
+          name: string
+          organization_id: string
+          status: Database["public"]["Enums"]["budget_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "budgets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_business_active_currency: {
         Args: { p_business_id: string; p_currency: string; p_enabled: boolean }
@@ -108164,6 +108477,7 @@ export type Database = {
         | "void"
         | "submitted"
         | "approved"
+      budget_status: "draft" | "active" | "closed"
       bulk_operation_kind:
         | "import_employees"
         | "export_employees"
@@ -109349,6 +109663,7 @@ export const Constants = {
         "submitted",
         "approved",
       ],
+      budget_status: ["draft", "active", "closed"],
       bulk_operation_kind: [
         "import_employees",
         "export_employees",
