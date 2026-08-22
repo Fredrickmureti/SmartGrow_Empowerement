@@ -184,19 +184,65 @@ function requireBusinessId(businessId?: string | null): string {
   return businessId;
 }
 
+/** The day before `startStr` — the cut-off for "prior period" movement. */
+function dayBefore(startStr: string): string {
+  const d = new Date(`${startStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+async function accountMovements(
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string,
+  from: string,
+  to: string,
+  branchId?: string,
+): Promise<Map<string, { debit: number; credit: number }>> {
+  const { data, error } = await supabase.rpc("get_account_movements", {
+    _org_id: organizationId,
+    _date_from: from,
+    _date_to: to,
+    _business_id: businessId,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`Failed to fetch account movements: ${error.message}`);
+  const map = new Map<string, { debit: number; credit: number }>();
+  for (const row of (data || []) as Record<string, unknown>[]) {
+    map.set(row.account_id as string, {
+      debit: Number(row.total_debit) || 0,
+      credit: Number(row.total_credit) || 0,
+    });
+  }
+  return map;
+}
+
+/**
+ * Account balances for a period.
+ *
+ * Movement aggregation goes through the `get_account_movements` RPC — the
+ * same engine the on-screen Trial Balance uses. It aggregates in SQL, so it
+ * is immune to the 1000-row PostgREST cap that used to make these balances
+ * quietly wrong on any sizeable ledger, and it applies the one ledger
+ * visibility contract (`ledger_visible_journal_statuses`) rather than a
+ * hardcoded `status = 'posted'` that dropped reversed originals.
+ */
 export async function getGLAccountBalances(
   supabase: SupabaseClient,
   organizationId: string,
   businessId: string | undefined,
   startStr: string,
   endStr: string,
-  accountTypeFilter?: string[]
+  accountTypeFilter?: string[],
+  branchId?: string,
 ): Promise<AccountWithBalance[]> {
+  const scopedBusinessId = requireBusinessId(businessId);
+
   let accountsQuery = supabase
     .from("accounts")
     .select("id, code, name, account_type, detail_type, parent_id, opening_balance, is_active")
     .eq("organization_id", organizationId)
-    .eq("business_id", requireBusinessId(businessId))
+    .eq("business_id", scopedBusinessId)
     .eq("is_active", true)
     .order("code");
 
@@ -207,50 +253,18 @@ export async function getGLAccountBalances(
   const { data: accounts, error: accountsError } = await accountsQuery;
   if (accountsError) throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
 
-  const { data: periodEntries, error: periodError } = await supabase
-    .from("journal_entry_lines")
-    .select(`account_id, debit, credit, journal_entries!inner(entry_date, status, organization_id, business_id)`)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr);
-
-  if (periodError) throw new Error(`Failed to fetch period entries: ${periodError.message}`);
-
-  const { data: priorEntries, error: priorError } = await supabase
-    .from("journal_entry_lines")
-    .select(`account_id, debit, credit, journal_entries!inner(entry_date, status, organization_id, business_id)`)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .lt("journal_entries.entry_date", startStr);
-
-  if (priorError) throw new Error(`Failed to fetch prior entries: ${priorError.message}`);
-
-  const periodByAccount = new Map<string, { debit: number; credit: number }>();
-  for (const entry of (periodEntries || []) as Record<string, unknown>[]) {
-    const accountId = entry.account_id as string;
-    const existing = periodByAccount.get(accountId) || { debit: 0, credit: 0 };
-    existing.debit += (entry.debit as number) || 0;
-    existing.credit += (entry.credit as number) || 0;
-    periodByAccount.set(accountId, existing);
-  }
-
-  const priorByAccount = new Map<string, { debit: number; credit: number }>();
-  for (const entry of (priorEntries || []) as Record<string, unknown>[]) {
-    const accountId = entry.account_id as string;
-    const existing = priorByAccount.get(accountId) || { debit: 0, credit: 0 };
-    existing.debit += (entry.debit as number) || 0;
-    existing.credit += (entry.credit as number) || 0;
-    priorByAccount.set(accountId, existing);
-  }
+  const [periodByAccount, priorByAccount] = await Promise.all([
+    accountMovements(supabase, organizationId, scopedBusinessId, startStr, endStr, branchId),
+    accountMovements(supabase, organizationId, scopedBusinessId, "1900-01-01", dayBefore(startStr), branchId),
+  ]);
 
   const result: AccountWithBalance[] = [];
   for (const account of (accounts || []) as Record<string, unknown>[]) {
     const id = account.id as string;
     const accountType = account.account_type as string;
-    const baseOpening = (account.opening_balance as number) || 0;
+    // `accounts.opening_balance` is a business-level property: a branch-scoped
+    // run must not carry the whole company's opening position.
+    const baseOpening = branchId ? 0 : ((account.opening_balance as number) || 0);
     const prior = priorByAccount.get(id) || { debit: 0, credit: 0 };
     const period = periodByAccount.get(id) || { debit: 0, credit: 0 };
 
@@ -284,6 +298,7 @@ export async function getGLAccountBalances(
 
   return result;
 }
+
 
 // ── Report Builders ────────────────────────────────────────────────────
 
@@ -349,9 +364,11 @@ export async function buildBalanceSheet(
 }
 
 export async function buildTrialBalance(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr);
+  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, undefined, branchId);
+
 
   /** Splits a balance into debit/credit columns based on natural balance */
   function splitBalance(balance: number, accountType: string): { debit: number; credit: number } {
@@ -722,45 +739,60 @@ export async function buildBankReconciliation(
 
 
 
+/**
+ * General Ledger — built from the SAME `get_general_ledger` RPC the screen
+ * uses, so the scheduled PDF and the on-screen register are one document.
+ * The previous implementation re-derived opening balances and movements from
+ * raw `journal_entry_lines` (capped at 1000 rows, branch-blind, `posted`-only).
+ */
 export async function buildGeneralLedger(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr);
+  const { data: glRows, error } = await supabase.rpc("get_general_ledger", {
+    _org_id: organizationId,
+    _date_from: startStr,
+    _date_to: endStr,
+    _business_id: requireBusinessId(businessId),
+    _account_ids: null,
+    _include_zero_activity: false,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`Failed to build general ledger: ${error.message}`);
 
-  const { data: entries } = await supabase
-    .from("journal_entry_lines")
-    .select(`
-      account_id, debit, credit, description,
-      journal_entries!inner(entry_date, entry_number, description, reference, status, organization_id, business_id)
-    `)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr)
-    .order("journal_entries(entry_date)", { ascending: true });
-
-  // Group entries by account
-  const entriesByAccount = new Map<string, Array<Record<string, unknown>>>();
-  for (const e of ((entries || []) as Record<string, unknown>[])) {
-    const accountId = e.account_id as string;
-    if (!entriesByAccount.has(accountId)) entriesByAccount.set(accountId, []);
-    entriesByAccount.get(accountId)!.push(e);
+  interface GLAccount {
+    code: string;
+    name: string;
+    accountType: string;
+    openingBalance: number;
+    lines: Record<string, unknown>[];
   }
 
-  const accountMap = new Map(accounts.map(a => [a.id, a]));
+  const byAccount = new Map<string, GLAccount>();
+  for (const raw of (glRows || []) as Record<string, unknown>[]) {
+    const accountId = raw.account_id as string;
+    let acct = byAccount.get(accountId);
+    if (!acct) {
+      acct = {
+        code: raw.account_code as string,
+        name: raw.account_name as string,
+        accountType: raw.account_type as string,
+        openingBalance: Number(raw.opening_balance) || 0,
+        lines: [],
+      };
+      byAccount.set(accountId, acct);
+    }
+    if (raw.line_id) acct.lines.push(raw);
+  }
+
   const rows: Record<string, unknown>[] = [];
   let grandDebit = 0;
   let grandCredit = 0;
+  let lineCount = 0;
 
-  // Sort accounts by code
-  const sortedAccounts = [...accounts].sort((a, b) => a.code.localeCompare(b.code));
+  const sortedAccounts = [...byAccount.values()].sort((a, b) => a.code.localeCompare(b.code));
 
   for (const acct of sortedAccounts) {
-    const acctEntries = entriesByAccount.get(acct.id) || [];
-    if (acctEntries.length === 0 && acct.opening_balance === 0) continue;
-
-    // Account header row
     rows.push({
       date: "", entry: "",
       description: `${acct.code} - ${acct.name}`,
@@ -768,37 +800,43 @@ export async function buildGeneralLedger(
       _isHeader: true,
     });
 
-    // Opening balance row
     rows.push({
       date: "", entry: "",
       description: "Opening Balance",
       debit: null, credit: null,
-      balance: acct.opening_balance,
+      balance: acct.openingBalance,
     });
 
-    // Transaction rows with running balance
-    let runningBalance = acct.opening_balance;
-    const isDebit = isDebitNormal(acct.account_type);
+    let runningBalance = acct.openingBalance;
+    const isDebit = isDebitNormal(acct.accountType);
     let totalDebits = 0;
     let totalCredits = 0;
 
-    for (const e of acctEntries) {
-      const je = e.journal_entries as Record<string, unknown>;
-      const debit = (e.debit as number) || 0;
-      const credit = (e.credit as number) || 0;
+    for (const line of acct.lines) {
+      const debit = Number(line.debit) || 0;
+      const credit = Number(line.credit) || 0;
       totalDebits += debit;
       totalCredits += credit;
+      lineCount += 1;
 
-      if (isDebit) {
-        runningBalance += debit - credit;
-      } else {
-        runningBalance += credit - debit;
-      }
+      runningBalance += isDebit ? debit - credit : credit - debit;
+
+      // A reversed original stays in the ledger next to its reversal; the
+      // printed document has to say which line is which.
+      const status = line.is_reversal
+        ? `Reversal${line.reversal_of_number ? ` of ${line.reversal_of_number}` : ""}`
+        : line.entry_status === "reversed"
+          ? "Reversed"
+          : "";
 
       rows.push({
-        date: (je.entry_date as string) || "",
-        entry: (je.entry_number as string) || "",
-        description: (e.description as string) || (je.description as string) || "",
+        date: (line.entry_date as string) || "",
+        entry: (line.entry_number as string) || "",
+        description: (line.line_description as string) || (line.je_description as string) || "",
+        journal: (line.journal_book as string) || "",
+        branch: (line.branch_name as string) || "",
+        status,
+        currency: (line.entry_currency as string) || "",
         debit: debit || null,
         credit: credit || null,
         balance: runningBalance,
@@ -808,7 +846,6 @@ export async function buildGeneralLedger(
     grandDebit += totalDebits;
     grandCredit += totalCredits;
 
-    // Subtotal row
     rows.push({
       date: "", entry: "",
       description: "Total Movement",
@@ -819,7 +856,8 @@ export async function buildGeneralLedger(
     });
   }
 
-  // Grand total row
+  // The grand total proves debits = credits across the run; a summed balance
+  // there nets to nil, so it stays empty unless the run is a single account.
   rows.push({
     date: "", entry: "",
     description: "GRAND TOTAL",
@@ -829,9 +867,10 @@ export async function buildGeneralLedger(
 
   return {
     data: rows,
-    summary: { totalAccounts: sortedAccounts.length, totalTransactions: (entries || []).length, totalDebits: grandDebit, totalCredits: grandCredit },
+    summary: { totalAccounts: sortedAccounts.length, totalTransactions: lineCount, totalDebits: grandDebit, totalCredits: grandCredit },
   };
 }
+
 
 export async function buildPartnerLedger(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
@@ -873,46 +912,144 @@ export async function buildPartnerLedger(
   };
 }
 
+/**
+ * Journal Report (posting journal) — entry-centric, grouped, balanced.
+ *
+ * Built from the `get_journal_report` RPC, the same engine as the screen, so
+ * the scheduled PDF is the same document the user reads. Pages through the
+ * RPC rather than truncating at PostgREST's 1000-row cap.
+ */
 export async function buildJournalReport(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const { data: entries } = await supabase
-    .from("journal_entry_lines")
-    .select(`
-      debit, credit, description,
-      accounts(code, name),
-      journal_entries!inner(entry_date, entry_number, description, reference, source_type, status, organization_id, business_id)
-    `)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr);
+  const scopedBusinessId = requireBusinessId(businessId);
+  const PAGE = 500;
 
-  const data = ((entries || []) as Record<string, unknown>[]).map(e => {
-    const je = e.journal_entries as Record<string, unknown>;
-    const acct = e.accounts as Record<string, unknown> | null;
-    return {
-      entry_date: je.entry_date,
-      entry_number: je.entry_number,
-      account_code: acct?.code || "",
-      account_name: acct?.name || "",
-      description: (e.description as string) || (je.description as string) || "",
-      reference: je.reference || "",
-      source_type: je.source_type || "",
-      debit: (e.debit as number) || 0,
-      credit: (e.credit as number) || 0,
-    };
-  });
+  interface JREntry {
+    entryDate: string;
+    entryNumber: string;
+    description: string;
+    sourceType: string;
+    status: string | null;
+    isReversal: boolean;
+    reversalOfNumber: string | null;
+    journalBook: string | null;
+    branchName: string | null;
+    totalDebit: number;
+    totalCredit: number;
+    lines: { accountCode: string; accountName: string; description: string; debit: number; credit: number }[];
+  }
 
-  const totalDebits = data.reduce((s, d) => s + ((d.debit as number) || 0), 0);
-  const totalCredits = data.reduce((s, d) => s + ((d.credit as number) || 0), 0);
+  const entries = new Map<string, JREntry>();
+  const order: string[] = [];
+
+  for (let page = 0; ; page += 1) {
+    const { data: rows, error } = await supabase.rpc("get_journal_report", {
+      _org_id: organizationId,
+      _date_from: startStr,
+      _date_to: endStr,
+      _business_id: scopedBusinessId,
+      _branch_id: branchId ?? null,
+      _source_types: null,
+      _limit: PAGE,
+      _offset: page * PAGE,
+    });
+    if (error) throw new Error(`Failed to build journal report: ${error.message}`);
+
+    const list = (rows || []) as Record<string, unknown>[];
+    for (const r of list) {
+      const id = r.entry_id as string;
+      let je = entries.get(id);
+      if (!je) {
+        je = {
+          entryDate: r.entry_date as string,
+          entryNumber: (r.entry_number as string) || "",
+          description: (r.je_description as string) || "",
+          sourceType: (r.source_type as string) || "manual",
+          status: (r.entry_status as string) || null,
+          isReversal: Boolean(r.is_reversal),
+          reversalOfNumber: (r.reversal_of_number as string) || null,
+          journalBook: (r.journal_book as string) || null,
+          branchName: (r.branch_name as string) || null,
+          totalDebit: 0,
+          totalCredit: 0,
+          lines: [],
+        };
+        entries.set(id, je);
+        order.push(id);
+      }
+      const debit = Number(r.debit) || 0;
+      const credit = Number(r.credit) || 0;
+      je.totalDebit += debit;
+      je.totalCredit += credit;
+      je.lines.push({
+        accountCode: (r.account_code as string) || "",
+        accountName: (r.account_name as string) || "",
+        description: (r.line_description as string) || je.description,
+        debit,
+        credit,
+      });
+    }
+
+    const totalEntries = Number((list[0]?.total_entries as number) ?? 0);
+    if (list.length === 0 || entries.size >= totalEntries) break;
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  let totalDebits = 0;
+  let totalCredits = 0;
+
+  for (const id of order) {
+    const je = entries.get(id)!;
+    const marker = je.isReversal
+      ? ` · Reversal${je.reversalOfNumber ? ` of ${je.reversalOfNumber}` : ""}`
+      : je.status === "reversed"
+        ? " · Reversed"
+        : "";
+    const book = je.journalBook ? ` · ${je.journalBook}` : "";
+    const branch = je.branchName ? ` · ${je.branchName}` : "";
+
+    rows.push({
+      account: `${je.entryDate} · ${je.entryNumber}${book}${branch}${marker} — ${je.description}`,
+      description: "", source: "", debit: null, credit: null,
+      _isHeader: true,
+    });
+
+    for (const line of je.lines) {
+      rows.push({
+        account: `${line.accountCode} - ${line.accountName}`,
+        description: line.description,
+        source: je.sourceType,
+        debit: line.debit || null,
+        credit: line.credit || null,
+      });
+    }
+
+    totalDebits += je.totalDebit;
+    totalCredits += je.totalCredit;
+
+    rows.push({
+      account: "Entry total", description: "", source: "",
+      debit: je.totalDebit, credit: je.totalCredit,
+      _isSubtotal: true,
+    });
+  }
+
+  if (rows.length > 0) {
+    rows.push({
+      account: "TOTAL POSTED", description: "", source: "",
+      debit: totalDebits, credit: totalCredits,
+      _isGrandTotal: true, _bold: true,
+    });
+  }
 
   return {
-    data,
-    summary: { totalEntries: data.length, totalDebits, totalCredits },
+    data: rows,
+    summary: { totalEntries: entries.size, totalDebits, totalCredits },
   };
 }
+
 
 export async function buildBudgetVsActual(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
