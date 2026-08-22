@@ -95925,7 +95925,11 @@ export type Database = {
           actual_amount: number
           budgeted_amount: number
           fiscal_period_id: string
+          is_favourable: boolean
+          is_unbudgeted: boolean
+          period_end: string
           period_month: number
+          period_start: string
           period_status: string
           variance_amount: number
           variance_percent: number
