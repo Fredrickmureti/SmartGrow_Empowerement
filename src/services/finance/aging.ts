@@ -47,7 +47,16 @@ export const AGING_BUCKET_SHORT_LABELS: Record<AgingBucketKey, string> = {
   days90: "90+",
 };
 
-export type AgingBuckets = Record<AgingBucketKey, number> & { total: number };
+/**
+ * ADR 0136: `unconvertible_document_count` reports how many open items were
+ * EXCLUDED from the buckets because they are denominated in a currency with no
+ * exchange rate on file. The buckets are therefore incomplete, not wrong — the
+ * surface must say so rather than present the total as final.
+ */
+export type AgingBuckets = Record<AgingBucketKey, number> & {
+  total: number;
+  unconvertible_document_count: number;
+};
 
 export const EMPTY_AGING_BUCKETS: AgingBuckets = {
   not_due: 0,
@@ -56,6 +65,7 @@ export const EMPTY_AGING_BUCKETS: AgingBuckets = {
   days60: 0,
   days90: 0,
   total: 0,
+  unconvertible_document_count: 0,
 };
 
 export function emptyAgingBuckets(): AgingBuckets {
