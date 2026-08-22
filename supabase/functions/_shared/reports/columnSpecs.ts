@@ -151,12 +151,14 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
     title: "General Ledger",
     orientation: "landscape",
     columns: [
-      { key: "date", header: "Date", width: 14, align: "left", format: "date" },
-      { key: "entry", header: "Entry #", width: 14, align: "left", format: "text" },
-      { key: "description", header: "Description", width: 30, align: "left", format: "text" },
-      { key: "debit", header: "Debit", width: 16, align: "right", format: "currency" },
-      { key: "credit", header: "Credit", width: 16, align: "right", format: "currency" },
-      { key: "balance", header: "Balance", width: 16, align: "right", format: "currency" },
+      { key: "date", header: "Date", width: 11, align: "left", format: "date" },
+      { key: "entry", header: "Entry #", width: 11, align: "left", format: "text" },
+      { key: "journal", header: "Journal", width: 11, align: "left", format: "text" },
+      { key: "description", header: "Description", width: 19, align: "left", format: "text" },
+      { key: "status", header: "Status", width: 11, align: "left", format: "text" },
+      { key: "debit", header: "Debit", width: 12, align: "right", format: "currency" },
+      { key: "credit", header: "Credit", width: 12, align: "right", format: "currency" },
+      { key: "balance", header: "Balance", width: 13, align: "right", format: "currency" },
     ],
   },
   partner_ledger: {
@@ -173,17 +175,19 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
   },
   journal_report: {
     title: "Journal Report",
+    // Entry-grouped posting journal: each entry is a section, its lines the
+    // detail, with a balanced per-entry subtotal — the same document shape
+    // the screen renders.
     orientation: "landscape",
     columns: [
-      { key: "entry_date", header: "Date", width: 13, align: "left", format: "date" },
-      { key: "entry_number", header: "Entry #", width: 11, align: "left", format: "text" },
-      { key: "account_name", header: "Account", width: 18, align: "left", format: "text" },
-      { key: "description", header: "Description", width: 22, align: "left", format: "text" },
-      { key: "source_type", header: "Source", width: 11, align: "left", format: "text" },
-      { key: "debit", header: "Debit", width: 12, align: "right", format: "currency" },
-      { key: "credit", header: "Credit", width: 12, align: "right", format: "currency" },
+      { key: "account", header: "Account", width: 26, align: "left", format: "text" },
+      { key: "description", header: "Description", width: 30, align: "left", format: "text" },
+      { key: "source", header: "Source", width: 14, align: "left", format: "text" },
+      { key: "debit", header: "Debit", width: 15, align: "right", format: "currency" },
+      { key: "credit", header: "Credit", width: 15, align: "right", format: "currency" },
     ],
   },
+
   budget_vs_actual: {
     title: "Budget vs. Actual",
     orientation: "landscape",
