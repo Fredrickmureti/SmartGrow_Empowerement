@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -261,6 +261,18 @@ function AgingReportInner() {
     >
       <PeriodLockBanner dateTo={asOfDate} />
 
+      {/* ADR 0136: an incomplete total must say so rather than look complete. */}
+      {(data?.unconvertibleDocumentCount || 0) > 0 && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
+          <span className="font-medium text-destructive">Total is incomplete.</span>{" "}
+          {data?.unconvertibleDocumentCount} document(s) are in a currency with no exchange rate on file
+          as at this date and are excluded from the buckets below.{" "}
+          <Link to="/settings/company?tab=currency" className="underline underline-offset-2">
+            Add a rate
+          </Link>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <Card>
@@ -368,7 +380,7 @@ function AgingReportInner() {
               due_date: doc.due_date,
               total: doc.total,
               amount_paid: doc.amount_paid,
-              balance_due: doc.balance_due,
+              balance_due: doc.balance_due === null ? "No rate on file" : doc.balance_due,
               bucket: doc.bucket,
               days_overdue: doc.days_overdue,
               hasEmail: !!contact.email,

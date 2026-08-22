@@ -32,6 +32,13 @@ export interface AgingContactDetail {
   email: string | null;
   buckets: AgingBucket;
   documents: AgingDocument[];
+  /**
+   * ADR 0136: documents whose base-currency residual the engine could not
+   * state (no rate on file). They are NOT summed into `buckets`; the count
+   * exists so the surface can say the total is incomplete instead of
+   * presenting an understated figure as complete.
+   */
+  unconvertibleDocumentCount: number;
 }
 
 export interface AgingDocument {
@@ -41,7 +48,8 @@ export interface AgingDocument {
   due_date: string;
   total: number;
   amount_paid: number;
-  balance_due: number;
+  /** NULL when no rate is on file — never coerce to 0. */
+  balance_due: number | null;
   days_overdue: number;
   bucket: string; // Dynamic bucket label (e.g., "current", "days30", "days60", "days90")
   source?: string | null; // "migration" for migrated documents
@@ -52,6 +60,8 @@ export interface AgingReportData {
   summary: AgingBucket;
   asOfDate: string;
   reportType: "ar" | "ap";
+  /** Total documents excluded from `summary` because no rate is on file. */
+  unconvertibleDocumentCount: number;
 }
 
 interface UseAgingReportParams {
@@ -105,6 +115,7 @@ export function useAgingReport(params: UseAgingReportParams) {
           summary: { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 },
           asOfDate,
           reportType: params.reportType,
+          unconvertibleDocumentCount: 0,
         };
       }
 
@@ -188,6 +199,7 @@ async function rollupContactsToCommercialPartner(
         email: c.email,
         buckets: { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 },
         documents: [],
+        unconvertibleDocumentCount: 0,
       };
       merged.set(partnerId, target);
     }
@@ -195,6 +207,7 @@ async function rollupContactsToCommercialPartner(
       target.buckets[k] = (target.buckets[k] || 0) + (v as number);
     }
     target.documents.push(...c.documents);
+    target.unconvertibleDocumentCount += c.unconvertibleDocumentCount;
   }
 
   return {
@@ -211,21 +224,9 @@ function processLedgerAgingRows(
   const contactMap = new Map<string, AgingContactDetail>();
   const summary: AgingBucket = { ...emptyAgingBuckets() };
 
-  for (const row of rows) {
-    const residual = Number(row.residual_amount) || 0;
-    // Negative residuals are unapplied customer credits (credit positions).
-    // They must reduce the contact's net position, not be dropped.
-    if (Math.abs(residual) <= 0.005) continue;
-    const daysOverdue = Number(row.days_overdue) || 0;
-    // The bucket is assigned by SQL (`get_ar_ap_aging_from_ledger`). It is the
-    // single boundary definition; the client only falls back if the RPC ever
-    // omits it, using the mirrored helper — never a second inline copy.
-    const bucketLabel: AgingBucketKey =
-      AGING_BUCKET_KEYS.includes(row.bucket) ? (row.bucket as AgingBucketKey) : bucketForDaysOverdue(daysOverdue, residual);
+  let unconvertibleDocumentCount = 0;
 
-    summary[bucketLabel] = (summary[bucketLabel] || 0) + residual;
-    summary.total += residual;
-
+  const ensureContact = (row: any): AgingContactDetail => {
     const contactId = row.contact_id || "unknown";
     let contactDetail = contactMap.get(contactId);
     if (!contactDetail) {
@@ -236,9 +237,54 @@ function processLedgerAgingRows(
         email: row.email || null,
         buckets: { ...emptyAgingBuckets() },
         documents: [],
+        unconvertibleDocumentCount: 0,
       };
       contactMap.set(contactId, contactDetail);
     }
+    return contactDetail;
+  };
+
+  for (const row of rows) {
+    const daysOverdue = Number(row.days_overdue) || 0;
+    const rawResidual = row.residual_amount;
+
+    // ADR 0136: the engine returns NULL when it cannot state the base-currency
+    // residual (no rate on file). That is an absence, not a zero — it must not
+    // be coerced into the totals, and it must be counted so the surface can
+    // say the figure is incomplete.
+    if (rawResidual === null || rawResidual === undefined || !Number.isFinite(Number(rawResidual))) {
+      unconvertibleDocumentCount += 1;
+      const contactDetail = ensureContact(row);
+      contactDetail.unconvertibleDocumentCount += 1;
+      contactDetail.documents.push({
+        id: row.document_id,
+        document_number: row.document_number,
+        document_date: row.document_date,
+        due_date: row.due_date,
+        total: Number(row.document_total) || 0,
+        amount_paid: Number(row.applied_amount) || 0,
+        balance_due: null,
+        days_overdue: daysOverdue,
+        bucket: AGING_BUCKET_KEYS.includes(row.bucket) ? row.bucket : "current",
+        source: "unconvertible",
+      });
+      continue;
+    }
+
+    const residual = Number(rawResidual);
+    // Negative residuals are unapplied customer credits (credit positions).
+    // They must reduce the contact's net position, not be dropped.
+    if (Math.abs(residual) <= 0.005) continue;
+    // The bucket is assigned by SQL (`get_ar_ap_aging_from_ledger`). It is the
+    // single boundary definition; the client only falls back if the RPC ever
+    // omits it, using the mirrored helper — never a second inline copy.
+    const bucketLabel: AgingBucketKey =
+      AGING_BUCKET_KEYS.includes(row.bucket) ? (row.bucket as AgingBucketKey) : bucketForDaysOverdue(daysOverdue, residual);
+
+    summary[bucketLabel] = (summary[bucketLabel] || 0) + residual;
+    summary.total += residual;
+
+    const contactDetail = ensureContact(row);
 
     contactDetail.buckets[bucketLabel] = (contactDetail.buckets[bucketLabel] || 0) + residual;
     contactDetail.buckets.total += residual;
@@ -256,7 +302,13 @@ function processLedgerAgingRows(
     });
   }
 
-  return { contacts: Array.from(contactMap.values()).sort((a, b) => b.buckets.total - a.buckets.total), summary, asOfDate: asOfDateStr, reportType };
+  return {
+    contacts: Array.from(contactMap.values()).sort((a, b) => b.buckets.total - a.buckets.total),
+    summary,
+    asOfDate: asOfDateStr,
+    reportType,
+    unconvertibleDocumentCount,
+  };
 }
 
 

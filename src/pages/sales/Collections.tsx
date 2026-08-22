@@ -10,6 +10,7 @@
  */
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useAgingReport, type AgingContactDetail } from "@/hooks/useAgingReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card } from "@/components/ui/card";
@@ -472,7 +473,7 @@ export default function Collections() {
                                           {formatCurrency(d.amount_paid)}
                                         </TableCell>
                                         <TableCell className="text-right tabular-nums font-medium">
-                                          {formatCurrency(d.balance_due)}
+                                          <BaseCurrencyAmount value={d.balance_due} format={formatCurrency} label="Balance" />
                                         </TableCell>
                                         <TableCell className="text-right">
                                           {d.days_overdue > 0 ? d.days_overdue : "—"}

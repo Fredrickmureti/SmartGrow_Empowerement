@@ -2,6 +2,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInvoices, Invoice } from "@/hooks/useInvoices";
 import { useAgingReport } from "@/hooks/useAgingReport";
@@ -503,7 +504,7 @@ export default function AccountsReceivable() {
                             </div>
                             <div className="flex justify-between text-sm">
                               <span className="text-muted-foreground">Balance</span>
-                              <span className="font-semibold">{formatCurrency(doc.balance_due)}</span>
+                              <span className="font-semibold"><BaseCurrencyAmount value={doc.balance_due} format={formatCurrency} label="Balance" /></span>
                             </div>
                           </div>
                         ))}
@@ -543,7 +544,7 @@ export default function AccountsReceivable() {
                               <TableCell className="text-sm">{doc.due_date}</TableCell>
                               <TableCell className="text-right text-sm">{formatCurrency(doc.total)}</TableCell>
                               <TableCell className="text-right text-sm text-muted-foreground">{formatCurrency(doc.amount_paid)}</TableCell>
-                              <TableCell className="text-right font-semibold text-sm">{formatCurrency(doc.balance_due)}</TableCell>
+                              <TableCell className="text-right font-semibold text-sm"><BaseCurrencyAmount value={doc.balance_due} format={formatCurrency} label="Balance" /></TableCell>
                               <TableCell>{getAgingBadge(doc.days_overdue)}</TableCell>
                               <TableCell>
                                 <DropdownMenu>
