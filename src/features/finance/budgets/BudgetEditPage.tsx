@@ -146,6 +146,13 @@ export default function BudgetEditPage() {
 
   const isReadOnly = !canManageBudgets || budget?.status === "closed";
   const isActive = budget?.status === "active";
+  /**
+   * A period lock governs postings, not plans. A DRAFT budget may be authored
+   * across periods that are already closed (prior-year plans, onboarding
+   * back-loads). Once the budget is in force, a closed period's plan line is
+   * frozen — the database enforces the same rule in `_budget_items_normalize`.
+   */
+  const isDraft = budget?.status === "draft";
 
   const isFiscalYearClosed = (year: number): boolean =>
     periods.some(
@@ -154,6 +161,7 @@ export default function BudgetEditPage() {
         p.status === "closed" &&
         p.name.includes(year.toString()),
     );
+
 
   const currentYear = new Date().getFullYear();
   const yearOptions = useMemo(
@@ -172,7 +180,7 @@ export default function BudgetEditPage() {
   const headerSubmitDisabled =
     isReadOnly ||
     !trimmedName ||
-    (budget ? isFiscalYearClosed(fiscalYear) : false);
+    (budget && !isDraft ? isFiscalYearClosed(fiscalYear) : false);
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -191,15 +199,16 @@ export default function BudgetEditPage() {
     if (!budget || !lineAccount || !lineAmount) return;
     if (budget.status === "closed") return;
     const monthDate = `${budget.fiscal_year}-${String(lineMonth).padStart(2, "0")}-15`;
-    if (isDateLocked(monthDate)) {
+    if (!isDraft && isDateLocked(monthDate)) {
       toast({
         title: "Period locked",
-        description: `The fiscal period for ${MONTHS[lineMonth - 1]} ${budget.fiscal_year} is closed.`,
+        description: `The fiscal period for ${MONTHS[lineMonth - 1]} ${budget.fiscal_year} is closed. Record a budget revision instead.`,
         variant: "destructive",
       });
       return;
     }
     setAddingLine(true);
+
     try {
       await upsertBudgetItem.mutateAsync({
         budget_id: budget.id,
@@ -436,10 +445,14 @@ export default function BudgetEditPage() {
                 </SelectContent>
               </Select>
               {isFiscalYearClosed(fiscalYear) && (
-                <p className="flex items-center gap-1 text-xs text-destructive">
-                  <AlertTriangle className="h-3 w-3" /> Fiscal year is closed.
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <AlertTriangle className="h-3 w-3" />
+                  {isDraft
+                    ? "This fiscal year is closed for posting. The plan can still be recorded."
+                    : "Fiscal year is closed; change plan lines through a revision."}
                 </p>
               )}
+
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
@@ -511,7 +524,9 @@ export default function BudgetEditPage() {
                     <SelectContent>
                       {MONTHS.map((m, i) => {
                         const monthDate = `${budget.fiscal_year}-${String(i + 1).padStart(2, "0")}-15`;
-                        const locked = isDateLocked(monthDate);
+                        // Locked periods stay selectable while the budget is a
+                        // draft — planning is not posting.
+                        const locked = !isDraft && isDateLocked(monthDate);
                         return (
                           <SelectItem
                             key={i + 1}
@@ -522,6 +537,7 @@ export default function BudgetEditPage() {
                           </SelectItem>
                         );
                       })}
+
                     </SelectContent>
                   </Select>
                 </div>

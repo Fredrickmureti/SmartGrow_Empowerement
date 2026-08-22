@@ -236,9 +236,12 @@ function BudgetReportInner() {
           {selectedBudget && (
             <Badge variant="outline">FY {selectedBudget.fiscal_year}</Badge>
           )}
-          {selectedBudget?.currency_code && (
-            <Badge variant="outline">{selectedBudget.currency_code}</Badge>
+          {/* One currency authority: every figure on this page — plan and
+              actual alike — is the company's base currency. */}
+          {selectedBudget && baseCurrency && (
+            <Badge variant="outline">{baseCurrency}</Badge>
           )}
+
           <SaveViewButton
             reportType="budget"
             currentFilters={{ selectedBudgetId }}
