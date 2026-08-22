@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBudgets, Budget, BudgetItem } from "./useBudgets";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth } from "date-fns";
 import { normalizeError } from "@/services/resilience";
 
 export interface BudgetActual {
@@ -12,6 +11,7 @@ export interface BudgetActual {
   budget_id: string;
   account_id: string;
   period_month: number;
+  fiscal_period_id: string | null;
   fiscal_year: number;
   actual_amount: number;
   calculated_at: string;
@@ -69,124 +69,33 @@ export function useBudgetVsActual(budgetId?: string) {
     enabled: !!organizationId && !!budgetId,
   });
 
-  // Calculate actuals from journal entries
+  /**
+   * Recompute actuals from the general ledger.
+   *
+   * The computation lives in the database (recalculate_budget_actuals):
+   * only posted, non-closing, non-opening, non-sample entries count; dates are
+   * matched to the business's own monthly fiscal periods; branch-scoped
+   * budgets only see their own branch; and there is no 1,000-row client
+   * fetch limit to silently truncate large accounts.
+   */
   const calculateActuals = useMutation({
     mutationFn: async (budget: Budget) => {
-      if (!organizationId) throw new Error("No organization selected");
-
-      const fiscalYear = budget.fiscal_year;
-      const accountIds = [...new Set(budget.items?.map((i) => i.account_id) || [])];
-      
-      if (accountIds.length === 0) return [];
-
-      // Get all journal entry lines for these accounts in this fiscal year.
-      // If the budget is scoped to a specific branch, scope the JE lines too —
-      // a Branch A budget must measure against Branch A actuals, never HQ
-      // or sibling-branch GL activity. (Budgets with NULL branch_id are
-      // treated as company-wide and use all branches.)
-      const budgetBranchId = (budget as any).branch_id ?? null;
-      let jeLinesQ = supabase
-        .from("journal_entry_lines")
-        .select(`
-          account_id,
-          debit,
-          credit,
-          journal_entry:journal_entries!inner(
-            entry_date,
-            status,
-            branch_id
-          )
-        `)
-        .in("account_id", accountIds);
-      if (budgetBranchId) {
-        jeLinesQ = jeLinesQ.eq("journal_entry.branch_id", budgetBranchId);
-      }
-      const [{ data: journalLines, error: journalError }, { data: accountData, error: accountError }] = await Promise.all([
-        jeLinesQ,
-        supabase
-          .from("accounts")
-          .select("id, account_type")
-          .in("id", accountIds),
-      ]);
-
-      if (journalError) throw journalError;
-      if (accountError) throw accountError;
-
-      // Build account type lookup
-      const accountTypeMap = new Map<string, string>();
-      for (const acc of accountData || []) {
-        accountTypeMap.set(acc.id, acc.account_type);
-      }
-
-      // Filter to fiscal year and calculate monthly totals
-      const monthlyActuals: Map<string, number> = new Map();
-
-      for (const line of journalLines || []) {
-        const entry = line.journal_entry as { entry_date: string; status: string } | null;
-        if (!entry || entry.status !== "posted") continue;
-
-        const entryDate = new Date(entry.entry_date);
-        if (entryDate.getFullYear() !== fiscalYear) continue;
-
-        const month = entryDate.getMonth() + 1;
-        const key = `${line.account_id}-${month}`;
-        
-        // Use account-type-aware calculation:
-        // Expense accounts: debit - credit (positive = spending)
-        // Income accounts: credit - debit (positive = revenue)
-        // Assets/Liabilities/Equity: debit - credit (standard)
-        const accountType = accountTypeMap.get(line.account_id) || "expense";
-        const isDebitNormal = ["asset", "expense"].includes(accountType);
-        const amount = isDebitNormal
-          ? (line.debit || 0) - (line.credit || 0)
-          : (line.credit || 0) - (line.debit || 0);
-        
-        monthlyActuals.set(key, (monthlyActuals.get(key) || 0) + amount);
-      }
-
-      // Upsert actuals - amounts are now correctly signed (positive = normal activity)
-      // budget_actuals.business_id is NOT NULL — inherit from the parent budget.
-      const budgetBusinessId = (budget as any).business_id;
-      if (!budgetBusinessId) {
-        throw new Error("Budget is missing business_id — cannot compute actuals");
-      }
-      const actualsToInsert = Array.from(monthlyActuals.entries()).map(([key, amount]) => {
-        const [accountId, month] = key.split("-");
-        return {
-          organization_id: organizationId,
-          business_id: budgetBusinessId,
-          budget_id: budget.id,
-          account_id: accountId,
-          period_month: parseInt(month),
-          fiscal_year: fiscalYear,
-          actual_amount: amount,
-          calculated_at: new Date().toISOString(),
-        };
+      const { data, error } = await supabase.rpc("recalculate_budget_actuals", {
+        _budget_id: budget.id,
       });
-
-      if (actualsToInsert.length > 0) {
-        // Delete existing actuals for this budget
-        await supabase
-          .from("budget_actuals")
-          .delete()
-          .eq("budget_id", budget.id);
-
-        const { error } = await supabase
-          .from("budget_actuals")
-          .insert(actualsToInsert);
-        if (error) throw error;
-      }
-
-      return actualsToInsert;
+      if (error) throw error;
+      return data ?? [];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["budget-actuals"] });
-      toast.success("Actuals calculated successfully");
+      queryClient.invalidateQueries({ queryKey: ["budget-vs-actual"] });
+      toast.success("Actuals recalculated from the ledger");
     },
     onError: (error) => {
       toast.error("Failed to calculate actuals: " + normalizeError(error).message);
     },
   });
+
 
   // Generate variance report
   const getVarianceReport = (budget: Budget): BudgetVarianceSummary | null => {
