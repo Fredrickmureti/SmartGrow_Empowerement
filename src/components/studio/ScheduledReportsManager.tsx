@@ -102,6 +102,10 @@ import {
   useReportGenerationLogs,
   ScheduledReport,
 } from "@/hooks/useReportScheduling";
+import { useBranches } from "@/hooks/useBranches";
+
+/** Sentinel for the "no branch" option — Radix Select forbids an empty value. */
+const ALL_BRANCHES = "__all__";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
