@@ -115,6 +115,7 @@ export function useAgingReport(params: UseAgingReportParams) {
           summary: { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 },
           asOfDate,
           reportType: params.reportType,
+          unconvertibleDocumentCount: 0,
         };
       }
 
