@@ -63,8 +63,12 @@ interface ReportData {
  */
 function resolveScheduleBranch(report: ScheduledReport): string | undefined {
   const legacy = (report.filters?.branchId ?? report.filters?.branch_id) as string | undefined;
-  return (report.branch_id || legacy) || undefined;
+  const stored = (report.branch_id || legacy) || undefined;
+  // Entity-level statements are never branch-sliced, whatever a legacy
+  // schedule stored. One registry, shared with the screens.
+  return scopeBranchForReport(report.report_type, stored);
 }
+
 
 // (Branding fallback removed in Stage K — renderReport handles the lookup
 // internally and tolerates a missing record without producing a broken PDF.)
