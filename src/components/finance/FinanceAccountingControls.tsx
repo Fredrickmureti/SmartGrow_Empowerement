@@ -25,6 +25,7 @@ import { ShieldAlert } from "lucide-react";
 import { useFinancePermissions } from "@/hooks/finance/useFinancePermission";
 import { FinanceReadOnlyNotice } from "@/components/finance/FinanceReadOnlyNotice";
 import { normalizeError } from "@/services/resilience";
+import { ExchangeRatePanel } from "@/components/finance/ExchangeRatePanel";
 
 interface AccountOption {
   id: string;
