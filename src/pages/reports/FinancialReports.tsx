@@ -556,6 +556,33 @@ function FinancialReportsInner() {
         </ReportFilters>
       }
     >
+      {/*
+        Consolidation gate. With no company in context in a multi-company
+        workspace the engine deliberately returns no figures, because summing
+        separate ledgers without intercompany eliminations is materially wrong.
+        Without this banner the page rendered a statement full of zeros and
+        looked like a company with no activity.
+      */}
+      {(pnlData?.requiresConsolidation || bsData?.requiresConsolidation) && (
+        <Card className="border-warning/50 bg-warning/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="font-semibold">Select a company to view financial statements</h3>
+                <p className="text-sm text-muted-foreground">
+                  This workspace has more than one company. Financial statements are
+                  prepared per legal entity — combining ledgers requires intercompany
+                  eliminations and currency translation, so no figures are shown until a
+                  company is selected.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
       {/* Period-lock indicator — figures for closed periods are stable */}
       <PeriodLockBanner
         dateFrom={activeTab === "pnl" ? dateFrom : undefined}
