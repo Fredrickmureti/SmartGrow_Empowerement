@@ -137,7 +137,7 @@ export async function buildReportData(
     case "general_ledger":
       return await buildGeneralLedger(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "partner_ledger":
-      return await buildPartnerLedger(supabase, orgId, businessId, dateFrom, dateTo);
+      return await buildPartnerLedger(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "journal_report":
       return await buildJournalReport(supabase, orgId, businessId, dateFrom, dateTo, branchId);
 
