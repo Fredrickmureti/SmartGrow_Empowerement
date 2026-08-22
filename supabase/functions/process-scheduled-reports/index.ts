@@ -41,6 +41,7 @@ interface ScheduledReport {
   filters: Record<string, unknown>;
   is_active: boolean;
   business_id?: string | null;
+  branch_id?: string | null;
 }
 
 interface ReportData {
@@ -50,6 +51,17 @@ interface ReportData {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
   reportType: string;
+}
+
+/**
+ * The branch a schedule is scoped to, or `undefined` for the whole business.
+ * `branch_id` is authoritative; `filters.branchId` is the pre-column form and
+ * is only read as a fallback so old schedules keep the scope they were saved
+ * with.
+ */
+function resolveScheduleBranch(report: ScheduledReport): string | undefined {
+  const legacy = (report.filters?.branchId ?? report.filters?.branch_id) as string | undefined;
+  return (report.branch_id || legacy) || undefined;
 }
 
 // (Branding fallback removed in Stage K — renderReport handles the lookup
