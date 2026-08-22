@@ -26,8 +26,12 @@ export interface BudgetVarianceRow {
   accountCode: string;
   accountName: string;
   accountType: string;
+  /** Calendar month of the accounting period (1–12), for display only. */
   month: number;
+  /** Position of the period inside the budget's fiscal year (1 = first month). */
+  periodOrdinal: number;
   fiscalPeriodId: string | null;
+
   periodStart: string | null;
   periodEnd: string | null;
   periodStatus: string | null;
@@ -103,6 +107,8 @@ interface VarianceReportRow {
   account_name: string | null;
   account_type: string | null;
   period_month: number | null;
+  period_ordinal: number | null;
+
   fiscal_period_id: string | null;
   period_start: string | null;
   period_end: string | null;
@@ -141,22 +147,45 @@ function totals(rows: BudgetVarianceRow[], creditNormal: boolean): BudgetVarianc
   };
 }
 
-function monthSeries(rows: BudgetVarianceRow[], creditNormal: boolean): BudgetMonthPoint[] {
-  return MONTHS.map((month, index) => {
-    const monthNumber = index + 1;
-    const monthRows = rows.filter((r) => r.month === monthNumber);
+/**
+ * The period axis of the budget's own fiscal year, in fiscal order. Derived
+ * from the periods the report returned — never from the calendar — so a
+ * business whose year starts in July charts July first. Falls back to the
+ * calendar year when the report is empty.
+ */
+function periodAxis(allRows: BudgetVarianceRow[]): Array<{ ordinal: number; month: number }> {
+  const seen = new Map<number, { ordinal: number; month: number }>();
+  for (const r of allRows) {
+    if (!r.periodOrdinal) continue;
+    if (!seen.has(r.periodOrdinal)) seen.set(r.periodOrdinal, { ordinal: r.periodOrdinal, month: r.month });
+  }
+  if (seen.size === 0) {
+    return MONTHS.map((_, i) => ({ ordinal: i + 1, month: i + 1 }));
+  }
+  return Array.from(seen.values()).sort((a, b) => a.ordinal - b.ordinal);
+}
+
+function monthSeries(
+  rows: BudgetVarianceRow[],
+  creditNormal: boolean,
+  axis: Array<{ ordinal: number; month: number }>,
+): BudgetMonthPoint[] {
+  return axis.map(({ ordinal, month }) => {
+    const label = MONTHS[Math.min(Math.max(month, 1), 12) - 1];
+    const monthRows = rows.filter((r) => r.periodOrdinal === ordinal);
     const budgeted = monthRows.reduce((s, r) => s + r.budgeted, 0);
     const actual = monthRows.reduce((s, r) => s + r.actual, 0);
     return {
-      month: month.substring(0, 3),
-      fullMonth: month,
-      monthNumber,
+      month: label.substring(0, 3),
+      fullMonth: label,
+      monthNumber: month,
       budgeted,
       actual,
       variance: creditNormal ? actual - budgeted : budgeted - actual,
     };
   });
 }
+
 
 export function useBudgetVsActual(budgetId?: string) {
   const { budgets } = useBudgets();
@@ -188,6 +217,8 @@ export function useBudgetVsActual(budgetId?: string) {
           accountName: r.account_name ?? "Unknown account",
           accountType: r.account_type ?? "",
           month: r.period_month ?? 0,
+          periodOrdinal: r.period_ordinal ?? r.period_month ?? 0,
+
           fiscalPeriodId: r.fiscal_period_id,
           periodStart: r.period_start,
           periodEnd: r.period_end,
@@ -265,8 +296,9 @@ export function useBudgetVsActual(budgetId?: string) {
       accountSummaries,
       itemsByMonth: byMonth,
       itemsByAccount: byAccount,
-      incomeByMonth: monthSeries(incomeRows, true),
-      expenseByMonth: monthSeries(expenseRows, false),
+      incomeByMonth: monthSeries(incomeRows, true, periodAxis(rows)),
+      expenseByMonth: monthSeries(expenseRows, false, periodAxis(rows)),
+
       unbudgetedRows: rows.filter((r) => r.unbudgeted),
     };
   }, [rows, budgetId]);

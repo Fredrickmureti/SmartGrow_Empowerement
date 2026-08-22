@@ -684,12 +684,15 @@ export default function FiscalPeriodDetail() {
                               <TableCell className="text-sm">{row.accountName}</TableCell>
                               <TableCell className="text-right text-sm">{formatCurrency(row.budgeted)}</TableCell>
                               <TableCell className="text-right text-sm">{formatCurrency(row.actual)}</TableCell>
-                              <TableCell className={`text-right text-sm font-semibold ${row.variance > 0 ? "text-destructive" : "text-primary"}`}>
+                              <TableCell className={`text-right text-sm font-semibold ${row.favourable ? "text-primary" : "text-destructive"}`}>
                                 {formatCurrency(row.variance)}
                               </TableCell>
-                              <TableCell className={`text-right text-sm ${row.variancePercent > 0 ? "text-destructive" : "text-primary"}`}>
-                                {row.variancePercent.toFixed(1)}%
+                              <TableCell className={`text-right text-sm ${row.favourable ? "text-primary" : "text-destructive"}`}>
+                                {row.variancePercent === null
+                                  ? row.unbudgeted ? "Unbudgeted" : "—"
+                                  : `${row.variancePercent.toFixed(1)}%`}
                               </TableCell>
+
                             </TableRow>
                           ))}
                         </TableBody>

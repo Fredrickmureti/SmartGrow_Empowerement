@@ -76,9 +76,15 @@ export interface BudgetComparison {
   accountCode: string;
   budgeted: number;
   actual: number;
+  /** Favourable-positive: computed in SQL from the account's nature. */
   variance: number;
-  variancePercent: number;
+  /** Null when there is no plan to measure against. */
+  variancePercent: number | null;
+  favourable: boolean;
+  /** Actual activity on an account with no plan for this period. */
+  unbudgeted: boolean;
 }
+
 
 export interface AssetSummary {
   additions: number;
@@ -204,8 +210,9 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         apOverdueResult,
         // Prior period GL
         priorMovementsResult,
-        // Budget
-        budgetItemsResult,
+        // Budget (authoritative server-side comparison)
+        budgetVarianceResult,
+
         // Fixed assets
         assetAdditionsResult,
         assetDisposalsResult,
@@ -389,16 +396,12 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           _date_to: priorEndDate,
           _business_id: businessId || null,
         }),
-        // Budget items for this period's month/year — scoped to the business
-        // that owns the period. Never aggregate another business's plan.
-        supabase
-          .from("budget_items")
-          .select("account_id, budgeted_amount, budget_id, budgets!inner(fiscal_year, organization_id, business_id, status)")
-          .eq("budgets.organization_id", orgId)
-          .eq("budgets.business_id", businessId)
-          .eq("budgets.fiscal_year", new Date(startDate).getFullYear())
-          .eq("budgets.status", "active")
-          .eq("period_month", new Date(startDate).getMonth() + 1),
+        // Budget vs actual for this period. The database owns the definition
+        // of a budget "actual" (period authority, ledger visibility, normal
+        // balance direction, favourable-positive variance) — never recompute
+        // it here from GL movements.
+        supabase.rpc("get_period_budget_variance", { _fiscal_period_id: periodId }),
+
 
         // Fixed asset additions
         supabase
@@ -523,27 +526,23 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
       const apOverdueData = apOverdueResult.data || [];
       const apOverdue = apOverdueData.reduce((s: number, b: any) => s + (Number(b.total) || 0), 0);
 
-      // Budget comparison
-      const budgetComparison: BudgetComparison[] = [];
-      const budgetItems = budgetItemsResult.data || [];
-      for (const bi of budgetItems as any[]) {
-        const acct = accountMap.get(bi.account_id);
-        if (!acct) continue;
-        const actualMov = accountBreakdown.find((a) => a.account_id === bi.account_id);
-        const actual = actualMov ? Math.abs(actualMov.net) : 0;
-        const budgeted = Number(bi.budgeted_amount) || 0;
-        const variance = actual - budgeted;
-        budgetComparison.push({
-          accountId: bi.account_id,
-          accountName: acct.name,
-          accountCode: acct.code,
-          budgeted,
-          actual,
-          variance,
-          variancePercent: budgeted !== 0 ? (variance / budgeted) * 100 : 0,
-        });
-      }
+      // Budget comparison — consumed verbatim from the authoritative report.
+      // Variance is favourable-positive and already sign-corrected in SQL.
+      const budgetComparison: BudgetComparison[] = ((budgetVarianceResult.data as any[]) || []).map((r) => ({
+        accountId: r.account_id,
+        accountName: r.account_name ?? "Unknown account",
+        accountCode: r.account_code ?? "",
+        budgeted: Number(r.budgeted_amount) || 0,
+        actual: Number(r.actual_amount) || 0,
+        variance: Number(r.variance_amount) || 0,
+        variancePercent: r.variance_percent === null || r.variance_percent === undefined
+          ? null
+          : Number(r.variance_percent),
+        favourable: r.is_favourable ?? (Number(r.variance_amount) || 0) >= 0,
+        unbudgeted: r.is_unbudgeted ?? false,
+      }));
       budgetComparison.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
 
       // Close readiness
       const unpostedJE = draftJEResult.count || 0;
