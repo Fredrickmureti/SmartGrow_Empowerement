@@ -774,15 +774,26 @@ export default function BudgetEditPage() {
                 />
                 <Legend />
                 <Bar
-                  dataKey="budgeted"
+                  dataKey="revenuePlan"
                   fill="hsl(var(--primary))"
-                  name="Budgeted"
+                  name="Revenue plan"
                 />
                 <Bar
-                  dataKey="actual"
-                  fill="hsl(var(--accent-foreground))"
-                  name="Actual"
+                  dataKey="revenueActual"
+                  fill="hsl(var(--primary) / 0.5)"
+                  name="Revenue actual"
                 />
+                <Bar
+                  dataKey="costPlan"
+                  fill="hsl(var(--muted-foreground))"
+                  name="Cost plan"
+                />
+                <Bar
+                  dataKey="costActual"
+                  fill="hsl(var(--destructive))"
+                  name="Cost actual"
+                />
+
               </BarChart>
             </ResponsiveContainer>
           </div>
