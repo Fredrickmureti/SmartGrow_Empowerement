@@ -368,7 +368,7 @@ function AgingReportInner() {
               due_date: doc.due_date,
               total: doc.total,
               amount_paid: doc.amount_paid,
-              balance_due: doc.balance_due,
+              balance_due: doc.balance_due === null ? "No rate on file" : doc.balance_due,
               bucket: doc.bucket,
               days_overdue: doc.days_overdue,
               hasEmail: !!contact.email,
