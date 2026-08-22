@@ -595,12 +595,15 @@ export default function BudgetEditPage() {
                   {[...items]
                     .sort((a, b) => a.period_month - b.period_month)
                     .map((item) => {
-                      const actual = getActualForItem(
+                      const row = getVarianceForItem(
                         item.account_id,
                         item.period_month,
                       );
-                      const variance = item.budgeted_amount - actual;
-                      const hasActual = storedActuals.length > 0;
+                      const actual = row?.actual ?? 0;
+                      // Favourable-positive variance, computed in SQL by
+                      // account nature — never re-derived here.
+                      const variance = row?.variance ?? 0;
+                      const hasActual = !!row && !varianceLoading;
                       return (
                         <TableRow key={item.id}>
                           <TableCell>
