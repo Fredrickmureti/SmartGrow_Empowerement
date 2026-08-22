@@ -1024,7 +1024,10 @@ export async function buildJournalReport(
     branchName: string | null;
     totalDebit: number;
     totalCredit: number;
-    lines: { accountCode: string; accountName: string; description: string; debit: number; credit: number }[];
+    lines: {
+      accountCode: string; accountName: string; description: string;
+      debit: number; credit: number; fx: FxLineInput;
+    }[];
   }
 
   const entries = new Map<string, JREntry>();
@@ -1075,12 +1078,21 @@ export async function buildJournalReport(
         description: (r.line_description as string) || je.description,
         debit,
         credit,
+        fx: toFxLine({ ...r, entry_currency: r.entry_currency ?? r.currency }),
       });
     }
 
     const totalEntries = Number((list[0]?.total_entries as number) ?? 0);
     if (list.length === 0 || entries.size >= totalEntries) break;
   }
+
+  // Base currency governs every money column; the FX supplement appears only
+  // when the period actually contains a foreign-currency line.
+  const baseCurrency = await fetchBaseCurrency(supabase, scopedBusinessId);
+  const showFx = hasForeignCurrency(
+    [...entries.values()].flatMap((e) => e.lines.map((l) => l.fx)),
+    baseCurrency,
+  );
 
   const rows: Record<string, unknown>[] = [];
   let totalDebits = 0;
@@ -1107,6 +1119,7 @@ export async function buildJournalReport(
         account: `${line.accountCode} - ${line.accountName}`,
         description: line.description,
         source: je.sourceType,
+        ...(showFx ? fxCells(line.fx, baseCurrency) : {}),
         debit: line.debit || null,
         credit: line.credit || null,
       });
@@ -1130,9 +1143,17 @@ export async function buildJournalReport(
     });
   }
 
+  const spec = getReportSpec("journal_report");
   return {
     data: rows,
-    summary: { totalEntries: entries.size, totalDebits, totalCredits },
+    summary: {
+      totalEntries: entries.size,
+      totalDebits,
+      totalCredits,
+      baseCurrency,
+      note: baseCurrencyNote(baseCurrency),
+    },
+    ...(showFx && spec ? { columns: withFxColumns(spec.columns) } : {}),
   };
 }
 
