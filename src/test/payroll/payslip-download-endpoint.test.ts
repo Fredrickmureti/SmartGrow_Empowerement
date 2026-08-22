@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(
-  new URL("../../services/payroll/payslipDocuments.ts", import.meta.url),
+  resolve(process.cwd(), "src/services/payroll/payslipDocuments.ts"),
   "utf8",
 );
 
