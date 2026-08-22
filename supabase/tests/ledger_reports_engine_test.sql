@@ -412,11 +412,11 @@ BEGIN
   VALUES (biz_c, org_c, 'LRX Company C', 'KE');
 
   INSERT INTO public.accounts(id, organization_id, business_id, code, name, account_type, detail_type)
-  VALUES (cash,   org_c, biz_c, 'C1000', 'C Cash',   'asset',  NULL),
-         (sales,  org_c, biz_c, 'C4000', 'C Sales',  'income', NULL),
-         (rent,   org_c, biz_c, 'C5000', 'C Rent',   'expense', NULL),
+  VALUES (cash,   org_c, biz_c, 'C1000', 'C Cash',   'asset',  'cash_on_hand'),
+         (sales,  org_c, biz_c, 'C4000', 'C Sales',  'income', 'sales_income'),
+         (rent,   org_c, biz_c, 'C5000', 'C Rent',   'expense', 'office_expenses'),
          (reacc,  org_c, biz_c, 'C3100', 'C Retained Earnings', 'equity', 'retained_earnings'),
-         (unused, org_c, biz_c, 'C9999', 'C Unused', 'asset',  NULL);
+         (unused, org_c, biz_c, 'C9999', 'C Unused', 'asset',  'cash_on_hand');
 
   -- Prior fiscal year (2199): revenue 300, expense 100 → net result 200.
   INSERT INTO public.journal_entries(id, organization_id, business_id, entry_number, entry_date,
