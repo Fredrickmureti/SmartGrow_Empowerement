@@ -291,8 +291,6 @@ BEGIN
 
   -- Page at 1 entry per page: every entry exactly once, no duplicates.
   LOOP
-    SELECT array_agg(DISTINCT entry_id) INTO page_count
-      FROM (SELECT 1) s WHERE false; -- keep plpgsql happy about types
     SELECT count(DISTINCT entry_id) INTO page_count
       FROM public.get_journal_report(org_a, DATE '2200-01-01', DATE '2200-12-31', biz_a, NULL, NULL, 1, off);
     EXIT WHEN page_count = 0;
