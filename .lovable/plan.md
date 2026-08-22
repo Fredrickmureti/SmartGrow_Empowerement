@@ -238,4 +238,26 @@ Trial Balance internals, any new reporting engine, any client-side accounting ma
 
 ## 16. Execution status
 
-Investigation complete. Nothing implemented. Awaiting approval of Phase 1.
+### Phase 0 — verification of prior work (done this session)
+
+The predecessor's log claimed investigation only, no implementation. Verified — and two
+of its findings were wrong, so they are corrected above rather than inherited:
+
+| Prior claim | Verdict | Evidence |
+|---|---|---|
+| Nothing implemented; no remediation code landed | **Confirmed** | `priorYearsResult` still absent from `totalEquity`; `is_active` filter still at `useFinancialReport.ts:161`; BS still `branchId: null` at `FinancialReports.tsx:203`; no branch check in the three RPCs; `BalanceSheetIntegrityCheck.ts` still unimported |
+| B1 — prior years' result dropped, BS can't balance | **Confirmed and sharpened** | Root cause is the `dateFrom = 1970-01-01` / `fetchOpeningBalancesRPC(params.dateFrom)` interaction, not the omission alone — see B1 |
+| B2 — imbalance detected but discarded | **Wrong** | Warnings are rendered at `FinancialReports.tsx:661-677`; downgraded to Low |
+| B3 — missing-RE guard never fires when an RE account exists | **Confirmed** | Guard requires `!hasRetainedEarningsAccount` (line 433) |
+| B6 — `requiresConsolidation` never read | **Confirmed** | Set at `useFinancialReport.ts:286`; zero consumers in `FinancialReports.tsx` |
+| Export parity via prebuilt mode | **Confirmed** | `getPnlExportConfig` / `getBsExportConfig` omit `dateFrom`/`dateTo` (lines 470-492) |
+| S2 — branch authorization gap in the reporting RPCs | **Confirmed** | Live catalog bodies check branch *ownership* only; RLS on the same tables requires `user_can_access_branch` |
+
+No regressions or partial patches to unwind. The genuine resume point is Phase 1.
+
+### Next
+
+Awaiting approval to implement Phase 1 (Balance Sheet equity correctness), which must
+land together with a correction to the misleading retained-earnings comments that
+currently justify the defect.
+
