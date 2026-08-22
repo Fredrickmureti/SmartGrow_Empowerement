@@ -32,6 +32,13 @@ export interface AgingContactDetail {
   email: string | null;
   buckets: AgingBucket;
   documents: AgingDocument[];
+  /**
+   * ADR 0136: documents whose base-currency residual the engine could not
+   * state (no rate on file). They are NOT summed into `buckets`; the count
+   * exists so the surface can say the total is incomplete instead of
+   * presenting an understated figure as complete.
+   */
+  unconvertibleDocumentCount: number;
 }
 
 export interface AgingDocument {
@@ -41,7 +48,8 @@ export interface AgingDocument {
   due_date: string;
   total: number;
   amount_paid: number;
-  balance_due: number;
+  /** NULL when no rate is on file — never coerce to 0. */
+  balance_due: number | null;
   days_overdue: number;
   bucket: string; // Dynamic bucket label (e.g., "current", "days30", "days60", "days90")
   source?: string | null; // "migration" for migrated documents
@@ -52,6 +60,8 @@ export interface AgingReportData {
   summary: AgingBucket;
   asOfDate: string;
   reportType: "ar" | "ap";
+  /** Total documents excluded from `summary` because no rate is on file. */
+  unconvertibleDocumentCount: number;
 }
 
 interface UseAgingReportParams {
