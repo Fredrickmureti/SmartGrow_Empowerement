@@ -648,7 +648,7 @@ async function sendReportEmail(
 
   if (format === "pdf") {
     const pdfBytes = await generatePDFReport(supabase, reportData, report.organization_id);
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+    const pdfBase64 = toBase64(pdfBytes);
 
     attachments = [{ filename: `${reportFileName}.pdf`, content: pdfBase64, encoding: "base64" }];
 
