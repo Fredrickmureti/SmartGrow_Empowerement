@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireCronAuth } from "../_shared/requireCronAuth.ts";
 import { renderReport, getReportSpec, resolveReportColumns } from "../_shared/reports/index.ts";
+import { scopeBranchForReport } from "../_shared/reports/branchScopability.ts";
+
 import { buildReportCsv, type ReportExportConfig } from "../_shared/exports/reportCsv.ts";
 import { buildReportXlsx } from "../_shared/exports/reportXlsx.ts";
 import type { ReportRow } from "../_shared/reportPdfGenerator.ts";
