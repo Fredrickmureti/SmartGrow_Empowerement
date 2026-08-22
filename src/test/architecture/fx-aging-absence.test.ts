@@ -39,4 +39,25 @@ describe("ADR 0136 — aging absence propagation", () => {
       expect(src).not.toMatch(/formatCurrency\((doc|d)\.balance_due\)/);
     }
   });
+
+  it("discloses excluded documents on printed and previewed statements", () => {
+    for (const p of [
+      "src/components/sales/StatementPreview.tsx",
+      "src/components/purchases/VendorStatementPreview.tsx",
+      "src/services/documents/snapshots/salesCustomerStatement.ts",
+      "src/services/documents/snapshots/purchasesVendorStatement.ts",
+      "src/components/contacts/ContactAgingBreakdown.tsx",
+    ]) {
+      expect(read(p), `${p} must disclose unconvertible documents`).toMatch(
+        /unconvertible_document_count/,
+      );
+    }
+  });
+
+  it("keeps the shared aging helper honest about absence", () => {
+    const openItems = read("src/services/finance/openItems.ts");
+    expect(openItems).toMatch(/unconvertible_document_count/);
+    expect(openItems).not.toMatch(/base_residual_amount\s*\?\?\s*(row|item)\.residual_amount/);
+    expect(read("src/services/finance/aging.ts")).toMatch(/unconvertible_document_count/);
+  });
 });

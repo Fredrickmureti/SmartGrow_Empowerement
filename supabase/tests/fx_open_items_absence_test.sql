@@ -69,6 +69,34 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- 5. Every AR/AP aggregate built on the open-item projections must guard on
+  --    absence and say how many documents it could not convert.
+  FOR v_def IN
+    SELECT p.proname
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN ('get_ap_summary','get_ar_summary','get_ap_aging_summary',
+                        'finance_ap_aging_reconciliation','finance_ar_aging_reconciliation',
+                        'finance_ap_reconciliation_detail')
+  LOOP
+    IF pg_get_functiondef(('public.' || v_def)::regproc) !~* 'unconvertible' THEN
+      RAISE EXCEPTION 'ADR 0136: % does not report its unconvertible document count', v_def;
+    END IF;
+    IF pg_get_functiondef(('public.' || v_def)::regproc) !~* 'IS NULL\) > 0' THEN
+      RAISE EXCEPTION 'ADR 0136: % sums around a NULL base amount instead of nulling the total', v_def;
+    END IF;
+  END LOOP;
+
+  -- 6. The base-currency aging feed reads BASE amounts for documents and for
+  --    unapplied credits — never the face amount at a silent 1:1.
+  v_def := pg_get_functiondef('public.get_ar_ap_aging_from_ledger'::regproc);
+  IF v_def !~* 'oi\.base_residual_amount AS residual_amount' THEN
+    RAISE EXCEPTION 'ADR 0136: get_ar_ap_aging_from_ledger must age the base residual';
+  END IF;
+  IF v_def ~* '(cc|vc)\.credit_amount AS credit_amount' THEN
+    RAISE EXCEPTION 'ADR 0136: get_ar_ap_aging_from_ledger must use the BASE credit amount';
+  END IF;
+
   RAISE NOTICE 'fx_open_items_absence_test: all contracts hold';
 END $$;
 
