@@ -311,6 +311,12 @@ export function StatementPreview({ data }: StatementPreviewProps) {
             </tbody>
           </table>
         </div>
+        {(data.agingBuckets.unconvertible_document_count || 0) > 0 && (
+          <p className="mt-2 text-xs text-destructive">
+            {data.agingBuckets.unconvertible_document_count} open document(s) are in a currency with no
+            exchange rate on file and are excluded from this aging summary.
+          </p>
+        )}
         {/* Mobile aging grid */}
         <div className="sm:hidden grid grid-cols-2 gap-2">
           {[
