@@ -1,0 +1,42 @@
+/**
+ * ADR 0136 ratchet — AR/AP aging must not coerce a missing base-currency
+ * residual into zero.
+ *
+ * `get_ar_ap_aging_from_ledger` returns SQL NULL for `residual_amount` when a
+ * document is denominated in a currency with no rate on file. Coercing that to
+ * 0 understates the position and makes an incomplete total look complete.
+ */
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+describe("ADR 0136 — aging absence propagation", () => {
+  const hook = read("src/hooks/useAgingReport.ts");
+
+  it("does not coerce a null residual to zero", () => {
+    expect(hook).not.toMatch(/Number\(row\.residual_amount\)\s*\|\|\s*0/);
+  });
+
+  it("counts unconvertible documents at report and contact level", () => {
+    expect(hook).toMatch(/unconvertibleDocumentCount/);
+    expect(hook).toMatch(/balance_due:\s*null/);
+  });
+
+  it("surfaces the incomplete total to the operator", () => {
+    expect(read("src/pages/reports/AgingReport.tsx")).toMatch(/unconvertibleDocumentCount/);
+  });
+
+  it("renders missing-rate balances through BaseCurrencyAmount", () => {
+    for (const p of [
+      "src/pages/finance/AccountsReceivable.tsx",
+      "src/pages/finance/AccountsPayable.tsx",
+      "src/pages/sales/Collections.tsx",
+    ]) {
+      const src = read(p);
+      expect(src).toMatch(/BaseCurrencyAmount/);
+      expect(src).not.toMatch(/formatCurrency\((doc|d)\.balance_due\)/);
+    }
+  });
+});
