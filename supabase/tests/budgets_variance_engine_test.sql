@@ -17,9 +17,9 @@
 -- SAFETY
 -- The behavioural block seeds its OWN isolated organization and rolls back:
 -- the closing `RAISE EXCEPTION 'rollback: ...'` aborts the transaction, so no
--- financial row is ever left behind. `session_replication_role = replica` is
--- used only while seeding ledger scaffolding, and is restored to `origin`
--- before any budget write so the budget triggers under test actually run.
+-- financial row is ever left behind. Every trigger in the database stays
+-- armed for the whole fixture — ledger entries are seeded as drafts and then
+-- posted, exactly as the application does it.
 
 -- ---------------------------------------------------------------------------
 -- 1) Contract: exactly one engine, defined once.
