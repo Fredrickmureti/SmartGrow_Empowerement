@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -328,7 +328,9 @@ function FxRevaluationReportInner() {
       { key: "je", header: "Journal entry", width: 18 },
     ];
     const exportRows: ExportRow[] = rows.map((r) => ({
-      run_date: r.run_date ? format(new Date(r.run_date), "yyyy-MM-dd") : "",
+      run_date: r.run_date && isValid(new Date(r.run_date))
+        ? format(new Date(r.run_date), "yyyy-MM-dd")
+        : (r.run_date ?? ""),
       status: r.status,
       currencies: r.currencies.join(", "),
       line_count: r.line_count,
