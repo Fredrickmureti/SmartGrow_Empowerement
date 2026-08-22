@@ -21,6 +21,8 @@ export interface ScheduledReport {
   include_charts: boolean;
   date_range_type: string;
   filters: Record<string, unknown>;
+  /** Branch the delivered report is scoped to. `null` = the whole business. */
+  branch_id: string | null;
   is_active: boolean;
   last_sent_at: string | null;
   next_send_at: string | null;
