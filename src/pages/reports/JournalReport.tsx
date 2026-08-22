@@ -32,6 +32,8 @@ import {
   baseCurrencyNote,
   type FxLine,
 } from "@/lib/reports/currencyPresentation";
+import { resolveLedgerDrillTarget } from "@/lib/reports/ledgerDrillTarget";
+
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import {
