@@ -86,9 +86,13 @@ export default function BudgetCreatePage() {
     },
   });
 
+  // A period lock governs postings, not plans: a new budget is always a draft,
+  // so a closed fiscal year is advisory here, never a block. The database
+  // applies the same rule in `_budget_items_normalize`.
   const yearClosed = isFiscalYearClosed(fiscalYear);
   const trimmedName = name.trim();
-  const submitDisabled = !trimmedName || yearClosed;
+  const submitDisabled = !trimmedName;
+
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -153,11 +157,12 @@ export default function BudgetCreatePage() {
                 </SelectContent>
               </Select>
               {yearClosed && (
-                <p className="flex items-center gap-1 text-xs text-destructive">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
                   <AlertTriangle className="h-3 w-3" /> This fiscal year is
-                  closed.
+                  closed for posting. The plan can still be recorded.
                 </p>
               )}
+
             </div>
 
             <div className="space-y-2">
