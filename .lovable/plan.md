@@ -1,88 +1,51 @@
-# Payroll Run-Type Audit — Wave 1: Off-Cycle / Late Hire (COMPLETED RECORD)
+# Variable Inputs — why it's empty, and how to make it usable
 
-Scope: `off_cycle` only. No fixes applied in this wave. Simulation was run against the live project with a temporary test employee, which has since been deleted (0 payroll_runs, 0 payslips, 1 employee remaining — the original state).
+## What's actually going on (verified)
 
-## 1. Question
+The "Variable Inputs" grid on the payroll-create form is **not broken and not locked** — it is deliberately data-driven. It renders one column per row in the `payroll_input_types` table (`src/hooks/payroll/useVariableInputTypes.ts`), scoped to your organization/business. Verified facts:
 
-What real business event makes a payroll officer choose **Off-cycle (late hire / one-off payment)** instead of Regular cycle; what does the system then do; and do the payroll domain, this ERP's declared intent, and its actual behavior agree?
+- `payroll_input_types` currently contains **zero rows** — not just for your org, the whole table is empty.
+- Nothing seeds it. Grepping the edge functions shows **no code path anywhere** (including the `localization-pack` installer) that inserts `payroll_input_types` rows.
+- There is **no admin screen** to create them. `payroll_input_types` appears in exactly one UI file: the read-only hook behind that grid.
+- The table's RLS/grants already allow org admins to insert/update/delete (migration `20260629193747`).
+- The registry also gates other features: `post_warehouse_incentive_pay` raises `Payroll input code % is not configured for this business` when the code is missing.
 
-## 2. External research findings
+So the design (Odoo `hr.payslip.input.type` / SAP wage-type permissibility / Workday pay-component inputs — all registry-driven, none ship hardcoded columns) is correct and standard. What's missing is the **authoring surface plus a starter set**: right now the message tells you to seed a table you have no way to seed without SQL. That's the gap.
 
-- **ADP — Off-cycle payroll**: payroll processed at any time other than the normal pay period; typical reasons are correcting missed/incorrect pay, terminations, bonuses, urgent payments. https://www.adp.com/resources/articles-and-insights/articles/o/off-cycle-payroll.aspx
-- **Workday — Concept: Off-Cycle Payments**: off-cycle transactions occur outside a scheduled on-cycle run and are manual payments, on-demand payments that *replace or add to* on-cycle pay, or reversals. Off-cycle is a processing-timing construct, not a distinct earnings formula. https://doc.workday.com/admin-guide/en-us/payroll/payroll-processing/process-on-demand-off-cycle-payments-by-worker/dan1370797201878.html
-- **Dayforce — Off-Cycle Pay Runs**: an off-cycle run sits inside an existing pay period, independent of the scheduled run, inheriting pay group/period from its parent regular run. https://help.dayforce.com/r/documents/Payroll-Administrator-Guide/Off-Cycle-Pay-Runs
-- No authoritative source treats **"late hire" as an off-cycle run type**. A mid-period hire is paid by the *regular* run with proration; off-cycle applies when the person missed the cycle (hired/entered after cutoff or after the run was processed).
+## What to build
 
-## 3. Domain conclusion
+### 1. Variable Input Types configuration page
+New route `/hr/payroll/configuration/input-types` (gated by `managePayroll`, alongside Work Entry Types and Loan Types), listed on the Configuration hub. Full CRUD over `payroll_input_types` for the current org/business:
 
-Off-cycle answers **when** money is paid, not **what** is computed. It is orthogonal to proration. "One-off payment" is a *reason* for an off-cycle run. "Late hire" is not standard off-cycle vocabulary.
+- Columns: sequence, code, name, unit (`amount` / `hours` / `days` / `count`), default, min, max, required, structures, active.
+- Create/edit form with validation: code is lowercase snake_case, unique per scope; min ≤ default ≤ max; unit required.
+- Scope selector: org-wide row vs business-specific override (matching the precedence the hook already implements).
+- Structure restriction: multi-select of salary structures; empty = all structures.
+- Soft delete via `is_active` toggle so historical runs keep their meaning; hard delete only when the code was never used.
 
-## 4. ERP intended semantics
+### 2. Starter set ("Add standard inputs")
+A one-click action on the empty page that inserts the country-agnostic slots the payroll engine already understands, so the grid becomes usable immediately:
 
-`payroll_run_type_policies` (live rows, ADR-0043):
+| code | name | unit |
+| --- | --- | --- |
+| `overtime_amount` | Overtime | amount |
+| `overtime_hours` | Overtime hours | hours |
+| `bonus_amount` | Bonus | amount |
+| `commission_amount` | Commission | amount |
+| `arrears_amount` | Arrears / back pay | amount |
 
-| flag | off_cycle | regular |
-|---|---|---|
-| applies_recurring_earnings | **false** | true |
-| applies_recurring_deductions | false | true |
-| applies_statutory | true | true |
-| loans / garnishments | false | true |
-| accrues leave / benefits | false | true |
-| tax_method | ordinary | ordinary |
-| population_source | explicit | active_in_period |
-| requires_parent_run | false | false |
+These codes match the variable-earning keys `compute-payroll` reads via `ctx.inputs` (per ADR 0010 Gap #2), so amounts typed in the grid flow into the run and get taxed by the normal PAYE path. Rows are inserted inactive-safe (review before use) and fully editable afterwards.
 
-Catalogue note: *"Late-hire / one-off payment. Statutory still applies on the paid amount; recurring streams suppressed."*
+### 3. Fix the dead-end empty state
+`VariableEarningsInput.tsx`'s notice currently names a database table at the end user. Replace the copy with a plain-language explanation and a direct link/button to the new configuration page (shown only to users with `managePayroll`).
 
-## 5. Implementation evidence
+## Professional verdict
 
-- `compute-payroll/index.ts:3024-3030` — with `applies_recurring_earnings=false` the engine zeroes basic/housing/transport/other and stamps `salarySource = "<source>+suppressed_by_off_cycle"`.
-- Proration (`:3064-3120`, `calculateProrationFactor` `:179`) is computed from the contract-first employment window **after** suppression — it multiplies zero. Proration is run-type independent.
-- Money on an off-cycle run can only come from `variable_earnings[]` (`:2545`, `:3125-3151`, not prorated), attendance overtime, or termination payouts.
-- Only `regular` is unique per period (`:1360-1395`); `create_off_cycle_run` is offered as recovery on `REGULAR_RUN_EXISTS`.
-- `payroll_resolve_run_population` (ADR-0044): for `explicit`, caller ids still must pass `hire_date <= period_end AND (termination_date IS NULL OR >= period_start)` and "no other open run of the same type".
-- UI: `CreatePayrollDialog.tsx:167` label, `:134` banner, `:301` single-employee advice (advisory copy only — no backend constraint); `Runs.tsx:648` "pay a late hire, bonus, or one-off".
+Nothing is locked or license-gated. The behaviour is the right architecture with one missing piece — a self-service editor and sensible defaults. Once step 1 and 2 land, typing overtime/bonus/commission per employee on a payroll run works as you'd expect from ADP/Workday.
 
-## 6. Consumers of `run_type`
+## Technical notes
 
-- **Behavioral**: policy resolution → earnings suppression; loans / garnishments / benefit deductions skipped; population resolver branch; regular-uniqueness gate; parent-run gate (correction/supplemental); exit-clearance gate (termination).
-- **Recorded only**: `payroll_runs.run_type`, `run_type_policy_snapshot`, payslip `_salary_source`, run lists/filters, audit logs. No evidence found of `run_type` branching in GL posting, statutory rules, or reports — statutory rules apply to whatever earnings survive.
-
-## 7. Controlled simulation (executed)
-
-Org Joshua Holdings, period 2026-08-01 → 08-31, KE pack. Temporary employee **ZZTEST-OFFCYCLE-1** ("Wave1 LateHire"), contract start 2026-08-20, wage 60,000, no allowances. Dry-run compute via `compute-payroll` as the org owner. Test rows deleted afterwards.
-
-Note observed en route: a newly created employee lands as `lifecycle_status='draft'`, `is_active=false`, and is therefore invisible to the population resolver until activated.
-
-## 8. Expected behavior
-
-S-A regular: prorated salary for Aug 20–31. S-B off-cycle late hire: the missed prorated salary. S-C off-cycle one-off: only the one-off amount plus statutory.
-
-## 9. Actual behavior
-
-| Scenario | Result |
-|---|---|
-| **S-A** — Regular run, hire 2026-08-20 | Gross **23,225.81** = 60,000 × proration **0.3871**; NSSF 1,393.49, SHIF 638.71, AHL 348.39; net **20,845.22**; `_salary_source = "contract"`. Correct prorated late-hire pay. |
-| **S-B** — Off-cycle run, same employee, same period | Gross **0.00**, net **0.00**, `_proration_factor 0.3871` (applied to zero), `_salary_source = "contract+suppressed_by_off_cycle"`. Only line produced: **employer NITA 50.00** on zero pay. A payslip is still generated. |
-| **S-B2** — Off-cycle for the July period (hired after period end) | `409 POPULATION_EMPTY` / `NOT_ACTIVE_IN_PERIOD`. The "hired after the run was processed, pay them off-cycle in the prior period" case is refused. |
-| **S-C** — Off-cycle, existing employee, 25,000 one-off via `variable_earnings.arrears` | Gross **25,000**, statutory on that amount (NSSF 1,499.94, SHIF 687.50, AHL 375), net **20,437.56**, no salary/loan/garnishment lines. Behaves exactly as a supplemental payment. |
-
-## 10. Verdict
-
-**UI terminology problem (confirmed), plus one minor implementation defect.**
-
-- The engine implements off-cycle as a **supplemental / one-off payment run** — internally consistent with ADR-0043 and with ADP/Workday's supplemental usage. S-C proves it works as designed.
-- The UI advertises off-cycle as the **late hire** path. S-B proves the engine cannot serve that: a late hire's first, prorated salary is suppressed to zero, so following the UI's own advice ("switch to Off-cycle" for a late hire) produces a zero-value payslip with no error and no warning. The correct home for a late hire is the **regular** run, which already prorates correctly (S-A).
-- Minor defect: an off-cycle payslip with zero gross still emits a fixed employer **NITA 50.00** contribution, creating an employer liability on a zero-pay payslip.
-- Adjacent observation (not a defect, out of Wave 1 scope): if a late hire misses a period entirely, there is no supported path to pay them for that closed period other than manual variable earnings on a later run.
-
-## 11. Recommended next action (not implemented — awaiting your decision)
-
-Pick one:
-
-- **(a) Terminology fix (low risk, recommended).** Relabel to "Off-cycle (one-off / supplemental payment)", drop "late hire" from the run-type item, the regular-run conflict banner, and the Runs empty-state copy; point late hires at the regular run's proration. Optionally warn when an off-cycle run computes zero gross for an employee.
-- **(b) Policy fix (larger).** Introduce a genuine late-hire semantic as a catalogue row (per ADR-0043 I1) — e.g. an off-cycle variant honoring recurring earnings with employment-window proration and relaxing the active-in-period gate for prior periods — rather than changing engine code.
-
-Separately, whichever is chosen: suppress fixed employer contributions when a payslip's gross is zero.
-
-Wave 1 is closed. Bonus / Commission / 13th-month / Termination / Supplemental / Correction remain untouched.
+- Table: `public.payroll_input_types` (org+business scoped, unique on `(organization_id, code)` and `(organization_id, business_id, code)`).
+- Reuse the existing read hook; add a mutation hook `useVariableInputTypeMutations` with `react-query` invalidation of the `payroll-input-types` key.
+- Page follows the pattern of `src/pages/hr/payroll/LoanTypesSettings.tsx`; route added in `src/apps/hr/sub/PayrollRoutes.tsx` and to the Configuration hub in `src/pages/hr/payroll/sections.tsx`.
+- No database migration required — table, grants, and RLS already exist.
