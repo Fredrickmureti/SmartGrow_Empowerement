@@ -201,6 +201,7 @@ export function ScheduledReportsManager() {
     refreshReports,
   } = useScheduledReports();
   const { logs, isLoading: logsLoading, refreshLogs } = useReportGenerationLogs();
+  const { branches } = useBranches();
 
   const [activeTab, setActiveTab] = useState("schedules");
   const [dialogOpen, setDialogOpen] = useState(false);
