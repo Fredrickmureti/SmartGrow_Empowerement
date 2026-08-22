@@ -300,6 +300,10 @@ export function useBudgets() {
   /**
    * Change an ACTIVE budget through a recorded revision. Previous and new
    * amounts are stored per line so variance history stays explainable.
+   *
+   * Identify a line by `fiscal_period_id` wherever the accounting period is
+   * known — that is the line's real identity. `period_month` is accepted as a
+   * label-only fallback and is ambiguous on a non-January fiscal calendar.
    */
   const applyRevision = useMutation({
     mutationFn: async ({
@@ -311,8 +315,14 @@ export function useBudgets() {
       budgetId: string;
       reason: string;
       note?: string;
-      lines: Array<{ account_id: string; period_month: number; budgeted_amount: number }>;
+      lines: Array<{
+        account_id: string;
+        fiscal_period_id?: string | null;
+        period_month?: number;
+        budgeted_amount: number;
+      }>;
     }) => {
+
       const { data, error } = await supabase.rpc("apply_budget_revision", {
         _budget_id: budgetId,
         _reason: reason,
