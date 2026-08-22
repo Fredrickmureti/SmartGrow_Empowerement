@@ -95839,6 +95839,7 @@ export type Database = {
           is_reversal: boolean
           je_description: string
           journal_book: string
+          journal_entry_id: string
           line_description: string
           line_id: string
           opening_balance: number
