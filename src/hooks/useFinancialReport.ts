@@ -522,38 +522,39 @@ export function useFinancialReport(params: FinancialReportParams) {
           const totalEquity = sectionTotals["equity"] || 0;
 
           // Retained earnings authority is SQL, not the browser.
-          // `get_equity_result` returns the fiscal-year start, this year's
-          // result and the accumulated result of every closed year. Only the
-          // CURRENT year's result is added here: closed years are already
-          // folded into the retained-earnings account's opening balance by
-          // `get_ledger_opening_balances`, so adding an all-time figure (as
-          // this hook used to) counted prior-year profit twice.
-          const { data: equityRows, error: equityError } = await supabase.rpc(
-            "get_equity_result",
-            {
-              _org_id: orgId,
-              _business_id: businessId ?? null,
-              _as_of: params.dateTo,
-              _branch_id: params.branchId ?? null,
-            },
-          );
-          if (equityError) throw equityError;
-          const equity = Array.isArray(equityRows) ? equityRows[0] : equityRows;
+          // `get_equity_result` was already resolved above (it also fixes the
+          // reporting window), so this reads its result instead of calling the
+          // RPC a second time.
+          //
+          // Only the CURRENT fiscal year's result is added as a synthetic
+          // line. Every CLOSED year's result now genuinely sits inside the
+          // retained-earnings account's opening balance, because the opening
+          // position is read at the fiscal-year start — adding
+          // `priorYearsResult` here as well would count it twice.
+          const equity = equityResult;
 
           const currentYearEarnings = Number(equity?.current_year_earnings ?? 0);
           const priorYearsResult = Number(equity?.prior_years_result ?? 0);
+          const hasRetainedEarningsAccount = Boolean(equity?.retained_earnings_account_id);
+
+          // Safety net: with no retained-earnings account, SQL has nowhere to
+          // fold the closed years' result, so it must be presented separately
+          // or the statement cannot balance. `FinancialReports` renders this
+          // as an explicit unallocated line.
+          const unfoldedPriorYears = hasRetainedEarningsAccount ? 0 : priorYearsResult;
 
           balanceSheetTotals = {
             totalAssets,
             totalLiabilities,
-            totalEquity: totalEquity + currentYearEarnings,
+            totalEquity: totalEquity + currentYearEarnings + unfoldedPriorYears,
             retainedEarnings: currentYearEarnings,
             currentYearEarnings,
             priorYearsResult,
             fiscalYearStart: equity?.fiscal_year_start ?? null,
-            hasRetainedEarningsAccount: Boolean(equity?.retained_earnings_account_id),
+            hasRetainedEarningsAccount,
           };
-          netAmount = totalAssets - totalLiabilities - totalEquity - currentYearEarnings;
+          netAmount =
+            totalAssets - totalLiabilities - totalEquity - currentYearEarnings - unfoldedPriorYears;
           break;
         }
 
