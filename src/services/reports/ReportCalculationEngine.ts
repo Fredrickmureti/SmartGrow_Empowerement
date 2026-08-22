@@ -110,13 +110,17 @@ export function buildAccountHierarchy(
     for (const child of node.children) {
       setDepth(child, depth + 1);
     }
-    // Aggregate child balances into parent if it's a group
+    // Roll children UP INTO the parent, on top of the parent's own postings.
+    // A parent account can itself be posted to; replacing its figures with the
+    // children's sum (as this used to) silently dropped those postings from
+    // every total that reads the tree.
     if (node.is_group && node.children.length > 0) {
-      node.opening_balance = node.children.reduce((s, c) => s + c.opening_balance, 0);
-      node.debit_total = node.children.reduce((s, c) => s + c.debit_total, 0);
-      node.credit_total = node.children.reduce((s, c) => s + c.credit_total, 0);
-      node.closing_balance = node.children.reduce((s, c) => s + c.closing_balance, 0);
+      node.opening_balance += node.children.reduce((s, c) => s + c.opening_balance, 0);
+      node.debit_total += node.children.reduce((s, c) => s + c.debit_total, 0);
+      node.credit_total += node.children.reduce((s, c) => s + c.credit_total, 0);
+      node.closing_balance += node.children.reduce((s, c) => s + c.closing_balance, 0);
     }
+
   }
 
   // Flatten for rendering

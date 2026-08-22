@@ -68,6 +68,13 @@ export interface FinancialReportAccount {
   closing_balance: number;
   /** For P&L: the display amount (income: credit - debit, expense: debit - credit) */
   display_amount: number;
+  /**
+   * Group rows only: this account's own amount PLUS every descendant's.
+   * Presentation-only — section totals never read it (they sum own amounts),
+   * so it can never double-count.
+   */
+  rollup_amount?: number;
+
   /** Comparison period amount (if requested) */
   comparison_amount?: number;
   /** Variance from comparison period */
@@ -109,8 +116,17 @@ export interface FinancialReportData {
     totalAssets: number;
     totalLiabilities: number;
     totalEquity: number;
+    /** @deprecated alias of currentYearEarnings, kept for existing callers */
     retainedEarnings: number;
+    /** Result of the CURRENT fiscal year only (SQL-derived). */
+    currentYearEarnings: number;
+    /** Accumulated result of every closed fiscal year (already inside equity accounts). */
+    priorYearsResult: number;
+    fiscalYearStart: string | null;
+    /** False when no retained-earnings account resolves — prior-year result would be dropped. */
+    hasRetainedEarningsAccount: boolean;
   };
+
   /** Validation warnings and errors (especially for balance sheet integrity) */
   validationWarnings?: string[];
   /**
@@ -396,7 +412,9 @@ export function useFinancialReport(params: FinancialReportParams) {
         });
       }
 
-      // Build hierarchy
+      // Build hierarchy. `buildAccountHierarchy` rolls each subtree UP into its
+      // parent (parent's own postings + children), so a group node carries the
+      // subtree figure while the row keeps its own figure.
       const hierarchy = buildAccountHierarchy(reportAccounts);
 
       // Flatten hierarchy back to accounts with depth info
@@ -406,6 +424,15 @@ export function useFinancialReport(params: FinancialReportParams) {
         if (reportAcct) {
           reportAcct.depth = depth;
           reportAcct.is_group = node.is_group;
+          if (node.is_group) {
+            // Subtree figure, for the group row's "including sub-accounts" total.
+            reportAcct.rollup_amount =
+              params.reportType === "pnl"
+                ? (reportAcct.account_type === "income"
+                    ? node.credit_total - node.debit_total
+                    : node.debit_total - node.credit_total)
+                : node.closing_balance;
+          }
           flatAccounts.push(reportAcct);
         }
         for (const child of node.children.sort((a, b) => a.code.localeCompare(b.code))) {
@@ -423,14 +450,14 @@ export function useFinancialReport(params: FinancialReportParams) {
       for (const acct of flatAccounts) {
         const type = acct.account_type;
         if (!sections[type]) sections[type] = [];
-        // Only add root-level for section grouping; children are included via hierarchy
         sections[type].push(acct);
         if (!sectionTotals[type]) sectionTotals[type] = 0;
-        // Only count leaf nodes to avoid double-counting
-        if (!acct.is_group) {
-          sectionTotals[type] += acct.display_amount;
-        }
+        // Every account contributes its OWN amount exactly once. Summing only
+        // leaves would drop the own postings of a parent that also has
+        // children; summing rolled-up group rows would count them twice.
+        sectionTotals[type] += acct.display_amount;
       }
+
 
       // Calculate report-specific totals
       let netAmount = 0;
@@ -451,32 +478,42 @@ export function useFinancialReport(params: FinancialReportParams) {
           const totalLiabilities = sectionTotals["liability"] || 0;
           const totalEquity = sectionTotals["equity"] || 0;
 
-          // Calculate retained earnings (current year P&L)
-          // Fetch income & expense movements up to dateTo for retained earnings
-          const [incExpAccounts, incExpByAccount] = await Promise.all([
-            fetchAccounts(orgId, businessId, ["income", "expense"]),
-            fetchMovementsRPC(orgId, "1900-01-01", params.dateTo, businessId),
-          ]);
+          // Retained earnings authority is SQL, not the browser.
+          // `get_equity_result` returns the fiscal-year start, this year's
+          // result and the accumulated result of every closed year. Only the
+          // CURRENT year's result is added here: closed years are already
+          // folded into the retained-earnings account's opening balance by
+          // `get_ledger_opening_balances`, so adding an all-time figure (as
+          // this hook used to) counted prior-year profit twice.
+          const { data: equityRows, error: equityError } = await supabase.rpc(
+            "get_equity_result",
+            {
+              _org_id: orgId,
+              _business_id: businessId ?? null,
+              _as_of: params.dateTo,
+              _branch_id: params.branchId ?? null,
+            },
+          );
+          if (equityError) throw equityError;
+          const equity = Array.isArray(equityRows) ? equityRows[0] : equityRows;
 
-          let retainedEarnings = 0;
-          for (const acct of incExpAccounts) {
-            const mov = incExpByAccount.get(acct.id) || { debit: 0, credit: 0 };
-            if (acct.account_type === "income") {
-              retainedEarnings += mov.credit - mov.debit;
-            } else {
-              retainedEarnings -= mov.debit - mov.credit;
-            }
-          }
+          const currentYearEarnings = Number(equity?.current_year_earnings ?? 0);
+          const priorYearsResult = Number(equity?.prior_years_result ?? 0);
 
           balanceSheetTotals = {
             totalAssets,
             totalLiabilities,
-            totalEquity: totalEquity + retainedEarnings,
-            retainedEarnings,
+            totalEquity: totalEquity + currentYearEarnings,
+            retainedEarnings: currentYearEarnings,
+            currentYearEarnings,
+            priorYearsResult,
+            fiscalYearStart: equity?.fiscal_year_start ?? null,
+            hasRetainedEarningsAccount: Boolean(equity?.retained_earnings_account_id),
           };
-          netAmount = totalAssets - totalLiabilities - totalEquity - retainedEarnings;
+          netAmount = totalAssets - totalLiabilities - totalEquity - currentYearEarnings;
           break;
         }
+
         case "trial_balance": {
           // Calculate debit/credit columns for trial balance
           let tbDebit = 0;
