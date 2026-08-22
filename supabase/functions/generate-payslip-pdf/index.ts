@@ -24,6 +24,7 @@ import {
   PayslipNotFoundError,
 } from "../_shared/payslip/payslipSnapshot.ts";
 import { authorizePayslipAccess, isDenied } from "../_shared/payslip/payslipAccess.ts";
+import { ensurePayslipDocument } from "../_shared/payslip/ensurePayslipDocument.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +44,29 @@ serve(async (req) => {
     );
 
     const body = await req.json();
-    const { payslip_id, payroll_run_id, employee_id } = body ?? {};
+    const { payslip_id, payroll_run_id, employee_id, mode } = body ?? {};
+
+    // Compatibility door: some environments do not have the canonical
+    // `ensure-payslip-document` function deployed. Interactive surfaces
+    // fall back here so payslips still reach the document engine.
+    if (mode === "ensure_document") {
+      const ensured = await ensurePayslipDocument(
+        supabase,
+        req,
+        {
+          payslipId: payslip_id ?? null,
+          payrollRunId: payroll_run_id ?? null,
+          employeeId: employee_id ?? null,
+        },
+        corsHeaders,
+        "generate-payslip-pdf:ensure_document",
+      );
+      if (ensured.response) return ensured.response;
+      return new Response(JSON.stringify(ensured.body), {
+        status: ensured.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!payslip_id && !(payroll_run_id && employee_id)) {
       return new Response(
