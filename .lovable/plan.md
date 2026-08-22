@@ -144,5 +144,9 @@ shared function must change.
 
 ## Execution status
 
-Phases A–D implemented and verified against live data; automated tests outstanding.
-Next milestone: test coverage for A–D, then Phase E.
+Phases A–D implemented and verified against live data; the Balance Sheet equity
+split is on screen. No automated test for any of it yet — `supabase/tests/` holds
+no `financial_statements_test.sql`, and no Vitest parity spec exists. **Active
+phase: T (tests for A–D). Next after that: Phase E, then the rest of Phase F
+(Statement of Changes in Equity, masthead).** Do not begin E before T is green.
+
