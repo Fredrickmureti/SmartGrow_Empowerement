@@ -217,6 +217,8 @@ export function useBudgetVsActual(budgetId?: string) {
           accountName: r.account_name ?? "Unknown account",
           accountType: r.account_type ?? "",
           month: r.period_month ?? 0,
+          periodOrdinal: r.period_ordinal ?? r.period_month ?? 0,
+
           fiscalPeriodId: r.fiscal_period_id,
           periodStart: r.period_start,
           periodEnd: r.period_end,
