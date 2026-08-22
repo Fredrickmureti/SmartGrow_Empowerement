@@ -739,45 +739,60 @@ export async function buildBankReconciliation(
 
 
 
+/**
+ * General Ledger — built from the SAME `get_general_ledger` RPC the screen
+ * uses, so the scheduled PDF and the on-screen register are one document.
+ * The previous implementation re-derived opening balances and movements from
+ * raw `journal_entry_lines` (capped at 1000 rows, branch-blind, `posted`-only).
+ */
 export async function buildGeneralLedger(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr);
+  const { data: glRows, error } = await supabase.rpc("get_general_ledger", {
+    _org_id: organizationId,
+    _date_from: startStr,
+    _date_to: endStr,
+    _business_id: requireBusinessId(businessId),
+    _account_ids: null,
+    _include_zero_activity: false,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`Failed to build general ledger: ${error.message}`);
 
-  const { data: entries } = await supabase
-    .from("journal_entry_lines")
-    .select(`
-      account_id, debit, credit, description,
-      journal_entries!inner(entry_date, entry_number, description, reference, status, organization_id, business_id)
-    `)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr)
-    .order("journal_entries(entry_date)", { ascending: true });
-
-  // Group entries by account
-  const entriesByAccount = new Map<string, Array<Record<string, unknown>>>();
-  for (const e of ((entries || []) as Record<string, unknown>[])) {
-    const accountId = e.account_id as string;
-    if (!entriesByAccount.has(accountId)) entriesByAccount.set(accountId, []);
-    entriesByAccount.get(accountId)!.push(e);
+  interface GLAccount {
+    code: string;
+    name: string;
+    accountType: string;
+    openingBalance: number;
+    lines: Record<string, unknown>[];
   }
 
-  const accountMap = new Map(accounts.map(a => [a.id, a]));
+  const byAccount = new Map<string, GLAccount>();
+  for (const raw of (glRows || []) as Record<string, unknown>[]) {
+    const accountId = raw.account_id as string;
+    let acct = byAccount.get(accountId);
+    if (!acct) {
+      acct = {
+        code: raw.account_code as string,
+        name: raw.account_name as string,
+        accountType: raw.account_type as string,
+        openingBalance: Number(raw.opening_balance) || 0,
+        lines: [],
+      };
+      byAccount.set(accountId, acct);
+    }
+    if (raw.line_id) acct.lines.push(raw);
+  }
+
   const rows: Record<string, unknown>[] = [];
   let grandDebit = 0;
   let grandCredit = 0;
+  let lineCount = 0;
 
-  // Sort accounts by code
-  const sortedAccounts = [...accounts].sort((a, b) => a.code.localeCompare(b.code));
+  const sortedAccounts = [...byAccount.values()].sort((a, b) => a.code.localeCompare(b.code));
 
   for (const acct of sortedAccounts) {
-    const acctEntries = entriesByAccount.get(acct.id) || [];
-    if (acctEntries.length === 0 && acct.opening_balance === 0) continue;
-
-    // Account header row
     rows.push({
       date: "", entry: "",
       description: `${acct.code} - ${acct.name}`,
@@ -785,37 +800,43 @@ export async function buildGeneralLedger(
       _isHeader: true,
     });
 
-    // Opening balance row
     rows.push({
       date: "", entry: "",
       description: "Opening Balance",
       debit: null, credit: null,
-      balance: acct.opening_balance,
+      balance: acct.openingBalance,
     });
 
-    // Transaction rows with running balance
-    let runningBalance = acct.opening_balance;
-    const isDebit = isDebitNormal(acct.account_type);
+    let runningBalance = acct.openingBalance;
+    const isDebit = isDebitNormal(acct.accountType);
     let totalDebits = 0;
     let totalCredits = 0;
 
-    for (const e of acctEntries) {
-      const je = e.journal_entries as Record<string, unknown>;
-      const debit = (e.debit as number) || 0;
-      const credit = (e.credit as number) || 0;
+    for (const line of acct.lines) {
+      const debit = Number(line.debit) || 0;
+      const credit = Number(line.credit) || 0;
       totalDebits += debit;
       totalCredits += credit;
+      lineCount += 1;
 
-      if (isDebit) {
-        runningBalance += debit - credit;
-      } else {
-        runningBalance += credit - debit;
-      }
+      runningBalance += isDebit ? debit - credit : credit - debit;
+
+      // A reversed original stays in the ledger next to its reversal; the
+      // printed document has to say which line is which.
+      const status = line.is_reversal
+        ? `Reversal${line.reversal_of_number ? ` of ${line.reversal_of_number}` : ""}`
+        : line.entry_status === "reversed"
+          ? "Reversed"
+          : "";
 
       rows.push({
-        date: (je.entry_date as string) || "",
-        entry: (je.entry_number as string) || "",
-        description: (e.description as string) || (je.description as string) || "",
+        date: (line.entry_date as string) || "",
+        entry: (line.entry_number as string) || "",
+        description: (line.line_description as string) || (line.je_description as string) || "",
+        journal: (line.journal_book as string) || "",
+        branch: (line.branch_name as string) || "",
+        status,
+        currency: (line.entry_currency as string) || "",
         debit: debit || null,
         credit: credit || null,
         balance: runningBalance,
@@ -825,7 +846,6 @@ export async function buildGeneralLedger(
     grandDebit += totalDebits;
     grandCredit += totalCredits;
 
-    // Subtotal row
     rows.push({
       date: "", entry: "",
       description: "Total Movement",
@@ -836,7 +856,8 @@ export async function buildGeneralLedger(
     });
   }
 
-  // Grand total row
+  // The grand total proves debits = credits across the run; a summed balance
+  // there nets to nil, so it stays empty unless the run is a single account.
   rows.push({
     date: "", entry: "",
     description: "GRAND TOTAL",
@@ -846,9 +867,10 @@ export async function buildGeneralLedger(
 
   return {
     data: rows,
-    summary: { totalAccounts: sortedAccounts.length, totalTransactions: (entries || []).length, totalDebits: grandDebit, totalCredits: grandCredit },
+    summary: { totalAccounts: sortedAccounts.length, totalTransactions: lineCount, totalDebits: grandDebit, totalCredits: grandCredit },
   };
 }
+
 
 export async function buildPartnerLedger(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
