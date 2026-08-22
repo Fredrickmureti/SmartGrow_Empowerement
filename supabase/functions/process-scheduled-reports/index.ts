@@ -548,12 +548,9 @@ function buildTabularAttachment(
   format: "csv" | "excel",
 ): { bytes: Uint8Array; extension: string } {
   const rows = transformReportDataToRows(reportData);
-  const spec = getReportSpec(reportData.reportType);
-  const columns = resolveReportColumns({
-    reportType: reportData.reportType,
-    fromResult: spec?.columns ?? null,
-    rows,
-  });
+  // Same resolver the PDF funnel uses: registry columns first, inferred
+  // shape only as a last resort.
+  const columns = resolveReportColumns({ reportType: reportData.reportType, rows });
 
   const config: ReportExportConfig = {
     title: reportData.title,
