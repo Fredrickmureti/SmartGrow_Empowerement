@@ -6,11 +6,12 @@ import { scopeBranchForReport } from "../_shared/reports/branchScopability.ts";
 
 import { buildReportCsv, type ReportExportConfig } from "../_shared/exports/reportCsv.ts";
 import { buildReportXlsx } from "../_shared/exports/reportXlsx.ts";
-import type { ReportRow } from "../_shared/reportPdfGenerator.ts";
+import type { ReportColumn, ReportRow } from "../_shared/reportPdfGenerator.ts";
 import {
   buildBalanceSheet,
   buildTrialBalance,
   buildIncomeStatement,
+  buildComparativeIncomeStatement,
   buildCashFlow,
   buildGeneralLedger,
   buildPartnerLedger,
@@ -18,6 +19,7 @@ import {
   buildBudgetVsActual,
   buildDepreciationSchedule,
   buildAuditTrail,
+  type ComparisonMode,
   type ReportResult,
 } from "../_shared/reportDataEngine.ts";
 
@@ -55,6 +57,8 @@ interface ReportData {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
   reportType: string;
+  /** Comparative statements override the registry's one-money-column shape. */
+  columns?: ReportColumn[];
 }
 
 /**
@@ -70,6 +74,13 @@ function resolveScheduleBranch(report: ScheduledReport): string | undefined {
   // schedule stored. One registry, shared with the screens.
   return scopeBranchForReport(report.report_type, stored);
 }
+
+/** Comparative mode is stored in filters so schedules need no schema churn. */
+function resolveScheduleComparisonMode(report: ScheduledReport): ComparisonMode {
+  const raw = report.filters?.comparison_mode ?? report.filters?.comparisonMode;
+  return raw === "previous_period" || raw === "previous_year" ? raw : "none";
+}
+
 
 
 // (Branding fallback removed in Stage K — renderReport handles the lookup
@@ -201,9 +212,21 @@ async function generateReportData(
       result = await buildTrialBalance(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "income_statement":
-    case "profit_and_loss":
-      result = await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr, branchId);
+    case "profit_and_loss": {
+      const comparisonMode = resolveScheduleComparisonMode(report);
+      result = comparisonMode === "none"
+        ? await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr, branchId)
+        : await buildComparativeIncomeStatement(
+            supabase,
+            report.organization_id,
+            businessId,
+            startStr,
+            endStr,
+            branchId,
+            comparisonMode,
+          );
       break;
+    }
     case "cash_flow":
       result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
@@ -268,6 +291,7 @@ async function generateReportData(
     data: result.data,
     summary: result.summary,
     reportType: report.report_type,
+    columns: result.columns,
   };
 }
 
@@ -556,7 +580,11 @@ function buildTabularAttachment(
   const rows = transformReportDataToRows(reportData);
   // Same resolver the PDF funnel uses: registry columns first, inferred
   // shape only as a last resort.
-  const columns = resolveReportColumns({ reportType: reportData.reportType, rows });
+  const columns = resolveReportColumns({
+    reportType: reportData.reportType,
+    fromResult: reportData.columns,
+    rows,
+  });
 
   const config: ReportExportConfig = {
     title: reportData.title,
@@ -608,6 +636,7 @@ async function generatePDFReport(
     title: reportData.title,
     dateRange: `${reportData.dateRange.start} to ${reportData.dateRange.end}`,
     rows,
+    columns: reportData.columns,
     orientation: spec?.orientation ?? "landscape",
   });
 }
