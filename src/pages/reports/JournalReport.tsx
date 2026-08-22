@@ -24,6 +24,13 @@ import { ReportFilters } from "@/components/reports/ReportFilters";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  documentRate,
+  formatDocumentAmount,
+  formatRate,
+  hasForeignCurrency,
+  type FxLine,
+} from "@/lib/reports/currencyPresentation";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import {
@@ -53,7 +60,12 @@ interface JournalEntry {
   entry_currency: string | null;
   total_debit: number;
   total_credit: number;
-  lines: { account_code: string; account_name: string; debit: number; credit: number; description: string | null }[];
+  lines: {
+    account_code: string; account_name: string; debit: number; credit: number;
+    description: string | null;
+    /** Source-document amounts — supplement only, never used in arithmetic. */
+    fx: FxLine;
+  }[];
 }
 
 interface JournalReportData {
@@ -146,6 +158,12 @@ function JournalReportInner() {
           debit,
           credit,
           description: r.line_description,
+          fx: {
+            entryCurrency: r.entry_currency ?? null,
+            originalDebit: r.original_debit ?? null,
+            originalCredit: r.original_credit ?? null,
+            exchangeRate: r.exchange_rate ?? null,
+          },
         });
       }
 
@@ -173,15 +191,30 @@ function JournalReportInner() {
   };
 
   // ── One column declaration drives the screen table AND the export ──
+  // Multi-currency supplement: what the source document said. Debit and
+  // credit remain base currency and remain the only figures that are totalled,
+  // so these columns appear only when the period holds a foreign line.
+  const showFxColumns = useMemo(
+    () => hasForeignCurrency(entries.flatMap((e) => e.lines.map((l) => l.fx)), baseCurrency),
+    [entries, baseCurrency],
+  );
+
   const columns = useMemo<ReportColumn[]>(
     () => [
       { key: "account", header: "Account", width: "w-[220px]" },
       { key: "description", header: "Description", width: "w-[260px]" },
       { key: "source", header: "Source", width: "w-[140px]" },
+      ...(showFxColumns
+        ? ([
+            { key: "currency", header: "Currency", width: "w-[90px]" },
+            { key: "doc_amount", header: "Document Amt", width: "w-[140px]", align: "right" },
+            { key: "fx_rate", header: "Rate", width: "w-[100px]", align: "right" },
+          ] as ReportColumn[])
+        : []),
       { key: "debit", header: "Debit", format: "currency", width: "w-[130px]" },
       { key: "credit", header: "Credit", format: "currency", width: "w-[130px]" },
     ],
-    [],
+    [showFxColumns],
   );
 
   const rows = useMemo<ReportRow[]>(() => {
@@ -212,6 +245,9 @@ function JournalReportInner() {
             account: `${line.account_code} - ${line.account_name}`,
             description: line.description || je.description,
             source: sourceLabels[je.source_type || "manual"] || je.source_type || "Manual",
+            currency: line.fx.entryCurrency && line.fx.entryCurrency !== baseCurrency ? line.fx.entryCurrency : "",
+            doc_amount: formatDocumentAmount(line.fx, baseCurrency),
+            fx_rate: formatRate(documentRate(line.fx, baseCurrency)),
             debit: blankIfZero(line.debit),
             credit: blankIfZero(line.credit),
           },
@@ -238,7 +274,7 @@ function JournalReportInner() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries]);
+  }, [entries, baseCurrency]);
 
 
   const getExportConfig = useCallback(
