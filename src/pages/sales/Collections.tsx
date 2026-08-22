@@ -472,7 +472,7 @@ export default function Collections() {
                                           {formatCurrency(d.amount_paid)}
                                         </TableCell>
                                         <TableCell className="text-right tabular-nums font-medium">
-                                          {formatCurrency(d.balance_due)}
+                                          <BaseCurrencyAmount value={d.balance_due} format={formatCurrency} label="Balance" />
                                         </TableCell>
                                         <TableCell className="text-right">
                                           {d.days_overdue > 0 ? d.days_overdue : "—"}
