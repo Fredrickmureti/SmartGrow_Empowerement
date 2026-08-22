@@ -51,6 +51,10 @@ Investigation wave. Every claim below is tagged:
 ## 2. Invalidated assumptions
 
 - **[VF]** "The PDF may use a different query." False — prebuilt mode, same rows.
+- **[VF]** "The balance-sheet imbalance is silently swallowed." False — `validationWarnings`
+  IS rendered (`FinancialReports.tsx:661`) plus a dedicated balance-check card (line 695).
+- **[VF]** "Closed fiscal years are folded into retained earnings on the Balance Sheet path."
+  False — the fold exists in SQL but is bypassed by `dateFrom = 1970-01-01` (see B1).
 - **[VF]** "Parent + child are both summed into totals." False.
 - **[VF]** "Reversed entries inflate the ledger." False — counter-entry model.
 - **[VF]** "Sub-type buckets on the P&L may drop accounts." False — the sub-type union is
