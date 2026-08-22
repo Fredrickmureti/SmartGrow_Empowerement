@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -130,14 +131,19 @@ export function VariableEarningsInput({
           <div className="border rounded-md mt-2 p-4 flex items-start gap-3 bg-muted/40">
             <AlertCircle className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
             <div className="text-xs leading-relaxed">
-              <p className="font-medium">No variable input types declared for this scope.</p>
+              <p className="font-medium">No variable inputs set up yet.</p>
               <p className="text-muted-foreground mt-1">
-                Install or configure a localization pack and seed
-                <code className="mx-1 text-[11px]">payroll_input_types</code>
-                rows (overtime hours, bonus amount, commission, …). The
-                payroll-create form will then render one column per
-                declared input. No country-specific defaults are
-                rendered here.
+                Variable inputs are the per-run amounts you type in here —
+                overtime, bonus, commission, arrears. Define them once in{" "}
+                <Link
+                  to="/hr/payroll/configuration/input-types"
+                  className="underline underline-offset-2 font-medium text-foreground"
+                >
+                  Payroll → Configuration → Variable Input Types
+                </Link>{" "}
+                (there's a one-click standard set) and each one appears as a
+                column here. Nothing is locked — the grid simply has no
+                columns to show until you declare them.
               </p>
             </div>
           </div>

@@ -1334,6 +1334,7 @@ export function PayrollConfigurationPage() {
         { to: "/hr/payroll/configuration/schedules",  label: "Pay Schedules",     hint: "Pay periods, frequencies & cut-offs" },
         { to: "/hr/payroll/configuration/structures", label: "Salary Structures", hint: "Earnings & deduction rule sets" },
         { to: "/hr/payroll/configuration/work-entry-types", label: "Work Entry Types", hint: "Overtime, leave, holiday, unpaid…" },
+        { to: "/hr/payroll/configuration/input-types",     label: "Variable Input Types", hint: "Overtime, bonus, commission columns on each run" },
       ],
     },
     {
