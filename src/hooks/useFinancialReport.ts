@@ -185,21 +185,34 @@ async function fetchMovementsRPC(
   return rpcToMap(data || []);
 }
 
-async function fetchPriorMovementsRPC(
+/**
+ * Opening position per account, as of the first day of the period.
+ *
+ * Opening balances are accounting output and are owned by SQL
+ * (`get_ledger_opening_balances`), not by this hook. The engine applies the
+ * fiscal-year boundary — income and expense accounts restart at the start of
+ * the financial year and the prior years' result is folded into retained
+ * earnings, so opening debits still equal opening credits — and suppresses
+ * the business-level `accounts.opening_balance` on a branch-scoped run.
+ */
+async function fetchOpeningBalancesRPC(
   orgId: string,
-  beforeDate: string,
+  periodStart: string,
   businessId?: string,
   branchId?: string | null
-): Promise<Map<string, { debit: number; credit: number }>> {
-  const { data, error } = await supabase.rpc("get_account_movements", {
+): Promise<Map<string, number>> {
+  const { data, error } = await supabase.rpc("get_ledger_opening_balances", {
     _org_id: orgId,
-    _date_from: "1900-01-01",
-    _date_to: new Date(new Date(beforeDate).getTime() - 86400000).toISOString().split("T")[0],
     _business_id: businessId || null,
+    _as_of: periodStart,
     _branch_id: branchId || null,
   });
   if (error) throw error;
-  return rpcToMap(data || []);
+  const map = new Map<string, number>();
+  for (const row of (data || []) as Array<{ account_id: string; opening_balance: number | string }>) {
+    map.set(row.account_id, Number(row.opening_balance) || 0);
+  }
+  return map;
 }
 
 function rpcToMap(rows: any[]): Map<string, { debit: number; credit: number }> {
@@ -273,22 +286,22 @@ export function useFinancialReport(params: FinancialReportParams) {
       }
 
       // Fetch accounts and movements in parallel (using server-side RPC)
-      const [accounts, periodByAccount, priorByAccount] = await Promise.all([
+      const [accounts, periodByAccount, openingByAccount] = await Promise.all([
         fetchAccounts(orgId, businessId, accountTypes, params.accountIds),
         fetchMovementsRPC(orgId, params.dateFrom, params.dateTo, businessId, params.branchId),
-        fetchPriorMovementsRPC(orgId, params.dateFrom, businessId, params.branchId),
+        fetchOpeningBalancesRPC(orgId, params.dateFrom, businessId, params.branchId),
       ]);
 
       // Fetch comparison period if requested
       let comparisonMovements: Map<string, { debit: number; credit: number }> | null = null;
-      let comparisonPriorMovements: Map<string, { debit: number; credit: number }> | null = null;
+      let comparisonOpenings: Map<string, number> | null = null;
       if (params.comparisonDateFrom && params.comparisonDateTo) {
-        const [compMov, compPrior] = await Promise.all([
+        const [compMov, compOpening] = await Promise.all([
           fetchMovementsRPC(orgId, params.comparisonDateFrom, params.comparisonDateTo, businessId, params.branchId),
-          fetchPriorMovementsRPC(orgId, params.comparisonDateFrom, businessId, params.branchId),
+          fetchOpeningBalancesRPC(orgId, params.comparisonDateFrom, businessId, params.branchId),
         ]);
         comparisonMovements = compMov;
-        comparisonPriorMovements = compPrior;
+        comparisonOpenings = compOpening;
       }
 
       // Build report accounts
@@ -298,36 +311,23 @@ export function useFinancialReport(params: FinancialReportParams) {
 
       for (const account of accounts) {
         const period = periodByAccount.get(account.id) || { debit: 0, credit: 0 };
-        const prior = priorByAccount.get(account.id) || { debit: 0, credit: 0 };
+        // Server-owned opening position (fiscal-year aware, branch aware).
+        const openingBalance = openingByAccount.get(account.id) ?? 0;
 
-        // Skip zero-activity accounts unless requested
+        // Skip zero-activity accounts unless requested: no movement in the
+        // period AND nothing carried in. The opening figure already contains
+        // `accounts.opening_balance` and prior activity, so it is the single
+        // thing to test — matches the server engine and the PDF.
         if (
           !params.includeZeroActivity &&
           period.debit === 0 &&
           period.credit === 0 &&
-          (account.opening_balance || 0) === 0 &&
-          prior.debit === 0 &&
-          prior.credit === 0
+          openingBalance === 0
         ) {
           continue;
         }
 
         const accountType = account.account_type;
-        // Opening = the account's stored opening balance + prior-period JE
-        // activity. `accounts.opening_balance` is a business-level property,
-        // so a branch-scoped run must NOT carry it (the branch did not open
-        // with the whole company's balance). Mirrors `get_general_ledger`.
-        const openingRaw = params.branchId ? 0 : (account.opening_balance || 0);
-
-
-        // Calculate opening balance including account's opening_balance + prior period JE activity
-        const openingBalance = calculateBalance(
-          accountType,
-          openingRaw,
-          prior.debit,
-          prior.credit
-        );
-
         // Calculate closing balance
         const closingBalance = calculateBalance(
           accountType,
@@ -356,14 +356,13 @@ export function useFinancialReport(params: FinancialReportParams) {
 
         if (comparisonMovements) {
           const compPeriod = comparisonMovements.get(account.id) || { debit: 0, credit: 0 };
-          const compPrior = comparisonPriorMovements?.get(account.id) || { debit: 0, credit: 0 };
+          const compOpening = comparisonOpenings?.get(account.id) ?? 0;
 
           if (params.reportType === "pnl") {
             comparisonAmount = accountType === "income"
               ? compPeriod.credit - compPeriod.debit
               : compPeriod.debit - compPeriod.credit;
           } else {
-            const compOpening = calculateBalance(accountType, openingRaw, compPrior.debit, compPrior.credit);
             comparisonAmount = calculateBalance(accountType, compOpening, compPeriod.debit, compPeriod.credit);
           }
 

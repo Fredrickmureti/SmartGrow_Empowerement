@@ -225,13 +225,6 @@ function requireBusinessId(businessId?: string | null): string {
   return businessId;
 }
 
-/** The day before `startStr` — the cut-off for "prior period" movement. */
-function dayBefore(startStr: string): string {
-  const d = new Date(`${startStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
 async function accountMovements(
   supabase: SupabaseClient,
   organizationId: string,
@@ -254,6 +247,36 @@ async function accountMovements(
       debit: Number(row.total_debit) || 0,
       credit: Number(row.total_credit) || 0,
     });
+  }
+  return map;
+}
+
+/**
+ * Fiscal-year-aware opening position per account.
+ *
+ * Opening balances are accounting output, so they are computed in SQL by
+ * `get_ledger_opening_balances` — the same engine the on-screen reports call.
+ * Nominal (income/expense) accounts restart at the fiscal-year boundary and
+ * the prior years' result is folded into retained earnings, so the opening
+ * columns still balance. Never re-derive this in a runtime.
+ */
+async function openingBalances(
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string,
+  asOf: string,
+  branchId?: string,
+): Promise<Map<string, number>> {
+  const { data, error } = await supabase.rpc("get_ledger_opening_balances", {
+    _org_id: organizationId,
+    _business_id: businessId,
+    _as_of: asOf,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`Failed to fetch opening balances: ${error.message}`);
+  const map = new Map<string, number>();
+  for (const row of (data || []) as Record<string, unknown>[]) {
+    map.set(row.account_id as string, Number(row.opening_balance) || 0);
   }
   return map;
 }
@@ -294,27 +317,20 @@ export async function getGLAccountBalances(
   const { data: accounts, error: accountsError } = await accountsQuery;
   if (accountsError) throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
 
-  const [periodByAccount, priorByAccount] = await Promise.all([
+  const [periodByAccount, openingByAccount] = await Promise.all([
     accountMovements(supabase, organizationId, scopedBusinessId, startStr, endStr, branchId),
-    accountMovements(supabase, organizationId, scopedBusinessId, "1900-01-01", dayBefore(startStr), branchId),
+    openingBalances(supabase, organizationId, scopedBusinessId, startStr, branchId),
   ]);
 
   const result: AccountWithBalance[] = [];
   for (const account of (accounts || []) as Record<string, unknown>[]) {
     const id = account.id as string;
     const accountType = account.account_type as string;
-    // `accounts.opening_balance` is a business-level property: a branch-scoped
-    // run must not carry the whole company's opening position.
-    const baseOpening = branchId ? 0 : ((account.opening_balance as number) || 0);
-    const prior = priorByAccount.get(id) || { debit: 0, credit: 0 };
     const period = periodByAccount.get(id) || { debit: 0, credit: 0 };
-
-    let openingBalance = baseOpening;
-    if (isDebitNormal(accountType)) {
-      openingBalance += prior.debit - prior.credit;
-    } else {
-      openingBalance += prior.credit - prior.debit;
-    }
+    // Server-owned: fiscal-year reset for nominal accounts, retained-earnings
+    // absorption of prior years, and branch suppression of the business-level
+    // `accounts.opening_balance` all live in the RPC.
+    const openingBalance = openingByAccount.get(id) ?? 0;
 
     let closingBalance = openingBalance;
     if (isDebitNormal(accountType)) {
