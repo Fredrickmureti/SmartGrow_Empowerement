@@ -130,8 +130,8 @@ BEGIN
   INSERT INTO public.budgets (id, organization_id, business_id, name, fiscal_year, created_by)
   VALUES (v_budget, v_org_a, v_biz_a, 'FY2026 Plan A', 2026, v_user_a);
 
-  INSERT INTO public.budget_items (organization_id, business_id, budget_id, account_id, fiscal_period_id, budgeted_amount)
-  VALUES (v_org_a, v_biz_a, v_budget, v_exp_a, v_jan, 1000);
+  INSERT INTO public.budget_items (business_id, budget_id, account_id, period_month, fiscal_period_id, budgeted_amount)
+  VALUES (v_biz_a, v_budget, v_exp_a, 1, v_jan, 1000);
 
   INSERT INTO public.budget_revisions (id, organization_id, business_id, budget_id, revision_number, reason, created_by)
   VALUES (v_rev, v_org_a, v_biz_a, v_budget, 1, 'fixture', v_user_a);
