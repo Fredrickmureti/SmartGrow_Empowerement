@@ -63,7 +63,11 @@ describe("Budgets — actuals are server-derived", () => {
     expect(src).toMatch(/rpc\(\s*["']get_period_budget_variance["']/);
     // The contradictory local calculation must stay deleted.
     expect(src).not.toMatch(/from\(["']budget_items["']\)/);
-    expect(src).not.toMatch(/Math\.abs\([^)]*net\)/);
+    expect(src, "budget actuals must not be re-derived from GL movements").not.toMatch(
+      /const\s+actual\s*=\s*actualMov/,
+    );
+    expect(src).toMatch(/budgetVarianceResult/);
+
   });
 
   it("no client code reads budget_items outside the budgets feature", () => {
