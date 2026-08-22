@@ -27,7 +27,33 @@ export interface ReportExportColumn {
   width?: number;
   format?: ReportColumnFormat;
   align?: "left" | "center" | "right";
+  /**
+   * Header band this column sits under ("Opening balance"). Contiguous
+   * columns sharing a label print as one band row above the column headers,
+   * so a trial balance's three Debit/Credit pairs are never anonymous.
+   */
+  group?: string;
 }
+
+/**
+ * Collapses `column.group` into contiguous runs: `[label, span]`. Used by the
+ * CSV band row and the XLSX merged band. Returns an empty array when no
+ * column declares a group (single-tier header).
+ */
+export function groupRuns(
+  columns: ReportExportColumn[],
+): { label: string; start: number; span: number }[] {
+  if (!columns.some((c) => c.group)) return [];
+  const runs: { label: string; start: number; span: number }[] = [];
+  columns.forEach((col, index) => {
+    const label = col.group ?? "";
+    const last = runs[runs.length - 1];
+    if (last && last.label === label && label !== "") last.span += 1;
+    else runs.push({ label, start: index, span: 1 });
+  });
+  return runs;
+}
+
 
 export interface ReportExportRow {
   [key: string]: string | number | boolean | null | undefined;
@@ -83,8 +109,20 @@ export function buildReportCsv(config: ReportExportConfig): Uint8Array {
   if (config.dateRange) lines.push(csvRow([config.dateRange]));
   lines.push("");
 
+  // Optional band row ("Opening balance" over its Debit/Credit pair).
+  const runs = groupRuns(config.columns);
+  if (runs.length > 0) {
+    const band: string[] = [];
+    for (const run of runs) {
+      band.push(run.label);
+      for (let i = 1; i < run.span; i++) band.push("");
+    }
+    lines.push(csvRow(band));
+  }
+
   // Column headers.
   lines.push(csvRow(config.columns.map((c) => c.header)));
+
 
   // Body rows.
   for (const row of config.rows) {
