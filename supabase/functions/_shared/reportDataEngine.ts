@@ -89,7 +89,13 @@ export interface ClassifiedRow {
 export interface ReportResult {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
+  /**
+   * Builder-supplied column override. Ledger documents use it to add the
+   * conditional multi-currency supplement; without it the registry spec wins.
+   */
+  columns?: ReportColumn[];
 }
+
 
 // ── Classification Maps (mirrored from accountDetailTypeClassification.ts) ──
 
