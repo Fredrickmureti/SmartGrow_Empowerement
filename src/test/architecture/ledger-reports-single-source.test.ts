@@ -153,3 +153,45 @@ describe("Ledgers & Journals — multi-currency presentation", () => {
     );
   });
 });
+
+/**
+ * Phase 7.1 — one drill-through rule for the three ledger surfaces.
+ *
+ * Trial Balance, General Ledger and Journal Report drill into the same
+ * accounting object, so they must resolve the target through the same
+ * function. The historical failure was three variants: GL resolved the entry
+ * with a raw `journal_entry_lines` read in the browser, Journal Report
+ * special-cased "manual" on its own, and the Trial Balance dialog drilled
+ * without the report's branch scope.
+ */
+describe("Ledgers & Journals — drill-through consistency", () => {
+  const RESOLVER = "src/lib/reports/ledgerDrillTarget.ts";
+  const DIALOG = "src/components/reports/DrillDownDialog.tsx";
+
+  it("all three ledger surfaces use the shared resolver", () => {
+    for (const path of [GL_PAGE, JR_PAGE, DIALOG]) {
+      expect(read(path), `${path} must resolve drill targets centrally`).toContain(
+        "resolveLedgerDrillTarget",
+      );
+    }
+    expect(read(RESOLVER)).toContain("export function resolveLedgerDrillTarget");
+  });
+
+  it("no reporting screen resolves a journal entry by reading journal tables", () => {
+    for (const path of [GL_PAGE, JR_PAGE, TB_PAGE, GL_HOOK, DIALOG]) {
+      expect(read(path)).not.toMatch(/from\(["']journal_entry_lines["']\)/);
+      expect(read(path)).not.toMatch(/from\(["']journal_entries["']\)/);
+    }
+  });
+
+  it("the entry id comes from the engine, not the browser", () => {
+    expect(read(GL_HOOK)).toContain("journal_entry_id");
+    expect(read(GL_PAGE)).toContain("_journalEntryId");
+  });
+
+  it("Trial Balance drill-down inherits the report's branch scope", () => {
+    expect(read(TB_PAGE)).toMatch(/branchId:\s*filters\.branchId/);
+    const dialog = read(DIALOG);
+    expect(dialog).toContain("_branch_id: config.branchId || null");
+  });
+});
