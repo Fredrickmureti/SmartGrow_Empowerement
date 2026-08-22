@@ -57,6 +57,8 @@ interface ReportData {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
   reportType: string;
+  businessId?: string;
+  branchId?: string;
   /** Comparative statements override the registry's one-money-column shape. */
   columns?: ReportColumn[];
 }
@@ -291,6 +293,8 @@ async function generateReportData(
     data: result.data,
     summary: result.summary,
     reportType: report.report_type,
+    businessId,
+    branchId,
     columns: result.columns,
   };
 }
@@ -632,6 +636,8 @@ async function generatePDFReport(
 
   return await renderReport(supabase, {
     organizationId,
+    businessId: reportData.businessId,
+    branchId: reportData.branchId ?? null,
     reportType: reportData.reportType,
     title: reportData.title,
     dateRange: `${reportData.dateRange.start} to ${reportData.dateRange.end}`,
