@@ -29,6 +29,7 @@ import {
   formatDocumentAmount,
   formatRate,
   hasForeignCurrency,
+  baseCurrencyNote,
   type FxLine,
 } from "@/lib/reports/currencyPresentation";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
@@ -326,6 +327,7 @@ function JournalReportInner() {
             ? `Entries ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + entries.length} of ${totalEntries}`
             : `${totalEntries} journal entries`
         }
+        note={showFxColumns ? baseCurrencyNote(baseCurrency) : undefined}
         profile="operational"
       >
         <ReportTable

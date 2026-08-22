@@ -33,6 +33,7 @@ import {
   formatDocumentAmount,
   formatRate,
   hasForeignCurrency,
+  baseCurrencyNote,
   type FxLine,
 } from "@/lib/reports/currencyPresentation";
 import type { GLTransaction } from "@/hooks/useGeneralLedger";
@@ -383,6 +384,7 @@ function GeneralLedgerInner() {
       <ReportSurface
         title="General Ledger"
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+        subtitle={showFxColumns ? baseCurrencyNote(baseCurrency) : undefined}
         profile="operational"
       >
         <ReportTable
