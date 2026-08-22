@@ -28,7 +28,7 @@ import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import type { ServerBuildConfig } from "@/services/reports/ReportExportService";
 import { cn } from "@/lib/utils";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
-import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+
 import {
   ReportSurface,
   ReportTable,
@@ -54,7 +54,9 @@ function CashFlowReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
 
-  const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: filters.branchId });
+  // Cash Flow is entity-level by the shared branch-scopability registry:
+  // cash positions reconcile at the legal entity, never per branch.
+  const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: null });
 
   // Standalone figures (KPI cards, banners) use the same accounting
   // policy as the table cells and the exported PDF.
@@ -184,7 +186,7 @@ function CashFlowReportInner() {
     reportType: "cash_flow",
     organizationId: currentOrg?.id,
     businessId: currentBusiness?.id,
-    branchId: filters.branchId ?? null,
+    branchId: null,
     dateFrom,
     dateTo,
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
@@ -193,13 +195,14 @@ function CashFlowReportInner() {
     subtitle: "Indirect method",
     sheetName: "Cash Flow",
     currency: baseCurrency,
-  }), [columns, rows, dateFrom, dateTo, currentOrg, currentBusiness, filters.branchId, baseCurrency]);
+  }), [columns, rows, dateFrom, dateTo, currentOrg, currentBusiness, baseCurrency]);
 
 
   return (
     <ReportPageLayout
       title="Cash Flow Statement"
       description="Indirect method — derived from journal entries"
+      reportKind="cash_flow"
       isLoading={isLoading || !isReady}
       error={error as Error | null}
       isEmpty={!data}
@@ -231,9 +234,7 @@ function CashFlowReportInner() {
           dateTo={dateTo}
           onDateFromChange={setDateFrom}
           onDateToChange={setDateTo}
-        >
-          <ReportBranchFilter reportKind="cash_flow" />
-        </ReportFilters>
+        />
       }
     >
       {data && (

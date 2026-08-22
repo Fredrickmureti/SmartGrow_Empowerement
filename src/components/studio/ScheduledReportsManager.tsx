@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -103,6 +103,8 @@ import {
   ScheduledReport,
 } from "@/hooks/useReportScheduling";
 import { useBranches } from "@/hooks/useBranches";
+import { isBranchScopable, toReportKind } from "@/lib/reports/branchScopability";
+
 
 /** Sentinel for the "no branch" option — Radix Select forbids an empty value. */
 const ALL_BRANCHES = "__all__";
@@ -186,6 +188,7 @@ const scheduleFormSchema = z.object({
   // "" means the whole business — the same unscoped run the screens show
   // when no branch is selected.
   branch_id: z.string(),
+  comparison_mode: z.enum(["none", "previous_period", "previous_year"]),
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleFormSchema>;
@@ -243,10 +246,21 @@ export function ScheduledReportsManager() {
       date_range_type: "last_month",
       recipients: "",
       branch_id: "",
+      comparison_mode: "none",
     },
   });
 
   const scheduleType = form.watch("schedule_type");
+  const selectedReportType = form.watch("report_type");
+  const selectedReportKind = selectedReportType ? toReportKind(selectedReportType) : null;
+  const branchScopeAvailable = Boolean(selectedReportKind && isBranchScopable(selectedReportKind));
+  const comparisonAvailable = selectedReportKind === "pnl";
+
+  useEffect(() => {
+    if (!branchScopeAvailable) form.setValue("branch_id", "");
+    if (!comparisonAvailable) form.setValue("comparison_mode", "none");
+  }, [branchScopeAvailable, comparisonAvailable, form]);
+
 
   const handleOpenCreate = () => {
     setEditingReport(null);
@@ -262,6 +276,7 @@ export function ScheduledReportsManager() {
       date_range_type: "last_month",
       recipients: "",
       branch_id: "",
+      comparison_mode: "none",
     });
     setDialogOpen(true);
   };
@@ -280,6 +295,11 @@ export function ScheduledReportsManager() {
       date_range_type: report.date_range_type,
       recipients: report.recipients.map((r) => r.email).join(", "),
       branch_id: report.branch_id ?? "",
+      comparison_mode:
+        report.filters?.comparison_mode === "previous_period" ||
+        report.filters?.comparison_mode === "previous_year"
+          ? report.filters.comparison_mode
+          : "none",
     });
     setDialogOpen(true);
   };
@@ -313,7 +333,12 @@ export function ScheduledReportsManager() {
         date_range_type: values.date_range_type,
         recipients,
         branch_id: values.branch_id || null,
-        filters: {},
+        filters: {
+          comparison_mode:
+            values.report_type === "income_statement" || values.report_type === "profit_and_loss"
+              ? values.comparison_mode
+              : "none",
+        },
         is_active: true,
         template_id: null,
         next_send_at: null,
@@ -751,7 +776,7 @@ export function ScheduledReportsManager() {
                 />
               </div>
 
-              {branches.length > 0 && (
+              {branches.length > 0 && branchScopeAvailable && (
                 <FormField
                   control={form.control}
                   name="branch_id"
@@ -786,6 +811,34 @@ export function ScheduledReportsManager() {
                 />
               )}
 
+              {comparisonAvailable && (
+                <FormField
+                  control={form.control}
+                  name="comparison_mode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Comparison</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Current period only</SelectItem>
+                          <SelectItem value="previous_period">Previous period</SelectItem>
+                          <SelectItem value="previous_year">Same period last year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Comparative P&L schedules include Current, Comparison, Variance and Var % —
+                        the same columns as the on-screen statement.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField

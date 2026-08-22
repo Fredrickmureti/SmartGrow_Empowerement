@@ -12,7 +12,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   BS_ASSET_ORDER,
-  BS_EQUITY_ORDER,
   BS_LIABILITY_ORDER,
   SUB_TYPE_LABELS,
   classifyAccount,
@@ -75,8 +74,17 @@ export interface AccountWithBalance {
 export interface ClassifiedRow {
   name: string;
   code?: string;
-  closing_balance?: number;
+  /** P&L money cell — matches the profit_and_loss column registry. */
+  amount?: number;
+  /** Balance Sheet money cell — matches the balance_sheet column registry. */
   balance?: number;
+  /** Comparative P&L cells. */
+  comparison?: number | null;
+  variance?: number | null;
+  variance_percent?: number | null;
+  /** Canonical semantic line kind consumed by the PDF engine. */
+  _kind?: "section" | "subsection" | "detail" | "subtotal" | "major_total" | "calculated_result" | "grand_total" | "spacer";
+  /** Legacy flags retained for older renderers; `_kind` is authoritative. */
   _isHeader?: boolean;
   _isSubtotal?: boolean;
   _isGrandTotal?: boolean;
@@ -84,15 +92,21 @@ export interface ClassifiedRow {
   _bold?: boolean;
 }
 
+export type ComparisonMode = "none" | "previous_period" | "previous_year";
+
 export interface ReportResult {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
   /**
    * Builder-supplied column override. Ledger documents use it to add the
-   * conditional multi-currency supplement; without it the registry spec wins.
+   * conditional multi-currency supplement; comparative statements use it to
+   * add Current / Comparison / Variance; without it the registry spec wins.
    */
   columns?: ReportColumn[];
+  /** Resolved comparison window, when a comparative builder ran. */
+  comparisonPeriod?: { from: string; to: string; mode: Exclude<ComparisonMode, "none"> };
 }
+
 
 
 // ── Classification Maps (mirrored from accountDetailTypeClassification.ts) ──
@@ -421,56 +435,85 @@ export async function buildBalanceSheet(
 
   // Equity carries two derived additions: this year's result, and — only when
   // there is no retained-earnings account to absorb it — the closed years'
-  // result. Both are added once, at section and sub-type level alike.
+  // result. Both are added once.
   const equityAddition = retainedEarnings + unfoldedPriorYears;
 
-  const buildSection = (sectionLabel: string, accountType: string, subTypeOrder: AccountSubType[]) => {
-    const sectionAccounts = classified.filter(a => a.account_type === accountType);
-    const sectionTotal = sectionAccounts.reduce((s, a) => s + a.closing_balance, 0) +
-      (accountType === "equity" ? equityAddition : 0);
+  const totalFor = (accountType: string) =>
+    classified
+      .filter(a => a.account_type === accountType)
+      .reduce((s, a) => s + a.closing_balance, 0);
 
-    rows.push({ name: sectionLabel.toUpperCase(), _isHeader: true, _bold: true });
+  const buildClassifiedSection = (
+    sectionLabel: string,
+    accountType: "asset" | "liability",
+    subTypeOrder: AccountSubType[],
+    totalKind: "grand_total" | "major_total",
+  ) => {
+    const sectionAccounts = classified.filter(a => a.account_type === accountType);
+    const sectionTotal = sectionAccounts.reduce((s, a) => s + a.closing_balance, 0);
+
+    rows.push({ name: sectionLabel.toUpperCase(), _kind: "section", _isHeader: true, _bold: true });
 
     for (const subType of subTypeOrder) {
       const group = sectionAccounts.filter(a => a.sub_type === subType);
-      const carriesDerived = subType === "retained_earnings" && equityAddition !== 0;
-      if (group.length === 0 && !carriesDerived) continue;
+      if (group.length === 0) continue;
 
-      rows.push({ name: SUB_TYPE_LABELS[subType], _isHeader: true, _depth: 1 });
+      rows.push({ name: SUB_TYPE_LABELS[subType], _kind: "subsection", _isHeader: true, _depth: 1 });
 
       for (const acct of group) {
         if (acct.closing_balance === 0) continue;
-        rows.push({ name: acct.name, code: acct.code, closing_balance: acct.closing_balance, _depth: 2 });
+        rows.push({ name: acct.name, code: acct.code, balance: acct.closing_balance, _kind: "detail", _depth: 2 });
       }
 
-      if (subType === "retained_earnings") {
-        if (retainedEarnings !== 0) {
-          rows.push({ name: "Current Year Earnings", closing_balance: retainedEarnings, _depth: 2 });
-        }
-        if (unfoldedPriorYears !== 0) {
-          rows.push({
-            name: "Prior years' result (unallocated — no retained earnings account)",
-            closing_balance: unfoldedPriorYears,
-            _depth: 2,
-          });
-        }
-      }
-
-      const subTotal = group.reduce((s, a) => s + a.closing_balance, 0) +
-        (subType === "retained_earnings" ? equityAddition : 0);
-      rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, closing_balance: subTotal, _isSubtotal: true, _depth: 1 });
+      const subTotal = group.reduce((s, a) => s + a.closing_balance, 0);
+      rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, balance: subTotal, _kind: "subtotal", _isSubtotal: true, _depth: 1 });
     }
 
-    rows.push({ name: `TOTAL ${sectionLabel.toUpperCase()}`, closing_balance: sectionTotal, _isGrandTotal: true, _bold: true });
+    rows.push({
+      name: `Total ${sectionLabel}`,
+      balance: sectionTotal,
+      _kind: totalKind,
+      _isGrandTotal: totalKind === "grand_total",
+      _bold: true,
+    });
   };
 
-  buildSection("Assets", "asset", BS_ASSET_ORDER);
-  buildSection("Liabilities", "liability", BS_LIABILITY_ORDER);
-  buildSection("Equity", "equity", BS_EQUITY_ORDER);
+  buildClassifiedSection("Assets", "asset", BS_ASSET_ORDER, "grand_total");
+  buildClassifiedSection("Liabilities", "liability", BS_LIABILITY_ORDER, "major_total");
 
-  const totalAssets = classified.filter(a => a.account_type === "asset").reduce((s, a) => s + a.closing_balance, 0);
-  const totalLiabilities = classified.filter(a => a.account_type === "liability").reduce((s, a) => s + a.closing_balance, 0);
-  const totalEquity = classified.filter(a => a.account_type === "equity").reduce((s, a) => s + a.closing_balance, 0) + equityAddition;
+  // Equity presentation matches the screen exactly: one flat section, the
+  // current-year result, the no-retained-account safety line, then the final
+  // liabilities-plus-equity balancing total.
+  rows.push({ name: "EQUITY", _kind: "section", _isHeader: true, _bold: true });
+  const equityAccounts = classified.filter(a => a.account_type === "equity");
+  for (const acct of equityAccounts) {
+    if (acct.closing_balance === 0) continue;
+    rows.push({ name: acct.name, code: acct.code, balance: acct.closing_balance, _kind: "detail", _depth: 2 });
+  }
+  if (retainedEarnings !== 0) {
+    rows.push({ name: "Current Year Earnings", balance: retainedEarnings, _kind: "detail", _depth: 2 });
+  }
+  if (unfoldedPriorYears !== 0) {
+    rows.push({
+      name: "Prior years' result (unallocated — no retained earnings account)",
+      balance: unfoldedPriorYears,
+      _kind: "detail",
+      _depth: 2,
+    });
+  }
+
+  const totalAssets = totalFor("asset");
+  const totalLiabilities = totalFor("liability");
+  const totalEquity = totalFor("equity") + equityAddition;
+
+  rows.push({ name: "Total Equity", balance: totalEquity, _kind: "major_total", _bold: true });
+  rows.push({
+    name: "Total Liabilities and Equity",
+    balance: totalLiabilities + totalEquity,
+    _kind: "grand_total",
+    _isGrandTotal: true,
+    _bold: true,
+  });
 
   return {
     data: rows as unknown as Record<string, unknown>[],
@@ -569,6 +612,68 @@ export async function buildTrialBalance(
   };
 }
 
+// ── Comparative period resolution ─────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseIsoDateUTC(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) throw new Error(`Invalid report date: ${value}`);
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function formatIsoDateUTC(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function shiftIsoDateYears(value: string, years: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const targetYear = year + years;
+  const daysInTargetMonth = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
+  return formatIsoDateUTC(new Date(Date.UTC(targetYear, month - 1, Math.min(day, daysInTargetMonth))));
+}
+
+/**
+ * Resolve the comparison window once for UI, on-demand export and schedules.
+ * Previous period is the immediately preceding window of equal inclusive
+ * length; previous year is the same dates shifted one calendar year.
+ */
+export function resolveComparisonPeriod(
+  mode: ComparisonMode | null | undefined,
+  startStr: string,
+  endStr: string,
+): { from: string; to: string; mode: Exclude<ComparisonMode, "none"> } | null {
+  if (!mode || mode === "none") return null;
+  if (mode === "previous_year") {
+    return { mode, from: shiftIsoDateYears(startStr, -1), to: shiftIsoDateYears(endStr, -1) };
+  }
+
+  const start = parseIsoDateUTC(startStr);
+  const end = parseIsoDateUTC(endStr);
+  const inclusiveDays = Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1;
+  const comparisonEnd = new Date(start.getTime() - DAY_MS);
+  const comparisonStart = new Date(comparisonEnd.getTime() - ((inclusiveDays - 1) * DAY_MS));
+  return {
+    mode,
+    from: formatIsoDateUTC(comparisonStart),
+    to: formatIsoDateUTC(comparisonEnd),
+  };
+}
+
+/** Percentage variance with a truthful empty cell for a zero comparison base. */
+function variancePercent(variance: number, comparison: number): number | null {
+  return comparison !== 0 ? (variance / Math.abs(comparison)) * 100 : null;
+}
+
+function comparisonCell(current: number, comparison: number) {
+  const variance = current - comparison;
+  return {
+    amount: current,
+    comparison,
+    variance,
+    variance_percent: variancePercent(variance, comparison),
+  };
+}
 
 /**
  * Profit & Loss — multi-step, identical in structure to the on-screen
@@ -608,32 +713,32 @@ export async function buildIncomeStatement(
     const group = classified.filter(a => a.sub_type === subType && a.account_type === accountType);
     if (group.length === 0) return 0;
     const total = group.reduce((s, a) => s + a.balance, 0);
-    rows.push({ name: heading.toUpperCase(), _isHeader: true, _bold: true });
+    rows.push({ name: heading.toUpperCase(), _kind: "section", _isHeader: true, _bold: true });
     for (const acct of group) {
       if (acct.balance === 0) continue;
-      rows.push({ name: acct.name, code: acct.code, balance: acct.balance, _depth: 1 });
+      rows.push({ name: acct.name, code: acct.code, amount: acct.balance, _kind: "detail", _depth: 1 });
     }
-    rows.push({ name: `Total ${heading}`, balance: total, _isSubtotal: true, _depth: 0 });
+    rows.push({ name: `Total ${heading}`, amount: total, _kind: "subtotal", _isSubtotal: true, _depth: 0 });
     return total;
   };
 
   const revenue = section("revenue", "income", "Revenue");
   const costOfSales = section("cost_of_sales", "expense", "Cost of Sales");
   const grossProfit = revenue - costOfSales;
-  rows.push({ name: "GROSS PROFIT", balance: grossProfit, _isSubtotal: true, _bold: true });
+  rows.push({ name: "GROSS PROFIT", amount: grossProfit, _kind: "calculated_result", _isSubtotal: true, _bold: true });
 
   const operatingExpenses = section("operating_expense", "expense", "Operating Expenses");
   const operatingProfit = grossProfit - operatingExpenses;
-  rows.push({ name: "OPERATING PROFIT", balance: operatingProfit, _isSubtotal: true, _bold: true });
+  rows.push({ name: "OPERATING PROFIT", amount: operatingProfit, _kind: "calculated_result", _isSubtotal: true, _bold: true });
 
   const otherIncome = section("other_income", "income", "Other Income");
   const otherExpenses = section("other_expense", "expense", "Other Expenses");
   const profitBeforeTax = operatingProfit + otherIncome - otherExpenses;
-  rows.push({ name: "PROFIT BEFORE TAX", balance: profitBeforeTax, _isSubtotal: true, _bold: true });
+  rows.push({ name: "PROFIT BEFORE TAX", amount: profitBeforeTax, _kind: "calculated_result", _isSubtotal: true, _bold: true });
 
   const taxExpense = section("tax_expense", "expense", "Tax Expense");
   const netIncome = profitBeforeTax - taxExpense;
-  rows.push({ name: "NET PROFIT", balance: netIncome, _isGrandTotal: true, _bold: true });
+  rows.push({ name: "NET PROFIT", amount: netIncome, _kind: "grand_total", _isGrandTotal: true, _bold: true });
 
   const totalIncome = revenue + otherIncome;
   const totalExpenses = operatingExpenses + otherExpenses + taxExpense;
@@ -656,6 +761,186 @@ export async function buildIncomeStatement(
     },
   };
 }
+
+/**
+ * Comparative Profit & Loss for scheduled/server-built exports. This is the
+ * same multi-step presentation as the screen's comparison mode: every detail,
+ * subtotal and calculated result carries all four money columns, so the
+ * statement foots horizontally as well as vertically.
+ */
+export async function buildComparativeIncomeStatement(
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string | undefined,
+  startStr: string,
+  endStr: string,
+  branchId?: string,
+  mode: Exclude<ComparisonMode, "none"> = "previous_year",
+): Promise<ReportResult> {
+  const comparisonPeriod = resolveComparisonPeriod(mode, startStr, endStr);
+  if (!comparisonPeriod) throw new Error(`Unsupported comparison mode: ${mode}`);
+
+  const [currentAccounts, comparisonAccounts] = await Promise.all([
+    getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["income", "expense"], branchId),
+    getGLAccountBalances(
+      supabase,
+      organizationId,
+      businessId,
+      comparisonPeriod.from,
+      comparisonPeriod.to,
+      ["income", "expense"],
+      branchId,
+    ),
+  ]);
+
+  interface ComparativeAccount extends AccountWithBalance {
+    sub_type: AccountSubType;
+    balance: number;
+  }
+
+  const classify = (accounts: AccountWithBalance[]): ComparativeAccount[] =>
+    accounts.map(a => ({
+      ...a,
+      sub_type: classifyAccountSubType(a.account_type, a.code, a.detail_type),
+      balance: a.closing_balance - a.opening_balance,
+    }));
+
+  const currentClassified = classify(currentAccounts);
+  const comparisonClassified = classify(comparisonAccounts);
+  const currentById = new Map(currentClassified.map(a => [a.id, a]));
+  const comparisonById = new Map(comparisonClassified.map(a => [a.id, a]));
+
+  // One row per account. Current-period classification wins when an account's
+  // type/detail changed; comparison-only accounts still appear so the
+  // comparison column foots instead of silently dropping closed accounts.
+  const orderedAccounts: ComparativeAccount[] = [...currentClassified];
+  for (const account of comparisonClassified) {
+    if (!currentById.has(account.id)) orderedAccounts.push(account);
+  }
+
+  const rows: ClassifiedRow[] = [];
+
+  const section = (
+    subType: AccountSubType,
+    accountType: "income" | "expense",
+    heading: string,
+  ): { current: number; comparison: number } => {
+    const group = orderedAccounts.filter(a => a.sub_type === subType && a.account_type === accountType);
+    if (group.length === 0) return { current: 0, comparison: 0 };
+
+    let currentTotal = 0;
+    let comparisonTotal = 0;
+    rows.push({ name: heading.toUpperCase(), _kind: "section", _isHeader: true, _bold: true });
+
+    for (const account of group) {
+      const current = currentById.get(account.id)?.balance ?? 0;
+      const comparison = comparisonById.get(account.id)?.balance ?? 0;
+      if (current === 0 && comparison === 0) continue;
+      currentTotal += current;
+      comparisonTotal += comparison;
+      rows.push({
+        name: account.name,
+        code: account.code,
+        ...comparisonCell(current, comparison),
+        _kind: "detail",
+        _depth: 1,
+      });
+    }
+
+    rows.push({
+      name: `Total ${heading}`,
+      ...comparisonCell(currentTotal, comparisonTotal),
+      _kind: "subtotal",
+      _isSubtotal: true,
+      _depth: 0,
+    });
+    return { current: currentTotal, comparison: comparisonTotal };
+  };
+
+  const revenue = section("revenue", "income", "Revenue");
+  const costOfSales = section("cost_of_sales", "expense", "Cost of Sales");
+  const grossProfit = {
+    current: revenue.current - costOfSales.current,
+    comparison: revenue.comparison - costOfSales.comparison,
+  };
+  rows.push({
+    name: "GROSS PROFIT",
+    ...comparisonCell(grossProfit.current, grossProfit.comparison),
+    _kind: "calculated_result",
+    _isSubtotal: true,
+    _bold: true,
+  });
+
+  const operatingExpenses = section("operating_expense", "expense", "Operating Expenses");
+  const operatingProfit = {
+    current: grossProfit.current - operatingExpenses.current,
+    comparison: grossProfit.comparison - operatingExpenses.comparison,
+  };
+  rows.push({
+    name: "OPERATING PROFIT",
+    ...comparisonCell(operatingProfit.current, operatingProfit.comparison),
+    _kind: "calculated_result",
+    _isSubtotal: true,
+    _bold: true,
+  });
+
+  const otherIncome = section("other_income", "income", "Other Income");
+  const otherExpenses = section("other_expense", "expense", "Other Expenses");
+  const profitBeforeTax = {
+    current: operatingProfit.current + otherIncome.current - otherExpenses.current,
+    comparison: operatingProfit.comparison + otherIncome.comparison - otherExpenses.comparison,
+  };
+  rows.push({
+    name: "PROFIT BEFORE TAX",
+    ...comparisonCell(profitBeforeTax.current, profitBeforeTax.comparison),
+    _kind: "calculated_result",
+    _isSubtotal: true,
+    _bold: true,
+  });
+
+  const taxExpense = section("tax_expense", "expense", "Tax Expense");
+  const netIncome = {
+    current: profitBeforeTax.current - taxExpense.current,
+    comparison: profitBeforeTax.comparison - taxExpense.comparison,
+  };
+  rows.push({
+    name: "NET PROFIT",
+    ...comparisonCell(netIncome.current, netIncome.comparison),
+    _kind: "grand_total",
+    _isGrandTotal: true,
+    _bold: true,
+  });
+
+  return {
+    data: rows as unknown as Record<string, unknown>[],
+    columns: [
+      { key: "name", header: "Account", width: 40, align: "left", format: "text" },
+      { key: "amount", header: "Current", width: 15, align: "right", format: "currency" },
+      { key: "comparison", header: "Comparison", width: 15, align: "right", format: "currency" },
+      { key: "variance", header: "Variance", width: 15, align: "right", format: "currency" },
+      { key: "variance_percent", header: "Var %", width: 15, align: "right", format: "percent" },
+    ],
+    comparisonPeriod,
+    summary: {
+      totalRevenue: revenue.current,
+      totalCOGS: costOfSales.current,
+      grossProfit: grossProfit.current,
+      operatingExpenses: operatingExpenses.current,
+      operatingProfit: operatingProfit.current,
+      otherIncome: otherIncome.current,
+      otherExpenses: otherExpenses.current,
+      profitBeforeTax: profitBeforeTax.current,
+      taxExpense: taxExpense.current,
+      netIncome: netIncome.current,
+      comparisonRevenue: revenue.comparison,
+      comparisonNetIncome: netIncome.comparison,
+      netIncomeVariance: netIncome.current - netIncome.comparison,
+      comparisonFrom: comparisonPeriod.from,
+      comparisonTo: comparisonPeriod.to,
+    },
+  };
+}
+
 
 
 /**

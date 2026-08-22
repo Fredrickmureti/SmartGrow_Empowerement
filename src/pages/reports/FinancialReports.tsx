@@ -34,7 +34,7 @@ import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/Dril
 import { PeriodLockBanner } from "@/components/reports/PeriodLockBanner";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
-import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+
 import { useNavigate } from "react-router-dom";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import {
@@ -204,8 +204,9 @@ function FinancialReportsInner() {
     reportType: "balance_sheet",
     dateFrom: "1970-01-01",
     dateTo,
-    comparisonDateFrom: comparison.from ? "1970-01-01" : undefined,
-    comparisonDateTo: comparison.to,
+    // No comparative fetch here: a Balance Sheet comparative needs its own
+    // fiscal-year anchor and presentation contract. Fetching an epoch-to-date
+    // comparison and never rendering it was both misleading and wasteful.
     // Wave 5: Balance Sheet is an entity-level statement. Never split by
     // branch — assets/liabilities/equity belong to the legal entity.
     branchId: null,
@@ -271,6 +272,14 @@ function FinancialReportsInner() {
     return totals;
   }, [classifiedPnlAccounts]);
 
+  const pnlComparisonSubTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const acct of classifiedPnlAccounts) {
+      totals[acct.sub_type] = (totals[acct.sub_type] || 0) + (acct.comparison_amount || 0);
+    }
+    return totals;
+  }, [classifiedPnlAccounts]);
+
   const totalRevenue = pnlSubTotals["revenue"] || 0;
   const totalCOGS = pnlSubTotals["cost_of_sales"] || 0;
   const grossProfit = totalRevenue - totalCOGS;
@@ -281,6 +290,27 @@ function FinancialReportsInner() {
   const totalTaxExpense = pnlSubTotals["tax_expense"] || 0;
   const netIncomeBeforeTax = operatingProfit + totalOtherIncome - totalOtherExpense;
   const netIncome = netIncomeBeforeTax - totalTaxExpense;
+
+  const comparisonRevenue = pnlComparisonSubTotals["revenue"] || 0;
+  const comparisonCOGS = pnlComparisonSubTotals["cost_of_sales"] || 0;
+  const comparisonGrossProfit = comparisonRevenue - comparisonCOGS;
+  const comparisonOpEx = pnlComparisonSubTotals["operating_expense"] || 0;
+  const comparisonOperatingProfit = comparisonGrossProfit - comparisonOpEx;
+  const comparisonOtherIncome = pnlComparisonSubTotals["other_income"] || 0;
+  const comparisonOtherExpense = pnlComparisonSubTotals["other_expense"] || 0;
+  const comparisonTaxExpense = pnlComparisonSubTotals["tax_expense"] || 0;
+  const comparisonNetIncomeBeforeTax = comparisonOperatingProfit + comparisonOtherIncome - comparisonOtherExpense;
+  const comparisonNetIncome = comparisonNetIncomeBeforeTax - comparisonTaxExpense;
+
+  const moneyLineValues = (current: number, comparisonAmount: number) => ({
+    amount: current,
+    comparison: comparisonAmount,
+    variance: current - comparisonAmount,
+    variance_pct: comparisonAmount !== 0
+      ? ((current - comparisonAmount) / Math.abs(comparisonAmount)) * 100
+      : null,
+  });
+
 
   // ─── P&L columns + rows (single declaration drives screen + export) ───
   const pnlColumns = useMemo<ReportColumn[]>(
@@ -322,11 +352,12 @@ function FinancialReportsInner() {
         });
       }
       const subTotal = accts.reduce((s, a) => s + a.display_amount, 0);
+      const comparisonSubTotal = accts.reduce((s, a) => s + (a.comparison_amount || 0), 0);
       out.push({
         id: `sub-${subType}`,
         kind: "subtotal",
         label: `Total ${SUB_TYPE_LABELS[subType]}`,
-        values: { amount: subTotal },
+        values: moneyLineValues(subTotal, comparisonSubTotal),
       });
     };
 
@@ -337,26 +368,44 @@ function FinancialReportsInner() {
     // why the PDF showed three identical double-ruled bands.
     pushSubSection("revenue");
     pushSubSection("cost_of_sales");
-    out.push({ id: "gross-profit", kind: "calculatedResult", label: "Gross profit", values: { amount: grossProfit } });
+    out.push({
+      id: "gross-profit",
+      kind: "calculatedResult",
+      label: "Gross profit",
+      values: moneyLineValues(grossProfit, comparisonGrossProfit),
+    });
 
     pushSubSection("operating_expense");
-    out.push({ id: "operating-profit", kind: "calculatedResult", label: "Operating profit", values: { amount: operatingProfit } });
+    out.push({
+      id: "operating-profit",
+      kind: "calculatedResult",
+      label: "Operating profit",
+      values: moneyLineValues(operatingProfit, comparisonOperatingProfit),
+    });
 
     pushSubSection("other_income");
     pushSubSection("other_expense");
 
-    if (totalOtherIncome > 0 || totalOtherExpense > 0) {
+    if (
+      totalOtherIncome > 0 || totalOtherExpense > 0 || totalTaxExpense > 0 ||
+      comparisonOtherIncome > 0 || comparisonOtherExpense > 0 || comparisonTaxExpense > 0
+    ) {
       out.push({
         id: "nibt",
         kind: "calculatedResult",
         label: "Profit before tax",
-        values: { amount: netIncomeBeforeTax },
+        values: moneyLineValues(netIncomeBeforeTax, comparisonNetIncomeBeforeTax),
       });
     }
 
     pushSubSection("tax_expense");
     out.push({ id: "pnl-gap", kind: "spacer" });
-    out.push({ id: "net-income", kind: "grandTotal", label: "Net profit for the period", values: { amount: netIncome } });
+    out.push({
+      id: "net-income",
+      kind: "grandTotal",
+      label: "Net profit for the period",
+      values: moneyLineValues(netIncome, comparisonNetIncome),
+    });
 
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -496,7 +545,9 @@ function FinancialReportsInner() {
     rows: toExportRows(pnlRows, pnlColumns),
     sheetName: "Profit & Loss",
     currency: baseCurrency,
-  }), [pnlColumns, pnlRows, dateFrom, dateTo, currentOrg, baseCurrency]);
+    // The export states the same report-local branch as the query above.
+    branchId: filters.branchId ?? null,
+  }), [pnlColumns, pnlRows, dateFrom, dateTo, currentOrg, baseCurrency, filters.branchId]);
 
   const getBsExportConfig = useCallback((): ExportConfig => ({
     title: "Balance Sheet",
@@ -508,6 +559,8 @@ function FinancialReportsInner() {
     rows: toExportRows(bsRows, bsColumns),
     sheetName: "Balance Sheet",
     currency: baseCurrency,
+    // Explicit null must survive enrichment: this statement is consolidated.
+    branchId: null,
   }), [bsColumns, bsRows, dateTo, currentOrg, baseCurrency]);
 
   const getExportConfig = activeTab === "pnl" ? getPnlExportConfig : getBsExportConfig;
@@ -516,6 +569,7 @@ function FinancialReportsInner() {
     <ReportPageLayout
       title="Financial Statements"
       description="Accrual-based financial statements from journal entries"
+      reportKind={activeTab === "pnl" ? "pnl" : "balance_sheet"}
       isLoading={isLoading}
       error={error as Error | null}
       getExportConfig={getExportConfig}
@@ -542,10 +596,6 @@ function FinancialReportsInner() {
           onDateFromChange={setDateFrom}
           onDateToChange={setDateTo}
         >
-          {/* Wave 5: branch filter is context-aware. P&L is branch-sliceable;
-              Balance Sheet is entity-only and the component renders an
-              "Entity-level report" hint instead of a dropdown. */}
-          <ReportBranchFilter reportKind={activeTab === "pnl" ? "pnl" : "balance_sheet"} />
           {activeTab === "pnl" && (
             <div className="space-y-2">
               <Label className="text-xs">Compare</Label>
