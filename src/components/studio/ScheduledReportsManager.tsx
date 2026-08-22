@@ -102,6 +102,10 @@ import {
   useReportGenerationLogs,
   ScheduledReport,
 } from "@/hooks/useReportScheduling";
+import { useBranches } from "@/hooks/useBranches";
+
+/** Sentinel for the "no branch" option — Radix Select forbids an empty value. */
+const ALL_BRANCHES = "__all__";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -179,6 +183,9 @@ const scheduleFormSchema = z.object({
   include_charts: z.boolean(),
   date_range_type: z.string().min(1, "Date range is required"),
   recipients: z.string().min(1, "At least one recipient is required"),
+  // "" means the whole business — the same unscoped run the screens show
+  // when no branch is selected.
+  branch_id: z.string(),
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleFormSchema>;
@@ -194,6 +201,7 @@ export function ScheduledReportsManager() {
     refreshReports,
   } = useScheduledReports();
   const { logs, isLoading: logsLoading, refreshLogs } = useReportGenerationLogs();
+  const { branches } = useBranches();
 
   const [activeTab, setActiveTab] = useState("schedules");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -234,6 +242,7 @@ export function ScheduledReportsManager() {
       include_charts: true,
       date_range_type: "last_month",
       recipients: "",
+      branch_id: "",
     },
   });
 
@@ -252,6 +261,7 @@ export function ScheduledReportsManager() {
       include_charts: true,
       date_range_type: "last_month",
       recipients: "",
+      branch_id: "",
     });
     setDialogOpen(true);
   };
@@ -269,6 +279,7 @@ export function ScheduledReportsManager() {
       include_charts: report.include_charts,
       date_range_type: report.date_range_type,
       recipients: report.recipients.map((r) => r.email).join(", "),
+      branch_id: report.branch_id ?? "",
     });
     setDialogOpen(true);
   };
@@ -301,6 +312,7 @@ export function ScheduledReportsManager() {
         include_charts: values.include_charts,
         date_range_type: values.date_range_type,
         recipients,
+        branch_id: values.branch_id || null,
         filters: {},
         is_active: true,
         template_id: null,
@@ -738,6 +750,42 @@ export function ScheduledReportsManager() {
                   )}
                 />
               </div>
+
+              {branches.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="branch_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Branch Scope</FormLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(value === ALL_BRANCHES ? "" : value)}
+                        value={field.value || ALL_BRANCHES}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={ALL_BRANCHES}>All branches (whole business)</SelectItem>
+                          {branches.map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>
+                              {branch.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Ledger, trial balance, journal and cash flow deliveries are generated for
+                        this scope, so the emailed figures match the same report on screen.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField

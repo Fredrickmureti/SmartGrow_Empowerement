@@ -54,10 +54,28 @@ only a brought-forward balance always appears.
 delegation-based opening architecture instead of the removed client-side hack.
 22 tests pass (17 architecture + 5 resolver).
 
+### Phase 8 — Done (code); delivery not yet observed end-to-end
+Scheduled ledger deliveries and archive retention.
+
+- `scheduled_reports.branch_id` and `report_generation_logs.branch_id` added
+  (nullable = whole business). Legacy `filters.branchId` still honoured via
+  `resolveScheduleBranch()`, so pre-existing schedules keep their scope.
+- `process-scheduled-reports` threads the branch into `buildTrialBalance`,
+  `buildGeneralLedger`, `buildPartnerLedger`, `buildJournalReport` and
+  `buildCashFlow`; the run is recorded on the log row.
+- Tabular deliveries now go through `buildReportCsv` / `buildReportXlsx` with
+  registry-resolved columns. Previously an "excel" schedule attached CSV bytes
+  named `.xlsx` (unopenable) and used raw DB column keys as headers.
+- `cleanup_report_generation_logs(400)` runs nightly at 03:35 UTC
+  (`cron.job` = `cleanup-report-generation-logs-daily`), service_role only,
+  refuses retention under 30 days.
+- UI: branch selector on the schedule dialog, shown only when branches exist.
+
 ## Pending
 
-### Phase 8 — Not started
-Scheduled ledger deliveries and archive retention review.
+Not verified: a real scheduled send with a branch set (needs a live schedule
+firing). Worth doing via "Send Now" on a branch-scoped ledger schedule and
+comparing the attachment to the on-screen run.
 
 ## Instructions for the next agent
 
@@ -66,7 +84,6 @@ Scheduled ledger deliveries and archive retention review.
 2. To re-execute the SQL suite without `psql`, wrap a section in a migration
    `DO` block that ends with `RAISE EXCEPTION 'LRX_ROLLBACK_OK'` inside an inner
    `BEGIN … EXCEPTION` handler; assertions run, the fixture is discarded.
-3. Start Phase 8.
 
 ## Scope boundaries
 

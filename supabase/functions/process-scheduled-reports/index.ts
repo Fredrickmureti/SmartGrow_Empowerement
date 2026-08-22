@@ -1,7 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireCronAuth } from "../_shared/requireCronAuth.ts";
-import { renderReport, getReportSpec } from "../_shared/reports/index.ts";
+import { renderReport, getReportSpec, resolveReportColumns } from "../_shared/reports/index.ts";
+import { buildReportCsv, type ReportExportConfig } from "../_shared/exports/reportCsv.ts";
+import { buildReportXlsx } from "../_shared/exports/reportXlsx.ts";
 import type { ReportRow } from "../_shared/reportPdfGenerator.ts";
 import {
   buildBalanceSheet,
@@ -41,6 +43,7 @@ interface ScheduledReport {
   filters: Record<string, unknown>;
   is_active: boolean;
   business_id?: string | null;
+  branch_id?: string | null;
 }
 
 interface ReportData {
@@ -50,6 +53,17 @@ interface ReportData {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
   reportType: string;
+}
+
+/**
+ * The branch a schedule is scoped to, or `undefined` for the whole business.
+ * `branch_id` is authoritative; `filters.branchId` is the pre-column form and
+ * is only read as a fallback so old schedules keep the scope they were saved
+ * with.
+ */
+function resolveScheduleBranch(report: ScheduledReport): string | undefined {
+  const legacy = (report.filters?.branchId ?? report.filters?.branch_id) as string | undefined;
+  return (report.branch_id || legacy) || undefined;
 }
 
 // (Branding fallback removed in Stage K — renderReport handles the lookup
@@ -166,6 +180,11 @@ async function generateReportData(
 
   let result: ReportResult;
   const businessId = (report.business_id || report.filters?.businessId || report.filters?.business_id) as string | undefined;
+  // A schedule states its own scope. `branch_id` is the stored scope; the
+  // legacy `filters.branchId` is honoured for schedules created before the
+  // column existed. NULL still means "the whole business" — the engines
+  // treat an undefined branch as unscoped, exactly as the screens do.
+  const branchId = resolveScheduleBranch(report);
 
   switch (report.report_type) {
     // ── Financial reports via shared engine ──
@@ -173,27 +192,23 @@ async function generateReportData(
       result = await buildBalanceSheet(supabase, report.organization_id, businessId, startStr, endStr);
       break;
     case "trial_balance":
-      result = await buildTrialBalance(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildTrialBalance(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "income_statement":
     case "profit_and_loss":
       result = await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr);
       break;
     case "cash_flow":
-      // Scheduled reports carry no branch dimension (there is no branch on
-      // `scheduled_reports`), so this is deliberately the whole business.
-      // Passing a branch here would be inventing a scope the schedule never
-      // stated.
-      result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, undefined);
+      result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "general_ledger":
-      result = await buildGeneralLedger(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildGeneralLedger(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "partner_ledger":
-      result = await buildPartnerLedger(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildPartnerLedger(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "journal_report":
-      result = await buildJournalReport(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildJournalReport(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "budget_vs_actual":
       result = await buildBudgetVsActual(supabase, report.organization_id, businessId, startStr, endStr);
@@ -520,13 +535,43 @@ function transformReportDataToRows(reportData: ReportData): ReportRow[] {
   });
 }
 
-// ── CSV Format ─────────────────────────────────────────────────────────
+// ── Tabular exports (CSV / XLSX) ───────────────────────────────────────
+//
+// The delivered spreadsheet is the same document as the PDF: same column
+// registry, same headers, same order. The previous local serializer read
+// raw row keys, so a scheduled CSV carried database column names the
+// on-screen report never shows — and an "excel" schedule attached CSV
+// bytes under an .xlsx name, which Excel refuses to open.
 
-function formatAsCSV(reportData: ReportData): string {
-  if (reportData.data.length === 0) return "No data available";
-  const headers = Object.keys(reportData.data[0]);
-  const rows = reportData.data.map((row) => headers.map((h) => JSON.stringify(row[h] ?? "")).join(","));
-  return [headers.join(","), ...rows].join("\n");
+function buildTabularAttachment(
+  reportData: ReportData,
+  format: "csv" | "excel",
+): { bytes: Uint8Array; extension: string } {
+  const rows = transformReportDataToRows(reportData);
+  // Same resolver the PDF funnel uses: registry columns first, inferred
+  // shape only as a last resort.
+  const columns = resolveReportColumns({ reportType: reportData.reportType, rows });
+
+  const config: ReportExportConfig = {
+    title: reportData.title,
+    dateRange: `${reportData.dateRange.start} to ${reportData.dateRange.end}`,
+    columns: columns as ReportExportConfig["columns"],
+    rows: rows as ReportExportConfig["rows"],
+    generatedAt: reportData.generatedAt,
+  };
+
+  return format === "excel"
+    ? { bytes: buildReportXlsx(config), extension: "xlsx" }
+    : { bytes: buildReportCsv(config), extension: "csv" };
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 // ── Org Branding ───────────────────────────────────────────────────────
@@ -602,7 +647,7 @@ async function sendReportEmail(
 
   if (format === "pdf") {
     const pdfBytes = await generatePDFReport(supabase, reportData, report.organization_id);
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+    const pdfBase64 = toBase64(pdfBytes);
 
     attachments = [{ filename: `${reportFileName}.pdf`, content: pdfBase64, encoding: "base64" }];
 
@@ -619,11 +664,9 @@ async function sendReportEmail(
         </div>
       </div>`;
   } else if (format === "csv" || format === "excel") {
-    const csvContent = formatAsCSV(reportData);
-    const csvBase64 = btoa(csvContent);
-    const ext = format === "excel" ? "xlsx" : "csv";
+    const { bytes, extension } = buildTabularAttachment(reportData, format);
 
-    attachments = [{ filename: `${reportFileName}.${ext}`, content: csvBase64, encoding: "base64" }];
+    attachments = [{ filename: `${reportFileName}.${extension}`, content: toBase64(bytes), encoding: "base64" }];
 
     body = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -763,10 +806,13 @@ serve(async (req) => {
           template_id: report.template_id,
           report_type: report.report_type,
           status: "generating",
+          business_id: report.business_id ?? null,
+          branch_id: resolveScheduleBranch(report) ?? null,
           parameters: {
             date_range_type: report.date_range_type,
             format: report.format,
             include_charts: report.include_charts,
+            branch_id: resolveScheduleBranch(report) ?? null,
           },
           started_at: new Date().toISOString(),
         })

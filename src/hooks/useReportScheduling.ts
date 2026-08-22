@@ -21,6 +21,8 @@ export interface ScheduledReport {
   include_charts: boolean;
   date_range_type: string;
   filters: Record<string, unknown>;
+  /** Branch the delivered report is scoped to. `null` = the whole business. */
+  branch_id: string | null;
   is_active: boolean;
   last_sent_at: string | null;
   next_send_at: string | null;
@@ -62,6 +64,8 @@ export interface ReportGenerationLog {
   file_url: string | null;
   file_size_bytes: number | null;
   parameters: Record<string, unknown>;
+  /** Branch scope the run was executed under. `null` = the whole business. */
+  branch_id: string | null;
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;

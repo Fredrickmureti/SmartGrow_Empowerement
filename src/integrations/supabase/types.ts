@@ -58074,6 +58074,7 @@ export type Database = {
       }
       report_generation_logs: {
         Row: {
+          branch_id: string | null
           business_id: string | null
           completed_at: string | null
           created_at: string
@@ -58092,6 +58093,7 @@ export type Database = {
           template_id: string | null
         }
         Insert: {
+          branch_id?: string | null
           business_id?: string | null
           completed_at?: string | null
           created_at?: string
@@ -58110,6 +58112,7 @@ export type Database = {
           template_id?: string | null
         }
         Update: {
+          branch_id?: string | null
           business_id?: string | null
           completed_at?: string | null
           created_at?: string
@@ -58128,6 +58131,20 @@ export type Database = {
           template_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "report_generation_logs_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_generation_logs_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
           {
             foreignKeyName: "report_generation_logs_business_id_fkey"
             columns: ["business_id"]
@@ -61739,6 +61756,7 @@ export type Database = {
       }
       scheduled_reports: {
         Row: {
+          branch_id: string | null
           business_id: string | null
           created_at: string
           created_by: string | null
@@ -61760,6 +61778,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           business_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -61781,6 +61800,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           business_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -61802,6 +61822,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "scheduled_reports_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_reports_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
           {
             foreignKeyName: "scheduled_reports_business_id_fkey"
             columns: ["business_id"]
@@ -91996,6 +92030,10 @@ export type Database = {
         }[]
       }
       cleanup_pos_transaction_idempotency: { Args: never; Returns: number }
+      cleanup_report_generation_logs: {
+        Args: { _retention_days?: number }
+        Returns: number
+      }
       clear_admin_audit_log: {
         Args: { p_older_than_days?: number }
         Returns: number
