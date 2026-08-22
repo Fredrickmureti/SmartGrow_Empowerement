@@ -39,4 +39,38 @@ describe("ADR 0136 — aging absence propagation", () => {
       expect(src).not.toMatch(/formatCurrency\((doc|d)\.balance_due\)/);
     }
   });
+
+  it("discloses excluded documents on printed and previewed statements", () => {
+    for (const p of [
+      "src/components/sales/StatementPreview.tsx",
+      "src/components/purchases/VendorStatementPreview.tsx",
+      "src/services/documents/snapshots/salesCustomerStatement.ts",
+      "src/services/documents/snapshots/purchasesVendorStatement.ts",
+      "src/components/contacts/ContactAgingBreakdown.tsx",
+    ]) {
+      expect(read(p), `${p} must disclose unconvertible documents`).toMatch(
+        /unconvertible_document_count/,
+      );
+    }
+  });
+
+  it("keeps the shared aging helper honest about absence", () => {
+    const openItems = read("src/services/finance/openItems.ts");
+    expect(openItems).toMatch(/unconvertible_document_count/);
+    expect(openItems).not.toMatch(/base_residual_amount\s*\?\?\s*(row|item)\.residual_amount/);
+    expect(read("src/services/finance/aging.ts")).toMatch(/unconvertible_document_count/);
+  });
+
+  it("shows rate provenance and a currency picker on the FX settings surfaces", () => {
+    const controls = read("src/components/finance/FinanceAccountingControls.tsx");
+    expect(controls).toMatch(/ExchangeRatePanel/);
+
+    const settings = read("src/components/settings/CurrencySettings.tsx");
+    // Provenance columns, and precedence explained in plain words.
+    expect(settings).toMatch(/provider_key/);
+    expect(settings).toMatch(/published_at/);
+    expect(settings).toMatch(/Overrides win over/);
+    // Currency is chosen from the catalogue, never free-typed.
+    expect(settings).not.toMatch(/placeholder="[A-Z]{3}"/);
+  });
 });

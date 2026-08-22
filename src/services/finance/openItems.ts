@@ -381,7 +381,10 @@ export async function fetchContactOpenItemAging(
   for (const row of (data || []) as any[]) {
     // Aging is a summed figure, so it must use the base-currency residual.
     // ADR 0136: a document with no rate on file is excluded, not converted 1:1.
-    if (row.base_residual_amount === null || row.base_residual_amount === undefined) continue;
+    if (row.base_residual_amount === null || row.base_residual_amount === undefined) {
+      buckets.unconvertible_document_count += 1;
+      continue;
+    }
     const residual = Number(row.base_residual_amount) || 0;
     if (residual <= 0.01) continue;
     addToAgingBuckets(
