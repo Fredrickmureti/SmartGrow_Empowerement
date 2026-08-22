@@ -271,14 +271,9 @@ export default function BudgetEditPage() {
     }
   };
 
-  // Analysis
-  const {
-    storedActuals,
-    calculateActuals,
-    getChartData,
-    selectedBudget: bvaBudget,
-    getVarianceReport,
-  } = useBudgetVsActual(budget?.id);
+  // Analysis — every figure comes from the authoritative database report.
+  const { report: varianceReport, isLoading: varianceLoading } = useBudgetVsActual(budget?.id);
+  const { revisions, isLoading: revisionsLoading } = useBudgetRevisions(budget?.id);
 
   const items: BudgetItem[] = budget?.items || [];
 
@@ -287,35 +282,31 @@ export default function BudgetEditPage() {
     return account ? `${account.code} - ${account.name}` : "Unknown account";
   };
 
-  const getActualForItem = (accountId: string, month: number): number =>
-    storedActuals
-      .filter((a) => a.account_id === accountId && a.period_month === month)
-      .reduce((sum, a) => sum + a.actual_amount, 0);
+  const getVarianceForItem = (accountId: string, month: number) =>
+    varianceReport?.rows.find((r) => r.accountId === accountId && r.month === month);
 
   const chartData = useMemo(() => {
-    if (!budget) return [];
-    const cd = bvaBudget ? getChartData(budget) : null;
-    if (cd) return cd;
-    return MONTHS.map((month, index) => {
-      const monthItems = items.filter((it) => it.period_month === index + 1);
-      const total = monthItems.reduce(
-        (sum, i) => sum + i.budgeted_amount,
-        0,
-      );
-      const monthActuals = storedActuals.filter(
-        (a) => a.period_month === index + 1,
-      );
-      const actual = monthActuals.reduce((sum, a) => sum + a.actual_amount, 0);
+    if (!varianceReport) {
+      return MONTHS.map((month, index) => {
+        const monthItems = items.filter((it) => it.period_month === index + 1);
+        return {
+          month: month.substring(0, 3),
+          budgeted: monthItems.reduce((sum, i) => sum + i.budgeted_amount, 0),
+          actual: 0,
+          variance: 0,
+        };
+      });
+    }
+    return varianceReport.expenseByMonth.map((point, index) => {
+      const income = varianceReport.incomeByMonth[index];
       return {
-        month: month.substring(0, 3),
-        budgeted: total,
-        actual,
-        variance: total - actual,
+        month: point.month,
+        budgeted: point.budgeted + (income?.budgeted ?? 0),
+        actual: point.actual + (income?.actual ?? 0),
+        variance: point.variance + (income?.variance ?? 0),
       };
     });
-  }, [budget, bvaBudget, items, storedActuals, getChartData]);
-
-  const varianceReport = budget ? getVarianceReport(budget) : null;
+  }, [varianceReport, items]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
