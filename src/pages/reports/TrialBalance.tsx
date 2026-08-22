@@ -35,7 +35,7 @@ import {
   type ReportColumnGroup,
   type ReportRow,
 } from "@/design-system/reports";
-import { format } from "date-fns";
+import { format, startOfYear } from "date-fns";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
@@ -56,12 +56,24 @@ function splitBalance(balance: number, accountType: string): { debit: number; cr
 function TrialBalanceInner() {
   // Reporting scope lives in the URL (`useReportWorkspaceState`) so a
   // drill-down, a switch to General Ledger and the Back button all return the
-  // user to the exact as-of date they were investigating.
+  // user to the exact period they were investigating.
+  //
+  // Phase 2: the trial balance is a PERIOD report. `from` defaults to the
+  // start of the current calendar year; the opening column is the balance
+  // carried into `from`, the movement column is activity inside the period
+  // and the closing column is the balance as at `to`. Before this, `from`
+  // was hardcoded to 1970-01-01, which made "opening" a static account-setup
+  // figure and "movement" inception-to-date.
+  const today = format(new Date(), "yyyy-MM-dd");
+  const yearStart = format(startOfYear(new Date()), "yyyy-MM-dd");
   const workspace = useReportWorkspaceState({
-    asOf: format(new Date(), "yyyy-MM-dd"),
+    from: yearStart,
+    to: today,
   });
-  const asOfDate = workspace.get("asOf", format(new Date(), "yyyy-MM-dd"));
-  const setAsOfDate = (value: string) => workspace.set({ asOf: value });
+  const dateFrom = workspace.get("from", yearStart);
+  const dateTo = workspace.get("to", today);
+  const setDateFrom = (value: string) => workspace.set({ from: value });
+  const setDateTo = (value: string) => workspace.set({ to: value });
   const includeZeroBalances = workspace.get("status", "") === "include_zero";
   const setIncludeZeroBalances = (value: boolean) =>
     workspace.set({ status: value ? "include_zero" : "" });
@@ -70,8 +82,8 @@ function TrialBalanceInner() {
 
   const { data, isLoading, error } = useFinancialReport({
     reportType: "trial_balance",
-    dateFrom: "1970-01-01",
-    dateTo: asOfDate,
+    dateFrom,
+    dateTo,
     includeZeroActivity: includeZeroBalances,
     branchId: filters.branchId,
   });
@@ -84,10 +96,11 @@ function TrialBalanceInner() {
     setDrillDown({
       title: `${acct.code} - ${acct.name}`,
       accountId: acct.id,
-      startDate: "1970-01-01",
-      endDate: asOfDate,
+      startDate: dateFrom,
+      endDate: dateTo,
     });
   };
+
 
   const fmt = useCallback(
     (amount: number) => formatAccountingNumber(amount, baseCurrency),
@@ -201,7 +214,7 @@ function TrialBalanceInner() {
 
     return { rows: out, grandTotals: grand };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, asOfDate]);
+  }, [data, dateFrom, dateTo]);
 
   const getExportConfig = useCallback(
     (): ExportConfig => ({
@@ -209,22 +222,23 @@ function TrialBalanceInner() {
       // Registry key: without it the export silently falls back to the
       // "operational" masthead and drifts from every other statement.
       reportType: "trial_balance",
-      // Point-in-time report: "As of …", never "For the period …".
-      asOf: format(new Date(asOfDate), "MMMM d, yyyy"),
+      // Period report: opening carried into `from`, movement inside the
+      // period, closing as at `to`.
+      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       subtitle: "Accrual basis",
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
       sheetName: "Trial Balance",
       currency: baseCurrency,
     }),
-    [columns, rows, asOfDate, currentOrg, baseCurrency],
+    [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency],
   );
 
 
   return (
     <ReportPageLayout
       title="Trial Balance"
-      description="Verify that debits equal credits across all accounts"
+      description="Opening, movement and closing per account — debits must equal credits"
       isLoading={isLoading || !currencyReady}
       error={error as Error | null}
       isEmpty={!data || data.accounts.length === 0}
@@ -234,9 +248,10 @@ function TrialBalanceInner() {
           <RefreshButton queryKeyPrefixes={[['trial-balance'] as const]} tooltip="Refresh trial balance" />
           <SaveViewButton
             reportType="trial-balance"
-            currentFilters={{ asOfDate, includeZeroBalances }}
+            currentFilters={{ dateFrom, dateTo, includeZeroBalances }}
             onLoadView={(filters) => {
-              if (filters.asOfDate) setAsOfDate(filters.asOfDate);
+              if (filters.dateFrom) setDateFrom(filters.dateFrom);
+              if (filters.dateTo) setDateTo(filters.dateTo);
               if (filters.includeZeroBalances !== undefined) setIncludeZeroBalances(filters.includeZeroBalances);
             }}
           />
@@ -244,11 +259,10 @@ function TrialBalanceInner() {
       }
       filters={
         <ReportFilters
-          dateMode="asof"
-          dateFrom={asOfDate}
-          dateTo={asOfDate}
-          onDateFromChange={setAsOfDate}
-          onDateToChange={setAsOfDate}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
           showZeroToggle
           includeZeroBalances={includeZeroBalances}
           onZeroBalancesChange={setIncludeZeroBalances}
@@ -257,6 +271,7 @@ function TrialBalanceInner() {
         </ReportFilters>
       }
     >
+
       {/* Balance Status */}
       <Card className={data?.isBalanced ? "border-success/50" : "border-destructive"}>
         <CardContent className="py-4">
@@ -295,7 +310,7 @@ function TrialBalanceInner() {
       {/* 6-column trial balance, rendered by the shared reporting engine */}
       <ReportSurface
         title="Trial Balance"
-        asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
+        asOfDate={`For the period ${format(new Date(dateFrom), "MMMM d, yyyy")} – ${format(new Date(dateTo), "MMMM d, yyyy")}`}
         subtitle="Accrual basis"
 
 

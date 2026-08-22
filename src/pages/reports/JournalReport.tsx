@@ -13,6 +13,8 @@ import { TransactionPreviewDrawer } from "@/components/finance/TransactionPrevie
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -43,10 +45,25 @@ interface JournalEntry {
   reference: string | null;
   source_type: string | null;
   source_id: string | null;
+  entry_status: string | null;
+  is_reversal: boolean;
+  reversal_of_number: string | null;
+  journal_book: string | null;
+  branch_name: string | null;
+  entry_currency: string | null;
   total_debit: number;
   total_credit: number;
   lines: { account_code: string; account_name: string; debit: number; credit: number; description: string | null }[];
 }
+
+interface JournalReportData {
+  entries: JournalEntry[];
+  /** Entries matching the filter, before the page limit. */
+  totalEntries: number;
+}
+
+/** How many entries one page of the journal shows. */
+const PAGE_SIZE = 500;
 
 function JournalReportInner() {
   const now = new Date();
@@ -58,6 +75,7 @@ function JournalReportInner() {
   const dateTo = workspace.get("to", filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
   const setDateFrom = (value: string) => workspace.set({ from: value });
   const setDateTo = (value: string) => workspace.set({ to: value });
+  const [page, setPage] = useState(0);
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
@@ -75,48 +93,74 @@ function JournalReportInner() {
   };
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["journal-report", currentOrg?.id, currentBusiness?.id, filters.branchId, dateFrom, dateTo],
-    queryFn: async (): Promise<JournalEntry[]> => {
-      if (!currentOrg?.id || !currentBusiness?.id) return [];
-      let q = supabase
-        .from("journal_entries")
-        .select(`
-          id, entry_date, entry_number, description, reference, source_type, source_id, status, branch_id,
-          journal_entry_lines(id, debit, credit, description, accounts(code, name))
-        `)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
-        .eq("status", "posted")
-        .gte("entry_date", dateFrom)
-        .lte("entry_date", dateTo);
-      if (filters.branchId) {
-        q = q.or(`branch_id.eq.${filters.branchId},branch_id.is.null`);
-      }
-      const { data: entries, error } = await q.order("entry_date", { ascending: false });
+    queryKey: ["journal-report", currentOrg?.id, currentBusiness?.id, filters.branchId, dateFrom, dateTo, page],
+    queryFn: async (): Promise<JournalReportData> => {
+      if (!currentOrg?.id || !currentBusiness?.id) return { entries: [], totalEntries: 0 };
+      // Server-side engine: no PostgREST 1000-row cap, strict branch scoping
+      // (matching Trial Balance / General Ledger) and reversed originals kept
+      // visible alongside their reversal.
+      const { data: rows, error } = await supabase.rpc("get_journal_report", {
+        _org_id: currentOrg.id,
+        _date_from: dateFrom,
+        _date_to: dateTo,
+        _business_id: currentBusiness.id,
+        _branch_id: filters.branchId || null,
+        _source_types: null,
+        _limit: PAGE_SIZE,
+        _offset: page * PAGE_SIZE,
+      });
 
       if (error) throw error;
 
-      return (entries || []).map((e: any) => ({
-        id: e.id,
-        entry_date: e.entry_date,
-        entry_number: e.entry_number,
-        description: e.description,
-        reference: e.reference,
-        source_type: e.source_type,
-        source_id: e.source_id,
-        total_debit: (e.journal_entry_lines || []).reduce((s: number, l: any) => s + (l.debit || 0), 0),
-        total_credit: (e.journal_entry_lines || []).reduce((s: number, l: any) => s + (l.credit || 0), 0),
-        lines: (e.journal_entry_lines || []).map((l: any) => ({
-          account_code: l.accounts?.code || "",
-          account_name: l.accounts?.name || "",
-          debit: l.debit || 0,
-          credit: l.credit || 0,
-          description: l.description,
-        })),
-      }));
+      const byEntry = new Map<string, JournalEntry>();
+      for (const r of (rows || []) as any[]) {
+        let je = byEntry.get(r.entry_id);
+        if (!je) {
+          je = {
+            id: r.entry_id,
+            entry_date: r.entry_date,
+            entry_number: r.entry_number,
+            description: r.je_description,
+            reference: r.reference,
+            source_type: r.source_type,
+            source_id: r.source_id,
+            entry_status: r.entry_status ?? null,
+            is_reversal: Boolean(r.is_reversal),
+            reversal_of_number: r.reversal_of_number ?? null,
+            journal_book: r.journal_book ?? null,
+            branch_name: r.branch_name ?? null,
+            entry_currency: r.entry_currency ?? null,
+            total_debit: 0,
+            total_credit: 0,
+            lines: [],
+          };
+          byEntry.set(r.entry_id, je);
+        }
+        const debit = Number(r.debit) || 0;
+        const credit = Number(r.credit) || 0;
+        je.total_debit += debit;
+        je.total_credit += credit;
+        je.lines.push({
+          account_code: r.account_code || "",
+          account_name: r.account_name || "",
+          debit,
+          credit,
+          description: r.line_description,
+        });
+      }
+
+      return {
+        entries: Array.from(byEntry.values()),
+        totalEntries: Number((rows as any[])?.[0]?.total_entries ?? 0),
+      };
     },
     enabled: !!currentOrg?.id,
   });
+
+  const entries = data?.entries ?? [];
+  const totalEntries = data?.totalEntries ?? 0;
+  const pageCount = Math.max(1, Math.ceil(totalEntries / PAGE_SIZE));
+
 
   const sourceLabels: Record<string, string> = {
     invoice: "Invoice", bill: "Bill", expense: "Expense", payment: "Payment", manual: "Manual",
@@ -142,11 +186,22 @@ function JournalReportInner() {
 
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = [];
-    for (const je of data || []) {
+    let grandDebit = 0;
+    let grandCredit = 0;
+    for (const je of entries) {
+      // A reversed original and its reversal are both real ledger events, so
+      // the header says which is which instead of hiding the original.
+      const marker = je.is_reversal
+        ? ` · Reversal${je.reversal_of_number ? ` of ${je.reversal_of_number}` : ""}`
+        : je.entry_status === "reversed"
+          ? " · Reversed"
+          : "";
+      const book = je.journal_book ? ` · ${je.journal_book}` : "";
+      const branch = je.branch_name ? ` · ${je.branch_name}` : "";
       out.push({
         id: `sec-${je.id}`,
         kind: "section",
-        label: `${format(new Date(je.entry_date), "MMM d, yyyy")} · ${je.entry_number} — ${je.description || ""}`,
+        label: `${format(new Date(je.entry_date), "MMM d, yyyy")} · ${je.entry_number}${book}${branch}${marker} — ${je.description || ""}`,
       });
 
       for (const [idx, line] of je.lines.entries()) {
@@ -163,6 +218,8 @@ function JournalReportInner() {
         });
       }
 
+      grandDebit += je.total_debit;
+      grandCredit += je.total_credit;
       out.push({
         id: `sub-${je.id}`,
         kind: "subtotal",
@@ -170,9 +227,19 @@ function JournalReportInner() {
         values: { debit: je.total_debit, credit: je.total_credit },
       });
     }
+    if (out.length > 0) {
+      // The posting journal's proof: everything on this page balances.
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "TOTAL POSTED",
+        values: { debit: grandDebit, credit: grandCredit },
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [entries]);
+
 
   const getExportConfig = useCallback(
     (): ExportConfig => ({
@@ -194,7 +261,7 @@ function JournalReportInner() {
       description="All posted journal entries with line details"
       isLoading={isLoading || !currencyReady}
       error={error as Error | null}
-      isEmpty={!data || data.length === 0}
+      isEmpty={entries.length === 0}
       getExportConfig={getExportConfig}
       headerActions={
         <>
@@ -218,7 +285,11 @@ function JournalReportInner() {
       <ReportSurface
         title="Journal Report"
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
-        subtitle={`${data?.length || 0} journal entries`}
+        subtitle={
+          pageCount > 1
+            ? `Entries ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + entries.length} of ${totalEntries}`
+            : `${totalEntries} journal entries`
+        }
         profile="operational"
       >
         <ReportTable
@@ -228,7 +299,35 @@ function JournalReportInner() {
           caption="Journal report — posted entries grouped by journal entry"
           emptyMessage="No posted journal entries for the selected criteria"
         />
+        {pageCount > 1 && (
+          // The journal is paged rather than truncated: the page footer always
+          // states which slice of the period is on screen.
+          <div className="flex items-center justify-between gap-4 border-t px-4 py-3 text-sm">
+            <span className="text-muted-foreground">
+              Page {page + 1} of {pageCount} · totals above cover this page only
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page + 1 >= pageCount}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </ReportSurface>
+
       <TransactionPreviewDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}

@@ -95827,16 +95827,22 @@ export type Database = {
           account_id: string
           account_name: string
           account_type: string
+          branch_name: string
           contact_name: string
           credit: number
           debit: number
+          entry_currency: string
           entry_date: string
           entry_number: string
+          entry_status: string
+          is_reversal: boolean
           je_description: string
+          journal_book: string
           line_description: string
           line_id: string
           opening_balance: number
           reference: string
+          reversal_of_number: string
           source_id: string
           source_type: string
         }[]
@@ -95884,6 +95890,40 @@ export type Database = {
               status: string
             }[]
           }
+      get_journal_report: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _date_from: string
+          _date_to: string
+          _limit?: number
+          _offset?: number
+          _org_id: string
+          _source_types?: string[]
+        }
+        Returns: {
+          account_code: string
+          account_name: string
+          branch_name: string
+          credit: number
+          debit: number
+          entry_currency: string
+          entry_date: string
+          entry_id: string
+          entry_number: string
+          entry_status: string
+          is_reversal: boolean
+          je_description: string
+          journal_book: string
+          line_description: string
+          line_id: string
+          reference: string
+          reversal_of_number: string
+          source_id: string
+          source_type: string
+          total_entries: number
+        }[]
+      }
       get_leave_balance: {
         Args: {
           p_employee_id: string
@@ -96864,6 +96904,7 @@ export type Database = {
         Args: { _leave_id: string }
         Returns: number
       }
+      ledger_visible_journal_statuses: { Args: never; Returns: string[] }
       legal_order_apply_payment_remittance: {
         Args: {
           p_business: string
