@@ -64,6 +64,8 @@ export interface ReportGenerationLog {
   file_url: string | null;
   file_size_bytes: number | null;
   parameters: Record<string, unknown>;
+  /** Branch scope the run was executed under. `null` = the whole business. */
+  branch_id: string | null;
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;
