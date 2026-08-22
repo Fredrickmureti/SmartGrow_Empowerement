@@ -912,46 +912,144 @@ export async function buildPartnerLedger(
   };
 }
 
+/**
+ * Journal Report (posting journal) — entry-centric, grouped, balanced.
+ *
+ * Built from the `get_journal_report` RPC, the same engine as the screen, so
+ * the scheduled PDF is the same document the user reads. Pages through the
+ * RPC rather than truncating at PostgREST's 1000-row cap.
+ */
 export async function buildJournalReport(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const { data: entries } = await supabase
-    .from("journal_entry_lines")
-    .select(`
-      debit, credit, description,
-      accounts(code, name),
-      journal_entries!inner(entry_date, entry_number, description, reference, source_type, status, organization_id, business_id)
-    `)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr);
+  const scopedBusinessId = requireBusinessId(businessId);
+  const PAGE = 500;
 
-  const data = ((entries || []) as Record<string, unknown>[]).map(e => {
-    const je = e.journal_entries as Record<string, unknown>;
-    const acct = e.accounts as Record<string, unknown> | null;
-    return {
-      entry_date: je.entry_date,
-      entry_number: je.entry_number,
-      account_code: acct?.code || "",
-      account_name: acct?.name || "",
-      description: (e.description as string) || (je.description as string) || "",
-      reference: je.reference || "",
-      source_type: je.source_type || "",
-      debit: (e.debit as number) || 0,
-      credit: (e.credit as number) || 0,
-    };
-  });
+  interface JREntry {
+    entryDate: string;
+    entryNumber: string;
+    description: string;
+    sourceType: string;
+    status: string | null;
+    isReversal: boolean;
+    reversalOfNumber: string | null;
+    journalBook: string | null;
+    branchName: string | null;
+    totalDebit: number;
+    totalCredit: number;
+    lines: { accountCode: string; accountName: string; description: string; debit: number; credit: number }[];
+  }
 
-  const totalDebits = data.reduce((s, d) => s + ((d.debit as number) || 0), 0);
-  const totalCredits = data.reduce((s, d) => s + ((d.credit as number) || 0), 0);
+  const entries = new Map<string, JREntry>();
+  const order: string[] = [];
+
+  for (let page = 0; ; page += 1) {
+    const { data: rows, error } = await supabase.rpc("get_journal_report", {
+      _org_id: organizationId,
+      _date_from: startStr,
+      _date_to: endStr,
+      _business_id: scopedBusinessId,
+      _branch_id: branchId ?? null,
+      _source_types: null,
+      _limit: PAGE,
+      _offset: page * PAGE,
+    });
+    if (error) throw new Error(`Failed to build journal report: ${error.message}`);
+
+    const list = (rows || []) as Record<string, unknown>[];
+    for (const r of list) {
+      const id = r.entry_id as string;
+      let je = entries.get(id);
+      if (!je) {
+        je = {
+          entryDate: r.entry_date as string,
+          entryNumber: (r.entry_number as string) || "",
+          description: (r.je_description as string) || "",
+          sourceType: (r.source_type as string) || "manual",
+          status: (r.entry_status as string) || null,
+          isReversal: Boolean(r.is_reversal),
+          reversalOfNumber: (r.reversal_of_number as string) || null,
+          journalBook: (r.journal_book as string) || null,
+          branchName: (r.branch_name as string) || null,
+          totalDebit: 0,
+          totalCredit: 0,
+          lines: [],
+        };
+        entries.set(id, je);
+        order.push(id);
+      }
+      const debit = Number(r.debit) || 0;
+      const credit = Number(r.credit) || 0;
+      je.totalDebit += debit;
+      je.totalCredit += credit;
+      je.lines.push({
+        accountCode: (r.account_code as string) || "",
+        accountName: (r.account_name as string) || "",
+        description: (r.line_description as string) || je.description,
+        debit,
+        credit,
+      });
+    }
+
+    const totalEntries = Number((list[0]?.total_entries as number) ?? 0);
+    if (list.length === 0 || entries.size >= totalEntries) break;
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  let totalDebits = 0;
+  let totalCredits = 0;
+
+  for (const id of order) {
+    const je = entries.get(id)!;
+    const marker = je.isReversal
+      ? ` · Reversal${je.reversalOfNumber ? ` of ${je.reversalOfNumber}` : ""}`
+      : je.status === "reversed"
+        ? " · Reversed"
+        : "";
+    const book = je.journalBook ? ` · ${je.journalBook}` : "";
+    const branch = je.branchName ? ` · ${je.branchName}` : "";
+
+    rows.push({
+      account: `${je.entryDate} · ${je.entryNumber}${book}${branch}${marker} — ${je.description}`,
+      description: "", source: "", debit: null, credit: null,
+      _isHeader: true,
+    });
+
+    for (const line of je.lines) {
+      rows.push({
+        account: `${line.accountCode} - ${line.accountName}`,
+        description: line.description,
+        source: je.sourceType,
+        debit: line.debit || null,
+        credit: line.credit || null,
+      });
+    }
+
+    totalDebits += je.totalDebit;
+    totalCredits += je.totalCredit;
+
+    rows.push({
+      account: "Entry total", description: "", source: "",
+      debit: je.totalDebit, credit: je.totalCredit,
+      _isSubtotal: true,
+    });
+  }
+
+  if (rows.length > 0) {
+    rows.push({
+      account: "TOTAL POSTED", description: "", source: "",
+      debit: totalDebits, credit: totalCredits,
+      _isGrandTotal: true, _bold: true,
+    });
+  }
 
   return {
-    data,
-    summary: { totalEntries: data.length, totalDebits, totalCredits },
+    data: rows,
+    summary: { totalEntries: entries.size, totalDebits, totalCredits },
   };
 }
+
 
 export async function buildBudgetVsActual(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
