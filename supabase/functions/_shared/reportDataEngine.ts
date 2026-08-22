@@ -872,45 +872,71 @@ export async function buildGeneralLedger(
 }
 
 
+/**
+ * Partner Ledger (AR + AP) — built from `finance_partner_ledger`, the SAME
+ * SQL engine the screen reads.
+ *
+ * It previously paged `journal_entry_lines` here with its own posted-only
+ * filter, no branch scoping and PostgREST's 1000-row cap, which is a second
+ * implementation of a sub-ledger that is already server-owned. Opening,
+ * running and closing balances are accounting output: they are computed in
+ * SQL and consumed verbatim.
+ */
 export async function buildPartnerLedger(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const { data: entries } = await supabase
-    .from("journal_entry_lines")
-    .select(`
-      account_id, debit, credit, description, contact_id,
-      contacts(name, type),
-      journal_entries!inner(entry_date, entry_number, description, status, organization_id, business_id)
-    `)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr)
-    .not("contact_id", "is", null);
+  const businessScoped = requireBusinessId(businessId);
+  const data: Record<string, unknown>[] = [];
+  let totalDebits = 0;
+  let totalCredits = 0;
 
-  const data = ((entries || []) as Record<string, unknown>[]).map(e => {
-    const je = e.journal_entries as Record<string, unknown>;
-    const contact = e.contacts as Record<string, unknown> | null;
-    return {
-      partner_name: contact?.name || "Unknown",
-      partner_type: contact?.type || "",
-      entry_date: je.entry_date,
-      entry_number: je.entry_number,
-      description: (e.description as string) || (je.description as string) || "",
-      debit: (e.debit as number) || 0,
-      credit: (e.credit as number) || 0,
-    };
-  });
+  for (const side of ["customer", "supplier"] as const) {
+    const { data: payload, error } = await supabase.rpc("finance_partner_ledger", {
+      _org_id: organizationId,
+      _business_id: businessScoped,
+      _branch_id: branchId ?? null,
+      _side: side,
+      _from: startStr,
+      _to: endStr,
+      _contact_id: null,
+      _search: null,
+      _limit: null,
+      _offset: 0,
+    });
+    if (error) throw error;
 
-  const totalDebits = data.reduce((s, d) => s + ((d.debit as number) || 0), 0);
-  const totalCredits = data.reduce((s, d) => s + ((d.credit as number) || 0), 0);
+    const partners = ((payload as Record<string, unknown> | null)?.partners ?? []) as Record<string, unknown>[];
+    const partnerType = side === "customer" ? "Customer" : "Supplier";
+
+    for (const partner of partners) {
+      const txns = (partner.transactions ?? []) as Record<string, unknown>[];
+      for (const t of txns) {
+        const debit = Number(t.debit) || 0;
+        const credit = Number(t.credit) || 0;
+        totalDebits += debit;
+        totalCredits += credit;
+        data.push({
+          partner_name: partner.contact_name ?? "Unknown",
+          partner_type: partnerType,
+          entry_date: t.entry_date,
+          entry_number: t.entry_number,
+          description: t.description ?? "",
+          debit,
+          credit,
+        });
+      }
+    }
+  }
+
+  data.sort((a, b) => String(a.entry_date ?? "").localeCompare(String(b.entry_date ?? "")));
 
   return {
     data,
     summary: { totalPartnerEntries: data.length, totalDebits, totalCredits, netBalance: totalDebits - totalCredits },
   };
 }
+
 
 /**
  * Journal Report (posting journal) — entry-centric, grouped, balanced.
