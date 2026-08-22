@@ -127,9 +127,10 @@ export interface FinancialReportData {
 
 /**
  * Fetch active accounts for reporting.
- * When businessId is provided, filter to accounts belonging to that business
- * or shared accounts (null business_id). This prevents showing accounts
- * from other businesses on reports.
+ * `accounts.business_id` is NOT NULL, so the scope is strict equality — the
+ * same rule `get_general_ledger` and the server-side PDF engine apply. A
+ * looser `business_id IS NULL` leg would make the screen and the exported
+ * document disagree about which accounts are in scope.
  */
 async function fetchAccounts(
   orgId: string,
@@ -145,8 +146,9 @@ async function fetchAccounts(
     .order("code");
 
   if (businessId) {
-    query = query.or(`business_id.eq.${businessId},business_id.is.null`);
+    query = query.eq("business_id", businessId);
   }
+
 
   if (accountTypes && accountTypes.length > 0) {
     query = query.in("account_type", accountTypes);
@@ -311,9 +313,12 @@ export function useFinancialReport(params: FinancialReportParams) {
         }
 
         const accountType = account.account_type;
-        // Include opening balance from account setup plus all prior journal entries
-        // Opening balance provides the starting position from account initialization
-        const openingRaw = account.opening_balance || 0;
+        // Opening = the account's stored opening balance + prior-period JE
+        // activity. `accounts.opening_balance` is a business-level property,
+        // so a branch-scoped run must NOT carry it (the branch did not open
+        // with the whole company's balance). Mirrors `get_general_ledger`.
+        const openingRaw = params.branchId ? 0 : (account.opening_balance || 0);
+
 
         // Calculate opening balance including account's opening_balance + prior period JE activity
         const openingBalance = calculateBalance(

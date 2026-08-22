@@ -102,6 +102,23 @@ function GeneralLedgerInner() {
     })();
   }, [navigate]);
 
+  // Dimensions that only earn their column width when they carry
+  // information: the branch column is pointless in a single-branch run, and
+  // the currency column is noise when everything is already in base currency.
+  const showBranchColumn = useMemo(
+    () =>
+      !filters.branchId &&
+      (data?.accounts || []).some((a) => a.transactions.some((t) => !!t.branch_name)),
+    [data, filters.branchId],
+  );
+  const showCurrencyColumn = useMemo(
+    () =>
+      (data?.accounts || []).some((a) =>
+        a.transactions.some((t) => !!t.entry_currency && t.entry_currency !== baseCurrency),
+      ),
+    [data, baseCurrency],
+  );
+
   // ── One column declaration drives the screen table AND the export ──
   const columns = useMemo<ReportColumn<ReportRow>[]>(
     () => [
@@ -126,6 +143,10 @@ function GeneralLedgerInner() {
           );
         },
       },
+      { key: "journal", header: "Journal", width: "w-[120px]" },
+      ...(showBranchColumn
+        ? [{ key: "branch", header: "Branch", width: "w-[130px]" } as ReportColumn<ReportRow>]
+        : []),
       {
         key: "description",
         header: "Description",
@@ -153,12 +174,19 @@ function GeneralLedgerInner() {
           );
         },
       },
+      // A reversed original stays in the ledger next to its reversal; the
+      // reader has to be able to tell which line is which.
+      { key: "status", header: "Status", width: "w-[150px]" },
+      ...(showCurrencyColumn
+        ? [{ key: "currency", header: "Currency", width: "w-[90px]" } as ReportColumn<ReportRow>]
+        : []),
       { key: "debit", header: "Debit", format: "currency", width: "w-[140px]" },
       { key: "credit", header: "Credit", format: "currency", width: "w-[140px]" },
       { key: "balance", header: "Balance", format: "currency", width: "w-[140px]" },
     ],
-    [openSource],
+    [openSource, showBranchColumn, showCurrencyColumn],
   );
+
 
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = [];
@@ -173,12 +201,23 @@ function GeneralLedgerInner() {
         values: { description: "Opening Balance", balance: account.opening_balance },
       });
       for (const txn of account.transactions) {
+        const status = txn.is_reversal
+          ? txn.reversal_of_number
+            ? `Reversal of ${txn.reversal_of_number}`
+            : "Reversal"
+          : txn.entry_status === "reversed"
+            ? "Reversed"
+            : null;
         out.push({
           id: txn.id,
           values: {
             date: txn.entry_date,
             entry: txn.entry_number,
+            journal: txn.journal_book ?? null,
+            branch: txn.branch_name ?? null,
             description: txn.description,
+            status,
+            currency: txn.entry_currency ?? null,
             debit: blankIfZero(txn.debit_amount),
             credit: blankIfZero(txn.credit_amount),
             balance: txn.running_balance,
@@ -189,6 +228,7 @@ function GeneralLedgerInner() {
           },
         });
       }
+
       out.push({
         id: `sub-${account.account_id}`,
         kind: "subtotal",

@@ -15,7 +15,17 @@ export interface GLTransaction {
   source_type: string | null;
   source_id: string | null;
   contact_name: string | null;
+  /** 'posted' or 'reversed' — a reversed original stays in the ledger. */
+  entry_status: string | null;
+  /** True when this movement IS the reversing entry. */
+  is_reversal: boolean;
+  /** Entry number this movement reverses, when it is a reversal. */
+  reversal_of_number: string | null;
+  journal_book: string | null;
+  branch_name: string | null;
+  entry_currency: string | null;
 }
+
 
 export interface GeneralLedgerAccount {
   account_id: string;
@@ -157,9 +167,16 @@ function buildGeneralLedgerData(
         source_type: row.source_type,
         source_id: row.source_id,
         contact_name: row.contact_name,
+        entry_status: row.entry_status ?? null,
+        is_reversal: Boolean(row.is_reversal),
+        reversal_of_number: row.reversal_of_number ?? null,
+        journal_book: row.journal_book ?? null,
+        branch_name: row.branch_name ?? null,
+        entry_currency: row.entry_currency ?? null,
       });
     }
   }
+
 
   // Calculate running balances and closing balances
   for (const account of accountMap.values()) {
