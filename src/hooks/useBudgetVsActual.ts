@@ -296,8 +296,9 @@ export function useBudgetVsActual(budgetId?: string) {
       accountSummaries,
       itemsByMonth: byMonth,
       itemsByAccount: byAccount,
-      incomeByMonth: monthSeries(incomeRows, true),
-      expenseByMonth: monthSeries(expenseRows, false),
+      incomeByMonth: monthSeries(incomeRows, true, periodAxis(rows)),
+      expenseByMonth: monthSeries(expenseRows, false, periodAxis(rows)),
+
       unbudgetedRows: rows.filter((r) => r.unbudgeted),
     };
   }, [rows, budgetId]);
