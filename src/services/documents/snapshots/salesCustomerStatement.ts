@@ -161,6 +161,13 @@ export function buildCustomerStatementSnapshot(
   const documentNumber = `Statement - ${statement.contact?.name || "Customer"}`;
   const issueDateIso = statement.statement_date || statement.created_at;
 
+  // ADR 0136: a printed statement whose aging excludes unconvertible documents
+  // must say so on the face of the document, not silently under-report.
+  const unconvertibleNote =
+    (aging.unconvertible_document_count || 0) > 0
+      ? `${aging.unconvertible_document_count} open document(s) are in a currency with no exchange rate on file and are excluded from the aging summary.`
+      : null;
+
   const snapshot: SnapshotBlob = {
     document_number: documentNumber,
     document_type: "customer_statement",
@@ -173,11 +180,16 @@ export function buildCustomerStatementSnapshot(
     total: closingBalance,
     amount_paid: dataset.totalCredits,
     currency,
-    notes: dataset.otherCurrencies.length
-      ? `This statement covers ${currency} activity only. This customer also has activity in: ${dataset.otherCurrencies.join(
-          ", ",
-        )}.`
-      : null,
+    notes: [
+      dataset.otherCurrencies.length
+        ? `This statement covers ${currency} activity only. This customer also has activity in: ${dataset.otherCurrencies.join(
+            ", ",
+          )}.`
+        : null,
+      unconvertibleNote,
+    ]
+      .filter(Boolean)
+      .join(" ") || null,
     terms: null,
     contact: statement.contact,
     business_id: statement.business_id,
