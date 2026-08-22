@@ -533,13 +533,46 @@ function transformReportDataToRows(reportData: ReportData): ReportRow[] {
   });
 }
 
-// ── CSV Format ─────────────────────────────────────────────────────────
+// ── Tabular exports (CSV / XLSX) ───────────────────────────────────────
+//
+// The delivered spreadsheet is the same document as the PDF: same column
+// registry, same headers, same order. The previous local serializer read
+// raw row keys, so a scheduled CSV carried database column names the
+// on-screen report never shows — and an "excel" schedule attached CSV
+// bytes under an .xlsx name, which Excel refuses to open.
 
-function formatAsCSV(reportData: ReportData): string {
-  if (reportData.data.length === 0) return "No data available";
-  const headers = Object.keys(reportData.data[0]);
-  const rows = reportData.data.map((row) => headers.map((h) => JSON.stringify(row[h] ?? "")).join(","));
-  return [headers.join(","), ...rows].join("\n");
+function buildTabularAttachment(
+  reportData: ReportData,
+  format: "csv" | "excel",
+): { bytes: Uint8Array; extension: string } {
+  const rows = transformReportDataToRows(reportData);
+  const spec = getReportSpec(reportData.reportType);
+  const columns = resolveReportColumns({
+    reportType: reportData.reportType,
+    fromResult: spec?.columns ?? null,
+    rows,
+  });
+
+  const config: ReportExportConfig = {
+    title: reportData.title,
+    dateRange: `${reportData.dateRange.start} to ${reportData.dateRange.end}`,
+    columns: columns as ReportExportConfig["columns"],
+    rows: rows as ReportExportConfig["rows"],
+    generatedAt: reportData.generatedAt,
+  };
+
+  return format === "excel"
+    ? { bytes: buildReportXlsx(config), extension: "xlsx" }
+    : { bytes: buildReportCsv(config), extension: "csv" };
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 // ── Org Branding ───────────────────────────────────────────────────────
