@@ -51,6 +51,10 @@ Investigation wave. Every claim below is tagged:
 ## 2. Invalidated assumptions
 
 - **[VF]** "The PDF may use a different query." False — prebuilt mode, same rows.
+- **[VF]** "The balance-sheet imbalance is silently swallowed." False — `validationWarnings`
+  IS rendered (`FinancialReports.tsx:661`) plus a dedicated balance-check card (line 695).
+- **[VF]** "Closed fiscal years are folded into retained earnings on the Balance Sheet path."
+  False — the fold exists in SQL but is bypassed by `dateFrom = 1970-01-01` (see B1).
 - **[VF]** "Parent + child are both summed into totals." False.
 - **[VF]** "Reversed entries inflate the ledger." False — counter-entry model.
 - **[VF]** "Sub-type buckets on the P&L may drop accounts." False — the sub-type union is
@@ -100,8 +104,9 @@ journal_entries / journal_entry_lines  (posted + reversed only)
 
 | # | Finding | Class | Sev |
 |---|---|---|---|
-| **B1** | **Prior years' result is dropped.** `get_equity_result` returns `prior_years_result`, and the hook stores it (`useFinancialReport.ts:501,509`) but never adds it to `totalEquity` (line 506 adds only `currentYearEarnings`). Because the BS pins `dateFrom = 1970-01-01`, `get_ledger_opening_balances` computes its retained-earnings fold with `v_fy_start = 1970-01-01`, so it contributes 0. Result: for any as-of date in a fiscal year *after* one with P&L activity, and with no closing journals, equity is understated and **the Balance Sheet does not balance**. Arithmetic proof on live data: as of 2027-06-30 assets 95 840 vs L+E 95 390 — a 450.00 gap, exactly this year's profit. Masked today only because the business is in its first fiscal year. | **Incorrect** | **Critical** |
-| B2 | The imbalance is *detected and thrown away*. `validateBalanceSheet` computes `accountingEquationError` and warnings; `validationWarnings` is returned by the hook and **never read** by any component. The page shows both grand totals, so the user sees two unequal numbers with no explanation. | Incorrect | Critical |
+| **B1** | **Prior years' result is dropped from equity.** Root cause is a two-part interaction, both halves re-verified: (a) `useFinancialReport.ts:506` builds `totalEquity = sectionTotals.equity + currentYearEarnings` and never adds `priorYearsResult`, even though it reads and stores it (lines 501, 509); (b) the code comment at `FinancialReports.tsx:417-420` and `useFinancialReport.ts:481-487` justifies (a) by asserting that closed years are already folded into the retained-earnings account's opening balance by `get_ledger_opening_balances` — **but that fold never happens on this path**, because `fetchOpeningBalancesRPC` is called with `params.dateFrom` (line 308) and the Balance Sheet pins `dateFrom = 1970-01-01`, so the RPC derives its fiscal-year boundary from 1970 and returns ~0 for every account. All Balance Sheet value therefore comes from cumulative movement over `[1970-01-01, dateTo]`, which carries equity *accounts* correctly but leaves every prior fiscal year's nominal result nowhere, since income/expense accounts are not fetched for the Balance Sheet. Consequence: for any as-of date in a fiscal year after one with P&L activity, and with no closing journals, equity is understated and **the statement does not balance**. Arithmetic proof on live data: as of 2027-06-30, assets 95 840.00 vs liabilities + equity 95 390.00 — a 450.00 gap, exactly the earlier year's profit. Masked today only because the live business is still inside its first fiscal year. The load-bearing comment is actively misleading and must be corrected with the fix. | **Incorrect** | **Critical** |
+| B2 | The imbalance IS surfaced. `validateBalanceSheet` pushes an equation-error warning (`ReportCalculationEngine.ts:245-251`), the hook returns it, and `FinancialReports.tsx:661-677` renders it in a destructive card, with a second balance-check card at line 695. So B1 degrades loudly, not silently. Residual defect: the warning names the discrepancy but not its cause, and `netAmount` (`useFinancialReport.ts:513`) recomputes the same equation a second time from the same inputs — one derivation should own it. | Correct but incomplete | Low |
+
 | B3 | The missing-retained-earnings-account guard row (`FinancialReports.tsx:431-444`) fires only when NO retained-earnings account resolves. A retained-earnings account DOES resolve here (**[VF]**: one `detail_type = 'retained_earnings'` account plus a `default_account_settings` row), so the guard is silent in exactly the scenario where B1 loses money. | Incorrect | High |
 | B4 | Comparison period is fetched for the BS (two extra RPC round trips per run) but `bsColumns` has only `name` + `balance`, so it is discarded. Selecting a comparison mode silently does nothing on the Balance Sheet — and IAS 1 expects a comparative. | Correct but incomplete | Med |
 | B5 | The page renders a branch filter; the P&L honours it, the BS hard-codes `branchId: null` (`FinancialReports.tsx:203`). Defensible (§3) but undisclosed — the exported masthead scope label can name a branch on an entity-wide statement. | Correct but incomplete | Med |
@@ -233,4 +238,26 @@ Trial Balance internals, any new reporting engine, any client-side accounting ma
 
 ## 16. Execution status
 
-Investigation complete. Nothing implemented. Awaiting approval of Phase 1.
+### Phase 0 — verification of prior work (done this session)
+
+The predecessor's log claimed investigation only, no implementation. Verified — and two
+of its findings were wrong, so they are corrected above rather than inherited:
+
+| Prior claim | Verdict | Evidence |
+|---|---|---|
+| Nothing implemented; no remediation code landed | **Confirmed** | `priorYearsResult` still absent from `totalEquity`; `is_active` filter still at `useFinancialReport.ts:161`; BS still `branchId: null` at `FinancialReports.tsx:203`; no branch check in the three RPCs; `BalanceSheetIntegrityCheck.ts` still unimported |
+| B1 — prior years' result dropped, BS can't balance | **Confirmed and sharpened** | Root cause is the `dateFrom = 1970-01-01` / `fetchOpeningBalancesRPC(params.dateFrom)` interaction, not the omission alone — see B1 |
+| B2 — imbalance detected but discarded | **Wrong** | Warnings are rendered at `FinancialReports.tsx:661-677`; downgraded to Low |
+| B3 — missing-RE guard never fires when an RE account exists | **Confirmed** | Guard requires `!hasRetainedEarningsAccount` (line 433) |
+| B6 — `requiresConsolidation` never read | **Confirmed** | Set at `useFinancialReport.ts:286`; zero consumers in `FinancialReports.tsx` |
+| Export parity via prebuilt mode | **Confirmed** | `getPnlExportConfig` / `getBsExportConfig` omit `dateFrom`/`dateTo` (lines 470-492) |
+| S2 — branch authorization gap in the reporting RPCs | **Confirmed** | Live catalog bodies check branch *ownership* only; RLS on the same tables requires `user_can_access_branch` |
+
+No regressions or partial patches to unwind. The genuine resume point is Phase 1.
+
+### Next
+
+Awaiting approval to implement Phase 1 (Balance Sheet equity correctness), which must
+land together with a correction to the misleading retained-earnings comments that
+currently justify the defect.
+
