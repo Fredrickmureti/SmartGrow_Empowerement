@@ -22,8 +22,10 @@ required"). No new feature work starts before those exist.
 | B | One retained-earnings authority in SQL | Implemented, live-DB verified, tests pending |
 | C | Server/screen statement convergence | Implemented, parity test pending |
 | D | Hierarchy correctness (parent own-postings) | Implemented, unit test pending |
+| T | Automated test coverage for A–D | **ACTIVE — not started** |
 | E | Classification hygiene (`detail_type` backfill, warnings) | Not started |
-| F | Presentation (Statement of Changes in Equity, masthead) | Not started |
+| F | Presentation (Statement of Changes in Equity, masthead) | Partial — equity split lines shipped on the Balance Sheet screen; SoCE and masthead not started |
+
 
 ## What is fully implemented
 
