@@ -193,8 +193,6 @@ BEGIN
   UPDATE public.journal_entries SET status = 'posted' WHERE id = v_je;
 
   -- ===== Budget fixtures ===================================================
-  -- Budget triggers are the subject from here on, so restore normal firing.
-  PERFORM set_config('session_replication_role', 'origin', true);
 
   INSERT INTO public.budgets (id, organization_id, business_id, name, fiscal_year, created_by)
   VALUES (v_budget, v_org, v_biz, 'FY2026 Plan', 2026, v_user);
