@@ -322,12 +322,14 @@ function JournalReportInner() {
       <ReportSurface
         title="Journal Report"
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
-        subtitle={
+        subtitle={[
           pageCount > 1
             ? `Entries ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + entries.length} of ${totalEntries}`
-            : `${totalEntries} journal entries`
-        }
-        note={showFxColumns ? baseCurrencyNote(baseCurrency) : undefined}
+            : `${totalEntries} journal entries`,
+          showFxColumns ? baseCurrencyNote(baseCurrency) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         profile="operational"
       >
         <ReportTable
