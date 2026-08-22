@@ -665,11 +665,9 @@ async function sendReportEmail(
         </div>
       </div>`;
   } else if (format === "csv" || format === "excel") {
-    const csvContent = formatAsCSV(reportData);
-    const csvBase64 = btoa(csvContent);
-    const ext = format === "excel" ? "xlsx" : "csv";
+    const { bytes, extension } = buildTabularAttachment(reportData, format);
 
-    attachments = [{ filename: `${reportFileName}.${ext}`, content: csvBase64, encoding: "base64" }];
+    attachments = [{ filename: `${reportFileName}.${extension}`, content: toBase64(bytes), encoding: "base64" }];
 
     body = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
