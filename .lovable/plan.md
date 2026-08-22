@@ -1,9 +1,8 @@
-# BUDGETS domain — authoritative status (Wave 2)
+# BUDGETS domain — authoritative status (Wave 3)
 
-Last updated: 2026-08-22 23:20 UTC.
-This file is the single authoritative record of project status. Wave 1 contract and
-investigation notes are archived at
-`.lovable/plan/budgets-domain-authoritative-status-wave-1-2026-08-22.md`.
+Last updated: 2026-08-23. This file is the single authoritative record of status.
+Wave 1/2 records: `.lovable/plan/budgets-domain-authoritative-status-wave-1-2026-08-22.md`,
+`…-wave-2-2026-08-22.md`.
 
 Scope boundary unchanged: **Budget only**. Chart of Accounts, GL, fiscal periods,
 analytic accounting and the reporting engine are consumed, never modified.
@@ -11,61 +10,105 @@ analytic accounting and the reporting engine are consumed, never modified.
 ## Architectural invariants (never regress)
 
 1. A budget is a planning object — it never posts journal entries.
-2. Actuals are derived server-side by one RPC. React consumes numbers, never aggregates the ledger.
+2. Actuals are derived server-side by one RPC; React consumes numbers, never aggregates the ledger.
 3. Periods come from `fiscal_periods`; `fiscal_year` / `period_month` are display-only derivations.
-4. Variance is favourable-positive, computed in SQL from `accounts.account_type`; income and expense are never netted.
-5. Lifecycle `draft → active → closed` is enforced by DB triggers/RPCs; post-activation change is a numbered revision, never an in-place edit.
-6. Budgeting stays account-based — no dimensional budgeting, no encumbrance control, no hard posting blocks.
-7. A budget's currency is the business's base currency. There is no second currency authority.
+4. Variance is favourable-positive, computed in SQL from `accounts.account_type`; income and expense are never netted into one figure.
+5. Lifecycle `draft → active → closed` enforced by DB triggers/RPCs; post-activation change is a numbered revision.
+6. Account-based budgeting only — no dimensional budgeting, no encumbrance control, no hard posting blocks.
+7. A budget's currency is the business base currency; there is no second currency authority.
 
 ---
 
-## Completed and verified
+## Phase 1 — Independent verification of the handover (this session)
 
-| Phase | Work | Verification evidence |
+Method: `pg_proc` inspection (`prosecdef`, `proacl`, `pg_get_functiondef`), row counts on
+the live database, source reads of the budget feature, and a full run of the budget
+architecture suites.
+
+| Claimed phase | Verdict | Evidence |
 | --- | --- | --- |
-| 0 | Security hotfix on `check_budget_variance` | `pg_get_functiondef`: business/branch/org parentage gates, `finance_can_read_scope*`, ledger-visible statuses only |
-| 1 | Domain model (`budget_status`, lifecycle guard, `fiscal_period_id` FK, revisions) | schema inspection |
-| 2 | Single actuals authority | `budget_actuals` / `recalculate_budget_actuals` dropped; zero references in `src/` |
-| 3 | Lifecycle & editing seams | `_budget_items_normalize` enforces transitions; RPC-only writes |
-| 4 | Reporting engine — D1/D2/D3 closed | `get_budget_variance_report` uses `ledger_visible_journal_statuses()`, resolves periods via `budget_fiscal_months` (fiscal-year window, non-January safe), joins plan↔ledger on `fiscal_period_id` |
-| 5 | Integration & cleanup (D4–D7) | no second variance computation in React; `useFiscalPeriodDetail` consumes `get_period_budget_variance`; posting warning agrees with the report |
-| 6 | Regression protection (frontend) | `budgets-single-source-of-truth.test.ts` + `budgets-business-level-gating.test.ts` — 28 assertions green |
-| 7 | Closed-period planning relaxed | `_budget_items_normalize` allows draft writes in closed periods; `BudgetCreatePage` / `BudgetEditPage` show advisory notices instead of hard blocks |
-| 8 | Currency integrity | `_budgets_defaults()` trigger forces `budgets.currency_code = businesses.base_currency` (rejects mismatch, `23514`); existing rows backfilled; `BudgetReport` labels from `useCurrency().baseCurrency` |
-| 9 | Revision keying | `apply_budget_revision` keys lines on `fiscal_period_id`, resolving `period_month` through `budget_fiscal_months` when only the label is supplied; `useBudgets.applyRevision` carries the field |
-| 10 | CI accounting fixtures | `supabase/tests/budgets_variance_engine_test.sql` — scenarios A–K (July fiscal-year ordinals, currency derivation, draft vs active vs closed writes, favourable-positive variance, unbudgeted-expense detection, cross-business isolation). Executed against the remote database inside a transaction and rolled back; all scenarios passed |
+| 0 — security hotfix | CONFIRMED | all 13 `%budget%` functions are `SECURITY DEFINER` with `SET search_path = public`; `get_period_budget_variance` gates on `user_can_access_business` + `user_has_module_permission('financials','read')` before returning rows |
+| 1–3 — model, single actuals authority, lifecycle | CONFIRMED | `_budgets_defaults`, `_budgets_lifecycle_guard`, `_budget_items_normalize`, `set_budget_status` all present; no actuals table |
+| 4–5 — reporting engine / integration | CONFIRMED | `get_period_budget_variance` delegates entirely to `get_budget_variance_report`; no second variance definition |
+| 6 — regression protection | CONFIRMED | `budgets-single-source-of-truth.test.ts` (20) + `budgets-business-level-gating.test.ts` (8) — 28 assertions green |
+| 7 — closed-period planning relaxed | CONFIRMED | `BudgetEditPage` line 447–453 renders a `text-muted-foreground` advisory, draft vs active wording differs; the Wave-2 "cosmetic follow-up" is in fact already done |
+| 8 — currency integrity | CONFIRMED | `_budgets_defaults()` raises `23514` on any currency other than `businesses.base_currency` and force-sets the column |
+| 9–10 — revision keying, SQL fixtures | CONFIRMED present (`apply_budget_revision`, `supabase/tests/budgets_variance_engine_test.sql`); fixture re-run scheduled in Phase 14 below |
+| 11 — browser acceptance | NOT STARTED, as declared |
+
+### New defects found during verification (not in the previous plan)
+
+- **FACT / SECURITY-HYGIENE — read RPCs are executable by `anon`.** `proacl` shows
+  `anon=X` on `get_budget_variance_report`, `get_period_budget_variance` and
+  `budget_fiscal_months`; `check_budget_variance` additionally carries a bare
+  `PUBLIC` EXECUTE grant. No data leaks (each body rejects `auth.uid() IS NULL` or
+  fails the access gate), but the surface violates the stated
+  `authenticated + service_role` rule and lets unauthenticated callers probe the
+  functions. Must be revoked.
+- **FACT / PRESENTATION DEFECT — the Analysis chart nets revenue and cost.**
+  `BudgetEditPage` builds `chartData` as `expenseByMonth[i].actual + incomeByMonth[i].actual`
+  (same for budget and variance), so one bar mixes credit-normal revenue with
+  debit-normal cost. That breaches invariant 4 at the presentation layer and the
+  resulting bar has no accounting meaning. The hook already exposes a correct
+  `net` total and separate income/expense series; the chart must plot those, not a sum.
+- **FACT — the database holds zero budgets, zero budget lines, zero revisions and
+  17 journal entries.** Phase 11 acceptance therefore requires seeding through the UI
+  seams first; there is no existing dataset to verify against.
+
+Nothing verified in phases 0–10 needs reopening.
 
 ---
 
-## Currently active phase
+## Ordered remaining work
 
-**Phase 11 — Browser acceptance pass.** Not started. Everything before it is closed.
+### Phase A — Revoke the anon/PUBLIC execute grants (blocking, tiny)
+One single-purpose migration: `REVOKE EXECUTE … FROM anon, PUBLIC` on
+`get_budget_variance_report`, `get_period_budget_variance`, `budget_fiscal_months`,
+`check_budget_variance`; re-`GRANT` to `authenticated`, `service_role`.
+Validation: re-query `pg_proc.proacl` for the whole `%budget%` family and assert
+only `authenticated`/`service_role`/owner appear.
 
-Scope of Phase 11 (must all be done before the phase is called complete):
-1. Seed a disposable fixture budget (non-January fiscal year preferred) through the UI seams only — no direct table writes.
-2. `/reports/budget`: totals render, no console errors, favourable-positive badges correct on both income and expense rows, drill-down opens the matching journal lines.
-3. Budget create/edit: draft authoring inside a closed fiscal year succeeds with an advisory (not destructive) notice; activation then freezes closed-period lines.
-4. Activate the budget and apply a revision — confirm the numbered revision is recorded against the right `fiscal_period_id` and the report moves accordingly.
-5. Period-close screen (`useFiscalPeriodDetail`) shows the same numbers as `/reports/budget` for the same period.
-6. Confirm the currency badge equals the business base currency everywhere the plan is shown.
+### Phase B — Fix the netted Analysis chart
+`BudgetEditPage` plots grouped revenue and cost series (or the hook's `net` line),
+never a summed bar. Add an assertion to `budgets-single-source-of-truth.test.ts`
+that no budget component adds an income series to an expense series.
 
-Known cosmetic follow-up inside Phase 11: closed-period notices on `BudgetEditPage` must be `text-muted-foreground` in draft mode, `text-destructive` only when the budget is active/closed.
+### Phase C — Phase 11 browser acceptance (the previously stalled phase)
+Drive the live preview with Playwright, seeding only through UI seams:
+1. Create a draft budget with lines; confirm the closed-fiscal-year notice is advisory.
+2. Activate it; confirm line edits are refused and the revision path is offered.
+3. Apply a numbered revision; confirm it is keyed to the right `fiscal_period_id`
+   and the report moves.
+4. `/reports/budget`: totals render, no console errors, favourable-positive badges
+   correct on both income and expense rows, drill-down opens matching journal lines.
+5. Period-close screen shows the same numbers as `/reports/budget` for that period.
+6. Currency badge equals the business base currency on every surface.
+Any mismatch reopens the owning phase rather than being patched in the UI.
 
-## Pending after Phase 11
+### Phase D — SQL isolation ratchet
+`supabase/tests/budgets_isolation_test.sql`: business A cannot read B's budgets,
+lines or revisions; cross-org `check_budget_variance` and `get_budget_variance_report`
+raise `42501`. Run inside a transaction and roll back.
 
-- **Phase 12 — SQL isolation ratchet.** Move the cross-tenant assertions out of the fixture file into a dedicated `supabase/tests/budgets_isolation_test.sql`: business A cannot read B's budget, lines or revisions; cross-org `check_budget_variance` and `get_budget_variance_report` raise `42501`.
-- **Phase 13 — ADR + memory.** ADR documenting the budget seams (single actuals RPC, favourable-positive convention, lifecycle, currency authority, revision keying); add `mem/features/budgets-domain.md` and reference it from `mem/index.md`.
-- **Phase 14 — closing sweep.** Re-run the budget architecture tests, the SQL fixtures and a typecheck; re-query `pg_proc.proacl` for the whole budget function family to confirm `authenticated` + `service_role` only after every Phase 11–13 redefinition.
+### Phase E — ADR + memory
+ADR covering the budget seams (single actuals RPC, favourable-positive convention,
+lifecycle, currency authority, revision keying); `mem/features/budgets-domain.md`
+referenced from `mem/index.md`.
 
-Out of scope for this wave: dimensional/analytic budgeting, encumbrance control, forecasting, AI commentary, cash-flow budgeting.
+### Phase F — Closing sweep
+Re-run both architecture suites, `budgets_variance_engine_test.sql`, the new
+isolation fixture and a typecheck; re-query `proacl` after every redefinition.
+
+Out of scope for this wave: dimensional/analytic budgeting, encumbrance control,
+forecasting, AI commentary, cash-flow budgeting.
 
 ---
 
 ## Instructions for the next agent
 
-1. **Verify before you build.** Do not trust this table. Re-derive each "completed" claim from the live database and the codebase: `pg_get_functiondef` on `get_budget_variance_report`, `get_period_budget_variance`, `apply_budget_revision`, `_budget_items_normalize`, `_budgets_defaults`; `pg_proc.proacl` for the budget family; and a repo grep proving no React file aggregates `journal_entry_lines` or reads `budget_items` outside the budget feature. Run the two budget architecture test files and `supabase/tests/budgets_variance_engine_test.sql`. Record the verdict in this file with evidence, as the previous handovers did.
-2. If a claim fails verification, **reopen that phase and fix it first** — never paper over it by weakening a test.
-3. Once verification is green, **resume at Phase 11** (browser acceptance), then 12 → 13 → 14 in order. Do not start unrelated domains, do not leave a phase half-landed, and do not ship a workflow whose UI, RPC and test story are not all complete.
-4. Every SQL change ships as its own small, single-purpose migration; every new function is `SECURITY DEFINER` with a pinned `search_path`, granted to `authenticated` + `service_role` only, and every new public table ships GRANTs in the same migration.
-5. Update this file after every completed step — it is the authoritative status of the project.
+1. Verify before you build; record the verdict here with evidence.
+2. A failed claim reopens its phase — never weaken a test to make it pass.
+3. Every SQL change ships as its own small, single-purpose migration; every new
+   function is `SECURITY DEFINER` with a pinned `search_path`, granted to
+   `authenticated` + `service_role` only.
+4. Update this file after every completed step.
