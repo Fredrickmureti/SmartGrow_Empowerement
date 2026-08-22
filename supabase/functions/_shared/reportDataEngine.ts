@@ -21,6 +21,41 @@ import {
   isDebitNormal,
   type AccountSubType,
 } from "./reports/accountingKernel.ts";
+import { REPORT_SPECS } from "./reports/columnSpecs.ts";
+import type { ReportColumn } from "./reportPdfGenerator.ts";
+import {
+  baseCurrencyNote,
+  fxCells,
+  hasForeignCurrency,
+  withFxColumns,
+  type FxLineInput,
+} from "./reports/currencyPresentation.ts";
+
+/** Business base currency — the unit every money column on a ledger uses. */
+async function fetchBaseCurrency(
+  supabase: SupabaseClient,
+  businessId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("businesses")
+    .select("base_currency")
+    .eq("id", businessId)
+    .maybeSingle();
+  return (data?.base_currency as string | undefined) ?? null;
+}
+
+/** Map an RPC ledger row onto the FX presentation contract. */
+function toFxLine(row: Record<string, unknown>): FxLineInput {
+  return {
+    entryCurrency: (row.entry_currency as string) ?? null,
+    originalDebit: (row.original_debit as number) ?? null,
+    originalCredit: (row.original_credit as number) ?? null,
+    exchangeRate: (row.exchange_rate as number) ?? null,
+  };
+}
+
+const getReportSpec = (key: string) => REPORT_SPECS[key];
+
 
 // ── Types ──────────────────────────────────────────────────────────────
 
