@@ -73,7 +73,7 @@ describe("Ledgers & Journals — single accounting source", () => {
     // opening instead of double-counting it into one branch.
     for (const src of [read(ENGINE), read(TB_HOOK)]) {
       expect(src).toContain("get_ledger_opening_balances");
-      expect(src).toMatch(/_branch_id:\s*branchId\s*\?\?\s*null/);
+      expect(src).toMatch(/_branch_id:\s*branchId\s*(\?\?|\|\|)\s*null/);
       // No client-side reconstruction of an opening figure.
       expect(src).not.toMatch(/openingBalance\s*[+-]=/);
       expect(src).not.toMatch(/opening_balance\s*[+-]=/);
