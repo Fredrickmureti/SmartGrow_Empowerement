@@ -97,27 +97,23 @@ function GeneralLedgerInner() {
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { currentOrg } = useOrganization();
 
-  const openSource = useCallback((sourceType: string | null, sourceId: string | null, lineId: string) => {
-    if (sourceType && sourceId) {
-      setDrawerSource({ type: sourceType, id: sourceId });
-      setDrawerOpen(true);
-      return;
-    }
-    // Resolve JE id from the line id, then preview the JE.
-    void (async () => {
-      const { data: line } = await supabase
-        .from("journal_entry_lines")
-        .select("journal_entry_id")
-        .eq("id", lineId)
-        .maybeSingle();
-      if (line?.journal_entry_id) {
-        setDrawerSource({ type: "journal_entry", id: line.journal_entry_id });
-        setDrawerOpen(true);
-      } else {
+  const openSource = useCallback(
+    (sourceType: string | null, sourceId: string | null, journalEntryId: string | null) => {
+      const target = resolveLedgerDrillTarget({
+        source_type: sourceType,
+        source_id: sourceId,
+        journal_entry_id: journalEntryId,
+      });
+      if (!target) {
         navigate(`/finance/journal-entries`);
+        return;
       }
-    })();
-  }, [navigate]);
+      setDrawerSource(target);
+      setDrawerOpen(true);
+    },
+    [navigate],
+  );
+
 
   // Dimensions that only earn their column width when they carry
   // information: the branch column is pointless in a single-branch run, and
