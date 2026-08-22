@@ -32,6 +32,7 @@ import {
   buildBalanceSheet,
   buildTrialBalance,
   buildIncomeStatement,
+  buildComparativeIncomeStatement,
   buildCashFlow,
   buildBankReconciliation,
   buildGeneralLedger,
@@ -40,6 +41,7 @@ import {
   buildBudgetVsActual,
   buildDepreciationSchedule,
   buildAuditTrail,
+  type ComparisonMode,
   type ReportResult,
 } from "../_shared/reportDataEngine.ts";
 import { renderReport, getReportTitle } from "../_shared/reports/index.ts";
@@ -121,7 +123,14 @@ export async function buildReportData(
   filters?: Record<string, unknown>,
 ): Promise<ReportResult> {
   const branchId = scopeBranchForReport(reportType, branchIdInput);
+  const comparisonModeRaw = filters?.comparison_mode ?? filters?.comparisonMode;
+  const comparisonMode: ComparisonMode =
+    comparisonModeRaw === "previous_period" || comparisonModeRaw === "previous_year"
+      ? comparisonModeRaw
+      : "none";
+
   switch (reportType) {
+
 
     case "balance_sheet":
       return await buildBalanceSheet(supabase, orgId, businessId, dateFrom, dateTo);
@@ -129,7 +138,17 @@ export async function buildReportData(
       return await buildTrialBalance(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "income_statement":
     case "profit_and_loss":
-      return await buildIncomeStatement(supabase, orgId, businessId, dateFrom, dateTo, branchId);
+      return comparisonMode === "none"
+        ? await buildIncomeStatement(supabase, orgId, businessId, dateFrom, dateTo, branchId)
+        : await buildComparativeIncomeStatement(
+            supabase,
+            orgId,
+            businessId,
+            dateFrom,
+            dateTo,
+            branchId,
+            comparisonMode,
+          );
     case "cash_flow":
       return await buildCashFlow(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "bank_reconciliation":
