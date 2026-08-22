@@ -451,9 +451,10 @@ export function useFinancialReport(params: FinancialReportParams) {
         });
       }
 
-      // Build hierarchy. `buildAccountHierarchy` rolls each subtree UP into its
-      // parent (parent's own postings + children), so a group node carries the
-      // subtree figure while the row keeps its own figure.
+      // Build hierarchy for DEPTH and grouping flags only. Every row — parent
+      // or leaf — keeps its OWN figures, and the section total sums those own
+      // figures once, so parent/child roll-up can never double-count and the
+      // rendered rows always foot to the section total.
       const hierarchy = buildAccountHierarchy(reportAccounts);
 
       // Flatten hierarchy back to accounts with depth info
@@ -463,17 +464,9 @@ export function useFinancialReport(params: FinancialReportParams) {
         if (reportAcct) {
           reportAcct.depth = depth;
           reportAcct.is_group = node.is_group;
-          if (node.is_group) {
-            // Subtree figure, for the group row's "including sub-accounts" total.
-            reportAcct.rollup_amount =
-              params.reportType === "pnl"
-                ? (reportAcct.account_type === "income"
-                    ? node.credit_total - node.debit_total
-                    : node.debit_total - node.credit_total)
-                : node.closing_balance;
-          }
           flatAccounts.push(reportAcct);
         }
+
         for (const child of node.children.sort((a, b) => a.code.localeCompare(b.code))) {
           flattenNode(child, depth + 1);
         }
