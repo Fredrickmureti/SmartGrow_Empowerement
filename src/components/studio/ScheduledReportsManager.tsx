@@ -274,6 +274,7 @@ export function ScheduledReportsManager() {
       include_charts: report.include_charts,
       date_range_type: report.date_range_type,
       recipients: report.recipients.map((r) => r.email).join(", "),
+      branch_id: report.branch_id ?? "",
     });
     setDialogOpen(true);
   };
