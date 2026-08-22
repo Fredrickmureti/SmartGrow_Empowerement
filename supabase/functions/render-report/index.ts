@@ -112,10 +112,15 @@ export async function buildReportData(
   dateTo: string,
   // Branch is a REPORTING DIMENSION, not a decoration: a report built without
   // it silently states the whole business under a branch-scoped title.
-  branchId?: string,
+  // Conversely, entity-level statements (balance sheet, trial balance, cash
+  // flow, tax…) must never be sliced by branch — the shared registry is the
+  // one rule, and it is the same one the screens obey.
+  branchIdInput?: string,
   filters?: Record<string, unknown>,
 ): Promise<ReportResult> {
+  const branchId = scopeBranchForReport(reportType, branchIdInput);
   switch (reportType) {
+
     case "balance_sheet":
       return await buildBalanceSheet(supabase, orgId, businessId, dateFrom, dateTo);
     case "trial_balance":
