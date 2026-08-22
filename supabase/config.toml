@@ -1,4 +1,1 @@
 project_id = "jkszmrroyjfdwokbkzis"
-
-[functions.ensure-payslip-document]
-verify_jwt = false
