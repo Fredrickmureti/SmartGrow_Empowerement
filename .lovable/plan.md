@@ -6,9 +6,13 @@ principle · **[UV]** unverified. Full audit findings live in
 
 ## Currently active phase
 
-**Phase D (hierarchy correctness) — code complete, verification pending.**
-Phases A, B and C are code complete; the outstanding work on all of them is
-automated test coverage (see "Tests required").
+**Phase T (test coverage for A–D) — active, nothing written yet.**
+Phases A, B, C and D are code complete and live-DB verified. The Balance Sheet
+equity presentation (current-year earnings and prior-years result as explicit
+lines) has also landed on the screen — that was the last code change. The one
+thing standing between A–D and sign-off is automated tests (see "Tests
+required"). No new feature work starts before those exist.
+
 
 ## Phase status
 
@@ -18,8 +22,10 @@ automated test coverage (see "Tests required").
 | B | One retained-earnings authority in SQL | Implemented, live-DB verified, tests pending |
 | C | Server/screen statement convergence | Implemented, parity test pending |
 | D | Hierarchy correctness (parent own-postings) | Implemented, unit test pending |
+| T | Automated test coverage for A–D | **ACTIVE — not started** |
 | E | Classification hygiene (`detail_type` backfill, warnings) | Not started |
-| F | Presentation (Statement of Changes in Equity, masthead) | Not started |
+| F | Presentation (Statement of Changes in Equity, masthead) | Partial — equity split lines shipped on the Balance Sheet screen; SoCE and masthead not started |
+
 
 ## What is fully implemented
 
@@ -68,6 +74,13 @@ automated test coverage (see "Tests required").
   group rows additionally carry `rollup_amount` for presentation only. A parent that
   carries its own postings is no longer excluded from the section total, and nothing
   is double counted.
+
+### Balance Sheet equity presentation [VF]
+- `FinancialReports.tsx` renders equity as: equity accounts (which already carry every
+  **closed** year's result via the SQL opening balances), then an explicit
+  "Current year earnings" line from `balanceSheetTotals.currentYearEarnings`, then a
+  "Prior years result" line when non-zero, then Total equity and Total liabilities and
+  equity. No client-side re-derivation of either figure.
 
 ## What is still pending
 
@@ -131,5 +144,9 @@ shared function must change.
 
 ## Execution status
 
-Phases A–D implemented and verified against live data; automated tests outstanding.
-Next milestone: test coverage for A–D, then Phase E.
+Phases A–D implemented and verified against live data; the Balance Sheet equity
+split is on screen. No automated test for any of it yet — `supabase/tests/` holds
+no `financial_statements_test.sql`, and no Vitest parity spec exists. **Active
+phase: T (tests for A–D). Next after that: Phase E, then the rest of Phase F
+(Statement of Changes in Equity, masthead).** Do not begin E before T is green.
+
