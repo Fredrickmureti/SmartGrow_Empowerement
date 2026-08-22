@@ -758,6 +758,81 @@ export default function BudgetEditPage() {
         </div>
       </Section>
 
+      {/* Section 4 — Revision history (post-activation change is never in-place) */}
+      <Section
+        title="Revision history"
+        description="Every change made after activation, recorded by apply_budget_revision."
+      >
+        <div className="px-5 pb-5">
+          {revisionsLoading ? (
+            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading revisions…
+            </div>
+          ) : revisions.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">
+              No revisions. The plan is as originally approved.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {revisions.map((rev) => (
+                <div key={rev.id} className="rounded-md border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      Revision {rev.revision_number}
+                      {rev.reason ? ` — ${rev.reason}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(rev.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  {rev.note && (
+                    <p className="mt-1 text-xs text-muted-foreground">{rev.note}</p>
+                  )}
+                  <Table className="mt-2">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Period</TableHead>
+                        <TableHead className="text-right">Previous</TableHead>
+                        <TableHead className="text-right">New</TableHead>
+                        <TableHead className="text-right">Change</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rev.lines.map((line) => {
+                        const previous = line.previous_amount ?? 0;
+                        const next = line.new_amount ?? 0;
+                        return (
+                          <TableRow key={line.id}>
+                            <TableCell className="text-sm">
+                              {line.accounts
+                                ? `${line.accounts.code} - ${line.accounts.name}`
+                                : getAccountName(line.account_id)}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {MONTHS[line.period_month - 1] ?? line.period_month}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatCurrency(previous)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatCurrency(next)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatCurrency(next - previous)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Section>
+
       {!canManageBudgets && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
