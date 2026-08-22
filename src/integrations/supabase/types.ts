@@ -79436,6 +79436,7 @@ export type Database = {
           organization_id: string | null
           projection_residual: number | null
           side: string | null
+          unconvertible_document_count: number | null
         }
         Relationships: []
       }
