@@ -5,6 +5,8 @@ import { useBusinesses } from "./useBusinesses";
 
 export interface GLTransaction {
   id: string;
+  /** Journal entry this line belongs to — drill-through target of last resort. */
+  journal_entry_id: string | null;
   entry_date: string;
   entry_number: string;
   description: string;
@@ -161,6 +163,7 @@ function buildGeneralLedgerData(
 
       account.transactions.push({
         id: row.line_id,
+        journal_entry_id: row.journal_entry_id ?? null,
         entry_date: row.entry_date,
         entry_number: row.entry_number,
         description: row.line_description || row.je_description || "",
