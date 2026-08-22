@@ -30,13 +30,19 @@ export interface PayslipDocumentRef {
  * Materialise (or reuse) the immutable `document_records` row for a
  * payslip. The projection needs service-role reads, so it is built
  * server-side; this call is idempotent per payslip.
+ *
+ * Resilience: if `ensure-payslip-document` is unreachable in the target
+ * environment (not deployed → 404 on the CORS preflight, which surfaces
+ * in the browser as a blocked request), we retry against the always
+ * deployed `generate-payslip-pdf` shim with `mode: 'ensure_document'`.
+ * Both doors run the same shared server implementation, so the resulting
+ * document record is identical.
  */
-export async function ensurePayslipDocumentRecord(
-  payslipId: string,
-): Promise<PayslipDocumentRef> {
-  const { data, error } = await supabase.functions.invoke('ensure-payslip-document', {
-    body: { payslip_id: payslipId },
-  });
+async function invokeEnsure(
+  fn: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.functions.invoke(fn, { body });
   if (error) throw new Error(error.message || 'Failed to prepare payslip document');
 
   const payload = (typeof data === 'string' ? JSON.parse(data) : data) as
@@ -44,6 +50,27 @@ export async function ensurePayslipDocumentRecord(
     | null;
   if (payload?.error) throw new Error(String(payload.error));
   if (!payload?.document_record_id) throw new Error('Payslip document was not created');
+  return payload;
+}
+
+export async function ensurePayslipDocumentRecord(
+  payslipId: string,
+): Promise<PayslipDocumentRef> {
+  let payload: Record<string, unknown>;
+  try {
+    payload = await invokeEnsure('ensure-payslip-document', { payslip_id: payslipId });
+  } catch (primaryError) {
+    try {
+      payload = await invokeEnsure('generate-payslip-pdf', {
+        payslip_id: payslipId,
+        mode: 'ensure_document',
+      });
+    } catch {
+      throw primaryError instanceof Error
+        ? primaryError
+        : new Error('Failed to prepare payslip document');
+    }
+  }
 
   return {
     documentRecordId: String(payload.document_record_id),
@@ -54,6 +81,7 @@ export async function ensurePayslipDocumentRecord(
     branchId: (payload.branch_id as string | null) ?? null,
   };
 }
+
 
 /** Download a payslip as a ledgered document. */
 export async function downloadPayslipPdf(
