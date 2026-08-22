@@ -204,8 +204,9 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         apOverdueResult,
         // Prior period GL
         priorMovementsResult,
-        // Budget
-        budgetItemsResult,
+        // Budget (authoritative server-side comparison)
+        budgetVarianceResult,
+
         // Fixed assets
         assetAdditionsResult,
         assetDisposalsResult,
