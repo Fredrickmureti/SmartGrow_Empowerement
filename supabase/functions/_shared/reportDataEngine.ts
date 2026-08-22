@@ -790,6 +790,15 @@ export async function buildGeneralLedger(
   let grandCredit = 0;
   let lineCount = 0;
 
+  // Base currency is the unit every money column is expressed in; the FX
+  // supplement only appears when the run actually contains a foreign line.
+  const baseCurrency = await fetchBaseCurrency(supabase, requireBusinessId(businessId));
+  const allLines = [...byAccount.values()].flatMap((a) => a.lines);
+  const showFx = hasForeignCurrency(
+    allLines.map((l) => toFxLine(l)),
+    baseCurrency,
+  );
+
   const sortedAccounts = [...byAccount.values()].sort((a, b) => a.code.localeCompare(b.code));
 
   for (const acct of sortedAccounts) {
@@ -836,7 +845,7 @@ export async function buildGeneralLedger(
         journal: (line.journal_book as string) || "",
         branch: (line.branch_name as string) || "",
         status,
-        currency: (line.entry_currency as string) || "",
+        ...(showFx ? fxCells(toFxLine(line), baseCurrency) : {}),
         debit: debit || null,
         credit: credit || null,
         balance: runningBalance,
@@ -865,11 +874,21 @@ export async function buildGeneralLedger(
     _isGrandTotal: true, _bold: true,
   });
 
+  const spec = getReportSpec("general_ledger");
   return {
     data: rows,
-    summary: { totalAccounts: sortedAccounts.length, totalTransactions: lineCount, totalDebits: grandDebit, totalCredits: grandCredit },
+    summary: {
+      totalAccounts: sortedAccounts.length,
+      totalTransactions: lineCount,
+      totalDebits: grandDebit,
+      totalCredits: grandCredit,
+      baseCurrency,
+      note: baseCurrencyNote(baseCurrency),
+    },
+    ...(showFx && spec ? { columns: withFxColumns(spec.columns) } : {}),
   };
 }
+
 
 
 /**
