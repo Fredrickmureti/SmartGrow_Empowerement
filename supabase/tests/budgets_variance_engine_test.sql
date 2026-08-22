@@ -82,6 +82,7 @@ DECLARE
   v_inc uuid := gen_random_uuid();      -- 4000 budgeted income
   v_cash uuid := gen_random_uuid();     -- 1000 contra side
   v_exp_b2 uuid := gen_random_uuid();   -- other company's expense account
+  v_cash_b2 uuid := gen_random_uuid();  -- other company's bank account
   v_budget uuid := gen_random_uuid();
   v_july uuid;
   v_aug uuid;
@@ -139,28 +140,34 @@ BEGIN
          (v_exp2,   v_org, v_biz,  '5100', 'Bank charges',    'expense'),
          (v_inc,    v_org, v_biz,  '4000', 'Consulting',      'income'),
          (v_cash,   v_org, v_biz,  '1000', 'Bank',            'asset'),
-         (v_exp_b2, v_org, v_biz2, '5000', 'Rent (sister)',   'expense');
+         (v_exp_b2, v_org, v_biz2, '5000', 'Rent (sister)',   'expense'),
+         (v_cash_b2, v_org, v_biz2, '1000', 'Bank (sister)',   'asset');
 
   -- ===== Ledger fixtures ===================================================
   -- Posted: rent 800 in July, consulting income 4000 in August,
   -- unbudgeted bank charges 300 in July.
+  -- Entries are written as drafts and then posted, exactly as the application
+  -- does: a posted entry is immutable, so its lines cannot be added afterwards.
   v_je := gen_random_uuid();
   INSERT INTO public.journal_entries (id, organization_id, business_id, entry_number, entry_date, description, status)
-  VALUES (v_je, v_org, v_biz, 'JE-1', DATE '2026-07-15', 'rent', 'posted');
+  VALUES (v_je, v_org, v_biz, 'JE-1', DATE '2026-07-15', 'rent', 'draft');
   INSERT INTO public.journal_entry_lines (journal_entry_id, organization_id, business_id, account_id, debit, credit)
   VALUES (v_je, v_org, v_biz, v_exp, 800, 0), (v_je, v_org, v_biz, v_cash, 0, 800);
+  UPDATE public.journal_entries SET status = 'posted' WHERE id = v_je;
 
   v_je := gen_random_uuid();
   INSERT INTO public.journal_entries (id, organization_id, business_id, entry_number, entry_date, description, status)
-  VALUES (v_je, v_org, v_biz, 'JE-2', DATE '2026-08-10', 'fees', 'posted');
+  VALUES (v_je, v_org, v_biz, 'JE-2', DATE '2026-08-10', 'fees', 'draft');
   INSERT INTO public.journal_entry_lines (journal_entry_id, organization_id, business_id, account_id, debit, credit)
   VALUES (v_je, v_org, v_biz, v_inc, 0, 4000), (v_je, v_org, v_biz, v_cash, 4000, 0);
+  UPDATE public.journal_entries SET status = 'posted' WHERE id = v_je;
 
   v_je := gen_random_uuid();
   INSERT INTO public.journal_entries (id, organization_id, business_id, entry_number, entry_date, description, status)
-  VALUES (v_je, v_org, v_biz, 'JE-3', DATE '2026-07-20', 'bank charges', 'posted');
+  VALUES (v_je, v_org, v_biz, 'JE-3', DATE '2026-07-20', 'bank charges', 'draft');
   INSERT INTO public.journal_entry_lines (journal_entry_id, organization_id, business_id, account_id, debit, credit)
   VALUES (v_je, v_org, v_biz, v_exp2, 300, 0), (v_je, v_org, v_biz, v_cash, 0, 300);
+  UPDATE public.journal_entries SET status = 'posted' WHERE id = v_je;
 
   -- Draft entry: an unposted document is not accounting activity.
   v_je := gen_random_uuid();
@@ -172,16 +179,18 @@ BEGIN
   -- Demo data: never a real number.
   v_je := gen_random_uuid();
   INSERT INTO public.journal_entries (id, organization_id, business_id, entry_number, entry_date, description, status, is_sample_data)
-  VALUES (v_je, v_org, v_biz, 'JE-5', DATE '2026-07-26', 'sample rent', 'posted', true);
+  VALUES (v_je, v_org, v_biz, 'JE-5', DATE '2026-07-26', 'sample rent', 'draft', true);
   INSERT INTO public.journal_entry_lines (journal_entry_id, organization_id, business_id, account_id, debit, credit, is_sample_data)
   VALUES (v_je, v_org, v_biz, v_exp, 7000, 0, true), (v_je, v_org, v_biz, v_cash, 0, 7000, true);
+  UPDATE public.journal_entries SET status = 'posted' WHERE id = v_je;
 
   -- The sister company books rent in the same month. It must never appear.
   v_je := gen_random_uuid();
   INSERT INTO public.journal_entries (id, organization_id, business_id, entry_number, entry_date, description, status)
-  VALUES (v_je, v_org, v_biz2, 'JE-B2', DATE '2026-07-15', 'sister rent', 'posted');
+  VALUES (v_je, v_org, v_biz2, 'JE-B2', DATE '2026-07-15', 'sister rent', 'draft');
   INSERT INTO public.journal_entry_lines (journal_entry_id, organization_id, business_id, account_id, debit, credit)
-  VALUES (v_je, v_org, v_biz2, v_exp_b2, 9999, 0);
+  VALUES (v_je, v_org, v_biz2, v_exp_b2, 9999, 0), (v_je, v_org, v_biz2, v_cash_b2, 0, 9999);
+  UPDATE public.journal_entries SET status = 'posted' WHERE id = v_je;
 
   -- ===== Budget fixtures ===================================================
   -- Budget triggers are the subject from here on, so restore normal firing.
