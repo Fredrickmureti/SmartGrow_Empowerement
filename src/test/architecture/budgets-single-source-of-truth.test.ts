@@ -235,3 +235,16 @@ describe("Budgets — lifecycle is enforced in the database", () => {
     expect(hook).toMatch(/budget_revision/);
   });
 });
+
+describe("Budgets — income and expense are never netted in the UI", () => {
+  it("the budget analysis chart plots revenue and cost as separate series", () => {
+    const page = read("src/features/finance/budgets/BudgetEditPage.tsx");
+    // A chart datum must never add an income figure to an expense figure:
+    // income is credit-normal, expense is debit-normal.
+    expect(page).not.toMatch(/point\.(budgeted|actual|variance)\s*\+\s*\(income/);
+    expect(page).toMatch(/revenuePlan/);
+    expect(page).toMatch(/costPlan/);
+    expect(page).toMatch(/revenueActual/);
+    expect(page).toMatch(/costActual/);
+  });
+});
