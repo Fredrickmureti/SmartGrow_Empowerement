@@ -76,9 +76,15 @@ export interface BudgetComparison {
   accountCode: string;
   budgeted: number;
   actual: number;
+  /** Favourable-positive: computed in SQL from the account's nature. */
   variance: number;
-  variancePercent: number;
+  /** Null when there is no plan to measure against. */
+  variancePercent: number | null;
+  favourable: boolean;
+  /** Actual activity on an account with no plan for this period. */
+  unbudgeted: boolean;
 }
+
 
 export interface AssetSummary {
   additions: number;
