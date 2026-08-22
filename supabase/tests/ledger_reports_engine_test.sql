@@ -362,4 +362,26 @@ BEGIN
   END IF;
 END $$;
 
+
+-- ---------------------------------------------------------------------
+-- G. Drill-through contract: the engine, not the browser, identifies the
+--    journal entry behind a general ledger line. Without `journal_entry_id`
+--    the screen has to read `journal_entry_lines` directly, which breaks the
+--    single-source rule and leaks a raw table read to the client.
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_proc pp
+      JOIN pg_namespace n ON n.oid = pp.pronamespace,
+           unnest(pp.proargnames) AS an
+     WHERE n.nspname = 'public'
+       AND pp.proname = 'get_general_ledger'
+       AND an = 'journal_entry_id'
+  ) THEN
+    RAISE EXCEPTION 'get_general_ledger must return journal_entry_id for drill-through';
+  END IF;
+END $$;
+
 ROLLBACK;
