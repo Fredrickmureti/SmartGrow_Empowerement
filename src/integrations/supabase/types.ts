@@ -94801,6 +94801,7 @@ export type Database = {
           aging_total: number
           control_account_balance: number
           in_balance: boolean
+          unconvertible_document_count: number
           variance: number
         }[]
       }
