@@ -12,7 +12,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   BS_ASSET_ORDER,
-  BS_EQUITY_ORDER,
   BS_LIABILITY_ORDER,
   SUB_TYPE_LABELS,
   classifyAccount,
