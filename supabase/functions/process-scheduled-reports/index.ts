@@ -809,10 +809,13 @@ serve(async (req) => {
           template_id: report.template_id,
           report_type: report.report_type,
           status: "generating",
+          business_id: report.business_id ?? null,
+          branch_id: resolveScheduleBranch(report) ?? null,
           parameters: {
             date_range_type: report.date_range_type,
             format: report.format,
             include_charts: report.include_charts,
+            branch_id: resolveScheduleBranch(report) ?? null,
           },
           started_at: new Date().toISOString(),
         })
