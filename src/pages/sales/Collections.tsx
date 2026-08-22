@@ -10,6 +10,7 @@
  */
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useAgingReport, type AgingContactDetail } from "@/hooks/useAgingReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card } from "@/components/ui/card";
