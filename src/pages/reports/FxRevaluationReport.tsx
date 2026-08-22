@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -192,22 +192,32 @@ function FxRevaluationReportInner() {
         key: "run_date",
         header: "Run date",
         width: "w-[130px]",
-        render: (row) => (
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-left"
-            onClick={(e) => { e.stopPropagation(); toggle(row.id); }}
-          >
-            {expanded[row.id] ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            )}
-            <span className="font-mono text-xs">
-              {row.values?.run_date ? format(new Date(String(row.values.run_date)), "yyyy-MM-dd") : "—"}
-            </span>
-          </button>
-        ),
+        render: (row) => {
+          const raw = row.values?.run_date == null ? "" : String(row.values.run_date);
+          // Expanded child rows reuse this column for labels (currency,
+          // "Notes: …"), so never coerce them through a date parser.
+          const isDetail = row.kind === "detail" || (row.depth ?? 0) > 0;
+          if (isDetail) {
+            return <span className="text-xs text-muted-foreground">{raw || "—"}</span>;
+          }
+          const parsed = raw ? new Date(raw) : null;
+          const label = parsed && isValid(parsed) ? format(parsed, "yyyy-MM-dd") : raw || "—";
+          return (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-left"
+              onClick={(e) => { e.stopPropagation(); toggle(row.id); }}
+            >
+              {expanded[row.id] ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <span className="font-mono text-xs">{label}</span>
+            </button>
+          );
+        },
+
       },
       {
         key: "status",
@@ -318,7 +328,9 @@ function FxRevaluationReportInner() {
       { key: "je", header: "Journal entry", width: 18 },
     ];
     const exportRows: ExportRow[] = rows.map((r) => ({
-      run_date: r.run_date ? format(new Date(r.run_date), "yyyy-MM-dd") : "",
+      run_date: r.run_date && isValid(new Date(r.run_date))
+        ? format(new Date(r.run_date), "yyyy-MM-dd")
+        : (r.run_date ?? ""),
       status: r.status,
       currencies: r.currencies.join(", "),
       line_count: r.line_count,
