@@ -1,117 +1,82 @@
 # BUDGETS domain — authoritative status (wave 1)
 
-Last updated: 2026-08-22 21:55 UTC.
-Source of truth for this domain's status. Investigation findings, domain conclusions and defect catalogue live in the archived contract: `.lovable/plan/budgets-domain-rework-contract-wave-1-2026-08-22.md`. This file tracks **what is done, what is pending, and what comes next**.
+Last updated: 2026-08-22 22:20 UTC — handover verification by the incoming engineer.
+Investigation findings and domain conclusions remain in `.lovable/plan/budgets-domain-rework-contract-wave-1-2026-08-22.md`. This file is the execution contract: what is genuinely done, what is defective, what is next.
 
-Scope boundary unchanged: Budget only. Chart of Accounts, GL, fiscal periods, analytic accounting and the reporting engine are consumed, not modified (except where a budget FK/cleanup defect forced a fix).
+Scope boundary unchanged: Budget only. Chart of Accounts, GL, fiscal periods, analytic accounting and the reporting engine are consumed, not modified.
 
 Architectural invariants (do not regress):
 1. A budget is a planning object — it never posts journal entries.
-2. Actuals are **derived server-side** by one RPC. React consumes numbers and never aggregates the ledger.
+2. Actuals are derived server-side by one RPC. React consumes numbers and never aggregates the ledger.
 3. Periods come from `fiscal_periods`; `fiscal_year`/`period_month` are display-only derivations.
-4. Variance is **favourable-positive**, computed in SQL from `accounts.account_type`; income and expense are never netted into one headline figure.
+4. Variance is favourable-positive, computed in SQL from `accounts.account_type`; income and expense are never netted into one headline figure.
 5. Lifecycle `draft → active → closed` is enforced by DB triggers/RPCs; post-activation change is a numbered revision, never an in-place edit.
 6. Budgeting stays account-based — no dimensional/analytic budgeting, no encumbrance control, no hard posting blocks.
 
 ---
 
-## Phase status
+## Handover verification verdict (2026-08-22)
 
-| Phase | Status |
-| --- | --- |
-| 0 — Security hotfix | **complete, verified** |
-| 1 — Domain model correction | **complete, verified** |
-| 2 — Authoritative actuals RPC | **complete, verified** (superseded by Phase 4's live report) |
-| 3 — Lifecycle & editing correctness | **complete** — DB + hooks done; concurrency/revision tests pending in Phase 6 |
-| 4 — Reporting | **ACTIVE — code complete, verification pending** |
-| 5 — Integration & cleanup | not started ← **next milestone** |
-| 6 — Regression protection | not started |
+| Phase | Previous claim | Verified verdict |
+| --- | --- | --- |
+| 0 — Security hotfix | complete, verified | **CONFIRMED.** `check_budget_variance` requires `_business_id`, gates on `finance_can_read_scope`/`_branch`/`_financials`, validates business↔org and branch↔business parentage, and filters the ledger by `ledger_visible_journal_statuses()`, excluding closing/opening/sample. |
+| 1 — Domain model | complete, verified | **CONFIRMED** at the schema level (`budget_status` enum, lifecycle guard, `fiscal_period_id` FK, revisions tables, guarded RPCs present). |
+| 2 — Actuals RPC | complete | **CONFIRMED as superseded**; `budget_actuals` and `recalculate_budget_actuals` no longer exist and nothing in `src/` references them (only a negative assertion in the arch test). |
+| 3 — Lifecycle & editing | complete | **CONFIRMED** in code; tests still owed (Phase 6). |
+| 4 — Reporting | "code complete, verification pending" | **NOT COMPLETE — three defects found in `get_budget_variance_report` (below).** Frontend consumers are correct and thin. |
+| 5 — Integration & cleanup | not started | **CONFIRMED not started**, and worse than described (below). |
+| 6 — Regression protection | not started | Confirmed not started. |
+
+Verification evidence run this session: `pg_get_functiondef` on `get_budget_variance_report`, `check_budget_variance`, `_budget_assert_read`, `ledger_visible_journal_statuses`; `information_schema` on `fiscal_periods`/`businesses`; repo-wide grep for `budget_actuals`; read of `useBudgetVsActual.ts`, `useGLPosting.ts`, `useFiscalPeriodDetail.ts`; vitest on the two budget architecture test files — budget assertions green, the 6 failures are the documented pre-existing Partner Ledger / Journal / Cash Flow / Audit Trail / ReportPageLayout ones.
 
 ---
 
-## Phase 0 — Security hotfix — COMPLETE
+## Phase 4 — Reporting — REOPENED (defects, must close before Phase 5)
 
-Delivered (migration + code):
-- `check_budget_variance` rewritten: `_business_id` mandatory, `finance_can_read_scope` / `finance_can_read_branch` / `finance_can_read_financials` enforced, business↔org parentage validated, budget resolved by business (+branch) and fiscal period, ledger visibility via `ledger_visible_journal_statuses()`. The cross-tenant read via a caller-supplied `_org_id` is closed.
-- `budget_items` SELECT policy replaced: business + branch + financials-read, mirroring `budgets_select_v2` (was organization-wide).
-- `budget_actuals` policies replaced and **all client INSERT/UPDATE/DELETE revoked** — the actual column is no longer user-forgeable. (Table itself later dropped in Phase 4.)
-- `src/hooks/useGLPosting.ts` passes business/branch from the posting context to the RPC.
-- `src/hooks/useFiscalPeriodDetail.ts` `budget_items` query scoped to the current business and the period's fiscal year (was org-wide, cross-business).
+**D1 — FACT — reversed entries are silently dropped from actuals.**
+`get_budget_variance_report` filters `je.status = 'posted'`, while the platform's ledger-visibility contract is `ledger_visible_journal_statuses() = {posted, reversed}` and `check_budget_variance` (the posting warning) uses that function. Consequence: the budget report and the posting warning disagree, and the budget report disagrees with every other GL-derived report about the same account and period. Fix: use `je.status = ANY (public.ledger_visible_journal_statuses())`.
 
-Verified: typecheck clean; RPC rejects a foreign business; policies inspected post-migration.
-Pending for this phase: formal RLS isolation tests → deferred to Phase 6 (deliberate, tracked).
+**D2 — FACT — the report is still calendar-year bound for non-January fiscal years.**
+Periods are selected with `EXTRACT(YEAR FROM fp.start_date)::int = b.fiscal_year`. `businesses.fiscal_year_start` exists, so a business whose year starts in e.g. July has six of its twelve monthly `fiscal_periods` outside that calendar year: those periods are dropped, their plan lines get a NULL period and their ledger activity is never counted. This is invariant 3 violated in the very function that claims it. Fix: resolve the budget's period set from the business's fiscal-year window (`fiscal_periods` of `period_type='month'` contained in the `period_type='year'` row for the budget's fiscal year, falling back to a window derived from `businesses.fiscal_year_start`), and expose a fiscal period ordinal alongside the calendar `period_month` so the UI can label months in fiscal order.
 
-## Phase 1 — Domain model correction — COMPLETE
+**D3 — FACT — plan and ledger are matched on `period_month`, not on the fiscal period.**
+`combined` joins `planned` to `ledger` on `(account_id, period_month)`, and `planned` groups by `COALESCE(bi.fiscal_period_id, p.period_id)`. So `budget_items.fiscal_period_id` — the FK Phase 1 introduced precisely to be the period authority — does not actually drive the match, and a line whose stored period disagrees with its `period_month` will bucket inconsistently. Fix: make `fiscal_period_id` the join key on both sides once D2 lands.
 
-- `budget_status` enum (`draft|active|closed`) + `_budgets_lifecycle_guard` transition trigger; header/line writes blocked on `active`/`closed` except through the revision RPC, and blocked in closed fiscal periods.
-- `budget_items.fiscal_period_id` bound to `fiscal_periods`; `_budget_items_normalize()` resolves the monthly period server-side and asserts the account belongs to the budget's business.
-- `budgets.currency_code` defaulting to the business base currency; `business_id` denormalized onto budget tables with matching checks.
-- `account_id` FK moved off cascade-delete semantics; uniqueness on `(business_id, branch_id, fiscal_year, name)` and at most one `active` budget per `(business_id, branch_id, fiscal_year)`; supporting indexes added.
-- `budget_revisions` + `budget_revision_lines`; `_budgets_audit` writes create/activate/revise/close/delete to `audit_logs`.
-- RPCs `set_budget_status` and `apply_budget_revision` (SECURITY DEFINER, permission-gated) are the only lifecycle/edit-after-activation paths.
+**Also required to close Phase 4 (unchanged from the previous engineer's list, none of it done):**
+- There are currently **0 rows in `budgets` and `budget_items`** in this database, so nothing about the report has ever been exercised against data. Verification must use a purpose-built fixture, not the live tenant.
+- Parity check: report actual for one account/period vs `get_account_movements` over the same window.
+- Prove exclusion of closing/opening/sample entries and correct movement of the actual when an entry is reversed (this only becomes meaningful after D1).
+- Prove branch-scoped vs company-wide budgets return different, correctly scoped actuals.
+- Browser pass over `/reports/budget` and the budget edit page: no console errors, badges match the favourable-positive convention, drill-down opens the right journal lines.
 
-## Phase 2 — Authoritative actuals — COMPLETE (superseded by Phase 4)
+---
 
-- Server-side computation established, replacing the browser calculation (unpaginated 1,000-row truncation, wrong visibility rule, calendar-year assumption, sample/closing data included — all fixed in SQL).
-- Internal trigger functions had `EXECUTE` revoked from `public`/`authenticated`.
-- Phase 4 replaced the materialization step with live computation; the RPC contract below is now the single definition of a budget actual.
+## Phase 5 — Integration & cleanup — NOT STARTED (next after Phase 4 closes)
 
-## Phase 3 — Lifecycle & editing correctness — COMPLETE
+**D4 — FACT — a second, contradictory budget-vs-actual calculation lives in React.**
+`src/hooks/useFiscalPeriodDetail.ts` (~line 393) queries `budget_items` directly and (~line 527) computes `actual = Math.abs(accountBreakdown.net)` and `variance = actual − budgeted`. That is: an absolute value instead of a normal-balance signed movement, unfavourable-positive variance (the inverse of invariant 4), calendar month/year selection, no branch scope, and a `variancePercent` of 0 when there is no plan. The period-close screen therefore shows different numbers from the budget report for the same period. Fix: consume `get_budget_variance_report` (add a period-scoped variant taking `_fiscal_period_id`, resolving the business's active budget) and delete the local computation and the `budget_items` query.
 
-- `useBudgets.updateBudget` is a per-line diff (insert/update/delete keyed on account + period) — the delete-all/re-insert path is gone, so ids, notes and referential integrity survive an edit.
-- `activateBudget`, `closeBudget`, `applyRevision` call the guarded RPCs; DB errors surface to the user rather than being masked by UI state.
-- Cache invalidation targets the finance scope key and `budget-vs-actual`.
-- Remaining: concurrent-edit and revision-flow tests → Phase 6.
+**D5 — FACT — codemod residue in the same file.** Several queries carry duplicated `.eq("business_id", businessId)` / `.eq("business_id", currentBusiness.id)` pairs (fixed assets, depreciation, bills). Harmless today but misleading; clean the ones in the blocks this phase touches, do not sweep the file.
 
-## Phase 4 — Reporting — ACTIVE (code complete, verification pending)
+**D6** — Posting warning (`useGLPosting`) is already scope-correct and non-blocking; the remaining work is suppressing it for opening/closing-type sources beyond `year_end_closing`, and verifying it agrees with the report after D1.
 
-Database:
-- `get_budget_variance_report(_budget_id)` rebuilt as the one authoritative report. Live from the ledger: posted/ledger-visible only, closing + opening + sample activity excluded, the business's own monthly fiscal periods, budget business/branch scope, account normal-balance direction applied, favourable-positive variance by account nature, period dates/status returned, and **unbudgeted** P&L activity surfaced as its own rows. Authenticated + finance-permission gated.
-- `budget_actuals` table and `recalculate_budget_actuals` **dropped** — one definition of "actual", zero staleness surface.
-- `delete_all_chart_of_accounts` fixed: it previously tried to null `budget_items.account_id` (NOT NULL) and always failed; it now removes budget lines and revision lines.
+**D7** — Remove the remaining dead code and the misleading `SCOPE-EXEMPT` comment where RLS now proves the scope.
 
-Frontend:
-- `src/hooks/useBudgetVsActual.ts` — thin RPC consumer. No GL query, no sign logic. Returns typed rows plus income / expense / other / net totals, per-account and per-month groupings, and unbudgeted rows.
-- `src/hooks/useBudgetRevisions.ts` — revision trail with per-line before/after amounts.
-- `src/pages/reports/BudgetReport.tsx` — rebuilt on `@/design-system/reports`: revenue and cost sections plus net result, favourable/unfavourable badges, unbudgeted alert, drill-down using fiscal-period bounds, export/print through the reporting engine.
-- `src/features/finance/budgets/BudgetEditPage.tsx` — analysis section now reads the live report (revenue / cost / net cards + unbudgeted count), the "Calculate actuals" button and stored-actuals empty state are gone, per-line rows show the SQL-computed actual and favourable-positive variance, and a **Revision history** section renders the numbered trail.
-- `src/components/budgets/BudgetVsActualDialog.tsx` **deleted** — it was an unreferenced third rendering of the same report on the retired API. One report surface remains, embedded on the edit page.
-- `src/test/architecture/financial-reports-scope-labeling.test.ts` budget assertion rewritten: the hook must call `get_budget_variance_report` and must contain no `journal_entry_lines`/`budget_actuals` access. Passing.
-
-Verified so far: full `tsgo --noEmit` clean; budget architecture assertion green. (Six failures in that test file are pre-existing and belong to Partner Ledger, Journal, Cash Flow, Audit Trail and ReportPageLayout — out of this domain's scope, do not "fix" them here.)
-
-Pending to close Phase 4:
-1. Run the report against seeded data for a **non-January fiscal year** and confirm month buckets follow `fiscal_periods`, not the calendar.
-2. Parity check: report actuals for one account/period vs `get_account_movements` for the same window.
-3. Confirm a closing entry and a sample entry are both excluded, and that a voided/reversed entry moves the actual correctly.
-4. Confirm branch-scoped vs company-wide budgets return different, correctly scoped actuals.
-5. Browser pass over `/reports/budget` and the edit page: no console errors, badges match the sign convention, drill-down opens the right journal lines.
-
-## Phase 5 — Integration & cleanup — NOT STARTED (next milestone)
-
-- Posting warning (`useGLPosting`) uses the hardened RPC with full business/branch/period scope, stays **non-blocking**, and is suppressed for closing/opening entries.
-- Period-close screen (`useFiscalPeriodDetail`) consumes the authoritative RPC instead of reading `budget_items` directly.
-- Remove remaining dead code and the misleading `SCOPE-EXEMPT` comment where RLS now proves the scope.
+---
 
 ## Phase 6 — Regression protection — NOT STARTED
 
-- Architecture tests: no GL aggregation anywhere in budget hooks; no client write to any actuals surface; no direct `budget_items` read outside the budget feature.
-- RLS isolation tests: business A cannot read business B's budget, lines or revisions; cross-org `check_budget_variance` raises `42501`.
-- Accounting fixtures for the Phase 4 verification list above, wired into CI.
-- Lifecycle tests: illegal transitions rejected; edit-after-activation produces a revision; edit in a closed period fails.
+- Architecture tests: no GL aggregation in any budget consumer (extend the existing assertion to `useFiscalPeriodDetail`); no client write to any actuals surface; no direct `budget_items` read outside the budget feature.
+- RLS/isolation tests: business A cannot read business B's budget, lines or revisions; cross-org `check_budget_variance` raises `42501`; `get_budget_variance_report` on a foreign budget raises `42501`.
+- Accounting fixtures covering the Phase 4 verification list (non-January fiscal year, reversal, closing/opening/sample exclusion, branch scope), wired into CI.
+- Lifecycle tests: illegal transitions rejected; edit-after-activation produces a numbered revision; edit inside a closed period fails.
 
 ---
 
-## Handover — instructions for the next agent
+## Execution order
 
-**Step 1 — verify before you build.** Do not start Phase 5 until Phase 4 is proven. Work the "Pending to close Phase 4" list above:
-- Read `get_budget_variance_report` in the database and confirm each invariant it claims: ledger-visible statuses only, `is_closing`/`is_closing_entry`/`is_opening_entry` and `is_sample_data` excluded, periods joined from `fiscal_periods` for the budget's business, business + branch scope, permission gate present, and favourable-positive variance derived from `accounts.account_type`.
-- Confirm nothing anywhere still references `budget_actuals` or writes actuals from the client.
-- Run `npx tsgo --noEmit` and the architecture test file; the only failures allowed are the six pre-existing non-budget ones listed above.
-- If any check fails, fix it inside Phase 4 and update this file — do not carry a defect forward.
+D1 → D2 → D3 (one migration, they touch the same function) → Phase 4 verification fixtures → D4/D5/D6/D7 → Phase 6.
 
-**Step 2 — then resume chronologically at Phase 5**, in the order listed, finishing it to a production-ready state (posting warning, period-close consumer, dead-code removal) before opening Phase 6.
+**Do not**: introduce dimensional/analytic budgeting, encumbrance control, forecasting or AI commentary; re-add a stored/materialised actuals table; make the posting warning blocking; move variance or sign logic into React; or repair the six unrelated failing report assertions while in this wave.
 
-**Do not**: introduce dimensional/analytic budgeting, encumbrance control, forecasting or AI commentary; re-add a stored/materialized actuals table; make the posting warning blocking; move variance or sign logic back into React; or fix unrelated report domains while in this wave.
-
-**Always**: update this file immediately after each implementation so it stays the authoritative status record.
+**Always**: update this file immediately after each slice so it stays the authoritative status record.
