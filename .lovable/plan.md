@@ -92,3 +92,30 @@ fiscal-year anchoring makes the mid-year case fail.
 No second reporting engine, no client-side ledger aggregation, no FX translation
 work, no posting-engine changes. Trial Balance / GL / Journal Report touched only
 through the shared authorization functions.
+
+## Execution status
+
+- **Active phase:** none in flight — every item above marked DONE is complete,
+  typechecked (`tsgo` clean) and covered by passing tests
+  (`src/test/architecture/report-statement-snapshot.test.ts`, plus
+  `report-export-coherence` and `ledger-reports-single-source` re-run green).
+- **Next phase:** Pending item 1 — **Phase D, hierarchy correctness**.
+
+## Instructions for the next agent
+
+1. **Verify before extending.** Re-confirm, don't trust this file:
+   - `finance_can_read_branch` / `finance_can_read_financials` exist and appear in all
+     five reporting RPCs (`pg_get_functiondef`), and that an authenticated non-HQ user
+     is refused a sibling branch. `supabase--read_query` cannot execute these RPCs
+     (no EXECUTE for that role) and this project is `external_unmanaged`, so no
+     authenticated browser session could be minted — **the gates are proven by
+     definition inspection and a lock-out probe, not by a live signed-in call.** Close
+     that gap with the SQL tests in pending item 7.
+   - `useFinancialReport.ts` resolves `get_equity_result` before movements/openings and
+     uses `fiscal_year_start` as the window start; the client path has no unit test yet
+     (the server path does) — consider adding one.
+   - Run `bunx vitest run src/test/architecture/report-statement-snapshot.test.ts`; it
+     must pass, and must fail if the fiscal-year anchoring is reverted.
+2. **Then resume at Phase D** (parent/child roll-up and single-count section totals) —
+   the largest remaining accounting-correctness risk — and work down the pending list
+   in order. Update this file as each item lands.
