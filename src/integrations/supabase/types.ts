@@ -91171,6 +91171,17 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
+      budget_fiscal_months: {
+        Args: { _business_id: string; _fiscal_year: number }
+        Returns: {
+          end_date: string
+          period_id: string
+          period_month: number
+          period_ordinal: number
+          start_date: string
+          status: string
+        }[]
+      }
       build_invoice_je_lines: { Args: { p_invoice_id: string }; Returns: Json }
       calculate_leave_days: {
         Args: {
@@ -95809,6 +95820,7 @@ export type Database = {
           is_unbudgeted: boolean
           period_end: string
           period_month: number
+          period_ordinal: number
           period_start: string
           period_status: string
           variance_amount: number
