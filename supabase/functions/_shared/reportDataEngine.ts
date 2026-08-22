@@ -78,6 +78,10 @@ export interface ClassifiedRow {
   amount?: number;
   /** Balance Sheet money cell — matches the balance_sheet column registry. */
   balance?: number;
+  /** Comparative P&L cells. */
+  comparison?: number | null;
+  variance?: number | null;
+  variance_percent?: number | null;
   /** Canonical semantic line kind consumed by the PDF engine. */
   _kind?: "section" | "subsection" | "detail" | "subtotal" | "major_total" | "calculated_result" | "grand_total" | "spacer";
   /** Legacy flags retained for older renderers; `_kind` is authoritative. */
@@ -757,6 +761,186 @@ export async function buildIncomeStatement(
     },
   };
 }
+
+/**
+ * Comparative Profit & Loss for scheduled/server-built exports. This is the
+ * same multi-step presentation as the screen's comparison mode: every detail,
+ * subtotal and calculated result carries all four money columns, so the
+ * statement foots horizontally as well as vertically.
+ */
+export async function buildComparativeIncomeStatement(
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string | undefined,
+  startStr: string,
+  endStr: string,
+  branchId?: string,
+  mode: Exclude<ComparisonMode, "none"> = "previous_year",
+): Promise<ReportResult> {
+  const comparisonPeriod = resolveComparisonPeriod(mode, startStr, endStr);
+  if (!comparisonPeriod) throw new Error(`Unsupported comparison mode: ${mode}`);
+
+  const [currentAccounts, comparisonAccounts] = await Promise.all([
+    getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["income", "expense"], branchId),
+    getGLAccountBalances(
+      supabase,
+      organizationId,
+      businessId,
+      comparisonPeriod.from,
+      comparisonPeriod.to,
+      ["income", "expense"],
+      branchId,
+    ),
+  ]);
+
+  interface ComparativeAccount extends AccountWithBalance {
+    sub_type: AccountSubType;
+    balance: number;
+  }
+
+  const classify = (accounts: AccountWithBalance[]): ComparativeAccount[] =>
+    accounts.map(a => ({
+      ...a,
+      sub_type: classifyAccountSubType(a.account_type, a.code, a.detail_type),
+      balance: a.closing_balance - a.opening_balance,
+    }));
+
+  const currentClassified = classify(currentAccounts);
+  const comparisonClassified = classify(comparisonAccounts);
+  const currentById = new Map(currentClassified.map(a => [a.id, a]));
+  const comparisonById = new Map(comparisonClassified.map(a => [a.id, a]));
+
+  // One row per account. Current-period classification wins when an account's
+  // type/detail changed; comparison-only accounts still appear so the
+  // comparison column foots instead of silently dropping closed accounts.
+  const orderedAccounts: ComparativeAccount[] = [...currentClassified];
+  for (const account of comparisonClassified) {
+    if (!currentById.has(account.id)) orderedAccounts.push(account);
+  }
+
+  const rows: ClassifiedRow[] = [];
+
+  const section = (
+    subType: AccountSubType,
+    accountType: "income" | "expense",
+    heading: string,
+  ): { current: number; comparison: number } => {
+    const group = orderedAccounts.filter(a => a.sub_type === subType && a.account_type === accountType);
+    if (group.length === 0) return { current: 0, comparison: 0 };
+
+    let currentTotal = 0;
+    let comparisonTotal = 0;
+    rows.push({ name: heading.toUpperCase(), _kind: "section", _isHeader: true, _bold: true });
+
+    for (const account of group) {
+      const current = currentById.get(account.id)?.balance ?? 0;
+      const comparison = comparisonById.get(account.id)?.balance ?? 0;
+      if (current === 0 && comparison === 0) continue;
+      currentTotal += current;
+      comparisonTotal += comparison;
+      rows.push({
+        name: account.name,
+        code: account.code,
+        ...comparisonCell(current, comparison),
+        _kind: "detail",
+        _depth: 1,
+      });
+    }
+
+    rows.push({
+      name: `Total ${heading}`,
+      ...comparisonCell(currentTotal, comparisonTotal),
+      _kind: "subtotal",
+      _isSubtotal: true,
+      _depth: 0,
+    });
+    return { current: currentTotal, comparison: comparisonTotal };
+  };
+
+  const revenue = section("revenue", "income", "Revenue");
+  const costOfSales = section("cost_of_sales", "expense", "Cost of Sales");
+  const grossProfit = {
+    current: revenue.current - costOfSales.current,
+    comparison: revenue.comparison - costOfSales.comparison,
+  };
+  rows.push({
+    name: "GROSS PROFIT",
+    ...comparisonCell(grossProfit.current, grossProfit.comparison),
+    _kind: "calculated_result",
+    _isSubtotal: true,
+    _bold: true,
+  });
+
+  const operatingExpenses = section("operating_expense", "expense", "Operating Expenses");
+  const operatingProfit = {
+    current: grossProfit.current - operatingExpenses.current,
+    comparison: grossProfit.comparison - operatingExpenses.comparison,
+  };
+  rows.push({
+    name: "OPERATING PROFIT",
+    ...comparisonCell(operatingProfit.current, operatingProfit.comparison),
+    _kind: "calculated_result",
+    _isSubtotal: true,
+    _bold: true,
+  });
+
+  const otherIncome = section("other_income", "income", "Other Income");
+  const otherExpenses = section("other_expense", "expense", "Other Expenses");
+  const profitBeforeTax = {
+    current: operatingProfit.current + otherIncome.current - otherExpenses.current,
+    comparison: operatingProfit.comparison + otherIncome.comparison - otherExpenses.comparison,
+  };
+  rows.push({
+    name: "PROFIT BEFORE TAX",
+    ...comparisonCell(profitBeforeTax.current, profitBeforeTax.comparison),
+    _kind: "calculated_result",
+    _isSubtotal: true,
+    _bold: true,
+  });
+
+  const taxExpense = section("tax_expense", "expense", "Tax Expense");
+  const netIncome = {
+    current: profitBeforeTax.current - taxExpense.current,
+    comparison: profitBeforeTax.comparison - taxExpense.comparison,
+  };
+  rows.push({
+    name: "NET PROFIT",
+    ...comparisonCell(netIncome.current, netIncome.comparison),
+    _kind: "grand_total",
+    _isGrandTotal: true,
+    _bold: true,
+  });
+
+  return {
+    data: rows as unknown as Record<string, unknown>[],
+    columns: [
+      { key: "name", header: "Account", width: 40, align: "left", format: "text" },
+      { key: "amount", header: "Current", width: 15, align: "right", format: "currency" },
+      { key: "comparison", header: "Comparison", width: 15, align: "right", format: "currency" },
+      { key: "variance", header: "Variance", width: 15, align: "right", format: "currency" },
+      { key: "variance_percent", header: "Var %", width: 15, align: "right", format: "percent" },
+    ],
+    comparisonPeriod,
+    summary: {
+      totalRevenue: revenue.current,
+      totalCOGS: costOfSales.current,
+      grossProfit: grossProfit.current,
+      operatingExpenses: operatingExpenses.current,
+      operatingProfit: operatingProfit.current,
+      otherIncome: otherIncome.current,
+      otherExpenses: otherExpenses.current,
+      profitBeforeTax: profitBeforeTax.current,
+      taxExpense: taxExpense.current,
+      netIncome: netIncome.current,
+      comparisonRevenue: revenue.comparison,
+      comparisonNetIncome: netIncome.comparison,
+      netIncomeVariance: netIncome.current - netIncome.comparison,
+      comparisonFrom: comparisonPeriod.from,
+      comparisonTo: comparisonPeriod.to,
+    },
+  };
+}
+
 
 
 /**
