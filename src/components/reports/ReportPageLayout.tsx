@@ -33,6 +33,7 @@ import {
   type ReportEmptyStateDescriptor,
 } from "./ReportEmptyState";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import type { ReportKind } from "@/lib/reports/branchScopability";
 
 interface ReportPageLayoutProps {
   /** Report title */
@@ -62,6 +63,12 @@ interface ReportPageLayoutProps {
   children: ReactNode;
   /** Additional header actions */
   headerActions?: ReactNode;
+  /**
+   * Registry key for branch scoping. Pages that pass this get one
+   * context-aware branch control owned by the layout (entity-only reports
+   * show the rationale instead of a dropdown).
+   */
+  reportKind?: ReportKind;
 }
 
 export function ReportPageLayout({
@@ -76,6 +83,7 @@ export function ReportPageLayout({
   filters,
   children,
   headerActions,
+  reportKind,
 }: ReportPageLayoutProps) {
   const { enrichExportConfig } = useReportExportContext();
   const scope = useFinanceScope();
@@ -103,7 +111,10 @@ export function ReportPageLayout({
     const raw = getExportConfig();
     return enrichExportConfig({
       ...raw,
-      branchId: scope.branchId ?? null,
+      // The report's own filter state is authoritative when it supplied a
+      // branch; explicit null is "All branches" and must not fall through to
+      // the global branch switcher.
+      branchId: raw.branchId !== undefined ? raw.branchId : scope.branchId ?? null,
     }) as ExportConfig;
   }, [getExportConfig, enrichExportConfig, scope.branchId, title]);
 
@@ -140,7 +151,7 @@ export function ReportPageLayout({
             single-branch businesses. */}
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <ReportBranchFilter />
+            <ReportBranchFilter reportKind={reportKind} />
             {filters}
           </CardContent>
         </Card>

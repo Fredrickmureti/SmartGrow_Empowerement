@@ -58,9 +58,10 @@ interface ReportContextValue extends ReportRenderContext {
    *     ...enrichExportConfig({}),   // injects identity + scope
    *   })}
    *
-   * Pages MUST NOT pass `companyName` / `organizationId` / `businessId` /
-   * `branchId` themselves — identity is owned by this context, not by
-   * individual pages.
+   * Pages MUST NOT pass `companyName` / `organizationId` / `businessId`
+   * themselves — identity is owned by this context. They MAY pass `branchId`
+   * when the report's own filter is authoritative; an explicit null means
+   * "All branches" and must survive the merge.
    */
   enrichExportConfig: <T extends Partial<ExportConfig>>(config: T) => T & {
     organizationId?: string;
@@ -108,9 +109,11 @@ export function ReportContextProvider({ children }: { children: ReactNode }) {
       ...config,
       organizationId: ctx.organizationId ?? config.organizationId,
       businessId: ctx.businessId ?? config.businessId,
-      // Branch is scope, not branding: an explicitly-passed branch (e.g. a
-      // report that pins one branch) wins over the ambient one.
-      branchId: config.branchId ?? ctx.branchId ?? null,
+      // Branch is scope, not branding: a report-local branch wins over the
+      // ambient navigation branch. Preserve explicit null ("All branches") —
+      // nullish fallback used to turn that deliberate consolidated scope back
+      // into whichever branch the global switcher happened to hold.
+      branchId: config.branchId !== undefined ? config.branchId : ctx.branchId ?? null,
       companyName: ctx.companyName ?? config.companyName,
       currency: ctx.currency ?? config.currency,
     }),

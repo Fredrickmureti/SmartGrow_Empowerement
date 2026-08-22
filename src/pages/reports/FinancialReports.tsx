@@ -34,7 +34,7 @@ import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/Dril
 import { PeriodLockBanner } from "@/components/reports/PeriodLockBanner";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
-import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+
 import { useNavigate } from "react-router-dom";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import {
@@ -204,8 +204,9 @@ function FinancialReportsInner() {
     reportType: "balance_sheet",
     dateFrom: "1970-01-01",
     dateTo,
-    comparisonDateFrom: comparison.from ? "1970-01-01" : undefined,
-    comparisonDateTo: comparison.to,
+    // No comparative fetch here: a Balance Sheet comparative needs its own
+    // fiscal-year anchor and presentation contract. Fetching an epoch-to-date
+    // comparison and never rendering it was both misleading and wasteful.
     // Wave 5: Balance Sheet is an entity-level statement. Never split by
     // branch — assets/liabilities/equity belong to the legal entity.
     branchId: null,
@@ -496,7 +497,9 @@ function FinancialReportsInner() {
     rows: toExportRows(pnlRows, pnlColumns),
     sheetName: "Profit & Loss",
     currency: baseCurrency,
-  }), [pnlColumns, pnlRows, dateFrom, dateTo, currentOrg, baseCurrency]);
+    // The export states the same report-local branch as the query above.
+    branchId: filters.branchId ?? null,
+  }), [pnlColumns, pnlRows, dateFrom, dateTo, currentOrg, baseCurrency, filters.branchId]);
 
   const getBsExportConfig = useCallback((): ExportConfig => ({
     title: "Balance Sheet",
@@ -508,6 +511,8 @@ function FinancialReportsInner() {
     rows: toExportRows(bsRows, bsColumns),
     sheetName: "Balance Sheet",
     currency: baseCurrency,
+    // Explicit null must survive enrichment: this statement is consolidated.
+    branchId: null,
   }), [bsColumns, bsRows, dateTo, currentOrg, baseCurrency]);
 
   const getExportConfig = activeTab === "pnl" ? getPnlExportConfig : getBsExportConfig;
@@ -516,6 +521,7 @@ function FinancialReportsInner() {
     <ReportPageLayout
       title="Financial Statements"
       description="Accrual-based financial statements from journal entries"
+      reportKind={activeTab === "pnl" ? "pnl" : "balance_sheet"}
       isLoading={isLoading}
       error={error as Error | null}
       getExportConfig={getExportConfig}
@@ -542,10 +548,6 @@ function FinancialReportsInner() {
           onDateFromChange={setDateFrom}
           onDateToChange={setDateTo}
         >
-          {/* Wave 5: branch filter is context-aware. P&L is branch-sliceable;
-              Balance Sheet is entity-only and the component renders an
-              "Entity-level report" hint instead of a dropdown. */}
-          <ReportBranchFilter reportKind={activeTab === "pnl" ? "pnl" : "balance_sheet"} />
           {activeTab === "pnl" && (
             <div className="space-y-2">
               <Label className="text-xs">Compare</Label>
