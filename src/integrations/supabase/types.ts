@@ -96402,6 +96402,22 @@ export type Database = {
         Args: { provider_code: string }
         Returns: Json
       }
+      get_period_budget_variance: {
+        Args: { _fiscal_period_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual_amount: number
+          budget_id: string
+          budgeted_amount: number
+          is_favourable: boolean
+          is_unbudgeted: boolean
+          variance_amount: number
+          variance_percent: number
+        }[]
+      }
       get_platform_admin_permissions: {
         Args: { _user_id: string }
         Returns: string[]
