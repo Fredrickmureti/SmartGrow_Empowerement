@@ -138,11 +138,21 @@ export interface FinancialReportData {
 // ─── Fetcher Functions ───────────────────────────────────────────────
 
 /**
- * Fetch active accounts for reporting.
+ * Fetch accounts for reporting.
  * `accounts.business_id` is NOT NULL, so the scope is strict equality — the
  * same rule `get_general_ledger` and the server-side PDF engine apply. A
  * looser `business_id IS NULL` leg would make the screen and the exported
  * document disagree about which accounts are in scope.
+ *
+ * DEACTIVATED ACCOUNTS ARE FETCHED TOO. Deactivating an account does not
+ * settle its balance: a closed bank account or a retired loan account still
+ * carries a position that the entity owns or owes. Filtering on
+ * `is_active = true` here removed those rows while the trial balance /
+ * equity figures still contained them, so a balance sheet stopped balancing
+ * the day someone tidied the chart of accounts. Presentation is handled by
+ * the zero-activity rule below: an inactive account with no opening balance
+ * and no movement is dropped like any other empty account, so the chart
+ * stays clean without silently losing money.
  */
 async function fetchAccounts(
   orgId: string,
@@ -154,8 +164,8 @@ async function fetchAccounts(
     .from("accounts")
     .select("id, code, name, account_type, detail_type, opening_balance, parent_id, is_active")
     .eq("organization_id", orgId)
-    .eq("is_active", true)
     .order("code");
+
 
   if (businessId) {
     query = query.eq("business_id", businessId);

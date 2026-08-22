@@ -300,13 +300,20 @@ export async function getGLAccountBalances(
 ): Promise<AccountWithBalance[]> {
   const scopedBusinessId = requireBusinessId(businessId);
 
+  // Deactivated accounts are INCLUDED. Deactivation is a chart-of-accounts
+  // hygiene action, not a settlement: a closed bank account or retired loan
+  // still carries a position the entity owns or owes, and dropping those rows
+  // here while the equity/result RPCs still counted their movement is how a
+  // balance sheet stops balancing. Zero rows are suppressed downstream
+  // (`closing_balance === 0`), so an inactive-and-empty account still never
+  // reaches the page — same rule the screens apply.
   let accountsQuery = supabase
     .from("accounts")
     .select("id, code, name, account_type, detail_type, parent_id, opening_balance, is_active")
     .eq("organization_id", organizationId)
     .eq("business_id", scopedBusinessId)
-    .eq("is_active", true)
     .order("code");
+
 
   if (accountTypeFilter && accountTypeFilter.length > 0) {
     accountsQuery = accountsQuery.in("account_type", accountTypeFilter);
