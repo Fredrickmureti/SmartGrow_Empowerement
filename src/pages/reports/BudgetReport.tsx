@@ -166,7 +166,7 @@ function BudgetReportInner() {
       const t = accountType === "income" ? report.income : accountType === "expense" ? report.expense : report.other;
       out.push({
         id: `${accountType}-total`,
-        kind: "total",
+        kind: "subtotal",
         label: `Total ${label}`,
         values: {
           budgeted: t.budgeted,
