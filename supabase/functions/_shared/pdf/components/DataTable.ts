@@ -30,7 +30,14 @@ export interface TableColumn {
   width?: number;
   format?: string;
   align?: "left" | "center" | "right";
+  /**
+   * Optional header band this column belongs to ("Opening balance").
+   * Contiguous columns sharing a label are drawn under one centred caption.
+   * Omitted on every column = single-tier header (pre-existing behaviour).
+   */
+  group?: string;
 }
+
 
 /**
  * Optional drill-down metadata embedded on a row. The PDF rendering layer
