@@ -7903,6 +7903,8 @@ export type Database = {
           budget_id: string
           business_id: string
           calculated_at: string | null
+          calculated_by: string | null
+          fiscal_period_id: string | null
           fiscal_year: number
           id: string
           organization_id: string
@@ -7914,6 +7916,8 @@ export type Database = {
           budget_id: string
           business_id: string
           calculated_at?: string | null
+          calculated_by?: string | null
+          fiscal_period_id?: string | null
           fiscal_year: number
           id?: string
           organization_id: string
@@ -7925,6 +7929,8 @@ export type Database = {
           budget_id?: string
           business_id?: string
           calculated_at?: string | null
+          calculated_by?: string | null
+          fiscal_period_id?: string | null
           fiscal_year?: number
           id?: string
           organization_id?: string
@@ -7979,6 +7985,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_actuals_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "budget_actuals_organization_id_fkey"
@@ -87492,6 +87505,29 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _budget_assert_read: {
+        Args: { _budget_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string | null
+          description: string | null
+          fiscal_year: number
+          id: string
+          name: string
+          organization_id: string
+          status: Database["public"]["Enums"]["budget_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "budgets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _confirm_invoice_core: {
         Args: {
           p_final_status?: string
@@ -95879,6 +95915,22 @@ export type Database = {
               status: string
             }[]
           }
+      get_budget_variance_report: {
+        Args: { _budget_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual_amount: number
+          budgeted_amount: number
+          fiscal_period_id: string
+          period_month: number
+          period_status: string
+          variance_amount: number
+          variance_percent: number
+        }[]
+      }
       get_business_transit_location: {
         Args: { p_business_id: string }
         Returns: string
@@ -101228,6 +101280,15 @@ export type Database = {
       rebuild_warehouse_stock_lots: {
         Args: { p_business_id: string }
         Returns: Json
+      }
+      recalculate_budget_actuals: {
+        Args: { _budget_id: string }
+        Returns: {
+          account_id: string
+          actual_amount: number
+          fiscal_period_id: string
+          period_month: number
+        }[]
       }
       recall_lot: {
         Args: {

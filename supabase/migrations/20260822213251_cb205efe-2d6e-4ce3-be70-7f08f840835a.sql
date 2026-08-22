@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.budget_actuals IS 'Derived actuals per budget line. Written only by recalculate_budget_actuals(); never written directly by clients.';
