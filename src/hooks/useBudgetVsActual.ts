@@ -26,8 +26,12 @@ export interface BudgetVarianceRow {
   accountCode: string;
   accountName: string;
   accountType: string;
+  /** Calendar month of the accounting period (1–12), for display only. */
   month: number;
+  /** Position of the period inside the budget's fiscal year (1 = first month). */
+  periodOrdinal: number;
   fiscalPeriodId: string | null;
+
   periodStart: string | null;
   periodEnd: string | null;
   periodStatus: string | null;
