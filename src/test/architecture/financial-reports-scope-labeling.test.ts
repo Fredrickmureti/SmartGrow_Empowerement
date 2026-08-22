@@ -156,10 +156,13 @@ describe("Phase 14 — financial reports scope labeling", () => {
     expect(dr).toMatch(/branch_id\.eq\.\$\{branchId\}/);
   });
 
-  it("Budget vs Actual scopes calculated actuals by the budget's own branch", () => {
+  it("Budget vs Actual reads the authoritative RPC and never aggregates the ledger in React", () => {
     const hook = read("src/hooks/useBudgetVsActual.ts");
-    expect(hook).toMatch(/budget\)\.branch_id/);
-    expect(hook).toMatch(/journal_entry\.branch_id/);
+    // Scope (business + branch), ledger visibility, closing/opening and sample
+    // exclusion all live inside get_budget_variance_report.
+    expect(hook).toMatch(/get_budget_variance_report/);
+    expect(hook).not.toMatch(/journal_entry_lines/);
+    expect(hook).not.toMatch(/budget_actuals/);
   });
 });
 
