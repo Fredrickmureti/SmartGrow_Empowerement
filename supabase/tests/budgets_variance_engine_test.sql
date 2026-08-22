@@ -98,7 +98,7 @@ DECLARE
   v_currency text;
   v_failed boolean;
 BEGIN
-  PERFORM set_config('session_replication_role', 'replica', true);
+  
   PERFORM set_config('request.jwt.claims',
     json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
 
