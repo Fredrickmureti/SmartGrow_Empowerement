@@ -295,15 +295,28 @@ export default function BudgetEditPage() {
   const getVarianceForItem = (accountId: string, month: number) =>
     varianceReport?.rows.find((r) => r.accountId === accountId && r.month === month);
 
+  /**
+   * Revenue and cost are charted as separate series. They are never summed:
+   * income is credit-normal and expense is debit-normal, so a combined bar
+   * would carry no accounting meaning (see the favourable-positive invariant
+   * in the budget domain plan).
+   */
   const chartData = useMemo(() => {
     if (!varianceReport) {
+      const typeOf = (accountId: string) =>
+        accounts.find((a) => a.id === accountId)?.account_type;
       return MONTHS.map((month, index) => {
         const monthItems = items.filter((it) => it.period_month === index + 1);
+        const sumFor = (t: string) =>
+          monthItems
+            .filter((i) => typeOf(i.account_id) === t)
+            .reduce((sum, i) => sum + i.budgeted_amount, 0);
         return {
           month: month.substring(0, 3),
-          budgeted: monthItems.reduce((sum, i) => sum + i.budgeted_amount, 0),
-          actual: 0,
-          variance: 0,
+          revenuePlan: sumFor("income"),
+          revenueActual: 0,
+          costPlan: sumFor("expense"),
+          costActual: 0,
         };
       });
     }
@@ -311,12 +324,14 @@ export default function BudgetEditPage() {
       const income = varianceReport.incomeByMonth[index];
       return {
         month: point.month,
-        budgeted: point.budgeted + (income?.budgeted ?? 0),
-        actual: point.actual + (income?.actual ?? 0),
-        variance: point.variance + (income?.variance ?? 0),
+        revenuePlan: income?.budgeted ?? 0,
+        revenueActual: income?.actual ?? 0,
+        costPlan: point.budgeted,
+        costActual: point.actual,
       };
     });
-  }, [varianceReport, items]);
+  }, [varianceReport, items, accounts]);
+
 
   const getStatusBadge = (status: string) => {
     switch (status) {
