@@ -211,7 +211,11 @@ function FinancialReportsInner() {
     // P&L is period-bounded. Use the same startDate semantics here as the engine
     // uses to compute the displayed number, otherwise the drill total will not
     // reconcile with the BS line.
-    const isBalanceSheet = activeTab === "bs";
+    //
+    // The tab value is "balance_sheet" (see <TabsTrigger>); comparing against
+    // "bs" silently made every Balance Sheet drill-down period-bounded, so the
+    // listed journals could never add up to the cumulative balance shown.
+    const isBalanceSheet = activeTab === "balance_sheet";
     setDrillDown({
       title: `${account.code} - ${account.name}`,
       accountId: account.id,
@@ -219,6 +223,7 @@ function FinancialReportsInner() {
       endDate: dateTo,
     });
   };
+
 
   /** Navigate to General Ledger filtered to a specific account */
   const handleViewInGL = (account: { id: string }) => {
@@ -414,10 +419,11 @@ function FinancialReportsInner() {
         values: { name: acct.name, balance: acct.closing_balance },
       });
     }
-    // Equity accounts above already carry every CLOSED year's result (SQL folds
-    // it into the retained-earnings account's opening balance). Only the
-    // current fiscal year's result is added as a separate line, so no year is
-    // presented twice.
+    // The retained-earnings account listed above carries every CLOSED fiscal
+    // year's result, because the engine now reads the opening position AT the
+    // fiscal-year start — which is where `get_ledger_opening_balances` performs
+    // the fold. Only the current fiscal year's result is added as a separate
+    // line, so no year is presented twice.
     if (bsData?.balanceSheetTotals?.currentYearEarnings) {
       out.push({
         id: "current-year-earnings",
@@ -428,20 +434,25 @@ function FinancialReportsInner() {
         },
       });
     }
+    // With no retained-earnings account, SQL has nowhere to fold the closed
+    // years' result. It is presented as an unallocated equity line — and
+    // included in total equity — so the statement still balances instead of
+    // silently losing the amount.
     if (
       bsData?.balanceSheetTotals &&
       !bsData.balanceSheetTotals.hasRetainedEarningsAccount &&
       bsData.balanceSheetTotals.priorYearsResult !== 0
     ) {
       out.push({
-        id: "retained-earnings-missing",
+        id: "retained-earnings-unallocated",
         depth: 2,
         values: {
-          name: "No retained earnings account — prior years' result is not presented",
+          name: "Prior years' result (unallocated — no retained earnings account)",
           balance: bsData.balanceSheetTotals.priorYearsResult,
         },
       });
     }
+
 
     out.push({
       id: "total-equity",
@@ -545,6 +556,33 @@ function FinancialReportsInner() {
         </ReportFilters>
       }
     >
+      {/*
+        Consolidation gate. With no company in context in a multi-company
+        workspace the engine deliberately returns no figures, because summing
+        separate ledgers without intercompany eliminations is materially wrong.
+        Without this banner the page rendered a statement full of zeros and
+        looked like a company with no activity.
+      */}
+      {(pnlData?.requiresConsolidation || bsData?.requiresConsolidation) && (
+        <Card className="border-warning/50 bg-warning/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="font-semibold">Select a company to view financial statements</h3>
+                <p className="text-sm text-muted-foreground">
+                  This workspace has more than one company. Financial statements are
+                  prepared per legal entity — combining ledgers requires intercompany
+                  eliminations and currency translation, so no figures are shown until a
+                  company is selected.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
       {/* Period-lock indicator — figures for closed periods are stable */}
       <PeriodLockBanner
         dateFrom={activeTab === "pnl" ? dateFrom : undefined}

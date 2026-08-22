@@ -287,6 +287,48 @@ export function useFinancialReport(params: FinancialReportParams) {
         }
       }
 
+      // ── Balance-sheet reporting window ──────────────────────────────
+      //
+      // A Balance Sheet is cumulative, so the page asks for an epoch start
+      // (1970-01-01). Reading opening balances AT that epoch, however,
+      // defeats the retained-earnings fold that
+      // `get_ledger_opening_balances` performs: the RPC derives the fiscal
+      // year from its own `_as_of`, so an epoch `_as_of` produces a 1970
+      // fiscal year and folds NOTHING into retained earnings. Every closed
+      // year's result then existed in no balance-sheet account at all and
+      // the statement could not balance.
+      //
+      // Fix: resolve the fiscal year from SQL (`get_equity_result`, the one
+      // retained-earnings authority) and read the opening position AT the
+      // fiscal-year start, with movement over the current fiscal year. The
+      // arithmetic is identical for every other account — opening as of the
+      // FY start already contains all prior movement — but the retained
+      // earnings account now carries the closed years' result, exactly as it
+      // does on the server-side PDF path (which always passed a real
+      // period start and therefore never had this defect).
+      let equityResult:
+        | {
+            fiscal_year_start?: string | null;
+            current_year_earnings?: number;
+            prior_years_result?: number;
+            retained_earnings_account_id?: string | null;
+          }
+        | undefined;
+      let effectiveDateFrom = params.dateFrom;
+      if (params.reportType === "balance_sheet") {
+        const { data: equityRows, error: equityError } = await supabase.rpc("get_equity_result", {
+          _org_id: orgId,
+          _business_id: businessId ?? null,
+          _as_of: params.dateTo,
+          _branch_id: params.branchId ?? null,
+        });
+        if (equityError) throw equityError;
+        equityResult = (Array.isArray(equityRows) ? equityRows[0] : equityRows) ?? undefined;
+        if (equityResult?.fiscal_year_start) {
+          effectiveDateFrom = equityResult.fiscal_year_start;
+        }
+      }
+
       // Determine which account types to fetch based on report type
       let accountTypes: Array<"asset" | "liability" | "equity" | "income" | "expense"> | undefined = params.accountTypes;
       if (!accountTypes) {
@@ -304,9 +346,10 @@ export function useFinancialReport(params: FinancialReportParams) {
       // Fetch accounts and movements in parallel (using server-side RPC)
       const [accounts, periodByAccount, openingByAccount] = await Promise.all([
         fetchAccounts(orgId, businessId, accountTypes, params.accountIds),
-        fetchMovementsRPC(orgId, params.dateFrom, params.dateTo, businessId, params.branchId),
-        fetchOpeningBalancesRPC(orgId, params.dateFrom, businessId, params.branchId),
+        fetchMovementsRPC(orgId, effectiveDateFrom, params.dateTo, businessId, params.branchId),
+        fetchOpeningBalancesRPC(orgId, effectiveDateFrom, businessId, params.branchId),
       ]);
+
 
       // Fetch comparison period if requested
       let comparisonMovements: Map<string, { debit: number; credit: number }> | null = null;
@@ -479,38 +522,39 @@ export function useFinancialReport(params: FinancialReportParams) {
           const totalEquity = sectionTotals["equity"] || 0;
 
           // Retained earnings authority is SQL, not the browser.
-          // `get_equity_result` returns the fiscal-year start, this year's
-          // result and the accumulated result of every closed year. Only the
-          // CURRENT year's result is added here: closed years are already
-          // folded into the retained-earnings account's opening balance by
-          // `get_ledger_opening_balances`, so adding an all-time figure (as
-          // this hook used to) counted prior-year profit twice.
-          const { data: equityRows, error: equityError } = await supabase.rpc(
-            "get_equity_result",
-            {
-              _org_id: orgId,
-              _business_id: businessId ?? null,
-              _as_of: params.dateTo,
-              _branch_id: params.branchId ?? null,
-            },
-          );
-          if (equityError) throw equityError;
-          const equity = Array.isArray(equityRows) ? equityRows[0] : equityRows;
+          // `get_equity_result` was already resolved above (it also fixes the
+          // reporting window), so this reads its result instead of calling the
+          // RPC a second time.
+          //
+          // Only the CURRENT fiscal year's result is added as a synthetic
+          // line. Every CLOSED year's result now genuinely sits inside the
+          // retained-earnings account's opening balance, because the opening
+          // position is read at the fiscal-year start — adding
+          // `priorYearsResult` here as well would count it twice.
+          const equity = equityResult;
 
           const currentYearEarnings = Number(equity?.current_year_earnings ?? 0);
           const priorYearsResult = Number(equity?.prior_years_result ?? 0);
+          const hasRetainedEarningsAccount = Boolean(equity?.retained_earnings_account_id);
+
+          // Safety net: with no retained-earnings account, SQL has nowhere to
+          // fold the closed years' result, so it must be presented separately
+          // or the statement cannot balance. `FinancialReports` renders this
+          // as an explicit unallocated line.
+          const unfoldedPriorYears = hasRetainedEarningsAccount ? 0 : priorYearsResult;
 
           balanceSheetTotals = {
             totalAssets,
             totalLiabilities,
-            totalEquity: totalEquity + currentYearEarnings,
+            totalEquity: totalEquity + currentYearEarnings + unfoldedPriorYears,
             retainedEarnings: currentYearEarnings,
             currentYearEarnings,
             priorYearsResult,
             fiscalYearStart: equity?.fiscal_year_start ?? null,
-            hasRetainedEarningsAccount: Boolean(equity?.retained_earnings_account_id),
+            hasRetainedEarningsAccount,
           };
-          netAmount = totalAssets - totalLiabilities - totalEquity - currentYearEarnings;
+          netAmount =
+            totalAssets - totalLiabilities - totalEquity - currentYearEarnings - unfoldedPriorYears;
           break;
         }
 
