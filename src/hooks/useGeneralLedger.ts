@@ -24,6 +24,10 @@ export interface GLTransaction {
   journal_book: string | null;
   branch_name: string | null;
   entry_currency: string | null;
+  /** Source-document amounts (supplement only — never used in arithmetic). */
+  original_debit: number | null;
+  original_credit: number | null;
+  exchange_rate: number | null;
 }
 
 
@@ -173,6 +177,9 @@ function buildGeneralLedgerData(
         journal_book: row.journal_book ?? null,
         branch_name: row.branch_name ?? null,
         entry_currency: row.entry_currency ?? null,
+        original_debit: row.original_debit ?? null,
+        original_credit: row.original_credit ?? null,
+        exchange_rate: row.exchange_rate ?? null,
       });
     }
   }

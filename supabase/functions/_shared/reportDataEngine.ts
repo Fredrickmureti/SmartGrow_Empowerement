@@ -21,6 +21,41 @@ import {
   isDebitNormal,
   type AccountSubType,
 } from "./reports/accountingKernel.ts";
+import { REPORT_SPECS } from "./reports/columnSpecs.ts";
+import type { ReportColumn } from "./reportPdfGenerator.ts";
+import {
+  baseCurrencyNote,
+  fxCells,
+  hasForeignCurrency,
+  withFxColumns,
+  type FxLineInput,
+} from "./reports/currencyPresentation.ts";
+
+/** Business base currency — the unit every money column on a ledger uses. */
+async function fetchBaseCurrency(
+  supabase: SupabaseClient,
+  businessId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("businesses")
+    .select("base_currency")
+    .eq("id", businessId)
+    .maybeSingle();
+  return (data?.base_currency as string | undefined) ?? null;
+}
+
+/** Map an RPC ledger row onto the FX presentation contract. */
+function toFxLine(row: Record<string, unknown>): FxLineInput {
+  return {
+    entryCurrency: (row.entry_currency as string) ?? null,
+    originalDebit: (row.original_debit as number) ?? null,
+    originalCredit: (row.original_credit as number) ?? null,
+    exchangeRate: (row.exchange_rate as number) ?? null,
+  };
+}
+
+const getReportSpec = (key: string) => REPORT_SPECS[key];
+
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -54,7 +89,13 @@ export interface ClassifiedRow {
 export interface ReportResult {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
+  /**
+   * Builder-supplied column override. Ledger documents use it to add the
+   * conditional multi-currency supplement; without it the registry spec wins.
+   */
+  columns?: ReportColumn[];
 }
+
 
 // ── Classification Maps (mirrored from accountDetailTypeClassification.ts) ──
 
@@ -790,6 +831,15 @@ export async function buildGeneralLedger(
   let grandCredit = 0;
   let lineCount = 0;
 
+  // Base currency is the unit every money column is expressed in; the FX
+  // supplement only appears when the run actually contains a foreign line.
+  const baseCurrency = await fetchBaseCurrency(supabase, requireBusinessId(businessId));
+  const allLines = [...byAccount.values()].flatMap((a) => a.lines);
+  const showFx = hasForeignCurrency(
+    allLines.map((l) => toFxLine(l)),
+    baseCurrency,
+  );
+
   const sortedAccounts = [...byAccount.values()].sort((a, b) => a.code.localeCompare(b.code));
 
   for (const acct of sortedAccounts) {
@@ -836,7 +886,7 @@ export async function buildGeneralLedger(
         journal: (line.journal_book as string) || "",
         branch: (line.branch_name as string) || "",
         status,
-        currency: (line.entry_currency as string) || "",
+        ...(showFx ? fxCells(toFxLine(line), baseCurrency) : {}),
         debit: debit || null,
         credit: credit || null,
         balance: runningBalance,
@@ -865,11 +915,21 @@ export async function buildGeneralLedger(
     _isGrandTotal: true, _bold: true,
   });
 
+  const spec = getReportSpec("general_ledger");
   return {
     data: rows,
-    summary: { totalAccounts: sortedAccounts.length, totalTransactions: lineCount, totalDebits: grandDebit, totalCredits: grandCredit },
+    summary: {
+      totalAccounts: sortedAccounts.length,
+      totalTransactions: lineCount,
+      totalDebits: grandDebit,
+      totalCredits: grandCredit,
+      baseCurrency,
+      note: baseCurrencyNote(baseCurrency),
+    },
+    ...(showFx && spec ? { columns: withFxColumns(spec.columns) } : {}),
   };
 }
+
 
 
 /**
@@ -964,7 +1024,10 @@ export async function buildJournalReport(
     branchName: string | null;
     totalDebit: number;
     totalCredit: number;
-    lines: { accountCode: string; accountName: string; description: string; debit: number; credit: number }[];
+    lines: {
+      accountCode: string; accountName: string; description: string;
+      debit: number; credit: number; fx: FxLineInput;
+    }[];
   }
 
   const entries = new Map<string, JREntry>();
@@ -1015,12 +1078,21 @@ export async function buildJournalReport(
         description: (r.line_description as string) || je.description,
         debit,
         credit,
+        fx: toFxLine({ ...r, entry_currency: r.entry_currency ?? r.currency }),
       });
     }
 
     const totalEntries = Number((list[0]?.total_entries as number) ?? 0);
     if (list.length === 0 || entries.size >= totalEntries) break;
   }
+
+  // Base currency governs every money column; the FX supplement appears only
+  // when the period actually contains a foreign-currency line.
+  const baseCurrency = await fetchBaseCurrency(supabase, scopedBusinessId);
+  const showFx = hasForeignCurrency(
+    [...entries.values()].flatMap((e) => e.lines.map((l) => l.fx)),
+    baseCurrency,
+  );
 
   const rows: Record<string, unknown>[] = [];
   let totalDebits = 0;
@@ -1047,6 +1119,7 @@ export async function buildJournalReport(
         account: `${line.accountCode} - ${line.accountName}`,
         description: line.description,
         source: je.sourceType,
+        ...(showFx ? fxCells(line.fx, baseCurrency) : {}),
         debit: line.debit || null,
         credit: line.credit || null,
       });
@@ -1070,9 +1143,17 @@ export async function buildJournalReport(
     });
   }
 
+  const spec = getReportSpec("journal_report");
   return {
     data: rows,
-    summary: { totalEntries: entries.size, totalDebits, totalCredits },
+    summary: {
+      totalEntries: entries.size,
+      totalDebits,
+      totalCredits,
+      baseCurrency,
+      note: baseCurrencyNote(baseCurrency),
+    },
+    ...(showFx && spec ? { columns: withFxColumns(spec.columns) } : {}),
   };
 }
 

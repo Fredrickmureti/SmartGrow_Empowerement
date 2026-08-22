@@ -99,3 +99,57 @@ describe("Ledgers & Journals — single accounting source", () => {
     expect(tbSpec).not.toContain("original");
   });
 });
+
+/**
+ * Phase 6 — multi-currency presentation.
+ *
+ * Base currency is the authority: debits, credits, balances and every total
+ * on a ledger document are base currency, always. Foreign-currency values are
+ * a supplement (currency · document amount · rate) that appears only when the
+ * run holds a foreign line, and never participates in arithmetic. Trial
+ * Balance gains no FX columns — a trial balance in mixed units cannot balance.
+ */
+describe("Ledgers & Journals — multi-currency presentation", () => {
+  const CLIENT_FX = "src/lib/reports/currencyPresentation.ts";
+  const SERVER_FX = "supabase/functions/_shared/reports/currencyPresentation.ts";
+
+  it("screen and server share one presentation rule, mirrored in both runtimes", () => {
+    for (const path of [CLIENT_FX, SERVER_FX]) {
+      const src = read(path);
+      for (const fn of ["isForeignLine", "hasForeignCurrency", "formatDocumentAmount", "baseCurrencyNote"]) {
+        expect(src, `${path} must export ${fn}`).toContain(`export function ${fn}`);
+      }
+    }
+  });
+
+  it("GL and Journal show the supplement conditionally, on screen and in the PDF", () => {
+    for (const page of [GL_PAGE, JR_PAGE]) {
+      const src = read(page);
+      expect(src).toContain("hasForeignCurrency");
+      expect(src).toContain("doc_amount");
+      expect(src).toContain("fx_rate");
+    }
+    const engine = read(ENGINE);
+    expect(engine).toContain("fxCells");
+    expect(engine).toContain("withFxColumns");
+  });
+
+  it("the money columns stay base currency — FX values never feed a total", () => {
+    const engine = read(ENGINE);
+    // Totals accumulate `debit`/`credit` only; no original_* value is summed.
+    expect(engine).not.toMatch(/(totalDebits|grandDebit|totalDebit)\s*\+=\s*[^;]*original_/);
+    expect(engine).not.toMatch(/(totalCredits|grandCredit|totalCredit)\s*\+=\s*[^;]*original_/);
+  });
+
+  it("Trial Balance never gains currency columns", () => {
+    const src = read(TB_PAGE);
+    expect(src).not.toContain("doc_amount");
+    expect(src).not.toContain("fx_rate");
+  });
+
+  it("builder-supplied columns reach the PDF renderer", () => {
+    expect(read("supabase/functions/render-report/index.ts")).toMatch(
+      /columns:\s*\(result as \{[^}]*columns/,
+    );
+  });
+});
