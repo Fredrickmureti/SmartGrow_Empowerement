@@ -220,6 +220,18 @@ export async function exportToExcel(config: ExportConfig): Promise<void> {
   downloadBlob(blob, `${sanitizeFilename(config.title)}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
 }
 
+/**
+ * XLSX/CSV bytes are fetched with a raw `fetch`, NOT `functions.invoke`.
+ *
+ * `supabase.functions.invoke` decodes the response by Content-Type and
+ * only treats `application/json`, `application/octet-stream` and
+ * `application/pdf` as structured/binary — everything else falls through
+ * to `response.text()`. An XLSX served as
+ * `…spreadsheetml.sheet` was therefore decoded as UTF-8 text, which
+ * mangles every non-UTF-8 byte in the zip container: Excel then reports
+ * the workbook as corrupt. Reading the response as a Blob keeps the bytes
+ * intact. (PDF is unaffected — invoke blobs that one.)
+ */
 async function fetchReportTabularBlob(
   config: ExportConfig,
   wireFormat: "csv" | "xlsx",
@@ -230,13 +242,33 @@ async function fetchReportTabularBlob(
       ? "text/csv;charset=utf-8;"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   const payload = buildRenderPayload(config, wireFormat);
-  const { data, error } = await supabase.functions.invoke("render-report", {
-    body: payload,
-    headers: { "Content-Type": "application/json" },
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const functionsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/render-report`;
+
+  const response = await fetch(functionsUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken ?? anonKey}`,
+    },
+    body: JSON.stringify(payload),
   });
-  if (error) throw error;
-  return data instanceof Blob ? data : new Blob([data as ArrayBuffer], { type: mime });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `render-report failed (${response.status}): ${detail.slice(0, 500)}`,
+    );
+  }
+
+  const blob = await response.blob();
+  return blob.type ? blob : new Blob([blob], { type: mime });
 }
+
 
 // ─── Print Export (in-page, no new tab) ──────────────────────────────
 
