@@ -98,6 +98,7 @@ function TrialBalanceInner() {
       accountId: acct.id,
       startDate: dateFrom,
       endDate: dateTo,
+      branchId: filters.branchId || null,
     });
   };
 

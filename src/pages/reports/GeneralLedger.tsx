@@ -12,7 +12,6 @@ import { useState, useCallback, useMemo } from "react";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,6 +36,7 @@ import {
   type FxLine,
 } from "@/lib/reports/currencyPresentation";
 import type { GLTransaction } from "@/hooks/useGeneralLedger";
+import { resolveLedgerDrillTarget } from "@/lib/reports/ledgerDrillTarget";
 
 /** Ledger row → FX presentation contract (supplement, never arithmetic). */
 const toFxLine = (t: GLTransaction): FxLine => ({
@@ -97,27 +97,23 @@ function GeneralLedgerInner() {
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { currentOrg } = useOrganization();
 
-  const openSource = useCallback((sourceType: string | null, sourceId: string | null, lineId: string) => {
-    if (sourceType && sourceId) {
-      setDrawerSource({ type: sourceType, id: sourceId });
-      setDrawerOpen(true);
-      return;
-    }
-    // Resolve JE id from the line id, then preview the JE.
-    void (async () => {
-      const { data: line } = await supabase
-        .from("journal_entry_lines")
-        .select("journal_entry_id")
-        .eq("id", lineId)
-        .maybeSingle();
-      if (line?.journal_entry_id) {
-        setDrawerSource({ type: "journal_entry", id: line.journal_entry_id });
-        setDrawerOpen(true);
-      } else {
+  const openSource = useCallback(
+    (sourceType: string | null, sourceId: string | null, journalEntryId: string | null) => {
+      const target = resolveLedgerDrillTarget({
+        source_type: sourceType,
+        source_id: sourceId,
+        journal_entry_id: journalEntryId,
+      });
+      if (!target) {
         navigate(`/finance/journal-entries`);
+        return;
       }
-    })();
-  }, [navigate]);
+      setDrawerSource(target);
+      setDrawerOpen(true);
+    },
+    [navigate],
+  );
+
 
   // Dimensions that only earn their column width when they carry
   // information: the branch column is pointless in a single-branch run, and
@@ -157,7 +153,7 @@ function GeneralLedgerInner() {
               className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-mono text-sm"
               onClick={(e) => {
                 e.stopPropagation();
-                openSource(v._sourceType as string | null, v._sourceId as string | null, v._lineId as string);
+                openSource(v._sourceType as string | null, v._sourceId as string | null, v._journalEntryId as string | null);
               }}
             >
               {v.entry as string}
@@ -186,7 +182,7 @@ function GeneralLedgerInner() {
                   title={`View ${v._sourceType}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    openSource(v._sourceType as string, v._sourceId as string, v._lineId as string);
+                    openSource(v._sourceType as string, v._sourceId as string, v._journalEntryId as string | null);
                   }}
                 >
                   <ExternalLink className="h-3 w-3" />
@@ -253,6 +249,7 @@ function GeneralLedgerInner() {
             _sourceType: txn.source_type ?? null,
             _sourceId: txn.source_id ?? null,
             _lineId: txn.id,
+            _journalEntryId: txn.journal_entry_id ?? null,
           },
         });
       }

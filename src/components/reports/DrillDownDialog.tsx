@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ExternalLink } from "lucide-react";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
+import { resolveLedgerDrillTarget } from "@/lib/reports/ledgerDrillTarget";
 import { format } from "date-fns";
 
 export interface DrillDownConfig {
@@ -40,6 +41,12 @@ export interface DrillDownConfig {
    * relationship that does not exist in the business model.
    */
   contactId?: string;
+  /**
+   * Branch scope of the report that opened this dialog. A branch-scoped Trial
+   * Balance must drill into that branch's lines only — omitting it silently
+   * showed all-branch movement behind a branch figure.
+   */
+  branchId?: string | null;
 }
 
 interface DrillDownTransaction {
@@ -51,6 +58,7 @@ interface DrillDownTransaction {
   credit: number;
   source_type: string;
   source_id: string | null;
+  journal_entry_id: string | null;
 }
 
 interface DrillDownDialogProps {
@@ -72,6 +80,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
       currentOrg?.id,
       currentBusiness?.id,
       config?.accountId,
+      config?.branchId ?? null,
       config?.startDate,
       config?.endDate,
     ],
@@ -85,6 +94,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
         _business_id: currentBusiness?.id || null,
         _account_ids: [config.accountId],
         _include_zero_activity: false,
+        _branch_id: config.branchId || null,
       });
 
       if (error) throw error;
@@ -100,6 +110,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
           credit: (row.credit || 0) as number,
           source_type: (row.source_type || "manual") as string,
           source_id: (row.source_id || null) as string | null,
+          journal_entry_id: (row.journal_entry_id || null) as string | null,
         }))
         .sort((a: DrillDownTransaction, b: DrillDownTransaction) =>
           new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -166,6 +177,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
           credit: partnerKind === "bill" ? total : 0,
           source_type: partnerKind,
           source_id: row.id as string,
+          journal_entry_id: null,
         } satisfies DrillDownTransaction;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     },
@@ -259,37 +271,22 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                       {txn.credit > 0 ? formatCurrency(txn.credit) : "—"}
                     </TableCell>
                     <TableCell>
-                      {txn.source_id ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setDrawerSource({ type: txn.source_type, id: txn.source_id });
-                            setDrawerOpen(true);
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      ) : txn.source_type === "manual" ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={async () => {
-                            // txn.id is line_id — resolve the parent journal_entry_id first
-                            const { data } = await supabase
-                              .from("journal_entry_lines")
-                              .select("journal_entry_id")
-                              .eq("id", txn.id)
-                              .maybeSingle();
-                            if (data?.journal_entry_id) {
-                              setDrawerSource({ type: "journal_entry", id: data.journal_entry_id });
+                      {(() => {
+                        const target = resolveLedgerDrillTarget(txn);
+                        if (!target) return null;
+                        return (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setDrawerSource(target);
                               setDrawerOpen(true);
-                            }
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      ) : null}
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 ))}

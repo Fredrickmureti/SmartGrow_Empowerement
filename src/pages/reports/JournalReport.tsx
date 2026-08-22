@@ -32,6 +32,8 @@ import {
   baseCurrencyNote,
   type FxLine,
 } from "@/lib/reports/currencyPresentation";
+import { resolveLedgerDrillTarget } from "@/lib/reports/ledgerDrillTarget";
+
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import {
@@ -95,15 +97,18 @@ function JournalReportInner() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
 
-  // Open the drawer on the JE's source document if available; otherwise show the JE itself.
+  // Shared rule: source document when there is one, otherwise the entry itself.
   const openEntryDrawer = (je: JournalEntry) => {
-    if (je.source_type && je.source_id && je.source_type !== "manual") {
-      setDrawerSource({ type: je.source_type, id: je.source_id });
-    } else {
-      setDrawerSource({ type: "journal_entry", id: je.id });
-    }
+    const target = resolveLedgerDrillTarget({
+      source_type: je.source_type,
+      source_id: je.source_id,
+      journal_entry_id: je.id,
+    });
+    if (!target) return;
+    setDrawerSource(target);
     setDrawerOpen(true);
   };
+
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["journal-report", currentOrg?.id, currentBusiness?.id, filters.branchId, dateFrom, dateTo, page],
