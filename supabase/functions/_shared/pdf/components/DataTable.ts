@@ -30,7 +30,14 @@ export interface TableColumn {
   width?: number;
   format?: string;
   align?: "left" | "center" | "right";
+  /**
+   * Optional header band this column belongs to ("Opening balance").
+   * Contiguous columns sharing a label are drawn under one centred caption.
+   * Omitted on every column = single-tier header (pre-existing behaviour).
+   */
+  group?: string;
 }
+
 
 /**
  * Optional drill-down metadata embedded on a row. The PDF rendering layer
@@ -370,6 +377,53 @@ function drawTableHeader(
   const { state, fontBold } = builder;
   const { margin, contentWidth } = state;
 
+  // ── Optional group tier ────────────────────────────────────────────
+  // A column may declare a `group` ("Opening balance"). Contiguous columns
+  // sharing a group are banded under one centred caption with a hairline
+  // beneath it, so a trial balance reads
+  //   Opening balance | Movement | Closing balance
+  //        Dr   Cr    |  Dr  Cr  |     Dr   Cr
+  // instead of six anonymous Debit/Credit columns.
+  interface GroupRun { label: string; x: number; width: number }
+  const runs: GroupRun[] = [];
+  if (columns.some((c) => c.group)) {
+    let x = margin;
+    for (let i = 0; i < columns.length; i++) {
+      const label = columns[i].group ?? "";
+      const last = runs[runs.length - 1];
+      if (last && last.label === label && label !== "") {
+        last.width += colWidths[i];
+      } else {
+        runs.push({ label, x, width: colWidths[i] });
+      }
+      x += colWidths[i];
+    }
+  }
+  const groupSize = Math.max(t.size.tableHeader - 0.5, 5);
+  const groupStep = runs.length > 0 ? groupSize + 8 : 0;
+
+  if (runs.length > 0) {
+    for (const run of runs) {
+      if (!run.label) continue;
+      const tw = fontBold.widthOfTextAtSize(run.label, groupSize);
+      page.drawText(run.label, {
+        x: run.x + Math.max((run.width - tw) / 2, 2),
+        y: y - 10,
+        size: groupSize,
+        font: fontBold,
+        color: theme.color.text,
+      });
+      page.drawLine({
+        start: { x: run.x + 2, y: y - 14 },
+        end: { x: run.x + run.width - 2, y: y - 14 },
+        thickness: 0.5,
+        color: theme.color.border,
+      });
+    }
+  }
+
+  const headerY = y - groupStep;
+
   // First pass: wrap each header and find the max line count so the
   // separator rule can sit BELOW all wrapped lines instead of slashing
   // through them (e.g. long compound labels like "Basic Sal / ary").
@@ -400,7 +454,7 @@ function drawTableHeader(
         : x + 4;
       page.drawText(line, {
         x: cellX,
-        y: y - 10 - (offset + li) * lineStep,
+        y: headerY - 10 - (offset + li) * lineStep,
         size: t.size.tableHeader,
         font: fontBold,
         color: theme.color.text,
@@ -411,7 +465,7 @@ function drawTableHeader(
 
   // Separator sits below the tallest wrapped header column.
   const extraLines = maxLines - 1;
-  const ruleY = y - 16 - extraLines * lineStep;
+  const ruleY = headerY - 16 - extraLines * lineStep;
   page.drawLine({
     start: { x: margin, y: ruleY },
     end: { x: margin + contentWidth, y: ruleY },
@@ -420,6 +474,7 @@ function drawTableHeader(
 
   return ruleY - 6;
 }
+
 
 /**
  * Renders the entire table starting at builder.y. Handles page breaks

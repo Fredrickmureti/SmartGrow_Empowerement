@@ -33,7 +33,15 @@ export interface ExportColumn {
   width?: number;
   format?: ExportColumnFormat;
   align?: "left" | "center" | "right";
+  /**
+   * Header band this column sits under ("Opening balance"). Contiguous
+   * columns sharing a label print under one centred caption in the PDF and
+   * as a merged band in XLSX/CSV, so a trial balance's Debit/Credit pairs
+   * are never anonymous. Omitted = single-tier header.
+   */
+  group?: string;
 }
+
 
 export interface ExportRow {
   // deno-lint-ignore-next-line

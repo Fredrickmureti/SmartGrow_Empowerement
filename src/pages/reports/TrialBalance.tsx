@@ -134,7 +134,7 @@ function TrialBalanceInner() {
   );
 
   // Grouping, splitting and totalling happen once — not on every render pass.
-  const { rows, grandTotals } = useMemo(() => {
+  const { rows, grandTotals, abnormalCount } = useMemo(() => {
     const accounts = (data?.accounts || []).filter((a) => !a.is_group);
     const byType = accounts.reduce<Record<string, FinancialReportAccount[]>>((acc, account) => {
       (acc[account.account_type] ||= []).push(account);
@@ -146,6 +146,7 @@ function TrialBalanceInner() {
     const grand = {
       openDebit: 0, openCredit: 0, movDebit: 0, movCredit: 0, closeDebit: 0, closeCredit: 0,
     };
+    let abnormal = 0;
 
     for (const type of typeOrder) {
       const list = byType[type] || [];
@@ -164,13 +165,22 @@ function TrialBalanceInner() {
         sub.closeDebit += close.debit;
         sub.closeCredit += close.credit;
 
+        // An account closing on the WRONG side of its natural balance — a
+        // liability in debit, an asset in credit — is almost always a
+        // misposting, not a presentation quirk. A trial balance that
+        // silently normalises it hides the error, so flag it here and
+        // footnote it on the statement.
+        const isAbnormal = acct.closing_balance < 0;
+        if (isAbnormal) abnormal += 1;
+
         out.push({
           id: acct.id,
           depth: acct.depth,
+          tone: isAbnormal ? "warning" : undefined,
           onClick: () => handleDrillDown(acct),
           values: {
             code: acct.code,
-            name: acct.name,
+            name: isAbnormal ? `${acct.name} *` : acct.name,
             open_dr: blankIfZero(open.debit),
             open_cr: blankIfZero(open.credit),
             mov_dr: blankIfZero(acct.debit_total),
@@ -186,9 +196,9 @@ function TrialBalanceInner() {
         kind: "subtotal",
         label: `${ACCOUNT_TYPE_LABELS[type]} total`,
         values: {
-          open_dr: sub.openDebit, open_cr: sub.openCredit,
-          mov_dr: sub.movDebit, mov_cr: sub.movCredit,
-          close_dr: sub.closeDebit, close_cr: sub.closeCredit,
+          open_dr: blankIfZero(sub.openDebit), open_cr: blankIfZero(sub.openCredit),
+          mov_dr: blankIfZero(sub.movDebit), mov_cr: blankIfZero(sub.movCredit),
+          close_dr: blankIfZero(sub.closeDebit), close_cr: blankIfZero(sub.closeCredit),
         },
       });
 
@@ -206,14 +216,24 @@ function TrialBalanceInner() {
         kind: "grandTotal",
         label: "TOTAL",
         values: {
-          open_dr: grand.openDebit, open_cr: grand.openCredit,
-          mov_dr: grand.movDebit, mov_cr: grand.movCredit,
-          close_dr: grand.closeDebit, close_cr: grand.closeCredit,
+          open_dr: blankIfZero(grand.openDebit), open_cr: blankIfZero(grand.openCredit),
+          mov_dr: blankIfZero(grand.movDebit), mov_cr: blankIfZero(grand.movCredit),
+          close_dr: blankIfZero(grand.closeDebit), close_cr: blankIfZero(grand.closeCredit),
         },
       });
+
+      if (abnormal > 0) {
+        out.push({
+          id: "abnormal-note",
+          kind: "note",
+          label:
+            "* Closing balance is on the opposite side to the account's natural balance " +
+            "(e.g. a liability in debit). Review these accounts — this usually indicates a misposting.",
+        });
+      }
     }
 
-    return { rows: out, grandTotals: grand };
+    return { rows: out, grandTotals: grand, abnormalCount: abnormal };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, dateFrom, dateTo]);
 
@@ -227,13 +247,16 @@ function TrialBalanceInner() {
       // period, closing as at `to`.
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       subtitle: "Accrual basis",
-      columns: toExportColumns(columns),
+      // Groups travel with the columns so the PDF prints the same
+      // Opening / Movement / Closing band the screen shows.
+      columns: toExportColumns(columns, columnGroups),
       rows: toExportRows(rows, columns),
       sheetName: "Trial Balance",
       currency: baseCurrency,
     }),
-    [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency],
+    [columns, columnGroups, rows, dateFrom, dateTo, currentOrg, baseCurrency],
   );
+
 
 
   return (

@@ -125,10 +125,27 @@ export function columnAlign(col: ReportColumn<never>): "left" | "center" | "righ
  * declaration. `amount` collapses to `currency` — the PDF engine has no
  * symbol-less accounting format.
  */
-export function toExportColumns(columns: ReportColumn<never>[]): ExportColumn[] {
+export function toExportColumns(
+  columns: ReportColumn<never>[],
+  groups?: ReportColumnGroup[],
+): ExportColumn[] {
+  // Expand the on-screen group tier (label + span over LEAF columns) into a
+  // per-column label, so the exported artifact carries the same
+  // Opening / Movement / Closing band the screen shows. Without this the
+  // PDF prints "Debit Credit Debit Credit Debit Credit" with nothing to say
+  // which pair is which.
+  const groupByIndex: (string | undefined)[] = [];
+  if (groups?.length) {
+    let i = 0;
+    for (const g of groups) {
+      for (let s = 0; s < g.span; s++) groupByIndex[i++] = g.label;
+    }
+  }
+
   return columns
-    .filter((c) => !c.exportExclude)
-    .map((c) => ({
+    .map((c, index) => ({ c, group: groupByIndex[index] }))
+    .filter(({ c }) => !c.exportExclude)
+    .map(({ c, group }) => ({
       key: c.key,
       header: c.header,
       format:
@@ -140,8 +157,10 @@ export function toExportColumns(columns: ReportColumn<never>[]): ExportColumn[] 
               ? c.format
               : ("text" as const),
       align: columnAlign(c),
+      ...(group ? { group } : {}),
     }));
 }
+
 
 /**
  * On-screen kind → canonical statement kind consumed by the PDF renderer.
