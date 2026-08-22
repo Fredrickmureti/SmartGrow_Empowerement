@@ -107,6 +107,8 @@ interface VarianceReportRow {
   account_name: string | null;
   account_type: string | null;
   period_month: number | null;
+  period_ordinal: number | null;
+
   fiscal_period_id: string | null;
   period_start: string | null;
   period_end: string | null;
