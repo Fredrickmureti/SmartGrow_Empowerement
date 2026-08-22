@@ -6,6 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { useFiscalPeriods } from "./useFiscalPeriods";
 import { usePermissions } from "./usePermissions";
+import { consumesBudget } from "@/lib/finance/budgetConsumption";
+
 
 export interface GLEntry {
   account_id: string;
@@ -209,9 +211,10 @@ export function useGLPosting() {
         options.branch_id !== undefined ? options.branch_id : (currentBranch?.id ?? null);
       if (
         expenseEntries.length > 0 &&
-        options.source_type !== "year_end_closing" &&
+        consumesBudget(options.source_type) &&
         currentBusiness?.id
       ) {
+
         try {
           const accountIds = expenseEntries.map(e => e.account_id);
           const amounts = expenseEntries.map(e => e.debit_amount);
