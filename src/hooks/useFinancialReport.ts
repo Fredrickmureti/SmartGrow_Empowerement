@@ -68,12 +68,8 @@ export interface FinancialReportAccount {
   closing_balance: number;
   /** For P&L: the display amount (income: credit - debit, expense: debit - credit) */
   display_amount: number;
-  /**
-   * Group rows only: this account's own amount PLUS every descendant's.
-   * Presentation-only — section totals never read it (they sum own amounts),
-   * so it can never double-count.
-   */
-  rollup_amount?: number;
+
+
 
   /** Comparison period amount (if requested) */
   comparison_amount?: number;
