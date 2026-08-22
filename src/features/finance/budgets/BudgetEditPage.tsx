@@ -77,6 +77,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
 import { useBudgetVsActual } from "@/hooks/useBudgetVsActual";
+import { useBudgetRevisions } from "@/hooks/useBudgetRevisions";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 
@@ -671,74 +672,56 @@ export default function BudgetEditPage() {
             </div>
           )}
 
-          {storedActuals.length === 0 && items.length > 0 && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Click "Calculate actuals" in the Analysis section below to
-                pull real GL data and compare against budget.
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
       </Section>
 
       {/* Section 3 — Analysis */}
       <Section
         title="Analysis"
-        description="Budget vs actual variance across the fiscal year."
+        description="Live budget vs actual variance, computed from posted ledger activity. Positive variance is favourable."
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => calculateActuals.mutateAsync(budget)}
-            disabled={calculateActuals.isPending || items.length === 0}
-          >
-            {calculateActuals.isPending && (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            )}
-            Calculate actuals
-          </Button>
+          varianceLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : undefined
         }
       >
         <div className="space-y-4 px-5 pb-5">
           {varianceReport && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {(
+                [
+                  { label: "Revenue plan", totals: varianceReport.income },
+                  { label: "Cost plan", totals: varianceReport.expense },
+                  { label: "Net result", totals: varianceReport.net },
+                ] as const
+              ).map(({ label, totals }) => (
+                <Card key={label} className="p-3">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-lg font-bold tabular-nums">
+                    {formatCurrency(totals.actual)}
+                  </p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    plan {formatCurrency(totals.budgeted)}
+                  </p>
+                  <p
+                    className={`text-xs font-medium tabular-nums ${
+                      totals.favourable ? "text-primary" : "text-destructive"
+                    }`}
+                  >
+                    {formatCurrency(totals.variance)}
+                    {totals.variancePercent !== null
+                      ? ` (${totals.variancePercent.toFixed(1)}%)`
+                      : ""}
+                  </p>
+                </Card>
+              ))}
               <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Total budgeted</p>
+                <p className="text-xs text-muted-foreground">Unbudgeted lines</p>
                 <p className="text-lg font-bold tabular-nums">
-                  {formatCurrency(varianceReport.totalBudgeted)}
+                  {varianceReport.unbudgetedRows.length}
                 </p>
-              </Card>
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Total actual</p>
-                <p className="text-lg font-bold tabular-nums">
-                  {formatCurrency(varianceReport.totalActual)}
-                </p>
-              </Card>
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Variance</p>
-                <p
-                  className={`text-lg font-bold tabular-nums ${
-                    varianceReport.totalVariance >= 0
-                      ? "text-primary"
-                      : "text-destructive"
-                  }`}
-                >
-                  {formatCurrency(varianceReport.totalVariance)}
-                </p>
-              </Card>
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Variance %</p>
-                <p
-                  className={`text-lg font-bold tabular-nums ${
-                    varianceReport.variancePercent >= 0
-                      ? "text-primary"
-                      : "text-destructive"
-                  }`}
-                >
-                  {varianceReport.variancePercent.toFixed(1)}%
+                <p className="text-xs text-muted-foreground">
+                  Ledger activity with no plan
                 </p>
               </Card>
             </div>
