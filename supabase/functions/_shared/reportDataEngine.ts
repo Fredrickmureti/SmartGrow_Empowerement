@@ -184,19 +184,65 @@ function requireBusinessId(businessId?: string | null): string {
   return businessId;
 }
 
+/** The day before `startStr` — the cut-off for "prior period" movement. */
+function dayBefore(startStr: string): string {
+  const d = new Date(`${startStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+async function accountMovements(
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string,
+  from: string,
+  to: string,
+  branchId?: string,
+): Promise<Map<string, { debit: number; credit: number }>> {
+  const { data, error } = await supabase.rpc("get_account_movements", {
+    _org_id: organizationId,
+    _date_from: from,
+    _date_to: to,
+    _business_id: businessId,
+    _branch_id: branchId ?? null,
+  });
+  if (error) throw new Error(`Failed to fetch account movements: ${error.message}`);
+  const map = new Map<string, { debit: number; credit: number }>();
+  for (const row of (data || []) as Record<string, unknown>[]) {
+    map.set(row.account_id as string, {
+      debit: Number(row.total_debit) || 0,
+      credit: Number(row.total_credit) || 0,
+    });
+  }
+  return map;
+}
+
+/**
+ * Account balances for a period.
+ *
+ * Movement aggregation goes through the `get_account_movements` RPC — the
+ * same engine the on-screen Trial Balance uses. It aggregates in SQL, so it
+ * is immune to the 1000-row PostgREST cap that used to make these balances
+ * quietly wrong on any sizeable ledger, and it applies the one ledger
+ * visibility contract (`ledger_visible_journal_statuses`) rather than a
+ * hardcoded `status = 'posted'` that dropped reversed originals.
+ */
 export async function getGLAccountBalances(
   supabase: SupabaseClient,
   organizationId: string,
   businessId: string | undefined,
   startStr: string,
   endStr: string,
-  accountTypeFilter?: string[]
+  accountTypeFilter?: string[],
+  branchId?: string,
 ): Promise<AccountWithBalance[]> {
+  const scopedBusinessId = requireBusinessId(businessId);
+
   let accountsQuery = supabase
     .from("accounts")
     .select("id, code, name, account_type, detail_type, parent_id, opening_balance, is_active")
     .eq("organization_id", organizationId)
-    .eq("business_id", requireBusinessId(businessId))
+    .eq("business_id", scopedBusinessId)
     .eq("is_active", true)
     .order("code");
 
@@ -207,50 +253,18 @@ export async function getGLAccountBalances(
   const { data: accounts, error: accountsError } = await accountsQuery;
   if (accountsError) throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
 
-  const { data: periodEntries, error: periodError } = await supabase
-    .from("journal_entry_lines")
-    .select(`account_id, debit, credit, journal_entries!inner(entry_date, status, organization_id, business_id)`)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .gte("journal_entries.entry_date", startStr)
-    .lte("journal_entries.entry_date", endStr);
-
-  if (periodError) throw new Error(`Failed to fetch period entries: ${periodError.message}`);
-
-  const { data: priorEntries, error: priorError } = await supabase
-    .from("journal_entry_lines")
-    .select(`account_id, debit, credit, journal_entries!inner(entry_date, status, organization_id, business_id)`)
-    .eq("journal_entries.organization_id", organizationId)
-    .eq("journal_entries.business_id", requireBusinessId(businessId))
-    .eq("journal_entries.status", "posted")
-    .lt("journal_entries.entry_date", startStr);
-
-  if (priorError) throw new Error(`Failed to fetch prior entries: ${priorError.message}`);
-
-  const periodByAccount = new Map<string, { debit: number; credit: number }>();
-  for (const entry of (periodEntries || []) as Record<string, unknown>[]) {
-    const accountId = entry.account_id as string;
-    const existing = periodByAccount.get(accountId) || { debit: 0, credit: 0 };
-    existing.debit += (entry.debit as number) || 0;
-    existing.credit += (entry.credit as number) || 0;
-    periodByAccount.set(accountId, existing);
-  }
-
-  const priorByAccount = new Map<string, { debit: number; credit: number }>();
-  for (const entry of (priorEntries || []) as Record<string, unknown>[]) {
-    const accountId = entry.account_id as string;
-    const existing = priorByAccount.get(accountId) || { debit: 0, credit: 0 };
-    existing.debit += (entry.debit as number) || 0;
-    existing.credit += (entry.credit as number) || 0;
-    priorByAccount.set(accountId, existing);
-  }
+  const [periodByAccount, priorByAccount] = await Promise.all([
+    accountMovements(supabase, organizationId, scopedBusinessId, startStr, endStr, branchId),
+    accountMovements(supabase, organizationId, scopedBusinessId, "1900-01-01", dayBefore(startStr), branchId),
+  ]);
 
   const result: AccountWithBalance[] = [];
   for (const account of (accounts || []) as Record<string, unknown>[]) {
     const id = account.id as string;
     const accountType = account.account_type as string;
-    const baseOpening = (account.opening_balance as number) || 0;
+    // `accounts.opening_balance` is a business-level property: a branch-scoped
+    // run must not carry the whole company's opening position.
+    const baseOpening = branchId ? 0 : ((account.opening_balance as number) || 0);
     const prior = priorByAccount.get(id) || { debit: 0, credit: 0 };
     const period = periodByAccount.get(id) || { debit: 0, credit: 0 };
 
@@ -284,6 +298,7 @@ export async function getGLAccountBalances(
 
   return result;
 }
+
 
 // ── Report Builders ────────────────────────────────────────────────────
 
