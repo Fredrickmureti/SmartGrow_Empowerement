@@ -111,10 +111,15 @@ function GeneralLedgerInner() {
       (data?.accounts || []).some((a) => a.transactions.some((t) => !!t.branch_name)),
     [data, filters.branchId],
   );
-  const showCurrencyColumn = useMemo(
+  // Multi-currency supplement: currency / document amount / rate. Base
+  // currency stays the authority for debit, credit and balance — these three
+  // columns only record what the source document said, and only appear when
+  // the run actually contains a foreign-currency line.
+  const showFxColumns = useMemo(
     () =>
-      (data?.accounts || []).some((a) =>
-        a.transactions.some((t) => !!t.entry_currency && t.entry_currency !== baseCurrency),
+      hasForeignCurrency(
+        (data?.accounts || []).flatMap((a) => a.transactions.map(toFxLine)),
+        baseCurrency,
       ),
     [data, baseCurrency],
   );
@@ -177,14 +182,18 @@ function GeneralLedgerInner() {
       // A reversed original stays in the ledger next to its reversal; the
       // reader has to be able to tell which line is which.
       { key: "status", header: "Status", width: "w-[150px]" },
-      ...(showCurrencyColumn
-        ? [{ key: "currency", header: "Currency", width: "w-[90px]" } as ReportColumn<ReportRow>]
+      ...(showFxColumns
+        ? ([
+            { key: "currency", header: "Currency", width: "w-[90px]" },
+            { key: "doc_amount", header: "Document Amt", width: "w-[140px]", align: "right" },
+            { key: "fx_rate", header: "Rate", width: "w-[100px]", align: "right" },
+          ] as ReportColumn<ReportRow>[])
         : []),
       { key: "debit", header: "Debit", format: "currency", width: "w-[140px]" },
       { key: "credit", header: "Credit", format: "currency", width: "w-[140px]" },
       { key: "balance", header: "Balance", format: "currency", width: "w-[140px]" },
     ],
-    [openSource, showBranchColumn, showCurrencyColumn],
+    [openSource, showBranchColumn, showFxColumns],
   );
 
 
@@ -218,6 +227,8 @@ function GeneralLedgerInner() {
             description: txn.description,
             status,
             currency: txn.entry_currency ?? null,
+            doc_amount: formatDocumentAmount(toFxLine(txn), baseCurrency),
+            fx_rate: formatRate(documentRate(toFxLine(txn), baseCurrency)),
             debit: blankIfZero(txn.debit_amount),
             credit: blankIfZero(txn.credit_amount),
             balance: txn.running_balance,
