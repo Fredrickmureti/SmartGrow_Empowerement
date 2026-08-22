@@ -1357,6 +1357,7 @@ export function PayrollConfigurationPage() {
       label: "Lending",
       hint: "Employee loans and advance policy.",
       links: [
+        { to: "/hr/payroll/configuration/input-types", label: "Variable Input Types", hint: "Overtime, bonus, commission columns on each run" },
         { to: "/hr/payroll/configuration/loan-types", label: "Loan Types",         hint: "Loan products, interest & repayment policy" },
         { to: "/hr/payroll/loan-skip-overrides",      label: "Loan Skip Overrides", hint: "Per-run repayment exemptions" },
       ],
