@@ -255,6 +255,12 @@ export function VendorStatementPreview({ data }: VendorStatementPreviewProps) {
             </tbody>
           </table>
         </div>
+        {(data.agingBuckets.unconvertible_document_count || 0) > 0 && (
+          <p className="mt-2 text-xs text-destructive">
+            {data.agingBuckets.unconvertible_document_count} open document(s) are in a currency with no
+            exchange rate on file and are excluded from this aging summary.
+          </p>
+        )}
         <div className="sm:hidden grid grid-cols-2 gap-2">
           {[
             { label: AGING_BUCKET_LABELS.not_due, value: data.agingBuckets.not_due, color: "" },

@@ -94,6 +94,11 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
             />
           ))}
         </div>
+        {(buckets.unconvertible_document_count || 0) > 0 && (
+          <p className="text-[10px] text-destructive">
+            {buckets.unconvertible_document_count} document(s) excluded — no exchange rate on file.
+          </p>
+        )}
         <div className="grid grid-cols-5 gap-1 text-center">
           {items.map(item => (
             <div key={item.label}>
