@@ -307,6 +307,7 @@ export function ScheduledReportsManager() {
         include_charts: values.include_charts,
         date_range_type: values.date_range_type,
         recipients,
+        branch_id: values.branch_id || null,
         filters: {},
         is_active: true,
         template_id: null,
