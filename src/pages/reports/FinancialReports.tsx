@@ -211,7 +211,11 @@ function FinancialReportsInner() {
     // P&L is period-bounded. Use the same startDate semantics here as the engine
     // uses to compute the displayed number, otherwise the drill total will not
     // reconcile with the BS line.
-    const isBalanceSheet = activeTab === "bs";
+    //
+    // The tab value is "balance_sheet" (see <TabsTrigger>); comparing against
+    // "bs" silently made every Balance Sheet drill-down period-bounded, so the
+    // listed journals could never add up to the cumulative balance shown.
+    const isBalanceSheet = activeTab === "balance_sheet";
     setDrillDown({
       title: `${account.code} - ${account.name}`,
       accountId: account.id,
@@ -219,6 +223,7 @@ function FinancialReportsInner() {
       endDate: dateTo,
     });
   };
+
 
   /** Navigate to General Ledger filtered to a specific account */
   const handleViewInGL = (account: { id: string }) => {
