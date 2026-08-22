@@ -119,7 +119,7 @@ export async function buildReportData(
     case "balance_sheet":
       return await buildBalanceSheet(supabase, orgId, businessId, dateFrom, dateTo);
     case "trial_balance":
-      return await buildTrialBalance(supabase, orgId, businessId, dateFrom, dateTo);
+      return await buildTrialBalance(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "income_statement":
     case "profit_and_loss":
       return await buildIncomeStatement(supabase, orgId, businessId, dateFrom, dateTo);
@@ -135,11 +135,12 @@ export async function buildReportData(
         branchId,
       );
     case "general_ledger":
-      return await buildGeneralLedger(supabase, orgId, businessId, dateFrom, dateTo);
+      return await buildGeneralLedger(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "partner_ledger":
       return await buildPartnerLedger(supabase, orgId, businessId, dateFrom, dateTo);
     case "journal_report":
-      return await buildJournalReport(supabase, orgId, businessId, dateFrom, dateTo);
+      return await buildJournalReport(supabase, orgId, businessId, dateFrom, dateTo, branchId);
+
     case "budget_vs_actual":
       return await buildBudgetVsActual(supabase, orgId, businessId, dateFrom, dateTo);
     case "depreciation_schedule":
