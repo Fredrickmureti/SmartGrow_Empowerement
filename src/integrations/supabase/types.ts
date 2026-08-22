@@ -95835,12 +95835,15 @@ export type Database = {
           entry_date: string
           entry_number: string
           entry_status: string
+          exchange_rate: number
           is_reversal: boolean
           je_description: string
           journal_book: string
           line_description: string
           line_id: string
           opening_balance: number
+          original_credit: number
+          original_debit: number
           reference: string
           reversal_of_number: string
           source_id: string
@@ -95912,11 +95915,14 @@ export type Database = {
           entry_id: string
           entry_number: string
           entry_status: string
+          exchange_rate: number
           is_reversal: boolean
           je_description: string
           journal_book: string
           line_description: string
           line_id: string
+          original_credit: number
+          original_debit: number
           reference: string
           reversal_of_number: string
           source_id: string
