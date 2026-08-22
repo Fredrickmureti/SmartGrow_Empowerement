@@ -75,8 +75,13 @@ export interface AccountWithBalance {
 export interface ClassifiedRow {
   name: string;
   code?: string;
-  closing_balance?: number;
+  /** P&L money cell — matches the profit_and_loss column registry. */
+  amount?: number;
+  /** Balance Sheet money cell — matches the balance_sheet column registry. */
   balance?: number;
+  /** Canonical semantic line kind consumed by the PDF engine. */
+  _kind?: "section" | "subsection" | "detail" | "subtotal" | "major_total" | "calculated_result" | "grand_total" | "spacer";
+  /** Legacy flags retained for older renderers; `_kind` is authoritative. */
   _isHeader?: boolean;
   _isSubtotal?: boolean;
   _isGrandTotal?: boolean;
@@ -421,56 +426,85 @@ export async function buildBalanceSheet(
 
   // Equity carries two derived additions: this year's result, and — only when
   // there is no retained-earnings account to absorb it — the closed years'
-  // result. Both are added once, at section and sub-type level alike.
+  // result. Both are added once.
   const equityAddition = retainedEarnings + unfoldedPriorYears;
 
-  const buildSection = (sectionLabel: string, accountType: string, subTypeOrder: AccountSubType[]) => {
-    const sectionAccounts = classified.filter(a => a.account_type === accountType);
-    const sectionTotal = sectionAccounts.reduce((s, a) => s + a.closing_balance, 0) +
-      (accountType === "equity" ? equityAddition : 0);
+  const totalFor = (accountType: string) =>
+    classified
+      .filter(a => a.account_type === accountType)
+      .reduce((s, a) => s + a.closing_balance, 0);
 
-    rows.push({ name: sectionLabel.toUpperCase(), _isHeader: true, _bold: true });
+  const buildClassifiedSection = (
+    sectionLabel: string,
+    accountType: "asset" | "liability",
+    subTypeOrder: AccountSubType[],
+    totalKind: "grand_total" | "major_total",
+  ) => {
+    const sectionAccounts = classified.filter(a => a.account_type === accountType);
+    const sectionTotal = sectionAccounts.reduce((s, a) => s + a.closing_balance, 0);
+
+    rows.push({ name: sectionLabel.toUpperCase(), _kind: "section", _isHeader: true, _bold: true });
 
     for (const subType of subTypeOrder) {
       const group = sectionAccounts.filter(a => a.sub_type === subType);
-      const carriesDerived = subType === "retained_earnings" && equityAddition !== 0;
-      if (group.length === 0 && !carriesDerived) continue;
+      if (group.length === 0) continue;
 
-      rows.push({ name: SUB_TYPE_LABELS[subType], _isHeader: true, _depth: 1 });
+      rows.push({ name: SUB_TYPE_LABELS[subType], _kind: "subsection", _isHeader: true, _depth: 1 });
 
       for (const acct of group) {
         if (acct.closing_balance === 0) continue;
-        rows.push({ name: acct.name, code: acct.code, closing_balance: acct.closing_balance, _depth: 2 });
+        rows.push({ name: acct.name, code: acct.code, balance: acct.closing_balance, _kind: "detail", _depth: 2 });
       }
 
-      if (subType === "retained_earnings") {
-        if (retainedEarnings !== 0) {
-          rows.push({ name: "Current Year Earnings", closing_balance: retainedEarnings, _depth: 2 });
-        }
-        if (unfoldedPriorYears !== 0) {
-          rows.push({
-            name: "Prior years' result (unallocated — no retained earnings account)",
-            closing_balance: unfoldedPriorYears,
-            _depth: 2,
-          });
-        }
-      }
-
-      const subTotal = group.reduce((s, a) => s + a.closing_balance, 0) +
-        (subType === "retained_earnings" ? equityAddition : 0);
-      rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, closing_balance: subTotal, _isSubtotal: true, _depth: 1 });
+      const subTotal = group.reduce((s, a) => s + a.closing_balance, 0);
+      rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, balance: subTotal, _kind: "subtotal", _isSubtotal: true, _depth: 1 });
     }
 
-    rows.push({ name: `TOTAL ${sectionLabel.toUpperCase()}`, closing_balance: sectionTotal, _isGrandTotal: true, _bold: true });
+    rows.push({
+      name: `Total ${sectionLabel}`,
+      balance: sectionTotal,
+      _kind: totalKind,
+      _isGrandTotal: totalKind === "grand_total",
+      _bold: true,
+    });
   };
 
-  buildSection("Assets", "asset", BS_ASSET_ORDER);
-  buildSection("Liabilities", "liability", BS_LIABILITY_ORDER);
-  buildSection("Equity", "equity", BS_EQUITY_ORDER);
+  buildClassifiedSection("Assets", "asset", BS_ASSET_ORDER, "grand_total");
+  buildClassifiedSection("Liabilities", "liability", BS_LIABILITY_ORDER, "major_total");
 
-  const totalAssets = classified.filter(a => a.account_type === "asset").reduce((s, a) => s + a.closing_balance, 0);
-  const totalLiabilities = classified.filter(a => a.account_type === "liability").reduce((s, a) => s + a.closing_balance, 0);
-  const totalEquity = classified.filter(a => a.account_type === "equity").reduce((s, a) => s + a.closing_balance, 0) + equityAddition;
+  // Equity presentation matches the screen exactly: one flat section, the
+  // current-year result, the no-retained-account safety line, then the final
+  // liabilities-plus-equity balancing total.
+  rows.push({ name: "EQUITY", _kind: "section", _isHeader: true, _bold: true });
+  const equityAccounts = classified.filter(a => a.account_type === "equity");
+  for (const acct of equityAccounts) {
+    if (acct.closing_balance === 0) continue;
+    rows.push({ name: acct.name, code: acct.code, balance: acct.closing_balance, _kind: "detail", _depth: 2 });
+  }
+  if (retainedEarnings !== 0) {
+    rows.push({ name: "Current Year Earnings", balance: retainedEarnings, _kind: "detail", _depth: 2 });
+  }
+  if (unfoldedPriorYears !== 0) {
+    rows.push({
+      name: "Prior years' result (unallocated — no retained earnings account)",
+      balance: unfoldedPriorYears,
+      _kind: "detail",
+      _depth: 2,
+    });
+  }
+
+  const totalAssets = totalFor("asset");
+  const totalLiabilities = totalFor("liability");
+  const totalEquity = totalFor("equity") + equityAddition;
+
+  rows.push({ name: "Total Equity", balance: totalEquity, _kind: "major_total", _bold: true });
+  rows.push({
+    name: "Total Liabilities and Equity",
+    balance: totalLiabilities + totalEquity,
+    _kind: "grand_total",
+    _isGrandTotal: true,
+    _bold: true,
+  });
 
   return {
     data: rows as unknown as Record<string, unknown>[],
@@ -608,32 +642,32 @@ export async function buildIncomeStatement(
     const group = classified.filter(a => a.sub_type === subType && a.account_type === accountType);
     if (group.length === 0) return 0;
     const total = group.reduce((s, a) => s + a.balance, 0);
-    rows.push({ name: heading.toUpperCase(), _isHeader: true, _bold: true });
+    rows.push({ name: heading.toUpperCase(), _kind: "section", _isHeader: true, _bold: true });
     for (const acct of group) {
       if (acct.balance === 0) continue;
-      rows.push({ name: acct.name, code: acct.code, balance: acct.balance, _depth: 1 });
+      rows.push({ name: acct.name, code: acct.code, amount: acct.balance, _kind: "detail", _depth: 1 });
     }
-    rows.push({ name: `Total ${heading}`, balance: total, _isSubtotal: true, _depth: 0 });
+    rows.push({ name: `Total ${heading}`, amount: total, _kind: "subtotal", _isSubtotal: true, _depth: 0 });
     return total;
   };
 
   const revenue = section("revenue", "income", "Revenue");
   const costOfSales = section("cost_of_sales", "expense", "Cost of Sales");
   const grossProfit = revenue - costOfSales;
-  rows.push({ name: "GROSS PROFIT", balance: grossProfit, _isSubtotal: true, _bold: true });
+  rows.push({ name: "GROSS PROFIT", amount: grossProfit, _kind: "calculated_result", _isSubtotal: true, _bold: true });
 
   const operatingExpenses = section("operating_expense", "expense", "Operating Expenses");
   const operatingProfit = grossProfit - operatingExpenses;
-  rows.push({ name: "OPERATING PROFIT", balance: operatingProfit, _isSubtotal: true, _bold: true });
+  rows.push({ name: "OPERATING PROFIT", amount: operatingProfit, _kind: "calculated_result", _isSubtotal: true, _bold: true });
 
   const otherIncome = section("other_income", "income", "Other Income");
   const otherExpenses = section("other_expense", "expense", "Other Expenses");
   const profitBeforeTax = operatingProfit + otherIncome - otherExpenses;
-  rows.push({ name: "PROFIT BEFORE TAX", balance: profitBeforeTax, _isSubtotal: true, _bold: true });
+  rows.push({ name: "PROFIT BEFORE TAX", amount: profitBeforeTax, _kind: "calculated_result", _isSubtotal: true, _bold: true });
 
   const taxExpense = section("tax_expense", "expense", "Tax Expense");
   const netIncome = profitBeforeTax - taxExpense;
-  rows.push({ name: "NET PROFIT", balance: netIncome, _isGrandTotal: true, _bold: true });
+  rows.push({ name: "NET PROFIT", amount: netIncome, _kind: "grand_total", _isGrandTotal: true, _bold: true });
 
   const totalIncome = revenue + otherIncome;
   const totalExpenses = operatingExpenses + otherExpenses + taxExpense;
