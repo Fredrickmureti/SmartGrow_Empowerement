@@ -1,8 +1,14 @@
 /**
  * Budget vs Actual Report Page
- * 
- * Side-by-side comparison of budget amounts vs actual journal entry totals
- * with variance calculation by account and period.
+ *
+ * One reporting surface for budget variance. Every figure comes from the
+ * authoritative database report (`get_budget_variance_report` via
+ * `useBudgetVsActual`): posted, non-closing, non-opening, non-sample ledger
+ * activity inside the business's own monthly fiscal periods and the budget's
+ * business/branch scope.
+ *
+ * Variance is favourable-positive by account nature: underspending a cost
+ * account and over-earning a revenue account both read as favourable.
  *
  * Rendered by the canonical reporting engine (`@/design-system/reports`).
  */
@@ -10,12 +16,12 @@
 import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle, TrendingUp, TrendingDown, Target } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBudgets } from "@/hooks/useBudgets";
-import { useBudgetVsActual } from "@/hooks/useBudgetVsActual";
+import { useBudgetVsActual, type BudgetVarianceStatus } from "@/hooks/useBudgetVsActual";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -44,6 +50,17 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+function statusBadge(status: BudgetVarianceStatus) {
+  switch (status) {
+    case "unfavourable":
+      return <Badge variant="destructive">Unfavourable</Badge>;
+    case "favourable":
+      return <Badge className="bg-green-600 hover:bg-green-700 text-white">Favourable</Badge>;
+    default:
+      return <Badge variant="secondary">On Track</Badge>;
+  }
+}
+
 function BudgetReportInner() {
   const [selectedBudgetId, setSelectedBudgetId] = useState<string>("");
   const [drillDown, setDrillDown] = useState<DrillDownConfig | null>(null);
@@ -52,62 +69,35 @@ function BudgetReportInner() {
   const { budgets } = useBudgets();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   // Budget vs Actual is intrinsically scoped by the *budget's* own branch_id
-  // (a Branch A budget compares to Branch A actuals — see useBudgetVsActual).
-  // The toolbar branch filter from ReportPageLayout still drives which budgets
-  // appear in the dropdown via useBudgets().
+  // (a Branch A budget compares to Branch A actuals — enforced in SQL).
+  // The toolbar branch filter still drives which budgets appear below.
 
-  const activeBudgets = budgets.filter((b) => b.status === "active" || b.status === "draft");
+  const selectableBudgets = budgets.filter((b) => b.status === "active" || b.status === "draft" || b.status === "closed");
 
-  const {
-    selectedBudget,
-    storedActuals,
-    isLoading,
-    calculateActuals,
-    getVarianceReport,
-    getChartData,
-  } = useBudgetVsActual(selectedBudgetId || undefined);
+  const { selectedBudget, report, isLoading } = useBudgetVsActual(selectedBudgetId || undefined);
 
-  const varianceReport = selectedBudget ? getVarianceReport(selectedBudget) : null;
-  const chartData = selectedBudget ? getChartData(selectedBudget) : [];
-
-  const handleCalculateActuals = () => {
-    if (selectedBudget) {
-      calculateActuals.mutate(selectedBudget);
+  // Period bounds come from the fiscal calendar rows, not the calendar year.
+  const periodBounds = useMemo(() => {
+    const starts = (report?.rows ?? []).map((r) => r.periodStart).filter(Boolean) as string[];
+    const ends = (report?.rows ?? []).map((r) => r.periodEnd).filter(Boolean) as string[];
+    if (starts.length && ends.length) {
+      return { start: starts.sort()[0], end: ends.sort()[ends.length - 1] };
     }
-  };
+    const fy = selectedBudget?.fiscal_year;
+    return fy ? { start: `${fy}-01-01`, end: `${fy}-12-31` } : null;
+  }, [report, selectedBudget]);
 
-  const getStatusBadge = (status: "under" | "over" | "on_track") => {
-    switch (status) {
-      case "over":
-        return <Badge variant="destructive">Over Budget</Badge>;
-      case "under":
-        return <Badge className="bg-green-600 hover:bg-green-700 text-white">Under Budget</Badge>;
-      default:
-        return <Badge variant="secondary">On Track</Badge>;
-    }
-  };
-
-  // Build a per-account summary from variance report
-  const accountSummaries = useMemo(() => {
-    if (!varianceReport) return [];
-    const map = new Map<string, { accountId: string; accountCode: string; accountName: string; budgeted: number; actual: number; variance: number; variancePercent: number; status: "under" | "over" | "on_track" }>();
-    varianceReport.itemsByAccount.forEach((items, accountId) => {
-      const budgeted = items.reduce((s, i) => s + i.budgeted, 0);
-      const actual = items.reduce((s, i) => s + i.actual, 0);
-      const variance = budgeted - actual;
-      const variancePercent = budgeted > 0 ? (variance / budgeted) * 100 : 0;
-      let status: "under" | "over" | "on_track" = "on_track";
-      if (variancePercent < -10) status = "over";
-      else if (variancePercent > 10) status = "under";
-      map.set(accountId, {
-        accountId,
-        accountCode: items[0]?.accountCode || "",
-        accountName: items[0]?.accountName || "Unknown",
-        budgeted, actual, variance, variancePercent, status,
-      });
-    });
-    return Array.from(map.values()).sort((a, b) => a.accountCode.localeCompare(b.accountCode));
-  }, [varianceReport]);
+  const chartData = useMemo(() => {
+    if (!report) return [];
+    return report.expenseByMonth.map((point, index) => ({
+      month: point.month,
+      fullMonth: point.fullMonth,
+      budgetedExpense: point.budgeted,
+      actualExpense: point.actual,
+      budgetedIncome: report.incomeByMonth[index]?.budgeted ?? 0,
+      actualIncome: report.incomeByMonth[index]?.actual ?? 0,
+    }));
+  }, [report]);
 
   // ── One column declaration drives the screen table AND the export ──
   const columns = useMemo<ReportColumn[]>(
@@ -122,71 +112,115 @@ function BudgetReportInner() {
         key: "status",
         header: "Status",
         align: "center",
-        width: "w-[130px]",
+        width: "w-[140px]",
         exportExclude: true,
         render: (row) => {
-          const status = (row.values as any)?.status as "under" | "over" | "on_track" | undefined;
-          return status ? getStatusBadge(status) : null;
+          const values = row.values as Record<string, unknown>;
+          const status = values?.status as BudgetVarianceStatus | undefined;
+          if (!status) return null;
+          return (
+            <div className="flex items-center justify-center gap-1">
+              {statusBadge(status)}
+              {values?.unbudgeted ? <Badge variant="outline">Unbudgeted</Badge> : null}
+            </div>
+          );
         },
       },
     ],
     [],
   );
 
-  const rows = useMemo<ReportRow[]>(() => {
-    const out: ReportRow[] = accountSummaries.map((a) => ({
-      id: a.accountId,
-      onClick: selectedBudget
-        ? () => setDrillDown({
-            title: `${a.accountCode} - ${a.accountName}`,
-            accountId: a.accountId,
-            startDate: `${selectedBudget.fiscal_year}-01-01`,
-            endDate: `${selectedBudget.fiscal_year}-12-31`,
-          })
-        : undefined,
-      values: {
-        code: a.accountCode,
-        name: a.accountName,
-        budgeted: a.budgeted,
-        actual: a.actual,
-        variance: a.variance,
-        variance_pct: a.variancePercent,
-        status: a.status,
-      },
-    }));
+  const buildRows = useCallback(
+    (accountType: "income" | "expense" | "other", label: string): ReportRow[] => {
+      if (!report) return [];
+      const summaries = report.accountSummaries.filter((a) =>
+        accountType === "other"
+          ? a.accountType !== "income" && a.accountType !== "expense"
+          : a.accountType === accountType,
+      );
+      if (summaries.length === 0) return [];
 
-    if (varianceReport) {
-      out.push({
-        id: "grand-total",
-        kind: "grandTotal",
-        label: "TOTAL",
+      const out: ReportRow[] = summaries.map((a) => ({
+        id: `${accountType}-${a.accountId}`,
+        onClick: periodBounds
+          ? () =>
+              setDrillDown({
+                title: `${a.accountCode} - ${a.accountName}`,
+                accountId: a.accountId,
+                startDate: periodBounds.start,
+                endDate: periodBounds.end,
+              })
+          : undefined,
         values: {
-          budgeted: varianceReport.totalBudgeted,
-          actual: varianceReport.totalActual,
-          variance: varianceReport.totalVariance,
-          variance_pct: varianceReport.variancePercent,
+          code: a.accountCode,
+          name: a.accountName,
+          budgeted: a.budgeted,
+          actual: a.actual,
+          variance: a.variance,
+          variance_pct: a.variancePercent,
+          status: a.status,
+          unbudgeted: a.unbudgeted,
+        },
+      }));
+
+      const t = accountType === "income" ? report.income : accountType === "expense" ? report.expense : report.other;
+      out.push({
+        id: `${accountType}-total`,
+        kind: "subtotal",
+        label: `Total ${label}`,
+        values: {
+          budgeted: t.budgeted,
+          actual: t.actual,
+          variance: t.variance,
+          variance_pct: t.variancePercent,
         },
       });
-    }
+      return out;
+    },
+    [report, periodBounds],
+  );
 
-    return out;
-  }, [accountSummaries, varianceReport, selectedBudget]);
+  const incomeRows = useMemo(() => buildRows("income", "revenue"), [buildRows]);
+  const expenseRows = useMemo(() => buildRows("expense", "costs"), [buildRows]);
+  const otherRows = useMemo(() => buildRows("other", "other accounts"), [buildRows]);
 
-  const getExportConfig = useCallback((): ExportConfig => ({
-    title: `Budget vs Actual – ${selectedBudget?.name || ""}`,
-    reportType: "budget_vs_actual",
-    companyName: currentOrg?.name || "",
-    dateRange: `Fiscal Year ${selectedBudget?.fiscal_year || ""}`,
-    columns: toExportColumns(columns),
-    rows: toExportRows(rows, columns),
-    sheetName: "Budget vs Actual",
-    currency: baseCurrency,
-  }), [columns, rows, selectedBudget, currentOrg, baseCurrency]);
+  const netRow = useMemo<ReportRow[]>(() => {
+    if (!report) return [];
+    return [
+      {
+        id: "net-result",
+        kind: "grandTotal",
+        label: "NET RESULT (revenue − costs)",
+        values: {
+          budgeted: report.net.budgeted,
+          actual: report.net.actual,
+          variance: report.net.variance,
+          variance_pct: report.net.variancePercent,
+        },
+      },
+    ];
+  }, [report]);
+
+  const getExportConfig = useCallback((): ExportConfig => {
+    const rows = [...incomeRows, ...expenseRows, ...otherRows, ...netRow];
+    return {
+      title: `Budget vs Actual – ${selectedBudget?.name || ""}`,
+      reportType: "budget_vs_actual",
+      companyName: currentOrg?.name || "",
+      dateRange: `Fiscal Year ${selectedBudget?.fiscal_year || ""}`,
+      columns: toExportColumns(columns),
+      rows: toExportRows(rows, columns),
+      sheetName: "Budget vs Actual",
+      currency: baseCurrency,
+    };
+  }, [columns, incomeRows, expenseRows, otherRows, netRow, selectedBudget, currentOrg, baseCurrency]);
+
+  const hasData = !!report && report.rows.length > 0;
 
   return (
     <ReportPageLayout
       title="Budget vs Actual"
-      description="Compare budgeted amounts against actual journal entry totals"
+      description="Compare the plan against posted ledger activity, by account and fiscal period"
       isLoading={isLoading || !currencyReady}
       isEmpty={!selectedBudgetId}
       emptyState={{
@@ -195,12 +229,15 @@ function BudgetReportInner() {
         message:
           "Budget vs Actual compares one budget against posted journal activity. Choose a budget above to run the variance analysis.",
       }}
-      getExportConfig={selectedBudgetId && varianceReport ? getExportConfig : undefined}
+      getExportConfig={selectedBudgetId && hasData ? getExportConfig : undefined}
       headerActions={
         <div className="flex items-center gap-2">
           <RefreshButton queryKeyPrefixes={[['budget-vs-actual'] as const]} tooltip="Refresh budget report" />
           {selectedBudget && (
             <Badge variant="outline">FY {selectedBudget.fiscal_year}</Badge>
+          )}
+          {selectedBudget?.currency_code && (
+            <Badge variant="outline">{selectedBudget.currency_code}</Badge>
           )}
           <SaveViewButton
             reportType="budget"
@@ -219,73 +256,90 @@ function BudgetReportInner() {
                 <SelectValue placeholder="Select budget…" />
               </SelectTrigger>
               <SelectContent>
-                {activeBudgets.map((b) => (
+                {selectableBudgets.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
-                    {b.name} ({b.fiscal_year})
+                    {b.name} ({b.fiscal_year}) — {b.status}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {selectedBudget && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCalculateActuals}
-              disabled={calculateActuals.isPending}
-            >
-              <RefreshCw className={cn("h-4 w-4 mr-2", calculateActuals.isPending && "animate-spin")} />
-              {storedActuals.length > 0 ? "Refresh Actuals" : "Calculate Actuals"}
-            </Button>
-          )}
         </div>
       }
     >
-      {varianceReport && (
+      {report && (
         <div className="space-y-6">
-          {/* KPI Cards */}
+          {/* KPI Cards — revenue and cost are never netted into one variance */}
           <div className="stats-grid">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Budgeted</CardTitle>
+                <CardTitle className="text-sm font-medium">Revenue plan vs earned</CardTitle>
                 <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(varianceReport.totalBudgeted, baseCurrency)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(report.income.actual, baseCurrency)}</div>
+                <p className="text-xs text-muted-foreground">
+                  Plan {formatCurrency(report.income.budgeted, baseCurrency)}
+                </p>
+                <p className={cn("text-xs font-medium", report.income.favourable ? "text-green-600" : "text-destructive")}>
+                  {report.income.favourable ? "Favourable" : "Unfavourable"}{" "}
+                  {formatCurrency(Math.abs(report.income.variance), baseCurrency)}
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Actual</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Cost plan vs spent</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(varianceReport.totalActual, baseCurrency)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(report.expense.actual, baseCurrency)}</div>
+                <p className="text-xs text-muted-foreground">
+                  Plan {formatCurrency(report.expense.budgeted, baseCurrency)}
+                </p>
+                <p className={cn("text-xs font-medium", report.expense.favourable ? "text-green-600" : "text-destructive")}>
+                  {report.expense.favourable ? "Favourable" : "Unfavourable"}{" "}
+                  {formatCurrency(Math.abs(report.expense.variance), baseCurrency)}
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Variance</CardTitle>
-                {varianceReport.totalVariance >= 0 ? (
-                  <TrendingDown className="h-4 w-4 text-green-600" />
+                <CardTitle className="text-sm font-medium">Net result variance</CardTitle>
+                {report.net.favourable ? (
+                  <TrendingUp className="h-4 w-4 text-green-600" />
                 ) : (
-                  <TrendingUp className="h-4 w-4 text-destructive" />
+                  <TrendingDown className="h-4 w-4 text-destructive" />
                 )}
               </CardHeader>
               <CardContent>
-                <div className={cn("text-2xl font-bold", varianceReport.totalVariance >= 0 ? "text-green-600" : "text-destructive")}>
-                  {formatCurrency(varianceReport.totalVariance, baseCurrency)}
+                <div className={cn("text-2xl font-bold", report.net.favourable ? "text-green-600" : "text-destructive")}>
+                  {formatCurrency(report.net.variance, baseCurrency)}
                 </div>
-                <p className="text-xs text-muted-foreground">{varianceReport.variancePercent.toFixed(1)}%</p>
+                <p className="text-xs text-muted-foreground">
+                  Actual {formatCurrency(report.net.actual, baseCurrency)} vs plan{" "}
+                  {formatCurrency(report.net.budgeted, baseCurrency)}
+                </p>
               </CardContent>
             </Card>
           </div>
+
+          {report.unbudgetedRows.length > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {report.unbudgetedRows.length} account/period combination
+                {report.unbudgetedRows.length === 1 ? " has" : "s have"} posted activity with no budget line. They are
+                included below and marked <span className="font-medium">Unbudgeted</span>.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Chart */}
           {chartData.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Monthly Budget vs Actual</CardTitle>
+                <CardTitle className="text-base">Monthly plan vs actual</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -298,25 +352,54 @@ function BudgetReportInner() {
                       contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))" }}
                     />
                     <Legend />
-                    <Bar dataKey="budgeted" fill="hsl(var(--primary))" name="Budgeted" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="actual" fill="hsl(var(--accent))" name="Actual" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="budgetedIncome" fill="hsl(var(--primary))" name="Revenue plan" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="actualIncome" fill="hsl(var(--accent))" name="Revenue actual" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="budgetedExpense" fill="hsl(var(--muted-foreground))" name="Cost plan" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="actualExpense" fill="hsl(var(--destructive))" name="Cost actual" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           )}
 
-          {/* Account Detail Table, rendered by the shared reporting engine */}
+          {/* Account detail, rendered by the shared reporting engine */}
           <ReportSurface
             title="Budget vs Actual"
             subtitle={selectedBudget ? `${selectedBudget.name} — FY ${selectedBudget.fiscal_year}` : undefined}
             profile="financial"
           >
+            {incomeRows.length > 0 && (
+              <ReportTable
+                columns={columns}
+                rows={incomeRows}
+                currency={baseCurrency}
+                caption="Revenue — favourable when actual exceeds plan"
+                emptyMessage="No revenue lines"
+              />
+            )}
+            {expenseRows.length > 0 && (
+              <ReportTable
+                columns={columns}
+                rows={expenseRows}
+                currency={baseCurrency}
+                caption="Costs — favourable when actual is below plan"
+                emptyMessage="No cost lines"
+              />
+            )}
+            {otherRows.length > 0 && (
+              <ReportTable
+                columns={columns}
+                rows={otherRows}
+                currency={baseCurrency}
+                caption="Other budgeted accounts (not part of the net result)"
+                emptyMessage="No other lines"
+              />
+            )}
             <ReportTable
               columns={columns}
-              rows={rows}
+              rows={netRow}
               currency={baseCurrency}
-              caption="Variance by account"
+              caption="Net result"
               emptyMessage="No budget lines for this budget"
             />
           </ReportSurface>
