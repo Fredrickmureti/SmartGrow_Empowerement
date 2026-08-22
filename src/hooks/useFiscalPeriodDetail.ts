@@ -390,16 +390,12 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           _date_to: priorEndDate,
           _business_id: businessId || null,
         }),
-        // Budget items for this period's month/year — scoped to the business
-        // that owns the period. Never aggregate another business's plan.
-        supabase
-          .from("budget_items")
-          .select("account_id, budgeted_amount, budget_id, budgets!inner(fiscal_year, organization_id, business_id, status)")
-          .eq("budgets.organization_id", orgId)
-          .eq("budgets.business_id", businessId)
-          .eq("budgets.fiscal_year", new Date(startDate).getFullYear())
-          .eq("budgets.status", "active")
-          .eq("period_month", new Date(startDate).getMonth() + 1),
+        // Budget vs actual for this period. The database owns the definition
+        // of a budget "actual" (period authority, ledger visibility, normal
+        // balance direction, favourable-positive variance) — never recompute
+        // it here from GL movements.
+        supabase.rpc("get_period_budget_variance", { _fiscal_period_id: periodId }),
+
 
         // Fixed asset additions
         supabase
