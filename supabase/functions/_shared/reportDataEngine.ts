@@ -361,13 +361,22 @@ export async function getGLAccountBalances(
 export async function buildBalanceSheet(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
 ): Promise<ReportResult> {
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["asset", "liability", "equity"]);
-
   // Single retained-earnings authority, shared with the on-screen statement:
   // SQL owns the fiscal calendar, this year's result and the closed years'
-  // result (already folded into the retained-earnings account's opening
+  // result (which it folds into the retained-earnings account's opening
   // balance). Deriving it here from income/expense totals would let the PDF
   // and the screen disagree.
+  //
+  // Resolved BEFORE the balances, because it also decides the reporting
+  // window: `get_ledger_opening_balances` only performs the retained-earnings
+  // fold when the requested date precedes the fiscal-year start. A window
+  // starting inside the current fiscal year therefore returns a
+  // retained-earnings account with no closed-year result in it, and the
+  // exported statement silently loses every prior year's profit — the same
+  // defect the on-screen statement had. Anchoring the window to the
+  // fiscal-year start makes the fold happen, and the balance stays an
+  // as-of-`endStr` figure either way, since
+  // opening(fy_start) + movement(fy_start..endStr) == balance(endStr).
   const { data: equityRows, error: equityError } = await supabase.rpc("get_equity_result", {
     _org_id: organizationId,
     _business_id: requireBusinessId(businessId),
@@ -376,10 +385,25 @@ export async function buildBalanceSheet(
   });
   if (equityError) throw new Error(`Failed to resolve equity result: ${equityError.message}`);
   const equity = (Array.isArray(equityRows) ? equityRows[0] : equityRows) as
-    | { current_year_earnings?: number; prior_years_result?: number }
+    | {
+        fiscal_year_start?: string | null;
+        current_year_earnings?: number;
+        prior_years_result?: number;
+        retained_earnings_account_id?: string | null;
+      }
     | undefined;
   const retainedEarnings = Number(equity?.current_year_earnings ?? 0);
+  const priorYearsResult = Number(equity?.prior_years_result ?? 0);
+  const hasRetainedEarningsAccount = Boolean(equity?.retained_earnings_account_id);
+  // With no retained-earnings account there is nowhere for SQL to fold the
+  // closed years' result, so it has to be presented as its own equity line or
+  // the statement cannot balance.
+  const unfoldedPriorYears = hasRetainedEarningsAccount ? 0 : priorYearsResult;
 
+  const effectiveStart = equity?.fiscal_year_start ?? startStr;
+  const accounts = await getGLAccountBalances(
+    supabase, organizationId, businessId, effectiveStart, endStr, ["asset", "liability", "equity"],
+  );
 
   const classified = accounts.map(a => ({
     ...a,
@@ -388,16 +412,22 @@ export async function buildBalanceSheet(
 
   const rows: ClassifiedRow[] = [];
 
+  // Equity carries two derived additions: this year's result, and — only when
+  // there is no retained-earnings account to absorb it — the closed years'
+  // result. Both are added once, at section and sub-type level alike.
+  const equityAddition = retainedEarnings + unfoldedPriorYears;
+
   const buildSection = (sectionLabel: string, accountType: string, subTypeOrder: AccountSubType[]) => {
     const sectionAccounts = classified.filter(a => a.account_type === accountType);
     const sectionTotal = sectionAccounts.reduce((s, a) => s + a.closing_balance, 0) +
-      (accountType === "equity" ? retainedEarnings : 0);
+      (accountType === "equity" ? equityAddition : 0);
 
     rows.push({ name: sectionLabel.toUpperCase(), _isHeader: true, _bold: true });
 
     for (const subType of subTypeOrder) {
       const group = sectionAccounts.filter(a => a.sub_type === subType);
-      if (group.length === 0 && !(subType === "retained_earnings" && retainedEarnings !== 0)) continue;
+      const carriesDerived = subType === "retained_earnings" && equityAddition !== 0;
+      if (group.length === 0 && !carriesDerived) continue;
 
       rows.push({ name: SUB_TYPE_LABELS[subType], _isHeader: true, _depth: 1 });
 
@@ -406,12 +436,21 @@ export async function buildBalanceSheet(
         rows.push({ name: acct.name, code: acct.code, closing_balance: acct.closing_balance, _depth: 2 });
       }
 
-      if (subType === "retained_earnings" && retainedEarnings !== 0) {
-        rows.push({ name: "Current Year Earnings", closing_balance: retainedEarnings, _depth: 2 });
+      if (subType === "retained_earnings") {
+        if (retainedEarnings !== 0) {
+          rows.push({ name: "Current Year Earnings", closing_balance: retainedEarnings, _depth: 2 });
+        }
+        if (unfoldedPriorYears !== 0) {
+          rows.push({
+            name: "Prior years' result (unallocated — no retained earnings account)",
+            closing_balance: unfoldedPriorYears,
+            _depth: 2,
+          });
+        }
       }
 
       const subTotal = group.reduce((s, a) => s + a.closing_balance, 0) +
-        (subType === "retained_earnings" ? retainedEarnings : 0);
+        (subType === "retained_earnings" ? equityAddition : 0);
       rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, closing_balance: subTotal, _isSubtotal: true, _depth: 1 });
     }
 
@@ -424,13 +463,23 @@ export async function buildBalanceSheet(
 
   const totalAssets = classified.filter(a => a.account_type === "asset").reduce((s, a) => s + a.closing_balance, 0);
   const totalLiabilities = classified.filter(a => a.account_type === "liability").reduce((s, a) => s + a.closing_balance, 0);
-  const totalEquity = classified.filter(a => a.account_type === "equity").reduce((s, a) => s + a.closing_balance, 0) + retainedEarnings;
+  const totalEquity = classified.filter(a => a.account_type === "equity").reduce((s, a) => s + a.closing_balance, 0) + equityAddition;
 
   return {
     data: rows as unknown as Record<string, unknown>[],
-    summary: { totalAssets, totalLiabilities, totalEquity, retainedEarnings, netAssets: totalAssets - totalLiabilities - totalEquity },
+    summary: {
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      retainedEarnings,
+      priorYearsResult,
+      fiscalYearStart: equity?.fiscal_year_start ?? null,
+      hasRetainedEarningsAccount,
+      netAssets: totalAssets - totalLiabilities - totalEquity,
+    },
   };
 }
+
 
 export async function buildTrialBalance(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,

@@ -94901,6 +94901,14 @@ export type Database = {
         }
         Returns: Json
       }
+      finance_can_read_branch: {
+        Args: { _branch_id: string; _business_id: string; _org_id: string }
+        Returns: boolean
+      }
+      finance_can_read_financials: {
+        Args: { _business_id: string; _org_id: string }
+        Returns: boolean
+      }
       finance_can_read_org: { Args: { _org_id: string }; Returns: boolean }
       finance_can_read_scope: {
         Args: { _business_id?: string; _org_id: string }
