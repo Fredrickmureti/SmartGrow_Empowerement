@@ -364,9 +364,11 @@ export async function buildBalanceSheet(
 }
 
 export async function buildTrialBalance(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr);
+  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, undefined, branchId);
+
 
   /** Splits a balance into debit/credit columns based on natural balance */
   function splitBalance(balance: number, accountType: string): { debit: number; credit: number } {
