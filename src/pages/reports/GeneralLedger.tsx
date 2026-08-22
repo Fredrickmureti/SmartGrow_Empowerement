@@ -28,6 +28,22 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  documentRate,
+  formatDocumentAmount,
+  formatRate,
+  hasForeignCurrency,
+  type FxLine,
+} from "@/lib/reports/currencyPresentation";
+import type { GLTransaction } from "@/hooks/useGeneralLedger";
+
+/** Ledger row → FX presentation contract (supplement, never arithmetic). */
+const toFxLine = (t: GLTransaction): FxLine => ({
+  entryCurrency: t.entry_currency,
+  originalDebit: t.original_debit,
+  originalCredit: t.original_credit,
+  exchangeRate: t.exchange_rate,
+});
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import {
@@ -270,7 +286,7 @@ function GeneralLedgerInner() {
       });
     }
     return out;
-  }, [data]);
+  }, [data, baseCurrency]);
 
   const getExportConfig = useCallback(
     (): ExportConfig => ({
