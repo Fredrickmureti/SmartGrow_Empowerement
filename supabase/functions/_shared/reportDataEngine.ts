@@ -225,13 +225,6 @@ function requireBusinessId(businessId?: string | null): string {
   return businessId;
 }
 
-/** The day before `startStr` — the cut-off for "prior period" movement. */
-function dayBefore(startStr: string): string {
-  const d = new Date(`${startStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
 async function accountMovements(
   supabase: SupabaseClient,
   organizationId: string,
