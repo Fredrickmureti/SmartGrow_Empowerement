@@ -65,11 +65,21 @@ describe("Ledgers & Journals — single accounting source", () => {
     expect(read(ENGINE)).toContain("_branch_id: branchId ?? null");
   });
 
-  it("a branch-scoped run must not add the business-level opening balance", () => {
-    // `accounts.opening_balance` is a business-level property. Adding it to a
-    // branch run double-counts the company opening into one branch.
-    expect(read(ENGINE)).toMatch(/branchId\s*\?\s*0\s*:/);
+  it("opening balances come from the one opening engine, never from local math", () => {
+    // `accounts.opening_balance` is a business-level property and nominal
+    // accounts must restart at the fiscal-year boundary. Both rules live in
+    // `get_ledger_opening_balances`; no runtime may re-derive them, and both
+    // must pass the branch through so a branch run suppresses the company
+    // opening instead of double-counting it into one branch.
+    for (const src of [read(ENGINE), read(TB_HOOK)]) {
+      expect(src).toContain("get_ledger_opening_balances");
+      expect(src).toMatch(/_branch_id:\s*branchId\s*(\?\?|\|\|)\s*null/);
+      // No client-side reconstruction of an opening figure.
+      expect(src).not.toMatch(/openingBalance\s*[+-]=/);
+      expect(src).not.toMatch(/opening_balance\s*[+-]=/);
+    }
   });
+
 
   it("the PDF column spec matches the on-screen columns", () => {
     const specs = read(SPECS);
