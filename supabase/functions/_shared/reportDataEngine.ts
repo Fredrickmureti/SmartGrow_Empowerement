@@ -88,15 +88,21 @@ export interface ClassifiedRow {
   _bold?: boolean;
 }
 
+export type ComparisonMode = "none" | "previous_period" | "previous_year";
+
 export interface ReportResult {
   data: Record<string, unknown>[];
   summary: Record<string, unknown>;
   /**
    * Builder-supplied column override. Ledger documents use it to add the
-   * conditional multi-currency supplement; without it the registry spec wins.
+   * conditional multi-currency supplement; comparative statements use it to
+   * add Current / Comparison / Variance; without it the registry spec wins.
    */
   columns?: ReportColumn[];
+  /** Resolved comparison window, when a comparative builder ran. */
+  comparisonPeriod?: { from: string; to: string; mode: Exclude<ComparisonMode, "none"> };
 }
+
 
 
 // ── Classification Maps (mirrored from accountDetailTypeClassification.ts) ──
@@ -602,6 +608,68 @@ export async function buildTrialBalance(
   };
 }
 
+// ── Comparative period resolution ─────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseIsoDateUTC(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) throw new Error(`Invalid report date: ${value}`);
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function formatIsoDateUTC(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function shiftIsoDateYears(value: string, years: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const targetYear = year + years;
+  const daysInTargetMonth = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
+  return formatIsoDateUTC(new Date(Date.UTC(targetYear, month - 1, Math.min(day, daysInTargetMonth))));
+}
+
+/**
+ * Resolve the comparison window once for UI, on-demand export and schedules.
+ * Previous period is the immediately preceding window of equal inclusive
+ * length; previous year is the same dates shifted one calendar year.
+ */
+export function resolveComparisonPeriod(
+  mode: ComparisonMode | null | undefined,
+  startStr: string,
+  endStr: string,
+): { from: string; to: string; mode: Exclude<ComparisonMode, "none"> } | null {
+  if (!mode || mode === "none") return null;
+  if (mode === "previous_year") {
+    return { mode, from: shiftIsoDateYears(startStr, -1), to: shiftIsoDateYears(endStr, -1) };
+  }
+
+  const start = parseIsoDateUTC(startStr);
+  const end = parseIsoDateUTC(endStr);
+  const inclusiveDays = Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1;
+  const comparisonEnd = new Date(start.getTime() - DAY_MS);
+  const comparisonStart = new Date(comparisonEnd.getTime() - ((inclusiveDays - 1) * DAY_MS));
+  return {
+    mode,
+    from: formatIsoDateUTC(comparisonStart),
+    to: formatIsoDateUTC(comparisonEnd),
+  };
+}
+
+/** Percentage variance with a truthful empty cell for a zero comparison base. */
+function variancePercent(variance: number, comparison: number): number | null {
+  return comparison !== 0 ? (variance / Math.abs(comparison)) * 100 : null;
+}
+
+function comparisonCell(current: number, comparison: number) {
+  const variance = current - comparison;
+  return {
+    amount: current,
+    comparison,
+    variance,
+    variance_percent: variancePercent(variance, comparison),
+  };
+}
 
 /**
  * Profit & Loss — multi-step, identical in structure to the on-screen
