@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireCronAuth } from "../_shared/requireCronAuth.ts";
 import { renderReport, getReportSpec, resolveReportColumns } from "../_shared/reports/index.ts";
+import { scopeBranchForReport } from "../_shared/reports/branchScopability.ts";
+
 import { buildReportCsv, type ReportExportConfig } from "../_shared/exports/reportCsv.ts";
 import { buildReportXlsx } from "../_shared/exports/reportXlsx.ts";
 import type { ReportRow } from "../_shared/reportPdfGenerator.ts";
@@ -63,8 +65,12 @@ interface ReportData {
  */
 function resolveScheduleBranch(report: ScheduledReport): string | undefined {
   const legacy = (report.filters?.branchId ?? report.filters?.branch_id) as string | undefined;
-  return (report.branch_id || legacy) || undefined;
+  const stored = (report.branch_id || legacy) || undefined;
+  // Entity-level statements are never branch-sliced, whatever a legacy
+  // schedule stored. One registry, shared with the screens.
+  return scopeBranchForReport(report.report_type, stored);
 }
+
 
 // (Branding fallback removed in Stage K — renderReport handles the lookup
 // internally and tolerates a missing record without producing a broken PDF.)
