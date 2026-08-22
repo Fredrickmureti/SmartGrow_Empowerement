@@ -199,6 +199,7 @@ async function rollupContactsToCommercialPartner(
         email: c.email,
         buckets: { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 },
         documents: [],
+        unconvertibleDocumentCount: 0,
       };
       merged.set(partnerId, target);
     }
@@ -206,6 +207,7 @@ async function rollupContactsToCommercialPartner(
       target.buckets[k] = (target.buckets[k] || 0) + (v as number);
     }
     target.documents.push(...c.documents);
+    target.unconvertibleDocumentCount += c.unconvertibleDocumentCount;
   }
 
   return {
