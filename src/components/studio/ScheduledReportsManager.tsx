@@ -746,6 +746,42 @@ export function ScheduledReportsManager() {
                 />
               </div>
 
+              {branches.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="branch_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Branch Scope</FormLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(value === ALL_BRANCHES ? "" : value)}
+                        value={field.value || ALL_BRANCHES}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={ALL_BRANCHES}>All branches (whole business)</SelectItem>
+                          {branches.map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>
+                              {branch.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Ledger, trial balance, journal and cash flow deliveries are generated for
+                        this scope, so the emailed figures match the same report on screen.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
