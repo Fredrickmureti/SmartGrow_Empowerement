@@ -9,6 +9,8 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { useFinancialReport, type FinancialReportAccount } from "@/hooks/useFinancialReport";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -109,29 +111,53 @@ function TrialBalanceInner() {
   );
 
   // ── One column declaration drives the screen table AND the export ──
+  //
+  // Two layouts, both standard practice:
+  //   simple   — Code · Account name · Debit · Credit (closing balances as at
+  //              the period end). This is the classic textbook / QuickBooks
+  //              trial balance and the default, because that is the document
+  //              an accountant expects to sign.
+  //   extended — Opening (Dr/Cr) · Movement (Dr/Cr) · Closing (Dr/Cr) under
+  //              explicit band captions, the Odoo / Sage / SAP layout.
+  const isExtended = workspace.get("group", "simple") === "extended";
+  const setExtended = (value: boolean) =>
+    workspace.set({ group: value ? "extended" : "simple" });
+
   const columns = useMemo<ReportColumn[]>(
-    () => [
-      { key: "code", header: "Code", width: "w-[90px]", sticky: true },
-      { key: "name", header: "Account name", width: "w-[280px]", sticky: true, groupEnd: true },
-      { key: "open_dr", header: "Debit", format: "currency", width: "w-[130px]" },
-      { key: "open_cr", header: "Credit", format: "currency", width: "w-[130px]", groupEnd: true },
-      { key: "mov_dr", header: "Debit", format: "currency", width: "w-[130px]" },
-      { key: "mov_cr", header: "Credit", format: "currency", width: "w-[130px]", groupEnd: true },
-      { key: "close_dr", header: "Debit", format: "currency", width: "w-[130px]" },
-      { key: "close_cr", header: "Credit", format: "currency", width: "w-[130px]" },
-    ],
-    [],
+    () =>
+      isExtended
+        ? [
+            { key: "code", header: "Code", width: "w-[90px]", sticky: true },
+            { key: "name", header: "Account name", width: "w-[280px]", sticky: true, groupEnd: true },
+            { key: "open_dr", header: "Debit", format: "currency", width: "w-[130px]" },
+            { key: "open_cr", header: "Credit", format: "currency", width: "w-[130px]", groupEnd: true },
+            { key: "mov_dr", header: "Debit", format: "currency", width: "w-[130px]" },
+            { key: "mov_cr", header: "Credit", format: "currency", width: "w-[130px]", groupEnd: true },
+            { key: "close_dr", header: "Debit", format: "currency", width: "w-[130px]" },
+            { key: "close_cr", header: "Credit", format: "currency", width: "w-[130px]" },
+          ]
+        : [
+            { key: "code", header: "Code", width: "w-[90px]", sticky: true },
+            { key: "name", header: "Account name", sticky: true, groupEnd: true },
+            { key: "close_dr", header: "Debit", format: "currency", width: "w-[160px]" },
+            { key: "close_cr", header: "Credit", format: "currency", width: "w-[160px]" },
+          ],
+    [isExtended],
   );
 
   const columnGroups = useMemo<ReportColumnGroup[]>(
-    () => [
-      { label: "Account", span: 2, align: "left" },
-      { label: "Opening balance", span: 2 },
-      { label: "Movement", span: 2 },
-      { label: "Closing balance", span: 2 },
-    ],
-    [],
+    () =>
+      isExtended
+        ? [
+            { label: "Account", span: 2, align: "left" },
+            { label: "Opening balance", span: 2 },
+            { label: "Movement", span: 2 },
+            { label: "Closing balance", span: 2 },
+          ]
+        : [],
+    [isExtended],
   );
+
 
   // Grouping, splitting and totalling happen once — not on every render pass.
   const { rows, grandTotals, abnormalCount } = useMemo(() => {
@@ -246,7 +272,9 @@ function TrialBalanceInner() {
       // Period report: opening carried into `from`, movement inside the
       // period, closing as at `to`.
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
-      subtitle: "Accrual basis",
+      subtitle: isExtended
+        ? "Accrual basis · Opening / Movement / Closing"
+        : "Accrual basis · Closing balances",
       // Groups travel with the columns so the PDF prints the same
       // Opening / Movement / Closing band the screen shows.
       columns: toExportColumns(columns, columnGroups),
@@ -254,7 +282,7 @@ function TrialBalanceInner() {
       sheetName: "Trial Balance",
       currency: baseCurrency,
     }),
-    [columns, columnGroups, rows, dateFrom, dateTo, currentOrg, baseCurrency],
+    [columns, columnGroups, rows, dateFrom, dateTo, currentOrg, baseCurrency, isExtended],
   );
 
 
@@ -262,7 +290,11 @@ function TrialBalanceInner() {
   return (
     <ReportPageLayout
       title="Trial Balance"
-      description="Opening, movement and closing per account — debits must equal credits"
+      description={
+        isExtended
+          ? "Opening, movement and closing per account — debits must equal credits"
+          : "Closing debit and credit balance per account — debits must equal credits"
+      }
       isLoading={isLoading || !currencyReady}
       error={error as Error | null}
       isEmpty={!data || data.accounts.length === 0}
@@ -292,8 +324,28 @@ function TrialBalanceInner() {
           onZeroBalancesChange={setIncludeZeroBalances}
         >
           <ReportBranchFilter reportKind="trial_balance" />
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Layout</Label>
+            <ToggleGroup
+              type="single"
+              size="sm"
+              variant="outline"
+              value={isExtended ? "extended" : "simple"}
+              onValueChange={(value) => {
+                if (value) setExtended(value === "extended");
+              }}
+            >
+              <ToggleGroupItem value="simple" aria-label="Simple trial balance">
+                Simple
+              </ToggleGroupItem>
+              <ToggleGroupItem value="extended" aria-label="Extended trial balance">
+                Extended
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         </ReportFilters>
       }
+
     >
 
       {/* Balance Status */}
@@ -331,11 +383,11 @@ function TrialBalanceInner() {
         </CardContent>
       </Card>
 
-      {/* 6-column trial balance, rendered by the shared reporting engine */}
+      {/* Trial balance, rendered by the shared reporting engine */}
       <ReportSurface
         title="Trial Balance"
         asOfDate={`For the period ${format(new Date(dateFrom), "MMMM d, yyyy")} – ${format(new Date(dateTo), "MMMM d, yyyy")}`}
-        subtitle="Accrual basis"
+        subtitle={isExtended ? "Accrual basis · Opening / Movement / Closing" : "Accrual basis · Closing balances"}
 
 
         profile="operational"
@@ -345,7 +397,11 @@ function TrialBalanceInner() {
           columnGroups={columnGroups}
           rows={rows}
           currency={baseCurrency}
-          caption="Trial balance — opening, movement and closing balances by account"
+          caption={
+            isExtended
+              ? "Trial balance — opening, movement and closing balances by account"
+              : "Trial balance — closing debit and credit balances by account"
+          }
           emptyMessage="No account activity as of this date"
         />
       </ReportSurface>

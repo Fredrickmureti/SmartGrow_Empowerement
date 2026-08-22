@@ -24,7 +24,7 @@
 // esm.sh serves a Deno-compatible ESM build of SheetJS.
 import * as XLSX from "https://esm.sh/xlsx@0.18.5?target=deno";
 
-import type { ReportExportColumn, ReportExportConfig } from "./reportCsv.ts";
+import { groupRuns, type ReportExportColumn, type ReportExportConfig } from "./reportCsv.ts";
 
 export function buildReportXlsx(config: ReportExportConfig): Uint8Array {
   const wb = XLSX.utils.book_new();
@@ -35,7 +35,19 @@ export function buildReportXlsx(config: ReportExportConfig): Uint8Array {
   if (config.subtitle) headerRows.push([config.subtitle]);
   if (config.dateRange) headerRows.push([config.dateRange]);
   headerRows.push([]);
+  // Optional band tier ("Opening balance" merged over its Debit/Credit pair).
+  const runs = groupRuns(config.columns);
+  const bandRowIndex = runs.length > 0 ? headerRows.length : -1;
+  if (runs.length > 0) {
+    const band: string[] = [];
+    for (const run of runs) {
+      band.push(run.label);
+      for (let i = 1; i < run.span; i++) band.push("");
+    }
+    headerRows.push(band);
+  }
   headerRows.push(config.columns.map((c) => c.header));
+
 
   const dataRows: (string | number | null)[][] = config.rows.map((row) =>
     config.columns.map((col) => {
@@ -89,7 +101,17 @@ export function buildReportXlsx(config: ReportExportConfig): Uint8Array {
     if (config.dateRange) {
       merges.push({ s: { r: mergeRow, c: 0 }, e: { r: mergeRow, c: colCount - 1 } });
     }
+    if (bandRowIndex >= 0) {
+      for (const run of runs) {
+        if (!run.label || run.span < 2) continue;
+        merges.push({
+          s: { r: bandRowIndex, c: run.start },
+          e: { r: bandRowIndex, c: run.start + run.span - 1 },
+        });
+      }
+    }
     (ws as any)["!merges"] = merges;
+
   }
 
   XLSX.utils.book_append_sheet(wb, ws, "Report");

@@ -36,6 +36,7 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useBills } from "@/hooks/useBills";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
@@ -111,12 +112,15 @@ export function ReconcileTransactionSheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [offsetAccountId, setOffsetAccountId] = useState("");
   const [manualDescription, setManualDescription] = useState("");
+  /** Operator has explicitly accepted an abnormal-direction posting. */
+  const [abnormalAcknowledged, setAbnormalAcknowledged] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
   const { invoices } = useInvoices();
   const { bills } = useBills();
   const { expenses } = useExpenses();
   const { accounts: glAccounts } = useAccounts();
+  const { accounts: bankAccounts } = useBankAccounts();
   const { currencyOf, formatBankAmount, formatDocumentAmount } = useBankMoney();
 
   // The books answer what this line is; the client only presents the answer.
@@ -181,6 +185,45 @@ export function ReconcileTransactionSheet({
         a.account_type === "asset" ||
         a.account_type === "liability",
     ) || [];
+
+  /**
+   * Direction guardrails for the classify path.
+   *
+   * Classifying a bank line posts DR bank / CR offset for money in, and
+   * DR offset / CR bank for money out. Two postings are almost always a
+   * mistake and were exactly how a bank charge and an inter-bank transfer
+   * ended up debited to a liability (2012 Accrued Expenses):
+   *
+   *   money out → debiting a liability, equity or income account
+   *   money in  → crediting an expense account
+   *
+   * Neither is impossible (settling a real accrual, refunding an expense), so
+   * this warns and requires an explicit acknowledgement rather than blocking.
+   */
+  const offsetAccount = glAccounts?.find((a) => a.id === offsetAccountId) ?? null;
+  const abnormalDirection = (() => {
+    if (!offsetAccount) return null;
+    const type = offsetAccount.account_type;
+    if (!isCredit && (type === "liability" || type === "equity" || type === "income")) {
+      return `Money out of the bank debits ${offsetAccount.code} ${offsetAccount.name}, a ${type} account. That says a previously recorded ${type === "liability" ? "liability is being settled" : "balance is being reduced"} — if this is a cost, pick the expense account instead so it reaches the profit and loss.`;
+    }
+    if (isCredit && type === "expense") {
+      return `Money into the bank credits ${offsetAccount.code} ${offsetAccount.name}, an expense account. That reduces reported costs — if this is income, pick the income account instead.`;
+    }
+    return null;
+  })();
+
+  /**
+   * The offset account is the control account of another registered bank
+   * account: this is a transfer, not a classification. Posting it here leaves
+   * the other bank's own statement unreconciled, so it is blocked outright.
+   */
+  const transferTargetBank =
+    offsetAccountId
+      ? (bankAccounts ?? []).find(
+          (b) => b.account_id === offsetAccountId && b.id !== transaction.bank_account_id,
+        ) ?? null
+      : null;
 
   const matchingInvoices =
     invoices?.filter((inv) => {
@@ -379,7 +422,11 @@ export function ReconcileTransactionSheet({
     selectedInvoiceIds.length > 0 ||
     selectedBillIds.length > 0;
   const isManualIncomplete =
-    selectedMatch?.type === "manual" && (!offsetAccountId || isHoldingOffset);
+    selectedMatch?.type === "manual" &&
+    (!offsetAccountId ||
+      isHoldingOffset ||
+      transferTargetBank !== null ||
+      (abnormalDirection !== null && !abnormalAcknowledged));
 
   /**
    * The seam refuses a match whose allocations do not equal the bank line
@@ -973,10 +1020,43 @@ export function ReconcileTransactionSheet({
                   value={offsetAccountId}
                   onValueChange={(v) => {
                     setOffsetAccountId(v);
+                    setAbnormalAcknowledged(false);
                     setSelectedMatch({ type: "manual", id: "manual" });
                   }}
                   placeholder="Search accounts by code or name..."
                 />
+                {transferTargetBank && (
+                  <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-xs text-destructive">
+                    <p className="flex items-center gap-1.5 font-medium">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      This is a transfer, not a classification
+                    </p>
+                    <p className="mt-1">
+                      {offsetAccount?.code} {offsetAccount?.name} is the control account of the
+                      bank account “{transferTargetBank.name}”. Classifying it here would leave that
+                      bank's own statement unreconciled. Record a transfer between the two bank
+                      accounts instead.
+                    </p>
+                  </div>
+                )}
+                {!transferTargetBank && abnormalDirection && (
+                  <div className="space-y-2 rounded-md border border-warning/50 bg-warning/5 p-3 text-xs">
+                    <p className="flex items-center gap-1.5 font-medium text-warning-foreground">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Unusual posting direction
+                    </p>
+                    <p className="text-muted-foreground">{abnormalDirection}</p>
+                    <label className="flex items-start gap-2 pt-1">
+                      <Checkbox
+                        checked={abnormalAcknowledged}
+                        onCheckedChange={(v) => setAbnormalAcknowledged(v === true)}
+                      />
+                      <span className="text-muted-foreground">
+                        I have checked this and it is correct
+                      </span>
+                    </label>
+                  </div>
+                )}
                 {isHoldingOffset ? (
                   <p className="text-xs text-destructive">
                     This is a holding account for money already recorded. Clearing it by hand would
