@@ -77,6 +77,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
 import { useBudgetVsActual } from "@/hooks/useBudgetVsActual";
+import { useBudgetRevisions } from "@/hooks/useBudgetRevisions";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 
