@@ -414,13 +414,35 @@ function FinancialReportsInner() {
         values: { name: acct.name, balance: acct.closing_balance },
       });
     }
-    if (bsData?.balanceSheetTotals?.retainedEarnings !== undefined && bsData.balanceSheetTotals.retainedEarnings !== 0) {
+    // Equity accounts above already carry every CLOSED year's result (SQL folds
+    // it into the retained-earnings account's opening balance). Only the
+    // current fiscal year's result is added as a separate line, so no year is
+    // presented twice.
+    if (bsData?.balanceSheetTotals?.currentYearEarnings) {
       out.push({
-        id: "retained-earnings",
+        id: "current-year-earnings",
         depth: 2,
-        values: { name: "Current Year Earnings", balance: bsData.balanceSheetTotals.retainedEarnings },
+        values: {
+          name: "Current Year Earnings",
+          balance: bsData.balanceSheetTotals.currentYearEarnings,
+        },
       });
     }
+    if (
+      bsData?.balanceSheetTotals &&
+      !bsData.balanceSheetTotals.hasRetainedEarningsAccount &&
+      bsData.balanceSheetTotals.priorYearsResult !== 0
+    ) {
+      out.push({
+        id: "retained-earnings-missing",
+        depth: 2,
+        values: {
+          name: "No retained earnings account — prior years' result is not presented",
+          balance: bsData.balanceSheetTotals.priorYearsResult,
+        },
+      });
+    }
+
     out.push({
       id: "total-equity",
       kind: "majorTotal",

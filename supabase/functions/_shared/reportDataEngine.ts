@@ -14,8 +14,6 @@ import {
   BS_ASSET_ORDER,
   BS_EQUITY_ORDER,
   BS_LIABILITY_ORDER,
-  PNL_EXPENSE_ORDER,
-  PNL_INCOME_ORDER,
   SUB_TYPE_LABELS,
   classifyAccount,
   isDebitNormal,
@@ -364,10 +362,24 @@ export async function buildBalanceSheet(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
 ): Promise<ReportResult> {
   const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["asset", "liability", "equity"]);
-  const incExpAccounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["income", "expense"]);
-  const totalIncome = incExpAccounts.filter(a => a.account_type === "income").reduce((s, a) => s + a.closing_balance, 0);
-  const totalExpenses = incExpAccounts.filter(a => a.account_type === "expense").reduce((s, a) => s + a.closing_balance, 0);
-  const retainedEarnings = totalIncome - totalExpenses;
+
+  // Single retained-earnings authority, shared with the on-screen statement:
+  // SQL owns the fiscal calendar, this year's result and the closed years'
+  // result (already folded into the retained-earnings account's opening
+  // balance). Deriving it here from income/expense totals would let the PDF
+  // and the screen disagree.
+  const { data: equityRows, error: equityError } = await supabase.rpc("get_equity_result", {
+    _org_id: organizationId,
+    _business_id: requireBusinessId(businessId),
+    _as_of: endStr,
+    _branch_id: null,
+  });
+  if (equityError) throw new Error(`Failed to resolve equity result: ${equityError.message}`);
+  const equity = (Array.isArray(equityRows) ? equityRows[0] : equityRows) as
+    | { current_year_earnings?: number; prior_years_result?: number }
+    | undefined;
+  const retainedEarnings = Number(equity?.current_year_earnings ?? 0);
+
 
   const classified = accounts.map(a => ({
     ...a,
@@ -502,10 +514,27 @@ export async function buildTrialBalance(
 }
 
 
+/**
+ * Profit & Loss — multi-step, identical in structure to the on-screen
+ * statement (`useFinancialReport` + `FinancialReports.tsx`):
+ *
+ *   Revenue − Cost of sales = Gross profit
+ *   Gross profit − Operating expenses = Operating profit
+ *   Operating profit + Other income − Other expenses = Profit before tax
+ *   Profit before tax − Tax = Net profit
+ *
+ * Exactly one grand total (net profit); the intermediate results are
+ * calculated subtotals. Branch is a legitimate P&L dimension (performance,
+ * not position), so `branchId` is threaded through to the ledger RPCs — a
+ * branch-scoped scheduled P&L used to silently return whole-business figures.
+ */
 export async function buildIncomeStatement(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string,
+  branchId?: string,
 ): Promise<ReportResult> {
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["income", "expense"]);
+  const accounts = await getGLAccountBalances(
+    supabase, organizationId, businessId, startStr, endStr, ["income", "expense"], branchId,
+  );
   const classified = accounts.map(a => ({
     ...a,
     sub_type: classifyAccountSubType(a.account_type, a.code, a.detail_type),
@@ -513,61 +542,65 @@ export async function buildIncomeStatement(
   }));
 
   const rows: ClassifiedRow[] = [];
-  let totalIncome = 0;
-  let totalCOGS = 0;
-  let totalExpenses = 0;
 
-  rows.push({ name: "INCOME", _isHeader: true, _bold: true });
-  for (const subType of PNL_INCOME_ORDER) {
-    const group = classified.filter(a => a.sub_type === subType && a.account_type === "income");
-    if (group.length === 0) continue;
-    rows.push({ name: SUB_TYPE_LABELS[subType], _isHeader: true, _depth: 1 });
+  /** Renders one sub-type group and returns its total (0 when absent). */
+  const section = (
+    subType: AccountSubType,
+    accountType: "income" | "expense",
+    heading: string,
+  ): number => {
+    const group = classified.filter(a => a.sub_type === subType && a.account_type === accountType);
+    if (group.length === 0) return 0;
+    const total = group.reduce((s, a) => s + a.balance, 0);
+    rows.push({ name: heading.toUpperCase(), _isHeader: true, _bold: true });
     for (const acct of group) {
-      if (acct.balance === 0) continue;
-      rows.push({ name: acct.name, code: acct.code, balance: acct.balance, _depth: 2 });
-    }
-    const subTotal = group.reduce((s, a) => s + a.balance, 0);
-    totalIncome += subTotal;
-    rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, balance: subTotal, _isSubtotal: true, _depth: 1 });
-  }
-  rows.push({ name: "TOTAL INCOME", balance: totalIncome, _isGrandTotal: true, _bold: true });
-
-  const cogsGroup = classified.filter(a => a.sub_type === "cost_of_sales");
-  if (cogsGroup.length > 0) {
-    rows.push({ name: "COST OF SALES", _isHeader: true, _bold: true });
-    for (const acct of cogsGroup) {
       if (acct.balance === 0) continue;
       rows.push({ name: acct.name, code: acct.code, balance: acct.balance, _depth: 1 });
     }
-    totalCOGS = cogsGroup.reduce((s, a) => s + a.balance, 0);
-    rows.push({ name: "TOTAL COST OF SALES", balance: totalCOGS, _isSubtotal: true, _bold: true });
-    rows.push({ name: "GROSS PROFIT", balance: totalIncome - totalCOGS, _isGrandTotal: true, _bold: true });
-  }
+    rows.push({ name: `Total ${heading}`, balance: total, _isSubtotal: true, _depth: 0 });
+    return total;
+  };
 
-  rows.push({ name: "EXPENSES", _isHeader: true, _bold: true });
-  for (const subType of PNL_EXPENSE_ORDER) {
-    if (subType === "cost_of_sales") continue;
-    const group = classified.filter(a => a.sub_type === subType);
-    if (group.length === 0) continue;
-    rows.push({ name: SUB_TYPE_LABELS[subType], _isHeader: true, _depth: 1 });
-    for (const acct of group) {
-      if (acct.balance === 0) continue;
-      rows.push({ name: acct.name, code: acct.code, balance: acct.balance, _depth: 2 });
-    }
-    const subTotal = group.reduce((s, a) => s + a.balance, 0);
-    totalExpenses += subTotal;
-    rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, balance: subTotal, _isSubtotal: true, _depth: 1 });
-  }
-  rows.push({ name: "TOTAL EXPENSES", balance: totalExpenses, _isGrandTotal: true, _bold: true });
+  const revenue = section("revenue", "income", "Revenue");
+  const costOfSales = section("cost_of_sales", "expense", "Cost of Sales");
+  const grossProfit = revenue - costOfSales;
+  rows.push({ name: "GROSS PROFIT", balance: grossProfit, _isSubtotal: true, _bold: true });
 
-  const netIncome = totalIncome - totalCOGS - totalExpenses;
-  rows.push({ name: "NET INCOME", balance: netIncome, _isGrandTotal: true, _bold: true });
+  const operatingExpenses = section("operating_expense", "expense", "Operating Expenses");
+  const operatingProfit = grossProfit - operatingExpenses;
+  rows.push({ name: "OPERATING PROFIT", balance: operatingProfit, _isSubtotal: true, _bold: true });
+
+  const otherIncome = section("other_income", "income", "Other Income");
+  const otherExpenses = section("other_expense", "expense", "Other Expenses");
+  const profitBeforeTax = operatingProfit + otherIncome - otherExpenses;
+  rows.push({ name: "PROFIT BEFORE TAX", balance: profitBeforeTax, _isSubtotal: true, _bold: true });
+
+  const taxExpense = section("tax_expense", "expense", "Tax Expense");
+  const netIncome = profitBeforeTax - taxExpense;
+  rows.push({ name: "NET PROFIT", balance: netIncome, _isGrandTotal: true, _bold: true });
+
+  const totalIncome = revenue + otherIncome;
+  const totalExpenses = operatingExpenses + otherExpenses + taxExpense;
 
   return {
     data: rows as unknown as Record<string, unknown>[],
-    summary: { totalRevenue: totalIncome, totalCOGS, grossProfit: totalIncome - totalCOGS, totalExpenses, netIncome },
+    summary: {
+      totalRevenue: revenue,
+      totalIncome,
+      totalCOGS: costOfSales,
+      grossProfit,
+      operatingExpenses,
+      operatingProfit,
+      otherIncome,
+      otherExpenses,
+      profitBeforeTax,
+      taxExpense,
+      totalExpenses,
+      netIncome,
+    },
   };
 }
+
 
 /**
  * Cash Flow Statement — a thin projection of the ONE engine.

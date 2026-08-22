@@ -94902,6 +94902,10 @@ export type Database = {
         Returns: Json
       }
       finance_can_read_org: { Args: { _org_id: string }; Returns: boolean }
+      finance_can_read_scope: {
+        Args: { _business_id?: string; _org_id: string }
+        Returns: boolean
+      }
       finance_cash_flow_statement: {
         Args: {
           _branch_id?: string
@@ -95845,6 +95849,20 @@ export type Database = {
         Returns: number
       }
       get_employee_pii: { Args: { p_employee_id: string }; Returns: Json }
+      get_equity_result: {
+        Args: {
+          _as_of: string
+          _branch_id?: string
+          _business_id: string
+          _org_id: string
+        }
+        Returns: {
+          current_year_earnings: number
+          fiscal_year_start: string
+          prior_years_result: number
+          retained_earnings_account_id: string
+        }[]
+      }
       get_executive_stats: {
         Args: { _branch_id: string; _business_id: string; _kind: string }
         Returns: Json

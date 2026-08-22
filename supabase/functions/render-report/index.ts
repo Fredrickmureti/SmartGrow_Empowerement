@@ -122,7 +122,7 @@ export async function buildReportData(
       return await buildTrialBalance(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "income_statement":
     case "profit_and_loss":
-      return await buildIncomeStatement(supabase, orgId, businessId, dateFrom, dateTo);
+      return await buildIncomeStatement(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "cash_flow":
       return await buildCashFlow(supabase, orgId, businessId, dateFrom, dateTo, branchId);
     case "bank_reconciliation":
@@ -244,9 +244,31 @@ serve(async (req) => {
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+
+      // Business-level scope gate. Organization membership alone is NOT
+      // sufficient: a tenant can hold several businesses and a user may be
+      // entitled to only some of them. `finance_can_read_scope` is evaluated
+      // as the CALLER (anon key + caller JWT), never as service_role, so the
+      // service-role client below can never widen the caller's entitlement.
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: canRead, error: scopeErr } = await callerClient.rpc(
+        "finance_can_read_scope",
+        { _org_id: targetOrgId, _business_id: body?.businessId ?? null },
+      );
+      if (scopeErr || canRead !== true) {
+        return new Response(
+          JSON.stringify({ error: "forbidden: not authorized for this business" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     const caller = { userId: callerUserId, userName: callerUserName };
+
 
 
     // ── PREBUILT mode ─────────────────────────────────────────────────

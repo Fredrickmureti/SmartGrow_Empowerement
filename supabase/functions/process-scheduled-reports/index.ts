@@ -196,7 +196,7 @@ async function generateReportData(
       break;
     case "income_statement":
     case "profit_and_loss":
-      result = await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "cash_flow":
       result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, branchId);
