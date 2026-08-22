@@ -86,15 +86,23 @@ function getComparisonDates(mode: ComparisonMode, dateFrom: string, dateTo: stri
   };
 }
 
-/** Classify report accounts with sub-types using detail_type as primary source */
+/**
+ * Classify report accounts with sub-types using detail_type as primary source.
+ *
+ * EVERY account is rendered — parents included. A parent account can itself be
+ * posted to, and `useFinancialReport` adds each account's OWN amount to the
+ * section total exactly once. Dropping `is_group` rows here (as this used to)
+ * kept those amounts in the totals while removing their rows, so a statement
+ * whose chart uses posted parents did not foot, and the PDF — which renders a
+ * flat list of all accounts — showed rows the screen did not.
+ */
 function classifyAccounts(accounts: FinancialReportAccount[]): ClassifiedAccount[] {
-  return accounts
-    .filter(a => !a.is_group)
-    .map(a => ({
-      ...a,
-      sub_type: classifyAccount(a.account_type, a.code, a.detail_type),
-    }));
+  return accounts.map(a => ({
+    ...a,
+    sub_type: classifyAccount(a.account_type, a.code, a.detail_type),
+  }));
 }
+
 
 function FinancialReportsInner() {
   const now = new Date();
