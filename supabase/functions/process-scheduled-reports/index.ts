@@ -166,6 +166,11 @@ async function generateReportData(
 
   let result: ReportResult;
   const businessId = (report.business_id || report.filters?.businessId || report.filters?.business_id) as string | undefined;
+  // A schedule states its own scope. `branch_id` is the stored scope; the
+  // legacy `filters.branchId` is honoured for schedules created before the
+  // column existed. NULL still means "the whole business" — the engines
+  // treat an undefined branch as unscoped, exactly as the screens do.
+  const branchId = resolveScheduleBranch(report);
 
   switch (report.report_type) {
     // ── Financial reports via shared engine ──
@@ -173,27 +178,23 @@ async function generateReportData(
       result = await buildBalanceSheet(supabase, report.organization_id, businessId, startStr, endStr);
       break;
     case "trial_balance":
-      result = await buildTrialBalance(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildTrialBalance(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "income_statement":
     case "profit_and_loss":
       result = await buildIncomeStatement(supabase, report.organization_id, businessId, startStr, endStr);
       break;
     case "cash_flow":
-      // Scheduled reports carry no branch dimension (there is no branch on
-      // `scheduled_reports`), so this is deliberately the whole business.
-      // Passing a branch here would be inventing a scope the schedule never
-      // stated.
-      result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, undefined);
+      result = await buildCashFlow(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "general_ledger":
-      result = await buildGeneralLedger(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildGeneralLedger(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "partner_ledger":
-      result = await buildPartnerLedger(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildPartnerLedger(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "journal_report":
-      result = await buildJournalReport(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildJournalReport(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "budget_vs_actual":
       result = await buildBudgetVsActual(supabase, report.organization_id, businessId, startStr, endStr);
