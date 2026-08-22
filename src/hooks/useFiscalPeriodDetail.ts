@@ -520,27 +520,23 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
       const apOverdueData = apOverdueResult.data || [];
       const apOverdue = apOverdueData.reduce((s: number, b: any) => s + (Number(b.total) || 0), 0);
 
-      // Budget comparison
-      const budgetComparison: BudgetComparison[] = [];
-      const budgetItems = budgetItemsResult.data || [];
-      for (const bi of budgetItems as any[]) {
-        const acct = accountMap.get(bi.account_id);
-        if (!acct) continue;
-        const actualMov = accountBreakdown.find((a) => a.account_id === bi.account_id);
-        const actual = actualMov ? Math.abs(actualMov.net) : 0;
-        const budgeted = Number(bi.budgeted_amount) || 0;
-        const variance = actual - budgeted;
-        budgetComparison.push({
-          accountId: bi.account_id,
-          accountName: acct.name,
-          accountCode: acct.code,
-          budgeted,
-          actual,
-          variance,
-          variancePercent: budgeted !== 0 ? (variance / budgeted) * 100 : 0,
-        });
-      }
+      // Budget comparison — consumed verbatim from the authoritative report.
+      // Variance is favourable-positive and already sign-corrected in SQL.
+      const budgetComparison: BudgetComparison[] = ((budgetVarianceResult.data as any[]) || []).map((r) => ({
+        accountId: r.account_id,
+        accountName: r.account_name ?? "Unknown account",
+        accountCode: r.account_code ?? "",
+        budgeted: Number(r.budgeted_amount) || 0,
+        actual: Number(r.actual_amount) || 0,
+        variance: Number(r.variance_amount) || 0,
+        variancePercent: r.variance_percent === null || r.variance_percent === undefined
+          ? null
+          : Number(r.variance_percent),
+        favourable: r.is_favourable ?? (Number(r.variance_amount) || 0) >= 0,
+        unbudgeted: r.is_unbudgeted ?? false,
+      }));
       budgetComparison.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
 
       // Close readiness
       const unpostedJE = draftJEResult.count || 0;
