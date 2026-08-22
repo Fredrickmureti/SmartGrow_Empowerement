@@ -333,17 +333,27 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
                 {readiness.foreign_balances.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No foreign-currency monetary balances as of this date.</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {readiness.foreign_balances.map((balance) => (
-                      <div key={balance.currency} className="flex items-center justify-between text-xs">
-                        <span>{balance.currency} · {balance.account_count} account(s)</span>
-                        <span className={balance.rate == null ? "text-destructive" : "text-muted-foreground"}>
-                          {balance.foreign_balance} @ {balance.rate ?? "no rate on file"}
-                        </span>
+                      <div key={balance.currency} className="space-y-0.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span>{balance.currency} · {balance.account_count} account(s)</span>
+                          <span className={balance.rate == null ? "text-destructive" : "text-muted-foreground"}>
+                            {balance.foreign_balance} @ {balance.rate ?? "no rate on file"}
+                          </span>
+                        </div>
+                        {/* ADR 0136: a rate shown without its provenance cannot be
+                            audited. Reuse the canonical describe-rate panel. */}
+                        <ExchangeRatePanel
+                          currency={balance.currency}
+                          onDate={fxDraft.run_date}
+                          missingHint="Add an override in Currency settings before revaluing."
+                        />
                       </div>
                     ))}
                   </div>
                 )}
+
                 {readiness.missing_rates.length > 0 && (
                   <Alert variant="destructive">
                     <ShieldAlert className="h-4 w-4" />
