@@ -4,70 +4,83 @@ Authoritative status file. Update after every implementation.
 
 ## Currently active phase
 
-**Phase 6 — Multi-currency presentation: COMPLETE (pending live visual check on a
-multi-currency dataset).** Next agent starts at Phase 7.
+**Phase 7 — Audit gaps. Verification of Phases 5/5A/6 is done (see below); Phase 7
+item 1 is the next thing to build.**
 
-## Completed and verified
+## Verification pass (this session, independent of the previous engineer's notes)
 
-### Phase 5 — Unified reporting engine (verified by audit, not by me originally)
-- Trial Balance, General Ledger and Journal Report read exactly three server
-  engines: `get_account_movements`, `get_general_ledger`, `get_journal_report`.
-- All three RPCs are `SECURITY DEFINER`, `search_path`-pinned, `anon`-revoked,
-  gated by `finance_can_read_org`, and scoped by organization, business and branch.
-- Screen and archived PDF share the same engine — no second accounting path.
+Confirmed directly against the database and codebase:
 
-### Phase 5A — Numerical parity & isolation proof (COMPLETE)
-- `supabase/tests/ledger_reports_engine_test.sql`: security/catalog contracts,
-  draft exclusion, reversal visibility, strict branch scoping, opening + movement
-  = closing algebra, pagination completeness, tenant isolation.
-- `src/test/architecture/ledger-reports-single-source.test.ts`: single-source
-  guard (13 tests, passing).
-- Fixed during 5A: `buildPartnerLedger` was querying raw tables; it now routes
-  through the `finance_partner_ledger` RPC with `branchId` support.
+- `get_account_movements`, `get_general_ledger`, `get_journal_report` and
+  `finance_partner_ledger` all exist, are `SECURITY DEFINER`, `search_path`-pinned
+  and gated by `finance_can_read_org`. `get_general_ledger` and
+  `get_journal_report` additionally validate business/branch ownership.
+- Phase 6 is real: `get_general_ledger` and `get_journal_report` return
+  `original_debit`, `original_credit`, `exchange_rate`; both runtimes carry the
+  shared presentation rule (`src/lib/reports/currencyPresentation.ts` and
+  `supabase/functions/_shared/reports/currencyPresentation.ts`).
+- `src/test/architecture/ledger-reports-single-source.test.ts` passes, 13 tests.
+- Branch scoping in `get_general_ledger` is strict, and `accounts.opening_balance`
+  is correctly suppressed (`CASE WHEN _branch_id IS NULL`) on branch-scoped runs.
 
-### Phase 6 — Multi-currency presentation (COMPLETE)
-The rule, now enforced in code and by tests:
-> `debit` / `credit` are base currency and are the sole authority for every
-> total, running balance and tie-out. Foreign-currency values are a supplement
-> recording what the source document said, and never enter arithmetic.
+So Phases 5, 5A and 6 stand as completed. Nothing needs redoing there.
 
-- RPCs `get_general_ledger` and `get_journal_report` return `original_debit`,
-  `original_credit`, `exchange_rate` (migration applied).
-- Shared presentation rule mirrored in both runtimes:
-  `src/lib/reports/currencyPresentation.ts` (Vite) and
-  `supabase/functions/_shared/reports/currencyPresentation.ts` (Deno).
-- General Ledger and Journal Report show three supplementary columns —
-  Currency · Document Amt · Rate — **only** when the run contains a
-  foreign-currency line, on screen and in the PDF/CSV/XLSX.
-- Masthead states "Amounts in <BASE> (base currency)" whenever the supplement
-  is shown.
-- Trial Balance deliberately gains no FX columns (mixed units cannot balance);
-  locked by test.
-- `ReportResult.columns` added: ledger builders widen their own column set and
-  `render-report` now threads it into `renderReport` for the PDF path.
+## Phase 7 — Audit gaps (defects confirmed this pass)
 
-## Pending
+### 7.1 Drill-through is three different implementations (NEXT)
 
-### Phase 7 — Audit gaps (NEXT)
-1. **Drill-down consistency** — General Ledger opens a preview drawer on the
-   source document; Journal Report and Trial Balance behave differently. Make
-   drill-through identical across the three ledger screens.
-2. **Fiscal-year boundary behaviour** — opening balances at a fiscal-year start
-   must respect year-end closing entries; verify and cover with SQL tests.
-3. **Zero-balance / zero-activity accounts** — `_include_zero_activity`
-   semantics must match between screen, PDF and Trial Balance.
+Verified:
+- General Ledger holds its own `openSource()` which, when a line has no
+  `source_type`/`source_id`, **queries `journal_entry_lines` directly from the
+  browser** to resolve the journal entry id. That is a raw ledger-table read on a
+  reporting screen and the only reason it exists is that `get_general_ledger`
+  does not return `journal_entry_id`.
+- Journal Report has a second, near-identical `openEntryDrawer()` with slightly
+  different rules (it special-cases `source_type = 'manual'`; GL does not).
+- Trial Balance drills through `DrillDownDialog`, which calls
+  `get_general_ledger` **without `_branch_id`** — a branch-scoped Trial Balance
+  therefore drills into all-branch lines. This is a scoping defect, not a
+  cosmetic inconsistency.
 
-### Phase 8 — Not started
+Work:
+1. Migration: add `journal_entry_id` to the `get_general_ledger` result so the
+   engine, not the browser, resolves the entry behind a line.
+2. One shared resolver (`src/lib/reports/ledgerDrillTarget.ts`): given
+   `{ source_type, source_id, journal_entry_id }` return the preview target,
+   with `manual`/null handled once. GL, Journal Report and `DrillDownDialog`
+   all call it; delete both local copies and the raw `journal_entry_lines` read.
+3. Thread `branchId` through `DrillDownConfig` into the `get_general_ledger`
+   call so Trial Balance drill-down inherits the report's branch scope.
+4. Tests: extend `ledger-reports-single-source.test.ts` to forbid direct
+   `journal_entry_lines` / `journal_entries` reads anywhere under
+   `src/pages/reports/` and `src/components/reports/`, and to assert the three
+   screens import the shared resolver. Add a unit test for the resolver's
+   manual / source-backed / missing-source branches.
+
+### 7.2 Fiscal-year boundary behaviour
+
+`get_general_ledger`'s opening balance is `accounts.opening_balance` plus all
+visible prior-dated movement. Whether year-end closing entries make P&L accounts
+open at zero in a new fiscal year is currently untested. Add cases to
+`supabase/tests/ledger_reports_engine_test.sql`: a closing entry dated on the
+fiscal-year end must leave income/expense accounts with a zero opening balance in
+the following year, and must not double-count retained earnings in the balance
+sheet accounts.
+
+### 7.3 Zero-activity / zero-balance semantics
+
+`get_general_ledger` emits an account when `_include_zero_activity` is true, or
+it has lines, or a non-zero opening. Pin that exact rule with SQL tests and
+assert Trial Balance's `includeZeroBalances` toggle and the PDF path agree with
+the screen.
+
+## Phase 8 — Not started
+
 Scheduled ledger deliveries and archive retention review.
 
-## Instructions for the next agent
+## Scope boundaries
 
-1. **Verify Phase 6 before extending it.** Run
-   `npx vitest run src/test/architecture/ledger-reports-single-source.test.ts`
-   (expect 13 passing) and execute `supabase/tests/ledger_reports_engine_test.sql`.
-   Then confirm on a business with a foreign-currency journal entry that the GL
-   and Journal screens show Currency/Document Amt/Rate, that totals stay base
-   currency, and that the exported PDF carries the same columns.
-2. **Then resume at Phase 7, item 1** (drill-down consistency). Do not start
-   unrelated work, and bring each item to a production-ready state — schema,
-   engine, screen, export and tests — before moving to the next.
+- No new reporting engine, no new report screens, no UI redesign.
+- Do not change the posting engine or ADR-0123's posting monopoly.
+- Partner Ledger, Consolidation and Control Account Reconciliation stay out of
+  scope this wave.
