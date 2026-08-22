@@ -51,13 +51,10 @@ function makeSupabase() {
         in: chain,
         gte: chain,
         lte: chain,
-        order: () =>
-          Promise.resolve({
-            data: table === "accounts" ? ACCOUNTS : [],
-            error: null,
-          }),
+        order: chain,
         then: (resolve: (v: unknown) => unknown) =>
           resolve({ data: table === "accounts" ? ACCOUNTS : [], error: null }),
+
       });
       return builder;
     },
