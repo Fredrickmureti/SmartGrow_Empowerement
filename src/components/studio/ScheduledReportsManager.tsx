@@ -179,6 +179,9 @@ const scheduleFormSchema = z.object({
   include_charts: z.boolean(),
   date_range_type: z.string().min(1, "Date range is required"),
   recipients: z.string().min(1, "At least one recipient is required"),
+  // "" means the whole business — the same unscoped run the screens show
+  // when no branch is selected.
+  branch_id: z.string(),
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleFormSchema>;
