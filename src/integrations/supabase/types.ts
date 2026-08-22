@@ -95939,6 +95939,20 @@ export type Database = {
         }
         Returns: number
       }
+      get_ledger_opening_balances: {
+        Args: {
+          _as_of: string
+          _branch_id?: string
+          _business_id: string
+          _org_id: string
+        }
+        Returns: {
+          account_id: string
+          fiscal_year_start: string
+          is_nominal: boolean
+          opening_balance: number
+        }[]
+      }
       get_linkable_users_for_employee: {
         Args: { p_employee_id: string; p_org_id: string }
         Returns: {
