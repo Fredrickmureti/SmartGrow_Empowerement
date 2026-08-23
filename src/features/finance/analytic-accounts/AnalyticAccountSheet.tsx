@@ -190,25 +190,44 @@ export function AnalyticAccountSheet({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="aa-type">Type *</Label>
+            <Label htmlFor="aa-plan">Analytic plan *</Label>
             <Select
-              value={form.analytic_type}
-              onValueChange={(v) =>
-                setForm({ ...form, analytic_type: v as AnalyticType })
-              }
+              value={form.plan_id}
+              onValueChange={(v) => setForm({ ...form, plan_id: v })}
             >
-              <SelectTrigger id="aa-type">
-                <SelectValue />
+              <SelectTrigger id="aa-plan">
+                <SelectValue placeholder="Select plan" />
               </SelectTrigger>
               <SelectContent>
-                {ANALYTIC_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
+                {plans.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          <FieldCell span="full">
+            <div className="space-y-2">
+              <Label htmlFor="aa-status">Status *</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) => setForm({ ...form, status: v as AnalyticStatus })}
+              >
+                <SelectTrigger id="aa-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANALYTIC_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </FieldCell>
+
           <FieldCell span="full">
             <div className="space-y-2">
               <Label htmlFor="aa-name">Name *</Label>
