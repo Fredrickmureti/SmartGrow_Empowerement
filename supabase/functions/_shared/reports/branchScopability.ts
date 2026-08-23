@@ -40,6 +40,7 @@ export type ReportKind =
   | "ar_aging"
   | "ap_aging"
   | "budget_vs_actual"
+  | "budget_schedule"
   | "depreciation"
   | "audit_trail"
   | "sales"
@@ -58,6 +59,9 @@ export const BRANCH_SCOPABLE: Record<ReportKind, boolean> = {
   tax: false,
   consolidation: false,
   fx_revaluation: false,
+  // A budget carries its OWN branch; the ambient branch must never
+  // re-slice it, or a company-wide plan would print as a branch plan.
+  budget_schedule: false,
 
   // Branch-sliceable
   pnl: true,
@@ -101,6 +105,7 @@ const SERVER_TYPE_ALIASES: Record<string, ReportKind> = {
   ar_aging: "ar_aging",
   ap_aging: "ap_aging",
   budget_vs_actual: "budget_vs_actual",
+  budget_schedule: "budget_schedule",
   depreciation: "depreciation",
   audit_trail: "audit_trail",
   bank_reconciliation: "bank_reconciliation",
