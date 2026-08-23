@@ -90,7 +90,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   const [customerId, setCustomerId] = useState<string>("");
   const [pricingType, setPricingType] = useState<PricingType>("non_billable");
   const [currency, setCurrency] = useState("USD");
-  const [analyticAccountCode, setAnalyticAccountCode] = useState("");
+  
 
   // Schedule
   const [startDate, setStartDate] = useState<Date>();
