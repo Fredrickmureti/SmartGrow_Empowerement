@@ -137,13 +137,17 @@ export default function RequisitionCreatePage() {
     [products],
   );
 
+  // Only postable (active) accounts on the cost-center or department axis.
   const costCentreOptions = useMemo(
     () =>
       (analyticAccounts ?? []).filter(
-        (a: any) => a.is_active !== false && (a.analytic_type === "cost_center" || a.analytic_type === "department"),
+        (a) =>
+          a.status === "active" &&
+          (a.plan?.code === "cost_center" || a.plan?.code === "department"),
       ),
     [analyticAccounts],
   );
+
 
   const supplierOptions = useMemo(
     () =>

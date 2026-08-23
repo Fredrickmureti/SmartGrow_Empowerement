@@ -35,17 +35,22 @@ import { normalizeError } from "@/services/resilience";
 import {
   useAnalyticAccounts,
   type AnalyticAccount,
-  type AnalyticType,
+  type AnalyticStatus,
   type AnalyticGroup,
 } from "@/hooks/useAnalyticAccounts";
 
-const ANALYTIC_TYPES: { value: AnalyticType; label: string }[] = [
-  { value: "cost_center", label: "Cost Center" },
-  { value: "project", label: "Project" },
-  { value: "department", label: "Department" },
-  { value: "product_line", label: "Product Line" },
-  { value: "other", label: "Other" },
+/**
+ * Lifecycle, not a boolean: `restricted` keeps history readable while
+ * blocking new attribution, which is what "stop using this cost center
+ * from Q3" actually means.
+ */
+const ANALYTIC_STATUSES: { value: AnalyticStatus; label: string }[] = [
+  { value: "draft", label: "Draft — not yet usable" },
+  { value: "active", label: "Active — accepts new postings" },
+  { value: "restricted", label: "Restricted — no new postings" },
+  { value: "archived", label: "Archived" },
 ];
+
 
 interface Props {
   open: boolean;
@@ -61,7 +66,7 @@ export function AnalyticAccountSheet({
   account,
   groups,
 }: Props) {
-  const { createAccount, updateAccount } = useAnalyticAccounts();
+  const { createAccount, updateAccount, plans } = useAnalyticAccounts();
   const { toast } = useToast();
   const mode: "create" | "edit" = account ? "edit" : "create";
 
@@ -69,7 +74,8 @@ export function AnalyticAccountSheet({
     code: "",
     name: "",
     description: "",
-    analytic_type: "cost_center" as AnalyticType,
+    plan_id: "",
+    status: "active" as AnalyticStatus,
     group_id: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,13 +87,22 @@ export function AnalyticAccountSheet({
       code: account?.code ?? "",
       name: account?.name ?? "",
       description: account?.description ?? "",
-      analytic_type: account?.analytic_type ?? "cost_center",
+      plan_id: account?.plan_id ?? plans[0]?.id ?? "",
+      status: account?.status ?? "active",
       group_id: account?.group_id ?? "",
     });
-  }, [open, account]);
+  }, [open, account, plans]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!form.plan_id) {
+      toast({
+        title: "Analytic plan required",
+        description: "Every analytic account belongs to exactly one plan (axis).",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       if (mode === "edit" && account) {
@@ -96,7 +111,9 @@ export function AnalyticAccountSheet({
           code: form.code || null,
           name: form.name,
           description: form.description || null,
-          analytic_type: form.analytic_type,
+          plan_id: form.plan_id,
+          status: form.status,
+          is_active: form.status === "active",
           group_id: form.group_id || null,
         });
         toast({ title: "Analytic account updated" });
@@ -105,11 +122,13 @@ export function AnalyticAccountSheet({
           code: form.code || undefined,
           name: form.name,
           description: form.description || undefined,
-          analytic_type: form.analytic_type,
+          plan_id: form.plan_id,
+          status: form.status,
           group_id: form.group_id || undefined,
         });
         toast({ title: "Analytic account created" });
       }
+
       onOpenChange(false);
     } catch (err) {
       toast({
@@ -171,25 +190,44 @@ export function AnalyticAccountSheet({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="aa-type">Type *</Label>
+            <Label htmlFor="aa-plan">Analytic plan *</Label>
             <Select
-              value={form.analytic_type}
-              onValueChange={(v) =>
-                setForm({ ...form, analytic_type: v as AnalyticType })
-              }
+              value={form.plan_id}
+              onValueChange={(v) => setForm({ ...form, plan_id: v })}
             >
-              <SelectTrigger id="aa-type">
-                <SelectValue />
+              <SelectTrigger id="aa-plan">
+                <SelectValue placeholder="Select plan" />
               </SelectTrigger>
               <SelectContent>
-                {ANALYTIC_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
+                {plans.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          <FieldCell span="full">
+            <div className="space-y-2">
+              <Label htmlFor="aa-status">Status *</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) => setForm({ ...form, status: v as AnalyticStatus })}
+              >
+                <SelectTrigger id="aa-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANALYTIC_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </FieldCell>
+
           <FieldCell span="full">
             <div className="space-y-2">
               <Label htmlFor="aa-name">Name *</Label>

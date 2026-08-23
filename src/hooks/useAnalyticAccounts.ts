@@ -1,3 +1,14 @@
+/**
+ * Analytic master data (plans → accounts → groups).
+ *
+ * Model note: the axis ("cost center", "department", "project", "product
+ * line") is data — a row in `analytic_plans` — not an enum on the account.
+ * That is what allows one posted journal line to carry one value per axis.
+ *
+ * Attribution itself is NOT written from here. `analytic_distributions` is a
+ * read-only projection of what the posting engine wrote on the journal lines;
+ * the client has no INSERT/UPDATE/DELETE grant on it by design.
+ */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
@@ -5,7 +16,19 @@ import { useBusinesses } from "./useBusinesses";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 
-export type AnalyticType = "cost_center" | "project" | "department" | "product_line" | "other";
+export type AnalyticStatus = "draft" | "active" | "restricted" | "archived";
+
+export interface AnalyticPlan {
+  id: string;
+  organization_id: string;
+  business_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_required: boolean;
+  is_active: boolean;
+  sort_order: number;
+}
 
 export interface AnalyticGroup {
   id: string;
@@ -21,16 +44,19 @@ export interface AnalyticGroup {
 export interface AnalyticAccount {
   id: string;
   organization_id: string;
+  business_id: string;
+  plan_id: string;
   group_id: string | null;
+  parent_id: string | null;
   code: string | null;
   name: string;
   description: string | null;
-  analytic_type: AnalyticType;
+  status: AnalyticStatus;
   is_active: boolean;
-  balance: number;
   created_at: string;
   updated_at: string;
   group?: AnalyticGroup | null;
+  plan?: AnalyticPlan | null;
 }
 
 export interface AnalyticDistribution {
@@ -44,7 +70,6 @@ export interface AnalyticDistribution {
   date: string;
   description: string | null;
   created_at: string;
-  analytic_account?: AnalyticAccount;
 }
 
 export interface CreateAnalyticGroupInput {
@@ -57,18 +82,14 @@ export interface CreateAnalyticAccountInput {
   code?: string;
   name: string;
   description?: string;
-  analytic_type?: AnalyticType;
+  plan_id: string;
   group_id?: string;
+  status?: AnalyticStatus;
 }
 
-export interface CreateDistributionInput {
-  analytic_account_id: string;
-  source_type: string;
-  source_id: string;
-  amount: number;
-  percentage?: number;
-  date: string;
-  description?: string;
+/** An account that may still be attributed on a new posting. */
+export function isPostable(account: Pick<AnalyticAccount, "status">): boolean {
+  return account.status === "active";
 }
 
 export function useAnalyticAccounts() {
@@ -78,45 +99,54 @@ export function useAnalyticAccounts() {
   const organizationId = currentOrg?.id;
   const businessId = currentBusiness?.id;
 
-  // Fetch analytic groups
-  const { data: groups = [], isLoading: groupsLoading } = useQuery({
-    queryKey: ["analytic-groups", organizationId],
+  const { data: plans = [], isLoading: plansLoading } = useQuery({
+    queryKey: ["analytic-plans", organizationId, businessId],
     queryFn: async () => {
-      if (!organizationId) return [];
-      let q = supabase
+      if (!organizationId || !businessId) return [];
+      const { data, error } = await supabase
+        .from("analytic_plans")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("business_id", businessId)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as unknown as AnalyticPlan[];
+    },
+    enabled: !!organizationId && !!businessId,
+  });
+
+  const { data: groups = [], isLoading: groupsLoading } = useQuery({
+    queryKey: ["analytic-groups", organizationId, businessId],
+    queryFn: async () => {
+      if (!organizationId || !businessId) return [];
+      const { data, error } = await supabase
         .from("analytic_groups")
         .select("*")
         .eq("organization_id", organizationId)
+        .eq("business_id", businessId)
         .order("sort_order", { ascending: true });
-      q = q.eq("business_id", businessId);
-      const { data, error } = await q;
       if (error) throw error;
-      return data as AnalyticGroup[];
+      return (data ?? []) as unknown as AnalyticGroup[];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && !!businessId,
   });
 
-  // Fetch analytic accounts (per-company)
   const { data: accounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ["analytic-accounts", organizationId, businessId],
     queryFn: async () => {
       if (!organizationId || !businessId) return [];
       const { data, error } = await supabase
         .from("analytic_accounts")
-        .select(`
-          *,
-          group:analytic_groups(*)
-        `)
+        .select("*, group:analytic_groups(*), plan:analytic_plans(*)")
         .eq("organization_id", organizationId)
         .eq("business_id", businessId)
         .order("code", { ascending: true });
       if (error) throw error;
-      return data as AnalyticAccount[];
+      return (data ?? []) as unknown as AnalyticAccount[];
     },
     enabled: !!organizationId && !!businessId,
   });
 
-  // Create group
   const createGroup = useMutation({
     mutationFn: async (input: CreateAnalyticGroupInput) => {
       if (!organizationId) throw new Error("No organization selected");
@@ -129,7 +159,7 @@ export function useAnalyticAccounts() {
           name: input.name,
           description: input.description || null,
           sort_order: input.sort_order || 0,
-        } as any)
+        } as never)
         .select()
         .single();
       if (error) throw error;
@@ -144,22 +174,23 @@ export function useAnalyticAccounts() {
     },
   });
 
-  // Create account
   const createAccount = useMutation({
     mutationFn: async (input: CreateAnalyticAccountInput) => {
       if (!organizationId) throw new Error("No organization selected");
       if (!businessId) throw new Error("No company selected — analytic accounts are per-company");
+      if (!input.plan_id) throw new Error("An analytic plan is required");
       const { data, error } = await supabase
         .from("analytic_accounts")
         .insert({
           organization_id: organizationId,
           business_id: businessId,
+          plan_id: input.plan_id,
           code: input.code || null,
           name: input.name,
           description: input.description || null,
-          analytic_type: input.analytic_type || "cost_center",
+          status: input.status ?? "active",
           group_id: input.group_id || null,
-        } as any)
+        } as never)
         .select()
         .single();
       if (error) throw error;
@@ -174,15 +205,16 @@ export function useAnalyticAccounts() {
     },
   });
 
-  // Update account
   const updateAccount = useMutation({
-    mutationFn: async ({ id, group, ...input }: Partial<AnalyticAccount> & { id: string }) => {
+    mutationFn: async ({
+      id,
+      group: _group,
+      plan: _plan,
+      ...input
+    }: Partial<AnalyticAccount> & { id: string }) => {
       const { error } = await supabase
         .from("analytic_accounts")
-        .update({
-          ...input,
-          updated_at: new Date().toISOString(),
-        } as any)
+        .update({ ...input, updated_at: new Date().toISOString() } as never)
         .eq("id", id);
       if (error) throw error;
     },
@@ -195,13 +227,29 @@ export function useAnalyticAccounts() {
     },
   });
 
-  // Delete account
-  const deleteAccount = useMutation({
+  /** Archival is the correct end-of-life for master data with posted history. */
+  const archiveAccount = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("analytic_accounts")
-        .delete()
+        .update({ status: "archived", is_active: false, updated_at: new Date().toISOString() } as never)
         .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["analytic-accounts"] });
+      toast.success("Analytic account archived");
+    },
+    onError: (error) => {
+      toast.error("Failed to archive account: " + normalizeError(error).message);
+    },
+  });
+
+  /** Only ever succeeds for an account that was never attributed — the
+   *  database rejects the delete otherwise. */
+  const deleteAccount = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("analytic_accounts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -213,75 +261,32 @@ export function useAnalyticAccounts() {
     },
   });
 
-  // Create distribution
-  const createDistribution = useMutation({
-    mutationFn: async (input: CreateDistributionInput) => {
-      if (!organizationId) throw new Error("No organization selected");
-      if (!businessId) throw new Error("No company selected — analytic distributions are per-company");
-      const { data, error } = await supabase
-        .from("analytic_distributions")
-        .insert({
-          organization_id: organizationId,
-          business_id: businessId,
-          analytic_account_id: input.analytic_account_id,
-          source_type: input.source_type,
-          source_id: input.source_id,
-          amount: input.amount,
-          percentage: input.percentage || null,
-          date: input.date,
-          description: input.description || null,
-        } as any)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["analytic-distributions"] });
-    },
-    onError: (error) => {
-      toast.error("Failed to create distribution: " + normalizeError(error).message);
-    },
-  });
-
-  // Get distributions for a source
   const getDistributions = async (sourceType: string, sourceId: string) => {
     const { data, error } = await supabase
       .from("analytic_distributions")
-      .select(`
-        *,
-        analytic_account:analytic_accounts(*)
-      `)
+      .select("*")
       .eq("source_type", sourceType)
       .eq("source_id", sourceId);
     if (error) throw error;
-    return data as AnalyticDistribution[];
+    return (data ?? []) as unknown as AnalyticDistribution[];
   };
 
-  // Get account balance by date range
-  const getAccountBalance = async (accountId: string, startDate: string, endDate: string) => {
-    const { data, error } = await supabase
-      .from("analytic_distributions")
-      .select("amount")
-      .eq("analytic_account_id", accountId)
-      .gte("date", startDate)
-      .lte("date", endDate);
-    if (error) throw error;
-    return data.reduce((sum, d) => sum + d.amount, 0);
-  };
+  const activeAccounts = accounts.filter(isPostable);
 
   return {
+    plans,
     groups,
     accounts,
-    activeAccounts: accounts.filter((a) => a.is_active),
-    isLoading: groupsLoading || accountsLoading,
+    activeAccounts,
+    isLoading: plansLoading || groupsLoading || accountsLoading,
     createGroup,
     createAccount,
     updateAccount,
+    archiveAccount,
     deleteAccount,
-    createDistribution,
     getDistributions,
-    getAccountBalance,
-    getAccountsByType: (type: AnalyticType) => accounts.filter((a) => a.analytic_type === type && a.is_active),
+    /** Postable accounts on a given axis, by plan code (e.g. "cost_center"). */
+    getAccountsByPlanCode: (planCode: string) =>
+      activeAccounts.filter((a) => a.plan?.code === planCode),
   };
 }

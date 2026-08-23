@@ -1,7 +1,18 @@
+/**
+ * Analytic Accounts — master data for the analytic (cost accounting) axes.
+ *
+ * This page deliberately shows NO balance column. Analytic balances are a
+ * function of posted journal attribution over a period; a single unqualified
+ * number on a master-data row would be a fabricated figure. Period balances
+ * belong in the analytic reports, where a date range can be stated.
+ */
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useAnalyticAccounts, AnalyticAccount, AnalyticType } from "@/hooks/useAnalyticAccounts";
-import { useCurrency } from "@/hooks/useCurrency";
+import {
+  useAnalyticAccounts,
+  type AnalyticAccount,
+  type AnalyticStatus,
+} from "@/hooks/useAnalyticAccounts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +48,7 @@ import {
   Package,
   MoreHorizontal,
   Pencil,
+  Archive,
   Trash2,
   FolderTree,
 } from "lucide-react";
@@ -51,17 +63,23 @@ import { normalizeError } from "@/services/resilience";
 import { AnalyticAccountSheet } from "@/features/finance/analytic-accounts/AnalyticAccountSheet";
 import { AnalyticGroupSheet } from "@/features/finance/analytic-accounts/AnalyticGroupSheet";
 
-const ANALYTIC_TYPES: { value: AnalyticType; label: string; icon: React.ElementType }[] = [
-  { value: "cost_center", label: "Cost Center", icon: Target },
-  { value: "project", label: "Project", icon: Briefcase },
-  { value: "department", label: "Department", icon: Building2 },
-  { value: "product_line", label: "Product Line", icon: Package },
-  { value: "other", label: "Other", icon: FolderTree },
-];
+const PLAN_ICONS: Record<string, React.ElementType> = {
+  cost_center: Target,
+  project: Briefcase,
+  department: Building2,
+  product_line: Package,
+};
+
+const STATUS_STYLES: Record<AnalyticStatus, string> = {
+  draft: "bg-muted text-muted-foreground",
+  active: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  restricted: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  archived: "bg-muted text-muted-foreground line-through",
+};
 
 export default function AnalyticAccounts() {
-  const { groups, accounts, isLoading, deleteAccount } = useAnalyticAccounts();
-  const { formatCurrency } = useCurrency();
+  const { plans, groups, accounts, isLoading, deleteAccount, archiveAccount } =
+    useAnalyticAccounts();
   const { toast } = useToast();
 
   // URL-driven sheet state so the browser back button and deep links behave.
@@ -103,7 +121,7 @@ export default function AnalyticAccounts() {
       toast({ title: "Account deleted" });
     } catch (error) {
       toast({
-        title: "Error",
+        title: "Cannot delete this account",
         description: normalizeError(error).message,
         variant: "destructive",
       });
@@ -113,54 +131,35 @@ export default function AnalyticAccounts() {
   const deleteConfirm = useConfirmDelete<AnalyticAccount>({ onConfirm: executeDelete });
 
   const searchQuery = searchParams.get("q") ?? "";
-  const typeFilter = searchParams.get("type") ?? "all";
-  const setSearchQuery = (v: string) => {
+  const planFilter = searchParams.get("plan") ?? "all";
+  const statusFilter = searchParams.get("status") ?? "all";
+  const setParam = (key: string, v: string, clearWhen: string) => {
     const next = new URLSearchParams(searchParams);
-    if (v) next.set("q", v);
-    else next.delete("q");
-    setSearchParams(next, { replace: true });
-  };
-  const setTypeFilter = (v: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (v && v !== "all") next.set("type", v);
-    else next.delete("type");
+    if (v && v !== clearWhen) next.set(key, v);
+    else next.delete(key);
     setSearchParams(next, { replace: true });
   };
 
   const filteredAccounts = accounts.filter((account) => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
-      account.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      account.code?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === "all" || account.analytic_type === typeFilter;
-    return matchesSearch && matchesType;
+      !q ||
+      account.name.toLowerCase().includes(q) ||
+      (account.code?.toLowerCase().includes(q) ?? false);
+    const matchesPlan = planFilter === "all" || account.plan_id === planFilter;
+    const matchesStatus = statusFilter === "all" || account.status === statusFilter;
+    return matchesSearch && matchesPlan && matchesStatus;
   });
 
-  const getTypeIcon = (type: AnalyticType) => {
-    const found = ANALYTIC_TYPES.find((t) => t.value === type);
-    return found?.icon || FolderTree;
-  };
-
-  const getTypeBadge = (type: AnalyticType) => {
-    const colors: Record<AnalyticType, string> = {
-      cost_center: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      project: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      department: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-      product_line: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-      other: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-    };
-    return (
-      <Badge className={colors[type]}>
-        {ANALYTIC_TYPES.find((t) => t.value === type)?.label || type}
-      </Badge>
-    );
-  };
+  const planIcon = (planCode?: string | null) =>
+    (planCode && PLAN_ICONS[planCode]) || FolderTree;
 
   const stats = {
     total: accounts.length,
-    active: accounts.filter((a) => a.is_active).length,
-    byType: ANALYTIC_TYPES.map((t) => ({
-      ...t,
-      count: accounts.filter((a) => a.analytic_type === t.value).length,
+    byPlan: plans.map((p) => ({
+      ...p,
+      icon: planIcon(p.code),
+      count: accounts.filter((a) => a.plan_id === p.id).length,
     })),
   };
 
@@ -171,7 +170,7 @@ export default function AnalyticAccounts() {
           <div>
             <h1 className="page-title">Analytic Accounts</h1>
             <p className="text-sm sm:text-base text-muted-foreground">
-              Track costs and revenues by cost center, project, or department
+              Cost and revenue dimensions — one value per plan on each posted line
             </p>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -197,10 +196,10 @@ export default function AnalyticAccounts() {
               <div className="text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-          {stats.byType.slice(0, 4).map(({ value, label, icon: Icon, count }) => (
-            <Card key={value}>
+          {stats.byPlan.slice(0, 4).map(({ id, name, icon: Icon, count }) => (
+            <Card key={id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                <CardTitle className="text-sm font-medium">{name}</CardTitle>
                 <Icon className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -217,21 +216,33 @@ export default function AnalyticAccounts() {
             <Input
               placeholder="Search accounts..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setParam("q", e.target.value, "")}
               className="pl-10 w-full"
             />
           </div>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <Select value={planFilter} onValueChange={(v) => setParam("plan", v, "all")}>
             <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="All types" />
+              <SelectValue placeholder="All plans" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {ANALYTIC_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
+              <SelectItem value="all">All Plans</SelectItem>
+              {plans.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={(v) => setParam("status", v, "all")}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="restricted">Restricted</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -257,15 +268,15 @@ export default function AnalyticAccounts() {
                   <TableRow>
                     <TableHead>Code</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead>Plan</TableHead>
                     <TableHead>Group</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAccounts.map((account) => {
-                    const Icon = getTypeIcon(account.analytic_type);
+                    const Icon = planIcon(account.plan?.code);
                     return (
                       <TableRow key={account.id}>
                         <TableCell className="font-mono">{account.code || "—"}</TableCell>
@@ -275,10 +286,12 @@ export default function AnalyticAccounts() {
                             <span className="font-medium">{account.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{getTypeBadge(account.analytic_type)}</TableCell>
+                        <TableCell>{account.plan?.name || "—"}</TableCell>
                         <TableCell>{account.group?.name || "—"}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(account.balance)}
+                        <TableCell>
+                          <Badge className={STATUS_STYLES[account.status]}>
+                            {account.status}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -292,6 +305,14 @@ export default function AnalyticAccounts() {
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>
+                              {account.status !== "archived" && (
+                                <DropdownMenuItem
+                                  onClick={() => archiveAccount.mutate(account.id)}
+                                >
+                                  <Archive className="mr-2 h-4 w-4" />
+                                  Archive
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => deleteConfirm.requestDelete(account)}
                                 className="text-destructive"
@@ -316,6 +337,7 @@ export default function AnalyticAccounts() {
           onOpenChange={deleteConfirm.setIsOpen}
           onConfirm={deleteConfirm.confirmDelete}
           title="Delete Analytic Account"
+          description="Deleting is only possible while the account has never been used on a posted entry. Otherwise, archive it to keep its history intact."
           itemName={deleteConfirm.itemToDelete?.name}
           isLoading={deleteConfirm.isDeleting}
         />

@@ -1139,8 +1139,6 @@ export type Database = {
       }
       analytic_accounts: {
         Row: {
-          analytic_type: string | null
-          balance: number | null
           business_id: string
           code: string | null
           created_at: string | null
@@ -1150,11 +1148,12 @@ export type Database = {
           is_active: boolean | null
           name: string
           organization_id: string
+          parent_id: string | null
+          plan_id: string
+          status: string
           updated_at: string | null
         }
         Insert: {
-          analytic_type?: string | null
-          balance?: number | null
           business_id: string
           code?: string | null
           created_at?: string | null
@@ -1164,11 +1163,12 @@ export type Database = {
           is_active?: boolean | null
           name: string
           organization_id: string
+          parent_id?: string | null
+          plan_id: string
+          status?: string
           updated_at?: string | null
         }
         Update: {
-          analytic_type?: string | null
-          balance?: number | null
           business_id?: string
           code?: string | null
           created_at?: string | null
@@ -1178,6 +1178,9 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           organization_id?: string
+          parent_id?: string | null
+          plan_id?: string
+          status?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -1230,96 +1233,18 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      analytic_distributions: {
-        Row: {
-          amount: number
-          analytic_account_id: string
-          business_id: string
-          created_at: string | null
-          date: string
-          description: string | null
-          id: string
-          organization_id: string
-          percentage: number | null
-          source_id: string
-          source_type: string
-        }
-        Insert: {
-          amount: number
-          analytic_account_id: string
-          business_id: string
-          created_at?: string | null
-          date: string
-          description?: string | null
-          id?: string
-          organization_id: string
-          percentage?: number | null
-          source_id: string
-          source_type: string
-        }
-        Update: {
-          amount?: number
-          analytic_account_id?: string
-          business_id?: string
-          created_at?: string | null
-          date?: string
-          description?: string | null
-          id?: string
-          organization_id?: string
-          percentage?: number | null
-          source_id?: string
-          source_type?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "analytic_distributions_analytic_account_id_fkey"
-            columns: ["analytic_account_id"]
+            foreignKeyName: "analytic_accounts_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "analytic_accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "analytic_distributions_business_id_fkey"
-            columns: ["business_id"]
+            foreignKeyName: "analytic_accounts_plan_id_fkey"
+            columns: ["plan_id"]
             isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "analytic_distributions_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "analytic_distributions_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "analytic_distributions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "analytic_distributions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "analytic_distributions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "analytic_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -1396,6 +1321,91 @@ export type Database = {
           },
           {
             foreignKeyName: "analytic_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytic_plans: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          name: string
+          organization_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          name: string
+          organization_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          name?: string
+          organization_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytic_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -25983,6 +25993,132 @@ export type Database = {
             columns: ["reversed_entry_id"]
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_entry_line_analytics: {
+        Row: {
+          amount: number
+          analytic_account_id: string
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          description: string | null
+          entry_date: string
+          id: string
+          journal_entry_id: string
+          journal_entry_line_id: string
+          organization_id: string
+          percentage: number
+          plan_id: string
+        }
+        Insert: {
+          amount: number
+          analytic_account_id: string
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          description?: string | null
+          entry_date: string
+          id?: string
+          journal_entry_id: string
+          journal_entry_line_id: string
+          organization_id: string
+          percentage?: number
+          plan_id: string
+        }
+        Update: {
+          amount?: number
+          analytic_account_id?: string
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          description?: string | null
+          entry_date?: string
+          id?: string
+          journal_entry_id?: string
+          journal_entry_line_id?: string
+          organization_id?: string
+          percentage?: number
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entry_line_analytics_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entry_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -78319,6 +78455,104 @@ export type Database = {
         }
         Relationships: []
       }
+      analytic_distributions: {
+        Row: {
+          amount: number | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          business_id: string | null
+          created_at: string | null
+          date: string | null
+          description: string | null
+          id: string | null
+          journal_entry_id: string | null
+          journal_entry_line_id: string | null
+          organization_id: string | null
+          percentage: number | null
+          plan_id: string | null
+          source_id: string | null
+          source_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entry_line_analytics_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entry_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ap_subledger_entries: {
         Row: {
           account_id: string | null
@@ -89331,6 +89565,24 @@ export type Database = {
           p_reason?: string
         }
         Returns: Json
+      }
+      analytic_balances: {
+        Args: {
+          p_business_id: string
+          p_date_from: string
+          p_date_to: string
+          p_plan_id?: string
+        }
+        Returns: {
+          analytic_account_id: string
+          code: string
+          credit: number
+          debit: number
+          name: string
+          net: number
+          plan_id: string
+          plan_name: string
+        }[]
       }
       app_state_for_org: {
         Args: { _app_id: string; _org_id: string }
