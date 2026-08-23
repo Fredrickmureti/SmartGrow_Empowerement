@@ -15,7 +15,7 @@
  * the server already grouped, and the footer is a presentation roll-up.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,7 +37,6 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
 import { useAnalyticProfitAndLoss } from "@/hooks/finance/useAnalyticReports";
-import { useSearchParamState } from "@/hooks/useSearchParamState";
 import type {
   ExportColumn,
   ExportConfig,
@@ -51,7 +50,7 @@ function AnalyticProfitAndLossInner() {
   const { baseCurrency } = useCurrency();
   const { plans = [] } = useAnalyticAccounts();
 
-  const [planId, setPlanId] = useSearchParamState("plan", ALL);
+  const [planId, setPlanId] = useState<string>(ALL);
 
   const range = { dateFrom: filters.dateFrom, dateTo: filters.dateTo };
   const { data: rows = [], isLoading, error } = useAnalyticProfitAndLoss(
@@ -129,7 +128,7 @@ function AnalyticProfitAndLossInner() {
       const totalExpense = rows.reduce((s, r) => s + r.expense, 0);
       out.push({
         id: "grand-total",
-        kind: "total",
+        kind: "grandTotal",
         label: "Total attributed",
         values: {
           account: null,
