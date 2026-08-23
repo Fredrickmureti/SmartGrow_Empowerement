@@ -318,6 +318,19 @@ export default function BudgetEditPage() {
     return account ? `${account.code} - ${account.name}` : "Unknown account";
   };
 
+  const postableAnalyticAccounts = useMemo(
+    () => analyticAccounts.filter(isPostable),
+    [analyticAccounts],
+  );
+
+  const getAnalyticAccountLabel = (analyticAccountId: string | null) => {
+    if (!analyticAccountId) return null;
+    const account = analyticAccounts.find((a) => a.id === analyticAccountId);
+    if (!account) return "Unknown dimension";
+    return account.code ? `${account.code} - ${account.name}` : account.name;
+  };
+
+
   const getVarianceForItem = (accountId: string, month: number) =>
     varianceReport?.rows.find((r) => r.accountId === accountId && r.month === month);
 
