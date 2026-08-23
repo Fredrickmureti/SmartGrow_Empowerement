@@ -399,15 +399,21 @@ export function useBudgets() {
     mutationFn: async (item: {
       budget_id: string;
       account_id: string;
+      analytic_account_id?: string | null;
       period_month: number;
       budgeted_amount: number;
       notes?: string;
     }) => {
       const { error } = await supabase
         .from("budget_items")
-        .upsert(item, {
-          onConflict: "budget_id,account_id,period_month",
-        });
+        .upsert(
+          { ...item, analytic_account_id: item.analytic_account_id ?? null },
+          {
+            // Natural key of a plan line: account × period × analytic dimension.
+            onConflict: "budget_id,account_id,period_month,analytic_account_id",
+          },
+        );
+
 
       if (error) throw error;
     },
