@@ -14,6 +14,7 @@
  *   - Project analytics picker
  *   - Custom fields section
  */
+import { useMemo } from "react";
 import { AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
 
