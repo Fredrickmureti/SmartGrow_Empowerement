@@ -6589,6 +6589,7 @@ export type Database = {
       bill_items: {
         Row: {
           account_id: string | null
+          analytic_account_id: string | null
           bill_id: string
           created_at: string
           description: string
@@ -6614,6 +6615,7 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          analytic_account_id?: string | null
           bill_id: string
           created_at?: string
           description: string
@@ -6639,6 +6641,7 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          analytic_account_id?: string | null
           bill_id?: string
           created_at?: string
           description?: string
@@ -6682,6 +6685,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_items_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -24580,6 +24590,7 @@ export type Database = {
       }
       invoice_items: {
         Row: {
+          analytic_account_id: string | null
           business_id: string | null
           created_at: string
           delivery_note_item_id: string | null
@@ -24614,6 +24625,7 @@ export type Database = {
           uom_snapshot_pack_name: string | null
         }
         Insert: {
+          analytic_account_id?: string | null
           business_id?: string | null
           created_at?: string
           delivery_note_item_id?: string | null
@@ -24648,6 +24660,7 @@ export type Database = {
           uom_snapshot_pack_name?: string | null
         }
         Update: {
+          analytic_account_id?: string | null
           business_id?: string | null
           created_at?: string
           delivery_note_item_id?: string | null
@@ -24682,6 +24695,13 @@ export type Database = {
           uom_snapshot_pack_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "invoice_items_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoice_items_business_id_fkey"
             columns: ["business_id"]
