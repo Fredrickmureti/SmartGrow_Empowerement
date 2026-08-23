@@ -128,8 +128,16 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     key: "analytics",
     label: "Analytics",
     icon: BarChart3,
-    reportIds: ["management-reports", "business-intelligence"],
+    reportIds: [
+      "management-reports",
+      "business-intelligence",
+      // Analytic accounting consumers — the management dimension of the GL.
+      "analytic-account-statement",
+      "analytic-profit-and-loss",
+      "analytic-budget-vs-actual",
+    ],
   },
+
 ];
 
 /** Finance-owned reports: routed under `/finance/reports/…`. */
