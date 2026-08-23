@@ -7919,6 +7919,7 @@ export type Database = {
       budget_items: {
         Row: {
           account_id: string
+          analytic_account_id: string | null
           budget_id: string
           budgeted_amount: number
           business_id: string | null
@@ -7931,6 +7932,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          analytic_account_id?: string | null
           budget_id: string
           budgeted_amount?: number
           business_id?: string | null
@@ -7943,6 +7945,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          analytic_account_id?: string | null
           budget_id?: string
           budgeted_amount?: number
           business_id?: string | null
@@ -7973,6 +7976,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -89593,6 +89603,40 @@ export type Database = {
         }
         Returns: Json
       }
+      analytic_account_statement: {
+        Args: {
+          p_analytic_account_id?: string
+          p_branch_id?: string
+          p_business_id: string
+          p_date_from: string
+          p_date_to: string
+          p_plan_id?: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          amount: number
+          analytic_account_id: string
+          analytic_code: string
+          analytic_name: string
+          branch_id: string
+          credit: number
+          debit: number
+          description: string
+          entry_date: string
+          entry_number: string
+          journal_entry_id: string
+          journal_entry_line_id: string
+          plan_id: string
+          plan_name: string
+          reference: string
+          running_balance: number
+          source_type: string
+          status: string
+        }[]
+      }
       analytic_balances: {
         Args: {
           p_branch_id?: string
@@ -89608,6 +89652,55 @@ export type Database = {
           debit: number
           name: string
           net: number
+          plan_id: string
+          plan_name: string
+        }[]
+      }
+      analytic_budget_vs_actual: {
+        Args: {
+          p_branch_id?: string
+          p_budget_id?: string
+          p_business_id: string
+          p_date_from: string
+          p_date_to: string
+          p_plan_id?: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual: number
+          analytic_account_id: string
+          analytic_code: string
+          analytic_name: string
+          budgeted: number
+          plan_id: string
+          plan_name: string
+          variance: number
+          variance_pct: number
+        }[]
+      }
+      analytic_profit_and_loss: {
+        Args: {
+          p_branch_id?: string
+          p_business_id: string
+          p_date_from: string
+          p_date_to: string
+          p_plan_id?: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          amount: number
+          analytic_account_id: string
+          analytic_code: string
+          analytic_name: string
+          expense: number
+          income: number
+          margin: number
           plan_id: string
           plan_name: string
         }[]
