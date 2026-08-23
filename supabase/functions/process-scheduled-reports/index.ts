@@ -242,7 +242,14 @@ async function generateReportData(
       result = await buildJournalReport(supabase, report.organization_id, businessId, startStr, endStr, branchId);
       break;
     case "budget_vs_actual":
-      result = await buildBudgetVsActual(supabase, report.organization_id, businessId, startStr, endStr);
+      result = await buildBudgetVsActual(
+        supabase,
+        report.organization_id,
+        businessId,
+        startStr,
+        endStr,
+        (report.filters as Record<string, unknown> | null)?.budgetId as string | undefined,
+      );
       break;
     case "depreciation_schedule":
       result = await buildDepreciationSchedule(supabase, report.organization_id);

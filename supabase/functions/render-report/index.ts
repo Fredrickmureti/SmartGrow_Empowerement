@@ -39,6 +39,7 @@ import {
   buildPartnerLedger,
   buildJournalReport,
   buildBudgetVsActual,
+  buildBudgetSchedule,
   buildDepreciationSchedule,
   buildAuditTrail,
   type ComparisonMode,
@@ -93,6 +94,7 @@ export type ReportType =
   | "partner_ledger"
   | "journal_report"
   | "budget_vs_actual"
+  | "budget_schedule"
   | "depreciation_schedule"
   | "audit_trail"
   | AttendanceReportKey
