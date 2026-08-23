@@ -68,7 +68,7 @@ function AnalyticBudgetVsActualInner() {
       { key: "budgeted", header: "Budgeted", format: "currency", align: "right" },
       { key: "actual", header: "Actual", format: "currency", align: "right" },
       { key: "variance", header: "Variance", format: "currency", align: "right" },
-      { key: "variance_pct", header: "Variance %", format: "percentage", align: "right" },
+      { key: "variance_pct", header: "Variance %", format: "percent", align: "right" },
     ],
     [],
   );
