@@ -26089,6 +26089,132 @@ export type Database = {
           },
         ]
       }
+      journal_entry_line_analytics: {
+        Row: {
+          amount: number
+          analytic_account_id: string
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          description: string | null
+          entry_date: string
+          id: string
+          journal_entry_id: string
+          journal_entry_line_id: string
+          organization_id: string
+          percentage: number
+          plan_id: string
+        }
+        Insert: {
+          amount: number
+          analytic_account_id: string
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          description?: string | null
+          entry_date: string
+          id?: string
+          journal_entry_id: string
+          journal_entry_line_id: string
+          organization_id: string
+          percentage?: number
+          plan_id: string
+        }
+        Update: {
+          amount?: number
+          analytic_account_id?: string
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          description?: string | null
+          entry_date?: string
+          id?: string
+          journal_entry_id?: string
+          journal_entry_line_id?: string
+          organization_id?: string
+          percentage?: number
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entry_line_analytics_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_journal_entry_line_id_fkey"
+            columns: ["journal_entry_line_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entry_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_line_analytics_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entry_lines: {
         Row: {
           account_id: string
