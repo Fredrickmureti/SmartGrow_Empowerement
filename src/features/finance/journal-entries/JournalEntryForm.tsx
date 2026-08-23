@@ -8,7 +8,7 @@
  * requirement, fiscal-period lock guard, and RPC calls via
  * `useJournalEntries`.
  */
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Loader2, Lock } from "lucide-react";
@@ -29,6 +29,7 @@ import {
   JOURNAL_LINE_COLUMNS,
 } from "@/components/documents/lines/JournalLineRow";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
 import { useContacts } from "@/hooks/useContacts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
@@ -44,6 +45,9 @@ interface JournalLine {
   debit: number;
   credit: number;
   contact_id?: string;
+  /** Optional analytic attribution; materialised into the analytic ledger by
+   *  the database once the entry posts. */
+  analytic_account_id?: string | null;
 }
 
 interface JournalEntryFormProps {
@@ -54,6 +58,7 @@ interface JournalEntryFormProps {
 export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
   const navigate = useNavigate();
   const { accounts } = useAccounts();
+  const { activeAccounts: postableAnalyticAccounts } = useAnalyticAccounts();
   const { contacts } = useContacts();
   const { formatCurrency } = useCurrency();
   const { isDateLocked } = useFiscalPeriods();
@@ -66,8 +71,8 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
     is_adjusting: false,
     is_closing: false,
     lines: [
-      { account_id: "", description: "", debit: 0, credit: 0 } as JournalLine,
-      { account_id: "", description: "", debit: 0, credit: 0 } as JournalLine,
+      { account_id: "", description: "", debit: 0, credit: 0, analytic_account_id: null } as JournalLine,
+      { account_id: "", description: "", debit: 0, credit: 0, analytic_account_id: null } as JournalLine,
     ],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,6 +92,9 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
             debit: l.debit,
             credit: l.credit,
             contact_id: l.contact_id || undefined,
+            analytic_account_id:
+              (l as { analytic_account_id?: string | null })
+                .analytic_account_id ?? null,
           })) || [],
       });
     }
@@ -97,7 +105,7 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
       ...prev,
       lines: [
         ...prev.lines,
-        { account_id: "", description: "", debit: 0, credit: 0 },
+        { account_id: "", description: "", debit: 0, credit: 0, analytic_account_id: null },
       ],
     }));
   }, []);
@@ -123,6 +131,19 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
   );
 
 
+  // Only postable (active) analytic accounts may be attributed on a new
+  // posting; archived/restricted accounts are refused by the database anyway.
+  const analyticOptions = useMemo(
+    () =>
+      postableAnalyticAccounts.map((a) => ({
+        id: a.id,
+        code: a.code,
+        name: a.name,
+        planName: a.plan?.name ?? null,
+      })),
+    [postableAnalyticAccounts],
+  );
+
   const totalDebit = formData.lines.reduce((s, l) => s + (l.debit || 0), 0);
   const totalCredit = formData.lines.reduce((s, l) => s + (l.credit || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
@@ -144,9 +165,9 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
     if (!isBalanced || hasMissingContact) return;
     setIsSubmitting(true);
     try {
-      const validLines = formData.lines.filter(
-        (l) => l.account_id && (l.debit > 0 || l.credit > 0),
-      );
+      const validLines = formData.lines
+        .filter((l) => l.account_id && (l.debit > 0 || l.credit > 0))
+        .map((l) => ({ ...l, analytic_account_id: l.analytic_account_id || null }));
       if (mode === "edit" && entry) {
         await updateJournalEntry.mutateAsync({
           id: entry.id,
@@ -260,7 +281,7 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
 
       <Section
         title="Lines"
-        description="Each line posts to one GL account. AR/AP control accounts require a customer or vendor."
+        description="Each line posts to one GL account. AR/AP control accounts require a customer or vendor. The analytic account attributes the amount to a cost centre, project or department without changing the GL."
       >
         <EditableLineItemsGrid
           columns={JOURNAL_LINE_COLUMNS}
@@ -277,6 +298,7 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
               accounts={accounts}
               contacts={contacts}
               controlRole={controlRoleFor(line.account_id)}
+              analyticAccounts={analyticOptions}
               layout={layout}
               onPatch={handlePatchLine}
             />
