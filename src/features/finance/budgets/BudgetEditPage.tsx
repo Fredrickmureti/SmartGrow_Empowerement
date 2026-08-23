@@ -82,6 +82,8 @@ import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { buildBudgetScheduleExportConfig } from "@/features/finance/budgets/budgetScheduleExport";
+
 
 const MONTHS = [
   "January",
@@ -291,30 +293,14 @@ export default function BudgetEditPage() {
 
   /**
    * Budget Schedule export — the approved PLAN as a document, with no
-   * actuals in it.
-   *
-   * This is deliberately a SERVER-BUILD config: no rows or columns are
-   * shipped from the browser. `render-report` calls `get_budget_schedule`
-   * and `get_budget_document_header`, so the PDF a controller circulates,
-   * the workbook a planner flexes and the CSV another system ingests are
-   * three renderings of one server answer — not three re-reads of a moving
-   * database. The branch is the BUDGET's own branch, never the ambient
-   * branch switcher, so a company-wide budget never prints as a branch one.
+   * actuals in it. The config itself lives in `budgetScheduleExport` so the
+   * budget list row menu produces the exact same server-build request.
    */
-  const getScheduleExportConfig = useCallback((): ExportConfig => {
-    return {
-      title: `Budget Schedule – ${budget?.name || ""}`,
-      reportType: "budget_schedule",
-      dateFrom: `${budget?.fiscal_year}-01-01`,
-      dateTo: `${budget?.fiscal_year}-12-31`,
-      dateRange: `Fiscal Year ${budget?.fiscal_year ?? ""}`,
-      branchId: budget?.branch_id ?? null,
-      filters: { budgetId: budget?.id },
-      sheetName: "Budget Schedule",
-      columns: [],
-      rows: [],
-    } as ExportConfig;
-  }, [budget?.name, budget?.fiscal_year, budget?.branch_id, budget?.id]);
+  const getScheduleExportConfig = useCallback(
+    (): ExportConfig => buildBudgetScheduleExportConfig(budget),
+    [budget],
+  );
+
 
 
   const getAccountName = (accountId: string) => {

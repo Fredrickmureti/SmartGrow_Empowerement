@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useBudgets, Budget } from "@/hooks/useBudgets";
@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Loader2, Target, MoreHorizontal, Pencil, Trash2, Eye, CheckCircle,
-  XCircle, Copy,
+  XCircle, Copy, FileText, Printer, FileSpreadsheet, Download,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -28,6 +28,15 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { normalizeError } from "@/services/resilience";
 import { CopyBudgetDetailSheet } from "@/features/finance/budgets/CopyBudgetDetailSheet";
+import { buildBudgetScheduleExportConfig } from "@/features/finance/budgets/budgetScheduleExport";
+import { useReportExportContext } from "@/contexts/ReportContext";
+import {
+  exportToCSV,
+  exportToExcel,
+  exportToPDF,
+  printReportAsPdf,
+} from "@/services/reports/ReportExportService";
+
 
 export default function Budgets() {
   const { budgets, isLoading, deleteBudget, activateBudget, closeBudget } = useBudgets();
@@ -36,6 +45,50 @@ export default function Budgets() {
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageBudgets } = useFinancePermission("finance.manage_budgets");
+
+  /**
+   * Budget Schedule outputs straight from the list. These are read actions —
+   * no manage permission required — and they reuse the exact server-build
+   * config the detail page uses, so the artifact is identical either way.
+   */
+  const { enrichExportConfig } = useReportExportContext();
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const runBudgetExport = async (
+    budget: Budget,
+    format: "pdf" | "print" | "excel" | "csv",
+  ) => {
+    setExportingId(budget.id);
+    try {
+      const config = enrichExportConfig(buildBudgetScheduleExportConfig(budget));
+      config.generatedAt = new Date();
+      switch (format) {
+        case "pdf":
+          await exportToPDF(config);
+          break;
+        case "print":
+          await printReportAsPdf(config);
+          break;
+        case "excel":
+          await exportToExcel(config);
+          break;
+        case "csv":
+          await exportToCSV(config);
+          break;
+      }
+      toast({ title: "Budget schedule ready", description: budget.name });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setExportingId(null);
+    }
+  };
+
+
 
   // The Enterprise UX standard puts create/edit on dedicated routes
   // (`/finance/budgets/new`, `/finance/budgets/:id/edit`). The only
@@ -327,6 +380,50 @@ export default function Budgets() {
                             >
                               <Eye className="mr-2 h-4 w-4" /> View & Manage
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "pdf");
+                              }}
+                            >
+                              {exportingId === budget.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileText className="mr-2 h-4 w-4" />
+                              )}
+                              Download PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "print");
+                              }}
+                            >
+                              <Printer className="mr-2 h-4 w-4" /> Print
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "excel");
+                              }}
+                            >
+                              <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "csv");
+                              }}
+                            >
+                              <Download className="mr-2 h-4 w-4" /> Export CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+
                             {canManageBudgets && (
                               <DropdownMenuItem
                                 onClick={() => handleOpenBudget(budget)}
