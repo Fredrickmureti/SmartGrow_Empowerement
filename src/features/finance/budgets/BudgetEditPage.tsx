@@ -15,7 +15,7 @@
  * Composed on `RecordFormShell` so the interaction language matches
  * every other Finance edit surface.
  */
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -80,6 +80,8 @@ import { useBudgetVsActual } from "@/hooks/useBudgetVsActual";
 import { useBudgetRevisions } from "@/hooks/useBudgetRevisions";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
+import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 
 const MONTHS = [
   "January",
@@ -413,7 +415,15 @@ export default function BudgetEditPage() {
       submitDisabled={headerSubmitDisabled}
       submitLabel="Save changes"
       extraLeadingActions={
-        canManageBudgets && budget.status === "draft" ? (
+        <>
+          {/* The plan is a document in its own right: it gets approved and
+              circulated, so it must be producible without actuals. */}
+          <ReportExportButtons
+            getExportConfig={getScheduleExportConfig}
+            reportSubtype="budget_schedule"
+            compact
+          />
+          {canManageBudgets && budget.status === "draft" ? (
           <Button
             type="button"
             variant="outline"
@@ -441,7 +451,8 @@ export default function BudgetEditPage() {
             )}
             Close budget
           </Button>
-        ) : undefined
+          ) : null}
+        </>
       }
     >
       {/* Section 1 — Details */}
