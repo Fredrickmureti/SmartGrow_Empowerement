@@ -306,9 +306,10 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
               </Select>
             </WorkflowField>
           </WorkflowSheetGrid>
-          <WorkflowField label="Analytic account code" htmlFor="analytic" hint="Optional — links costs/revenues to a finance analytic account.">
-            <Input id="analytic" value={analyticAccountCode} onChange={(e) => setAnalyticAccountCode(e.target.value)} placeholder="e.g., ANL-2026-CORE" />
-          </WorkflowField>
+          <p className="text-xs text-muted-foreground">
+            Finance analytic account: created automatically for this project — costs and
+            revenues tagged to it post straight to the analytic ledger.
+          </p>
         </WorkflowSheetSection>
 
         <WorkflowSheetSection number={templates.length > 0 ? 4 : 3} title="Schedule & budget">
