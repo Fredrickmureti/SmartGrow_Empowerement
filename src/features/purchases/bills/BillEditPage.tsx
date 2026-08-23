@@ -47,6 +47,7 @@ import {
 } from "@/hooks/useBills";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { AnalyticAccountCell } from "@/components/finance/AnalyticAccountCell";
 import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
@@ -63,7 +64,10 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchasableVendors";
 
-type LineItem = Omit<BillItem, "id" | "bill_id">;
+type LineItem = Omit<BillItem, "id" | "bill_id"> & {
+  /** Analytic axis; the server copies it onto the posted GL line. */
+  analytic_account_id?: string | null;
+};
 
 export default function BillEditPage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -168,6 +172,9 @@ export default function BillEditPage() {
             sort_order: item.sort_order,
             project_id: item.project_id ?? null,
             task_id: item.task_id ?? null,
+            analytic_account_id:
+              (item as { analytic_account_id?: string | null })
+                .analytic_account_id ?? null,
             packaging_id: item.packaging_id ?? null,
             display_quantity: item.display_quantity ?? null,
             display_uom_id: item.display_uom_id ?? null,
@@ -533,6 +540,14 @@ export default function BillEditPage() {
                 productPlaceholder="Product"
                 extra={
                   <div className="space-y-2">
+                    <AnalyticAccountCell
+                      value={item.analytic_account_id ?? null}
+                      onChange={(analytic_account_id) =>
+                        patchLineItem(index, { analytic_account_id })
+                      }
+                      planCodes={["cost_center", "department"]}
+                      disabled={isSubmitting}
+                    />
                     <LineAnalyticsCell
                       projectId={(item as any).project_id ?? null}
                       taskId={(item as any).task_id ?? null}

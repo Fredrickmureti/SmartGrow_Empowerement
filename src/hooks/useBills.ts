@@ -615,6 +615,9 @@ export function useBills() {
         sort_order: index,
         project_id: (item as { project_id?: string | null }).project_id ?? null,
         task_id: (item as { task_id?: string | null }).task_id ?? null,
+        analytic_account_id:
+          (item as { analytic_account_id?: string | null }).analytic_account_id ??
+          null,
       }));
 
       const { error: itemsError } = await supabase.rpc("update_bill_items_atomic", {
