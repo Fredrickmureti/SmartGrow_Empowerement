@@ -227,10 +227,12 @@ export default function BudgetEditPage() {
       await upsertBudgetItem.mutateAsync({
         budget_id: budget.id,
         account_id: lineAccount,
+        analytic_account_id: lineAnalyticAccount || null,
         period_month: lineMonth,
         budgeted_amount: parseFloat(lineAmount) || 0,
         notes: lineNotes || undefined,
       });
+
       toast({ title: "Budget line saved" });
       // Reset add-line composer but keep account+month for rapid entry.
       setLineAmount("");
