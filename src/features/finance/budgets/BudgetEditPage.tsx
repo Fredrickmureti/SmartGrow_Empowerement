@@ -82,6 +82,8 @@ import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { buildBudgetScheduleExportConfig } from "@/features/finance/budgets/budgetScheduleExport";
+
 
 const MONTHS = [
   "January",
