@@ -1548,70 +1548,244 @@ export async function buildJournalReport(
 }
 
 
+/**
+ * Budget vs Actual.
+ *
+ * There is exactly ONE budget variance engine in this system and it is the SQL
+ * function `get_budget_variance_report`. It owns the things that are easy to
+ * get quietly wrong and impossible to notice afterwards: which journal
+ * statuses are ledger-visible, the exclusion of closing / opening / sample
+ * entries, branch scoping to the budget's own branch, matching plan to ledger
+ * on `fiscal_period_id` rather than a calendar month number, and — above all —
+ * the favourable-positive sign convention, under which an under-spend on a
+ * cost account and an over-earn on a revenue account both read positive.
+ *
+ * This function therefore computes nothing. It resolves which budget the
+ * request means, calls the RPC, narrows to the requested window and lays the
+ * rows out for the page. An earlier version re-implemented the query here in
+ * TypeScript; it ignored the branch, collapsed the periods and used
+ * `actual - budget` for every account type, so an emailed Budget vs Actual
+ * reported overspending as a positive variance while the screen reported it as
+ * negative. Do not reintroduce arithmetic here.
+ */
 export async function buildBudgetVsActual(
-  supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
+  supabase: SupabaseClient,
+  organizationId: string,
+  businessId: string | undefined,
+  startStr: string,
+  endStr: string,
+  budgetId?: string,
 ): Promise<ReportResult> {
-  const currentYear = new Date().getFullYear();
-  const { data: budgets } = await supabase
-    .from("budgets")
-    .select("id, name, fiscal_year")
-    .eq("organization_id", organizationId)
-    .eq("business_id", requireBusinessId(businessId))
-    .eq("fiscal_year", currentYear)
-    .eq("status", "active")
-    .limit(1);
+  const scopedBusinessId = requireBusinessId(businessId);
 
-  const budget = (budgets || [])[0] as Record<string, unknown> | undefined;
+  let resolvedBudgetId = budgetId;
+  let budgetName = "";
+  let budgetStatus = "";
+  let fiscalYear: number | null = null;
 
-  if (!budget) {
-    return { data: [], summary: { message: "No active budget found for current fiscal year" } };
+  if (resolvedBudgetId) {
+    const { data: chosen } = await supabase
+      .from("budgets")
+      .select("id, name, status, fiscal_year, business_id")
+      .eq("id", resolvedBudgetId)
+      .maybeSingle();
+    const row = chosen as Record<string, unknown> | null;
+    if (!row || row.business_id !== scopedBusinessId) {
+      return { data: [], summary: { message: "Budget not found for this company" } };
+    }
+    budgetName = (row.name as string) || "";
+    budgetStatus = (row.status as string) || "";
+    fiscalYear = (row.fiscal_year as number) ?? null;
+  } else {
+    // No explicit budget: the fiscal year the requested window falls in, never
+    // "this calendar year" — a business whose year starts in July would
+    // otherwise be reported against the wrong plan.
+    const startYear = Number(startStr.slice(0, 4));
+    const endYear = Number(endStr.slice(0, 4));
+    const candidateYears = startYear === endYear ? [startYear] : [startYear, endYear];
+
+    const { data: budgets } = await supabase
+      .from("budgets")
+      .select("id, name, status, fiscal_year")
+      .eq("organization_id", organizationId)
+      .eq("business_id", scopedBusinessId)
+      .in("fiscal_year", candidateYears)
+      .in("status", ["active", "closed"])
+      .order("fiscal_year", { ascending: true })
+      .order("created_at", { ascending: false });
+
+    const list = (budgets || []) as Record<string, unknown>[];
+    const preferred =
+      list.find((b) => b.fiscal_year === startYear && b.status === "active") ||
+      list.find((b) => b.status === "active") ||
+      list[0];
+
+    if (!preferred) {
+      return {
+        data: [],
+        summary: { message: "No budget in force for the requested period" },
+      };
+    }
+    resolvedBudgetId = preferred.id as string;
+    budgetName = (preferred.name as string) || "";
+    budgetStatus = (preferred.status as string) || "";
+    fiscalYear = (preferred.fiscal_year as number) ?? null;
   }
 
-  const { data: budgetItems } = await supabase
-    .from("budget_items")
-    .select("account_id, budgeted_amount, period_month, accounts(code, name, account_type)")
-    .eq("budget_id", budget.id as string);
-
-  const accounts = await getGLAccountBalances(supabase, organizationId, businessId, startStr, endStr, ["income", "expense"]);
-  const actualMap = new Map(accounts.map(a => [a.id, a.closing_balance - a.opening_balance]));
-
-  const budgetByAccount = new Map<string, { budgeted: number; accountName: string; accountCode: string; accountType: string }>();
-  for (const item of (budgetItems || []) as Record<string, unknown>[]) {
-    const accountId = item.account_id as string;
-    const acct = item.accounts as Record<string, unknown> | null;
-    const existing = budgetByAccount.get(accountId) || {
-      budgeted: 0,
-      accountName: (acct?.name as string) || "",
-      accountCode: (acct?.code as string) || "",
-      accountType: (acct?.account_type as string) || "",
-    };
-    existing.budgeted += (item.budgeted_amount as number) || 0;
-    budgetByAccount.set(accountId, existing);
-  }
-
-  const data = Array.from(budgetByAccount.entries()).map(([accountId, info]) => {
-    const actual = actualMap.get(accountId) || 0;
-    const variance = actual - info.budgeted;
-    const variancePercent = info.budgeted !== 0 ? (variance / Math.abs(info.budgeted)) * 100 : null;
-    return {
-      account_code: info.accountCode,
-      account_name: info.accountName,
-      account_type: info.accountType,
-      budgeted: info.budgeted,
-      actual,
-      variance,
-      variance_percent: variancePercent ? Math.round(variancePercent * 100) / 100 : null,
-    };
+  const { data: variance, error } = await supabase.rpc("get_budget_variance_report", {
+    _budget_id: resolvedBudgetId,
   });
+  if (error) throw new Error(`budget_variance_failed: ${error.message}`);
 
-  const totalBudgeted = data.reduce((s, d) => s + ((d.budgeted as number) || 0), 0);
-  const totalActual = data.reduce((s, d) => s + ((d.actual as number) || 0), 0);
+  type VarianceRow = {
+    account_id: string;
+    account_code: string | null;
+    account_name: string | null;
+    account_type: string | null;
+    period_start: string;
+    period_end: string;
+    budgeted_amount: number | null;
+    actual_amount: number | null;
+    variance_amount: number | null;
+    is_unbudgeted: boolean | null;
+  };
+
+  // The RPC answers for the whole fiscal year; a request for a narrower window
+  // keeps only the accounting periods that sit inside it.
+  const rows = ((variance || []) as VarianceRow[]).filter(
+    (r) => r.period_start >= startStr && r.period_end <= endStr,
+  );
+
+  const SECTION_OF: Record<string, { label: string; ordinal: number }> = {
+    income: { label: "Revenue", ordinal: 1 },
+    expense: { label: "Cost", ordinal: 2 },
+  };
+  const OTHER = { label: "Other", ordinal: 3 };
+
+  type Agg = {
+    accountCode: string;
+    accountName: string;
+    accountType: string;
+    budgeted: number;
+    actual: number;
+    variance: number;
+    isUnbudgeted: boolean;
+  };
+  const byAccount = new Map<string, Agg>();
+  for (const r of rows) {
+    const key = r.account_id;
+    const agg = byAccount.get(key) || {
+      accountCode: r.account_code || "",
+      accountName: r.account_name || "",
+      accountType: r.account_type || "",
+      budgeted: 0,
+      actual: 0,
+      variance: 0,
+      isUnbudgeted: true,
+    };
+    agg.budgeted += Number(r.budgeted_amount) || 0;
+    agg.actual += Number(r.actual_amount) || 0;
+    // Variance is summed, never recomputed: the RPC decides its direction.
+    agg.variance += Number(r.variance_amount) || 0;
+    agg.isUnbudgeted = agg.isUnbudgeted && r.is_unbudgeted === true;
+    byAccount.set(key, agg);
+  }
+
+  const pct = (varianceAmount: number, budgeted: number): number | null =>
+    budgeted === 0 ? null : Math.round((varianceAmount / Math.abs(budgeted)) * 10000) / 100;
+
+  const sections = new Map<number, { label: string; entries: Agg[] }>();
+  for (const agg of byAccount.values()) {
+    const s = SECTION_OF[agg.accountType] || OTHER;
+    const bucket = sections.get(s.ordinal) || { label: s.label, entries: [] };
+    bucket.entries.push(agg);
+    sections.set(s.ordinal, bucket);
+  }
+
+  const data: Record<string, unknown>[] = [];
+  let totalBudgeted = 0;
+  let totalActual = 0;
+  let totalVariance = 0;
+
+  for (const ordinal of [...sections.keys()].sort((a, b) => a - b)) {
+    const section = sections.get(ordinal)!;
+    section.entries.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
+    data.push({
+      account_code: "",
+      account_name: section.label,
+      _isHeader: true,
+      _bold: true,
+    });
+
+    let sb = 0;
+    let sa = 0;
+    let sv = 0;
+    for (const e of section.entries) {
+      sb += e.budgeted;
+      sa += e.actual;
+      sv += e.variance;
+      data.push({
+        account_code: e.accountCode,
+        account_name: e.isUnbudgeted ? `${e.accountName} (unbudgeted)` : e.accountName,
+        account_type: e.accountType,
+        budgeted: e.budgeted,
+        actual: e.actual,
+        variance: e.variance,
+        variance_percent: pct(e.variance, e.budgeted),
+        favourability: e.variance === 0 ? "—" : e.variance > 0 ? "F" : "U",
+        _depth: 1,
+      });
+    }
+
+    data.push({
+      account_code: "",
+      account_name: `Total ${section.label}`,
+      budgeted: sb,
+      actual: sa,
+      variance: sv,
+      variance_percent: pct(sv, sb),
+      favourability: sv === 0 ? "—" : sv > 0 ? "F" : "U",
+      _isSubtotal: true,
+      _bold: true,
+    });
+
+    totalBudgeted += sb;
+    totalActual += sa;
+    totalVariance += sv;
+  }
+
+  if (data.length > 0) {
+    // Revenue and cost are never netted into one figure; this line is the
+    // planned-versus-achieved result, and it is stated as such.
+    data.push({
+      account_code: "",
+      account_name: "Net variance (favourable positive)",
+      budgeted: totalBudgeted,
+      actual: totalActual,
+      variance: totalVariance,
+      variance_percent: pct(totalVariance, totalBudgeted),
+      favourability: totalVariance === 0 ? "—" : totalVariance > 0 ? "F" : "U",
+      _isGrandTotal: true,
+      _bold: true,
+    });
+  }
 
   return {
     data,
-    summary: { budgetName: budget.name, totalBudgeted, totalActual, totalVariance: totalActual - totalBudgeted, accountCount: data.length },
+    summary: {
+      budgetId: resolvedBudgetId,
+      budgetName,
+      budgetStatus,
+      fiscalYear,
+      totalBudgeted,
+      totalActual,
+      totalVariance,
+      accountCount: byAccount.size,
+    },
   };
 }
+
 
 export async function buildDepreciationSchedule(
   supabase: SupabaseClient, organizationId: string
