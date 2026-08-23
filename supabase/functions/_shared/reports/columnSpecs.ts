@@ -192,14 +192,29 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
     title: "Budget vs. Actual",
     orientation: "landscape",
     columns: [
-      { key: "account_name", header: "Account", width: 24, align: "left", format: "text" },
-      { key: "account_type", header: "Type", width: 12, align: "left", format: "text" },
+      { key: "account_code", header: "Code", width: 10, align: "left", format: "text" },
+      { key: "account_name", header: "Account", width: 26, align: "left", format: "text" },
       { key: "budgeted", header: "Budget", width: 16, align: "right", format: "currency" },
       { key: "actual", header: "Actual", width: 16, align: "right", format: "currency" },
       { key: "variance", header: "Variance", width: 16, align: "right", format: "currency" },
-      { key: "variance_percent", header: "Var %", width: 12, align: "right", format: "percent" },
+      { key: "variance_percent", header: "Var %", width: 10, align: "right", format: "percent" },
+      // Variance is favourable-positive by account nature (see
+      // get_budget_variance_report): under-spend and over-earn both read
+      // positive, so the sign alone does not tell a reader which it is.
+      { key: "favourability", header: "F/U", width: 8, align: "center", format: "text" },
     ],
   },
+  budget_schedule: {
+    title: "Budget Schedule",
+    orientation: "landscape",
+    columns: [
+      { key: "account_code", header: "Code", width: 10, align: "left", format: "text" },
+      { key: "account_name", header: "Account", width: 30, align: "left", format: "text" },
+      { key: "period_label", header: "Period", width: 14, align: "left", format: "text" },
+      { key: "budgeted_amount", header: "Budget", width: 18, align: "right", format: "currency" },
+    ],
+  },
+
   depreciation_schedule: {
     title: "Depreciation Schedule",
     orientation: "landscape",
