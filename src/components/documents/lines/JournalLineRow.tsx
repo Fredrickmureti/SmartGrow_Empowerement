@@ -30,10 +30,20 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { ContactCombobox } from "@/components/finance/ContactCombobox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   EditableLineRowCells,
   type EditableLineColumn,
   type EditableRowLayout,
 } from "@/design-system/records/EditableLineItemsGrid";
+
+/** Sentinel for "no analytic attribution" — Radix Select forbids empty values. */
+const NO_ANALYTIC = "__none__";
 
 /** Subledger role a GL account imposes on the line, if any. */
 export type JournalControlRole = "ar" | "ap" | null;
@@ -45,6 +55,21 @@ export interface JournalLineShape {
   debit: number;
   credit: number;
   contact_id?: string;
+  /**
+   * Analytic (cost centre / project / department …) attribution for this line.
+   * The posting engine copies it onto `journal_entry_lines.analytic_account_id`,
+   * from which the database materialises the analytic ledger. The client never
+   * writes analytic amounts itself.
+   */
+  analytic_account_id?: string | null;
+}
+
+/** Postable analytic account offered on a journal line. */
+export interface JournalAnalyticOption {
+  id: string;
+  code: string | null;
+  name: string;
+  planName?: string | null;
 }
 
 /** Column contract shared by every double-entry line editor. */
@@ -64,6 +89,13 @@ export const JOURNAL_LINE_COLUMNS: EditableLineColumn[] = [
     minWidth: 180,
     compactLabel: "Party",
   },
+  {
+    id: "analytic",
+    header: "Analytic",
+    priority: 3,
+    minWidth: 180,
+    compactLabel: "Analytic",
+  },
   { id: "debit", header: "Debit", priority: 1, minWidth: 110, numeric: true },
   { id: "credit", header: "Credit", priority: 1, minWidth: 110, numeric: true },
 ];
@@ -77,6 +109,8 @@ interface Props<T extends JournalLineShape> {
   contacts: Parameters<typeof ContactCombobox>[0]["contacts"];
   /** Resolves whether the chosen account is an AR/AP control account. */
   controlRole: JournalControlRole;
+  /** Postable analytic accounts; omit/empty to hide the analytic cell. */
+  analyticAccounts?: JournalAnalyticOption[];
   /** Layout resolved by `EditableLineItemsGrid` for the measured container. */
   layout: EditableRowLayout;
   disabled?: boolean;
@@ -92,6 +126,7 @@ function JournalLineRowInner<T extends JournalLineShape>({
   accounts,
   contacts,
   controlRole,
+  analyticAccounts,
   layout,
   disabled,
   onPatch,
@@ -138,6 +173,38 @@ function JournalLineRowInner<T extends JournalLineShape>({
             placeholder={controlRole === "ar" ? "Customer *" : "Vendor *"}
           />
         );
+
+      case "analytic": {
+        if (!analyticAccounts || analyticAccounts.length === 0) {
+          return (
+            <span className="block truncate text-xs text-muted-foreground">—</span>
+          );
+        }
+        return (
+          <Select
+            value={item.analytic_account_id ?? NO_ANALYTIC}
+            disabled={disabled}
+            onValueChange={(v) =>
+              onPatch(index, {
+                analytic_account_id: v === NO_ANALYTIC ? null : v,
+              } as Partial<T>)
+            }
+          >
+            <SelectTrigger className="h-8">
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_ANALYTIC}>None</SelectItem>
+              {analyticAccounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.code ? `${a.code} — ${a.name}` : a.name}
+                  {a.planName ? ` (${a.planName})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
 
       case "debit":
         return (

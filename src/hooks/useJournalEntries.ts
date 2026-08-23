@@ -46,6 +46,7 @@ export interface JournalEntryLine {
   debit: number;
   credit: number;
   contact_id: string | null;
+  analytic_account_id: string | null;
   sort_order: number;
   created_at: string;
   accounts?: {
@@ -72,6 +73,8 @@ export interface CreateJournalEntryInput {
     debit: number;
     credit: number;
     contact_id?: string;
+    /** Analytic attribution; the DB materialises the analytic ledger from it. */
+    analytic_account_id?: string | null;
   }[];
 }
 
@@ -178,6 +181,7 @@ export function useJournalEntries() {
         debit: line.debit,
         credit: line.credit,
         contact_id: line.contact_id || null,
+        analytic_account_id: line.analytic_account_id || null,
       }));
 
       // Single atomic DB call — header + lines in one transaction
@@ -256,6 +260,7 @@ export function useJournalEntries() {
         debit: line.debit || 0,
         credit: line.credit || 0,
         contact_id: line.contact_id || null,
+        analytic_account_id: line.analytic_account_id || null,
         sort_order: index,
       }));
 

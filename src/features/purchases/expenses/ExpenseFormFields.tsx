@@ -14,6 +14,7 @@
  *   - Project analytics picker
  *   - Custom fields section
  */
+import { useMemo } from "react";
 import { AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
 
@@ -166,7 +167,16 @@ export function ExpenseFormFields({
 }: Props) {
   const { activeTaxRates } = useTaxRates();
   const { departments } = useDepartments();
-  const { activeAccounts: analyticAccounts } = useAnalyticAccounts();
+  // Cost-centre field: only postable accounts on the cost-centre or
+  // department axis belong here — the same rule the requisition form applies.
+  const { activeAccounts } = useAnalyticAccounts();
+  const analyticAccounts = useMemo(
+    () =>
+      activeAccounts.filter(
+        (a) => a.plan?.code === "cost_center" || a.plan?.code === "department",
+      ),
+    [activeAccounts],
+  );
   const { employees, isLoading: employeesLoading } = useEmployees({
     enabled: value.paid_by === "employee",
   });
