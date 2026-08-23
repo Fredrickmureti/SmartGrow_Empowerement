@@ -84,11 +84,13 @@ export interface AnalyticBudgetRow {
 
 export interface ProjectAnalyticReconciliationRow {
   project_id: string;
+  project_number: string | null;
   project_name: string;
   analytic_account_id: string | null;
-  analytic_net: number;
-  project_cost_total: number;
-  project_revenue_total: number;
+  gl_analytic_net: number;
+  project_ledger_cost: number;
+  project_ledger_revenue: number;
+  project_ledger_net: number;
   difference: number;
 }
 
@@ -236,9 +238,10 @@ export function useProjectAnalyticReconciliation({ dateFrom, dateTo }: Range, en
       if (error) throw error;
       return ((data ?? []) as any[]).map((r) => ({
         ...r,
-        analytic_net: num(r.analytic_net),
-        project_cost_total: num(r.project_cost_total),
-        project_revenue_total: num(r.project_revenue_total),
+        gl_analytic_net: num(r.gl_analytic_net),
+        project_ledger_cost: num(r.project_ledger_cost),
+        project_ledger_revenue: num(r.project_ledger_revenue),
+        project_ledger_net: num(r.project_ledger_net),
         difference: num(r.difference),
       })) as ProjectAnalyticReconciliationRow[];
     },
