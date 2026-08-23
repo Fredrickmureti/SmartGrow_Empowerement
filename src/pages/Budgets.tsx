@@ -46,6 +46,50 @@ export default function Budgets() {
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageBudgets } = useFinancePermission("finance.manage_budgets");
 
+  /**
+   * Budget Schedule outputs straight from the list. These are read actions —
+   * no manage permission required — and they reuse the exact server-build
+   * config the detail page uses, so the artifact is identical either way.
+   */
+  const { enrichExportConfig } = useReportExportContext();
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const runBudgetExport = async (
+    budget: Budget,
+    format: "pdf" | "print" | "excel" | "csv",
+  ) => {
+    setExportingId(budget.id);
+    try {
+      const config = enrichExportConfig(buildBudgetScheduleExportConfig(budget));
+      config.generatedAt = new Date();
+      switch (format) {
+        case "pdf":
+          await exportToPDF(config);
+          break;
+        case "print":
+          await printReportAsPdf(config);
+          break;
+        case "excel":
+          await exportToExcel(config);
+          break;
+        case "csv":
+          await exportToCSV(config);
+          break;
+      }
+      toast({ title: "Budget schedule ready", description: budget.name });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setExportingId(null);
+    }
+  };
+
+
+
   // The Enterprise UX standard puts create/edit on dedicated routes
   // (`/finance/budgets/new`, `/finance/budgets/:id/edit`). The only
   // sheet left on this page is the confirm-style Copy sheet.
