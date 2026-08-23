@@ -56,8 +56,16 @@ describe("Reports navigation is derived from the report registry", () => {
   });
 
   it("every nav link resolves to a registered report path", () => {
-    const known = new Set(REPORT_REGISTRY.map((r) => r.path));
-    expect(navPaths.filter((p) => !known.has(p))).toEqual([]);
+    // Dual-host reports (ADR 0143) are mounted under both `/finance/reports/*`
+    // and `/inventory-app/reports/*`, so the guard has to consider every
+    // declared mount, not just the canonical `path`.
+    const known = new Set(
+      REPORT_REGISTRY.flatMap((r) => [r.path, ...reportMountPaths(r)]),
+    );
+    const unresolved = navPaths.filter(
+      (p) => !known.has(p) && !known.has(p.split("?")[0]),
+    );
+    expect(unresolved).toEqual([]);
   });
 
   it("nav files do not hardcode report links", () => {
