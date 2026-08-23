@@ -149,3 +149,106 @@ BEGIN
     RAISE EXCEPTION '% analytic rows reference an account from another company', v_bad;
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- 7) Phase 4 — every project is bound to exactly one analytic account, and no
+--    analytic account is shared by two projects.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_unbound int; v_wrong_plan int; v_shared int;
+BEGIN
+  SELECT count(*) INTO v_unbound
+    FROM public.projects p
+   WHERE p.business_id IS NOT NULL
+     AND COALESCE(p.is_template, false) = false
+     AND p.analytic_account_id IS NULL;
+  IF v_unbound > 0 THEN
+    RAISE EXCEPTION '% project(s) have no analytic account — trg_projects_sync_analytic_account is not provisioning', v_unbound;
+  END IF;
+
+  SELECT count(*) INTO v_wrong_plan
+    FROM public.projects p
+    JOIN public.analytic_accounts aa ON aa.id = p.analytic_account_id
+    JOIN public.analytic_plans ap ON ap.id = aa.plan_id
+   WHERE ap.code <> 'project'
+      OR aa.business_id IS DISTINCT FROM p.business_id;
+  IF v_wrong_plan > 0 THEN
+    RAISE EXCEPTION '% project analytic account(s) sit in the wrong plan or the wrong company', v_wrong_plan;
+  END IF;
+
+  SELECT count(*) INTO v_shared
+    FROM (
+      SELECT analytic_account_id
+        FROM public.projects
+       WHERE analytic_account_id IS NOT NULL
+       GROUP BY analytic_account_id
+      HAVING count(*) > 1
+    ) t;
+  IF v_shared > 0 THEN
+    RAISE EXCEPTION '% analytic account(s) are shared by more than one project', v_shared;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 8) Phase 4 — a project tag on a producer line always carries analytic
+--    attribution, so project cost reaches the GL analytic ledger.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_bad int;
+BEGIN
+  SELECT (SELECT count(*) FROM public.bill_items
+           WHERE project_id IS NOT NULL AND analytic_account_id IS NULL)
+       + (SELECT count(*) FROM public.invoice_items
+           WHERE project_id IS NOT NULL AND analytic_account_id IS NULL)
+       + (SELECT count(*) FROM public.expenses
+           WHERE project_id IS NOT NULL AND analytic_account_id IS NULL)
+    INTO v_bad;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION '% producer row(s) are tagged with a project but carry no analytic account', v_bad;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 9) Phase 4 — the resolution triggers are installed on every producer.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_missing text;
+BEGIN
+  SELECT string_agg(t.expected, ', ')
+    INTO v_missing
+    FROM (VALUES
+      ('trg_projects_sync_analytic_account'),
+      ('trg_bill_items_default_analytic'),
+      ('trg_invoice_items_default_analytic'),
+      ('trg_expenses_default_analytic')
+    ) AS t(expected)
+   WHERE NOT EXISTS (
+     SELECT 1 FROM pg_trigger g WHERE NOT g.tgisinternal AND g.tgname = t.expected
+   );
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'missing analytic attribution trigger(s): %', v_missing;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 10) Phase 4 — the retired free-text project code is gone for good.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_col int; v_fn text;
+BEGIN
+  SELECT count(*) INTO v_col
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'projects'
+     AND column_name = 'analytic_account_code';
+  IF v_col > 0 THEN
+    RAISE EXCEPTION 'projects.analytic_account_code is back — project attribution must resolve by foreign key, not by text';
+  END IF;
+
+  SELECT string_agg(p.proname, ', ') INTO v_fn
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND pg_get_functiondef(p.oid) LIKE '%analytic_account_code%';
+  IF v_fn IS NOT NULL THEN
+    RAISE EXCEPTION 'function(s) still resolve project analytics by text code: %', v_fn;
+  END IF;
+END $$;
