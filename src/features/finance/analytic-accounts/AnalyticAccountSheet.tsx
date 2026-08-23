@@ -35,17 +35,22 @@ import { normalizeError } from "@/services/resilience";
 import {
   useAnalyticAccounts,
   type AnalyticAccount,
-  type AnalyticType,
+  type AnalyticStatus,
   type AnalyticGroup,
 } from "@/hooks/useAnalyticAccounts";
 
-const ANALYTIC_TYPES: { value: AnalyticType; label: string }[] = [
-  { value: "cost_center", label: "Cost Center" },
-  { value: "project", label: "Project" },
-  { value: "department", label: "Department" },
-  { value: "product_line", label: "Product Line" },
-  { value: "other", label: "Other" },
+/**
+ * Lifecycle, not a boolean: `restricted` keeps history readable while
+ * blocking new attribution, which is what "stop using this cost center
+ * from Q3" actually means.
+ */
+const ANALYTIC_STATUSES: { value: AnalyticStatus; label: string }[] = [
+  { value: "draft", label: "Draft — not yet usable" },
+  { value: "active", label: "Active — accepts new postings" },
+  { value: "restricted", label: "Restricted — no new postings" },
+  { value: "archived", label: "Archived" },
 ];
+
 
 interface Props {
   open: boolean;
