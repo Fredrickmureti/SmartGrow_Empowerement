@@ -31,6 +31,13 @@ export interface BudgetItem {
   budget_id: string;
   business_id: string | null;
   account_id: string;
+  /**
+   * Optional analytic attribution (cost centre / department / project /
+   * product line). Together with the GL account and the period it forms the
+   * natural key of a plan line, so the same account can be budgeted for
+   * several dimensions in the same month.
+   */
+  analytic_account_id: string | null;
   /** Derived server-side from the linked fiscal period — display only. */
   period_month: number;
   /** Authoritative accounting period this line belongs to. */
@@ -45,10 +52,16 @@ export interface BudgetItem {
     code: string;
     account_type: string;
   };
+  analytic_accounts?: {
+    id: string;
+    name: string;
+    code: string | null;
+  } | null;
 }
 
 export interface BudgetLineInput {
   account_id: string;
+  analytic_account_id?: string | null;
   period_month: number;
   budgeted_amount: number;
   notes?: string;
@@ -61,7 +74,12 @@ export interface CreateBudgetInput {
   items?: BudgetLineInput[];
 }
 
-const lineKey = (accountId: string, periodMonth: number) => `${accountId}|${periodMonth}`;
+const lineKey = (
+  accountId: string,
+  periodMonth: number,
+  analyticAccountId?: string | null,
+) => `${accountId}|${periodMonth}|${analyticAccountId ?? ""}`;
+
 
 
 export function useBudgets() {
@@ -82,7 +100,9 @@ export function useBudgets() {
           *,
           budget_items(
             *,
-            accounts(id, name, code, account_type)
+            accounts(id, name, code, account_type),
+            analytic_accounts(id, name, code)
+
           )
         `)
         .eq("organization_id", organizationId);
@@ -150,11 +170,13 @@ export function useBudgets() {
           input.items.map(item => ({
             budget_id: budget.id,
             account_id: item.account_id,
+            analytic_account_id: item.analytic_account_id ?? null,
             period_month: item.period_month,
             budgeted_amount: item.budgeted_amount,
             notes: item.notes,
           })),
         );
+
         if (itemsError) throw itemsError;
       }
 
@@ -195,13 +217,16 @@ export function useBudgets() {
 
       const { data: existing, error: existingError } = await supabase
         .from("budget_items")
-        .select("id, account_id, period_month, budgeted_amount, notes")
+        .select("id, account_id, analytic_account_id, period_month, budgeted_amount, notes")
         .eq("budget_id", id);
 
       if (existingError) throw existingError;
 
       const existingByKey = new Map(
-        (existing ?? []).map(row => [lineKey(row.account_id, row.period_month), row]),
+        (existing ?? []).map(row => [
+          lineKey(row.account_id, row.period_month, row.analytic_account_id),
+          row,
+        ]),
       );
       const desiredKeys = new Set<string>();
 
@@ -209,13 +234,14 @@ export function useBudgets() {
       const toUpdate: Array<{ id: string; budgeted_amount: number; notes?: string | null }> = [];
 
       for (const item of input.items) {
-        const key = lineKey(item.account_id, item.period_month);
+        const key = lineKey(item.account_id, item.period_month, item.analytic_account_id);
         desiredKeys.add(key);
         const current = existingByKey.get(key);
         if (!current) {
           toInsert.push({
             budget_id: id,
             account_id: item.account_id,
+            analytic_account_id: item.analytic_account_id ?? null,
             period_month: item.period_month,
             budgeted_amount: item.budgeted_amount,
             notes: item.notes ?? null,
@@ -233,8 +259,14 @@ export function useBudgets() {
       }
 
       const removedIds = (existing ?? [])
-        .filter(row => !desiredKeys.has(lineKey(row.account_id, row.period_month)))
+        .filter(
+          row =>
+            !desiredKeys.has(
+              lineKey(row.account_id, row.period_month, row.analytic_account_id),
+            ),
+        )
         .map(row => row.id);
+
 
       if (toInsert.length > 0) {
         const { error } = await supabase.from("budget_items").insert(toInsert as never);
@@ -367,15 +399,21 @@ export function useBudgets() {
     mutationFn: async (item: {
       budget_id: string;
       account_id: string;
+      analytic_account_id?: string | null;
       period_month: number;
       budgeted_amount: number;
       notes?: string;
     }) => {
       const { error } = await supabase
         .from("budget_items")
-        .upsert(item, {
-          onConflict: "budget_id,account_id,period_month",
-        });
+        .upsert(
+          { ...item, analytic_account_id: item.analytic_account_id ?? null },
+          {
+            // Natural key of a plan line: account × period × analytic dimension.
+            onConflict: "budget_id,account_id,period_month,analytic_account_id",
+          },
+        );
+
 
       if (error) throw error;
     },

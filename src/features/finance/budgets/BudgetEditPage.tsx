@@ -74,6 +74,8 @@ import { normalizeError } from "@/services/resilience";
 
 import { useBudgets, type Budget, type BudgetItem } from "@/hooks/useBudgets";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useAnalyticAccounts, isPostable } from "@/hooks/useAnalyticAccounts";
+
 import { useCurrency } from "@/hooks/useCurrency";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
 import { useBudgetVsActual } from "@/hooks/useBudgetVsActual";
@@ -114,6 +116,11 @@ export default function BudgetEditPage() {
     deleteBudgetItem,
   } = useBudgets();
   const { accounts } = useAccounts();
+  // Analytic attribution of a plan line. Only postable (active) accounts are
+  // offered — archived / restricted dimensions cannot take new plan lines, and
+  // the database enforces the same rule in `_budget_items_normalize`.
+  const { accounts: analyticAccounts = [] } = useAnalyticAccounts();
+
   const { periods, isDateLocked } = useFiscalPeriods();
   const { formatCurrency } = useCurrency();
   const { allowed: canManageBudgets } = useFinancePermission(
@@ -143,6 +150,9 @@ export default function BudgetEditPage() {
 
   // Add-line composer state (inline — replaces BudgetItemSheet modal).
   const [lineAccount, setLineAccount] = useState("");
+  // "" means "no analytic attribution" — a general/unattributed plan line.
+  const [lineAnalyticAccount, setLineAnalyticAccount] = useState("");
+
   const [lineMonth, setLineMonth] = useState<number>(1);
   const [lineAmount, setLineAmount] = useState<string>("");
   const [lineNotes, setLineNotes] = useState("");
@@ -217,10 +227,12 @@ export default function BudgetEditPage() {
       await upsertBudgetItem.mutateAsync({
         budget_id: budget.id,
         account_id: lineAccount,
+        analytic_account_id: lineAnalyticAccount || null,
         period_month: lineMonth,
         budgeted_amount: parseFloat(lineAmount) || 0,
         notes: lineNotes || undefined,
       });
+
       toast({ title: "Budget line saved" });
       // Reset add-line composer but keep account+month for rapid entry.
       setLineAmount("");
@@ -307,6 +319,19 @@ export default function BudgetEditPage() {
     const account = accounts.find((a) => a.id === accountId);
     return account ? `${account.code} - ${account.name}` : "Unknown account";
   };
+
+  const postableAnalyticAccounts = useMemo(
+    () => analyticAccounts.filter(isPostable),
+    [analyticAccounts],
+  );
+
+  const getAnalyticAccountLabel = (analyticAccountId: string | null) => {
+    if (!analyticAccountId) return null;
+    const account = analyticAccounts.find((a) => a.id === analyticAccountId);
+    if (!account) return "Unknown dimension";
+    return account.code ? `${account.code} - ${account.name}` : account.name;
+  };
+
 
   const getVarianceForItem = (accountId: string, month: number) =>
     varianceReport?.rows.find((r) => r.accountId === accountId && r.month === month);
@@ -550,6 +575,32 @@ export default function BudgetEditPage() {
                     </Select>
                   </div>
                 </FieldCell>
+                <FieldCell span={2}>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="add-analytic" className="text-xs">
+                      Cost centre / project (optional)
+                    </Label>
+                    <Select
+                      value={lineAnalyticAccount || "__none__"}
+                      onValueChange={(v) =>
+                        setLineAnalyticAccount(v === "__none__" ? "" : v)
+                      }
+                    >
+                      <SelectTrigger id="add-analytic">
+                        <SelectValue placeholder="No attribution" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No attribution</SelectItem>
+                        {postableAnalyticAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.code ? `${a.code} - ${a.name}` : a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </FieldCell>
+
                 <div className="space-y-1.5">
                   <Label htmlFor="add-month" className="text-xs">
                     Month
@@ -640,7 +691,9 @@ export default function BudgetEditPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Account</TableHead>
+                    <TableHead>Cost centre / project</TableHead>
                     <TableHead>Month</TableHead>
+
                     <TableHead className="text-right">Budgeted</TableHead>
                     <TableHead className="text-right">Actual</TableHead>
                     <TableHead className="text-right">Variance</TableHead>
@@ -666,7 +719,17 @@ export default function BudgetEditPage() {
                           <TableCell>
                             {getAccountName(item.account_id)}
                           </TableCell>
+                          <TableCell>
+                            {getAnalyticAccountLabel(
+                              item.analytic_account_id ?? null,
+                            ) ?? (
+                              <span className="text-xs text-muted-foreground">
+                                —
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>{MONTHS[item.period_month - 1]}</TableCell>
+
                           <TableCell className="text-right tabular-nums font-medium">
                             {formatCurrency(item.budgeted_amount)}
                           </TableCell>
