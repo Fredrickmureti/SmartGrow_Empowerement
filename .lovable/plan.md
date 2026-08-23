@@ -1,61 +1,66 @@
-# Budget documents — build status
+# Budget exports: fix the 500 and surface downloads on the list
 
-Last updated: 2026-08-23. Continues the approved budget-domain plan
-(archived under `.lovable/plan/`).
+## What I verified
 
-**Phase 0 — Model truth — DONE.**
-`budgets` now carries `budget_code` (per-business unique, auto-generated
-`BUD-<fy>-<nnn>`, existing rows backfilled), `approved_by` and `approved_at`
-(stamped by `set_budget_status` on draft→active). `currency_code` was already
-pinned to the business base currency by `_budgets_defaults`, so the document
-can print it as stated fact. New read `get_budget_document_header(budget_id)`
-returns identity, scope, approval, revision count and period in one row.
+1. **The PDF failure is a stale deployment, not broken code.**
+   The live edge-function log for `render-report` shows:
+   `Error: Unsupported report type: budget_schedule` thrown from the dispatcher's
+   `default:` branch. The repository copy of `supabase/functions/render-report/index.ts`
+   *does* handle `budget_schedule` (it calls `buildBudgetSchedule`, which in turn calls the
+   `get_budget_schedule` / `get_budget_document_header` SQL functions, both present in
+   migrations `20260823002411` and `20260823002613`). So the deployed function predates the
+   budget work — the client, the column specs and the SQL are all in place.
 
-**Phase 1 — Kill the second engine — DONE.**
-`buildBudgetVsActual` no longer computes anything. It resolves which budget the
-request means (explicit `filters.budgetId`, else the budget in force for the
-requested window's fiscal year — never `new Date().getFullYear()`), calls
-`get_budget_variance_report`, narrows to the requested periods and lays the rows
-out in Revenue / Cost / Other sections with subtotals. Variance is summed, never
-recomputed, so the favourable-positive convention stays the RPC's alone.
-`_budget_assert_read` now admits `service_role`: scheduled reports run with no
-end user, and refusing them would only push them back onto a hand-rolled query.
-The caller gate in `render-report` still runs first. Pinned by three new
-architecture tests (24 in the suite, green).
+2. **The budget list has no export actions.**
+   `src/pages/Budgets.tsx` row menu offers only View & Manage, Edit, Copy to Next Year,
+   Activate/Close, Delete. The export toolbar (`ReportExportButtons` with
+   `reportType: "budget_schedule"`) exists only on `BudgetEditPage`, which is why downloads
+   are reachable only after opening a budget.
 
-**Phase 2 — Budget Schedule dataset — DONE.**
-`get_budget_schedule(budget_id)` returns a dense account × accounting-period
-grid, sectioned by account nature. A planned zero and an absent line are
-different statements and the grid says which.
+## Work
 
-**Phase 3/4 — PDF / Excel / CSV — DONE via the shared engine.**
-Both artifacts are registered in `_shared/reports/columnSpecs.ts`
-(`budget_vs_actual` gained an account code and an F/U favourability column;
-`budget_schedule` is new), so they render through the existing masthead,
-currency policy and pagination in all three media.
+### 1. Redeploy `render-report`
+Deploy the current `render-report` function (with its `_shared` report engine, column specs
+and branch-scopability tables) so the `budget_schedule` case exists server-side. Then verify
+by invoking it for a real budget id and confirming a 200 with schedule rows, and re-check the
+function logs for errors.
 
-**Phase 5 — UI wiring — DONE.**
-`BudgetEditPage` exports the Budget Schedule as a SERVER-BUILD config: no
-browser rows, branch taken from the budget itself rather than the ambient
-switcher. `BudgetReport` stays PREBUILT deliberately — its export replays
-exactly the rows on screen. The `budget` / `budget_vs_actual` registry naming
-is left alone: `reportType: "budget"` is the saved-view key and renaming it
-would orphan saved views.
+### 2. Share one export config
+Move the schedule `ExportConfig` builder out of `BudgetEditPage` into a small shared helper
+(e.g. `src/features/finance/budgets/budgetScheduleExport.ts`) that takes a budget row and
+returns the same server-build config: `reportType: "budget_schedule"`, fiscal-year date
+range, the budget's own `branch_id`, `filters.budgetId`, and empty `columns`/`rows`.
+`BudgetEditPage` then imports it instead of defining it inline — one definition, so the list
+and the detail page can never drift apart.
 
-**Phase 6 — Verify against real data — PARTIAL.**
-Verified in the database: `get_budget_variance_report` answers under
-`service_role` (3 rows, plan 40,000, actual 2,902) and `get_budget_schedule`
-returns the full 12-period grid for `BUD-2026-001`. Not verified by eye: the
-rendered PDF / workbook / CSV and a wide budget's pagination. That needs a
-signed-in session, which this project cannot mint
-(`LOVABLE_BROWSER_AUTH_STATUS = external_unmanaged`).
+### 3. Add exports to the budget list row menu
+In `src/pages/Budgets.tsx`, add a section to each row's dropdown (after View & Manage,
+separated):
 
-## Remaining (human, signed in)
+```text
+Download PDF
+Print
+Export Excel
+Export CSV
+```
 
-1. Open a budget → export the Budget Schedule as PDF, Excel and CSV; confirm
-   the masthead states budget code, status, scope and base currency, and that
-   revenue and cost are separate sections with a planned surplus line.
-2. Run Budget vs Actual on screen, then export it; confirm the two agree and
-   that an over-spend reads `U` with a negative variance.
-3. Schedule the same report by email; confirm the emailed copy now matches the
-   screen (this was the defect).
+Each item builds the shared config for that row, enriches it through the existing report
+export context (`useReportExportContext().enrichExportConfig`, so org branding/currency
+context is applied exactly as on the detail page) and calls the matching
+`ReportExportService` function (`exportToPDF`, `printReportAsPdf`, `exportToExcel`,
+`exportToCSV`). Items show a spinner/disabled state while generating and surface the same
+success/failure toasts. These are read actions, so they are not gated behind
+`canManageBudgets` — they appear for read-only users too.
+
+## Explicitly not doing
+
+- No change to the budget document model, the schedule SQL, or the PDF layout — the earlier
+  plan's architecture stands; this is the delivery gap only.
+- Not embedding the full `ReportExportButtons` toolbar in a table cell (it renders its own
+  button group and dialogs); the row menu reuses the same service calls instead.
+
+## Verification
+
+- Invoke `render-report` for an existing budget and confirm a 200 plus non-empty schedule.
+- In the preview, open Budgets, use the row menu to download the PDF, and confirm the file
+  generates and the console is clean.
