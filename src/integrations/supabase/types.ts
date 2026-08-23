@@ -1139,8 +1139,6 @@ export type Database = {
       }
       analytic_accounts: {
         Row: {
-          analytic_type: string | null
-          balance: number | null
           business_id: string
           code: string | null
           created_at: string | null
@@ -1150,11 +1148,12 @@ export type Database = {
           is_active: boolean | null
           name: string
           organization_id: string
+          parent_id: string | null
+          plan_id: string
+          status: string
           updated_at: string | null
         }
         Insert: {
-          analytic_type?: string | null
-          balance?: number | null
           business_id: string
           code?: string | null
           created_at?: string | null
@@ -1164,11 +1163,12 @@ export type Database = {
           is_active?: boolean | null
           name: string
           organization_id: string
+          parent_id?: string | null
+          plan_id: string
+          status?: string
           updated_at?: string | null
         }
         Update: {
-          analytic_type?: string | null
-          balance?: number | null
           business_id?: string
           code?: string | null
           created_at?: string | null
@@ -1178,6 +1178,9 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           organization_id?: string
+          parent_id?: string | null
+          plan_id?: string
+          status?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -1228,6 +1231,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytic_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytic_accounts_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -1396,6 +1413,91 @@ export type Database = {
           },
           {
             foreignKeyName: "analytic_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytic_plans: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          name: string
+          organization_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          name: string
+          organization_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          name?: string
+          organization_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytic_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "analytic_plans_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
