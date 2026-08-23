@@ -248,3 +248,28 @@ describe("Budgets — income and expense are never netted in the UI", () => {
     expect(page).toMatch(/costActual/);
   });
 });
+
+describe("Budgets — there is exactly one variance engine, and it is SQL", () => {
+  const engine = read("supabase/functions/_shared/reportDataEngine.ts");
+
+  it("the server-side builder delegates to get_budget_variance_report", () => {
+    expect(engine).toMatch(/rpc\(\s*"get_budget_variance_report"/);
+  });
+
+  it("the server-side builder does not re-derive actuals from the ledger", () => {
+    const start = engine.indexOf("export async function buildBudgetVsActual");
+    const end = engine.indexOf("export async function", start + 1);
+    const body = engine.slice(start, end === -1 ? undefined : end);
+    expect(start, "buildBudgetVsActual is missing").toBeGreaterThan(-1);
+    // Reading journal lines or GL balances here would be a second engine.
+    expect(body).not.toMatch(/journal_entry_lines/);
+    expect(body).not.toMatch(/getGLAccountBalances/);
+    // The favourable-positive sign convention belongs to the RPC alone.
+    expect(body).not.toMatch(/actual\s*-\s*(info\.)?budgeted/);
+  });
+
+  it("the budget schedule is read from get_budget_schedule, not assembled", () => {
+    expect(engine).toMatch(/rpc\(\s*"get_budget_schedule"/);
+    expect(engine).toMatch(/rpc\(\s*"get_budget_document_header"/);
+  });
+});

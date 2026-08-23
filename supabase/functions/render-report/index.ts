@@ -39,6 +39,7 @@ import {
   buildPartnerLedger,
   buildJournalReport,
   buildBudgetVsActual,
+  buildBudgetSchedule,
   buildDepreciationSchedule,
   buildAuditTrail,
   type ComparisonMode,
@@ -93,6 +94,7 @@ export type ReportType =
   | "partner_ledger"
   | "journal_report"
   | "budget_vs_actual"
+  | "budget_schedule"
   | "depreciation_schedule"
   | "audit_trail"
   | AttendanceReportKey
@@ -168,7 +170,23 @@ export async function buildReportData(
       return await buildJournalReport(supabase, orgId, businessId, dateFrom, dateTo, branchId);
 
     case "budget_vs_actual":
-      return await buildBudgetVsActual(supabase, orgId, businessId, dateFrom, dateTo);
+      // An explicit budget wins; without one the builder resolves the budget
+      // in force for the requested window's fiscal year.
+      return await buildBudgetVsActual(
+        supabase,
+        orgId,
+        businessId,
+        dateFrom,
+        dateTo,
+        (filters?.budgetId ?? filters?.budget_id) as string | undefined,
+      );
+    case "budget_schedule":
+      return await buildBudgetSchedule(
+        supabase,
+        businessId,
+        (filters?.budgetId ?? filters?.budget_id) as string | undefined,
+      );
+
     case "depreciation_schedule":
       return await buildDepreciationSchedule(supabase, orgId);
     case "audit_trail":

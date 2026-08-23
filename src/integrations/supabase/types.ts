@@ -8149,7 +8149,10 @@ export type Database = {
       }
       budgets: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -8163,7 +8166,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           branch_id?: string | null
+          budget_code?: string | null
           business_id: string
           created_at?: string
           created_by?: string | null
@@ -8177,7 +8183,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           branch_id?: string | null
+          budget_code?: string | null
           business_id?: string
           created_at?: string
           created_by?: string | null
@@ -87365,7 +87374,10 @@ export type Database = {
       _budget_assert_manage: {
         Args: { _budget_id: string }
         Returns: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -87388,7 +87400,10 @@ export type Database = {
       _budget_assert_read: {
         Args: { _budget_id: string }
         Returns: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -95806,6 +95821,54 @@ export type Database = {
               status: string
             }[]
           }
+      get_budget_document_header: {
+        Args: { _budget_id: string }
+        Returns: {
+          approved_at: string
+          approved_by: string
+          approved_by_name: string
+          branch_id: string
+          branch_name: string
+          budget_code: string
+          budget_id: string
+          budget_name: string
+          business_id: string
+          business_name: string
+          created_at: string
+          created_by: string
+          created_by_name: string
+          currency_code: string
+          description: string
+          fiscal_year: number
+          last_revision_at: string
+          last_revision_number: number
+          line_count: number
+          organization_id: string
+          period_end: string
+          period_start: string
+          revision_count: number
+          scope_label: string
+          status: string
+        }[]
+      }
+      get_budget_schedule: {
+        Args: { _budget_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          budgeted_amount: number
+          fiscal_period_id: string
+          period_end: string
+          period_month: number
+          period_ordinal: number
+          period_start: string
+          period_status: string
+          section: string
+          section_ordinal: number
+        }[]
+      }
       get_budget_variance_report: {
         Args: { _budget_id: string }
         Returns: {
@@ -103970,7 +104033,10 @@ export type Database = {
           _status: Database["public"]["Enums"]["budget_status"]
         }
         Returns: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null

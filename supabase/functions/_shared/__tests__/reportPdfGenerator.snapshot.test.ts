@@ -281,6 +281,7 @@ const MONETARY_REPORTS = new Set([
   "partner_ledger",
   "journal_report",
   "budget_vs_actual",
+  "budget_schedule",
   "depreciation_schedule",
   "invoice_aging",
   "aged_payables",
