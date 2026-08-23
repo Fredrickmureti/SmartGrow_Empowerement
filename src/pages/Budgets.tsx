@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
 import { useBudgets, Budget } from "@/hooks/useBudgets";
@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Loader2, Target, MoreHorizontal, Pencil, Trash2, Eye, CheckCircle,
-  XCircle, Copy,
+  XCircle, Copy, FileText, Printer, FileSpreadsheet, Download,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -28,6 +28,15 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { normalizeError } from "@/services/resilience";
 import { CopyBudgetDetailSheet } from "@/features/finance/budgets/CopyBudgetDetailSheet";
+import { buildBudgetScheduleExportConfig } from "@/features/finance/budgets/budgetScheduleExport";
+import { useReportExportContext } from "@/contexts/ReportContext";
+import {
+  exportToCSV,
+  exportToExcel,
+  exportToPDF,
+  printReportAsPdf,
+} from "@/services/reports/ReportExportService";
+
 
 export default function Budgets() {
   const { budgets, isLoading, deleteBudget, activateBudget, closeBudget } = useBudgets();
