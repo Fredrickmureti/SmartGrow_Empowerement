@@ -575,6 +575,32 @@ export default function BudgetEditPage() {
                     </Select>
                   </div>
                 </FieldCell>
+                <FieldCell span={2}>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="add-analytic" className="text-xs">
+                      Cost centre / project (optional)
+                    </Label>
+                    <Select
+                      value={lineAnalyticAccount || "__none__"}
+                      onValueChange={(v) =>
+                        setLineAnalyticAccount(v === "__none__" ? "" : v)
+                      }
+                    >
+                      <SelectTrigger id="add-analytic">
+                        <SelectValue placeholder="No attribution" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No attribution</SelectItem>
+                        {postableAnalyticAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.code ? `${a.code} - ${a.name}` : a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </FieldCell>
+
                 <div className="space-y-1.5">
                   <Label htmlFor="add-month" className="text-xs">
                     Month
