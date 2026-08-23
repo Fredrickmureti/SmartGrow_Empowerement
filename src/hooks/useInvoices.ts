@@ -37,6 +37,8 @@ export interface InvoiceItem {
   /** Optional analytic tags — wins over header.project_id on the analytic posting trigger. */
   project_id?: string | null;
   task_id?: string | null;
+  /** Analytic axis; posted onto the GL line when the invoice is confirmed. */
+  analytic_account_id?: string | null;
 }
 
 export interface Invoice {
@@ -185,6 +187,7 @@ export function useInvoices() {
         sort_order: index,
         project_id: item.project_id ?? null,
         task_id: item.task_id ?? null,
+        analytic_account_id: item.analytic_account_id ?? null,
         // Phase A.4 — persist picker output for lot/serial-tracked lines.
         lot_number: (item as any).lot_number ?? null,
         serial_number: (item as any).serial_number ?? null,

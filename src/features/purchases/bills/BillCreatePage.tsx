@@ -32,6 +32,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { AnalyticAccountCell } from "@/components/finance/AnalyticAccountCell";
 import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
@@ -54,6 +55,8 @@ import { usePurchasableVendors } from "@/features/purchases/suppliers/usePurchas
 type LineItem = Omit<BillItem, "id" | "bill_id"> & {
   project_id?: string | null;
   task_id?: string | null;
+  /** Analytic axis; the server copies it onto the posted GL line. */
+  analytic_account_id?: string | null;
 };
 
 const emptyLine = (sortOrder = 0): LineItem => ({
@@ -68,6 +71,7 @@ const emptyLine = (sortOrder = 0): LineItem => ({
   sort_order: sortOrder,
   project_id: null,
   task_id: null,
+  analytic_account_id: null,
 });
 
 const calculateLineTotal = (item: LineItem) => {
@@ -470,6 +474,14 @@ export default function BillCreatePage() {
               productPlaceholder="Product (optional)"
               extra={
                 <div className="space-y-2">
+                  <AnalyticAccountCell
+                    value={item.analytic_account_id ?? null}
+                    onChange={(analytic_account_id) =>
+                      patchLineItem(index, { analytic_account_id })
+                    }
+                    planCodes={["cost_center", "department"]}
+                    disabled={isSubmitting}
+                  />
                   <LineAnalyticsCell
                     projectId={item.project_id ?? null}
                     taskId={item.task_id ?? null}

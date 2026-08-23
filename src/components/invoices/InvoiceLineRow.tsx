@@ -23,6 +23,7 @@ import {
   StockLineStatus,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { AnalyticAccountCell } from "@/components/finance/AnalyticAccountCell";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 import type { PricedLineUnits } from "@/components/documents/lines/PricedLineRow";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
@@ -49,6 +50,8 @@ export interface InvoiceLineItemShape {
   sort_order?: number;
   project_id?: string | null;
   task_id?: string | null;
+  /** Analytic axis (cost centre / department …) carried into the GL line. */
+  analytic_account_id?: string | null;
   // Phase B UoM provenance — `quantity` is ALWAYS base units; these record
   // what the operator actually entered ("3 cartons of 12").
   packaging_id?: string | null;
@@ -238,6 +241,13 @@ function InvoiceLineRowInner({
               requestedQty={item.quantity}
             />
           )}
+          <AnalyticAccountCell
+            value={item.analytic_account_id ?? null}
+            onChange={(analytic_account_id) =>
+              onUpdate(index, { analytic_account_id })
+            }
+            disabled={!!isSubmitting}
+          />
           <LineAnalyticsCell
             projectId={item.project_id ?? null}
             taskId={item.task_id ?? null}

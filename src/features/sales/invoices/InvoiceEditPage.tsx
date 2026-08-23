@@ -196,6 +196,9 @@ export default function InvoiceEditPage() {
           display_uom_id: item.display_uom_id ?? null,
           display_quantity: item.display_quantity ?? null,
           project_id: (item as { project_id?: string | null }).project_id ?? null,
+          analytic_account_id:
+            (item as { analytic_account_id?: string | null })
+              .analytic_account_id ?? null,
           task_id: (item as { task_id?: string | null }).task_id ?? null,
         }))
       );
@@ -357,6 +360,9 @@ export default function InvoiceEditPage() {
         sort_order: index,
         project_id: item.project_id ?? null,
         task_id: item.task_id ?? null,
+        analytic_account_id:
+          (item as { analytic_account_id?: string | null }).analytic_account_id ??
+          null,
         packaging_id: (item as any).packaging_id ?? null,
         display_uom_id: (item as any).display_uom_id ?? null,
         display_quantity: (item as any).display_quantity ?? null,

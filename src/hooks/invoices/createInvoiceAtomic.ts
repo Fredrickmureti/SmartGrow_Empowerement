@@ -54,6 +54,8 @@ export interface AtomicInvoiceItem {
   sort_order?: number | null;
   project_id?: string | null;
   task_id?: string | null;
+  /** Analytic axis; the server copies it onto the GL line at confirmation. */
+  analytic_account_id?: string | null;
   lot_number?: string | null;
   serial_number?: string | null;
 }
