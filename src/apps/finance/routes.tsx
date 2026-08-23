@@ -794,6 +794,40 @@ export function FinanceApp() {
           }
         />
         
+        {/* Analytic accounting reports — management dimension of the GL */}
+        <Route
+          path="reports/analytic-statement"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Analytic Account Statement">
+                <AnalyticAccountStatement />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/analytic-profit-and-loss"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Analytic Profit & Loss">
+                <AnalyticProfitAndLoss />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/analytic-budget-vs-actual"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Analytic Budget vs Actual">
+                <AnalyticBudgetVsActual />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Depreciation Report */}
         <Route
           path="reports/depreciation"
