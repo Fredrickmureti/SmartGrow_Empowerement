@@ -116,6 +116,11 @@ export default function BudgetEditPage() {
     deleteBudgetItem,
   } = useBudgets();
   const { accounts } = useAccounts();
+  // Analytic attribution of a plan line. Only postable (active) accounts are
+  // offered — archived / restricted dimensions cannot take new plan lines, and
+  // the database enforces the same rule in `_budget_items_normalize`.
+  const { accounts: analyticAccounts = [] } = useAnalyticAccounts();
+
   const { periods, isDateLocked } = useFiscalPeriods();
   const { formatCurrency } = useCurrency();
   const { allowed: canManageBudgets } = useFinancePermission(
