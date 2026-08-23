@@ -719,7 +719,17 @@ export default function BudgetEditPage() {
                           <TableCell>
                             {getAccountName(item.account_id)}
                           </TableCell>
+                          <TableCell>
+                            {getAnalyticAccountLabel(
+                              item.analytic_account_id ?? null,
+                            ) ?? (
+                              <span className="text-xs text-muted-foreground">
+                                —
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>{MONTHS[item.period_month - 1]}</TableCell>
+
                           <TableCell className="text-right tabular-nums font-medium">
                             {formatCurrency(item.budgeted_amount)}
                           </TableCell>
