@@ -31,6 +31,13 @@ export interface BudgetItem {
   budget_id: string;
   business_id: string | null;
   account_id: string;
+  /**
+   * Optional analytic attribution (cost centre / department / project /
+   * product line). Together with the GL account and the period it forms the
+   * natural key of a plan line, so the same account can be budgeted for
+   * several dimensions in the same month.
+   */
+  analytic_account_id: string | null;
   /** Derived server-side from the linked fiscal period — display only. */
   period_month: number;
   /** Authoritative accounting period this line belongs to. */
@@ -45,10 +52,16 @@ export interface BudgetItem {
     code: string;
     account_type: string;
   };
+  analytic_accounts?: {
+    id: string;
+    name: string;
+    code: string | null;
+  } | null;
 }
 
 export interface BudgetLineInput {
   account_id: string;
+  analytic_account_id?: string | null;
   period_month: number;
   budgeted_amount: number;
   notes?: string;
@@ -61,7 +74,12 @@ export interface CreateBudgetInput {
   items?: BudgetLineInput[];
 }
 
-const lineKey = (accountId: string, periodMonth: number) => `${accountId}|${periodMonth}`;
+const lineKey = (
+  accountId: string,
+  periodMonth: number,
+  analyticAccountId?: string | null,
+) => `${accountId}|${periodMonth}|${analyticAccountId ?? ""}`;
+
 
 
 export function useBudgets() {
