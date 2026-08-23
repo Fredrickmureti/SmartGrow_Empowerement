@@ -89568,6 +89568,7 @@ export type Database = {
       }
       analytic_balances: {
         Args: {
+          p_branch_id?: string
           p_business_id: string
           p_date_from: string
           p_date_to: string
