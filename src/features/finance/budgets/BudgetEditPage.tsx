@@ -691,7 +691,9 @@ export default function BudgetEditPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Account</TableHead>
+                    <TableHead>Cost centre / project</TableHead>
                     <TableHead>Month</TableHead>
+
                     <TableHead className="text-right">Budgeted</TableHead>
                     <TableHead className="text-right">Actual</TableHead>
                     <TableHead className="text-right">Variance</TableHead>
