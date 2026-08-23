@@ -283,6 +283,9 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
         sort_order: index,
         project_id: item.project_id ?? null,
         task_id: item.task_id ?? null,
+        analytic_account_id:
+          (item as { analytic_account_id?: string | null }).analytic_account_id ??
+          null,
         lot_number: (item as any).lot_number ?? null,
         serial_number: (item as any).serial_number ?? null,
       })),
