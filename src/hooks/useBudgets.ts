@@ -170,11 +170,13 @@ export function useBudgets() {
           input.items.map(item => ({
             budget_id: budget.id,
             account_id: item.account_id,
+            analytic_account_id: item.analytic_account_id ?? null,
             period_month: item.period_month,
             budgeted_amount: item.budgeted_amount,
             notes: item.notes,
           })),
         );
+
         if (itemsError) throw itemsError;
       }
 
