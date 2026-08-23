@@ -45,7 +45,11 @@ export interface Project {
     | "fixed_price"
     | "milestone";
   currency: string;
-  analytic_account_code: string | null;
+  /**
+   * Provisioned automatically by the database: every project owns exactly one
+   * analytic account in the `project` analytic plan. Read-only from the client.
+   */
+  analytic_account_id: string | null;
   template_id: string | null;
   is_template: boolean;
   last_update_status: "on_track" | "at_risk" | "off_track" | null;
