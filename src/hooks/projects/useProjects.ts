@@ -228,7 +228,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
         created_by: user.id,
         pricing_type: project.pricing_type || "non_billable",
         currency: project.currency || currentBusiness?.base_currency || null,
-        analytic_account_code: project.analytic_account_code || null,
+        // analytic_account_id is provisioned by trg_projects_sync_analytic_account.
         template_id: project.template_id || null,
         is_template: project.is_template ?? false,
         source_lead_id: (project as any).source_lead_id || null,
