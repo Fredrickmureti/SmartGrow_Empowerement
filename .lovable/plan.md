@@ -1,64 +1,55 @@
-# Analytic Accounting Domain — Authoritative Project Status
+# Analytic Accounting Domain — Verification Verdict and Continuation
 
-Source of truth for this domain. Roadmap and findings: `.lovable/plan/analytic-accounting-domain-forensic-assessment-2026-08-23.md`.
+Roadmap and original findings: `.lovable/plan/analytic-accounting-domain-forensic-assessment-2026-08-23.md`.
+Last updated: 2026-08-23 (handover verification).
 
-Last updated: 2026-08-23. Active phase: **Phase 4 — Producers** (not started).
+## Phase 1 — Verification of the previous engineer's claims
 
-## Status at a glance
+Every claim was checked directly against the live database and the code. Verdict per claim:
 
-| Phase | Scope | State |
+| Claim | Verdict | Evidence |
 |---|---|---|
-| 0 | Security & integrity (business-scoped RLS, role-aware writes, delete guards) | Done, verified |
-| 1 | Truthful UI (remove fabricated balance) | Done, verified |
-| 2 | Model correction (`analytic_plans`, status lifecycle, immutability guards) | Done, verified |
-| 3 | Attribution at posting (`journal_entry_line_analytics`, derived view, reversal) | Done, verified structurally — **not yet exercised with live postings** |
-| 4 | Producers (Manual JE, Bills, Invoices, reconcile project cost ledger) | **Next — not started** |
-| 5 | Consumers (3 server-side analytic reports) | Not started |
-| 6 | Guards (SQL tie-out tests, architecture test) | Not started |
+| Phase 0 — RLS business-scoped and role-gated on `analytic_plans` / `analytic_accounts` / `analytic_groups` | Confirmed | RLS enabled on all three; SELECT gated by `user_can_access_business` + `user_has_module_permission(...,'financials','read')`; INSERT/UPDATE/DELETE gated by `has_finance_permission(...,'finance.manage_coa')`. No org-only policies remain. |
+| Phase 1 — fabricated `balance` column removed | Confirmed | No `balance` column on `analytic_accounts`; no balance column in `src/pages/AnalyticAccounts.tsx`. |
+| Phase 2 — `analytic_plans` + `plan_id` + `status` lifecycle | Confirmed | 4 plans seeded; `analytic_accounts` has `plan_id` and `status`; `analytic_type` enum gone. |
+| Phase 3 — attribution at posting via `journal_entry_line_analytics` (JELA) | Confirmed structurally | Trigger `trg_jel_sync_analytics` installed on `journal_entry_lines`; `_jel_sync_analytics` rejects foreign-business accounts (23514), rejects non-`active` accounts, skips zero-value lines, writes signed `amount` + `percentage = 100`, stamps `entry_date` from the header. |
+| `analytic_distributions` is a read-only view | Confirmed | `information_schema.tables.table_type = VIEW`. |
+| `analytic_balances` server-side aggregation | Confirmed | SECURITY DEFINER, pinned `search_path`, authorizes with `user_can_access_business` **and** `user_has_module_permission`, excludes `journal_entries.status = 'void'`. |
+| JELA is client-immutable | Confirmed (newly checked) | RLS on, and the only policy is `jela_select`. No client INSERT/UPDATE/DELETE path exists; only the definer trigger writes. |
+| Phase 4 — producers | Confirmed **not started** | `src/features/finance/journal-entries/JournalEntryForm.tsx` contains no analytic field; no `analytic_account_id` on `bill_items` / `invoice_items` (the only analytic columns in the whole schema are on `expenses`, `purchase_requisitions`, `journal_entry_lines`, JELA, and the view). |
+| Phase 5 — consumers | Confirmed not started | `ReportRegistry.ts` / `reportsNav.ts` contain no analytic report; the only "analytics" hits are HR/BI keywords. |
 
-## Fully implemented and verified
+Live data state: `analytic_accounts` = 0, JELA = 0. Phase 3 therefore remains **unproven end to end** — nothing has ever posted through it.
 
-**Phase 0 — Security & integrity**
-- RLS on `analytic_plans`, `analytic_accounts`, `analytic_groups` rewritten to be business-scoped via `user_can_access_business`, with role-gated writes. Org-only policies removed.
-- Uniqueness moved to business grain; hard delete of a referenced account blocked by trigger (archive instead). Distribution cascade removed.
+## Newly identified gaps (added to the plan)
 
-**Phase 1 — Truthful UI**
-- `analytic_accounts.balance` column dropped; the fabricated balance column removed from `src/pages/AnalyticAccounts.tsx`. No number is shown that the system does not compute.
+1. **Analytic history is destroyed on line update.** `_jel_sync_analytics` does `DELETE FROM journal_entry_line_analytics WHERE journal_entry_line_id = NEW.id` on every `UPDATE` of `journal_entry_lines`. That is correct only while an entry is unposted. On a posted entry it silently rewrites analytic history with no audit trail — the same defect class the domain was cleaned up to remove. Must be constrained to non-posted entries and refuse otherwise.
+2. **Two parallel attribution ledgers.** `LineAnalyticsCell` / `ProjectPicker` tag document lines with `project_id` / `task_id` feeding `project_cost_entries`, while GL attribution lives in JELA. Project profitability and analytic reporting will disagree.
+3. **Dead column.** `projects.analytic_account_code` is a text code with no FK and no reader — remove or bind it to `analytic_accounts.id`.
+4. **Header-level analytic side columns.** `expenses.analytic_account_id` and `purchase_requisitions.analytic_account_id` are document-header fields; the expense posting path must be re-proven to carry them onto the GL line so JELA is the only store.
+5. **`ExpenseFormFields.tsx:169`** still lists `activeAccounts` unfiltered by plan (carried over from the previous engineer's own open list).
 
-**Phase 2 — Model correction**
-- `analytic_plans` created and seeded (4 plans per business; live count = 4). `analytic_accounts` gained `plan_id`, `status` (draft/active/restricted/archived), parent; the `analytic_type` enum was dropped.
-- Triggers prevent changing plan/business once an account has posted history.
-- UI aligned: `src/hooks/useAnalyticAccounts.ts`, `AnalyticAccountSheet.tsx`, `AnalyticAccounts.tsx` (plan filter, status badge, archive action), `RequisitionCreatePage.tsx` (postable accounts only).
+## Work plan
 
-**Phase 3 — Attribution at posting**
-- `journal_entry_line_analytics` (JELA) holds signed allocations keyed to the GL line. Trigger `trg_jel_sync_analytics` on `journal_entry_lines` materialises the 100% allocation whenever a line carries an analytic account, so posting *and* void/reversal (which mirrors lines) flow through one path — reversal produces contra rows, never deletes.
-- `post_expense_gl` / `expense_void` no longer side-write or delete `analytic_distributions`.
-- `analytic_distributions` is now a **read-only view** over JELA (verified: `table_type = VIEW`), so the side table can no longer drift from the ledger.
-- `public.analytic_balances(business, from, to, plan)` computes net amounts server-side; internal helpers had public execute revoked.
+### Phase 3b — Prove the engine (blocking)
+Post a real expense with an analytic account in a test business, then void it. Required outcome: one JELA row on post, a contra row on void, zero deletes, `analytic_balances` nets to zero, JELA sums tie to the GL line amounts. Add the trigger guard from gap 1 (reject analytic rewrites on posted entries; allow on draft) and fix gap 5.
 
-## Verified live state (2026-08-23)
+### Phase 4 — Producers (in order, each finished completely)
+1. **Manual journal entry** — per-line analytic picker in `JournalEntryForm.tsx`, restricted to postable (`active`) accounts of the selected plan, flowing through the existing `_lines` payload of `post_journal_entry_atomic` (which already accepts `analytic_account_id`). Includes edit, void and reversal behaviour plus permission gating.
+2. **Bills** — line-level analytic on bill items, carried into the bill posting line builder.
+3. **Invoices** — same for invoice lines and their COGS counterpart.
+4. **Project ledger reconciliation** — make project/task tagging resolve to an analytic account on the GL line so `project_cost_entries` stops being a second truth; retire or repoint gaps 2–4.
 
-`analytic_plans` = 4 rows; `analytic_accounts` = 0; `journal_entry_line_analytics` = 0; `analytic_distributions` = VIEW; `analytic_balances` exists; `trg_jel_sync_analytics` installed.
+### Phase 5 — Consumers (exactly three reports, server-side)
+Analytic Account Statement (drill-down to the journal entry), P&L by Analytic Account, Budget vs Actual by Analytic Account — all through `reportDataEngine` + `ReportRegistry`, period- and branch-aware, each tying out to the GL. No client-side aggregation.
 
-Implication: the engine is in place but **no real data has flowed through it yet**. Phase 3 is structurally complete and untested end to end.
+### Phase 6 — Guards
+SQL tests: GL tie-out, 100% allocation per line/plan, cross-business isolation, posted-entry analytic immutability. Architecture test forbidding client-side analytic aggregation and direct JELA writes.
 
-## Still pending
+## Explicitly out of scope
+User-defined unlimited dimensions, a separate analytic budget engine, stored analytic balances, statistical postings without a GL counterpart, automatic distribution-rule engines.
 
-- **Phase 4 — Producers.** Manual JE line analytic picker (RPC already accepts `analytic_account_id`); then Bills lines; then Invoices. Reconcile `LineAnalyticsCell` / `project_cost_entries` so project attribution lands in the same ledger instead of a parallel one.
-- **Phase 5 — Consumers.** Exactly three reports through `reportDataEngine` + `ReportRegistry`: Analytic Account Statement (drill to JE), P&L by Analytic Account, Budget vs Actual by Analytic Account. Server-side, period- and branch-aware, each tying out to the GL.
-- **Phase 6 — Guards.** SQL tests for GL tie-out, 100% allocation per line/plan, cross-business isolation; architecture test forbidding client-side analytic aggregation.
-- **Known open UI item inside Phase 4:** `src/features/purchases/expenses/ExpenseFormFields.tsx:169` still uses `activeAccounts` without filtering by plan — align it with the cost-center plan the same way `RequisitionCreatePage.tsx` does.
-
-Explicitly out of scope (do not build): user-defined unlimited dimensions, a separate analytic budget engine, stored analytic balances, statistical postings without a GL counterpart, automatic distribution-rule engines.
-
-## Instructions for the next agent
-
-1. **Verify before you build.** Do not trust this document. Confirm, with queries and file reads:
-   - RLS on all analytic tables is business-scoped and role-gated, and an org member of another business cannot read rows.
-   - `analytic_distributions` is still a view and there is no remaining write path to it.
-   - Post a real expense with an analytic account against a test business, then void it. Expect: one JELA row on post, a contra row on void, and no deletes. `analytic_balances` must net to zero after the void, and JELA sums must tie out to the GL line amounts.
-   - `trg_jel_sync_analytics` fires on insert **and** update of `journal_entry_lines.analytic_account_id`, and rejects archived/restricted accounts for new postings.
-2. **Fix any gap found before moving on.** Phase 3 does not count as closed until the post/void round trip above is demonstrated.
-3. **Then resume at Phase 4**, in this order: Manual JE → Bills → Invoices → project ledger reconciliation. Finish each producer completely (UI field, server write through the GL line, reversal behaviour, permission checks) before starting the next.
-4. **Do not** jump to reporting (Phase 5) before at least one producer beyond Expenses is live — reports with no data are the defect this domain already suffered from.
-5. Keep execution chronological. No partial producers, no orphaned UI fields, no client-side aggregation. Update this file at the end of your work so it stays authoritative.
+## Technical notes
+- One posting engine only: `post_journal_entry_atomic` (ADR 0123). Producers build lines; they never insert journal rows.
+- JELA stays definer-trigger-written and client-read-only. Reversal must produce contra rows, never deletes.
+- All new reads go through SECURITY DEFINER functions with pinned `search_path` that authorize with `user_can_access_business` + `user_has_module_permission`.
