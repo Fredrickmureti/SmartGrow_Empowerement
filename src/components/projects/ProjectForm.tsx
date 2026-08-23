@@ -158,7 +158,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
         customer_id: customerId || undefined,
         pricing_type: pricingType,
         currency,
-        analytic_account_code: analyticAccountCode.trim() || undefined,
+        
         is_billable: isBillable,
         start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
         end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
