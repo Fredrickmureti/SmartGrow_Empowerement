@@ -380,6 +380,50 @@ export default function Budgets() {
                             >
                               <Eye className="mr-2 h-4 w-4" /> View & Manage
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "pdf");
+                              }}
+                            >
+                              {exportingId === budget.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileText className="mr-2 h-4 w-4" />
+                              )}
+                              Download PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "print");
+                              }}
+                            >
+                              <Printer className="mr-2 h-4 w-4" /> Print
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "excel");
+                              }}
+                            >
+                              <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={exportingId === budget.id}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void runBudgetExport(budget, "csv");
+                              }}
+                            >
+                              <Download className="mr-2 h-4 w-4" /> Export CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+
                             {canManageBudgets && (
                               <DropdownMenuItem
                                 onClick={() => handleOpenBudget(budget)}
