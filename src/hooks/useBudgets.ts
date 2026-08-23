@@ -100,7 +100,9 @@ export function useBudgets() {
           *,
           budget_items(
             *,
-            accounts(id, name, code, account_type)
+            accounts(id, name, code, account_type),
+            analytic_accounts(id, name, code)
+
           )
         `)
         .eq("organization_id", organizationId);
