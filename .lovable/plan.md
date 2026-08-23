@@ -41,16 +41,22 @@ Last updated: 2026-08-23. Active phase: **Phase 4 — Producers (project ledger 
   All assertions pass against live state (0 attributed lines so far, so tie-out is
   vacuous until real postings exist).
 
-## Still pending
+## Still pending (in execution order)
 
-1. **Phase 4 remainder — project ledger reconciliation.** `project_cost_entries` /
-   `LineAnalyticsCell` remain a parallel attribution path. Decide and implement:
-   project attribution should land in the GL analytic ledger (a `project` analytic
-   plan) with `project_cost_entries` derived from it, not maintained alongside it.
+1. **NEXT TASK — Phase 4 remainder: project ledger reconciliation.**
+   `project_cost_entries` / `src/components/projects/LineAnalyticsCell.tsx` remain a
+   parallel attribution path alongside the GL analytic ledger. Bring Phase 4 to a
+   coherent close: project attribution lands in the GL analytic ledger (a `project`
+   analytic plan, one account per project) and `project_cost_entries` becomes derived
+   from it — never maintained independently. Includes: migration for the plan/account
+   provisioning and the derivation, the write path through `journal_entry_lines`,
+   reversal behaviour, permission checks, and pointing the Projects UI at the same
+   picker used elsewhere (`src/components/finance/AnalyticAccountCell.tsx`).
+   Phase 4 is not closed until no code writes project cost attribution outside the GL.
 2. **Phase 5 — Consumers.** Exactly three reports through `reportDataEngine` +
    `ReportRegistry`: Analytic Account Statement (drill to JE), P&L by Analytic
    Account, Budget vs Actual by Analytic Account. Server-side, period- and
-   branch-aware, each tying out to the GL.
+   branch-aware, each tying out to the GL. Do not start before item 1 is closed.
 3. **Phase 6 remainder — architecture test** forbidding client-side analytic
    aggregation, plus a live post/void round trip once real analytic postings exist
    (expect one JELA row on post, a contra row on void, net zero, no deletes).
@@ -61,9 +67,29 @@ counterpart, automatic distribution-rule engines.
 
 ## Instructions for the next agent
 
-1. Verify, don't trust: re-run `supabase/tests/analytic_accounting_contract_test.sql`
-   before changing anything.
-2. Finish the project-ledger reconciliation before starting reports — reports over an
-   empty or split ledger are the original defect of this domain.
-3. Keep aggregation server-side. The client selects an axis; the database computes amounts.
-4. Update this file at the end of your work so it stays authoritative.
+**Step 1 — Verify before building. Trust nothing in this document.**
+
+- Run `supabase/tests/analytic_accounting_contract_test.sql` and confirm every
+  assertion passes.
+- Confirm each Phase 4 producer really reaches the ledger, by reading the code path
+  end to end (UI field → client hook → RPC → `journal_entry_lines.analytic_account_id`)
+  for Manual JE, Expenses, Bills and Invoices. Check the edit/update paths too, not
+  only creation: a producer that loses the analytic account on edit is not done.
+- Confirm the analytic pickers are plan-filtered and exclude archived/restricted
+  accounts, and that `_assert_document_line_analytic_account` still guards both
+  `bill_items` and `invoice_items`.
+- Exercise one real round trip if a test business is available: post a document with
+  an analytic account, then void it. Expect a JELA row on post, a contra row on void,
+  `analytic_balances` netting to zero, and no deleted history.
+
+**Step 2 — Fix any gap found before moving forward.** A phase marked Done that fails
+verification is reopened; do not layer new work on top of it.
+
+**Step 3 — Resume chronologically at the NEXT TASK above** (project ledger
+reconciliation), then Phase 5, then Phase 6. Do not start reports before the ledger is
+single-sourced, and do not pick up unrelated work in other domains.
+
+**Standing rules.** Aggregation stays server-side — the client selects an axis, the
+database computes amounts. No orphaned UI fields, no half-wired producers, no second
+book of record. Update this file at the end of your work so it stays authoritative.
+
