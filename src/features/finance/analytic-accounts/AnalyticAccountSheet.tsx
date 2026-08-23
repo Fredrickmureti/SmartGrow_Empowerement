@@ -66,7 +66,7 @@ export function AnalyticAccountSheet({
   account,
   groups,
 }: Props) {
-  const { createAccount, updateAccount } = useAnalyticAccounts();
+  const { createAccount, updateAccount, plans } = useAnalyticAccounts();
   const { toast } = useToast();
   const mode: "create" | "edit" = account ? "edit" : "create";
 
@@ -74,7 +74,8 @@ export function AnalyticAccountSheet({
     code: "",
     name: "",
     description: "",
-    analytic_type: "cost_center" as AnalyticType,
+    plan_id: "",
+    status: "active" as AnalyticStatus,
     group_id: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,13 +87,22 @@ export function AnalyticAccountSheet({
       code: account?.code ?? "",
       name: account?.name ?? "",
       description: account?.description ?? "",
-      analytic_type: account?.analytic_type ?? "cost_center",
+      plan_id: account?.plan_id ?? plans[0]?.id ?? "",
+      status: account?.status ?? "active",
       group_id: account?.group_id ?? "",
     });
-  }, [open, account]);
+  }, [open, account, plans]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!form.plan_id) {
+      toast({
+        title: "Analytic plan required",
+        description: "Every analytic account belongs to exactly one plan (axis).",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       if (mode === "edit" && account) {
@@ -101,7 +111,9 @@ export function AnalyticAccountSheet({
           code: form.code || null,
           name: form.name,
           description: form.description || null,
-          analytic_type: form.analytic_type,
+          plan_id: form.plan_id,
+          status: form.status,
+          is_active: form.status === "active",
           group_id: form.group_id || null,
         });
         toast({ title: "Analytic account updated" });
@@ -110,11 +122,13 @@ export function AnalyticAccountSheet({
           code: form.code || undefined,
           name: form.name,
           description: form.description || undefined,
-          analytic_type: form.analytic_type,
+          plan_id: form.plan_id,
+          status: form.status,
           group_id: form.group_id || undefined,
         });
         toast({ title: "Analytic account created" });
       }
+
       onOpenChange(false);
     } catch (err) {
       toast({
