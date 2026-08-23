@@ -129,7 +129,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
     setName(""); setDescription(""); setStatus("active"); setColor(PROJECT_COLORS[0]);
     setIsTemplate(false);
     setTemplateId("");
-    setCustomerId(""); setPricingType("non_billable"); setCurrency("USD"); setAnalyticAccountCode("");
+    setCustomerId(""); setPricingType("non_billable"); setCurrency("USD");
     setStartDate(undefined); setEndDate(undefined);
     setBudget(""); setHourlyRate(""); setAllocatedHours("");
     setManagerId(""); setPrivacy("team");
