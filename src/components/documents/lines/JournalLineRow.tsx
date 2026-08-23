@@ -92,7 +92,7 @@ export const JOURNAL_LINE_COLUMNS: EditableLineColumn[] = [
   {
     id: "analytic",
     header: "Analytic",
-    priority: 4,
+    priority: 3,
     minWidth: 180,
     compactLabel: "Analytic",
   },
