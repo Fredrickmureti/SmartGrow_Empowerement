@@ -150,6 +150,9 @@ export default function BudgetEditPage() {
 
   // Add-line composer state (inline — replaces BudgetItemSheet modal).
   const [lineAccount, setLineAccount] = useState("");
+  // "" means "no analytic attribution" — a general/unattributed plan line.
+  const [lineAnalyticAccount, setLineAnalyticAccount] = useState("");
+
   const [lineMonth, setLineMonth] = useState<number>(1);
   const [lineAmount, setLineAmount] = useState<string>("");
   const [lineNotes, setLineNotes] = useState("");
