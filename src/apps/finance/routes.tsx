@@ -86,6 +86,11 @@ const Reports = lazy(() => import("@/pages/Reports"));
 const PartnerLedger = lazy(() => import("@/pages/reports/PartnerLedger"));
 const JournalReport = lazy(() => import("@/pages/reports/JournalReport"));
 const BudgetReport = lazy(() => import("@/pages/reports/BudgetReport"));
+// Analytic accounting reports (Phase 5 consumers).
+const AnalyticAccountStatement = lazy(() => import("@/pages/reports/AnalyticAccountStatement"));
+const AnalyticProfitAndLoss = lazy(() => import("@/pages/reports/AnalyticProfitAndLoss"));
+const AnalyticBudgetVsActual = lazy(() => import("@/pages/reports/AnalyticBudgetVsActual"));
+
 const DepreciationReport = lazy(() => import("@/pages/reports/DepreciationReport"));
 const CashFlowReport = lazy(() => import("@/pages/reports/CashFlowReport"));
 const AuditTrailReport = lazy(() => import("@/pages/reports/AuditTrail"));
@@ -789,6 +794,40 @@ export function FinanceApp() {
           }
         />
         
+        {/* Analytic accounting reports — management dimension of the GL */}
+        <Route
+          path="reports/analytic-statement"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Analytic Account Statement">
+                <AnalyticAccountStatement />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/analytic-profit-and-loss"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Analytic Profit & Loss">
+                <AnalyticProfitAndLoss />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/analytic-budget-vs-actual"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Analytic Budget vs Actual">
+                <AnalyticBudgetVsActual />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Depreciation Report */}
         <Route
           path="reports/depreciation"
