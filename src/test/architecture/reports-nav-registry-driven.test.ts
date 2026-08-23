@@ -17,7 +17,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { REPORT_REGISTRY } from "@/services/reports/ReportRegistry";
+import { REPORT_REGISTRY, reportMountPaths } from "@/services/reports/ReportRegistry";
 import {
   REPORT_FAMILIES,
   buildReportsNavChildren,
