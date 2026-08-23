@@ -90,7 +90,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   const [customerId, setCustomerId] = useState<string>("");
   const [pricingType, setPricingType] = useState<PricingType>("non_billable");
   const [currency, setCurrency] = useState("USD");
-  const [analyticAccountCode, setAnalyticAccountCode] = useState("");
+  
 
   // Schedule
   const [startDate, setStartDate] = useState<Date>();
@@ -158,7 +158,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
         customer_id: customerId || undefined,
         pricing_type: pricingType,
         currency,
-        analytic_account_code: analyticAccountCode.trim() || undefined,
+        
         is_billable: isBillable,
         start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
         end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
@@ -306,9 +306,10 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
               </Select>
             </WorkflowField>
           </WorkflowSheetGrid>
-          <WorkflowField label="Analytic account code" htmlFor="analytic" hint="Optional — links costs/revenues to a finance analytic account.">
-            <Input id="analytic" value={analyticAccountCode} onChange={(e) => setAnalyticAccountCode(e.target.value)} placeholder="e.g., ANL-2026-CORE" />
-          </WorkflowField>
+          <p className="text-xs text-muted-foreground">
+            Finance analytic account: created automatically for this project — costs and
+            revenues tagged to it post straight to the analytic ledger.
+          </p>
         </WorkflowSheetSection>
 
         <WorkflowSheetSection number={templates.length > 0 ? 4 : 3} title="Schedule & budget">

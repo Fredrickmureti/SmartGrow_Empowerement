@@ -45,7 +45,11 @@ export interface Project {
     | "fixed_price"
     | "milestone";
   currency: string;
-  analytic_account_code: string | null;
+  /**
+   * Provisioned automatically by the database: every project owns exactly one
+   * analytic account in the `project` analytic plan. Read-only from the client.
+   */
+  analytic_account_id: string | null;
   template_id: string | null;
   is_template: boolean;
   last_update_status: "on_track" | "at_risk" | "off_track" | null;
@@ -224,7 +228,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
         created_by: user.id,
         pricing_type: project.pricing_type || "non_billable",
         currency: project.currency || currentBusiness?.base_currency || null,
-        analytic_account_code: project.analytic_account_code || null,
+        // analytic_account_id is provisioned by trg_projects_sync_analytic_account.
         template_id: project.template_id || null,
         is_template: project.is_template ?? false,
         source_lead_id: (project as any).source_lead_id || null,

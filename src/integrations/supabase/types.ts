@@ -55438,7 +55438,7 @@ export type Database = {
           actual_start_date: string | null
           allocated_hours: number | null
           allow_timesheets: boolean | null
-          analytic_account_code: string | null
+          analytic_account_id: string | null
           branch_id: string | null
           budget: number | null
           budget_type: string | null
@@ -55481,7 +55481,7 @@ export type Database = {
           actual_start_date?: string | null
           allocated_hours?: number | null
           allow_timesheets?: boolean | null
-          analytic_account_code?: string | null
+          analytic_account_id?: string | null
           branch_id?: string | null
           budget?: number | null
           budget_type?: string | null
@@ -55524,7 +55524,7 @@ export type Database = {
           actual_start_date?: string | null
           allocated_hours?: number | null
           allow_timesheets?: boolean | null
-          analytic_account_code?: string | null
+          analytic_account_id?: string | null
           branch_id?: string | null
           budget?: number | null
           budget_type?: string | null
@@ -55563,6 +55563,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "projects_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "projects_branch_id_fkey"
             columns: ["branch_id"]
@@ -101250,6 +101257,24 @@ export type Database = {
       product_physical_attributes_required: {
         Args: { p_business_id: string }
         Returns: boolean
+      }
+      project_analytic_account_id: {
+        Args: { p_project_id: string }
+        Returns: string
+      }
+      project_analytic_reconciliation: {
+        Args: { p_business_id: string; p_date_from: string; p_date_to: string }
+        Returns: {
+          analytic_account_id: string
+          difference: number
+          gl_analytic_net: number
+          project_id: string
+          project_ledger_cost: number
+          project_ledger_net: number
+          project_ledger_revenue: number
+          project_name: string
+          project_number: string
+        }[]
       }
       project_employee_cost_rate: {
         Args: { _employee_id: string; _project_id: string }
