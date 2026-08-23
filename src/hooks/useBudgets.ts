@@ -217,13 +217,16 @@ export function useBudgets() {
 
       const { data: existing, error: existingError } = await supabase
         .from("budget_items")
-        .select("id, account_id, period_month, budgeted_amount, notes")
+        .select("id, account_id, analytic_account_id, period_month, budgeted_amount, notes")
         .eq("budget_id", id);
 
       if (existingError) throw existingError;
 
       const existingByKey = new Map(
-        (existing ?? []).map(row => [lineKey(row.account_id, row.period_month), row]),
+        (existing ?? []).map(row => [
+          lineKey(row.account_id, row.period_month, row.analytic_account_id),
+          row,
+        ]),
       );
       const desiredKeys = new Set<string>();
 
@@ -231,13 +234,14 @@ export function useBudgets() {
       const toUpdate: Array<{ id: string; budgeted_amount: number; notes?: string | null }> = [];
 
       for (const item of input.items) {
-        const key = lineKey(item.account_id, item.period_month);
+        const key = lineKey(item.account_id, item.period_month, item.analytic_account_id);
         desiredKeys.add(key);
         const current = existingByKey.get(key);
         if (!current) {
           toInsert.push({
             budget_id: id,
             account_id: item.account_id,
+            analytic_account_id: item.analytic_account_id ?? null,
             period_month: item.period_month,
             budgeted_amount: item.budgeted_amount,
             notes: item.notes ?? null,
@@ -255,8 +259,14 @@ export function useBudgets() {
       }
 
       const removedIds = (existing ?? [])
-        .filter(row => !desiredKeys.has(lineKey(row.account_id, row.period_month)))
+        .filter(
+          row =>
+            !desiredKeys.has(
+              lineKey(row.account_id, row.period_month, row.analytic_account_id),
+            ),
+        )
         .map(row => row.id);
+
 
       if (toInsert.length > 0) {
         const { error } = await supabase.from("budget_items").insert(toInsert as never);
