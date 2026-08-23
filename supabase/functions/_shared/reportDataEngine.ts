@@ -1848,3 +1848,170 @@ export async function buildAuditTrail(
 
   return { data, summary: { totalEntries: data.length, ...actionCounts } };
 }
+
+/**
+ * Budget Schedule — the approved plan itself, with no actuals in it.
+ *
+ * Like Budget vs Actual, this owns no arithmetic. `get_budget_schedule`
+ * returns a dense account x accounting-period grid (a planned zero and an
+ * absent line are different statements, and the grid says which), already
+ * sectioned by account nature, and this function only lays it out.
+ */
+export async function buildBudgetSchedule(
+  supabase: SupabaseClient,
+  businessId: string | undefined,
+  budgetId?: string,
+): Promise<ReportResult> {
+  const scopedBusinessId = requireBusinessId(businessId);
+
+  let resolvedBudgetId = budgetId;
+  if (!resolvedBudgetId) {
+    const { data: budgets } = await supabase
+      .from("budgets")
+      .select("id")
+      .eq("business_id", scopedBusinessId)
+      .eq("status", "active")
+      .order("fiscal_year", { ascending: false })
+      .limit(1);
+    resolvedBudgetId = ((budgets || [])[0] as Record<string, unknown> | undefined)?.id as
+      | string
+      | undefined;
+    if (!resolvedBudgetId) {
+      return { data: [], summary: { message: "No budget in force for this company" } };
+    }
+  }
+
+  const [{ data: header, error: headerErr }, { data: schedule, error: scheduleErr }] =
+    await Promise.all([
+      supabase.rpc("get_budget_document_header", { _budget_id: resolvedBudgetId }),
+      supabase.rpc("get_budget_schedule", { _budget_id: resolvedBudgetId }),
+    ]);
+  if (headerErr) throw new Error(`budget_header_failed: ${headerErr.message}`);
+  if (scheduleErr) throw new Error(`budget_schedule_failed: ${scheduleErr.message}`);
+
+  const head = ((header || []) as Record<string, unknown>[])[0];
+  if (!head || head.business_id !== scopedBusinessId) {
+    return { data: [], summary: { message: "Budget not found for this company" } };
+  }
+
+  type ScheduleRow = {
+    account_id: string;
+    account_code: string | null;
+    account_name: string | null;
+    section: string | null;
+    section_ordinal: number | null;
+    period_start: string;
+    period_end: string;
+    period_month: number | null;
+    period_ordinal: number | null;
+    budgeted_amount: number | null;
+  };
+  const rows = (schedule || []) as ScheduleRow[];
+
+  const MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const periodLabel = (r: ScheduleRow): string => {
+    const d = new Date(`${r.period_start}T00:00:00Z`);
+    return Number.isNaN(d.getTime())
+      ? String(r.period_ordinal ?? r.period_month ?? "")
+      : `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  };
+
+  const sections = new Map<
+    number,
+    { label: string; accounts: Map<string, { code: string; name: string; lines: ScheduleRow[] }> }
+  >();
+  for (const r of rows) {
+    const ordinal = r.section_ordinal ?? 99;
+    const section = sections.get(ordinal) || { label: r.section || "Other", accounts: new Map() };
+    const account = section.accounts.get(r.account_id) || {
+      code: r.account_code || "",
+      name: r.account_name || "",
+      lines: [] as ScheduleRow[],
+    };
+    account.lines.push(r);
+    section.accounts.set(r.account_id, account);
+    sections.set(ordinal, section);
+  }
+
+  const data: Record<string, unknown>[] = [];
+  const sectionTotals: Record<string, number> = {};
+  let planTotal = 0;
+
+  for (const ordinal of [...sections.keys()].sort((a, b) => a - b)) {
+    const section = sections.get(ordinal)!;
+    data.push({ account_name: section.label, _isHeader: true, _bold: true });
+
+    let sectionTotal = 0;
+    const accounts = [...section.accounts.values()].sort((a, b) => a.code.localeCompare(b.code));
+    for (const account of accounts) {
+      account.lines.sort((a, b) => (a.period_ordinal ?? 0) - (b.period_ordinal ?? 0));
+      let accountTotal = 0;
+      for (const line of account.lines) {
+        const amount = Number(line.budgeted_amount) || 0;
+        accountTotal += amount;
+        data.push({
+          account_code: account.code,
+          account_name: account.name,
+          period_label: periodLabel(line),
+          budgeted_amount: amount,
+          _depth: 1,
+        });
+      }
+      data.push({
+        account_name: `${account.code} ${account.name}`.trim(),
+        period_label: "Year",
+        budgeted_amount: accountTotal,
+        _isSubtotal: true,
+        _depth: 1,
+      });
+      sectionTotal += accountTotal;
+    }
+
+    data.push({
+      account_name: `Total ${section.label}`,
+      budgeted_amount: sectionTotal,
+      _isSubtotal: true,
+      _bold: true,
+    });
+    sectionTotals[section.label] = sectionTotal;
+    planTotal += sectionTotal;
+  }
+
+  // Revenue and cost are stated separately and then resolved into a planned
+  // result; they are never added together into one "budget" figure.
+  const plannedRevenue = sectionTotals["Revenue"] ?? 0;
+  const plannedCost = sectionTotals["Cost"] ?? 0;
+  if (data.length > 0) {
+    data.push({
+      account_name: "Planned surplus / (deficit)",
+      budgeted_amount: plannedRevenue - plannedCost,
+      _isGrandTotal: true,
+      _bold: true,
+    });
+  }
+
+  return {
+    data,
+    summary: {
+      budgetId: resolvedBudgetId,
+      budgetCode: head.budget_code,
+      budgetName: head.budget_name,
+      fiscalYear: head.fiscal_year,
+      status: head.status,
+      currency: head.currency_code,
+      scopeLabel: head.scope_label,
+      approvedByName: head.approved_by_name,
+      approvedAt: head.approved_at,
+      revisionCount: head.revision_count,
+      periodStart: head.period_start,
+      periodEnd: head.period_end,
+      plannedRevenue,
+      plannedCost,
+      plannedResult: plannedRevenue - plannedCost,
+      lineTotal: planTotal,
+    },
+  };
+}
