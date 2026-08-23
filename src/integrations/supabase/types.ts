@@ -8149,7 +8149,10 @@ export type Database = {
       }
       budgets: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -8163,7 +8166,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           branch_id?: string | null
+          budget_code?: string | null
           business_id: string
           created_at?: string
           created_by?: string | null
@@ -8177,7 +8183,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           branch_id?: string | null
+          budget_code?: string | null
           business_id?: string
           created_at?: string
           created_by?: string | null
@@ -87365,7 +87374,10 @@ export type Database = {
       _budget_assert_manage: {
         Args: { _budget_id: string }
         Returns: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -87388,7 +87400,10 @@ export type Database = {
       _budget_assert_read: {
         Args: { _budget_id: string }
         Returns: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
@@ -103970,7 +103985,10 @@ export type Database = {
           _status: Database["public"]["Enums"]["budget_status"]
         }
         Returns: {
+          approved_at: string | null
+          approved_by: string | null
           branch_id: string | null
+          budget_code: string | null
           business_id: string
           created_at: string
           created_by: string | null
