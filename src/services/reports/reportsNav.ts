@@ -68,7 +68,13 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     key: "subledgers",
     label: "Receivables & payables",
     icon: Users,
-    reportIds: ["aged-receivables", "aged-payables", "partner-ledger", "sales-reports"],
+    reportIds: [
+      "aged-receivables",
+      "aged-payables",
+      "partner-ledger",
+      "sales-reports",
+      "purchase-reports",
+    ],
   },
   {
     key: "cash",
