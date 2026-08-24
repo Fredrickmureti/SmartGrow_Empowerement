@@ -338,6 +338,29 @@ export function LeadDetailsDialog({
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {hasMultipleBranches && !lead.won_at && !lead.lost_at && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={isTransferring}>
+                    {isTransferring ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Transfer Branch
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {branches
+                    .filter((b) => b.id !== lead.branch_id)
+                    .map((b) => (
+                      <DropdownMenuItem key={b.id} onClick={() => handleTransferBranch(b.id)}>
+                        {b.name}
+                      </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+
+
             <Button
               variant="ghost"
               size="sm"
