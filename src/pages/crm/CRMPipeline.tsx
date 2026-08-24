@@ -118,10 +118,24 @@ export default function CRMPipeline() {
     }
     if (draggedLeadId) {
       const targetStage = stages.find(s => s.id === stageId);
-      await moveToStage(draggedLeadId, stageId, targetStage?.probability);
+      try {
+        // Terminal stages are lifecycle transitions, not stage moves: Won has
+        // its own authoritative operation and Lost requires a reason, so the
+        // board cannot reach them by drag alone.
+        if (targetStage?.is_won) {
+          await markAsWon(draggedLeadId);
+        } else if (targetStage?.is_lost) {
+          toast.error("Use \"Mark as Lost\" so a loss reason is recorded");
+        } else {
+          await moveToStage(draggedLeadId, stageId);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not move this opportunity");
+      }
       setDraggedLeadId(null);
     }
   };
+
 
   if (isLoading) {
     return <>
