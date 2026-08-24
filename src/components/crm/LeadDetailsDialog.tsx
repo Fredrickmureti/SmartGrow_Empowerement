@@ -59,6 +59,7 @@ import { LeadHistoryTimeline } from "./LeadHistoryTimeline";
 
 import { CRMActivity } from "@/hooks/crm/useCRMActivities";
 import { toast } from "sonner";
+import { useBranch } from "@/contexts/BranchContext";
 import { normalizeError } from "@/services/resilience";
 
 interface LeadDetailsDialogProps {
