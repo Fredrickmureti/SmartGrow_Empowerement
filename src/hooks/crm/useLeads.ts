@@ -11,6 +11,11 @@ export interface Lead {
   id: string;
   organization_id: string;
   business_id: string | null;
+  /**
+   * Branch dimension (CRM domain audit · Phase 4). Server-owned: set on
+   * create, then only movable through `crm_transfer_lead_branch`.
+   */
+  branch_id: string | null;
   lead_number: string;
   name: string;
   type: string | null;
@@ -55,6 +60,8 @@ export interface Lead {
   company_contact?: { id: string; name: string } | null;
   /** Joined lost reason (when lead is in a Lost stage). */
   lost_reason?: { id: string; name: string } | null;
+  /** Joined branch (owning branch of the opportunity). */
+  branch?: { id: string; name: string } | null;
 }
 
 /** Display helper: returns the joined company contact's name (or null). */
@@ -62,7 +69,7 @@ export function leadCompanyDisplay(lead: Pick<Lead, "company_contact">): string 
   return lead.company_contact?.name ?? null;
 }
 
-export function useLeads(filters?: { stageId?: string; type?: string }) {
+export function useLeads(filters?: { stageId?: string; type?: string; branchId?: string | null }) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
@@ -85,7 +92,8 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
           *,
           stage:crm_stages(id, name, color, is_won, is_lost),
           company_contact:contacts!company_contact_id(id, name),
-          lost_reason:crm_lost_reasons(id, name)
+          lost_reason:crm_lost_reasons(id, name),
+          branch:branches!branch_id(id, name)
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
@@ -100,6 +108,12 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
         query = query.eq("type", filters.type);
       }
 
+      // Branch is a real ownership dimension, not a display hint. RLS already
+      // hides branches the caller cannot access; this narrows to one branch.
+      if (filters?.branchId) {
+        query = query.eq("branch_id", filters.branchId);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
       setLeads((data || []) as unknown as Lead[]);
@@ -109,7 +123,7 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg?.id, currentBusiness?.id, filters?.stageId, filters?.type]);
+  }, [currentOrg?.id, currentBusiness?.id, filters?.stageId, filters?.type, filters?.branchId]);
 
   useEffect(() => {
     fetchLeads();
@@ -135,7 +149,11 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
       name: lead.name || "New Lead",
       organization_id: currentOrg.id,
       business_id: currentBusiness.id,
+      // Branch ownership is decided at capture time. Fall back to the active
+      // workspace branch so a lead can never be created branch-less by accident.
+      branch_id: lead.branch_id ?? currentBranch?.id ?? null,
       lead_number: numberData,
+
 
       type: lead.type || "lead",
       stage_id: lead.stage_id || null,
@@ -194,6 +212,8 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     "assigned_to",
     "lost_reason_id",
     "expected_revenue",
+    // Branch moves only through `crm_transfer_lead_branch` (audited).
+    "branch_id",
   ] as const;
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
@@ -332,6 +352,25 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     await fetchLeads();
   };
 
+  /**
+   * Governed branch transfer. The server validates that the target branch
+   * belongs to the same business and is active, that the caller can access
+   * both branches, refuses closed opportunities, remaps a branch-specific
+   * stage and re-aligns the lead's activities — then logs the move.
+   */
+  const transferBranch = async (leadId: string, branchId: string, reason?: string) => {
+    const { error } = await supabase.rpc("crm_transfer_lead_branch", {
+      p_lead_id: leadId,
+      p_branch_id: branchId,
+      p_reason: reason || null,
+    });
+    if (error) throw error;
+    toast.success("Opportunity transferred");
+    await fetchLeads();
+  };
+
+
+
   const deleteLead = async (id: string, reason = "Removed by user") => {
     const { error } = await supabase.rpc("crm_archive_lead", {
       p_lead_id: id,
@@ -434,6 +473,7 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     moveToStage,
     qualifyLead,
     reopenLead,
+    transferBranch,
 
     markAsWon,
     markAsLost,

@@ -59,6 +59,7 @@ import { LeadHistoryTimeline } from "./LeadHistoryTimeline";
 
 import { CRMActivity } from "@/hooks/crm/useCRMActivities";
 import { toast } from "sonner";
+import { useBranch } from "@/contexts/BranchContext";
 import { normalizeError } from "@/services/resilience";
 
 interface LeadDetailsDialogProps {
@@ -85,9 +86,27 @@ export function LeadDetailsDialog({
     convertToEstimate,
     convertToSalesOrder,
     convertToProject,
+    transferBranch,
     refreshLeads,
   } = useLeads();
+  const { branches, hasMultipleBranches } = useBranch();
+  const [isTransferring, setIsTransferring] = useState(false);
 
+  /**
+   * Branch moves are a governed server operation — the RPC re-checks access,
+   * business match and lifecycle state, so failures are surfaced verbatim.
+   */
+  const handleTransferBranch = async (branchId: string) => {
+    setIsTransferring(true);
+    try {
+      await transferBranch(lead.id, branchId);
+      await refreshLeads();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not transfer this opportunity");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   // Use the passed onDelete prop if available, otherwise fall back to the hook's deleteLead
   const deleteLead = onDelete || deleteLeadFromHook;
@@ -337,6 +356,29 @@ export function LeadDetailsDialog({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {hasMultipleBranches && !lead.won_at && !lead.lost_at && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={isTransferring}>
+                    {isTransferring ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Transfer Branch
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {branches
+                    .filter((b) => b.id !== lead.branch_id)
+                    .map((b) => (
+                      <DropdownMenuItem key={b.id} onClick={() => handleTransferBranch(b.id)}>
+                        {b.name}
+                      </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+
 
             <Button
               variant="ghost"

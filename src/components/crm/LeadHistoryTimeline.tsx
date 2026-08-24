@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { History, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLeadHistory, type LeadHistoryEntry } from "@/hooks/crm/useLeadHistory";
+import { useBranch } from "@/contexts/BranchContext";
 
 const EVENT_LABELS: Record<string, string> = {
   qualified: "Qualified",
@@ -18,14 +19,21 @@ const EVENT_LABELS: Record<string, string> = {
   reassigned: "Owner changed",
   revalued: "Value changed",
   archived: "Archived",
+  branch_transferred: "Branch transferred",
 };
 
-function describe(entry: LeadHistoryEntry, stageName: (id: string | null) => string): string | null {
+function describe(
+  entry: LeadHistoryEntry,
+  stageName: (id: string | null) => string,
+  branchName: (id: string | null) => string,
+): string | null {
   switch (entry.event) {
     case "stage_changed":
       return `${stageName(entry.from_stage_id)} → ${stageName(entry.to_stage_id)}`;
     case "revalued":
       return `${entry.from_value ?? 0} → ${entry.to_value ?? 0}`;
+    case "branch_transferred":
+      return `${branchName(entry.from_branch_id)} → ${branchName(entry.to_branch_id)}`;
     case "won":
     case "lost":
     case "qualified":
@@ -44,7 +52,10 @@ interface LeadHistoryTimelineProps {
 
 export function LeadHistoryTimeline({ leadId, enabled = true, stageNames }: LeadHistoryTimelineProps) {
   const { history, isLoading } = useLeadHistory(leadId, enabled);
+  const { branches } = useBranch();
   const stageName = (id: string | null) => (id ? stageNames?.[id] ?? "—" : "—");
+  const branchName = (id: string | null) =>
+    id ? branches.find((b) => b.id === id)?.name ?? "—" : "—";
 
   if (isLoading) {
     return (
@@ -66,7 +77,7 @@ export function LeadHistoryTimeline({ leadId, enabled = true, stageNames }: Lead
   return (
     <ol className="space-y-3">
       {history.map((entry) => {
-        const detail = describe(entry, stageName);
+        const detail = describe(entry, stageName, branchName);
         return (
           <li key={entry.id} className="rounded-md border border-border p-3">
             <div className="flex flex-wrap items-center gap-2">

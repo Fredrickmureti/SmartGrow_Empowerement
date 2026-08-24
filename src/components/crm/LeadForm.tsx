@@ -16,6 +16,7 @@ import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranch } from "@/contexts/BranchContext";
 
 interface LeadFormProps {
   open: boolean;
@@ -30,6 +31,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
   const { contacts } = useContactsPaginated({});
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { branches, currentBranch, hasMultipleBranches } = useBranch();
 
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
@@ -42,6 +44,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
   const [probability, setProbability] = useState("50");
   const [expectedCloseDate, setExpectedCloseDate] = useState<Date>();
   const [stageId, setStageId] = useState("");
+  const [branchId, setBranchId] = useState<string>("");
   const [priority, setPriority] = useState(1);
   const [source, setSource] = useState("");
   const [description, setDescription] = useState("");
@@ -65,6 +68,13 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
       setStageId(stages[0].id);
     }
   }, [stages, stageId]);
+
+  // Default the owning branch to the active workspace branch.
+  useEffect(() => {
+    if (!branchId && currentBranch?.id) setBranchId(currentBranch.id);
+  }, [currentBranch?.id, branchId]);
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +109,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
         probability: parseInt(probability),
         expected_close_date: expectedCloseDate ? format(expectedCloseDate, "yyyy-MM-dd") : undefined,
         stage_id: stageId || (stages[0]?.id),
+        branch_id: branchId || currentBranch?.id || null,
         priority,
         source: source || undefined,
         description: description || undefined,
@@ -123,6 +134,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
     setProbability("50");
     setExpectedCloseDate(undefined);
     setStageId("");
+    setBranchId(currentBranch?.id ?? "");
     setPriority(1);
     setSource("");
     setDescription("");
@@ -286,6 +298,23 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
               </SelectContent>
             </Select>
           </WorkflowField>
+
+          {hasMultipleBranches && (
+            <WorkflowField label="Branch" htmlFor="branch">
+              <Select value={branchId} onValueChange={setBranchId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </WorkflowField>
+          )}
 
           <WorkflowField label="Source" htmlFor="source">
             <Select value={source} onValueChange={setSource}>

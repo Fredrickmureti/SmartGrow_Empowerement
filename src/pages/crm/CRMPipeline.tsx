@@ -18,10 +18,18 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
+import { useBranch } from "@/contexts/BranchContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function CRMPipeline() {
   const { stages, isLoading: stagesLoading } = useCRMStages();
-  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead } = useLeads();
+  const { branches, hasMultipleBranches } = useBranch();
+  // Branch is an ownership dimension of the opportunity, so it filters the
+  // query (server side) rather than the rendered board.
+  const [branchFilter, setBranchFilter] = useState<string>("all");
+  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead } = useLeads(
+    useMemo(() => ({ branchId: branchFilter === "all" ? null : branchFilter }), [branchFilter]),
+  );
 
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showStageSettings, setShowStageSettings] = useState(false);
@@ -155,6 +163,21 @@ export default function CRMPipeline() {
           <p className="text-muted-foreground">Track and manage your opportunities</p>
         </div>
         <div className="flex items-center gap-2">
+          {hasMultipleBranches && (
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <CustomizeFieldsButton entityType="crm_lead" />
           <ReportExportButtons
             compact
