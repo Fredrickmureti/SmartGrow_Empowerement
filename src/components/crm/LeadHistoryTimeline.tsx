@@ -51,7 +51,10 @@ interface LeadHistoryTimelineProps {
 
 export function LeadHistoryTimeline({ leadId, enabled = true, stageNames }: LeadHistoryTimelineProps) {
   const { history, isLoading } = useLeadHistory(leadId, enabled);
+  const { branches } = useBranch();
   const stageName = (id: string | null) => (id ? stageNames?.[id] ?? "—" : "—");
+  const branchName = (id: string | null) =>
+    id ? branches.find((b) => b.id === id)?.name ?? "—" : "—";
 
   if (isLoading) {
     return (
