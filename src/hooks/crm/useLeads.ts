@@ -92,7 +92,8 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
           *,
           stage:crm_stages(id, name, color, is_won, is_lost),
           company_contact:contacts!company_contact_id(id, name),
-          lost_reason:crm_lost_reasons(id, name)
+          lost_reason:crm_lost_reasons(id, name),
+          branch:branches!branch_id(id, name)
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
@@ -107,6 +108,12 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
         query = query.eq("type", filters.type);
       }
 
+      // Branch is a real ownership dimension, not a display hint. RLS already
+      // hides branches the caller cannot access; this narrows to one branch.
+      if (filters?.branchId) {
+        query = query.eq("branch_id", filters.branchId);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
       setLeads((data || []) as unknown as Lead[]);
@@ -116,7 +123,7 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg?.id, currentBusiness?.id, filters?.stageId, filters?.type]);
+  }, [currentOrg?.id, currentBusiness?.id, filters?.stageId, filters?.type, filters?.branchId]);
 
   useEffect(() => {
     fetchLeads();
