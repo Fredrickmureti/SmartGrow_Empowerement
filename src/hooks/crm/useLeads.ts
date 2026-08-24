@@ -173,32 +173,80 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     return data;
   };
 
+  /**
+   * Descriptive-field update only.
+   *
+   * Lifecycle fields (`status`, `stage_id`, `won_at`, `lost_at`,
+   * `probability`, `is_active`, `type`, `assigned_to`, `lost_reason_id`)
+   * are guarded in the database by `_crm_lead_lifecycle_write_guard` and
+   * may only move through the `crm_*` transition RPCs below. Expected
+   * revenue goes through `crm_revalue_lead` so the change is audited and
+   * refused on a closed opportunity.
+   */
+  const LIFECYCLE_FIELDS = [
+    "status",
+    "stage_id",
+    "won_at",
+    "lost_at",
+    "probability",
+    "is_active",
+    "type",
+    "assigned_to",
+    "lost_reason_id",
+    "expected_revenue",
+  ] as const;
+
   const updateLead = async (id: string, updates: Partial<Lead>) => {
-    // Optimistic update
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
+    const descriptive: Record<string, any> = { ...updates };
+    const lifecycle = LIFECYCLE_FIELDS.filter((f) => f in descriptive);
+    for (const f of lifecycle) delete descriptive[f];
 
-    const { error } = await supabase
-      .from("crm_leads")
-      .update(updates as any)
-      .eq("id", id);
-
-    if (error) throw error;
-    toast.success("Lead updated");
-  };
-
-  const moveToStage = async (leadId: string, stageId: string, stageProbability?: number | null) => {
-    // When moving to a stage, sync the lead's probability with the stage's default probability
-    const updateData: Record<string, any> = { stage_id: stageId };
-    
-    if (stageProbability !== undefined) {
-      updateData.probability = stageProbability;
+    // Expected revenue / close date are audited value changes.
+    if ("expected_revenue" in (updates as Record<string, unknown>)) {
+      const { error } = await supabase.rpc("crm_revalue_lead", {
+        p_lead_id: id,
+        p_expected_revenue: (updates as any).expected_revenue ?? null,
+        p_expected_close_date: (updates as any).expected_close_date ?? null,
+      });
+      if (error) throw error;
+      delete descriptive.expected_close_date;
     }
 
-    const { error } = await supabase
-      .from("crm_leads")
-      .update(updateData)
-      .eq("id", leadId);
+    if ((updates as any).assigned_to !== undefined) {
+      const { error } = await supabase.rpc("crm_reassign_lead", {
+        p_lead_id: id,
+        p_assignee: (updates as any).assigned_to ?? null,
+      });
+      if (error) throw error;
+    }
 
+    if (Object.keys(descriptive).length > 0) {
+      const { error } = await supabase.from("crm_leads").update(descriptive).eq("id", id);
+      if (error) throw error;
+    }
+
+    toast.success("Lead updated");
+    await fetchLeads();
+  };
+
+  /** Qualify a raw lead into an opportunity (authoritative transition). */
+  const qualifyLead = async (leadId: string) => {
+    const { error } = await supabase.rpc("crm_qualify_lead", { p_lead_id: leadId });
+    if (error) throw error;
+    toast.success("Lead qualified");
+    await fetchLeads();
+  };
+
+  /**
+   * Stage move. The server resolves the stage's default probability and
+   * refuses terminal stages (won/lost go through their own operations),
+   * closed opportunities, and stages from another business.
+   */
+  const moveToStage = async (leadId: string, stageId: string) => {
+    const { error } = await supabase.rpc("crm_change_stage", {
+      p_lead_id: leadId,
+      p_stage_id: stageId,
+    });
     if (error) throw error;
     await fetchLeads();
   };
@@ -213,23 +261,9 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
       create?: { estimate?: boolean; salesOrder?: boolean; project?: boolean };
     }
   ): Promise<{ estimateId?: string; salesOrderId?: string; contactId?: string; projectId?: string }> => {
-    // Move to Won stage
-    const { data: wonStage } = await supabase
-      .from("crm_stages")
-      .select("id")
-      .eq("organization_id", currentOrg!.id)
-      .eq("business_id", currentBusiness.id)
-      .eq("is_won", true)
-      .eq("is_active", true)
-      .single();
-
-    const updateData: Record<string, any> = {
-      won_at: new Date().toISOString(),
-      probability: 100,
-    };
-    if (wonStage) updateData.stage_id = wonStage.id;
-
-    const { error } = await supabase.from("crm_leads").update(updateData).eq("id", leadId);
+    // Authoritative transition: validates the source state, resolves the
+    // business's Won stage, pins probability to 100 and logs a system activity.
+    const { error } = await supabase.rpc("crm_mark_won", { p_lead_id: leadId });
     if (error) throw error;
 
     const result: { estimateId?: string; salesOrderId?: string; contactId?: string; projectId?: string } = {};
@@ -276,48 +310,37 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     return result;
   };
 
-
   const markAsLost = async (leadId: string, reasonId?: string, notes?: string) => {
-    // First, find the "Lost" stage if exists and move lead there
-    const { data: lostStage } = await supabase
-      .from("crm_stages")
-      .select("id")
-      .eq("organization_id", currentOrg!.id)
-      .eq("business_id", currentBusiness.id)
-      .eq("is_lost", true)
-      .eq("is_active", true)
-      .single();
-
-    const updateData: Record<string, any> = {
-      lost_at: new Date().toISOString(),
-      lost_reason_id: reasonId || null,
-      lost_notes: notes || null,
-      probability: 0,
-    };
-
-    if (lostStage) {
-      updateData.stage_id = lostStage.id;
-    }
-
-    const { error } = await supabase
-      .from("crm_leads")
-      .update(updateData)
-      .eq("id", leadId);
-
+    const { error } = await supabase.rpc("crm_mark_lost", {
+      p_lead_id: leadId,
+      p_reason_id: reasonId || null,
+      p_notes: notes || null,
+    });
     if (error) throw error;
     toast.success("Lead marked as lost");
     await fetchLeads();
   };
 
-  const deleteLead = async (id: string) => {
-    const { error } = await supabase
-      .from("crm_leads")
-      .update({ is_active: false })
-      .eq("id", id);
+  /** Controlled reopen of a won/lost opportunity — reason is mandatory. */
+  const reopenLead = async (leadId: string, reason: string) => {
+    const { error } = await supabase.rpc("crm_reopen_lead", {
+      p_lead_id: leadId,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    toast.success("Opportunity reopened");
+    await fetchLeads();
+  };
 
+  const deleteLead = async (id: string, reason = "Removed by user") => {
+    const { error } = await supabase.rpc("crm_archive_lead", {
+      p_lead_id: id,
+      p_reason: reason,
+    });
     if (error) throw error;
     toast.success("Lead deleted");
     await fetchLeads();
+
   };
 
   // Convert lead to contact
