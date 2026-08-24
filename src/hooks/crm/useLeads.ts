@@ -11,6 +11,11 @@ export interface Lead {
   id: string;
   organization_id: string;
   business_id: string | null;
+  /**
+   * Branch dimension (CRM domain audit · Phase 4). Server-owned: set on
+   * create, then only movable through `crm_transfer_lead_branch`.
+   */
+  branch_id: string | null;
   lead_number: string;
   name: string;
   type: string | null;
