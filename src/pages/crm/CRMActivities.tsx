@@ -89,7 +89,7 @@ export default function CRMActivities() {
           is_done,
           completed_at,
           outcome,
-          lead:crm_leads(id, name, company_contact:contacts!company_contact_id(name))
+          lead:crm_leads(id, name, company_contact:contacts!crm_leads_business_company_contact_fkey(name))
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
