@@ -27,9 +27,11 @@ import {
   XCircle,
   Loader2,
   Activity,
+  History,
   Info,
   Trash2,
   ExternalLink,
+
 } from "lucide-react";
 import {
   AlertDialog,
