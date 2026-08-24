@@ -150,3 +150,200 @@ BEGIN
       'crm_activities.business_id must remain NOT NULL — activities are business-scoped records';
   END IF;
 END $$;
+
+-- ===========================================================================
+-- Phase 4 · Branch dimension + cross-business referential integrity (D7).
+-- Catalog-level ratchets: they read shipped definitions, so they hold on an
+-- empty database.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- D7a · Every business-scoped reference off crm_leads must be enforced by a
+--       COMPOSITE foreign key that carries business_id. A single-column FK
+--       lets Business A point at Business B's stage/contact/reason/branch.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_col text;
+  v_bad text := '';
+BEGIN
+  FOREACH v_col IN ARRAY ARRAY['stage_id','contact_id','company_contact_id','lost_reason_id','branch_id'] LOOP
+    IF NOT EXISTS (
+      SELECT 1
+        FROM pg_constraint c
+       WHERE c.conrelid = 'public.crm_leads'::regclass
+         AND c.contype = 'f'
+         AND cardinality(c.conkey) = 2
+         AND (
+           SELECT array_agg(a.attname ORDER BY a.attname)
+             FROM unnest(c.conkey) k
+             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
+         ) @> ARRAY['business_id', v_col]
+    ) THEN
+      v_bad := v_bad || v_col || ' ';
+    END IF;
+  END LOOP;
+
+  IF v_bad <> '' THEN
+    RAISE EXCEPTION
+      'D7a: crm_leads column(s) lack a composite (business_id, ...) foreign key — cross-business references are possible: %',
+      v_bad;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- D7b · The composite FKs above are only enforceable while the referenced
+--       tables keep their (business_id, id) identity key.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_tbl text;
+  v_bad text := '';
+BEGIN
+  FOREACH v_tbl IN ARRAY ARRAY['crm_stages','crm_lost_reasons','contacts','branches'] LOOP
+    IF NOT EXISTS (
+      SELECT 1
+        FROM pg_constraint c
+       WHERE c.conrelid = format('public.%I', v_tbl)::regclass
+         AND c.contype IN ('u','p')
+         AND cardinality(c.conkey) = 2
+         AND (
+           SELECT array_agg(a.attname ORDER BY a.attname)
+             FROM unnest(c.conkey) k
+             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
+         ) = ARRAY['business_id','id']
+    ) THEN
+      v_bad := v_bad || v_tbl || ' ';
+    END IF;
+  END LOOP;
+
+  IF v_bad <> '' THEN
+    RAISE EXCEPTION
+      'D7b: table(s) lost their UNIQUE (business_id, id) key that CRM composite FKs depend on: %',
+      v_bad;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- D7c · assigned_to must be constrained to an active member of the lead's
+--       organization by a database trigger, not by UI convention.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+     WHERE t.tgrelid = 'public.crm_leads'::regclass
+       AND NOT t.tgisinternal
+       AND t.tgname = 'crm_leads_assignee_guard'
+  ) THEN
+    RAISE EXCEPTION
+      'D7c: crm_leads_assignee_guard trigger is missing — leads can be assigned to non-members';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND p.proname = '_crm_lead_assignee_guard'
+       AND p.prosecdef
+       AND pg_get_functiondef(p.oid) ILIKE '%user_roles%'
+  ) THEN
+    RAISE EXCEPTION
+      'D7c: _crm_lead_assignee_guard must stay SECURITY DEFINER and validate membership via user_roles';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Branch dimension · the branch column must exist on every branch-aware CRM
+-- table, and lead history must retain the from/to branch trail.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_tbl text;
+  v_bad text := '';
+BEGIN
+  FOREACH v_tbl IN ARRAY ARRAY['crm_leads','crm_stages','crm_activities','crm_lost_reasons','crm_lead_history'] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = v_tbl AND column_name = 'branch_id'
+    ) THEN
+      v_bad := v_bad || v_tbl || ' ';
+    END IF;
+  END LOOP;
+
+  IF v_bad <> '' THEN
+    RAISE EXCEPTION 'Branch dimension: branch_id missing on CRM table(s): %', v_bad;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'crm_lead_history'
+       AND column_name = 'from_branch_id'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'crm_lead_history'
+       AND column_name = 'to_branch_id'
+  ) THEN
+    RAISE EXCEPTION
+      'Branch dimension: crm_lead_history must retain from_branch_id/to_branch_id for the transfer trail';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Branch transfers are a governed operation: only crm_transfer_lead_branch may
+-- move a lead, and the lifecycle write guard must reject a direct branch_id
+-- UPDATE from the client.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND p.proname = 'crm_transfer_lead_branch'
+       AND p.prosecdef
+  ) THEN
+    RAISE EXCEPTION
+      'Branch transfer: crm_transfer_lead_branch (SECURITY DEFINER) is missing';
+  END IF;
+
+  IF (SELECT pg_get_functiondef(p.oid) FROM pg_proc p
+       WHERE p.pronamespace = 'public'::regnamespace
+         AND p.proname = '_crm_lead_lifecycle_write_guard') NOT ILIKE '%branch_id%' THEN
+    RAISE EXCEPTION
+      'Branch transfer: _crm_lead_lifecycle_write_guard no longer guards branch_id — direct client transfers are possible';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Event contract · the emitted lead payload must carry the branch dimension,
+-- and the branch_transferred topic must be registered for the dispatcher.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_def text;
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO v_def
+    FROM pg_proc p
+   WHERE p.pronamespace = 'public'::regnamespace
+     AND p.proname = '_crm_emit_lead_event';
+
+  IF v_def IS NULL THEN
+    RAISE EXCEPTION 'Event contract: _crm_emit_lead_event is missing';
+  END IF;
+
+  IF v_def NOT ILIKE '%branch_id%'
+     OR v_def NOT ILIKE '%from_branch_id%'
+     OR v_def NOT ILIKE '%to_branch_id%' THEN
+    RAISE EXCEPTION
+      'Event contract: _crm_emit_lead_event payload must carry branch_id, from_branch_id and to_branch_id';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.business_event_topics
+     WHERE topic_prefix = 'crm.lead.branch_transferred'
+  ) THEN
+    RAISE EXCEPTION
+      'Event contract: topic crm.lead.branch_transferred is not registered — transfers dead-letter as unknown events';
+  END IF;
+END $$;

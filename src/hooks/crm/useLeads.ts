@@ -91,9 +91,9 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
         .select(`
           *,
           stage:crm_stages(id, name, color, is_won, is_lost),
-          company_contact:contacts!company_contact_id(id, name),
+          company_contact:contacts!crm_leads_business_company_contact_fkey(id, name),
           lost_reason:crm_lost_reasons(id, name),
-          branch:branches!branch_id(id, name)
+          branch:branches!crm_leads_business_branch_fkey(id, name)
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
