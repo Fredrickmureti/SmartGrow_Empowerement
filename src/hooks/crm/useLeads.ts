@@ -212,6 +212,8 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     "assigned_to",
     "lost_reason_id",
     "expected_revenue",
+    // Branch moves only through `crm_transfer_lead_branch` (audited).
+    "branch_id",
   ] as const;
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
