@@ -299,6 +299,23 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
             </Select>
           </WorkflowField>
 
+          {hasMultipleBranches && (
+            <WorkflowField label="Branch" htmlFor="branch">
+              <Select value={branchId} onValueChange={setBranchId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </WorkflowField>
+          )}
+
           <WorkflowField label="Source" htmlFor="source">
             <Select value={source} onValueChange={setSource}>
               <SelectTrigger>
