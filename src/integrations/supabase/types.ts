@@ -12204,7 +12204,7 @@ export type Database = {
       }
       crm_stages: {
         Row: {
-          business_id: string | null
+          business_id: string
           color: string | null
           created_at: string
           fold: boolean | null
@@ -12220,7 +12220,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          business_id?: string | null
+          business_id: string
           color?: string | null
           created_at?: string
           fold?: boolean | null
@@ -12236,7 +12236,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          business_id?: string | null
+          business_id?: string
           color?: string | null
           created_at?: string
           fold?: boolean | null
@@ -87703,6 +87703,58 @@ export type Database = {
         }
         Returns: Json
       }
+      _crm_assert_lead_access: {
+        Args: { p_lead_id: string; p_operation: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _default_receipt_settings: { Args: never; Returns: Json }
       _document_snapshot_fingerprint: {
         Args: { p_snapshot: Json }
@@ -96721,7 +96773,10 @@ export type Database = {
         Args: { _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_lead_number: { Args: { p_org_id: string }; Returns: string }
+      get_next_lead_number: {
+        Args: { p_business_id?: string; p_org_id: string }
+        Returns: string
+      }
       get_next_leave_request_number: {
         Args: { p_org_id: string }
         Returns: string

@@ -121,15 +121,22 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
       throw new Error("Select a Company before creating a lead");
     }
 
-    const { data: numberData } = await supabase.rpc("get_next_lead_number", {
+    // Numbering is server-side and atomic (shared document numbering engine).
+    // Never fall back to a client-invented number: that reintroduces the
+    // duplicate/non-monotonic lead numbers the engine exists to prevent.
+    const { data: numberData, error: numberError } = await supabase.rpc("get_next_lead_number", {
       p_org_id: currentOrg.id,
+      p_business_id: currentBusiness.id,
     });
+    if (numberError) throw numberError;
+    if (!numberData) throw new Error("Could not allocate a lead number");
 
     const insertData = {
       name: lead.name || "New Lead",
       organization_id: currentOrg.id,
       business_id: currentBusiness.id,
-      lead_number: numberData || `LEAD-${Date.now()}`,
+      lead_number: numberData,
+
       type: lead.type || "lead",
       stage_id: lead.stage_id || null,
       contact_id: lead.contact_id || null,
