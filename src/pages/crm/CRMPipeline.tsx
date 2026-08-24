@@ -17,10 +17,12 @@ import { PermissionGate } from "@/components/common/PermissionGate";
 import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { toast } from "sonner";
 
 export default function CRMPipeline() {
   const { stages, isLoading: stagesLoading } = useCRMStages();
-  const { leads, isLoading: leadsLoading, moveToStage, deleteLead } = useLeads();
+  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead } = useLeads();
+
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showStageSettings, setShowStageSettings] = useState(false);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
