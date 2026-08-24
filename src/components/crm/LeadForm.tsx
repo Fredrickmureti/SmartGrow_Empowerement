@@ -31,6 +31,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
   const { contacts } = useContactsPaginated({});
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { branches, currentBranch, hasMultipleBranches } = useBranch();
 
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
@@ -43,6 +44,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
   const [probability, setProbability] = useState("50");
   const [expectedCloseDate, setExpectedCloseDate] = useState<Date>();
   const [stageId, setStageId] = useState("");
+  const [branchId, setBranchId] = useState<string>("");
   const [priority, setPriority] = useState(1);
   const [source, setSource] = useState("");
   const [description, setDescription] = useState("");
