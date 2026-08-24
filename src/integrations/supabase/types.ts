@@ -11937,6 +11937,7 @@ export type Database = {
           source: string | null
           stage_id: string | null
           state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
           street: string | null
           tags: string[] | null
           team_id: string | null
@@ -11980,6 +11981,7 @@ export type Database = {
           source?: string | null
           stage_id?: string | null
           state?: string | null
+          status?: Database["public"]["Enums"]["crm_lead_status"]
           street?: string | null
           tags?: string[] | null
           team_id?: string | null
@@ -12023,6 +12025,7 @@ export type Database = {
           source?: string | null
           stage_id?: string | null
           state?: string | null
+          status?: Database["public"]["Enums"]["crm_lead_status"]
           street?: string | null
           tags?: string[] | null
           team_id?: string | null
@@ -87740,6 +87743,7 @@ export type Database = {
           source: string | null
           stage_id: string | null
           state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
           street: string | null
           tags: string[] | null
           team_id: string | null
@@ -87754,6 +87758,21 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _crm_assert_transition: {
+        Args: {
+          p_from: Database["public"]["Enums"]["crm_lead_status"]
+          p_reopen?: boolean
+          p_to: Database["public"]["Enums"]["crm_lead_status"]
+        }
+        Returns: undefined
+      }
+      _crm_log_system_activity: {
+        Args: {
+          p_lead: Database["public"]["Tables"]["crm_leads"]["Row"]
+          p_summary: string
+        }
+        Returns: undefined
       }
       _default_receipt_settings: { Args: never; Returns: Json }
       _document_snapshot_fingerprint: {
@@ -93454,6 +93473,434 @@ export type Database = {
           _vendor_id: string
         }
         Returns: Json
+      }
+      crm_archive_lead: {
+        Args: { p_lead_id: string; p_reason: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_change_stage: {
+        Args: { p_lead_id: string; p_stage_id: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_mark_lost: {
+        Args: { p_lead_id: string; p_notes?: string; p_reason_id?: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_mark_won: {
+        Args: { p_lead_id: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_qualify_lead: {
+        Args: { p_lead_id: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_reassign_lead: {
+        Args: { p_assignee: string; p_lead_id: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_reopen_lead: {
+        Args: { p_lead_id: string; p_reason: string }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_revalue_lead: {
+        Args: {
+          p_expected_close_date?: string
+          p_expected_revenue: number
+          p_lead_id: string
+        }
+        Returns: {
+          assigned_to: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       cron_caller_auth_header: { Args: never; Returns: Json }
       current_employee_id: {
@@ -108926,6 +109373,7 @@ export type Database = {
         | "end_date_change"
         | "other"
       credit_note_status: "draft" | "issued" | "applied" | "void" | "refunded"
+      crm_lead_status: "new" | "qualified" | "proposition" | "won" | "lost"
       custom_deduction_kind:
         | "recurring"
         | "one_time"
@@ -110116,6 +110564,7 @@ export const Constants = {
         "other",
       ],
       credit_note_status: ["draft", "issued", "applied", "void", "refunded"],
+      crm_lead_status: ["new", "qualified", "proposition", "won", "lost"],
       custom_deduction_kind: [
         "recurring",
         "one_time",

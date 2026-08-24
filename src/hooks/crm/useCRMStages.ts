@@ -98,17 +98,27 @@ export function useCRMStages() {
     await fetchStages();
   };
 
+  /**
+   * Deactivating a stage is guarded server-side
+   * (`_crm_stage_deactivation_guard`): a stage still holding open
+   * opportunities cannot be removed, otherwise those leads silently drop off
+   * the board while still counting towards pipeline totals.
+   */
   const deleteStage = async (id: string) => {
     const { error } = await supabase
       .from("crm_stages")
       .update({ is_active: false })
       .eq("id", id);
 
-    if (error) throw error;
+    if (error) {
+      toast.error(error.message);
+      throw error;
+    }
 
     toast.success("Stage deleted");
     await fetchStages();
   };
+
 
   return {
     stages,
