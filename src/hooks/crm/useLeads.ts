@@ -473,6 +473,7 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     moveToStage,
     qualifyLead,
     reopenLead,
+    transferBranch,
 
     markAsWon,
     markAsLost,
