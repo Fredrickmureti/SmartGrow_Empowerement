@@ -134,6 +134,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
     setProbability("50");
     setExpectedCloseDate(undefined);
     setStageId("");
+    setBranchId(currentBranch?.id ?? "");
     setPriority(1);
     setSource("");
     setDescription("");
