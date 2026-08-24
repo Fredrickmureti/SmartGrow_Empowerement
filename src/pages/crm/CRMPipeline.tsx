@@ -18,6 +18,8 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
+import { useBranch } from "@/contexts/BranchContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function CRMPipeline() {
   const { stages, isLoading: stagesLoading } = useCRMStages();
