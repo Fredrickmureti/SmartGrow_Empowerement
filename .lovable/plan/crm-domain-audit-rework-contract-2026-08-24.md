@@ -121,4 +121,28 @@ Catalog tests: no CRM SECURITY DEFINER function without an authz call; no CRM fu
 
 ## 11. Execution status
 
-Audit only — **no code or database changes made**. Nothing implemented. Next action: approve, then start **Phase 0** (tests that prove D1/D2 red) before any fix.
+Last updated: 2026-08-24.
+
+### Phase 0 — Regression harness · DONE
+- `supabase/tests/crm_domain_contract_test.sql` added: catalog assertions for D1 (`business_id` in every CRM `crm_activities` insert), D2 (authz call in every CRM SECURITY DEFINER entry point), D3 (no `COUNT(*)+1` numbering), D5 (business-scoped RLS on every CRM table), D6 (`anon` holds no grant on `crm_*`).
+- `supabase/tests/crm_conversion_idempotency_test.sql` now **fails** when no business fixture exists instead of silently skipping.
+
+### Phase 1 — Stop the bleeding · DONE and verified
+- **D1 fixed.** All four `convert_lead_to_*` functions now supply `business_id` on their system-activity insert. Verified by catalog query: `act_biz = true` for contact/estimate/project/sales_order. Conversions previously rolled back 100% of the time.
+- **D2 fixed.** New shared seam `public._crm_assert_lead_access(lead_id, operation)` resolves scope **from the lead row** and enforces `user_can_access_business` + `user_has_module_permission(..., 'sales', op)`. Wired into all four conversions; `calculate_pipeline_value` and `get_next_lead_number` carry equivalent org/business/permission gates. `calculate_pipeline_value` additionally filters rows through `user_can_access_business` so an org-wide total cannot aggregate an inaccessible business.
+- **D3 fixed.** `get_next_lead_number(org, business)` now delegates to `get_next_document_number` (advisory-locked, monotonic). `useLeads.createLead` passes `business_id`, propagates errors, and no longer falls back to a client-invented `LEAD-<timestamp>`.
+- **D5 fixed.** `crm_stages`, `crm_activities`, `crm_activity_types`, `crm_lost_reasons`, `crm_lead_items` policies rewritten to business scope + sales module permission. `crm_stages.business_id` tightened to `NOT NULL` (table had no NULL rows). `crm_activities` insert policy also requires the parent lead to share the same business/org. Verified: 0 unscoped policies across all six CRM tables.
+- **D6 fixed.** `anon` grants revoked on all six CRM tables (verified `anon_sel = anon_ins = false`); `authenticated` narrowed to `SELECT/INSERT/UPDATE/DELETE`; `service_role` retains `ALL`. `anon` EXECUTE revoked on every repaired function.
+- Linter total went **down** (3624 → 3623); no new findings introduced. Remaining linter noise is pre-existing and project-wide.
+- Note for reviewers: `convert_lead_to_sales_order` was missed by the first Phase 1 migration and repaired in a follow-up migration — it is the function most worth re-verifying.
+
+### Not yet done
+Phases 2–7 are untouched. In particular the lifecycle is still the implicit `type` + `won_at`/`lost_at` triple with no invariants (D4), there is no lead history (D7), no CRM domain events (D8), no branch dimension (D9), no `currency_code` (D10), and pipeline metrics are still computed in React over unbounded fetches (D11).
+
+### Currently active phase
+None — Phase 1 is closed. **Phase 2 (Lifecycle state machine) is the next milestone.**
+
+### Instructions for the next agent
+1. **Verify Phase 1 before extending it.** Run `supabase/tests/crm_domain_contract_test.sql` and `crm_conversion_idempotency_test.sql` and confirm both are green. Independently re-derive the claims above from the catalog (function definitions, `pg_policies`, `has_table_privilege('anon', ...)`) rather than trusting this file. Pay special attention to `convert_lead_to_sales_order`. Confirm a real end-to-end conversion now succeeds against a seeded business.
+2. **Then start Phase 2 as written in §9** — do not skip ahead to metrics (Phase 5) or the Sales/Project edge (Phase 6); Phase 5 depends on the authoritative `status` column and Phase 6 depends on the transition RPCs. Land Phase 2 fully (enum + backfill + invariants + transition RPCs + client hooks converted to RPC callers + tests) before opening Phase 3.
+
