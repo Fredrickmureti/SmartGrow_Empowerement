@@ -432,6 +432,9 @@ export function useLeads(filters?: { stageId?: string; type?: string }) {
     createLead,
     updateLead,
     moveToStage,
+    qualifyLead,
+    reopenLead,
+
     markAsWon,
     markAsLost,
     deleteLead,
