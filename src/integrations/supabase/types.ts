@@ -11779,6 +11779,88 @@ export type Database = {
           },
         ]
       }
+      crm_lead_history: {
+        Row: {
+          actor_user_id: string | null
+          business_id: string
+          event: string
+          from_assignee: string | null
+          from_stage_id: string | null
+          from_status: Database["public"]["Enums"]["crm_lead_status"] | null
+          from_value: number | null
+          id: string
+          lead_id: string
+          metadata: Json
+          occurred_at: string
+          organization_id: string
+          reason: string | null
+          to_assignee: string | null
+          to_stage_id: string | null
+          to_status: Database["public"]["Enums"]["crm_lead_status"] | null
+          to_value: number | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          business_id: string
+          event: string
+          from_assignee?: string | null
+          from_stage_id?: string | null
+          from_status?: Database["public"]["Enums"]["crm_lead_status"] | null
+          from_value?: number | null
+          id?: string
+          lead_id: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id: string
+          reason?: string | null
+          to_assignee?: string | null
+          to_stage_id?: string | null
+          to_status?: Database["public"]["Enums"]["crm_lead_status"] | null
+          to_value?: number | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          business_id?: string
+          event?: string
+          from_assignee?: string | null
+          from_stage_id?: string | null
+          from_status?: Database["public"]["Enums"]["crm_lead_status"] | null
+          from_value?: number | null
+          id?: string
+          lead_id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id?: string
+          reason?: string | null
+          to_assignee?: string | null
+          to_stage_id?: string | null
+          to_status?: Database["public"]["Enums"]["crm_lead_status"] | null
+          to_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_lead_history_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_lead_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_lead_history_to_stage_id_fkey"
+            columns: ["to_stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_lead_items: {
         Row: {
           business_id: string | null
