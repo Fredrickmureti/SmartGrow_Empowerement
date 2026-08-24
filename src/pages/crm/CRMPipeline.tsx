@@ -163,6 +163,21 @@ export default function CRMPipeline() {
           <p className="text-muted-foreground">Track and manage your opportunities</p>
         </div>
         <div className="flex items-center gap-2">
+          {hasMultipleBranches && (
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <CustomizeFieldsButton entityType="crm_lead" />
           <ReportExportButtons
             compact
