@@ -9,3 +9,5 @@ Authoritative project status lives in `.lovable/plan.md` — update it after eve
 - [Currency & FX](mem://features/currency-and-fx-resolution) — ADR 0135/0136/0138: rate book, precedence, server-only booking rates, revaluation and exposure engines
 - [Contact identity vocabulary](mem://constraints/contact-identity-vocabulary)
 - [Profiles lookup key](mem://constraints/profiles-lookup-key)
+- [CRM lead lifecycle](mem://features/crm-lead-lifecycle) — server-owned state machine, transition RPCs, write guard, terminal/scope invariants
+
