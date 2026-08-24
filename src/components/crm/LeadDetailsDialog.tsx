@@ -55,6 +55,8 @@ import { LeadItemsEditor } from "./LeadItemsEditor";
 import { MarkAsLostDialog } from "./MarkAsLostDialog";
 import { ScheduleActivityDialog } from "./ScheduleActivityDialog";
 import { ActivityTimeline } from "./ActivityTimeline";
+import { LeadHistoryTimeline } from "./LeadHistoryTimeline";
+
 import { CRMActivity } from "@/hooks/crm/useCRMActivities";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
