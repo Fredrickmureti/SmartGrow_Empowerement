@@ -356,7 +356,7 @@ export function LeadDetailsDialog({
         }
       >
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="details" className="flex items-center gap-2">
               <Info className="h-4 w-4" />
               Details
@@ -370,7 +370,12 @@ export function LeadDetailsDialog({
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              History
+            </TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="details" className="space-y-6 mt-4">
             <div className="grid gap-4 sm:grid-cols-2">
