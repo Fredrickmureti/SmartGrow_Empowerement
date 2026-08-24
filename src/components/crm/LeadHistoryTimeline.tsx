@@ -18,14 +18,21 @@ const EVENT_LABELS: Record<string, string> = {
   reassigned: "Owner changed",
   revalued: "Value changed",
   archived: "Archived",
+  branch_transferred: "Branch transferred",
 };
 
-function describe(entry: LeadHistoryEntry, stageName: (id: string | null) => string): string | null {
+function describe(
+  entry: LeadHistoryEntry,
+  stageName: (id: string | null) => string,
+  branchName: (id: string | null) => string,
+): string | null {
   switch (entry.event) {
     case "stage_changed":
       return `${stageName(entry.from_stage_id)} → ${stageName(entry.to_stage_id)}`;
     case "revalued":
       return `${entry.from_value ?? 0} → ${entry.to_value ?? 0}`;
+    case "branch_transferred":
+      return `${branchName(entry.from_branch_id)} → ${branchName(entry.to_branch_id)}`;
     case "won":
     case "lost":
     case "qualified":
