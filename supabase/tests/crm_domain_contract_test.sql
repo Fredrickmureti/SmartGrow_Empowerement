@@ -175,7 +175,7 @@ BEGIN
          AND c.contype = 'f'
          AND cardinality(c.conkey) = 2
          AND (
-           SELECT array_agg(a.attname ORDER BY a.attname)
+           SELECT array_agg(a.attname::text ORDER BY a.attname)
              FROM unnest(c.conkey) k
              JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
          ) @> ARRAY['business_id', v_col]
@@ -208,7 +208,7 @@ BEGIN
          AND c.contype IN ('u','p')
          AND cardinality(c.conkey) = 2
          AND (
-           SELECT array_agg(a.attname ORDER BY a.attname)
+           SELECT array_agg(a.attname::text ORDER BY a.attname)
              FROM unnest(c.conkey) k
              JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
          ) = ARRAY['business_id','id']
