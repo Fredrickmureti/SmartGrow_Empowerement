@@ -16,6 +16,7 @@ import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranch } from "@/contexts/BranchContext";
 
 interface LeadFormProps {
   open: boolean;
