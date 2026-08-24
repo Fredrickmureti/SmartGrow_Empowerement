@@ -352,6 +352,25 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     await fetchLeads();
   };
 
+  /**
+   * Governed branch transfer. The server validates that the target branch
+   * belongs to the same business and is active, that the caller can access
+   * both branches, refuses closed opportunities, remaps a branch-specific
+   * stage and re-aligns the lead's activities — then logs the move.
+   */
+  const transferBranch = async (leadId: string, branchId: string, reason?: string) => {
+    const { error } = await supabase.rpc("crm_transfer_lead_branch", {
+      p_lead_id: leadId,
+      p_branch_id: branchId,
+      p_reason: reason || null,
+    });
+    if (error) throw error;
+    toast.success("Opportunity transferred");
+    await fetchLeads();
+  };
+
+
+
   const deleteLead = async (id: string, reason = "Removed by user") => {
     const { error } = await supabase.rpc("crm_archive_lead", {
       p_lead_id: id,
