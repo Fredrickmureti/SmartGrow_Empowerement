@@ -60,6 +60,8 @@ export interface Lead {
   company_contact?: { id: string; name: string } | null;
   /** Joined lost reason (when lead is in a Lost stage). */
   lost_reason?: { id: string; name: string } | null;
+  /** Joined branch (owning branch of the opportunity). */
+  branch?: { id: string; name: string } | null;
 }
 
 /** Display helper: returns the joined company contact's name (or null). */
@@ -67,7 +69,7 @@ export function leadCompanyDisplay(lead: Pick<Lead, "company_contact">): string 
   return lead.company_contact?.name ?? null;
 }
 
-export function useLeads(filters?: { stageId?: string; type?: string }) {
+export function useLeads(filters?: { stageId?: string; type?: string; branchId?: string | null }) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
