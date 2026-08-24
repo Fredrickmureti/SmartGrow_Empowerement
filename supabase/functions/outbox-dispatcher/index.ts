@@ -557,7 +557,21 @@ const HANDLERS: Record<string, HandlerFn> = {
   "pos.payment.session.committed":     handleInventoryLifecycleRecorded,
   "pos.payment.tender.recorded":       handleInventoryLifecycleRecorded,
   "shift.opened":                      handleInventoryLifecycleRecorded,
+
+  // CRM lead/opportunity lifecycle (CRM domain audit · Phase 3). The
+  // authoritative state lives in `crm_leads` and the immutable audit trail in
+  // `crm_lead_history`; these topics exist for lineage, analytics and future
+  // notification consumers. Record-only — CRM never posts to the ledger.
+  "crm.lead.qualified":                handleInventoryLifecycleRecorded,
+  "crm.lead.stage_changed":            handleInventoryLifecycleRecorded,
+  "crm.lead.won":                      handleInventoryLifecycleRecorded,
+  "crm.lead.lost":                     handleInventoryLifecycleRecorded,
+  "crm.lead.reopened":                 handleInventoryLifecycleRecorded,
+  "crm.lead.reassigned":               handleInventoryLifecycleRecorded,
+  "crm.lead.revalued":                 handleInventoryLifecycleRecorded,
+  "crm.lead.archived":                 handleInventoryLifecycleRecorded,
 };
+
 
 
 

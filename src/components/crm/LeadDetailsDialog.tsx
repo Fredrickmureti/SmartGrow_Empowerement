@@ -27,9 +27,11 @@ import {
   XCircle,
   Loader2,
   Activity,
+  History,
   Info,
   Trash2,
   ExternalLink,
+
 } from "lucide-react";
 import {
   AlertDialog,
@@ -53,6 +55,8 @@ import { LeadItemsEditor } from "./LeadItemsEditor";
 import { MarkAsLostDialog } from "./MarkAsLostDialog";
 import { ScheduleActivityDialog } from "./ScheduleActivityDialog";
 import { ActivityTimeline } from "./ActivityTimeline";
+import { LeadHistoryTimeline } from "./LeadHistoryTimeline";
+
 import { CRMActivity } from "@/hooks/crm/useCRMActivities";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
@@ -356,7 +360,7 @@ export function LeadDetailsDialog({
         }
       >
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="details" className="flex items-center gap-2">
               <Info className="h-4 w-4" />
               Details
@@ -370,7 +374,12 @@ export function LeadDetailsDialog({
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              History
+            </TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="details" className="space-y-6 mt-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -501,8 +510,13 @@ export function LeadDetailsDialog({
               }}
             />
           </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <LeadHistoryTimeline leadId={lead.id} enabled={open} />
+          </TabsContent>
         </Tabs>
       </WorkflowSheet>
+
 
 
       {/* Mark as Won Dialog */}
