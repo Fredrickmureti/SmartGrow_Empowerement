@@ -109,6 +109,7 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
         probability: parseInt(probability),
         expected_close_date: expectedCloseDate ? format(expectedCloseDate, "yyyy-MM-dd") : undefined,
         stage_id: stageId || (stages[0]?.id),
+        branch_id: branchId || currentBranch?.id || null,
         priority,
         source: source || undefined,
         description: description || undefined,
