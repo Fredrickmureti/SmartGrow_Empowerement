@@ -65,3 +65,19 @@ D7a composite FK presence, D7b `(business_id, id)` identity keys, D7c assignee g
    If anything fails, repair Phase 4 first — do not open Phase 5 on a broken foundation.
 2. **Then resume at Phase 5** (pipeline metrics as a server contract). Do not pick unrelated work, do not skip ahead to Phase 6/7.
 3. **Working rules.** One object/concern per migration; no batching. Every phase lands schema + guards + event contract + UI + ratchet test before the next opens. Update this file immediately after each implementation step.
+
+
+
+K============PROGRESS=============
+Phase 4 is now closed end-to-end, and the plan file is updated as the authoritative status.
+
+What landed this turn:
+
+D7 cross-business integrity: UNIQUE (business_id, id) keys on crm_stages, crm_lost_reasons, contacts, branches; the five single-column FKs on crm_leads replaced with composite business-carrying FKs (stage, contact, company contact, lost reason, branch), so cross-business references are now impossible on any write path.
+Assignee guard: crm_leads_assignee_guard trigger restricts assigned_to to active members of the lead's organisation. Pre-migration audit found zero violating rows.
+PostgREST fallout fixed: renamed FK hints in useLeads.ts and CRMActivities.tsx, which also cleared the TS2589 build error; full typecheck clean.
+Ratchet tests: crm_domain_contract_test.sql extended with composite-FK, identity-key, assignee-guard, branch-column, transfer-governance, event-payload and topic-registration blocks — all executed live and passing.
+Remaining / next: Phase 5 — pipeline metrics as a server contract (crm_pipeline_metrics RPC with branch as a first-class parameter, removal of the React reducers, currency_code via the canonical FX resolver). The plan's handover section instructs the next agent to first re-verify Phase 4 from the live catalog before opening Phase 5.
+
+
+
