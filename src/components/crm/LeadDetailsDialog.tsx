@@ -506,8 +506,13 @@ export function LeadDetailsDialog({
               }}
             />
           </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <LeadHistoryTimeline leadId={lead.id} enabled={open} />
+          </TabsContent>
         </Tabs>
       </WorkflowSheet>
+
 
 
       {/* Mark as Won Dialog */}
