@@ -21,7 +21,13 @@ import { toast } from "sonner";
 
 export default function CRMPipeline() {
   const { stages, isLoading: stagesLoading } = useCRMStages();
-  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead } = useLeads();
+  const { branches, hasMultipleBranches } = useBranch();
+  // Branch is an ownership dimension of the opportunity, so it filters the
+  // query (server side) rather than the rendered board.
+  const [branchFilter, setBranchFilter] = useState<string>("all");
+  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead } = useLeads(
+    useMemo(() => ({ branchId: branchFilter === "all" ? null : branchFilter }), [branchFilter]),
+  );
 
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showStageSettings, setShowStageSettings] = useState(false);
