@@ -17,10 +17,16 @@ BEGIN;
     v_so_proj uuid; v_pj_so uuid;
   BEGIN
     SELECT organization_id, id INTO v_org, v_biz FROM public.businesses LIMIT 1;
+    -- Phase 0 (CRM audit, D1): this block used to `RETURN` silently when no
+    -- business existed. That skip is exactly why nobody noticed that every
+    -- convert_lead_to_* RPC aborts on a NOT NULL violation
+    -- (crm_activities.business_id). A conversion contract test that can
+    -- silently pass without exercising a conversion is worthless — fail loudly.
     IF v_biz IS NULL THEN
-      RAISE NOTICE 'no business to test against; skipping';
-      RETURN;
+      RAISE EXCEPTION
+        'no business row available — the CRM conversion contract cannot be exercised (this test must never skip)';
     END IF;
+
 
     INSERT INTO public.crm_leads
       (organization_id, business_id, lead_number, name, expected_revenue)
