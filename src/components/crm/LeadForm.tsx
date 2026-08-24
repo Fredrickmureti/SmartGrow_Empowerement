@@ -69,6 +69,13 @@ export function LeadForm({ open, onOpenChange, defaultContactId, defaultContactN
     }
   }, [stages, stageId]);
 
+  // Default the owning branch to the active workspace branch.
+  useEffect(() => {
+    if (!branchId && currentBranch?.id) setBranchId(currentBranch.id);
+  }, [currentBranch?.id, branchId]);
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
