@@ -85,9 +85,27 @@ export function LeadDetailsDialog({
     convertToEstimate,
     convertToSalesOrder,
     convertToProject,
+    transferBranch,
     refreshLeads,
   } = useLeads();
+  const { branches, hasMultipleBranches } = useBranch();
+  const [isTransferring, setIsTransferring] = useState(false);
 
+  /**
+   * Branch moves are a governed server operation — the RPC re-checks access,
+   * business match and lifecycle state, so failures are surfaced verbatim.
+   */
+  const handleTransferBranch = async (branchId: string) => {
+    setIsTransferring(true);
+    try {
+      await transferBranch(lead.id, branchId);
+      await refreshLeads();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not transfer this opportunity");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   // Use the passed onDelete prop if available, otherwise fall back to the hook's deleteLead
   const deleteLead = onDelete || deleteLeadFromHook;
