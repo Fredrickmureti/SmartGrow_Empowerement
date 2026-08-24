@@ -66,3 +66,33 @@ Allowed transitions: `new → qualified | lost`; `qualified → proposition | wo
 ## 5. Technical notes
 
 Everything in Phase 2 is one migration (enum, column, backfill, constraints, triggers, RPCs, grants) plus edits to `src/hooks/crm/useLeads.ts`, `src/hooks/crm/useCRMStages.ts` and the CRM pipeline/dashboard components that call them. New SQL tests go in `supabase/tests/`, the architecture test in `src/test/architecture/`. No UI redesign, no accounting-side changes — the accounting boundary stays exactly where it is (CRM posts nothing to the GL).
+
+## 6. Execution status (Phase 2 — COMPLETE)
+
+Database (shipped):
+- `crm_lead_status` enum + `crm_leads.status` NOT NULL, backfilled from stage/won/lost.
+- Invariants: `crm_leads_terminal_consistency`, `crm_stages_not_both_terminal`,
+  `crm_stages_one_won_per_business`, `crm_stages_one_lost_per_business`,
+  business-scope validation for stage/contact/assignee.
+- Triggers: `trg_crm_lead_lifecycle_write_guard`, `trg_crm_lead_scope_guard`,
+  `trg_crm_stage_deactivation_guard`.
+- Transition RPCs (SECURITY DEFINER, `_crm_assert_lead_access`, no anon EXECUTE):
+  `crm_qualify_lead`, `crm_change_stage`, `crm_mark_won`, `crm_mark_lost`,
+  `crm_reopen_lead`, `crm_reassign_lead`, `crm_revalue_lead`, `crm_archive_lead`.
+
+Client (shipped):
+- `src/hooks/crm/useLeads.ts` — all lifecycle mutations are RPC calls;
+  `updateLead` keeps descriptive fields only; adds `qualifyLead`, `reopenLead`.
+- `src/hooks/crm/useCRMStages.ts` — surfaces the server deactivation refusal.
+- `src/pages/crm/CRMPipeline.tsx` — drag to a Won stage routes to `crm_mark_won`;
+  drag to Lost is refused so a reason is captured in the dialog.
+
+Verification:
+- `supabase/tests/crm_lifecycle_state_machine_test.sql` (catalog + behavioural).
+- Behavioural block executed live against the database: direct `status` UPDATE
+  refused, simultaneous `won_at`/`lost_at` refused, deactivating a stage holding
+  an open lead refused. Transaction rolled back.
+- `src/test/architecture/crm-lifecycle-rpc-only.test.ts` + existing CRM
+  architecture tests pass; `tsgo` clean.
+
+Next: Phase 3 — lead history table and `crm.lead.*` outbox topics.
