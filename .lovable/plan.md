@@ -144,4 +144,4 @@ The plan's "Instructions for the next agent" section tells the next session to r
 
 
 =======
-KINDLY VERIFY WHAT IS CLAIMED TO BE IMPLEMENTED IS ACTUALLY IMPLEMENTED SO THAT WE DONT HAVE INCOMPLETE SHALLOW AND OPHARNED IMPLEMENTATIONS
+KINDLY VERIFY WHAT IS CLAIMED TO BE IMPLEMENTED IS ACTUALLY IMPLEMENTED SO THAT WE DONT HAVE INCOMPLETE SHALLOW AND OPHARNED IMPLEMENTATIONS, make sure the plan logical flow is not lost so dont archive the plan file when items are yet in queu, this is a controlled phase by phase rework on CRM
