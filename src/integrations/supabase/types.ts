@@ -12189,18 +12189,39 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "crm_leads_branch_id_fkey"
-            columns: ["branch_id"]
+            foreignKeyName: "crm_leads_business_branch_fkey"
+            columns: ["business_id", "branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
+            referencedColumns: ["business_id", "id"]
           },
           {
-            foreignKeyName: "crm_leads_branch_id_fkey"
-            columns: ["branch_id"]
+            foreignKeyName: "crm_leads_business_company_contact_fkey"
+            columns: ["business_id", "company_contact_id"]
             isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
+            referencedRelation: "contacts"
+            referencedColumns: ["business_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_leads_business_company_contact_fkey"
+            columns: ["business_id", "company_contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_party_supplier"
+            referencedColumns: ["business_id", "contact_id"]
+          },
+          {
+            foreignKeyName: "crm_leads_business_contact_fkey"
+            columns: ["business_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["business_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_leads_business_contact_fkey"
+            columns: ["business_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_party_supplier"
+            referencedColumns: ["business_id", "contact_id"]
           },
           {
             foreignKeyName: "crm_leads_business_id_fkey"
@@ -12224,53 +12245,32 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
-            foreignKeyName: "crm_leads_company_contact_id_fkey"
-            columns: ["company_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_company_contact_id_fkey"
-            columns: ["company_contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
-            columns: ["converted_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
-            columns: ["converted_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_lost_reason_id_fkey"
-            columns: ["lost_reason_id"]
+            foreignKeyName: "crm_leads_business_lost_reason_fkey"
+            columns: ["business_id", "lost_reason_id"]
             isOneToOne: false
             referencedRelation: "crm_lost_reasons"
+            referencedColumns: ["business_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_leads_business_stage_fkey"
+            columns: ["business_id", "stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_stages"
+            referencedColumns: ["business_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
+            columns: ["converted_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
+            columns: ["converted_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_party_supplier"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "crm_leads_organization_id_fkey"
@@ -12291,13 +12291,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "crm_stages"
             referencedColumns: ["id"]
           },
         ]
