@@ -570,6 +570,7 @@ const HANDLERS: Record<string, HandlerFn> = {
   "crm.lead.reassigned":               handleInventoryLifecycleRecorded,
   "crm.lead.revalued":                 handleInventoryLifecycleRecorded,
   "crm.lead.archived":                 handleInventoryLifecycleRecorded,
+  "crm.lead.branch_transferred":       handleInventoryLifecycleRecorded,
 };
 
 
