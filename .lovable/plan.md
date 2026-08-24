@@ -73,3 +73,27 @@ Prior documents (do not treat as current status):
 3. **Migration discipline:** one object per migration, no batching (project core rule).
 4. Bring Phase 4 to a coherent, production-ready state — schema, RLS, guards, UI filter, ratchet tests — before opening Phase 5.
 5. Update this file immediately after each implementation step.
+
+
+
+============================KINDLY NOTE
+Phase 4 is partially landed. Here's exactly where things stand.
+
+Applied and live (verified by the migration runs):
+
+branch_id added to crm_leads (backfilled to each business's HQ/default branch, indexed, business/branch consistency trigger), crm_activities (auto-inherited from the lead via _crm_activity_branch_from_lead), crm_stages and crm_lost_reasons (NULL = shared business-wide).
+_crm_lead_scope_guard now rejects branch-specific stages/lost reasons that don't match the lead's branch.
+Branch-scoped RLS on crm_leads, crm_activities, crm_stages, crm_lost_reasons, following the existing invoices pattern (branch_id IS NULL OR user_can_access_branch(...) OR finance.view_consolidated).
+_crm_assert_lead_access enforces branch access, so the SECURITY DEFINER transition RPCs can't bypass branch isolation.
+crm_lead_history gained branch_id/from_branch_id/to_branch_id; the recorder logs a branch_transferred event.
+_crm_lead_lifecycle_write_guard now protects branch_id, and a governed crm_transfer_lead_branch(lead, branch, reason) RPC exists (validates business, active branch, both-branch access, refuses won/lost leads, remaps a branch-specific stage, re-aligns activities).
+Failed — must be redone: the last migration errored with: ERROR: 42703: column "event_type" of relation "business_event_topics" does not exist So the event payload was not updated with branch fields and the crm.lead.branch_transferred topic is not registered. Until that is fixed, a branch transfer will emit an event that the outbox dispatcher treats as an unknown type and dead-letters.
+
+Remaining Phase 4 work for the next agent (in order):
+
+Inspect the real column names of business_event_topics (\d), then re-apply the _crm_emit_lead_event update (branch fields in the payload) plus the crm.lead.branch_transferred topic row.
+Add a crm.lead.branch_transferred record-only handler to supabase/functions/outbox-dispatcher/index.ts and redeploy; confirm no crm.lead.* rows in business_event_outbox_dead.
+UI: branch selector on lead create, branch column/filter in pipeline and lead list, "Transfer branch" action wired to crm_transfer_lead_branch, and branch shown in the History timeline.
+Ratchet tests: extend supabase/tests/crm_domain_contract_test.sql with branch isolation (cross-branch stage/lost-reason rejection, direct branch_id UPDATE rejection, RLS visibility) and add the dispatcher topic assertion for the new event.
+Update .lovable/plan.md to reflect the above — I did not get to updating it, so it still shows Phase 4 as unstarted, which is now inaccurate.
+I stopped before touching .lovable/plan.md, the dispatcher, the UI, and the tests, so nothing is half-written in the codebase; the divergence is only that the database is ahead of the plan document.
