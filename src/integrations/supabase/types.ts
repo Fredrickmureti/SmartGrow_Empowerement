@@ -11582,6 +11582,7 @@ export type Database = {
           activity_type: string | null
           activity_type_id: string | null
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           completed_at: string | null
           completed_by: string | null
@@ -11603,6 +11604,7 @@ export type Database = {
           activity_type?: string | null
           activity_type_id?: string | null
           assigned_to?: string | null
+          branch_id?: string | null
           business_id: string
           completed_at?: string | null
           completed_by?: string | null
@@ -11624,6 +11626,7 @@ export type Database = {
           activity_type?: string | null
           activity_type_id?: string | null
           assigned_to?: string | null
+          branch_id?: string | null
           business_id?: string
           completed_at?: string | null
           completed_by?: string | null
@@ -11648,6 +11651,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "crm_activity_types"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
           },
           {
             foreignKeyName: "crm_activities_business_id_fkey"
@@ -11986,6 +12003,7 @@ export type Database = {
       crm_leads: {
         Row: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -12030,6 +12048,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          branch_id?: string | null
           business_id: string
           campaign?: string | null
           city?: string | null
@@ -12074,6 +12093,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          branch_id?: string | null
           business_id?: string
           campaign?: string | null
           city?: string | null
@@ -12117,6 +12137,20 @@ export type Database = {
           won_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "crm_leads_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_leads_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
           {
             foreignKeyName: "crm_leads_business_id_fkey"
             columns: ["business_id"]
@@ -12219,6 +12253,7 @@ export type Database = {
       }
       crm_lost_reasons: {
         Row: {
+          branch_id: string | null
           business_id: string
           created_at: string
           id: string
@@ -12227,6 +12262,7 @@ export type Database = {
           organization_id: string
         }
         Insert: {
+          branch_id?: string | null
           business_id: string
           created_at?: string
           id?: string
@@ -12235,6 +12271,7 @@ export type Database = {
           organization_id: string
         }
         Update: {
+          branch_id?: string | null
           business_id?: string
           created_at?: string
           id?: string
@@ -12243,6 +12280,20 @@ export type Database = {
           organization_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "crm_lost_reasons_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_lost_reasons_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
           {
             foreignKeyName: "crm_lost_reasons_business_id_fkey"
             columns: ["business_id"]
@@ -12289,6 +12340,7 @@ export type Database = {
       }
       crm_stages: {
         Row: {
+          branch_id: string | null
           business_id: string
           color: string | null
           created_at: string
@@ -12305,6 +12357,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           business_id: string
           color?: string | null
           created_at?: string
@@ -12321,6 +12374,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           business_id?: string
           color?: string | null
           created_at?: string
@@ -12337,6 +12391,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "crm_stages_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_stages_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
           {
             foreignKeyName: "crm_stages_business_id_fkey"
             columns: ["business_id"]
@@ -87792,6 +87860,7 @@ export type Database = {
         Args: { p_lead_id: string; p_operation: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93560,6 +93629,7 @@ export type Database = {
         Args: { p_lead_id: string; p_reason: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93613,6 +93683,7 @@ export type Database = {
         Args: { p_lead_id: string; p_stage_id: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93666,6 +93737,7 @@ export type Database = {
         Args: { p_lead_id: string; p_notes?: string; p_reason_id?: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93719,6 +93791,7 @@ export type Database = {
         Args: { p_lead_id: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93772,6 +93845,7 @@ export type Database = {
         Args: { p_lead_id: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93825,6 +93899,7 @@ export type Database = {
         Args: { p_assignee: string; p_lead_id: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93878,6 +93953,7 @@ export type Database = {
         Args: { p_lead_id: string; p_reason: string }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
@@ -93935,6 +94011,7 @@ export type Database = {
         }
         Returns: {
           assigned_to: string | null
+          branch_id: string | null
           business_id: string
           campaign: string | null
           city: string | null
