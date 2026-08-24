@@ -149,7 +149,11 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
       name: lead.name || "New Lead",
       organization_id: currentOrg.id,
       business_id: currentBusiness.id,
+      // Branch ownership is decided at capture time. Fall back to the active
+      // workspace branch so a lead can never be created branch-less by accident.
+      branch_id: lead.branch_id ?? currentBranch?.id ?? null,
       lead_number: numberData,
+
 
       type: lead.type || "lead",
       stage_id: lead.stage_id || null,
