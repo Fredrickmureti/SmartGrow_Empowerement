@@ -128,6 +128,8 @@ export function LeadDetailsDialog({
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [editingActivity, setEditingActivity] = useState<CRMActivity | undefined>();
 
   if (!lead) return null;
