@@ -14,6 +14,12 @@ Labels: **FACT** = verified now against this repo · **INFER** = reasoned conclu
 
 Note on the permission switch: in `src/lib/permissions.ts`, `settings.write` maps to `manageBusiness` / `manageOrganization` / `manageTaxSettings`, while `editSettings` is `settings.read`. Gating the stage-settings button on `editSettings` alone would be looser than the new server policy `crm_can_admin_pipeline` (settings.write). **FACT/INFER** — the plan gates on the settings *write* permissions instead, so the UI matches the server.
 
+Two live build errors, both from this half-finished wiring: **FACT**
+
+- `LeadDetailsDialog.tsx(245,30)` — `Property 'status' does not exist on type 'Lead'`. `crm_leads.status` (enum `crm_lead_status`) exists in the database and the query selects `*`, but the `Lead` interface in `src/hooks/crm/useLeads.ts` never gained the field.
+- `LeadDetailsDialog.tsx(631,24)` — `Cannot find name 'confirmDelete'`, inside the old delete `AlertDialog` that step 3 removes.
+
+
 ## 2. Work to complete R1
 
 **LeadDetailsDialog**
