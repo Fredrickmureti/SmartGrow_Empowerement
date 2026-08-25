@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings, TrendingUp, Users, Target, Zap } from "lucide-react";
+import { Plus, Settings, TrendingUp, Users, Target, Zap, Archive } from "lucide-react";
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { useCRMStages, useLeads, Lead } from "@/hooks/crm";
 import { LeadCard, NextActivity } from "@/components/crm/LeadCard";
 import { LeadForm } from "@/components/crm/LeadForm";
 import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { StageSettingsDialog } from "@/components/crm/StageSettingsDialog";
+import { ArchivedLeadsDialog } from "@/components/crm/ArchivedLeadsDialog";
 import { Badge } from "@/components/ui/badge";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
@@ -27,12 +28,13 @@ export default function CRMPipeline() {
   // Branch is an ownership dimension of the opportunity, so it filters the
   // query (server side) rather than the rendered board.
   const [branchFilter, setBranchFilter] = useState<string>("all");
-  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead } = useLeads(
+  const { leads, isLoading: leadsLoading, moveToStage, markAsWon, deleteLead, refreshLeads } = useLeads(
     useMemo(() => ({ branchId: branchFilter === "all" ? null : branchFilter }), [branchFilter]),
   );
 
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showStageSettings, setShowStageSettings] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
@@ -333,6 +335,11 @@ export default function CRMPipeline() {
         onDelete={deleteLead}
       />
       <StageSettingsDialog open={showStageSettings} onOpenChange={setShowStageSettings} />
+      <ArchivedLeadsDialog
+        open={showArchived}
+        onOpenChange={setShowArchived}
+        onRestored={refreshLeads}
+      />
     </div>
   </>;
 }
