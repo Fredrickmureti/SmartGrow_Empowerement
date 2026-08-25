@@ -17,7 +17,7 @@ Every Wave 3 claim was re-checked against the live database and the codebase.
 | Money formatting centralised | `rg "Intl.NumberFormat" src/components/projects src/pages/projects` → no matches. |
 | Tests / typecheck | `architecture.projects-server-authority.test.ts` **6/6 green**; `tsgo --noEmit` **clean**. |
 
-Waves 1–2 remain as previously verified. **Wave 4 server-side authority is landed and live-verified (2026-08-25); resume at Wave 4.4 (one timesheet writer) / 4.5 (canonical workload).**
+Waves 1–2 remain as previously verified. **Wave 4 is complete and verified (4.1–4.6, 2026-08-25). Next wave to open: Wave 5 — commercial & financial integration.**
 
 ### Wave 4 verification log (2026-08-25)
 
