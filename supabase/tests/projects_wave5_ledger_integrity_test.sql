@@ -135,7 +135,8 @@ DECLARE
   v_so       uuid := gen_random_uuid();
   v_aa       uuid := gen_random_uuid();
   v_budget   uuid := gen_random_uuid();
-  v_coa      uuid;
+  v_plan     uuid := gen_random_uuid();
+  v_coa      uuid := gen_random_uuid();
   v_fin      jsonb;
   v_n        bigint;
   v_base     numeric;
