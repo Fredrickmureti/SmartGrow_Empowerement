@@ -102473,6 +102473,15 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: boolean
       }
+      project_add_member: {
+        Args: {
+          _billable_rate?: number
+          _project_id: string
+          _role?: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
       project_analytic_account_id: {
         Args: { p_project_id: string }
         Returns: string
@@ -102491,13 +102500,190 @@ export type Database = {
           project_number: string
         }[]
       }
+      project_archive: { Args: { _project_id: string }; Returns: undefined }
+      project_can_delete: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_can_read: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_can_write: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_change_status: {
+        Args: { _project_id: string; _status: string }
+        Returns: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          allocated_hours: number | null
+          allow_timesheets: boolean | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          budget: number | null
+          budget_type: string | null
+          business_id: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_id: string | null
+          default_billable_rate: number | null
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_billable: boolean | null
+          is_template: boolean
+          last_update_at: string | null
+          last_update_status: string | null
+          manager_id: string | null
+          margin_alert_threshold: number | null
+          name: string
+          organization_id: string
+          pricing_type: string
+          priority: number | null
+          privacy: string | null
+          project_number: string
+          project_type: string | null
+          source_lead_id: string | null
+          source_sales_order_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_create: {
+        Args: { _payload: Json }
+        Returns: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          allocated_hours: number | null
+          allow_timesheets: boolean | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          budget: number | null
+          budget_type: string | null
+          business_id: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_id: string | null
+          default_billable_rate: number | null
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_billable: boolean | null
+          is_template: boolean
+          last_update_at: string | null
+          last_update_status: string | null
+          manager_id: string | null
+          margin_alert_threshold: number | null
+          name: string
+          organization_id: string
+          pricing_type: string
+          priority: number | null
+          privacy: string | null
+          project_number: string
+          project_type: string | null
+          source_lead_id: string | null
+          source_sales_order_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       project_employee_cost_rate: {
         Args: { _employee_id: string; _project_id: string }
         Returns: number
       }
+      project_is_governor: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
       project_pos_sale_committed: {
         Args: { p_transaction_id: string }
         Returns: Json
+      }
+      project_remove_member: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: undefined
+      }
+      project_update_config: {
+        Args: { _patch: Json; _project_id: string }
+        Returns: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          allocated_hours: number | null
+          allow_timesheets: boolean | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          budget: number | null
+          budget_type: string | null
+          business_id: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_id: string | null
+          default_billable_rate: number | null
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_billable: boolean | null
+          is_template: boolean
+          last_update_at: string | null
+          last_update_status: string | null
+          manager_id: string | null
+          margin_alert_threshold: number | null
+          name: string
+          organization_id: string
+          pricing_type: string
+          priority: number | null
+          privacy: string | null
+          project_number: string
+          project_type: string | null
+          source_lead_id: string | null
+          source_sales_order_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       promote_pack_version: {
         Args: {
