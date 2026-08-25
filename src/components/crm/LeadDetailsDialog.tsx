@@ -607,34 +607,27 @@ export function LeadDetailsDialog({
         existingActivity={editingActivity}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Lead</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{lead.name}"? This action will archive the lead 
-              and it will no longer appear in your pipeline. This is useful for removing test 
-              data or leads that are no longer relevant.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" />
-              )}
-              Delete Lead
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Withdraw Proposition — reason is mandatory server-side */}
+      <ReasonDialog
+        open={showWithdrawDialog}
+        onOpenChange={setShowWithdrawDialog}
+        title="Withdraw Proposition"
+        description={`Record why the proposition for "${lead.name}" is being withdrawn. The lead returns to its previous qualified state.`}
+        confirmLabel="Withdraw Proposition"
+        onConfirm={confirmWithdrawProposition}
+      />
+
+      {/* Archive — reversible, audited, requires a reason */}
+      <ReasonDialog
+        open={showArchiveDialog}
+        onOpenChange={setShowArchiveDialog}
+        title="Archive Lead"
+        description={`"${lead.name}" will be removed from the pipeline but kept for audit. Archiving is reversible from the Archived list.`}
+        confirmLabel="Archive Lead"
+        destructive
+        onConfirm={confirmArchive}
+      />
+
     </>
   );
 }
