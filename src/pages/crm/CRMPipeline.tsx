@@ -249,51 +249,60 @@ export default function CRMPipeline() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+      {/* Stats - fluid layout that wraps and shows full values */}
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Value</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalPipelineValue, baseCurrency)}</div>
+            <div className="stat-value text-primary tabular-nums whitespace-nowrap">{formatCurrency(totalPipelineValue, baseCurrency)}</div>
             {excludedCurrencyCount > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 excludes {excludedCurrencyCount} opportunit{excludedCurrencyCount === 1 ? "y" : "ies"} in other currencies
               </p>
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Weighted Value</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Weighted Value</CardTitle>
+              <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(weightedPipelineValue, baseCurrency)}</div>
-            <p className="text-xs text-muted-foreground">revenue × probability</p>
+            <div className="stat-value text-amber-600 tabular-nums whitespace-nowrap">{formatCurrency(weightedPipelineValue, baseCurrency)}</div>
+            <p className="text-xs text-muted-foreground mt-1">revenue × probability</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Leads</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Open Leads</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{leads.filter(l => !l.won_at && !l.lost_at).length}</div>
+            <div className="stat-value tabular-nums whitespace-nowrap">{leads.filter(l => !l.won_at && !l.lost_at).length}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Won</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Won</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(wonValue, baseCurrency)}</div>
+            <div className="stat-value text-emerald-600 tabular-nums whitespace-nowrap">{formatCurrency(wonValue, baseCurrency)}</div>
           </CardContent>
         </Card>
       </div>
+
 
       {/* Kanban Pipeline */}
       {stages.length === 0 ? <Card>
