@@ -56,7 +56,9 @@ export function ProjectSettings({ project, stages, onUpdate, onStagesChange }: P
       await onUpdate({
         name,
         description: description || null,
-        status: status as Project["status"],
+        // Only a real transition is sent — re-submitting the current status
+        // would be rejected by the server's transition table.
+        ...(status !== project.status ? { status: status as Project["status"] } : {}),
         color,
         allocated_hours: allocatedHours ? parseFloat(allocatedHours) : null,
         budget: budget ? parseFloat(budget) : null,
