@@ -81,6 +81,11 @@ BEGIN
   INSERT INTO public.businesses (id, organization_id, name, country, base_currency, fiscal_year_start)
   VALUES (v_biz, v_org, 'PJ4 Ltd', 'KE', 'KES', 1);
 
+  INSERT INTO public.organization_installed_apps (organization_id, app_id, is_active, installed_by)
+  VALUES (v_org, 'employees', true, v_mgr),
+         (v_org, 'projects', true, v_mgr),
+         (v_org, 'timesheets', true, v_mgr);
+
   INSERT INTO public.branches (id, organization_id, business_id, name)
   VALUES (v_br_a, v_org, v_biz, 'HQ'),
          (v_br_b, v_org, v_biz, 'North');
