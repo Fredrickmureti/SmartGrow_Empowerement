@@ -24,6 +24,7 @@ import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { ArchivedLeadsDialog } from "@/components/crm/ArchivedLeadsDialog";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useNavigate } from "react-router-dom";
 
 const STATUS_LABEL: Record<string, string> = {
   new: "New",
@@ -37,6 +38,7 @@ export default function CRMLeads() {
   const { stages } = useCRMStages();
   const { leads, isLoading, deleteLead, refreshLeads } = useLeads();
   const { formatCurrency, baseCurrency } = useCurrency();
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("open");
@@ -102,9 +104,27 @@ export default function CRMLeads() {
             <AlertTitle>
               {unstagedCount} lead{unstagedCount === 1 ? "" : "s"} without a pipeline stage
             </AlertTitle>
-            <AlertDescription>
-              They do not appear on the kanban board until a stage is set. Open a lead below and
-              move it into a stage — new leads are placed in the first open stage automatically.
+            <AlertDescription className="space-y-3">
+              <p>
+                {stages.length === 0
+                  ? "Your pipeline has no stages yet, so there is nowhere to place them. Set up the funnel first, then assign each lead a stage from its record."
+                  : "They do not appear on the kanban board until a stage is set. Open the lead and pick a stage — leads created from now on are placed in the first open stage automatically."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {stages.length === 0 ? (
+                  <Button size="sm" variant="outline" onClick={() => navigate("/crm-app/pipeline")}>
+                    Set up pipeline
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStageFilter("none")}
+                  >
+                    Show these leads
+                  </Button>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         )}
