@@ -121,7 +121,7 @@ export function LeadDetailsDialog({
   const [showWonDialog, setShowWonDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [showActivityDialog, setShowActivityDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  
   const [isDeleting, setIsDeleting] = useState(false);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
