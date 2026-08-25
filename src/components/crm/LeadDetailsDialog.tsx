@@ -129,8 +129,34 @@ export function LeadDetailsDialog({
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [editingActivity, setEditingActivity] = useState<CRMActivity | undefined>();
+  const [isMovingStage, setIsMovingStage] = useState(false);
 
   if (!lead) return null;
+
+  /**
+   * Selectable stages exclude the terminal ones: Won has its own authoritative
+   * operation and Lost requires a reason, so they cannot be reached by a plain
+   * stage move (the server refuses them anyway).
+   */
+  const openStages = stages.filter((s) => !s.is_won && !s.is_lost);
+
+  const handleChangeStage = async (stageId: string) => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    if (!stageId || stageId === lead.stage_id) return;
+    setIsMovingStage(true);
+    try {
+      await moveToStage(lead.id, stageId, lead.version);
+      toast.success("Stage updated");
+      await refreshLeads();
+    } catch (error: any) {
+      toast.error(normalizeError(error).message || "Could not move this opportunity");
+    } finally {
+      setIsMovingStage(false);
+    }
+  };
 
   const handleAction = async (action: () => Promise<any>) => {
     if (isReadOnly) {
