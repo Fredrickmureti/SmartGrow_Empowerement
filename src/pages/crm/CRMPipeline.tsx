@@ -211,15 +211,26 @@ export default function CRMPipeline() {
               } as ExportConfig;
             }}
           />
-          <PermissionGate permission="manageSales">
+          <Button variant="outline" size="sm" onClick={() => setShowArchived(true)}>
+            <Archive className="h-4 w-4 mr-2" />
+            Archived
+          </Button>
+          {/* Pipeline stage administration is a settings-write action server-side
+              (`crm_can_admin_pipeline`), so the UI mirrors settings.write. */}
+          <PermissionGate
+            permissions={["manageBusiness", "manageOrganization", "manageTaxSettings"]}
+          >
             <Button variant="outline" size="icon" onClick={() => setShowStageSettings(true)}>
               <Settings className="h-4 w-4" />
             </Button>
+          </PermissionGate>
+          <PermissionGate permission="manageSales">
             <Button onClick={() => setShowLeadForm(true)}>
               <Plus className="h-4 w-4 mr-2" />
               New Lead
             </Button>
           </PermissionGate>
+
         </div>
       </div>
 
