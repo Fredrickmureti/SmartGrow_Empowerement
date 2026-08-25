@@ -92,6 +92,11 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   // Tenant-governed: the server rejects any currency not enabled for this business.
   const { currencyCodes, baseCurrency, isLoading: currenciesLoading } = useBusinessCurrencies();
   const [currency, setCurrency] = useState("");
+
+  // Default to the business base currency once the tenant list resolves.
+  useEffect(() => {
+    if (!currency && baseCurrency) setCurrency(baseCurrency);
+  }, [baseCurrency, currency]);
   
 
   // Schedule
