@@ -50,13 +50,16 @@ export function MilestoneList({ projectId }: MilestoneListProps) {
     }
   };
 
-  const handleComplete = async (id: string) => {
+  // The hook surfaces its own error toast; refresh either way so the row
+  // reflects the server's view of the milestone.
+  const handleToggle = async (milestone: ProjectMilestone) => {
+    if ((milestone as { is_invoiced?: boolean }).is_invoiced) return;
     try {
-      await completeMilestone(id);
-      await fetchMilestones();
-    } catch (error) {
-      toast.error("Failed to complete milestone");
+      await completeMilestone(milestone.id, !milestone.is_reached);
+    } catch {
+      /* handled in useProjects */
     }
+    await fetchMilestones();
   };
 
   if (isLoading) {
@@ -101,9 +104,23 @@ export function MilestoneList({ projectId }: MilestoneListProps) {
         <Card>
           <CardContent className="p-0">
             <div className="divide-y">
-              {milestones.map(m => (
+              {milestones.map(m => {
+                const isInvoiced = Boolean((m as unknown as { is_invoiced?: boolean }).is_invoiced);
+                return (
                 <div key={m.id} className="flex items-center gap-3 p-3">
-                  <button onClick={() => !m.is_reached && handleComplete(m.id)} className="shrink-0">
+                  <button
+                    onClick={() => handleToggle(m)}
+                    disabled={isInvoiced}
+                    className="shrink-0 disabled:cursor-not-allowed"
+                    title={
+                      isInvoiced
+                        ? "Invoiced milestones cannot be reopened"
+                        : m.is_reached
+                          ? "Reopen milestone"
+                          : "Mark milestone reached"
+                    }
+                    aria-label={m.is_reached ? `Reopen ${m.name}` : `Mark ${m.name} reached`}
+                  >
                     {m.is_reached ? (
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
                     ) : (
@@ -126,11 +143,14 @@ export function MilestoneList({ projectId }: MilestoneListProps) {
                   )}
                   <BillMilestoneButton
                     milestoneId={m.id}
-                    isInvoiced={Boolean((m as unknown as { is_invoiced?: boolean }).is_invoiced)}
+                    isInvoiced={isInvoiced}
+                    isReached={Boolean(m.is_reached)}
                     hasBillingAmount={Number((m as unknown as { billing_amount?: number | null }).billing_amount ?? 0) > 0}
                     onInvoiced={fetchMilestones}
                   />
                 </div>
+                );
+              })
               ))}
             </div>
           </CardContent>

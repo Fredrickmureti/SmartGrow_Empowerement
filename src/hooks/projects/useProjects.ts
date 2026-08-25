@@ -532,27 +532,53 @@ export function useProjects(options: UseProjectsOptions = {}) {
     toast.success("Milestone created successfully");
   };
 
+  /**
+   * Descriptive edits only. The lifecycle columns (`is_reached`, `reached_at`,
+   * `is_invoiced`, `invoice_id`) are refused by a database guard — they move
+   * through `complete_project_milestone` / `invoice_project_milestone`.
+   */
   const updateMilestone = async (milestoneId: string, updates: Partial<ProjectMilestone>) => {
+    const { is_reached, reached_at, is_invoiced, invoice_id, ...safe } =
+      updates as Partial<ProjectMilestone> & {
+        is_invoiced?: boolean;
+        invoice_id?: string | null;
+      };
+    void is_reached;
+    void reached_at;
+    void is_invoiced;
+    void invoice_id;
+
     const { error } = await supabase
       .from("project_milestones")
-      .update(updates)
+      .update(safe)
       .eq("id", milestoneId);
 
     if (error) throw error;
     toast.success("Milestone updated successfully");
   };
 
-  const completeMilestone = async (milestoneId: string) => {
-    const { error } = await supabase
-      .from("project_milestones")
-      .update({
-        is_reached: true,
-        reached_at: new Date().toISOString(),
-      })
-      .eq("id", milestoneId);
+  /**
+   * Milestone completion is a business event: the RPC checks write permission
+   * on the project, writes the activity-log entry and publishes
+   * `projects.milestone.reached` in one transaction.
+   */
+  const completeMilestone = async (milestoneId: string, reached = true) => {
+    const { data, error } = await supabase.rpc("complete_project_milestone", {
+      _milestone_id: milestoneId,
+      _reached: reached,
+    });
 
     if (error) throw error;
-    toast.success("Milestone completed!");
+    const result = data as { ok?: boolean; error?: string } | null;
+    if (!result?.ok) {
+      const message =
+        result?.error === "milestone_already_invoiced"
+          ? "This milestone is already invoiced and cannot be reopened."
+          : "Failed to update milestone";
+      toast.error(message);
+      throw new Error(result?.error ?? "milestone_update_failed");
+    }
+    toast.success(reached ? "Milestone completed!" : "Milestone reopened");
   };
 
   return {
