@@ -119,70 +119,70 @@ export default function CRMDashboard() {
         </Card>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+      {/* KPI Cards - fluid layout that wraps and shows full values */}
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-teal-500" onClick={() => navigate("/crm-app/pipeline")}>
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Value</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(totalPipelineValue)}</div>
+            <div className="stat-value text-primary tabular-nums whitespace-nowrap">{formatCurrency(totalPipelineValue)}</div>
             <p className="text-xs text-muted-foreground mt-1">{activeLeads.length} active leads</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Weighted Forecast</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Weighted Forecast</CardTitle>
+              <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(weightedPipelineValue)}</div>
+            <div className="stat-value text-primary tabular-nums whitespace-nowrap">{formatCurrency(weightedPipelineValue)}</div>
             <p className="text-xs text-muted-foreground mt-1">revenue × probability</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Won Revenue</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Won Revenue</CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(wonRevenue)}</div>
+            <div className="stat-value text-primary tabular-nums whitespace-nowrap">{formatCurrency(wonRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">{wonLeads.length} won · {winRate}% win rate</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-violet-500">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Avg Velocity</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avg Velocity</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{velocity} days</div>
+            <div className="stat-value text-primary tabular-nums whitespace-nowrap">{velocity} days</div>
             <p className="text-xs text-muted-foreground mt-1">creation → won</p>
           </CardContent>
         </Card>
 
         <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500" onClick={() => navigate("/crm-app/activities")}>
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Activities Due</CardTitle>
-              <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Activities Due</CardTitle>
+              <CalendarCheck className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{totalPending.length}</div>
-            <div className="flex gap-1.5 mt-1">
+            <div className="stat-value text-primary tabular-nums whitespace-nowrap">{totalPending.length}</div>
+            <div className="flex flex-wrap gap-1.5 mt-1">
               {overdue.length > 0 && (
                 <Badge variant="destructive" className="text-xs">{overdue.length} overdue</Badge>
               )}
@@ -193,6 +193,7 @@ export default function CRMDashboard() {
           </CardContent>
         </Card>
       </div>
+
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Pipeline Funnel Chart */}

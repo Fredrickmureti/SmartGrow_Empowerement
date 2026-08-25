@@ -277,47 +277,56 @@ export default function CRMActivities() {
           </p>
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              <AlertCircle className="h-4 w-4 text-destructive" />
+        {/* Stats - fluid layout that wraps and shows full values */}
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+          <Card className="border-l-4 border-l-destructive">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Overdue</CardTitle>
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">
+              <div className="stat-value text-destructive tabular-nums whitespace-nowrap">
                 {overdueActivities.length}
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today</CardTitle>
-              <Calendar className="h-4 w-4 text-primary" />
+          <Card className="border-l-4 border-l-primary">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Today</CardTitle>
+                <Calendar className="h-4 w-4 text-primary shrink-0" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{todayActivities.length}</div>
+              <div className="stat-value text-primary tabular-nums whitespace-nowrap">{todayActivities.length}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+          <Card className="border-l-4 border-l-amber-400">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Upcoming</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{upcomingActivities.length}</div>
+              <div className="stat-value text-amber-600 tabular-nums whitespace-nowrap">{upcomingActivities.length}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <Card className="border-l-4 border-l-emerald-500">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{completedActivities.length}</div>
+              <div className="stat-value text-emerald-600 tabular-nums whitespace-nowrap">{completedActivities.length}</div>
             </CardContent>
           </Card>
         </div>
+
 
         <Tabs defaultValue="pending" className="w-full">
           <TabsList>
