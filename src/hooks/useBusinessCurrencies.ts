@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 export interface BusinessCurrency {
   currency_code: string;
@@ -18,7 +18,7 @@ export interface BusinessCurrency {
 }
 
 export function useBusinessCurrencies() {
-  const { currentBusiness } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   const [currencies, setCurrencies] = useState<BusinessCurrency[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
