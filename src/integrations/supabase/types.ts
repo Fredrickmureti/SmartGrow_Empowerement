@@ -54672,11 +54672,15 @@ export type Database = {
       project_cost_entries: {
         Row: {
           amount: number
+          amount_base: number | null
+          base_currency: string | null
           business_id: string | null
           created_at: string
           currency: string
           description: string | null
           employee_id: string | null
+          entry_nature: string
+          fx_rate: number | null
           hours: number | null
           id: string
           metadata: Json | null
@@ -54689,11 +54693,15 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          amount_base?: number | null
+          base_currency?: string | null
           business_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           employee_id?: string | null
+          entry_nature?: string
+          fx_rate?: number | null
           hours?: number | null
           id?: string
           metadata?: Json | null
@@ -54706,11 +54714,15 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_base?: number | null
+          base_currency?: string | null
           business_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           employee_id?: string | null
+          entry_nature?: string
+          fx_rate?: number | null
           hours?: number | null
           id?: string
           metadata?: Json | null
@@ -55131,10 +55143,14 @@ export type Database = {
       project_revenue_entries: {
         Row: {
           amount: number
+          amount_base: number | null
+          base_currency: string | null
           business_id: string | null
           created_at: string
           currency: string
           description: string | null
+          entry_nature: string
+          fx_rate: number | null
           id: string
           metadata: Json | null
           milestone_id: string | null
@@ -55146,10 +55162,14 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          amount_base?: number | null
+          base_currency?: string | null
           business_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
+          entry_nature?: string
+          fx_rate?: number | null
           id?: string
           metadata?: Json | null
           milestone_id?: string | null
@@ -55161,10 +55181,14 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_base?: number | null
+          base_currency?: string | null
           business_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
+          entry_nature?: string
+          fx_rate?: number | null
           id?: string
           metadata?: Json | null
           milestone_id?: string | null
@@ -107606,6 +107630,7 @@ export type Database = {
           _currency: string
           _description: string
           _employee_id: string
+          _entry_nature: string
           _hours: number
           _organization_id: string
           _posted_at: string
