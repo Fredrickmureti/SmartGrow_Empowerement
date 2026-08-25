@@ -75,20 +75,27 @@ BEGIN
 
   INSERT INTO public.user_roles (user_id, organization_id, role, is_active)
   VALUES (v_mgr, v_org, 'admin', true),
-         (v_user_w, v_org, 'member', true),
-         (v_user_x, v_org, 'member', true);
+         (v_user_w, v_org, 'staff', true),
+         (v_user_x, v_org, 'staff', true);
 
   INSERT INTO public.businesses (id, organization_id, name, country, base_currency, fiscal_year_start)
   VALUES (v_biz, v_org, 'PJ4 Ltd', 'KE', 'KES', 1);
+
+  INSERT INTO public.organization_installed_apps (organization_id, app_id, is_active, installed_by)
+  VALUES (v_org, 'employees', true, v_mgr),
+         (v_org, 'projects', true, v_mgr),
+         (v_org, 'timesheets', true, v_mgr);
 
   INSERT INTO public.branches (id, organization_id, business_id, name)
   VALUES (v_br_a, v_org, v_biz, 'HQ'),
          (v_br_b, v_org, v_biz, 'North');
 
+  PERFORM set_config('app.identity_change_source', 'link_employee_to_user', true);
+
   INSERT INTO public.employees (id, organization_id, business_id, branch_id, user_id,
-                                employee_number, first_name, last_name, hire_date, is_active)
-  VALUES (v_emp_w, v_org, v_biz, v_br_a, v_user_w, 'E-W', 'Wren', 'A', DATE '2026-01-01', true),
-         (v_emp_x, v_org, v_biz, v_br_b, v_user_x, 'E-X', 'Xer',  'B', DATE '2026-01-01', true);
+                                employee_number, first_name, last_name, hire_date, is_active, lifecycle_status)
+  VALUES (v_emp_w, v_org, v_biz, v_br_a, v_user_w, 'E-W', 'Wren', 'A', DATE '2026-01-01', true, 'active'),
+         (v_emp_x, v_org, v_biz, v_br_b, v_user_x, 'E-X', 'Xer',  'B', DATE '2026-01-01', true, 'active');
 
   -- A: branch-pinned project on HQ
   INSERT INTO public.projects (id, organization_id, business_id, branch_id, manager_id,
@@ -169,7 +176,16 @@ BEGIN
   END IF;
 
   -- ===== 7: completed project refuses time ====================================
+  -- Close the project as a governor (a plain member's UPDATE matches 0 rows under RLS).
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_mgr::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
   UPDATE public.projects SET status = 'completed', is_active = false WHERE id = v_proj_c;
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user_w::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
   v_blocked := false;
   BEGIN
     INSERT INTO public.timesheets (organization_id, business_id, employee_id, date, hours, project_id)
@@ -180,6 +196,10 @@ BEGIN
   END IF;
 
   -- ===== 8: non-billable participant resolves to a zero rate ==================
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_mgr::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
   UPDATE public.project_members SET is_billable_participant = false, billable_rate = 400
    WHERE project_id = v_proj_a AND user_id = v_user_w;
   SELECT public.resolve_project_billing_rate(v_proj_a, v_emp_w, NULL) INTO v_rate;

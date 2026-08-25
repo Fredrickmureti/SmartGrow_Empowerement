@@ -17,7 +17,33 @@ Every Wave 3 claim was re-checked against the live database and the codebase.
 | Money formatting centralised | `rg "Intl.NumberFormat" src/components/projects src/pages/projects` → no matches. |
 | Tests / typecheck | `architecture.projects-server-authority.test.ts` **6/6 green**; `tsgo --noEmit` **clean**. |
 
-Waves 1–2 remain as previously verified. **Resume at Wave 4, item 1.**
+Waves 1–2 remain as previously verified. **Wave 4 server-side authority is landed and live-verified (2026-08-25); resume at Wave 4.4 (one timesheet writer) / 4.5 (canonical workload).**
+
+### Wave 4 verification log (2026-08-25)
+
+- **4.1 membership semantics** — `project_members.project_role`, `can_write`,
+  `is_billable_participant` added with backfill; `projects.allows_cross_branch_work`,
+  `projects.time_entry_open_to_org` added and governed via `project_update_config`.
+- **4.2 member add path** — `project_add_member` rebuilt as a 6-arg SECURITY DEFINER
+  RPC: governor-only, org membership, active in-business employee, branch eligibility
+  with `allows_cross_branch_work` escape, role normalization, derived `can_write`.
+  Old 4-arg overload dropped; EXECUTE revoked from PUBLIC/anon.
+- **4.3 timesheet eligibility trigger** — `_timesheet_assert_project_eligibility` +
+  `trg_timesheets_project_eligibility` (BEFORE INSERT/UPDATE, ahead of
+  `timesheets_billing`): same-business check, closed/disabled project rejection,
+  branch pinning, membership-or-open-to-org gate. **Live SQL scenario test
+  `supabase/tests/projects_wave4_timesheet_authority_test.sql` passed end-to-end**
+  (governor add, cross-branch refusal/allowance, non-governor refusal, member booking,
+  wrong-branch refusal, open-to-company booking, completed-project refusal,
+  non-billable → rate 0, billable → member rate).
+- **Incidental defect fixed:** `project_employee_cost_rate` referenced
+  `employees.basic_salary`, a column that does not exist — every project-linked
+  timesheet save failed in production (`42703`). Function dropped/recreated with
+  precedence employee `cost_rate_override` → project `hourly_rate` → 0, labor-burden
+  multiplier preserved; EXECUTE tightened.
+- Remaining Wave 4 items: **4.4** (single canonical timesheet writer sweep),
+  **4.5** (workload from canonical capacity; drop mirrored `project_members.role`),
+  **4.6** (extend the architecture guard test to ban direct `project_members` writes).
 
 ### New defects found during this verification (added to Wave 4 scope)
 
