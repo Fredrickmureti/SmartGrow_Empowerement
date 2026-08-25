@@ -90,6 +90,8 @@ BEGIN
   VALUES (v_br_a, v_org, v_biz, 'HQ'),
          (v_br_b, v_org, v_biz, 'North');
 
+  PERFORM set_config('app.identity_change_source', 'link_employee_to_user', true);
+
   INSERT INTO public.employees (id, organization_id, business_id, branch_id, user_id,
                                 employee_number, first_name, last_name, hire_date, is_active)
   VALUES (v_emp_w, v_org, v_biz, v_br_a, v_user_w, 'E-W', 'Wren', 'A', DATE '2026-01-01', true),
