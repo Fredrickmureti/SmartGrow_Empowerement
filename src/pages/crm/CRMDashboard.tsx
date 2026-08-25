@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CalendarCheck, Users, ArrowRight, TrendingUp, Target, AlertCircle, Trophy, Zap, Clock } from "lucide-react";
+import { Loader2, CalendarCheck, Users, ArrowRight, TrendingUp, Target, AlertCircle, Trophy, Zap, Clock, Archive } from "lucide-react";
 import { useLeads, Lead } from "@/hooks/crm/useLeads";
 import { useCRMStages } from "@/hooks/crm/useCRMStages";
 import { useCRMActivities } from "@/hooks/crm/useCRMActivities";
@@ -12,6 +12,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, FunnelChart, Funnel, LabelList, PieChart, Pie, Legend } from "recharts";
 import { differenceInDays } from "date-fns";
 import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
+import { ArchivedLeadsDialog } from "@/components/crm/ArchivedLeadsDialog";
 
 /**
  * CRM Module Dashboard — Pipeline value, funnel chart, lead stats, activities due, win rate
@@ -22,6 +23,7 @@ export default function CRMDashboard() {
   const { stages, isLoading: stagesLoading } = useCRMStages();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const { activities, isLoading: activitiesLoading } = useCRMActivities();
   const { formatCurrency } = useCurrency();
 
@@ -339,9 +341,15 @@ export default function CRMDashboard() {
             <Button variant="outline" size="sm" onClick={() => navigate("/crm-app/contacts")}>
               All Contacts <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowArchived(true)}>
+              <Archive className="h-3 w-3 mr-1" /> Archived
+            </Button>
           </div>
         </CardContent>
       </Card>
+      {/* Archived opportunities — restore is audited server-side */}
+      <ArchivedLeadsDialog open={showArchived} onOpenChange={setShowArchived} />
+
       {/* Lead Details Dialog */}
       <LeadDetailsDialog
         lead={selectedLead}

@@ -19,6 +19,10 @@ const CRM_LEAD_TOPICS = [
   "crm.lead.reassigned",
   "crm.lead.revalued",
   "crm.lead.archived",
+  "crm.lead.restored",
+  "crm.lead.branch_transferred",
+  "crm.lead.proposition",
+  "crm.lead.proposition_withdrawn",
 ] as const;
 
 describe("CRM lead lifecycle topics are dispatchable", () => {

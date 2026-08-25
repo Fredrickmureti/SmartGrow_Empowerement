@@ -33,6 +33,7 @@ import {
   ExternalLink,
   Send,
   Undo2,
+  RotateCcw,
 
 } from "lucide-react";
 
@@ -78,6 +79,7 @@ export function LeadDetailsDialog({
     markAsLost,
     markAsProposition,
     withdrawProposition,
+    reopenLead,
     deleteLead: deleteLeadFromHook,
     convertToContact,
     convertToEstimate,
@@ -125,6 +127,7 @@ export function LeadDetailsDialog({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [editingActivity, setEditingActivity] = useState<CRMActivity | undefined>();
 
   if (!lead) return null;
@@ -261,6 +264,28 @@ export function LeadDetailsDialog({
     }
   };
 
+  /**
+   * Reopening a won/lost opportunity is a governed transition: the reason is
+   * mandatory, the server bumps `reopen_count` and stamps `reopened_at`.
+   */
+  const confirmReopen = async (reason: string) => {
+    try {
+      await reopenLead(lead.id, reason, lead.version);
+      await refreshLeads();
+      onOpenChange(false);
+    } catch (error: any) {
+      toast.error(normalizeError(error).message || "Could not reopen this opportunity");
+    }
+  };
+
+  const handleReopen = () => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setShowReopenDialog(true);
+  };
+
   const handleDelete = () => {
     if (isReadOnly) {
       openUpgradeModal("crm");
@@ -368,6 +393,12 @@ export function LeadDetailsDialog({
               </>
             )}
 
+            {isWonOrLost && (
+              <Button variant="outline" size="sm" onClick={handleReopen} disabled={isConverting}>
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reopen
+              </Button>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -639,6 +670,16 @@ export function LeadDetailsDialog({
         description={`Record why the proposition for "${lead.name}" is being withdrawn. The lead returns to its previous qualified state.`}
         confirmLabel="Withdraw Proposition"
         onConfirm={confirmWithdrawProposition}
+      />
+
+      {/* Reopen — reason is mandatory server-side */}
+      <ReasonDialog
+        open={showReopenDialog}
+        onOpenChange={setShowReopenDialog}
+        title="Reopen opportunity"
+        description={`"${lead.name}" returns to the active pipeline. The reason is recorded on the audit trail.`}
+        confirmLabel="Reopen"
+        onConfirm={confirmReopen}
       />
 
       {/* Archive — reversible, audited, requires a reason */}
