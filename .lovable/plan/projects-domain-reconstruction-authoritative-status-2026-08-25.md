@@ -41,9 +41,38 @@ Waves 1–2 remain as previously verified. **Wave 4 server-side authority is lan
   timesheet save failed in production (`42703`). Function dropped/recreated with
   precedence employee `cost_rate_override` → project `hourly_rate` → 0, labor-burden
   multiplier preserved; EXECUTE tightened.
-- Remaining Wave 4 items: **4.4** (single canonical timesheet writer sweep),
-  **4.5** (workload from canonical capacity; drop mirrored `project_members.role`),
-  **4.6** (extend the architecture guard test to ban direct `project_members` writes).
+- **4.4 one canonical timesheet writer (DONE 2026-08-25)** —
+  `src/lib/timesheets/timesheetWriter.ts` is now the only client module that
+  mutates `timesheets`. It stamps `organization_id`/`business_id` from the
+  active workspace, always sends `billing_rate`/`billing_amount` as null
+  (server trigger owns them), derives `is_billable` from `projects.is_billable`
+  when the caller does not state it, and owns the single "which employee am I"
+  lookup (`resolveMyEmployeeId`). Refactored consumers:
+  `useTimesheets` (create/update/delete/copyPreviousWeek),
+  `components/projects/ProjectTimesheets.tsx`,
+  `components/projects/TaskDetail.tsx`.
+  Two live defects fixed by the consolidation: the two project time-logging
+  screens inserted rows **without `business_id`** (invisible to business-scoped
+  reads, corrupting project cost/revenue) and **hardcoded `is_billable: false`**
+  on billable projects (silently losing revenue).
+- **4.5 workload from canonical capacity (DONE, verified again this pass)** —
+  `project_member_workload_week` derives weekly capacity from
+  `work_schedules`; `project_members.role` is gone; `project_add_member` exists
+  only as `(uuid,uuid,text,numeric,boolean,boolean)` and writes `project_role`.
+- **4.6 guard test (DONE 2026-08-25)** — new suite
+  "architecture: single canonical timesheet writer" in
+  `src/__tests__/architecture.projects-server-authority.test.ts` fails the build
+  on any `timesheets` insert/update/upsert/delete outside the writer module, and
+  asserts the writer never sends billing columns or a client-chosen workspace.
+  **8/8 green; `tsgo --noEmit` clean.** The four failing suites in
+  `src/__tests__` (WMS receiving presence, KRA/eTIMS references, Dialog import,
+  `authority_contact_id`) are the pre-existing unrelated baseline.
+- **Wave 4 is CLOSED. Next: Wave 5 — commercial & financial integration.**
+  Not yet re-run this pass: the SQL scenario test
+  `supabase/tests/projects_wave4_timesheet_authority_test.sql` (needs an
+  authenticated psql session; the DB-side triggers it covers were unchanged by
+  4.4/4.6, which are client-only).
+
 
 ### New defects found during this verification (added to Wave 4 scope)
 
