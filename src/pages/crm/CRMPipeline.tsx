@@ -101,15 +101,28 @@ export default function CRMPipeline() {
     return leads.filter(lead => lead.stage_id === stageId);
   };
 
+  /**
+   * Opportunities now declare their own currency (Phase R2). There is no FX
+   * conversion in this surface, so totals only add up amounts already in the
+   * base currency and the count of excluded rows is disclosed instead of
+   * silently mixing currencies into one number.
+   */
+  const isBaseCurrency = (lead: { currency: string | null }) =>
+    !lead.currency || lead.currency === baseCurrency;
+  const excludedCurrencyCount = leads.filter(l => !isBaseCurrency(l)).length;
+
   const getStageValue = (stageId: string) => {
-    return getLeadsForStage(stageId).reduce((sum, lead) => sum + (lead.expected_revenue || 0), 0);
+    return getLeadsForStage(stageId)
+      .filter(isBaseCurrency)
+      .reduce((sum, lead) => sum + (lead.expected_revenue || 0), 0);
   };
 
-  const totalPipelineValue = leads.reduce((sum, lead) => sum + (lead.expected_revenue || 0), 0);
-  const weightedPipelineValue = leads.reduce((sum, lead) => 
+  const baseCurrencyLeads = leads.filter(isBaseCurrency);
+  const totalPipelineValue = baseCurrencyLeads.reduce((sum, lead) => sum + (lead.expected_revenue || 0), 0);
+  const weightedPipelineValue = baseCurrencyLeads.reduce((sum, lead) =>
     sum + ((lead.expected_revenue || 0) * (lead.probability || 0) / 100), 0
   );
-  const wonValue = leads.filter(l => l.won_at).reduce((sum, l) => sum + (l.expected_revenue || 0), 0);
+  const wonValue = baseCurrencyLeads.filter(l => l.won_at).reduce((sum, l) => sum + (l.expected_revenue || 0), 0);
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     setDraggedLeadId(leadId);
@@ -245,6 +258,11 @@ export default function CRMPipeline() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalPipelineValue, baseCurrency)}</div>
+            {excludedCurrencyCount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                excludes {excludedCurrencyCount} opportunit{excludedCurrencyCount === 1 ? "y" : "ies"} in other currencies
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>

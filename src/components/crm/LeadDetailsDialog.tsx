@@ -548,7 +548,7 @@ export function LeadDetailsDialog({
                 <CardContent className="p-4">
                   <div className="text-sm text-muted-foreground mb-1">Expected Revenue</div>
                   <div className="text-xl font-bold">
-                    {formatCurrency(lead.expected_revenue || 0, baseCurrency)}
+                    {formatCurrency(lead.expected_revenue || 0, lead.currency || baseCurrency)}
                   </div>
                 </CardContent>
               </Card>

@@ -76,7 +76,7 @@ export function ArchivedLeadsDialog({ open, onOpenChange, onRestored }: Archived
                       <span className="truncate font-medium">{lead.name}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {formatCurrency(lead.expected_revenue || 0, baseCurrency)}
+                      {formatCurrency(lead.expected_revenue || 0, lead.currency || baseCurrency)}
                       {lead.archived_at
                         ? ` · archived ${new Date(lead.archived_at).toLocaleDateString()}`
                         : ""}
