@@ -234,7 +234,7 @@ export const ACTION_REGISTRY: ActionDefinition[] = [
   // ── CRM ────────────────────────────────────────────────────────────
   {
     id: "create-lead", category: "crm", label: "Lead / Opportunity", icon: Briefcase,
-    path: "/crm-app/pipeline", queryParams: "action=create",
+    path: "/crm-app/leads", queryParams: "action=create",
     keywords: ["deal", "prospect"],
     appInstall: "crm", permission: "viewContacts",
   },

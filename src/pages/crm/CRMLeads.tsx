@@ -9,7 +9,7 @@
  * stage; this page is that surface and is the canonical place to search,
  * inspect and edit leads.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { ArchivedLeadsDialog } from "@/components/crm/ArchivedLeadsDialog";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const STATUS_LABEL: Record<string, string> = {
   new: "New",
@@ -39,6 +39,7 @@ export default function CRMLeads() {
   const { leads, isLoading, deleteLead, refreshLeads } = useLeads();
   const { formatCurrency, baseCurrency } = useCurrency();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("open");
@@ -46,6 +47,36 @@ export default function CRMLeads() {
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  /**
+   * Deep links. Other modules (projects, "originated from lead" badges, the
+   * global create menu) point at a specific lead or at lead capture; the list
+   * is the surface that can always honour that, including for a lead that has
+   * no stage and therefore no card on the board.
+   */
+  const deepLinkId = searchParams.get("lead");
+  const wantsCreate = searchParams.get("action") === "create";
+
+  useEffect(() => {
+    if (wantsCreate) {
+      setShowLeadForm(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+    }
+  }, [wantsCreate]);
+
+  useEffect(() => {
+    if (!deepLinkId || isLoading) return;
+    const match = leads.find((l) => l.id === deepLinkId);
+    if (match) {
+      setSelectedLead(match);
+      setStatusFilter("all");
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("lead");
+    setSearchParams(next, { replace: true });
+  }, [deepLinkId, isLoading, leads]);
 
   const unstagedCount = leads.filter((l) => !l.stage_id && l.status !== "won" && l.status !== "lost").length;
 
