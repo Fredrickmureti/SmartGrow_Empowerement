@@ -4,6 +4,7 @@ import { useOrganization } from "../useOrganization";
 import { useBusinesses } from "../useBusinesses";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { projectCommandErrorMessage } from "@/lib/projects/commandErrors";
 
 export interface Project {
   id: string;
@@ -564,6 +565,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
     createProjectFromSalesOrder,
     updateProject,
     changeProjectStatus,
+    getClosureBlockers,
     addProjectMember,
     removeProjectMember,
     deleteProject,
