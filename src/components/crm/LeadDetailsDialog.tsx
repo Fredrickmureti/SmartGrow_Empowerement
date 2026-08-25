@@ -31,18 +31,11 @@ import {
   Info,
   Trash2,
   ExternalLink,
+  Send,
+  Undo2,
 
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { format } from "date-fns";
 import { Lead, useLeads } from "@/hooks/crm/useLeads";
 import { useCRMActivities } from "@/hooks/crm/useCRMActivities";
@@ -56,6 +49,8 @@ import { MarkAsLostDialog } from "./MarkAsLostDialog";
 import { ScheduleActivityDialog } from "./ScheduleActivityDialog";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { LeadHistoryTimeline } from "./LeadHistoryTimeline";
+import { ReasonDialog } from "./ReasonDialog";
+
 
 import { CRMActivity } from "@/hooks/crm/useCRMActivities";
 import { toast } from "sonner";
@@ -66,7 +61,7 @@ interface LeadDetailsDialogProps {
   lead: Lead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onDelete?: (leadId: string) => Promise<void>;
+  onDelete?: (leadId: string, reason?: string, version?: number | null) => Promise<void>;
 }
 
 export function LeadDetailsDialog({
@@ -126,7 +121,7 @@ export function LeadDetailsDialog({
   const [showWonDialog, setShowWonDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [showActivityDialog, setShowActivityDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  
   const [isDeleting, setIsDeleting] = useState(false);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -349,8 +344,30 @@ export function LeadDetailsDialog({
                   <XCircle className="h-4 w-4 mr-2" />
                   Mark as Lost
                 </Button>
+                {isProposition ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowWithdrawDialog(true)}
+                    disabled={isConverting}
+                  >
+                    <Undo2 className="h-4 w-4 mr-2" />
+                    Withdraw Proposition
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMarkAsProposition}
+                    disabled={isConverting}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Mark as Proposition
+                  </Button>
+                )}
               </>
             )}
+
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -614,34 +631,27 @@ export function LeadDetailsDialog({
         existingActivity={editingActivity}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Lead</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{lead.name}"? This action will archive the lead 
-              and it will no longer appear in your pipeline. This is useful for removing test 
-              data or leads that are no longer relevant.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" />
-              )}
-              Delete Lead
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Withdraw Proposition — reason is mandatory server-side */}
+      <ReasonDialog
+        open={showWithdrawDialog}
+        onOpenChange={setShowWithdrawDialog}
+        title="Withdraw Proposition"
+        description={`Record why the proposition for "${lead.name}" is being withdrawn. The lead returns to its previous qualified state.`}
+        confirmLabel="Withdraw Proposition"
+        onConfirm={confirmWithdrawProposition}
+      />
+
+      {/* Archive — reversible, audited, requires a reason */}
+      <ReasonDialog
+        open={showArchiveDialog}
+        onOpenChange={setShowArchiveDialog}
+        title="Archive Lead"
+        description={`"${lead.name}" will be removed from the pipeline but kept for audit. Archiving is reversible from the Archived list.`}
+        confirmLabel="Archive Lead"
+        destructive
+        onConfirm={confirmArchive}
+      />
+
     </>
   );
 }

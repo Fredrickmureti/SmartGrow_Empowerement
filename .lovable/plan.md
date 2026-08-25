@@ -1,47 +1,34 @@
-# CRM Phase R1 — Finish the UI wiring, then update plan status
+# CRM Domain — Phase R1 complete · Phase R2 next
 
-Labels: **FACT** = verified now against this repo · **INFER** = reasoned conclusion.
+Labels: **FACT** = verified now against this repo/database · **STD** = established ERP/CRM practice · **INFER** = reasoned conclusion.
 
-## 1. Current state (verified now)
+## 1. Phase R1 — COMPLETE (2026-08-25)
 
-- `LeadDetailsDialog.tsx` (647 lines) already has `isProposition`, `handleMarkAsProposition`, `confirmWithdrawProposition`, `confirmArchive`, and the states `showWithdrawDialog` / `showArchiveDialog`. **FACT**
-- It still declares `showDeleteDialog` (line 129) and renders the old delete `AlertDialog` (lines 618-644) whose confirm handler calls `confirmDelete` — **a function that no longer exists in the file**. This is a hard build/type break, not just dead UI. **FACT**
-- Neither `ReasonDialog` for withdraw nor for archive is mounted, so `showWithdrawDialog` / `showArchiveDialog` currently open nothing and `handleDelete` is a dead end. **FACT**
-- `onDelete?: (leadId: string) => Promise<void>` (line 69) is narrower than the call `deleteLead(lead.id, reason, lead.version)` (line 281). **FACT**
-- No proposition buttons exist in the `footer` block (lines 324-425). **FACT**
-- `CRMPipeline.tsx` does not import or mount `ArchivedLeadsDialog`; it passes `onDelete={deleteLead}` (line 322) already, and gates stage settings with `PermissionGate permission="manageSales"` (lines 214, 273). **FACT**
-- `ArchivedLeadsDialog` and `ReasonDialog` exist with the props the wiring needs (`open`, `onOpenChange`, `onRestored`; `title`, `description`, `confirmLabel`, `onConfirm`, `destructive`). **FACT**
+**Database / server (applied earlier, verified against the live DB)**
 
-Note on the permission switch: in `src/lib/permissions.ts`, `settings.write` maps to `manageBusiness` / `manageOrganization` / `manageTaxSettings`, while `editSettings` is `settings.read`. Gating the stage-settings button on `editSettings` alone would be looser than the new server policy `crm_can_admin_pipeline` (settings.write). **FACT/INFER** — the plan gates on the settings *write* permissions instead, so the UI matches the server.
+- `crm_leads` carries `qualified_at`, `proposition_at`, `reopened_at`, `reopen_count`, `reopen_reason`, `archived_at`, `archived_by`, `archive_reason`, `version`, backfilled from `crm_lead_history`. **FACT**
+- Server-owned version-bump trigger plus `_crm_assert_version`; every lifecycle RPC takes `p_expected_version` and raises `40001` on conflict. **FACT**
+- New RPCs `crm_mark_proposition`, `crm_withdraw_proposition`, `crm_restore_lead`; archive records who/when/why and refuses leads with downstream documents. **FACT**
+- Write guard extended to the new columns and to archived leads; history trigger emits `proposition`, `proposition_withdrawn`, `restored`; those topics are registered `integration_only` and wired in `outbox-dispatcher`. **FACT**
+- Pipeline stage writes gated on `crm_can_admin_pipeline` (settings.write) rather than `sales.write`. **FACT**
+- Ratchets in `crm_domain_contract_test.sql` and `crm_lifecycle_state_machine_test.sql`; R1 invariant checks executed against the live DB and passed. **FACT**
 
-Two live build errors, both from this half-finished wiring: **FACT**
+**Frontend (finished in this pass)**
 
-- `LeadDetailsDialog.tsx(245,30)` — `Property 'status' does not exist on type 'Lead'`. `crm_leads.status` (enum `crm_lead_status`) exists in the database and the query selects `*`, but the `Lead` interface in `src/hooks/crm/useLeads.ts` never gained the field.
-- `LeadDetailsDialog.tsx(631,24)` — `Cannot find name 'confirmDelete'`, inside the old delete `AlertDialog` that step 3 removes.
+- `Lead` type gained the server-owned `status` field (`crm_lead_status`: new / qualified / proposition / won / lost), which the dialog's lifecycle branching depends on. **FACT**
+- `useLeads` exposes `markAsProposition`, `withdrawProposition`, `restoreLead`, version-aware calls and an `archivedOnly` mode. **FACT**
+- `LeadDetailsDialog`: footer now renders "Mark as Proposition" / "Withdraw Proposition" driven by `isProposition`; the legacy delete `AlertDialog` (and its dangling `confirmDelete` reference and `showDeleteDialog` state) is gone, replaced by two `ReasonDialog`s bound to `confirmWithdrawProposition` and `confirmArchive`; `onDelete` widened to `(leadId, reason?, version?)`. **FACT**
+- `CRMPipeline`: an "Archived" button mounts `ArchivedLeadsDialog` (restores refresh the board); `onDelete={deleteLead}` unchanged; the stage-settings gate moved off `manageSales` onto the settings-write permissions (`manageBusiness` / `manageOrganization` / `manageTaxSettings`) so the UI mirrors `crm_can_admin_pipeline`. Note `editSettings` was rejected for this gate because in `src/lib/permissions.ts` it maps to `settings.read`, which would be looser than the server policy. **FACT**
 
+**Verification**: `tsgo --noEmit` clean; `crm-lifecycle-rpc-only`, `crm-no-client-conversion`, `useLeads.convertToProject` — 6 tests passing. **FACT**
 
-## 2. Work to complete R1
+## 2. Phase R2 — next
 
-**Lead type**
-0. Add `status: Database["public"]["Enums"]["crm_lead_status"]` (as a string union) to the `Lead` interface so `lead.status === "proposition"` typechecks.
+Scope to confirm at kickoff, carried forward from the domain audit:
 
-**LeadDetailsDialog**
-1. Widen `onDelete?: (leadId: string, reason?: string, version?: number | null) => Promise<void>`.
+1. **Event consumers, not just instrumentation.** Every `crm%` topic still has an empty `consumer_domains` list; R2 should give the lifecycle events at least one real consumer (e.g. sales handoff on `won`, activity/notification fan-out) or explicitly mark them integration-only in the contract test.
+2. **Lead-level currency.** `crm_leads` has no `currency_code`, so expected revenue has no declared currency; add it with a business-default backfill and surface it in the pipeline totals instead of assuming base currency.
+3. **Reopen flow in the UI.** The server supports `reopened_at` / `reopen_count` / `reopen_reason`, but no client surface performs a reopen after won/lost.
+4. **Archive/restore reach.** `ArchivedLeadsDialog` is currently only mounted on the pipeline board; decide whether the CRM dashboard and contact profile need the same entry point.
 
-2. Add footer buttons between the Won/Lost group and "Convert To": "Mark as Proposition" when `!isWonOrLost && !isProposition`, "Withdraw Proposition" (opens `showWithdrawDialog`) when `isProposition`.
-3. Delete the `showDeleteDialog` state and the whole old `AlertDialog` block (618-644), which also removes the dangling `confirmDelete` reference.
-4. Mount two `ReasonDialog`s: withdraw (`onConfirm={confirmWithdrawProposition}`) and archive (`destructive`, `onConfirm={confirmArchive}`), bound to their existing states.
-5. Drop now-unused imports (`AlertDialog*` family) if nothing else uses them.
-
-**CRMPipeline**
-6. Add an "Archived" button (Archive icon) next to the export/settings controls that opens a mounted `ArchivedLeadsDialog`, with `onRestored` refreshing the board.
-7. Keep `onDelete={deleteLead}` unchanged.
-8. Change the stage-settings gate from `manageSales` to the settings-write permissions (`manageBusiness`, `manageOrganization`, `manageTaxSettings`, any-of) so it mirrors `crm_can_admin_pipeline`; the "New Lead" button stays on `manageSales`.
-
-**Verify and record**
-9. Run typecheck and the CRM test suites (`crm-lifecycle-rpc-only`, `crm-no-client-conversion`, `useLeads.convertToProject`, plus the SQL ratchets already added).
-10. Rewrite `.lovable/plan.md`: R1 marked complete with the verified evidence, and R2 stated as the next phase.
-
-## 3. Technical detail
-
-No database or RPC changes — R1's server side is already applied. All edits are presentation/wiring in two files plus the plan document. Version values flow from `lead.version` into the existing hook calls, so optimistic-concurrency behaviour (40001 → conflict toast) is unchanged.
+First action for the next agent: confirm items 1-4 against the live catalog before writing any migration, per the standing "verify before asserting" rule.
