@@ -25,7 +25,7 @@ const PROJECT_COLORS = [
 ];
 
 export function ProjectSettings({ project, stages, onUpdate, onStagesChange }: ProjectSettingsProps) {
-  const { createStage, deleteStage } = useProjects();
+  const { createStage, deleteStage, getClosureBlockers } = useProjects();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || "");
   const [status, setStatus] = useState<string>(project.status || "active");
@@ -42,6 +42,17 @@ export function ProjectSettings({ project, stages, onUpdate, onStagesChange }: P
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Closing a project is a governed lifecycle event: show the server's
+      // blockers up front instead of letting the command fail after the save.
+      const isClosing = status !== project.status && (status === "completed" || status === "cancelled");
+      if (isClosing) {
+        const blockers = await getClosureBlockers(project.id);
+        if (blockers.length > 0) {
+          toast.error(`This project cannot be closed yet: ${blockers.join("; ")}`);
+          return;
+        }
+      }
+
       await onUpdate({
         name,
         description: description || null,
@@ -53,10 +64,11 @@ export function ProjectSettings({ project, stages, onUpdate, onStagesChange }: P
         hourly_rate: hourlyRate ? parseFloat(hourlyRate) : null,
         is_billable: isBillable,
         privacy: privacy as Project["privacy"],
+        // Optimistic concurrency — rejected server-side if someone else edited.
+        version: project.version,
       });
-      toast.success("Project updated");
-    } catch (error) {
-      toast.error("Failed to update project");
+    } catch {
+      // useProjects already surfaced a specific, mapped error message.
     } finally {
       setIsSaving(false);
     }
