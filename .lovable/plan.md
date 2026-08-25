@@ -118,3 +118,24 @@ Four defects block Wave 5 from being trusted:
    unconverted rows; the Financials screen shows those numbers distinctly.
 2. Then resume at **5.2 (budget semantics)**, followed by 5.3, 5.4, 5.5 — in that
    order. Do not start Wave 6 until 5.5 is green.
+
+## Wave 5.1 status update (latest agent)
+
+**Done and verified in DB (migrations applied successfully):**
+- 5.1a `project_cost_entries`: `entry_nature` ('actual' | 'commitment'), `amount_base`, `fx_rate`, `base_currency`; uniqueness re-grained to `(source_type, source_id, project_id, coalesce(task_id, zero-uuid))`.
+- 5.1b `project_revenue_entries`: same columns; uniqueness re-grained to `(source_type, source_id, project_id, coalesce(milestone_id, zero-uuid))`.
+- 5.1c Cost writer: `upsert_project_cost(..., _entry_nature text)` — old 12-arg signature dropped. Resolves base currency from `businesses.base_currency` and rate via `resolve_exchange_rate`; `amount_base` stays NULL when no rate exists (never a fabricated 1.0). Feeders rewritten: `trg_timesheet_to_cost`, `trg_expense_to_cost`, `trg_stock_movement_to_cost`, `trg_bill_to_cost` (actual, per project+task), `trg_purchase_order_to_cost` (**commitment** — D1 fixed on cost side).
+- 5.1d Revenue writer: `upsert_project_revenue(..., _entry_nature text)` — old 10-arg signature dropped. Feeders rewritten: `trg_invoice_to_revenue` (actual, per project), `trg_sales_order_to_revenue` (**commitment** — D1 fixed on revenue side), `trg_milestone_to_revenue` (actual).
+
+**UNVERIFIED — first task for the next agent:**
+- 5.1e `trg_je_line_to_project_ledger` was migrated to call the two new writers instead of inserting into the ledger tables directly. The migration returned an infrastructure error ("Failed to initialise history table: connection timeout") and the DB then became unreachable, so **the outcome is unknown**. Verify with:
+  `select pg_get_functiondef(oid) from pg_proc where proname='trg_je_line_to_project_ledger';`
+  If the body still contains `INSERT INTO public.project_cost_entries`, re-apply that migration (it is a single idempotent `CREATE OR REPLACE FUNCTION`, safe to re-run). Until it is applied, project-tagged manual journal lines write rows with no `entry_nature`/`amount_base` stamping (they default to 'actual' with NULL base amount).
+
+**Next after that (do in order):**
+1. 5.2 `compute_project_profitability`: filter `entry_nature='actual'` and sum `amount_base` (D2). Expose committed cost/forecast revenue as separate fields, and surface a flag when any contributing row has `amount_base IS NULL` so the UI can show "unconverted" instead of a silently wrong margin.
+2. 5.3 Update `src/hooks/projects/*` + profitability UI to the new RPC shape; show commitments distinctly from actuals.
+3. 5.4 SQL test `supabase/tests/projects_wave5_ledger_integrity_test.sql`: PO+bill for the same goods yields cost once; SO+invoice yields revenue once; a bill tagged to two projects saves two rows; missing FX rate leaves `amount_base` NULL.
+4. 5.5 D4 — replace the scalar `projects.budget` with the budgets domain.
+
+Note: the Supabase linter baseline is 3682 pre-existing findings; it did not change across any Wave 5.1 migration, so none were introduced here.
