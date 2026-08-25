@@ -290,27 +290,23 @@ export function useTimesheets() {
     }
     const offsetDays =
       (new Date(toWeekStart).getTime() - fromStart.getTime()) / (1000 * 60 * 60 * 24);
-    const rows = source.map((t) => {
+    const drafts: TimesheetDraft[] = source.map((t) => {
       const d = new Date(t.date); d.setDate(d.getDate() + offsetDays);
       return {
-        organization_id: t.organization_id,
-        business_id: t.business_id,
         employee_id: t.employee_id,
         project_id: t.project_id,
         task_id: t.task_id,
         date: d.toISOString().slice(0, 10),
         hours: t.hours,
         description: t.description,
-        is_billable: t.is_billable,
-        status: "draft",
-        created_by: user?.id ?? null,
+        status: "draft" as const,
       };
     });
-    const { error } = await supabase.from("timesheets").insert(rows as any);
-    if (error) throw error;
-    toast.success(`Copied ${rows.length} entries from last week`);
+    const inserted = await insertTimesheets(writeScope, drafts);
+    toast.success(`Copied ${inserted} entries from last week`);
     await fetchTimesheets();
-    return rows.length;
+    return inserted;
+
   };
 
   return {
