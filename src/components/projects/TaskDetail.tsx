@@ -108,35 +108,28 @@ export function TaskDetail({ task, stages, open, onOpenChange, onUpdate, project
     if (!task || !currentOrg || !user || !logHours) return;
     setIsLoggingTime(true);
     try {
-      // We need employee_id. Look it up.
-      let empQ = supabase
-        .from("v_employees_canonical")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("organization_id", currentOrg.id);
-      empQ = empQ.eq("business_id", currentBusiness!.id);
-      const { data: emp } = await empQ.maybeSingle();
+      const scope = {
+        organizationId: currentOrg.id,
+        businessId: currentBusiness?.id ?? null,
+        userId: user.id,
+      };
+      const employeeId = await resolveMyEmployeeId(scope);
 
-      if (!emp) {
+      if (!employeeId) {
         toast.error("No employee record found for your user. Please set up your employee profile first.");
         return;
       }
 
       const hours = parseFloat(logHours);
-      const { error } = await supabase.from("timesheets").insert({
-        organization_id: currentOrg.id,
-        employee_id: emp.id,
+      await insertTimesheet(scope, {
+        employee_id: employeeId,
         project_id: projectId,
         task_id: task.id,
         date: new Date().toISOString().split("T")[0],
         hours,
         description: logDescription || `Time on ${task.name}`,
-        is_billable: false,
-        status: "draft",
-        created_by: user.id,
-      } as any);
+      });
 
-      if (error) throw error;
 
       toast.success(`${hours}h logged successfully`);
       setLogHours("");
