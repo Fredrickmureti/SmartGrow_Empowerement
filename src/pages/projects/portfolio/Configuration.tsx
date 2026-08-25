@@ -25,14 +25,68 @@ import { ProjectTemplatesCard } from "@/components/projects/ProjectTemplatesCard
 
 interface Stage { id: string; project_id: string; name: string; sequence: number; is_closed: boolean; color: string | null; }
 
-const PRICING_OPTIONS = [
-  { value: "non_billable", label: "Non-billable" },
-  { value: "employee_rate", label: "Employee rate" },
-  { value: "task_rate", label: "Task rate" },
-  { value: "project_rate", label: "Project rate" },
-  { value: "fixed_price", label: "Fixed price" },
-  { value: "milestone", label: "Per milestone" },
+/**
+ * The pricing model is the single decision. Everything else in this card is a
+ * consequence of it: whether the project is billable at all, whether a rate is
+ * meaningful, and where the rate is actually resolved from at billing time.
+ */
+type RateMode = "none" | "default" | "fallback";
+
+const PRICING_OPTIONS: {
+  value: string;
+  label: string;
+  billable: boolean;
+  rateMode: RateMode;
+  rateLabel?: string;
+  help: string;
+}[] = [
+  {
+    value: "non_billable",
+    label: "Non-billable",
+    billable: false,
+    rateMode: "none",
+    help: "Time and costs are tracked for reporting only. Nothing on this project can be invoiced.",
+  },
+  {
+    value: "employee_rate",
+    label: "Employee rate",
+    billable: true,
+    rateMode: "fallback",
+    rateLabel: "Fallback hourly rate",
+    help: "Each team member's own billable rate is used. The fallback applies only to members with no rate of their own.",
+  },
+  {
+    value: "task_rate",
+    label: "Task rate",
+    billable: true,
+    rateMode: "fallback",
+    rateLabel: "Fallback hourly rate",
+    help: "Each task carries its own rate. The fallback applies to tasks with no rate set.",
+  },
+  {
+    value: "project_rate",
+    label: "Project rate",
+    billable: true,
+    rateMode: "default",
+    rateLabel: "Project hourly rate",
+    help: "One rate for every hour logged on this project, whoever logs it.",
+  },
+  {
+    value: "fixed_price",
+    label: "Fixed price",
+    billable: true,
+    rateMode: "none",
+    help: "The agreed contract amount is billed regardless of hours. Set the amount on the project's budget; hours are cost-tracking only.",
+  },
+  {
+    value: "milestone",
+    label: "Per milestone",
+    billable: true,
+    rateMode: "none",
+    help: "Revenue is released milestone by milestone. Each milestone carries its own amount and is invoiced when reached.",
+  },
 ];
+
 
 export default function ProjectsConfiguration() {
   const { projects, refreshProjects, updateProject } = useProjects();
