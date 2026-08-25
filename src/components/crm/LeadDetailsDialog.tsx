@@ -86,8 +86,10 @@ export function LeadDetailsDialog({
     convertToSalesOrder,
     convertToProject,
     transferBranch,
+    moveToStage,
     refreshLeads,
   } = useLeads();
+  const { stages } = useCRMStages();
   const { branches, hasMultipleBranches } = useBranch();
   const [isTransferring, setIsTransferring] = useState(false);
 
