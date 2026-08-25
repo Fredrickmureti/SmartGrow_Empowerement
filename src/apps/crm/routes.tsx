@@ -16,6 +16,7 @@ import Contacts from "@/pages/Contacts";
 
 // Lazy imports
 const CRMPipeline = lazy(() => import("@/pages/crm/CRMPipeline"));
+const CRMLeads = lazy(() => import("@/pages/crm/CRMLeads"));
 const CRMActivities = lazy(() => import("@/pages/crm/CRMActivities"));
 const CRMDashboard = lazy(() => import("@/pages/crm/CRMDashboard"));
 const ContactProfile = lazy(() => import("@/pages/contacts/ContactProfile"));
@@ -45,6 +46,22 @@ export function CRMApp() {
               <SubscriptionProtectedRoute allowReadOnly>
                 <LazyRoute module="CRM Dashboard">
                   <CRMDashboard />
+                </LazyRoute>
+              </SubscriptionProtectedRoute>
+            </OnlineOnlyRoute>
+          }
+        />
+        
+        {/* Leads — record management surface. The kanban board only renders
+            opportunities that sit in a stage, so this list is the canonical
+            place to find, search and inspect every lead. */}
+        <Route
+          path="leads"
+          element={
+            <OnlineOnlyRoute moduleName="CRM Leads">
+              <SubscriptionProtectedRoute allowReadOnly>
+                <LazyRoute module="CRM Leads">
+                  <CRMLeads />
                 </LazyRoute>
               </SubscriptionProtectedRoute>
             </OnlineOnlyRoute>
