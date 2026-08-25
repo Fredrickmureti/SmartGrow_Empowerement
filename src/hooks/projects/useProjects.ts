@@ -190,95 +190,64 @@ export function useProjects(options: UseProjectsOptions = {}) {
     return data || "PROJ-0001";
   };
 
+  /**
+   * Wave 1 — server authority.
+   * All project writes go through SECURITY DEFINER command RPCs that assert
+   * organisation membership, module permission, branch access and project-level
+   * authority. The browser MUST NOT write `projects` / `project_members`
+   * directly; see src/__tests__/architecture.projects-server-authority.test.ts.
+   */
   const createProject = async (
     project: Partial<Omit<Project, "id" | "organization_id" | "project_number" | "created_at" | "updated_at" | "customer" | "manager" | "task_count" | "completed_tasks" | "progress">> & { name: string }
   ) => {
     if (!currentOrg || !user) throw new Error("No organization selected");
 
-    const projectNumber = await getNextProjectNumber();
+    const payload = {
+      organization_id: currentOrg.id,
+      business_id: currentBusiness?.id ?? null,
+      branch_id: project.branch_id ?? null,
+      name: project.name,
+      description: project.description ?? null,
+      status: project.status ?? "active",
+      project_type: project.project_type ?? "internal",
+      start_date: project.start_date ?? null,
+      end_date: project.end_date ?? null,
+      color: project.color ?? null,
+      allocated_hours: project.allocated_hours ?? null,
+      priority: project.priority ?? null,
+      budget: project.budget ?? null,
+      budget_type: project.budget_type ?? null,
+      // Rate resolution is owned by the database: project_create derives
+      // default_billable_rate from hourly_rate. Do not mirror it here.
+      hourly_rate: project.hourly_rate ?? null,
+      is_billable: project.is_billable ?? false,
+      allow_timesheets: project.allow_timesheets ?? true,
+      privacy: project.privacy ?? "team",
+      tags: project.tags ?? null,
+      customer_id: project.customer_id ?? null,
+      manager_id: project.manager_id ?? null,
+      pricing_type: project.pricing_type ?? "non_billable",
+      currency: project.currency ?? null,
+      template_id: project.template_id ?? null,
+      is_template: project.is_template ?? false,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      source_lead_id: (project as any).source_lead_id ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      source_sales_order_id: (project as any).source_sales_order_id ?? null,
+    };
 
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
-        name: project.name,
-        description: project.description || null,
-        status: project.status || "active",
-        project_type: project.project_type || "internal",
-        start_date: project.start_date || null,
-        end_date: project.end_date || null,
-        color: project.color || "#3b82f6",
-        allocated_hours: project.allocated_hours || null,
-        priority: project.priority || 0,
-        budget: project.budget || null,
-        budget_type: project.budget_type || "none",
-        hourly_rate: project.hourly_rate || null,
-        // Mirror hourly_rate into default_billable_rate so the
-        // resolve_timesheet_billing_rate() RPC sees a single source of truth.
-        default_billable_rate: project.hourly_rate || null,
-        is_billable: project.is_billable ?? false,
-        allow_timesheets: project.allow_timesheets ?? true,
-        privacy: project.privacy || "team",
-        tags: project.tags || null,
-        customer_id: project.customer_id || null,
-        manager_id: project.manager_id || null,
-        organization_id: currentOrg.id,
-        business_id: currentBusiness?.id || null,
-        branch_id: project.branch_id || null,
-        project_number: projectNumber,
-        created_by: user.id,
-        pricing_type: project.pricing_type || "non_billable",
-        currency: project.currency || currentBusiness?.base_currency || null,
-        // analytic_account_id is provisioned by trg_projects_sync_analytic_account.
-        template_id: project.template_id || null,
-        is_template: project.is_template ?? false,
-        source_lead_id: (project as any).source_lead_id || null,
-        source_sales_order_id: (project as any).source_sales_order_id || null,
-      } as any)
-      .select()
-      .single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)("project_create", {
+      _payload: payload,
+    });
 
     if (error) throw error;
 
-    // Create default stages for the project
-    const defaultStages = [
-      { name: "To Do", sequence: 0, is_closed: false },
-      { name: "In Progress", sequence: 1, is_closed: false },
-      { name: "Review", sequence: 2, is_closed: false },
-      { name: "Done", sequence: 3, is_closed: true },
-    ];
-
-    await supabase.from("project_stages").insert(
-      defaultStages.map((stage) => ({
-        project_id: data.id,
-        ...stage,
-      }))
-    );
-
-    // Add creator as project member
-    await supabase.from("project_members").insert({
-      project_id: data.id,
-      user_id: user.id,
-      role: "manager",
-    } as any);
-
-    toast.success(`Project ${projectNumber} created successfully`);
-
-    // If created from a template, materialize stages/tasks/milestones via RPC.
-    if (project.template_id) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.rpc as any)("apply_project_template", {
-          _template_id: project.template_id,
-          _project_id: data.id,
-        });
-      } catch (e) {
-        console.error("apply_project_template failed", e);
-        toast.error("Project created but template could not be applied");
-      }
-    }
+    const created = (Array.isArray(data) ? data[0] : data) as Project;
+    toast.success(`Project ${created.project_number} created successfully`);
 
     await fetchProjects();
-    return data;
+    return created;
   };
 
   // Create a delivery project from a sales order, linking both directions.
@@ -301,8 +270,9 @@ export function useProjects(options: UseProjectsOptions = {}) {
       currency: salesOrder.currency || undefined,
       description: salesOrder.notes || null,
       is_billable: true,
-      pricing_type: "billable",
+      pricing_type: "project_rate",
       source_sales_order_id: salesOrder.id,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
     // Close the reverse link so the SO points at the new project.
@@ -321,33 +291,111 @@ export function useProjects(options: UseProjectsOptions = {}) {
     return project;
   };
 
-
-  const updateProject = async (id: string, updates: Partial<Project>) => {
-    // Strip joined/computed fields
-    const { completed_tasks, customer, manager, progress, task_count, ...dbUpdates } = updates as any;
-
-    const { error } = await supabase
-      .from("projects")
-      .update(dbUpdates)
-      .eq("id", id);
+  /** Lifecycle transition — governed by project_change_status on the server. */
+  const changeProjectStatus = async (id: string, status: Project["status"]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)("project_change_status", {
+      _project_id: id,
+      _status: status,
+    });
 
     if (error) throw error;
+    toast.success("Project status updated");
+    await fetchProjects();
+  };
+
+  const updateProject = async (id: string, updates: Partial<Project>) => {
+    // Strip joined/computed/derived fields — the server owns everything else.
+    const {
+      completed_tasks,
+      customer,
+      manager,
+      progress,
+      task_count,
+      status,
+      id: _ignoredId,
+      organization_id,
+      business_id,
+      project_number,
+      created_at,
+      updated_at,
+      created_by,
+      spent_hours,
+      analytic_account_id,
+      is_active,
+      last_update_status,
+      last_update_at,
+      actual_start_date,
+      actual_end_date,
+      default_billable_rate,
+      ...patch
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } = updates as any;
+
+    if (Object.keys(patch).length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("project_update_config", {
+        _project_id: id,
+        _patch: patch,
+      });
+      if (error) throw error;
+    }
+
+    if (status) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("project_change_status", {
+        _project_id: id,
+        _status: status,
+      });
+      if (error) throw error;
+    }
 
     toast.success("Project updated successfully");
     await fetchProjects();
   };
 
   const deleteProject = async (id: string) => {
-    const { error } = await supabase
-      .from("projects")
-      .update({ is_active: false })
-      .eq("id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)("project_archive", {
+      _project_id: id,
+    });
 
     if (error) throw error;
 
-    toast.success("Project deleted successfully");
+    toast.success("Project archived successfully");
     await fetchProjects();
   };
+
+  // Team management — governed server-side (admins and the project manager only).
+  const addProjectMember = async (
+    projectId: string,
+    userId: string,
+    role: "member" | "manager" | "viewer" = "member",
+    billableRate?: number | null
+  ) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)("project_add_member", {
+      _project_id: projectId,
+      _user_id: userId,
+      _role: role,
+      _billable_rate: billableRate ?? null,
+    });
+
+    if (error) throw error;
+    toast.success("Team member added");
+  };
+
+  const removeProjectMember = async (projectId: string, userId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)("project_remove_member", {
+      _project_id: projectId,
+      _user_id: userId,
+    });
+
+    if (error) throw error;
+    toast.success("Team member removed");
+  };
+
 
   // Stage management
   const getProjectStages = async (projectId: string): Promise<ProjectStage[]> => {
@@ -453,6 +501,9 @@ export function useProjects(options: UseProjectsOptions = {}) {
     createProject,
     createProjectFromSalesOrder,
     updateProject,
+    changeProjectStatus,
+    addProjectMember,
+    removeProjectMember,
     deleteProject,
     getProjectStages,
     createStage,
