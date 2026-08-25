@@ -39,7 +39,16 @@ import {
 
 import { format } from "date-fns";
 import { Lead, useLeads } from "@/hooks/crm/useLeads";
+import { useCRMStages } from "@/hooks/crm/useCRMStages";
 import { useCRMActivities } from "@/hooks/crm/useCRMActivities";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PermissionGate } from "@/components/common/PermissionGate";
 import { useNavigate } from "react-router-dom";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { useCurrency } from "@/hooks/useCurrency";
