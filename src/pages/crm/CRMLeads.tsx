@@ -187,8 +187,58 @@ export default function CRMLeads() {
             {isLoading ? (
               <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
             ) : filtered.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No leads match these filters.
+              /* Each empty condition is a different business situation and gets
+                 its own explanation and next step — collapsing them into one
+                 generic message is how the "missing lead" report started. */
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <Users className="h-10 w-10 text-muted-foreground" />
+                {leads.length === 0 ? (
+                  <>
+                    <p className="font-medium">No leads yet</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      Capture your first opportunity and it will appear here, on the pipeline
+                      board and in your CRM statistics.
+                    </p>
+                    <PermissionGate permission="manageSales">
+                      <Button onClick={() => setShowLeadForm(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Lead
+                      </Button>
+                    </PermissionGate>
+                    <Button variant="ghost" size="sm" onClick={() => setShowArchived(true)}>
+                      Check archived leads
+                    </Button>
+                  </>
+                ) : stages.length === 0 ? (
+                  <>
+                    <p className="font-medium">No pipeline stages configured</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      Your leads exist but your funnel has not been set up yet, so no stage
+                      filter can match. Set up the pipeline, then place each lead in a stage.
+                    </p>
+                    <Button variant="outline" onClick={() => navigate("/crm-app/pipeline")}>
+                      Set up pipeline
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">No leads match these filters</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      {leads.length} lead{leads.length === 1 ? "" : "s"} exist in this company.
+                      Clear the filters to see them all.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearch("");
+                        setStatusFilter("all");
+                        setStageFilter("all");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
