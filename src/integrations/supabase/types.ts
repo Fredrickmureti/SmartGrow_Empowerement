@@ -55715,6 +55715,7 @@ export type Database = {
           tags: string[] | null
           template_id: string | null
           updated_at: string
+          version: number
         }
         Insert: {
           actual_end_date?: string | null
@@ -55758,6 +55759,7 @@ export type Database = {
           tags?: string[] | null
           template_id?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
           actual_end_date?: string | null
@@ -55801,6 +55803,7 @@ export type Database = {
           tags?: string[] | null
           template_id?: string | null
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -88629,6 +88632,61 @@ export type Database = {
         Returns: Json
       }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _project_task_assert_writable: {
+        Args: { _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _purchase_assert_order_quantity: {
         Args: {
           p_business_id: string
@@ -102473,6 +102531,15 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: boolean
       }
+      project_add_member: {
+        Args: {
+          _billable_rate?: number
+          _project_id: string
+          _role?: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
       project_analytic_account_id: {
         Args: { p_project_id: string }
         Returns: string
@@ -102491,13 +102558,435 @@ export type Database = {
           project_number: string
         }[]
       }
+      project_archive: { Args: { _project_id: string }; Returns: undefined }
+      project_can_delete: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_can_read: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_can_write: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_change_status: {
+        Args: {
+          _expected_version?: number
+          _project_id: string
+          _reason?: string
+          _status: string
+        }
+        Returns: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          allocated_hours: number | null
+          allow_timesheets: boolean | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          budget: number | null
+          budget_type: string | null
+          business_id: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_id: string | null
+          default_billable_rate: number | null
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_billable: boolean | null
+          is_template: boolean
+          last_update_at: string | null
+          last_update_status: string | null
+          manager_id: string | null
+          margin_alert_threshold: number | null
+          name: string
+          organization_id: string
+          pricing_type: string
+          priority: number | null
+          privacy: string | null
+          project_number: string
+          project_type: string | null
+          source_lead_id: string | null
+          source_sales_order_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_closure_blockers: {
+        Args: { _project_id: string }
+        Returns: string[]
+      }
+      project_create: {
+        Args: { _payload: Json }
+        Returns: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          allocated_hours: number | null
+          allow_timesheets: boolean | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          budget: number | null
+          budget_type: string | null
+          business_id: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_id: string | null
+          default_billable_rate: number | null
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_billable: boolean | null
+          is_template: boolean
+          last_update_at: string | null
+          last_update_status: string | null
+          manager_id: string | null
+          margin_alert_threshold: number | null
+          name: string
+          organization_id: string
+          pricing_type: string
+          priority: number | null
+          privacy: string | null
+          project_number: string
+          project_type: string | null
+          source_lead_id: string | null
+          source_sales_order_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       project_employee_cost_rate: {
         Args: { _employee_id: string; _project_id: string }
         Returns: number
       }
+      project_is_governor: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      project_log_activity: {
+        Args: {
+          _event_type: string
+          _payload?: Json
+          _project_id: string
+          _summary: string
+        }
+        Returns: undefined
+      }
       project_pos_sale_committed: {
         Args: { p_transaction_id: string }
         Returns: Json
+      }
+      project_remove_member: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: undefined
+      }
+      project_status_transition_allowed: {
+        Args: { _from: string; _to: string }
+        Returns: boolean
+      }
+      project_task_assign: {
+        Args: { _task_id: string; _user_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_task_complete: {
+        Args: { _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_task_move_stage: {
+        Args: { _stage_id: string; _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_task_reopen: {
+        Args: { _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_update_config: {
+        Args: { _patch: Json; _project_id: string }
+        Returns: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          allocated_hours: number | null
+          allow_timesheets: boolean | null
+          analytic_account_id: string | null
+          branch_id: string | null
+          budget: number | null
+          budget_type: string | null
+          business_id: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_id: string | null
+          default_billable_rate: number | null
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          is_billable: boolean | null
+          is_template: boolean
+          last_update_at: string | null
+          last_update_status: string | null
+          manager_id: string | null
+          margin_alert_threshold: number | null
+          name: string
+          organization_id: string
+          pricing_type: string
+          priority: number | null
+          privacy: string | null
+          project_number: string
+          project_type: string | null
+          source_lead_id: string | null
+          source_sales_order_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: string | null
+          tags: string[] | null
+          template_id: string | null
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       promote_pack_version: {
         Args: {

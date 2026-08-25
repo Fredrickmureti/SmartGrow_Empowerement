@@ -183,67 +183,58 @@ export function useProjectTasks(projectId?: string) {
   };
 
   const updateTask = async (id: string, updates: Partial<ProjectTask>) => {
-    const { error } = await supabase
-      .from("project_tasks")
-      .update(updates as any)
-      .eq("id", id);
+    // Lifecycle fields are governed by the server commands below; strip them
+    // from generic field edits so an ad-hoc form cannot bypass the guards.
+    const { is_done, completed_at, completed_by, stage_id, assigned_to, ...fields } =
+      updates as Record<string, unknown> & Partial<ProjectTask>;
 
-    if (error) throw error;
+    if (Object.keys(fields).length > 0) {
+      const { error } = await supabase
+        .from("project_tasks")
+        .update(fields as any)
+        .eq("id", id);
+      if (error) throw error;
+    }
+
+    if (stage_id !== undefined && stage_id !== null) await moveTask(id, stage_id);
+    if (assigned_to !== undefined) await assignTask(id, assigned_to ?? null);
+    if (is_done !== undefined) {
+      if (is_done) await completeTask(id);
+      else await reopenTask(id);
+    }
 
     toast.success("Task updated successfully");
     await fetchTasks();
   };
 
-  const moveTask = async (taskId: string, newStageId: string) => {
-    const { error } = await supabase
-      .from("project_tasks")
-      .update({ stage_id: newStageId })
-      .eq("id", taskId);
 
-    if (error) throw error;
-
-    // Log activity
-    await logActivity(taskId, "status_change", `Task moved to new stage`);
-
+  /**
+   * Wave 2 — task lifecycle is server-owned. `project_task_*` RPCs enforce
+   * project-write access, project-closed guards, dependency ordering and
+   * write the non-forgeable entry in `project_activity_log`. The browser
+   * must never flip `is_done` / `stage_id` / `assigned_to` directly.
+   */
+  const callTaskRpc = async (fn: string, args: Record<string, unknown>) => {
+    const { error } = await (supabase.rpc as unknown as (
+      f: string,
+      a: Record<string, unknown>,
+    ) => Promise<{ error: { message: string } | null }>)(fn, args);
+    if (error) throw new Error(error.message);
     await fetchTasks();
+  };
+
+  const moveTask = async (taskId: string, newStageId: string) => {
+    await callTaskRpc("project_task_move_stage", { _task_id: taskId, _stage_id: newStageId });
   };
 
   const completeTask = async (id: string) => {
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase
-      .from("project_tasks")
-      .update({
-        is_done: true,
-        progress: 100,
-        completed_at: new Date().toISOString(),
-        completed_by: user.id,
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    await logActivity(id, "status_change", "Task completed");
+    await callTaskRpc("project_task_complete", { _task_id: id });
     toast.success("Task completed!");
-    await fetchTasks();
   };
 
   const reopenTask = async (id: string) => {
-    const { error } = await supabase
-      .from("project_tasks")
-      .update({
-        is_done: false,
-        progress: 0,
-        completed_at: null,
-        completed_by: null,
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    await logActivity(id, "status_change", "Task reopened");
+    await callTaskRpc("project_task_reopen", { _task_id: id });
     toast.success("Task reopened");
-    await fetchTasks();
   };
 
   const deleteTask = async (id: string) => {
@@ -259,16 +250,9 @@ export function useProjectTasks(projectId?: string) {
   };
 
   const assignTask = async (taskId: string, userId: string | null) => {
-    const { error } = await supabase
-      .from("project_tasks")
-      .update({ assigned_to: userId })
-      .eq("id", taskId);
-
-    if (error) throw error;
-
-    await logActivity(taskId, "assignment", userId ? "Task assigned" : "Task unassigned");
-    await fetchTasks();
+    await callTaskRpc("project_task_assign", { _task_id: taskId, _user_id: userId });
   };
+
 
   // Activity logging
   const logActivity = async (

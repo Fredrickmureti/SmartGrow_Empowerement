@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.project_change_status(uuid, text);

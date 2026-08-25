@@ -291,13 +291,25 @@ export function useProjects(options: UseProjectsOptions = {}) {
     return project;
   };
 
-  /** Lifecycle transition — governed by project_change_status on the server. */
-  const changeProjectStatus = async (id: string, status: Project["status"]) => {
+  /**
+   * Lifecycle transition — governed by project_change_status on the server:
+   * transition table, closure blockers (open tasks / unapproved timesheets /
+   * uninvoiced milestones) and the activity-log entry all live in the RPC.
+   * Pass `expectedVersion` (from the loaded row) for optimistic concurrency.
+   */
+  const changeProjectStatus = async (
+    id: string,
+    status: Project["status"],
+    opts?: { expectedVersion?: number; reason?: string },
+  ) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.rpc as any)("project_change_status", {
       _project_id: id,
       _status: status,
+      _expected_version: opts?.expectedVersion ?? null,
+      _reason: opts?.reason ?? null,
     });
+
 
     if (error) throw error;
     toast.success("Project status updated");
