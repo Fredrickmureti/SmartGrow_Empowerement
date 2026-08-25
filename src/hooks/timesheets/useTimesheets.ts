@@ -9,6 +9,14 @@ import { applyBranchFilter } from "@/lib/branchScope";
 import { toast } from "sonner";
 import { format, subWeeks, addWeeks, startOfWeek } from "date-fns";
 import { dispatchApprovalNotification } from "@/lib/hr/approvalNotifications";
+import {
+  insertTimesheet as writeInsertTimesheet,
+  insertTimesheets,
+  updateTimesheet as writeUpdateTimesheet,
+  deleteTimesheet as writeDeleteTimesheet,
+  type TimesheetDraft,
+} from "@/lib/timesheets/timesheetWriter";
+
 
 export interface Timesheet {
   id: string;
