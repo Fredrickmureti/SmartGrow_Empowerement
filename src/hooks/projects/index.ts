@@ -6,3 +6,4 @@ export * from "./useProjectUpdates";
 export * from "./useTaskComments";
 export * from "./useProjectActivity";
 export * from "./useTaskFollowers";
+export * from "./useProjectBillingRate";

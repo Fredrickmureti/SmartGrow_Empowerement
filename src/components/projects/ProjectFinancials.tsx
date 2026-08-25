@@ -5,6 +5,7 @@
  * All figures come from the analytic ledger via compute_project_profitability.
  * Cost and revenue rows below the KPIs are real source rows.
  */
+import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -30,9 +31,7 @@ const sourceIcon = (t: string) => {
 // A record with no currency renders as an absence — never as a figure wearing
 // a currency it was not denominated in (ADR 0136).
 const fmt = (n: number | null | undefined, cur?: string | null) =>
-  cur
-    ? new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 2 }).format(Number(n ?? 0))
-    : "—";
+  cur ? formatCurrency(Number(n ?? 0), cur) : "—";
 
 export function ProjectFinancials({ project }: Props) {
   const { data, costs, revenues, isLoading, error } = useProjectFinancials(project.id);

@@ -7,6 +7,7 @@
  * from `project_updates`. Deadline radar from `projects.end_date` +
  * `project_milestones.deadline`.
  */
+import { formatCompactNumber } from "@/lib/utils";
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -127,7 +128,7 @@ export default function ProjectsPortfolio() {
     { label: "Active projects", value: kpis?.activeProjects ?? 0, icon: FolderKanban },
     { label: "Hours this week", value: (kpis?.hoursWeek ?? 0).toFixed(1), icon: Clock },
     { label: "Overdue tasks", value: kpis?.overdueTasks ?? 0, icon: AlertTriangle },
-    { label: `Margin YTD (${baseCurrency})`, value: new Intl.NumberFormat(undefined, { style: "currency", currency: baseCurrency, maximumFractionDigits: 0 }).format(kpis?.marginYtd ?? 0), icon: TrendingUp },
+    { label: `Margin YTD (${baseCurrency})`, value: formatCompactNumber(kpis?.marginYtd ?? 0, baseCurrency), icon: TrendingUp },
   ]), [kpis, baseCurrency]);
 
   const showSkeleton = loadingProjects || isLoading;
