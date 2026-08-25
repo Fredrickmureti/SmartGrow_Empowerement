@@ -118,7 +118,7 @@ export function useLeads(filters?: {
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .eq("is_active", true)
+        .eq("is_active", !filters?.archivedOnly)
         .order("created_at", { ascending: false });
 
       if (filters?.stageId) {
