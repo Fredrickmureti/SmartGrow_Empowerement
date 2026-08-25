@@ -102571,6 +102571,10 @@ export type Database = {
         }[]
       }
       project_archive: { Args: { _project_id: string }; Returns: undefined }
+      project_billing_rate_preview: {
+        Args: { _employee_id?: string; _project_id: string }
+        Returns: number
+      }
       project_can_delete: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -105299,6 +105303,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      resolve_project_billing_rate: {
+        Args: { _employee_id?: string; _explicit?: number; _project_id: string }
+        Returns: number
       }
       resolve_purchase_line_price: {
         Args: {
