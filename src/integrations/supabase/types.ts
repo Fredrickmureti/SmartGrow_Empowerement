@@ -98667,6 +98667,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      invoice_project_milestone: {
+        Args: { _milestone_id: string }
+        Returns: Json
+      }
+      invoice_project_timesheets: {
+        Args: {
+          _period_from?: string
+          _period_to?: string
+          _project_id: string
+        }
+        Returns: Json
+      }
       is_ap_control_account: { Args: { _account_id: string }; Returns: boolean }
       is_app_trialable: { Args: { p_app_id: string }; Returns: boolean }
       is_app_trialable_for: {
@@ -102610,6 +102622,7 @@ export type Database = {
           project_ledger_revenue: number
           project_name: string
           project_number: string
+          unconverted_entry_count: number
         }[]
       }
       project_archive: { Args: { _project_id: string }; Returns: undefined }

@@ -1,8 +1,9 @@
 import { normalizeError } from "@/services/resilience";
 /**
- * BillTimesheetsButton — opens a small period picker, invokes the
- * `invoice-project-timesheets` edge function, and navigates to the new
- * draft invoice on success. Permission-gated by `manageProjectFinancials`.
+ * BillTimesheetsButton — opens a small period picker, calls the transactional
+ * `invoice_project_timesheets` RPC (which claims the timesheets under lock,
+ * drafts the invoice and marks them invoiced in one transaction), and
+ * navigates to the new draft invoice. Gated by `manageProjectFinancials`.
  *
  * Pass 6 — Projects: migrated from `Dialog` to `WorkflowSheet` so the
  * presentation matches the New Payroll Run standard.
@@ -36,9 +37,11 @@ export function BillTimesheetsButton({ projectId, onInvoiced }: Props) {
   const run = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invoice-project-timesheets", {
-        body: { project_id: projectId, period_from: from, period_to: to },
-      });
+      const { data, error } = await supabase.rpc("invoice_project_timesheets", {
+        _project_id: projectId,
+        _period_from: from,
+        _period_to: to,
+      } as never);
       if (error) throw error;
       const res = (data ?? {}) as { ok?: boolean; invoice_id?: string; lines?: number; hours?: number; error?: string; reason?: string };
       if (!res.ok) {

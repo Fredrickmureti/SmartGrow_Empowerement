@@ -1,8 +1,9 @@
 import { normalizeError } from "@/services/resilience";
 /**
  * BillMilestoneButton — small inline action that drafts an invoice for a
- * milestone via the `invoice-project-milestone` edge function. Disabled
- * when the milestone has already been invoiced unless `force` is checked.
+ * milestone via the transactional `invoice_project_milestone` RPC, which
+ * drafts the invoice and marks the milestone billed in one transaction and
+ * refuses to bill an already-invoiced milestone.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -28,9 +29,9 @@ export function BillMilestoneButton({ milestoneId, isInvoiced, hasBillingAmount,
   const run = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invoice-project-milestone", {
-        body: { milestone_id: milestoneId },
-      });
+      const { data, error } = await supabase.rpc("invoice_project_milestone", {
+        _milestone_id: milestoneId,
+      } as never);
       if (error) throw error;
       const res = (data ?? {}) as { ok?: boolean; invoice_id?: string; amount?: number; error?: string; reason?: string };
       if (!res.ok) {
