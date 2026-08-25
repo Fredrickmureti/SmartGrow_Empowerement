@@ -144,7 +144,14 @@ export function useLeads(filters?: {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg?.id, currentBusiness?.id, filters?.stageId, filters?.type, filters?.branchId]);
+  }, [
+    currentOrg?.id,
+    currentBusiness?.id,
+    filters?.stageId,
+    filters?.type,
+    filters?.branchId,
+    filters?.archivedOnly,
+  ]);
 
   useEffect(() => {
     fetchLeads();
