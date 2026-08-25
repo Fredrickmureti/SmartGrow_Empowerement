@@ -554,9 +554,10 @@ async function getFinancialContext(
       // CRM Leads
       supabaseClient
         .from("crm_leads")
-        .select("id, name, email, stage, expected_revenue, probability, created_at")
+        .select("id, name, email, status, stage_id, expected_revenue, probability, created_at, crm_stages(name)")
         .eq("organization_id", organizationId)
-        .not("stage", "in", "(won,lost)")
+        .eq("is_active", true)
+        .not("status", "in", "(won,lost)")
         .order("expected_revenue", { ascending: false })
         .limit(20),
 

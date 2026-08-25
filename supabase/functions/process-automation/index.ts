@@ -298,8 +298,21 @@ async function executeStep(
         };
         const targetLeadId = lead_id || context.record_data?.id || context.record_data?.lead_id;
         if (!targetLeadId) throw new Error("No lead ID for activity");
+        // crm_activities is business/branch scoped; derive the scope from the lead itself.
+        const { data: leadScope, error: leadScopeError } = await supabase
+          .from("crm_leads")
+          .select("id, organization_id, business_id, branch_id")
+          .eq("id", targetLeadId)
+          .maybeSingle();
+        if (leadScopeError) throw leadScopeError;
+        if (!leadScope) throw new Error(`Lead ${targetLeadId} not found; cannot create activity`);
+        if (leadScope.organization_id !== context.organization_id) {
+          throw new Error("Lead belongs to a different organization; refusing to create activity");
+        }
         const { error } = await supabase.from("crm_activities").insert({
-          organization_id: context.organization_id,
+          organization_id: leadScope.organization_id,
+          business_id: leadScope.business_id,
+          branch_id: leadScope.branch_id,
           lead_id: targetLeadId,
           summary,
           activity_type: activity_type || "task",

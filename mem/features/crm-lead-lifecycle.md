@@ -44,3 +44,19 @@ Guards: `src/test/architecture/crm-lifecycle-rpc-only.test.ts`,
 `supabase/tests/crm_lifecycle_state_machine_test.sql`,
 `supabase/tests/crm_lead_history_and_events_test.sql`,
 `supabase/tests/crm_domain_contract_test.sql`.
+
+## R0 integrity repairs (2026-08-25)
+
+- `crm_lead_items.business_id` is NOT NULL and bound to the parent lead through
+  the composite FK `(lead_id, business_id) → crm_leads(id, business_id)`.
+  Trigger `crm_lead_item_product_business_guard` rejects a product from another
+  business. UI must have a business/company selected before adding lines.
+- `crm_lead_history` grants are least privilege: `anon` has none,
+  `authenticated` has SELECT only; rows are written by the definer trigger.
+- CRM lifecycle topics have no internal consumer and are flagged
+  `business_event_topics.integration_only = true`. A topic with no consumers
+  and no flag fails the contract test.
+- Edge consumers (`process-automation`, `process-scheduled-reports`,
+  `ai-assistant`) must derive lead scope from `crm_leads` and use
+  `status`/`stage_id`; `crm_leads.company_name` and `crm_leads.stage` do not
+  exist. Guard: `src/test/architecture/crm-edge-consumer-schema.test.ts`.
