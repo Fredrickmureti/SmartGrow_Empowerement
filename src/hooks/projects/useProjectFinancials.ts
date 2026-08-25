@@ -14,8 +14,13 @@ export interface ProjectFinancials {
   currency: string;
   cost_total: number;
   revenue_total: number;
+  committed_cost_total: number;
+  committed_revenue_total: number;
   margin: number;
   margin_pct: number | null;
+  has_unconverted_entries: boolean;
+  unconverted_cost_count: number;
+  unconverted_revenue_count: number;
   planned_hours: number;
   logged_hours: number;
   budget: number | null;
@@ -29,7 +34,10 @@ export interface ProjectLedgerEntry {
   source_type: string;
   source_id: string | null;
   amount: number;
+  amount_base: number | null;
   currency: string;
+  base_currency: string | null;
+  entry_nature: "actual" | "commitment";
   posted_at: string;
   description: string | null;
   hours?: number | null;
@@ -55,13 +63,13 @@ export function useProjectFinancials(projectId: string | undefined) {
         (supabase.rpc as any)("compute_project_profitability", { _project_id: projectId }),
         supabase
           .from("project_cost_entries")
-          .select("id, source_type, source_id, amount, currency, posted_at, description, hours, employee_id, task_id")
+          .select("id, source_type, source_id, amount, amount_base, currency, base_currency, entry_nature, posted_at, description, hours, employee_id, task_id")
           .eq("project_id", projectId)
           .order("posted_at", { ascending: false })
           .limit(500),
         supabase
           .from("project_revenue_entries")
-          .select("id, source_type, source_id, amount, currency, posted_at, description, milestone_id")
+          .select("id, source_type, source_id, amount, amount_base, currency, base_currency, entry_nature, posted_at, description, milestone_id")
           .eq("project_id", projectId)
           .order("posted_at", { ascending: false })
           .limit(500),
