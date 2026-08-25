@@ -135,7 +135,8 @@ DECLARE
   v_so       uuid := gen_random_uuid();
   v_aa       uuid := gen_random_uuid();
   v_budget   uuid := gen_random_uuid();
-  v_coa      uuid;
+  v_plan     uuid := gen_random_uuid();
+  v_coa      uuid := gen_random_uuid();
   v_fin      jsonb;
   v_n        bigint;
   v_base     numeric;
@@ -165,6 +166,12 @@ BEGIN
 
   INSERT INTO public.project_tasks (id, organization_id, business_id, project_id, title, created_by)
   VALUES (v_task, v_org, v_biz, v_proj_a, 'T1', v_admin);
+
+  -- compute_project_profitability authorizes through auth.uid(); act as the admin.
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_admin::text, 'role', 'authenticated')::text, true);
+
+
 
   -- ===== A) grain: one document, two projects (D3) =============================
   PERFORM public.upsert_project_cost(v_proj_a, v_org, v_biz, NULL, 'vendor_bill', v_bill,
@@ -270,11 +277,14 @@ BEGIN
       v_fin->>'budget_source', v_fin->>'budget';
   END IF;
 
-  SELECT id INTO v_coa FROM public.accounts
-   WHERE organization_id = v_org LIMIT 1;
+  INSERT INTO public.accounts (id, organization_id, business_id, code, name, account_type)
+  VALUES (v_coa, v_org, v_biz, '5100-PJ54', 'Project direct costs', 'expense');
 
-  INSERT INTO public.analytic_accounts (id, organization_id, business_id, name, code)
-  VALUES (v_aa, v_org, v_biz, 'Project Ledger A', 'PJ-54A');
+  INSERT INTO public.analytic_plans (id, organization_id, business_id, code, name)
+  VALUES (v_plan, v_org, v_biz, 'PJ54-PLAN', 'Projects');
+
+  INSERT INTO public.analytic_accounts (id, organization_id, business_id, plan_id, name, code)
+  VALUES (v_aa, v_org, v_biz, v_plan, 'Project Ledger A', 'PJ-54A');
   UPDATE public.projects SET analytic_account_id = v_aa WHERE id = v_proj_a;
 
   INSERT INTO public.budgets (id, organization_id, business_id, name, fiscal_year, status, currency_code, created_by)
