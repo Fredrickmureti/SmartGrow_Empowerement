@@ -43,9 +43,24 @@ export interface Lead {
   internal_notes: string | null;
   lost_reason_id: string | null;
   lost_notes: string | null;
+  /** Lifecycle timestamps (server-owned · Phase R1). */
+  qualified_at: string | null;
+  proposition_at: string | null;
   won_at: string | null;
   lost_at: string | null;
+  reopened_at: string | null;
+  reopen_count: number | null;
+  reopen_reason: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+  archive_reason: string | null;
   is_active: boolean | null;
+  /**
+   * Optimistic-concurrency token (server-owned · Phase R1). Bumped by trigger on
+   * every update; passed back into the `crm_*` RPCs so a stale screen cannot
+   * silently overwrite someone else's transition.
+   */
+  version: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
