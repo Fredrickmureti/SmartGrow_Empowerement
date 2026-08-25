@@ -93188,6 +93188,10 @@ export type Database = {
         Args: { p_lpn_id?: string; p_picked_qty: number; p_task_id: string }
         Returns: Json
       }
+      complete_project_milestone: {
+        Args: { _milestone_id: string; _reached?: boolean }
+        Returns: Json
+      }
       complete_putaway_task:
         | { Args: { p_task_id: string }; Returns: Json }
         | {

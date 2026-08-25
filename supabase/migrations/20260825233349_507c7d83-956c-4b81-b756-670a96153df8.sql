@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public._project_milestone_lifecycle_guard() FROM PUBLIC, anon, authenticated;
