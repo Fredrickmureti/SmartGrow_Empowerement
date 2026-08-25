@@ -318,7 +318,8 @@ BEGIN
   IF (v_fin->>'budget')::numeric <> 50000 THEN
     RAISE EXCEPTION 'budget should be the sum of the budget lines (50000), got %', v_fin->>'budget';
   END IF;
-  IF (v_fin->>'budget_used_pct')::numeric <> round((5500 / 50000::numeric) * 100, 2) THEN
+  -- Actual base cost is now 5500 KES + the 90 KES converted JPY expense.
+  IF (v_fin->>'budget_used_pct')::numeric <> round((5590 / 50000::numeric) * 100, 2) THEN
     RAISE EXCEPTION 'budget consumption must compare actual base cost to the domain budget, got %',
       v_fin->>'budget_used_pct';
   END IF;
