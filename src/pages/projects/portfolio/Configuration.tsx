@@ -111,12 +111,19 @@ export default function ProjectsConfiguration() {
       hourly_rate: hourlyRate ? Number(hourlyRate) : null,
     };
     if (currency.trim()) patch.currency = currency.trim().toUpperCase();
-    const { error } = await supabase.from("projects").update(patch as never).eq("id", selectedProject);
-    setSavingPricing(false);
-    if (error) { toast.error("Failed to save", { description: normalizeError(error).message }); return; }
-    toast.success("Pricing & billing saved");
+    try {
+      // Billing configuration is governed server-side: only an admin or the
+      // project manager may change it (project_update_config).
+      await updateProject(selectedProject, patch as never);
+    } catch (error) {
+      toast.error("Failed to save", { description: normalizeError(error).message });
+      return;
+    } finally {
+      setSavingPricing(false);
+    }
     void refreshProjects();
   };
+
 
   const projectName = useMemo(() => projects.find((p) => p.id === selectedProject)?.name, [projects, selectedProject]);
 
