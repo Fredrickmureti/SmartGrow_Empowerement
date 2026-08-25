@@ -81,6 +81,8 @@ export function LeadDetailsDialog({
   const {
     markAsWon,
     markAsLost,
+    markAsProposition,
+    withdrawProposition,
     deleteLead: deleteLeadFromHook,
     convertToContact,
     convertToEstimate,
@@ -126,6 +128,8 @@ export function LeadDetailsDialog({
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [editingActivity, setEditingActivity] = useState<CRMActivity | undefined>();
 
   if (!lead) return null;
@@ -238,29 +242,49 @@ export function LeadDetailsDialog({
   };
 
   const isWonOrLost = lead.won_at || lead.lost_at;
+  const isProposition = lead.status === "proposition";
 
   // Get next pending activity for indicator
   const nextActivity = activities.find((a) => !a.is_done);
+
+  /**
+   * Proposition is a real lifecycle state: entering and withdrawing it are
+   * separate audited server transitions, each carrying the row version so a
+   * stale screen cannot overwrite someone else's move.
+   */
+  const handleMarkAsProposition = () =>
+    handleAction(async () => {
+      await markAsProposition(lead.id, lead.version);
+    });
+
+  const confirmWithdrawProposition = async (reason: string) => {
+    try {
+      await withdrawProposition(lead.id, reason, lead.version);
+      onOpenChange(false);
+    } catch (error: any) {
+      toast.error(normalizeError(error).message || "Could not withdraw the proposition");
+    }
+  };
 
   const handleDelete = () => {
     if (isReadOnly) {
       openUpgradeModal("crm");
       return;
     }
-    setShowDeleteDialog(true);
+    setShowArchiveDialog(true);
   };
 
-  const confirmDelete = async () => {
+  /** Archiving is reversible and requires a reason the server records. */
+  const confirmArchive = async (reason: string) => {
     setIsDeleting(true);
     try {
-      await deleteLead(lead.id);
+      await deleteLead(lead.id, reason, lead.version);
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Delete failed:", error);
-      toast.error(normalizeError(error).message || "Failed to delete lead");
+      console.error("Archive failed:", error);
+      toast.error(normalizeError(error).message || "Failed to archive lead");
     } finally {
       setIsDeleting(false);
-      setShowDeleteDialog(false);
     }
   };
 

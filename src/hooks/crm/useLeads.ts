@@ -84,7 +84,13 @@ export function leadCompanyDisplay(lead: Pick<Lead, "company_contact">): string 
   return lead.company_contact?.name ?? null;
 }
 
-export function useLeads(filters?: { stageId?: string; type?: string; branchId?: string | null }) {
+export function useLeads(filters?: {
+  stageId?: string;
+  type?: string;
+  branchId?: string | null;
+  /** Archive surface (Phase R1): list archived leads instead of the active pipeline. */
+  archivedOnly?: boolean;
+}) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
@@ -112,7 +118,7 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .eq("is_active", true)
+        .eq("is_active", !filters?.archivedOnly)
         .order("created_at", { ascending: false });
 
       if (filters?.stageId) {
@@ -138,7 +144,14 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrg?.id, currentBusiness?.id, filters?.stageId, filters?.type, filters?.branchId]);
+  }, [
+    currentOrg?.id,
+    currentBusiness?.id,
+    filters?.stageId,
+    filters?.type,
+    filters?.branchId,
+    filters?.archivedOnly,
+  ]);
 
   useEffect(() => {
     fetchLeads();
