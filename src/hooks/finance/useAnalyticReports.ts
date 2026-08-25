@@ -249,6 +249,7 @@ export function useProjectAnalyticReconciliation({ dateFrom, dateTo }: Range, en
         project_ledger_revenue: num(r.project_ledger_revenue),
         project_ledger_net: num(r.project_ledger_net),
         difference: num(r.difference),
+        unconverted_entry_count: num(r.unconverted_entry_count),
       })) as ProjectAnalyticReconciliationRow[];
     },
     enabled: !!scope.businessId && enabled,
