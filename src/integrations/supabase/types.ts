@@ -88632,6 +88632,61 @@ export type Database = {
         Returns: Json
       }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _project_task_assert_writable: {
+        Args: { _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _purchase_assert_order_quantity: {
         Args: {
           p_business_id: string
@@ -102517,7 +102572,12 @@ export type Database = {
         Returns: boolean
       }
       project_change_status: {
-        Args: { _project_id: string; _status: string }
+        Args: {
+          _expected_version?: number
+          _project_id: string
+          _reason?: string
+          _status: string
+        }
         Returns: {
           actual_end_date: string | null
           actual_start_date: string | null
@@ -102568,6 +102628,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      project_closure_blockers: {
+        Args: { _project_id: string }
+        Returns: string[]
       }
       project_create: {
         Args: { _payload: Json }
@@ -102630,6 +102694,15 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
+      project_log_activity: {
+        Args: {
+          _event_type: string
+          _payload?: Json
+          _project_id: string
+          _summary: string
+        }
+        Returns: undefined
+      }
       project_pos_sale_committed: {
         Args: { p_transaction_id: string }
         Returns: Json
@@ -102637,6 +102710,230 @@ export type Database = {
       project_remove_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: undefined
+      }
+      project_status_transition_allowed: {
+        Args: { _from: string; _to: string }
+        Returns: boolean
+      }
+      project_task_assign: {
+        Args: { _task_id: string; _user_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_task_complete: {
+        Args: { _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_task_move_stage: {
+        Args: { _stage_id: string; _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      project_task_reopen: {
+        Args: { _task_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignees: string[] | null
+          attachment_count: number
+          blocked_override_at: string | null
+          blocked_override_by: string | null
+          blocked_override_reason: string | null
+          blocked_reason: string | null
+          business_id: string | null
+          comment_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          depends_on: string[] | null
+          description: string | null
+          effective_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
+          is_done: boolean | null
+          is_portal_visible: boolean
+          is_recurring: boolean | null
+          kanban_state: string
+          milestone_id: string | null
+          name: string
+          organization_id: string
+          parent_task_id: string | null
+          planned_hours: number | null
+          priority: number | null
+          progress: number | null
+          project_id: string
+          recurrence_next_at: string | null
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
+          remaining_hours: number | null
+          scheduled_for: string | null
+          sequence: number
+          stage_id: string | null
+          start_date: string | null
+          subtask_count: number
+          tags: string[] | null
+          task_number: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       project_update_config: {
         Args: { _patch: Json; _project_id: string }
