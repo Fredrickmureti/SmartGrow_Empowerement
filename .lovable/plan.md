@@ -1,70 +1,37 @@
-# CRM Domain — Handover Verification (2026-08-25) and Phase R0 Execution Plan
+# CRM Phase R1 — Finish the UI wiring, then update plan status
 
-Labels: **FACT** = verified now against this repo/database · **STD** = established ERP/CRM practice · **INFER** = reasoned conclusion.
+Labels: **FACT** = verified now against this repo · **INFER** = reasoned conclusion.
 
-## 1. Verification of the previous engineer's claims
+## 1. Current state (verified now)
 
-Re-derived from the live catalog and code, not from the notes.
+- `LeadDetailsDialog.tsx` (647 lines) already has `isProposition`, `handleMarkAsProposition`, `confirmWithdrawProposition`, `confirmArchive`, and the states `showWithdrawDialog` / `showArchiveDialog`. **FACT**
+- It still declares `showDeleteDialog` (line 129) and renders the old delete `AlertDialog` (lines 618-644) whose confirm handler calls `confirmDelete` — **a function that no longer exists in the file**. This is a hard build/type break, not just dead UI. **FACT**
+- Neither `ReasonDialog` for withdraw nor for archive is mounted, so `showWithdrawDialog` / `showArchiveDialog` currently open nothing and `handleDelete` is a dead end. **FACT**
+- `onDelete?: (leadId: string) => Promise<void>` (line 69) is narrower than the call `deleteLead(lead.id, reason, lead.version)` (line 281). **FACT**
+- No proposition buttons exist in the `footer` block (lines 324-425). **FACT**
+- `CRMPipeline.tsx` does not import or mount `ArchivedLeadsDialog`; it passes `onDelete={deleteLead}` (line 322) already, and gates stage settings with `PermissionGate permission="manageSales"` (lines 214, 273). **FACT**
+- `ArchivedLeadsDialog` and `ReasonDialog` exist with the props the wiring needs (`open`, `onOpenChange`, `onRestored`; `title`, `description`, `confirmLabel`, `onConfirm`, `destructive`). **FACT**
 
-| Claim in the handover | Verdict | Evidence |
-|---|---|---|
-| Lifecycle is server-owned (guards + transition RPCs + history + outbox) | **CONFIRMED** | `crm_leads.business_id` NOT NULL, `stage_id`/`branch_id` present; eight `crm.lead.*` topics registered plus `crm.lead.branch_transferred` |
-| Branch dimension and branch-transfer event registered | **CONFIRMED (now fixed)** | `crm.lead.branch_transferred` is present in `business_event_topics` |
-| Automation-created CRM activities are broken | **CONFIRMED** | `process-automation/index.ts` `create_activity` inserts `crm_activities` without `business_id`, and `crm_activities.business_id` is NOT NULL → every automation activity fails |
-| Scheduled CRM pipeline report is broken | **CONFIRMED** | `process-scheduled-reports/index.ts:498` selects `company_name`, which no longer exists on `crm_leads` |
-| AI assistant CRM context is broken | **CONFIRMED** | `ai-assistant/index.ts:557-559` selects and filters on `stage`, which no longer exists (`dataTools.ts` already uses `stage_id`) |
-| `crm_lead_items` is a tenancy hole | **CONFIRMED** | `business_id` is nullable, no `(lead_id, business_id)` composite FK, no product/business validation constraint |
-| `crm_lead_history` has excessive grants | **CONFIRMED** | both `anon` and `authenticated` hold SELECT/INSERT/UPDATE/DELETE on an append-only history table |
-| CRM events have registered consumers | **FALSE** | every `crm%` topic has an empty `consumer_domains` list — the outbox is instrumentation, not a proven workflow |
-| Lead-level currency exists | **FALSE** | `crm_leads` has no `currency_code`; expected revenue has no declared currency |
+Note on the permission switch: in `src/lib/permissions.ts`, `settings.write` maps to `manageBusiness` / `manageOrganization` / `manageTaxSettings`, while `editSettings` is `settings.read`. Gating the stage-settings button on `editSettings` alone would be looser than the new server policy `crm_can_admin_pipeline` (settings.write). **FACT/INFER** — the plan gates on the settings *write* permissions instead, so the UI matches the server.
 
-Data check before migration (**FACT**): 0 `crm_lead_items` rows with a null business, 0 rows whose business differs from the parent lead. The tightening migration is safe with no backfill risk.
+## 2. Work to complete R1
 
-Resume point: **Phase R0**, as the audit prescribed. No feature work first.
+**LeadDetailsDialog**
+1. Widen `onDelete?: (leadId: string, reason?: string, version?: number | null) => Promise<void>`.
+2. Add footer buttons between the Won/Lost group and "Convert To": "Mark as Proposition" when `!isWonOrLost && !isProposition`, "Withdraw Proposition" (opens `showWithdrawDialog`) when `isProposition`.
+3. Delete the `showDeleteDialog` state and the whole old `AlertDialog` block (618-644), which also removes the dangling `confirmDelete` reference.
+4. Mount two `ReasonDialog`s: withdraw (`onConfirm={confirmWithdrawProposition}`) and archive (`destructive`, `onConfirm={confirmArchive}`), bound to their existing states.
+5. Drop now-unused imports (`AlertDialog*` family) if nothing else uses them.
 
-## 2. Phase R0 — repair the false completion claims
+**CRMPipeline**
+6. Add an "Archived" button (Archive icon) next to the export/settings controls that opens a mounted `ArchivedLeadsDialog`, with `onRestored` refreshing the board.
+7. Keep `onDelete={deleteLead}` unchanged.
+8. Change the stage-settings gate from `manageSales` to the settings-write permissions (`manageBusiness`, `manageOrganization`, `manageTaxSettings`, any-of) so it mirrors `crm_can_admin_pipeline`; the "New Lead" button stays on `manageSales`.
 
-Each item is small and independently testable.
+**Verify and record**
+9. Run typecheck and the CRM test suites (`crm-lifecycle-rpc-only`, `crm-no-client-conversion`, `useLeads.convertToProject`, plus the SQL ratchets already added).
+10. Rewrite `.lovable/plan.md`: R1 marked complete with the verified evidence, and R2 stated as the next phase.
 
-**Consumer repairs (code only)**
-1. `process-automation` `create_activity`: derive `business_id` (and `branch_id` where available) from the target lead before insert; fail loudly if the lead cannot be resolved.
-2. `process-scheduled-reports` CRM pipeline report: drop `company_name`; source company from the linked contact, and derive lifecycle state from `status` rather than `won_at`/`lost_at` guessing.
-3. `ai-assistant` CRM context: replace `stage` with `stage_id` + `crm_stages(name)` and filter open leads by `status not in ('won','lost')`.
+## 3. Technical detail
 
-**Database repairs (one object per migration, per project convention)**
-4. `crm_lead_items.business_id` → NOT NULL.
-5. Composite FK `(lead_id, business_id)` referencing `crm_leads(id, business_id)` so an item can never belong to a different business than its lead.
-6. Trigger validation: `product_id`, when present, must belong to the item's business.
-7. Revoke `anon` privileges on `crm_lead_history` entirely and reduce `authenticated` to SELECT (writes already flow through the history trigger, which runs as the definer).
-
-**Event honesty**
-8. Either register real `consumer_domains` for the CRM topics or mark them explicitly as integration-only in the topic registry, so the catalog stops implying downstream consumers that do not exist.
-
-**Tests**
-9. Extend `supabase/tests/crm_domain_contract_test.sql`: item/business mismatch rejected, null item business rejected, product/business mismatch rejected, history not writable/updatable by `authenticated`, `anon` has no history privileges.
-10. Add consumer regression tests asserting the three repaired edge-function queries only reference columns that exist in the live schema (schema-contract style, in line with existing architecture tests).
-
-Gate: CRM SQL contract tests, architecture tests, and the business-event topic registration test all pass.
-
-## 3. Additions to the plan found during this verification
-
-Appended because the previous plan did not cover them:
-
-- **Schema-drift guard.** All three broken consumers are the same failure mode: a column was dropped and the edge functions were never re-checked. Add one test that enumerates the CRM columns each edge function references and fails when they no longer exist. This is what prevents a fourth occurrence.
-- **Topic-consumer honesty check.** A registered topic with no consumer and no integration flag should fail the catalog ratchet, not silently pass.
-- **Currency decision must precede reporting work (Phase R2).** Adding `crm_leads.currency_code` versus formally declaring expected revenue base-currency-only changes the shape of the `crm_pipeline_metrics` RPC, so decide it before writing that RPC rather than after.
-
-## 4. Phases after R0 (order unchanged from the audit)
-
-- **R1** — complete the lifecycle: resolve `proposition`, archive semantics, lifecycle timestamps, reopen reason capture, pipeline-admin permission for stage configuration, optimistic concurrency.
-- **R2** — reporting and activity foundation: server-side `crm_pipeline_metrics` RPC, delete the React financial reducers, single lifecycle-state authority, currency resolution, durable overdue/next-activity semantics, duplicate detection.
-- **R3** — conversion and event consumers: harden Contact/Estimate/Sales Order/Project conversion prerequisites, source lineage, real consumers, dead-letter monitoring.
-- **R4** — feature expansion only after R0–R3.
-
-Accounting boundary unchanged (**FACT/STD**): CRM emits lifecycle facts only. No CRM transition creates a journal entry, invoice, or sales document implicitly.
-
-The full audit and rework contract remains archived at `.lovable/plan/crm-domain-audit-rework-contract-2026-08-24.md`.
-
-
-
-======================================================
+No database or RPC changes — R1's server side is already applied. All edits are presentation/wiring in two files plus the plan document. Version values flow from `lead.version` into the existing hook calls, so optimistic-concurrency behaviour (40001 → conflict toast) is unchanged.
