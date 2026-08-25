@@ -88631,6 +88631,18 @@ export type Database = {
         Args: { p_product: Json }
         Returns: Json
       }
+      _project_assert_currency: {
+        Args: {
+          _business_id: string
+          _currency: string
+          _organization_id: string
+        }
+        Returns: undefined
+      }
+      _project_has_financial_activity: {
+        Args: { _project_id: string }
+        Returns: boolean
+      }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
       _project_task_assert_writable: {
         Args: { _task_id: string }
