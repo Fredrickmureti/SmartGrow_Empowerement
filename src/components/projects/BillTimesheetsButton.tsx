@@ -1,8 +1,9 @@
 import { normalizeError } from "@/services/resilience";
 /**
- * BillTimesheetsButton — opens a small period picker, invokes the
- * `invoice-project-timesheets` edge function, and navigates to the new
- * draft invoice on success. Permission-gated by `manageProjectFinancials`.
+ * BillTimesheetsButton — opens a small period picker, calls the transactional
+ * `invoice_project_timesheets` RPC (which claims the timesheets under lock,
+ * drafts the invoice and marks them invoiced in one transaction), and
+ * navigates to the new draft invoice. Gated by `manageProjectFinancials`.
  *
  * Pass 6 — Projects: migrated from `Dialog` to `WorkflowSheet` so the
  * presentation matches the New Payroll Run standard.
