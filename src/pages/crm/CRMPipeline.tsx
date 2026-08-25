@@ -306,16 +306,33 @@ export default function CRMPipeline() {
 
       {/* Kanban Pipeline */}
       {stages.length === 0 ? <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <Target className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold mb-2">No pipeline stages configured</h3>
-          <p className="text-muted-foreground mb-4">Set up your sales pipeline stages to get started</p>
-          <PermissionGate permission="manageSales">
-            <Button variant="outline" onClick={() => setShowStageSettings(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Configure Stages
-            </Button>
-          </PermissionGate>
+          <p className="text-muted-foreground mb-4 max-w-md">
+            {leads.length > 0
+              ? `Your funnel has not been set up yet, so the board has no columns to show. ${leads.length} lead${leads.length === 1 ? " is" : "s are"} already recorded and waiting to be placed.`
+              : "Create your funnel to start working opportunities on the board."}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <PermissionGate permission="manageSales">
+              <Button onClick={handleSeedStages} disabled={isSeeding}>
+                {isSeeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+                Create default stages
+              </Button>
+            </PermissionGate>
+            <PermissionGate permission="manageSales">
+              <Button variant="outline" onClick={() => setShowStageSettings(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Configure manually
+              </Button>
+            </PermissionGate>
+            {leads.length > 0 && (
+              <Button variant="ghost" onClick={() => navigate("/crm-app/leads")}>
+                View {leads.length} lead{leads.length === 1 ? "" : "s"}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card> : <div className="flex gap-4 overflow-x-auto pb-4">
         {stages.map(stage => {
