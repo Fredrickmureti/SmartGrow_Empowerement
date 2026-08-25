@@ -93,9 +93,9 @@ BEGIN
   PERFORM set_config('app.identity_change_source', 'link_employee_to_user', true);
 
   INSERT INTO public.employees (id, organization_id, business_id, branch_id, user_id,
-                                employee_number, first_name, last_name, hire_date, is_active)
-  VALUES (v_emp_w, v_org, v_biz, v_br_a, v_user_w, 'E-W', 'Wren', 'A', DATE '2026-01-01', true),
-         (v_emp_x, v_org, v_biz, v_br_b, v_user_x, 'E-X', 'Xer',  'B', DATE '2026-01-01', true);
+                                employee_number, first_name, last_name, hire_date, is_active, lifecycle_status)
+  VALUES (v_emp_w, v_org, v_biz, v_br_a, v_user_w, 'E-W', 'Wren', 'A', DATE '2026-01-01', true, 'active'),
+         (v_emp_x, v_org, v_biz, v_br_b, v_user_x, 'E-X', 'Xer',  'B', DATE '2026-01-01', true, 'active');
 
   -- A: branch-pinned project on HQ
   INSERT INTO public.projects (id, organization_id, business_id, branch_id, manager_id,
