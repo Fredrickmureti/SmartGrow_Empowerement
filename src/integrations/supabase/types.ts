@@ -102622,6 +102622,7 @@ export type Database = {
           project_ledger_revenue: number
           project_name: string
           project_number: string
+          unconverted_entry_count: number
         }[]
       }
       project_archive: { Args: { _project_id: string }; Returns: undefined }
