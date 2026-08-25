@@ -238,7 +238,8 @@ function AnalyticAccountStatementInner() {
             <h3 className="text-sm font-semibold">Project ledger variance</h3>
             <p className="text-xs text-muted-foreground">
               Projects where the GL analytic ledger and the operational project
-              ledger disagree. Non-GL costs (timesheets, commitments) legitimately
+              ledger disagree. Both sides are actuals in base currency —
+              commitments are excluded. Non-GL costs (timesheets) legitimately
               appear here; a difference on a purely financial project does not.
             </p>
             <ul className="divide-y rounded border bg-background">
@@ -248,6 +249,9 @@ function AnalyticAccountStatementInner() {
                     <div className="font-medium truncate">{v.project_name}</div>
                     <div className="text-xs text-muted-foreground">
                       GL {v.gl_analytic_net.toFixed(2)} · project ledger {v.project_ledger_net.toFixed(2)}
+                      {v.unconverted_entry_count > 0
+                        ? ` · ${v.unconverted_entry_count} entr${v.unconverted_entry_count === 1 ? "y" : "ies"} without an exchange rate (excluded)`
+                        : ""}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
