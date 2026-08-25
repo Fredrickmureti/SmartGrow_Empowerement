@@ -84,7 +84,13 @@ export function leadCompanyDisplay(lead: Pick<Lead, "company_contact">): string 
   return lead.company_contact?.name ?? null;
 }
 
-export function useLeads(filters?: { stageId?: string; type?: string; branchId?: string | null }) {
+export function useLeads(filters?: {
+  stageId?: string;
+  type?: string;
+  branchId?: string | null;
+  /** Archive surface (Phase R1): list archived leads instead of the active pipeline. */
+  archivedOnly?: boolean;
+}) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
