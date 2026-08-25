@@ -179,3 +179,88 @@ BEGIN;
     END IF;
   END $$;
 ROLLBACK;
+
+-- ===========================================================================
+-- R1 · proposition round-trip, archive/restore inverse and version bumping.
+-- Exercised through the privileged writer path (RPC bodies are covered by
+-- the contract ratchets); this asserts the trigger-level invariants.
+-- ===========================================================================
+BEGIN;
+  DO $$
+  DECLARE
+    v_org uuid; v_biz uuid; v_stage uuid; v_lead uuid;
+    v_v1 integer; v_v2 integer; v_ok boolean;
+  BEGIN
+    SELECT organization_id, id INTO v_org, v_biz FROM public.businesses LIMIT 1;
+    IF v_biz IS NULL THEN RETURN; END IF;
+
+    INSERT INTO public.crm_stages
+      (organization_id, business_id, name, sequence, probability, is_active)
+    VALUES (v_org, v_biz, 'pgtap r1 stage', 998, 30, true)
+    RETURNING id INTO v_stage;
+
+    INSERT INTO public.crm_leads
+      (organization_id, business_id, lead_number, name, stage_id, status)
+    VALUES (v_org, v_biz, 'TEST-R1-' || extract(epoch from now())::bigint,
+            'pgtap r1 lead', v_stage, 'qualified')
+    RETURNING id, version INTO v_lead, v_v1;
+
+    IF v_v1 <> 1 THEN
+      RAISE EXCEPTION 'R1: a new lead did not start at version 1 (got %)', v_v1;
+    END IF;
+
+    -- Version must advance on every update, whatever the client sends.
+    PERFORM set_config('app.crm_lead_writer', '1', true);
+    UPDATE public.crm_leads SET version = 99, status = 'proposition',
+           proposition_at = now()
+     WHERE id = v_lead RETURNING version INTO v_v2;
+    PERFORM set_config('app.crm_lead_writer', '0', true);
+    IF v_v2 <> v_v1 + 1 THEN
+      RAISE EXCEPTION 'R1: version was client-controlled (expected %, got %)', v_v1 + 1, v_v2;
+    END IF;
+
+    -- The proposition move must be audited under its own event name.
+    IF NOT EXISTS (SELECT 1 FROM public.crm_lead_history
+                    WHERE lead_id = v_lead AND event = 'proposition') THEN
+      RAISE EXCEPTION 'R1: entering proposition was not recorded in the lead history';
+    END IF;
+
+    -- Withdrawal must be recorded distinctly from a generic stage change.
+    PERFORM set_config('app.crm_lead_writer', '1', true);
+    UPDATE public.crm_leads SET status = 'qualified', proposition_at = NULL
+     WHERE id = v_lead;
+    PERFORM set_config('app.crm_lead_writer', '0', true);
+    IF NOT EXISTS (SELECT 1 FROM public.crm_lead_history
+                    WHERE lead_id = v_lead AND event = 'proposition_withdrawn') THEN
+      RAISE EXCEPTION 'R1: withdrawing a proposition was not recorded';
+    END IF;
+
+    -- Archive then restore must produce both halves of the audit pair.
+    PERFORM set_config('app.crm_lead_writer', '1', true);
+    UPDATE public.crm_leads SET is_active = false, archived_at = now(),
+           archive_reason = 'pgtap' WHERE id = v_lead;
+    UPDATE public.crm_leads SET is_active = true, archived_at = NULL,
+           archive_reason = NULL WHERE id = v_lead;
+    PERFORM set_config('app.crm_lead_writer', '0', true);
+    IF NOT EXISTS (SELECT 1 FROM public.crm_lead_history
+                    WHERE lead_id = v_lead AND event = 'archived')
+    OR NOT EXISTS (SELECT 1 FROM public.crm_lead_history
+                    WHERE lead_id = v_lead AND event = 'restored') THEN
+      RAISE EXCEPTION 'R1: archive/restore did not produce a symmetric audit trail';
+    END IF;
+
+    -- Editing an archived lead outside the RPCs must be refused.
+    PERFORM set_config('app.crm_lead_writer', '1', true);
+    UPDATE public.crm_leads SET is_active = false, archived_at = now(),
+           archive_reason = 'pgtap' WHERE id = v_lead;
+    PERFORM set_config('app.crm_lead_writer', '0', true);
+    v_ok := false;
+    BEGIN
+      UPDATE public.crm_leads SET description = 'nope' WHERE id = v_lead;
+    EXCEPTION WHEN insufficient_privilege THEN v_ok := true;
+    END;
+    IF NOT v_ok THEN
+      RAISE EXCEPTION 'R1: an archived lead accepted a descriptive edit';
+    END IF;
+  END $$;
+ROLLBACK;

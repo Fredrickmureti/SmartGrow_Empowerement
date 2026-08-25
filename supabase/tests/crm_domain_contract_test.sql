@@ -434,3 +434,112 @@ BEGIN
       'R0: CRM topics have no consumer domains and are not flagged integration_only: %', v_bad;
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- R1 · Every lifecycle RPC must accept an optimistic-concurrency token, so a
+-- stale screen can never silently overwrite another user's transition.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_missing text;
+BEGIN
+  SELECT string_agg(format('%s(%s)', p.proname,
+                           pg_get_function_identity_arguments(p.oid)), ', ')
+    INTO v_missing
+    FROM pg_proc p
+   WHERE p.pronamespace = 'public'::regnamespace
+     AND p.proname IN ('crm_qualify_lead','crm_change_stage','crm_mark_proposition',
+                       'crm_withdraw_proposition','crm_mark_won','crm_mark_lost',
+                       'crm_reopen_lead','crm_reassign_lead','crm_revalue_lead',
+                       'crm_archive_lead','crm_restore_lead')
+     AND NOT ('p_expected_version' = ANY (coalesce(p.proargnames, ARRAY[]::text[])));
+
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION
+      'R1: lifecycle RPCs without optimistic concurrency: %', v_missing;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- R1 · The lifecycle surface must be complete: every state in
+-- crm_lead_status has a transition function that can reach it, and archive
+-- has a documented inverse.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_missing text;
+BEGIN
+  SELECT string_agg(fn, ', ') INTO v_missing
+    FROM unnest(ARRAY['crm_qualify_lead','crm_mark_proposition','crm_mark_won',
+                      'crm_mark_lost','crm_reopen_lead','crm_archive_lead',
+                      'crm_restore_lead','crm_withdraw_proposition']) fn
+   WHERE NOT EXISTS (SELECT 1 FROM pg_proc p
+                      WHERE p.pronamespace = 'public'::regnamespace
+                        AND p.proname = fn);
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'R1: lifecycle functions missing: %', v_missing;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- R1 · Lifecycle provenance columns exist and version is NOT NULL defaulted,
+-- so concurrency control cannot be bypassed by a null token.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_missing text;
+BEGIN
+  SELECT string_agg(c, ', ') INTO v_missing
+    FROM unnest(ARRAY['qualified_at','proposition_at','reopened_at','reopen_count',
+                      'reopen_reason','archived_at','archived_by','archive_reason',
+                      'version']) c
+   WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema='public' AND table_name='crm_leads'
+                        AND column_name = c);
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'R1: crm_leads is missing lifecycle columns: %', v_missing;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='crm_leads'
+                AND column_name='version'
+                AND (is_nullable='YES' OR column_default IS NULL)) THEN
+    RAISE EXCEPTION 'R1: crm_leads.version must be NOT NULL with a default';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                  WHERE tgrelid = 'public.crm_leads'::regclass
+                    AND NOT tgisinternal
+                    AND tgname = 'crm_leads_version_bump') THEN
+    RAISE EXCEPTION 'R1: the version-bump trigger on crm_leads is missing';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- R1 · Archive is a closed invariant: is_active=false <-> archived_at set.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_n bigint;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.crm_leads
+   WHERE (is_active = false) <> (archived_at IS NOT NULL);
+  IF v_n > 0 THEN
+    RAISE EXCEPTION
+      'R1: % lead(s) disagree between is_active and archived_at', v_n;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- R1 · Pipeline configuration is an administration capability. Stage
+-- write policies must go through crm_can_admin_pipeline, not plain sales.write.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_bad text;
+BEGIN
+  SELECT string_agg(policyname, ', ') INTO v_bad
+    FROM pg_policies
+   WHERE schemaname='public' AND tablename='crm_stages'
+     AND cmd IN ('INSERT','UPDATE','DELETE')
+     AND coalesce(qual, '') || coalesce(with_check, '') NOT LIKE '%crm_can_admin_pipeline%';
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION
+      'R1: crm_stages write policies not gated on pipeline administration: %', v_bad;
+  END IF;
+END $$;

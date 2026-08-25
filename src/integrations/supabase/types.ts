@@ -12056,6 +12056,9 @@ export type Database = {
       }
       crm_leads: {
         Row: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -12088,6 +12091,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -12097,10 +12105,14 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
         Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           assigned_to?: string | null
           branch_id?: string | null
           business_id: string
@@ -12133,6 +12145,11 @@ export type Database = {
           phone?: string | null
           priority?: number | null
           probability?: number | null
+          proposition_at?: string | null
+          qualified_at?: string | null
+          reopen_count?: number
+          reopen_reason?: string | null
+          reopened_at?: string | null
           source?: string | null
           stage_id?: string | null
           state?: string | null
@@ -12142,10 +12159,14 @@ export type Database = {
           team_id?: string | null
           type?: string | null
           updated_at?: string
+          version?: number
           website?: string | null
           won_at?: string | null
         }
         Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           assigned_to?: string | null
           branch_id?: string | null
           business_id?: string
@@ -12178,6 +12199,11 @@ export type Database = {
           phone?: string | null
           priority?: number | null
           probability?: number | null
+          proposition_at?: string | null
+          qualified_at?: string | null
+          reopen_count?: number
+          reopen_reason?: string | null
+          reopened_at?: string | null
           source?: string | null
           stage_id?: string | null
           state?: string | null
@@ -12187,6 +12213,7 @@ export type Database = {
           team_id?: string | null
           type?: string | null
           updated_at?: string
+          version?: number
           website?: string | null
           won_at?: string | null
         }
@@ -87906,6 +87933,9 @@ export type Database = {
       _crm_assert_lead_access: {
         Args: { p_lead_id: string; p_operation: string }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -87938,6 +87968,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -87947,6 +87982,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -87963,6 +87999,10 @@ export type Database = {
           p_reopen?: boolean
           p_to: Database["public"]["Enums"]["crm_lead_status"]
         }
+        Returns: undefined
+      }
+      _crm_assert_version: {
+        Args: { p_actual: number; p_expected: number }
         Returns: undefined
       }
       _crm_log_system_activity: {
@@ -93673,8 +93713,15 @@ export type Database = {
         Returns: Json
       }
       crm_archive_lead: {
-        Args: { p_lead_id: string; p_reason: string }
+        Args: {
+          p_expected_version?: number
+          p_lead_id: string
+          p_reason: string
+        }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -93707,6 +93754,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -93716,6 +93768,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -93726,9 +93779,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      crm_can_admin_pipeline: {
+        Args: { _business_id: string; _org_id: string; _user_id: string }
+        Returns: boolean
+      }
       crm_change_stage: {
-        Args: { p_lead_id: string; p_stage_id: string }
+        Args: {
+          p_expected_version?: number
+          p_lead_id: string
+          p_stage_id: string
+        }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -93761,6 +93825,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -93770,6 +93839,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -93781,8 +93851,16 @@ export type Database = {
         }
       }
       crm_mark_lost: {
-        Args: { p_lead_id: string; p_notes?: string; p_reason_id?: string }
+        Args: {
+          p_expected_version?: number
+          p_lead_id: string
+          p_notes?: string
+          p_reason_id?: string
+        }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -93815,6 +93893,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -93824,6 +93907,70 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_mark_proposition: {
+        Args: { p_expected_version?: number; p_lead_id: string }
+        Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          assigned_to: string | null
+          branch_id: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -93835,8 +93982,11 @@ export type Database = {
         }
       }
       crm_mark_won: {
-        Args: { p_lead_id: string }
+        Args: { p_expected_version?: number; p_lead_id: string }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -93869,6 +94019,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -93878,6 +94033,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -93889,8 +94045,11 @@ export type Database = {
         }
       }
       crm_qualify_lead: {
-        Args: { p_lead_id: string }
+        Args: { p_expected_version?: number; p_lead_id: string }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -93923,6 +94082,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -93932,6 +94096,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -93943,8 +94108,15 @@ export type Database = {
         }
       }
       crm_reassign_lead: {
-        Args: { p_assignee: string; p_lead_id: string }
+        Args: {
+          p_assignee: string
+          p_expected_version?: number
+          p_lead_id: string
+        }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -93977,6 +94149,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -93986,6 +94163,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -93997,8 +94175,15 @@ export type Database = {
         }
       }
       crm_reopen_lead: {
-        Args: { p_lead_id: string; p_reason: string }
+        Args: {
+          p_expected_version?: number
+          p_lead_id: string
+          p_reason: string
+        }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -94031,6 +94216,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -94040,6 +94230,74 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_restore_lead: {
+        Args: {
+          p_expected_version?: number
+          p_lead_id: string
+          p_reason: string
+        }
+        Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          assigned_to: string | null
+          branch_id: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -94054,9 +94312,13 @@ export type Database = {
         Args: {
           p_expected_close_date?: string
           p_expected_revenue: number
+          p_expected_version?: number
           p_lead_id: string
         }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -94089,6 +94351,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -94098,6 +94365,7 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }
@@ -94111,6 +94379,9 @@ export type Database = {
       crm_transfer_lead_branch: {
         Args: { p_branch_id: string; p_lead_id: string; p_reason?: string }
         Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
@@ -94143,6 +94414,11 @@ export type Database = {
           phone: string | null
           priority: number | null
           probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
           source: string | null
           stage_id: string | null
           state: string | null
@@ -94152,6 +94428,74 @@ export type Database = {
           team_id: string | null
           type: string | null
           updated_at: string
+          version: number
+          website: string | null
+          won_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crm_leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      crm_withdraw_proposition: {
+        Args: {
+          p_expected_version?: number
+          p_lead_id: string
+          p_reason: string
+        }
+        Returns: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          assigned_to: string | null
+          branch_id: string | null
+          business_id: string
+          campaign: string | null
+          city: string | null
+          company_contact_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          converted_at: string | null
+          converted_to_contact_id: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          email: string | null
+          expected_close_date: string | null
+          expected_revenue: number | null
+          id: string
+          internal_notes: string | null
+          is_active: boolean | null
+          lead_number: string
+          lost_at: string | null
+          lost_notes: string | null
+          lost_reason_id: string | null
+          medium: string | null
+          name: string
+          next_activity_date: string | null
+          next_activity_summary: string | null
+          organization_id: string
+          phone: string | null
+          priority: number | null
+          probability: number | null
+          proposition_at: string | null
+          qualified_at: string | null
+          reopen_count: number
+          reopen_reason: string | null
+          reopened_at: string | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["crm_lead_status"]
+          street: string | null
+          tags: string[] | null
+          team_id: string | null
+          type: string | null
+          updated_at: string
+          version: number
           website: string | null
           won_at: string | null
         }

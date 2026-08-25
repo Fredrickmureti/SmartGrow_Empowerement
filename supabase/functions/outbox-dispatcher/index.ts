@@ -570,7 +570,11 @@ const HANDLERS: Record<string, HandlerFn> = {
   "crm.lead.reassigned":               handleInventoryLifecycleRecorded,
   "crm.lead.revalued":                 handleInventoryLifecycleRecorded,
   "crm.lead.archived":                 handleInventoryLifecycleRecorded,
+  "crm.lead.restored":                 handleInventoryLifecycleRecorded,
   "crm.lead.branch_transferred":       handleInventoryLifecycleRecorded,
+  // Phase R1: the proposition step is a real, reversible lifecycle state.
+  "crm.lead.proposition":              handleInventoryLifecycleRecorded,
+  "crm.lead.proposition_withdrawn":    handleInventoryLifecycleRecorded,
 };
 
 
