@@ -81,6 +81,8 @@ export function LeadDetailsDialog({
   const {
     markAsWon,
     markAsLost,
+    markAsProposition,
+    withdrawProposition,
     deleteLead: deleteLeadFromHook,
     convertToContact,
     convertToEstimate,
