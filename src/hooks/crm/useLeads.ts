@@ -43,6 +43,11 @@ export interface Lead {
   internal_notes: string | null;
   lost_reason_id: string | null;
   lost_notes: string | null;
+  /**
+   * Server-owned lifecycle state (`crm_lead_status` enum · Phase R1). Only the
+   * transition RPCs may change it; the write guard rejects direct updates.
+   */
+  status: "new" | "qualified" | "proposition" | "won" | "lost";
   /** Lifecycle timestamps (server-owned · Phase R1). */
   qualified_at: string | null;
   proposition_at: string | null;
