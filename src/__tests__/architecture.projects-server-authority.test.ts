@@ -139,3 +139,48 @@ describe("architecture: project task lifecycle authority", () => {
     }
   });
 });
+
+/**
+ * Wave 3 — single billing-rate engine.
+ *
+ * The applicable rate for project time is resolved in exactly one place:
+ * `public.resolve_project_billing_rate(project, employee, explicit)`. The
+ * timesheet trigger, `resolve_timesheet_billing_rate` and the UI preview
+ * (`project_billing_rate_preview`) all delegate to it. A client file that
+ * re-derives the rate from `projects.hourly_rate` /
+ * `projects.default_billable_rate` / `project_members.billable_rate` is a
+ * competing engine and will disagree with what the database writes.
+ */
+const RATE_MIRROR_EXEMPT = new Set([
+  "hooks/projects/useProjects.ts", // typed row shape + config write-through only
+  "components/projects/ProjectSettings.tsx", // edits the configuration value
+  "components/projects/ProjectForm.tsx", // edits the configuration value
+  "pages/projects/portfolio/Configuration.tsx", // edits the configuration value
+  "hooks/estimates/estimateWriter.ts", // estimates domain, not project time
+]);
+
+describe("architecture: single project billing-rate engine", () => {
+  it("no client file re-derives the billing rate from project or member rates", () => {
+    const offenders: string[] = [];
+    const mirror = /(hourly_rate|default_billable_rate|billable_rate)\s*(\?\?|\|\||&&|<=|>=|<|>)/;
+
+    for (const file of walk(SRC)) {
+      const rel = relative(SRC, file).split("\\").join("/");
+      if (RATE_MIRROR_EXEMPT.has(rel)) continue;
+      const source = readFileSync(file, "utf8");
+      if (mirror.test(source)) offenders.push(rel);
+    }
+
+    expect(
+      offenders,
+      `Client-side billing-rate derivation found. Read project_billing_rate_preview instead:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the time entry form asks the server for the applicable rate", () => {
+    const source = readFileSync(join(SRC, "hooks/projects/useProjectBillingRate.ts"), "utf8");
+    expect(source).toContain("project_billing_rate_preview");
+    const form = readFileSync(join(SRC, "components/timesheets/TimesheetEntryForm.tsx"), "utf8");
+    expect(form).toContain("useProjectBillingRate");
+  });
+});
