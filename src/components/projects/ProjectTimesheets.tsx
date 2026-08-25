@@ -67,32 +67,26 @@ export function ProjectTimesheets({ projectId }: ProjectTimesheetsProps) {
     if (!currentOrg || !user || !hours) return;
     setIsSubmitting(true);
     try {
-      let empQ = supabase
-        .from("v_employees_canonical")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("organization_id", currentOrg.id);
-      empQ = empQ.eq("business_id", currentBusiness!.id);
-      const { data: emp } = await empQ.maybeSingle();
+      const scope = {
+        organizationId: currentOrg.id,
+        businessId: currentBusiness?.id ?? null,
+        userId: user.id,
+      };
+      const employeeId = await resolveMyEmployeeId(scope);
 
-      if (!emp) {
+      if (!employeeId) {
         toast.error("No employee record found. Set up your employee profile first.");
         return;
       }
 
-      const { error } = await supabase.from("timesheets").insert({
-        organization_id: currentOrg.id,
-        employee_id: emp.id,
+      await insertTimesheet(scope, {
+        employee_id: employeeId,
         project_id: projectId,
         date: new Date().toISOString().split("T")[0],
         hours: parseFloat(hours),
         description: description || "Project time entry",
-        is_billable: false,
-        status: "draft",
-        created_by: user.id,
-      } as any);
+      });
 
-      if (error) throw error;
       toast.success("Time logged successfully");
       setHours("");
       setDescription("");
@@ -105,6 +99,7 @@ export function ProjectTimesheets({ projectId }: ProjectTimesheetsProps) {
       setIsSubmitting(false);
     }
   };
+
 
   const totalHours = entries.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
   const billableHours = entries.filter(e => e.is_billable).reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
