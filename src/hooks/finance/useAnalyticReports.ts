@@ -92,6 +92,12 @@ export interface ProjectAnalyticReconciliationRow {
   project_ledger_revenue: number;
   project_ledger_net: number;
   difference: number;
+  /**
+   * Project ledger rows in the window that have no exchange rate on file, so
+   * they are excluded from the base-currency comparison rather than counted
+   * at 1:1. A non-zero count means the difference is not yet explainable.
+   */
+  unconverted_entry_count: number;
 }
 
 interface Range {
