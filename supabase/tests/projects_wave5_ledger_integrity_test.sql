@@ -156,6 +156,15 @@ BEGIN
   INSERT INTO public.businesses (id, organization_id, name, country, base_currency, fiscal_year_start)
   VALUES (v_biz, v_org, 'PJ54 Ltd', 'KE', 'KES', 1);
 
+  -- Budget lines resolve to monthly fiscal periods; provision FY2026.
+  INSERT INTO public.fiscal_periods (organization_id, business_id, name, period_type, start_date, end_date)
+  SELECT v_org, v_biz, 'FY2026', 'year', DATE '2026-01-01', DATE '2026-12-31'
+  UNION ALL
+  SELECT v_org, v_biz, to_char(make_date(2026, m, 1), 'YYYY-MM'), 'month',
+         make_date(2026, m, 1), (make_date(2026, m, 1) + INTERVAL '1 month - 1 day')::date
+    FROM generate_series(1, 12) m;
+
+
   INSERT INTO public.organization_installed_apps (organization_id, app_id, is_active, installed_by)
   VALUES (v_org, 'projects', true, v_admin);
 
