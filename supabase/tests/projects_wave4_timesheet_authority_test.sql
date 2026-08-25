@@ -176,7 +176,16 @@ BEGIN
   END IF;
 
   -- ===== 7: completed project refuses time ====================================
+  -- Close the project as a governor (a plain member's UPDATE matches 0 rows under RLS).
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_mgr::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
   UPDATE public.projects SET status = 'completed', is_active = false WHERE id = v_proj_c;
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user_w::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
   v_blocked := false;
   BEGIN
     INSERT INTO public.timesheets (organization_id, business_id, employee_id, date, hours, project_id)
