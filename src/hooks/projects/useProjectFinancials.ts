@@ -23,7 +23,15 @@ export interface ProjectFinancials {
   unconverted_revenue_count: number;
   planned_hours: number;
   logged_hours: number;
+  /**
+   * Budget authority is the canonical budgets domain (budget_items scoped to the
+   * project's analytic account). `budget_source` says where the figure came from:
+   * 'budgets_domain' (authoritative), 'project_scalar' (informational fallback,
+   * no budgets record exists yet) or 'none'.
+   */
   budget: number | null;
+  budget_source: "budgets_domain" | "project_scalar" | "none";
+  budget_currency: string | null;
   budget_used_pct: number | null;
   cost_by_source: Record<string, number>;
   revenue_by_source: Record<string, number>;
