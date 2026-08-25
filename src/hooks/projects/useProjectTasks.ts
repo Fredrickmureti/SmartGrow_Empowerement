@@ -183,16 +183,30 @@ export function useProjectTasks(projectId?: string) {
   };
 
   const updateTask = async (id: string, updates: Partial<ProjectTask>) => {
-    const { error } = await supabase
-      .from("project_tasks")
-      .update(updates as any)
-      .eq("id", id);
+    // Lifecycle fields are governed by the server commands below; strip them
+    // from generic field edits so an ad-hoc form cannot bypass the guards.
+    const { is_done, completed_at, completed_by, stage_id, assigned_to, ...fields } =
+      updates as Record<string, unknown> & Partial<ProjectTask>;
 
-    if (error) throw error;
+    if (Object.keys(fields).length > 0) {
+      const { error } = await supabase
+        .from("project_tasks")
+        .update(fields as any)
+        .eq("id", id);
+      if (error) throw error;
+    }
+
+    if (stage_id !== undefined && stage_id !== null) await moveTask(id, stage_id);
+    if (assigned_to !== undefined) await assignTask(id, assigned_to ?? null);
+    if (is_done !== undefined) {
+      if (is_done) await completeTask(id);
+      else await reopenTask(id);
+    }
 
     toast.success("Task updated successfully");
     await fetchTasks();
   };
+
 
   /**
    * Wave 2 — task lifecycle is server-owned. `project_task_*` RPCs enforce
