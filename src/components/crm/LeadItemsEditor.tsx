@@ -74,6 +74,11 @@ export function LeadItemsEditor({ leadId, organizationId, businessId, onChanged 
       toast.error("Description is required");
       return;
     }
+    if (!it.id && !businessId) {
+      // business_id is mandatory on crm_lead_items and must match the lead's business.
+      toast.error("Select a company before adding lines to this lead");
+      return;
+    }
     setSaving(it.id ?? `new-${index}`);
     try {
       if (it.id) {

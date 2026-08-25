@@ -347,3 +347,90 @@ BEGIN
       'Event contract: topic crm.lead.branch_transferred is not registered — transfers dead-letter as unknown events';
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- R0 · crm_lead_items tenancy: business is mandatory and must equal the
+-- parent lead's business (composite FK), and a product on the line must
+-- belong to the same business.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'crm_lead_items'
+       AND column_name = 'business_id' AND is_nullable = 'YES'
+  ) THEN
+    RAISE EXCEPTION
+      'R0: crm_lead_items.business_id is nullable — lead lines can escape business scope';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.crm_lead_items'::regclass
+       AND contype = 'f'
+       AND pg_get_constraintdef(oid) ILIKE '%(lead_id, business_id)%'
+       AND pg_get_constraintdef(oid) ILIKE '%crm_leads(id, business_id)%'
+  ) THEN
+    RAISE EXCEPTION
+      'R0: crm_lead_items has no (lead_id, business_id) composite FK to crm_leads — an item may reference another business''s lead';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+      JOIN pg_proc p ON p.oid = t.tgfoid
+     WHERE t.tgrelid = 'public.crm_lead_items'::regclass
+       AND NOT t.tgisinternal
+       AND p.proname = '_crm_lead_item_product_business_guard'
+  ) THEN
+    RAISE EXCEPTION
+      'R0: crm_lead_items has no product/business validation trigger — a lead line may price another business''s product';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- R0 · crm_lead_history is append-only infrastructure: anon must hold no
+-- privileges at all, and authenticated must hold read-only privileges.
+-- Rows are written by the SECURITY DEFINER history trigger.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_bad text;
+BEGIN
+  SELECT string_agg(format('%s:%s', grantee, privilege_type), ', ')
+    INTO v_bad
+    FROM information_schema.role_table_grants
+   WHERE table_schema = 'public'
+     AND table_name = 'crm_lead_history'
+     AND (grantee = 'anon'
+          OR (grantee = 'authenticated' AND privilege_type <> 'SELECT'));
+
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION
+      'R0: crm_lead_history grants violate least privilege: %', v_bad;
+  END IF;
+
+  IF NOT has_table_privilege('authenticated', 'public.crm_lead_history', 'SELECT') THEN
+    RAISE EXCEPTION
+      'R0: authenticated cannot read crm_lead_history — the lifecycle timeline is unreadable';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- R0 · Event honesty: a registered topic with no consumer domains must be
+-- explicitly flagged integration_only, so the registry never implies a
+-- downstream workflow that does not exist.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v_bad text;
+BEGIN
+  SELECT string_agg(topic_prefix, ', ')
+    INTO v_bad
+    FROM public.business_event_topics
+   WHERE topic_prefix LIKE 'crm.%'
+     AND (consumer_domains IS NULL OR cardinality(consumer_domains) = 0)
+     AND integration_only IS NOT TRUE;
+
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION
+      'R0: CRM topics have no consumer domains and are not flagged integration_only: %', v_bad;
+  END IF;
+END $$;

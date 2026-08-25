@@ -8686,6 +8686,7 @@ export type Database = {
           created_at: string
           description: string | null
           handler_scope: string
+          integration_only: boolean
           max_attempts: number | null
           producer_domain: string
           topic_prefix: string
@@ -8696,6 +8697,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           handler_scope?: string
+          integration_only?: boolean
           max_attempts?: number | null
           producer_domain: string
           topic_prefix: string
@@ -8706,6 +8708,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           handler_scope?: string
+          integration_only?: boolean
           max_attempts?: number | null
           producer_domain?: string
           topic_prefix?: string
@@ -11931,7 +11934,7 @@ export type Database = {
       }
       crm_lead_items: {
         Row: {
-          business_id: string | null
+          business_id: string
           created_at: string
           description: string
           discount_percent: number | null
@@ -11947,7 +11950,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          business_id?: string | null
+          business_id: string
           created_at?: string
           description: string
           discount_percent?: number | null
@@ -11963,7 +11966,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          business_id?: string | null
+          business_id?: string
           created_at?: string
           description?: string
           discount_percent?: number | null
@@ -12001,11 +12004,11 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
-            foreignKeyName: "crm_lead_items_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "crm_lead_items_lead_business_fkey"
+            columns: ["lead_id", "business_id"]
             isOneToOne: false
             referencedRelation: "crm_leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "business_id"]
           },
           {
             foreignKeyName: "crm_lead_items_organization_id_fkey"

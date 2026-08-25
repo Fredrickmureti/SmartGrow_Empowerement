@@ -495,19 +495,39 @@ async function buildPurchaseOrdersReport(supabase: SupabaseClient, orgId: string
 async function buildCrmPipelineReport(supabase: SupabaseClient, orgId: string): Promise<ReportResult> {
   const { data: leads } = await supabase
     .from("crm_leads")
-    .select("id, name, contact_name, company_name, expected_revenue, probability, stage_id, won_at, lost_at, created_at, crm_stages(name)")
+    .select(
+      "id, name, contact_name, company_contact_id, status, expected_revenue, probability, stage_id, created_at, crm_stages(name)",
+    )
     .eq("organization_id", orgId)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
+  // Company names live in the authoritative Contacts domain; CRM only references them.
+  const companyIds = [...new Set(((leads || []) as Record<string, unknown>[])
+    .map(l => l.company_contact_id as string | null)
+    .filter((id): id is string => !!id))];
+  const companyNames = new Map<string, string>();
+  if (companyIds.length > 0) {
+    const { data: companies } = await supabase
+      .from("contacts")
+      .select("id, name")
+      .eq("organization_id", orgId)
+      .in("id", companyIds);
+    for (const c of (companies || []) as { id: string; name: string }[]) {
+      companyNames.set(c.id, c.name);
+    }
+  }
+
   const data = ((leads || []) as Record<string, unknown>[]).map(l => {
     const stage = l.crm_stages as Record<string, unknown> | null;
+    const company = { name: companyNames.get(l.company_contact_id as string) ?? "" };
+    const status = (l.status as string) || "new";
     return {
-      name: l.name, contact: l.contact_name || "", company: l.company_name || "",
+      name: l.name, contact: l.contact_name || "", company: company?.name || "",
       stage: stage?.name || "", expected_revenue: (l.expected_revenue as number) || 0,
       probability: (l.probability as number) || 0,
       weighted_value: ((l.expected_revenue as number) || 0) * ((l.probability as number) || 0) / 100,
-      status: l.won_at ? "Won" : l.lost_at ? "Lost" : "Open",
+      status: status === "won" ? "Won" : status === "lost" ? "Lost" : "Open",
     };
   });
 
