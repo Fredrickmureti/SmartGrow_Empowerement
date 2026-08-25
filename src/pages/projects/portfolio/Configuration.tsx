@@ -35,7 +35,7 @@ const PRICING_OPTIONS = [
 ];
 
 export default function ProjectsConfiguration() {
-  const { projects, refreshProjects } = useProjects();
+  const { projects, refreshProjects, updateProject } = useProjects();
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<string>("");
