@@ -231,28 +231,61 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     "branch_id",
   ] as const;
 
-  const updateLead = async (id: string, updates: Partial<Lead>) => {
+  /**
+   * Optimistic concurrency (Phase R1). Every lifecycle RPC takes the version the
+   * screen was rendered from; the server rejects the call with SQLSTATE 40001 if
+   * the row moved on in the meantime. Passing `null` opts out (used only for
+   * leads not present in the current page of results).
+   */
+  const versionOf = (leadId: string, explicit?: number | null): number | null => {
+    if (explicit !== undefined) return explicit;
+    return leads.find((l) => l.id === leadId)?.version ?? null;
+  };
+
+  /** Turns the server's concurrency error into an actionable message. */
+  const guard = async <T,>(op: () => Promise<{ error: any; data?: T }>) => {
+    const { error, data } = await op();
+    if (error) {
+      if (error.code === "40001") {
+        await fetchLeads();
+        toast.error("This opportunity was changed by someone else — reloaded, please retry");
+      }
+      throw error;
+    }
+    return data as T;
+  };
+
+  const updateLead = async (id: string, updates: Partial<Lead>, expectedVersion?: number | null) => {
     const descriptive: Record<string, any> = { ...updates };
     const lifecycle = LIFECYCLE_FIELDS.filter((f) => f in descriptive);
     for (const f of lifecycle) delete descriptive[f];
 
     // Expected revenue / close date are audited value changes.
     if ("expected_revenue" in (updates as Record<string, unknown>)) {
-      const { error } = await supabase.rpc("crm_revalue_lead", {
-        p_lead_id: id,
-        p_expected_revenue: (updates as any).expected_revenue ?? null,
-        p_expected_close_date: (updates as any).expected_close_date ?? null,
-      });
-      if (error) throw error;
+      await guard(() =>
+        supabase.rpc("crm_revalue_lead", {
+          p_lead_id: id,
+          p_expected_revenue: (updates as any).expected_revenue ?? null,
+          p_expected_close_date: (updates as any).expected_close_date ?? null,
+          p_expected_version: versionOf(id, expectedVersion),
+        })
+      );
       delete descriptive.expected_close_date;
     }
 
     if ((updates as any).assigned_to !== undefined) {
-      const { error } = await supabase.rpc("crm_reassign_lead", {
-        p_lead_id: id,
-        p_assignee: (updates as any).assigned_to ?? null,
-      });
-      if (error) throw error;
+      // The version has already been bumped if we revalued above, so only the
+      // first RPC in a compound save asserts it.
+      await guard(() =>
+        supabase.rpc("crm_reassign_lead", {
+          p_lead_id: id,
+          p_assignee: (updates as any).assigned_to ?? null,
+          p_expected_version:
+            "expected_revenue" in (updates as Record<string, unknown>)
+              ? null
+              : versionOf(id, expectedVersion),
+        })
+      );
     }
 
     if (Object.keys(descriptive).length > 0) {
@@ -265,10 +298,47 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
   };
 
   /** Qualify a raw lead into an opportunity (authoritative transition). */
-  const qualifyLead = async (leadId: string) => {
-    const { error } = await supabase.rpc("crm_qualify_lead", { p_lead_id: leadId });
-    if (error) throw error;
+  const qualifyLead = async (leadId: string, expectedVersion?: number | null) => {
+    await guard(() =>
+      supabase.rpc("crm_qualify_lead", {
+        p_lead_id: leadId,
+        p_expected_version: versionOf(leadId, expectedVersion),
+      })
+    );
     toast.success("Lead qualified");
+    await fetchLeads();
+  };
+
+  /**
+   * Proposition issued to the customer (Phase R1). A real lifecycle state, not a
+   * label: the server stamps `proposition_at`, audits the move and publishes
+   * `crm.lead.proposition`.
+   */
+  const markAsProposition = async (leadId: string, expectedVersion?: number | null) => {
+    await guard(() =>
+      supabase.rpc("crm_mark_proposition", {
+        p_lead_id: leadId,
+        p_expected_version: versionOf(leadId, expectedVersion),
+      })
+    );
+    toast.success("Proposition recorded");
+    await fetchLeads();
+  };
+
+  /** Withdraw an outstanding proposition back to qualified — reason mandatory. */
+  const withdrawProposition = async (
+    leadId: string,
+    reason: string,
+    expectedVersion?: number | null
+  ) => {
+    await guard(() =>
+      supabase.rpc("crm_withdraw_proposition", {
+        p_lead_id: leadId,
+        p_reason: reason,
+        p_expected_version: versionOf(leadId, expectedVersion),
+      })
+    );
+    toast.success("Proposition withdrawn");
     await fetchLeads();
   };
 
@@ -277,12 +347,14 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
    * refuses terminal stages (won/lost go through their own operations),
    * closed opportunities, and stages from another business.
    */
-  const moveToStage = async (leadId: string, stageId: string) => {
-    const { error } = await supabase.rpc("crm_change_stage", {
-      p_lead_id: leadId,
-      p_stage_id: stageId,
-    });
-    if (error) throw error;
+  const moveToStage = async (leadId: string, stageId: string, expectedVersion?: number | null) => {
+    await guard(() =>
+      supabase.rpc("crm_change_stage", {
+        p_lead_id: leadId,
+        p_stage_id: stageId,
+        p_expected_version: versionOf(leadId, expectedVersion),
+      })
+    );
     await fetchLeads();
   };
 
@@ -294,12 +366,17 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
       createDocument?: "none" | "estimate" | "sales_order" | "project";
       /** Preferred: pick any combination. SO + project are auto cross-linked. */
       create?: { estimate?: boolean; salesOrder?: boolean; project?: boolean };
+      expectedVersion?: number | null;
     }
   ): Promise<{ estimateId?: string; salesOrderId?: string; contactId?: string; projectId?: string }> => {
     // Authoritative transition: validates the source state, resolves the
     // business's Won stage, pins probability to 100 and logs a system activity.
-    const { error } = await supabase.rpc("crm_mark_won", { p_lead_id: leadId });
-    if (error) throw error;
+    await guard(() =>
+      supabase.rpc("crm_mark_won", {
+        p_lead_id: leadId,
+        p_expected_version: versionOf(leadId, options?.expectedVersion),
+      })
+    );
 
     const result: { estimateId?: string; salesOrderId?: string; contactId?: string; projectId?: string } = {};
 
@@ -345,24 +422,33 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     return result;
   };
 
-  const markAsLost = async (leadId: string, reasonId?: string, notes?: string) => {
-    const { error } = await supabase.rpc("crm_mark_lost", {
-      p_lead_id: leadId,
-      p_reason_id: reasonId || null,
-      p_notes: notes || null,
-    });
-    if (error) throw error;
+  const markAsLost = async (
+    leadId: string,
+    reasonId?: string,
+    notes?: string,
+    expectedVersion?: number | null
+  ) => {
+    await guard(() =>
+      supabase.rpc("crm_mark_lost", {
+        p_lead_id: leadId,
+        p_reason_id: reasonId || null,
+        p_notes: notes || null,
+        p_expected_version: versionOf(leadId, expectedVersion),
+      })
+    );
     toast.success("Lead marked as lost");
     await fetchLeads();
   };
 
   /** Controlled reopen of a won/lost opportunity — reason is mandatory. */
-  const reopenLead = async (leadId: string, reason: string) => {
-    const { error } = await supabase.rpc("crm_reopen_lead", {
-      p_lead_id: leadId,
-      p_reason: reason,
-    });
-    if (error) throw error;
+  const reopenLead = async (leadId: string, reason: string, expectedVersion?: number | null) => {
+    await guard(() =>
+      supabase.rpc("crm_reopen_lead", {
+        p_lead_id: leadId,
+        p_reason: reason,
+        p_expected_version: versionOf(leadId, expectedVersion),
+      })
+    );
     toast.success("Opportunity reopened");
     await fetchLeads();
   };
@@ -384,17 +470,41 @@ export function useLeads(filters?: { stageId?: string; type?: string; branchId?:
     await fetchLeads();
   };
 
-
-
-  const deleteLead = async (id: string, reason = "Removed by user") => {
-    const { error } = await supabase.rpc("crm_archive_lead", {
-      p_lead_id: id,
-      p_reason: reason,
-    });
-    if (error) throw error;
-    toast.success("Lead deleted");
+  /**
+   * Archive (soft delete). The server requires a reason, refuses leads with
+   * downstream commercial documents, and records who archived it and when.
+   */
+  const deleteLead = async (
+    id: string,
+    reason = "Removed by user",
+    expectedVersion?: number | null
+  ) => {
+    await guard(() =>
+      supabase.rpc("crm_archive_lead", {
+        p_lead_id: id,
+        p_reason: reason,
+        p_expected_version: versionOf(id, expectedVersion),
+      })
+    );
+    toast.success("Lead archived");
     await fetchLeads();
+  };
 
+  /**
+   * Restore an archived lead to the active pipeline — the documented inverse of
+   * archiving. Reason mandatory; refused for won/lost leads and for leads whose
+   * archived stage is no longer active.
+   */
+  const restoreLead = async (id: string, reason: string, expectedVersion?: number | null) => {
+    await guard(() =>
+      supabase.rpc("crm_restore_lead", {
+        p_lead_id: id,
+        p_reason: reason,
+        p_expected_version: expectedVersion ?? null,
+      })
+    );
+    toast.success("Lead restored");
+    await fetchLeads();
   };
 
   // Convert lead to contact
