@@ -216,7 +216,7 @@ export default function CRMActivities() {
 
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <button
-                  onClick={() => navigate(`/crm?lead=${activity.lead_id}`)}
+                  onClick={() => navigate(`/crm-app/pipeline?lead=${activity.lead_id}`)}
                   className="flex items-center gap-1 hover:text-primary transition-colors"
                 >
                   <ArrowRight className="h-3 w-3" />
@@ -352,7 +352,7 @@ export default function CRMActivities() {
                   <Button
                     variant="outline"
                     className="mt-4"
-                    onClick={() => navigate("/crm")}
+                    onClick={() => navigate("/crm-app/pipeline")}
                   >
                     Go to Pipeline
                   </Button>

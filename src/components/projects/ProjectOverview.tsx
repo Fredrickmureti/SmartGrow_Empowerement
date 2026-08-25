@@ -226,7 +226,7 @@ export function ProjectOverview({ project, tasks }: Props) {
                 <Badge
                   variant="outline"
                   className="cursor-pointer hover:bg-accent"
-                  onClick={() => navigate(`/crm?lead=${project.source_lead_id}`)}
+                  onClick={() => navigate(`/crm-app/pipeline?lead=${project.source_lead_id}`)}
                 >
                   Lead: {source.leadTitle ?? "…"}
                 </Badge>
