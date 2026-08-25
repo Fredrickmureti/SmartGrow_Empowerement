@@ -54943,25 +54943,34 @@ export type Database = {
       project_members: {
         Row: {
           billable_rate: number | null
+          can_write: boolean
           id: string
+          is_billable_participant: boolean
           joined_at: string
           project_id: string
+          project_role: string
           role: string
           user_id: string
         }
         Insert: {
           billable_rate?: number | null
+          can_write?: boolean
           id?: string
+          is_billable_participant?: boolean
           joined_at?: string
           project_id: string
+          project_role?: string
           role?: string
           user_id: string
         }
         Update: {
           billable_rate?: number | null
+          can_write?: boolean
           id?: string
+          is_billable_participant?: boolean
           joined_at?: string
           project_id?: string
+          project_role?: string
           role?: string
           user_id?: string
         }
@@ -55678,6 +55687,7 @@ export type Database = {
           actual_start_date: string | null
           allocated_hours: number | null
           allow_timesheets: boolean | null
+          allows_cross_branch_work: boolean
           analytic_account_id: string | null
           branch_id: string | null
           budget: number | null
@@ -55714,6 +55724,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           template_id: string | null
+          time_entry_open_to_org: boolean
           updated_at: string
           version: number
         }
@@ -55722,6 +55733,7 @@ export type Database = {
           actual_start_date?: string | null
           allocated_hours?: number | null
           allow_timesheets?: boolean | null
+          allows_cross_branch_work?: boolean
           analytic_account_id?: string | null
           branch_id?: string | null
           budget?: number | null
@@ -55758,6 +55770,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           template_id?: string | null
+          time_entry_open_to_org?: boolean
           updated_at?: string
           version?: number
         }
@@ -55766,6 +55779,7 @@ export type Database = {
           actual_start_date?: string | null
           allocated_hours?: number | null
           allow_timesheets?: boolean | null
+          allows_cross_branch_work?: boolean
           analytic_account_id?: string | null
           branch_id?: string | null
           budget?: number | null
@@ -55802,6 +55816,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           template_id?: string | null
+          time_entry_open_to_org?: boolean
           updated_at?: string
           version?: number
         }
@@ -88906,6 +88921,10 @@ export type Database = {
         Returns: undefined
       }
       _teardown_allows: { Args: { p_row: Json }; Returns: boolean }
+      _timesheet_assert_project_eligibility: {
+        Args: { _employee_id: string; _project_id: string }
+        Returns: undefined
+      }
       _timesheet_can_approve: {
         Args: { _allow_self: boolean; _employee_id: string; _uid: string }
         Returns: boolean
@@ -102546,6 +102565,8 @@ export type Database = {
       project_add_member: {
         Args: {
           _billable_rate?: number
+          _can_write?: boolean
+          _is_billable_participant?: boolean
           _project_id: string
           _role?: string
           _user_id: string
@@ -102599,6 +102620,7 @@ export type Database = {
           actual_start_date: string | null
           allocated_hours: number | null
           allow_timesheets: boolean | null
+          allows_cross_branch_work: boolean
           analytic_account_id: string | null
           branch_id: string | null
           budget: number | null
@@ -102635,6 +102657,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           template_id: string | null
+          time_entry_open_to_org: boolean
           updated_at: string
           version: number
         }
@@ -102656,6 +102679,7 @@ export type Database = {
           actual_start_date: string | null
           allocated_hours: number | null
           allow_timesheets: boolean | null
+          allows_cross_branch_work: boolean
           analytic_account_id: string | null
           branch_id: string | null
           budget: number | null
@@ -102692,6 +102716,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           template_id: string | null
+          time_entry_open_to_org: boolean
           updated_at: string
           version: number
         }
@@ -102958,6 +102983,7 @@ export type Database = {
           actual_start_date: string | null
           allocated_hours: number | null
           allow_timesheets: boolean | null
+          allows_cross_branch_work: boolean
           analytic_account_id: string | null
           branch_id: string | null
           budget: number | null
@@ -102994,6 +103020,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           template_id: string | null
+          time_entry_open_to_org: boolean
           updated_at: string
           version: number
         }
