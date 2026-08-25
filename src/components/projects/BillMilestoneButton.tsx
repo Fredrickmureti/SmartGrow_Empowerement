@@ -1,8 +1,9 @@
 import { normalizeError } from "@/services/resilience";
 /**
  * BillMilestoneButton — small inline action that drafts an invoice for a
- * milestone via the `invoice-project-milestone` edge function. Disabled
- * when the milestone has already been invoiced unless `force` is checked.
+ * milestone via the transactional `invoice_project_milestone` RPC, which
+ * drafts the invoice and marks the milestone billed in one transaction and
+ * refuses to bill an already-invoiced milestone.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
