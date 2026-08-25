@@ -31,6 +31,7 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { toast } from "sonner";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useBusinessCurrencies } from "@/hooks/useBusinessCurrencies";
 
 interface ProjectFormProps {
   open: boolean;
@@ -42,7 +43,6 @@ const PROJECT_COLORS = [
   "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
 ];
 
-const CURRENCIES = ["USD","EUR","GBP","KES","UGX","TZS","NGN","ZAR","INR","AED","CAD","AUD"];
 
 type ProjectStatus = "draft" | "active" | "on_hold" | "completed" | "cancelled";
 type PricingType = "non_billable" | "employee_rate" | "task_rate" | "project_rate" | "fixed_price" | "milestone";
@@ -89,7 +89,14 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   // Customer & Billing
   const [customerId, setCustomerId] = useState<string>("");
   const [pricingType, setPricingType] = useState<PricingType>("non_billable");
-  const [currency, setCurrency] = useState("USD");
+  // Tenant-governed: the server rejects any currency not enabled for this business.
+  const { currencyCodes, baseCurrency, isLoading: currenciesLoading } = useBusinessCurrencies();
+  const [currency, setCurrency] = useState("");
+
+  // Default to the business base currency once the tenant list resolves.
+  useEffect(() => {
+    if (!currency && baseCurrency) setCurrency(baseCurrency);
+  }, [baseCurrency, currency]);
   
 
   // Schedule
@@ -298,10 +305,17 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
               </Select>
             </WorkflowField>
             <WorkflowField label="Currency">
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={currency} onValueChange={setCurrency} disabled={currenciesLoading || currencyCodes.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={currenciesLoading ? "Loading…" : "Select currency"} />
+                </SelectTrigger>
                 <SelectContent>
-                  {CURRENCIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                  {currencyCodes.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                      {c === baseCurrency ? " (base)" : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </WorkflowField>
