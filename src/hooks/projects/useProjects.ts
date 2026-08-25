@@ -36,6 +36,12 @@ export interface Project {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Optimistic-concurrency token, bumped by a BEFORE UPDATE trigger. Pass the
+   * value loaded with the row into lifecycle commands so a concurrent edit is
+   * detected server-side instead of silently overwritten.
+   */
+  version: number;
   // Stage 1 additions
   pricing_type:
     | "non_billable"
