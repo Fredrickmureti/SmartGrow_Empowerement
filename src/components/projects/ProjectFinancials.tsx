@@ -139,9 +139,16 @@ export function ProjectFinancials({ project }: Props) {
         <Card>
           <CardContent className="p-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span>Budget consumption</span>
+              <span className="flex items-center gap-2">
+                Budget consumption
+                <span className="text-[11px] text-muted-foreground">
+                  {data.budget_source === "budgets_domain"
+                    ? "from approved budget"
+                    : "project estimate — no approved budget yet"}
+                </span>
+              </span>
               <span className="font-medium">
-                {fmt(data.cost_total, cur)} / {fmt(Number(data.budget), cur)}
+                {fmt(data.cost_total, cur)} / {fmt(Number(data.budget), data.budget_currency ?? cur)}
                 {data.budget_used_pct !== null && <span className="text-muted-foreground"> · {data.budget_used_pct}%</span>}
               </span>
             </div>
