@@ -83,3 +83,59 @@ describe("architecture: projects server authority", () => {
     }
   });
 });
+
+/**
+ * Wave 2 — task lifecycle authority.
+ *
+ * `is_done`, `stage_id`, `assigned_to` and `completed_at` on `project_tasks`
+ * are lifecycle state, not editable columns: they are owned by
+ * `project_task_complete` / `project_task_reopen` / `project_task_move_stage` /
+ * `project_task_assign`, which enforce write access, project-not-closed and
+ * dependency ordering. A direct table write bypasses all of that.
+ */
+const TASK_LIFECYCLE_FIELDS = ["is_done", "stage_id", "assigned_to", "completed_at"];
+
+function findTaskLifecycleWrites(source: string): string[] {
+  const hits: string[] = [];
+  const re = /\.from\(\s*["'`]project_tasks["'`]\s*\)([\s\S]{0,600}?)\.(insert|update|upsert)\s*\(([\s\S]{0,400}?)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(source)) !== null) {
+    const payload = match[3] ?? "";
+    for (const field of TASK_LIFECYCLE_FIELDS) {
+      if (new RegExp(`\\b${field}\\s*:`).test(payload)) hits.push(`project_tasks.${match[2]}({ ${field} })`);
+    }
+  }
+  return hits;
+}
+
+describe("architecture: project task lifecycle authority", () => {
+  it("no client file writes task lifecycle columns directly", () => {
+    const offenders: string[] = [];
+
+    for (const file of walk(SRC)) {
+      const source = readFileSync(file, "utf8");
+      if (!source.includes(`.from("project_tasks")`) && !source.includes(`.from('project_tasks')`)) continue;
+      const hits = findTaskLifecycleWrites(source);
+      if (hits.length > 0) {
+        offenders.push(`${relative(SRC, file)} → ${[...new Set(hits)].join(", ")}`);
+      }
+    }
+
+    expect(
+      offenders,
+      `Direct lifecycle writes to project_tasks found. Use the project_task_* command RPCs instead:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("useProjectTasks routes lifecycle changes through the command RPCs", () => {
+    const source = readFileSync(join(SRC, "hooks/projects/useProjectTasks.ts"), "utf8");
+    for (const rpc of [
+      "project_task_complete",
+      "project_task_reopen",
+      "project_task_move_stage",
+      "project_task_assign",
+    ]) {
+      expect(source, `useProjectTasks must call ${rpc}`).toContain(rpc);
+    }
+  });
+});
