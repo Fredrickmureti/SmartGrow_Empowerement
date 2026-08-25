@@ -98667,6 +98667,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      invoice_project_milestone: {
+        Args: { _milestone_id: string }
+        Returns: Json
+      }
       invoice_project_timesheets: {
         Args: {
           _period_from?: string
