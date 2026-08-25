@@ -39,7 +39,16 @@ import {
 
 import { format } from "date-fns";
 import { Lead, useLeads } from "@/hooks/crm/useLeads";
+import { useCRMStages } from "@/hooks/crm/useCRMStages";
 import { useCRMActivities } from "@/hooks/crm/useCRMActivities";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PermissionGate } from "@/components/common/PermissionGate";
 import { useNavigate } from "react-router-dom";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -86,8 +95,10 @@ export function LeadDetailsDialog({
     convertToSalesOrder,
     convertToProject,
     transferBranch,
+    moveToStage,
     refreshLeads,
   } = useLeads();
+  const { stages } = useCRMStages();
   const { branches, hasMultipleBranches } = useBranch();
   const [isTransferring, setIsTransferring] = useState(false);
 
@@ -129,8 +140,34 @@ export function LeadDetailsDialog({
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [editingActivity, setEditingActivity] = useState<CRMActivity | undefined>();
+  const [isMovingStage, setIsMovingStage] = useState(false);
 
   if (!lead) return null;
+
+  /**
+   * Selectable stages exclude the terminal ones: Won has its own authoritative
+   * operation and Lost requires a reason, so they cannot be reached by a plain
+   * stage move (the server refuses them anyway).
+   */
+  const openStages = stages.filter((s) => !s.is_won && !s.is_lost);
+
+  const handleChangeStage = async (stageId: string) => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    if (!stageId || stageId === lead.stage_id) return;
+    setIsMovingStage(true);
+    try {
+      await moveToStage(lead.id, stageId, lead.version);
+      toast.success("Stage updated");
+      await refreshLeads();
+    } catch (error: any) {
+      toast.error(normalizeError(error).message || "Could not move this opportunity");
+    } finally {
+      setIsMovingStage(false);
+    }
+  };
 
   const handleAction = async (action: () => Promise<any>) => {
     if (isReadOnly) {
@@ -496,6 +533,63 @@ export function LeadDetailsDialog({
 
 
           <TabsContent value="details" className="space-y-6 mt-4">
+            {/* Stage assignment. Kanban drag-and-drop cannot reach a lead that
+                has no stage yet, so the record itself owns this control. The
+                move goes through `crm_change_stage` with the rendered version. */}
+            {!isWonOrLost && (
+              <PermissionGate permission="manageSales">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  {openStages.length === 0 ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium">No pipeline stages configured</p>
+                        <p className="text-xs text-muted-foreground">
+                          Set up your funnel to place this opportunity on the board.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onOpenChange(false);
+                          navigate("/crm-app/pipeline");
+                        }}
+                      >
+                        Set up pipeline
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Pipeline stage</p>
+                        <p className="text-xs text-muted-foreground">
+                          {lead.stage_id
+                            ? "Move this opportunity along the funnel"
+                            : "Not on the board yet — pick a stage to place it"}
+                        </p>
+                      </div>
+                      <Select
+                        value={lead.stage_id || ""}
+                        onValueChange={handleChangeStage}
+                        disabled={isMovingStage}
+                      >
+                        <SelectTrigger className="sm:w-[220px]">
+                          <SelectValue placeholder="Select a stage" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {openStages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </PermissionGate>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               {lead.contact_name && (
                 <div className="flex items-center gap-2 text-sm">

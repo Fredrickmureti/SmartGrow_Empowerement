@@ -89,7 +89,7 @@ export function OriginatedFromLeadBadge({
       )}
       onClick={(e) => {
         e.stopPropagation();
-        navigate(`/crm-app/pipeline?lead=${resolved.id}`);
+        navigate(`/crm-app/leads?lead=${resolved.id}`);
       }}
       title="Originated from CRM lead"
     >

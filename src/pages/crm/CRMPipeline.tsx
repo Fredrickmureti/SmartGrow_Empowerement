@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings, TrendingUp, Users, Target, Zap, Archive } from "lucide-react";
+import { Plus, Settings, TrendingUp, Users, Target, Zap, Archive, Loader2 } from "lucide-react";
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { useCRMStages, useLeads, Lead } from "@/hooks/crm";
 import { LeadCard, NextActivity } from "@/components/crm/LeadCard";
@@ -20,10 +20,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { useBranch } from "@/contexts/BranchContext";
+import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function CRMPipeline() {
-  const { stages, isLoading: stagesLoading } = useCRMStages();
+  const { stages, isLoading: stagesLoading, seedDefaultStages } = useCRMStages();
+  const navigate = useNavigate();
   const { branches, hasMultipleBranches } = useBranch();
   // Branch is an ownership dimension of the opportunity, so it filters the
   // query (server side) rather than the rendered board.
@@ -38,6 +40,29 @@ export default function CRMPipeline() {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  /**
+   * First-run provisioning. A business with zero stages has an unusable board
+   * and new leads land without a stage, so we offer the conventional funnel
+   * instead of leaving the user to build one before they can work at all.
+   * Existing stage-less leads are then placeable from the lead record.
+   */
+  const handleSeedStages = async () => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setIsSeeding(true);
+    try {
+      await seedDefaultStages();
+      await refreshLeads();
+    } catch {
+      /* the hook already surfaced the server message */
+    } finally {
+      setIsSeeding(false);
+    }
+  };
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
@@ -279,7 +304,13 @@ export default function CRMPipeline() {
             <p className="text-xs text-muted-foreground mt-1">revenue × probability</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-blue-500">
+        <Card
+          className="border-l-4 border-l-blue-500 cursor-pointer transition-colors hover:bg-accent/40"
+          onClick={() => navigate("/crm-app/leads")}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter") navigate("/crm-app/leads"); }}
+        >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Open Leads</CardTitle>
@@ -288,6 +319,7 @@ export default function CRMPipeline() {
           </CardHeader>
           <CardContent>
             <div className="stat-value tabular-nums whitespace-nowrap">{leads.filter(l => !l.won_at && !l.lost_at).length}</div>
+            <p className="text-xs text-muted-foreground mt-1">open all leads</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-emerald-500">
@@ -306,16 +338,33 @@ export default function CRMPipeline() {
 
       {/* Kanban Pipeline */}
       {stages.length === 0 ? <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <Target className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold mb-2">No pipeline stages configured</h3>
-          <p className="text-muted-foreground mb-4">Set up your sales pipeline stages to get started</p>
-          <PermissionGate permission="manageSales">
-            <Button variant="outline" onClick={() => setShowStageSettings(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Configure Stages
-            </Button>
-          </PermissionGate>
+          <p className="text-muted-foreground mb-4 max-w-md">
+            {leads.length > 0
+              ? `Your funnel has not been set up yet, so the board has no columns to show. ${leads.length} lead${leads.length === 1 ? " is" : "s are"} already recorded and waiting to be placed.`
+              : "Create your funnel to start working opportunities on the board."}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <PermissionGate permission="manageSales">
+              <Button onClick={handleSeedStages} disabled={isSeeding}>
+                {isSeeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+                Create default stages
+              </Button>
+            </PermissionGate>
+            <PermissionGate permission="manageSales">
+              <Button variant="outline" onClick={() => setShowStageSettings(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Configure manually
+              </Button>
+            </PermissionGate>
+            {leads.length > 0 && (
+              <Button variant="ghost" onClick={() => navigate("/crm-app/leads")}>
+                View {leads.length} lead{leads.length === 1 ? "" : "s"}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card> : <div className="flex gap-4 overflow-x-auto pb-4">
         {stages.map(stage => {

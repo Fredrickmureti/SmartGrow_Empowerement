@@ -9,7 +9,7 @@
  * stage; this page is that surface and is the canonical place to search,
  * inspect and edit leads.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
 import { ArchivedLeadsDialog } from "@/components/crm/ArchivedLeadsDialog";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const STATUS_LABEL: Record<string, string> = {
   new: "New",
@@ -37,6 +38,8 @@ export default function CRMLeads() {
   const { stages } = useCRMStages();
   const { leads, isLoading, deleteLead, refreshLeads } = useLeads();
   const { formatCurrency, baseCurrency } = useCurrency();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("open");
@@ -44,6 +47,36 @@ export default function CRMLeads() {
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  /**
+   * Deep links. Other modules (projects, "originated from lead" badges, the
+   * global create menu) point at a specific lead or at lead capture; the list
+   * is the surface that can always honour that, including for a lead that has
+   * no stage and therefore no card on the board.
+   */
+  const deepLinkId = searchParams.get("lead");
+  const wantsCreate = searchParams.get("action") === "create";
+
+  useEffect(() => {
+    if (wantsCreate) {
+      setShowLeadForm(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+    }
+  }, [wantsCreate]);
+
+  useEffect(() => {
+    if (!deepLinkId || isLoading) return;
+    const match = leads.find((l) => l.id === deepLinkId);
+    if (match) {
+      setSelectedLead(match);
+      setStatusFilter("all");
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("lead");
+    setSearchParams(next, { replace: true });
+  }, [deepLinkId, isLoading, leads]);
 
   const unstagedCount = leads.filter((l) => !l.stage_id && l.status !== "won" && l.status !== "lost").length;
 
@@ -102,9 +135,27 @@ export default function CRMLeads() {
             <AlertTitle>
               {unstagedCount} lead{unstagedCount === 1 ? "" : "s"} without a pipeline stage
             </AlertTitle>
-            <AlertDescription>
-              They do not appear on the kanban board until a stage is set. Open a lead below and
-              move it into a stage — new leads are placed in the first open stage automatically.
+            <AlertDescription className="space-y-3">
+              <p>
+                {stages.length === 0
+                  ? "Your pipeline has no stages yet, so there is nowhere to place them. Set up the funnel first, then assign each lead a stage from its record."
+                  : "They do not appear on the kanban board until a stage is set. Open the lead and pick a stage — leads created from now on are placed in the first open stage automatically."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {stages.length === 0 ? (
+                  <Button size="sm" variant="outline" onClick={() => navigate("/crm-app/pipeline")}>
+                    Set up pipeline
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStageFilter("none")}
+                  >
+                    Show these leads
+                  </Button>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -187,8 +238,58 @@ export default function CRMLeads() {
             {isLoading ? (
               <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
             ) : filtered.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No leads match these filters.
+              /* Each empty condition is a different business situation and gets
+                 its own explanation and next step — collapsing them into one
+                 generic message is how the "missing lead" report started. */
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <Users className="h-10 w-10 text-muted-foreground" />
+                {leads.length === 0 ? (
+                  <>
+                    <p className="font-medium">No leads yet</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      Capture your first opportunity and it will appear here, on the pipeline
+                      board and in your CRM statistics.
+                    </p>
+                    <PermissionGate permission="manageSales">
+                      <Button onClick={() => setShowLeadForm(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Lead
+                      </Button>
+                    </PermissionGate>
+                    <Button variant="ghost" size="sm" onClick={() => setShowArchived(true)}>
+                      Check archived leads
+                    </Button>
+                  </>
+                ) : stages.length === 0 ? (
+                  <>
+                    <p className="font-medium">No pipeline stages configured</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      Your leads exist but your funnel has not been set up yet, so no stage
+                      filter can match. Set up the pipeline, then place each lead in a stage.
+                    </p>
+                    <Button variant="outline" onClick={() => navigate("/crm-app/pipeline")}>
+                      Set up pipeline
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">No leads match these filters</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      {leads.length} lead{leads.length === 1 ? "" : "s"} exist in this company.
+                      Clear the filters to see them all.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearch("");
+                        setStatusFilter("all");
+                        setStageFilter("all");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">

@@ -168,7 +168,7 @@ function useCreateMenuCategories(): CreateMenuCategory[] {
     categories.push({
       title: "CRM",
       items: [
-        { label: "Lead / Opportunity", icon: Briefcase, path: "/crm-app/pipeline", queryParams: "action=create" },
+        { label: "Lead / Opportunity", icon: Briefcase, path: "/crm-app/leads", queryParams: "action=create" },
       ],
     });
   }
