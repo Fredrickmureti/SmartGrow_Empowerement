@@ -75,8 +75,8 @@ BEGIN
 
   INSERT INTO public.user_roles (user_id, organization_id, role, is_active)
   VALUES (v_mgr, v_org, 'admin', true),
-         (v_user_w, v_org, 'member', true),
-         (v_user_x, v_org, 'member', true);
+         (v_user_w, v_org, 'staff', true),
+         (v_user_x, v_org, 'staff', true);
 
   INSERT INTO public.businesses (id, organization_id, name, country, base_currency, fiscal_year_start)
   VALUES (v_biz, v_org, 'PJ4 Ltd', 'KE', 'KES', 1);
