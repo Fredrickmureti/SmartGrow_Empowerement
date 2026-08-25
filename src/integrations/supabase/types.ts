@@ -107647,6 +107647,7 @@ export type Database = {
           _business_id: string
           _currency: string
           _description: string
+          _entry_nature: string
           _milestone_id: string
           _organization_id: string
           _posted_at: string
