@@ -31,18 +31,11 @@ import {
   Info,
   Trash2,
   ExternalLink,
+  Send,
+  Undo2,
 
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { format } from "date-fns";
 import { Lead, useLeads } from "@/hooks/crm/useLeads";
 import { useCRMActivities } from "@/hooks/crm/useCRMActivities";
