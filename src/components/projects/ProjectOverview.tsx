@@ -4,6 +4,7 @@
  * Every number is a real query against the analytic ledger / project tables.
  * No mocked KPIs; if data is missing the strip degrades to "—".
  */
+import { formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -109,14 +110,7 @@ export function ProjectOverview({ project, tasks }: Props) {
   const margin = financials?.margin ?? 0;
   const marginPct = financials?.margin_pct ?? null;
   const currency = financials?.currency || project.currency || null;
-  const fmt = (v: number) =>
-    currency
-      ? new Intl.NumberFormat(undefined, {
-          style: "currency",
-          currency,
-          maximumFractionDigits: 2,
-        }).format(v)
-      : "—";
+  const fmt = (v: number) => (currency ? formatCurrency(v, currency) : "—");
 
   const updateColour: Record<string, string> = {
     on_track: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",

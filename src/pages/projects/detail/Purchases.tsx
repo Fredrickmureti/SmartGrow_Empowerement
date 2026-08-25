@@ -2,6 +2,7 @@
  * ProjectPurchasesTab — purchase orders, vendor bills, and expenses
  * linked to this project.
  */
+import { formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,7 @@ interface ExpRow { id: string; reference: string | null; status: string; expense
 // No currency on the record means no figure — an unconverted number must
 // never be shown wearing a currency it was not denominated in (ADR 0136).
 const fmtMoney = (n: number, c?: string | null) =>
-  c ? new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(n || 0) : "—";
+  c ? formatCurrency(n || 0, c) : "—";
 
 export default function PurchasesTab() {
   const { project } = useProjectWorkspace();
