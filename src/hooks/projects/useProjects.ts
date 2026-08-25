@@ -306,23 +306,53 @@ export function useProjects(options: UseProjectsOptions = {}) {
   const changeProjectStatus = async (
     id: string,
     status: Project["status"],
-    opts?: { expectedVersion?: number; reason?: string },
+    opts?: { expectedVersion?: number | null; reason?: string },
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.rpc as any)("project_change_status", {
-      _project_id: id,
-      _status: status,
-      _expected_version: opts?.expectedVersion ?? null,
-      _reason: opts?.reason ?? null,
-    });
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("project_change_status", {
+        _project_id: id,
+        _status: status,
+        _expected_version: opts?.expectedVersion ?? null,
+        _reason: opts?.reason ?? null,
+      });
+      if (error) throw error;
+    } catch (error) {
+      toast.error(projectCommandErrorMessage(error, "Could not change the project status"));
+      throw error;
+    }
 
-
-    if (error) throw error;
     toast.success("Project status updated");
     await fetchProjects();
   };
 
-  const updateProject = async (id: string, updates: Partial<Project>) => {
+  /**
+   * Reasons the server would refuse to close this project (open tasks,
+   * timesheets awaiting approval, reached-but-uninvoiced billable milestones).
+   * Call before offering "Complete"/"Close" so the user sees the blockers
+   * instead of a raw error after the fact.
+   */
+  const getClosureBlockers = async (id: string): Promise<string[]> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)("project_closure_blockers", {
+      _project_id: id,
+    });
+    if (error) {
+      console.error("Error loading project closure blockers:", error);
+      return [];
+    }
+    const rows = Array.isArray(data) ? data : data ? [data] : [];
+    return rows
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((row: any) => (typeof row === "string" ? row : (row?.reason ?? row?.blocker ?? row?.message ?? "")))
+      .filter((line: string) => Boolean(line));
+  };
+
+  const updateProject = async (
+    id: string,
+    updates: Partial<Project>,
+    opts?: { expectedVersion?: number | null },
+  ) => {
     // Strip joined/computed/derived fields — the server owns everything else.
     const {
       completed_tasks,
@@ -331,6 +361,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
       progress,
       task_count,
       status,
+      version,
       id: _ignoredId,
       organization_id,
       business_id,
@@ -350,22 +381,35 @@ export function useProjects(options: UseProjectsOptions = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } = updates as any;
 
-    if (Object.keys(patch).length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.rpc as any)("project_update_config", {
-        _project_id: id,
-        _patch: patch,
-      });
-      if (error) throw error;
-    }
+    // Optimistic concurrency: prefer the explicit option, else the `version`
+    // carried on the row the form was loaded from.
+    const expectedVersion = opts?.expectedVersion ?? (typeof version === "number" ? version : null);
 
-    if (status) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.rpc as any)("project_change_status", {
-        _project_id: id,
-        _status: status,
-      });
-      if (error) throw error;
+    try {
+      if (Object.keys(patch).length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase.rpc as any)("project_update_config", {
+          _project_id: id,
+          _patch: patch,
+        });
+        if (error) throw error;
+      }
+
+      if (status) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase.rpc as any)("project_change_status", {
+          _project_id: id,
+          _status: status,
+          // A config patch above bumps the row version, so only send the
+          // expected version when the status change is the sole write.
+          _expected_version: Object.keys(patch).length > 0 ? null : expectedVersion,
+          _reason: null,
+        });
+        if (error) throw error;
+      }
+    } catch (error) {
+      toast.error(projectCommandErrorMessage(error, "Failed to update project"));
+      throw error;
     }
 
     toast.success("Project updated successfully");
