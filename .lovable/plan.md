@@ -22,13 +22,17 @@ Labels: **FACT** = verified now against this repo/database · **STD** = establis
 
 **Verification**: `tsgo --noEmit` clean; `crm-lifecycle-rpc-only`, `crm-no-client-conversion`, `useLeads.convertToProject` — 6 tests passing. **FACT**
 
-## 2. Phase R2 — next
+## 2. Phase R2 — COMPLETE (2026-08-25)
 
-Scope to confirm at kickoff, carried forward from the domain audit:
+1. **Event consumer posture resolved.** All twelve `crm.lead.*` topics carry `integration_only = true` in `business_event_topics` with an empty `consumer_domains`, and `crm_domain_contract_test.sql` (R0 check) already fails any CRM topic that has neither a consumer nor that flag — so the registry no longer implies a missing in-app consumer. The dispatcher ratchet `crm-lead-topics-dispatched.test.ts` was widened from 8 to all 12 topics (`restored`, `branch_transferred`, `proposition`, `proposition_withdrawn` added) so a new topic without a handler can't dead-letter unnoticed. **FACT**
+2. **Lead-level currency.** `crm_leads.currency` added (NOT NULL), backfilled from `businesses.base_currency`; trigger `crm_leads_currency_default` defaults it server-side and validates it through `_assert_currency_is_active`, and the trigger helper's EXECUTE is revoked from anon/authenticated. `Lead.currency` is exposed by `useLeads`, and lead cards, the details sheet and the archived list format amounts in the lead's own currency. Pipeline / weighted / won totals now sum base-currency opportunities only and disclose the excluded count, because this surface performs no FX conversion. **FACT**
+3. **Reopen flow in the UI.** `LeadDetailsDialog` renders a "Reopen" action for won/lost opportunities, backed by a mandatory-reason `ReasonDialog` calling `crm_reopen_lead` with the row version. **FACT**
+4. **Archive/restore reach.** `ArchivedLeadsDialog` is now mounted on the CRM dashboard (Quick Actions → "Archived") in addition to the pipeline board. The contact profile keeps its read-only lead list — archived leads are out of scope there. **FACT**
 
-1. **Event consumers, not just instrumentation.** Every `crm%` topic still has an empty `consumer_domains` list; R2 should give the lifecycle events at least one real consumer (e.g. sales handoff on `won`, activity/notification fan-out) or explicitly mark them integration-only in the contract test.
-2. **Lead-level currency.** `crm_leads` has no `currency_code`, so expected revenue has no declared currency; add it with a business-default backfill and surface it in the pipeline totals instead of assuming base currency.
-3. **Reopen flow in the UI.** The server supports `reopened_at` / `reopen_count` / `reopen_reason`, but no client surface performs a reopen after won/lost.
-4. **Archive/restore reach.** `ArchivedLeadsDialog` is currently only mounted on the pipeline board; decide whether the CRM dashboard and contact profile need the same entry point.
+**Verification**: `tsgo --noEmit` clean; 27 CRM architecture tests passing (`crm-business-scoped`, `crm-lead-topics-dispatched`, `crm-edge-consumer-schema`, `crm-lifecycle-rpc-only`, `crm-no-client-conversion`). **FACT**
 
-First action for the next agent: confirm items 1-4 against the live catalog before writing any migration, per the standing "verify before asserting" rule.
+## 3. Candidates for a future phase
+
+- FX-aware pipeline aggregation (convert non-base-currency opportunities via the existing FX engine rather than excluding them).
+- Editing an opportunity's currency post-creation through a governed RPC alongside `crm_revalue_lead`.
+- Real in-app consumers for the CRM lifecycle events if a sales-handoff or notification requirement appears.
