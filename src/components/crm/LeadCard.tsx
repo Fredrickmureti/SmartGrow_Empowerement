@@ -78,7 +78,7 @@ export function LeadCard({ lead, nextActivity, assignedUserName, onClick }: Lead
 
         {lead.expected_revenue && (
           <div className="flex items-center gap-1 text-xs">
-            <span className="font-medium text-green-600">{formatCurrency(lead.expected_revenue, baseCurrency)}</span>
+            <span className="font-medium text-green-600">{formatCurrency(lead.expected_revenue, lead.currency || baseCurrency)}</span>
             {lead.probability != null && (
               <Badge variant="outline" className="text-xs ml-1">
                 {lead.probability}%

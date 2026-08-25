@@ -30,6 +30,11 @@ export interface Lead {
    */
   company_contact_id: string | null;
   expected_revenue: number | null;
+  /**
+   * Currency of `expected_revenue` (CRM Phase R2). Server-owned default: the
+   * business base currency, validated against the business's active currencies.
+   */
+  currency: string | null;
   probability: number | null;
   expected_close_date: string | null;
   source: string | null;
