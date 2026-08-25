@@ -4,7 +4,10 @@
  * Server-truth honored:
  *   • `timesheet_settings.require_project / require_task / default_billable /
  *     min/max_hours_per_day / block_on_time_off_overlap`
- *   • `projects.allow_timesheets / is_billable / hourly_rate / customer_id`
+ *   • `projects.allow_timesheets / is_billable / customer_id`
+ *   • `project_billing_rate_preview` — the applicable billing rate is asked
+ *     of the single server-side engine (`resolve_project_billing_rate`);
+ *     this form never mirrors the rate precedence chain client-side.
  *   • `timesheets_billing` trigger — billable rows MUST have a billable
  *     project with a positive rate, so we mirror that rule client-side
  *     before submit so the user sees a friendly message instead of a 500.
@@ -26,7 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CalendarIcon, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   WorkflowSheet,
   WorkflowSheetGrid,
@@ -36,6 +39,7 @@ import {
 import { useTimesheets, useTimesheetSettings } from "@/hooks/timesheets";
 import { useProjects } from "@/hooks/projects";
 import { useProjectTasks } from "@/hooks/projects/useProjectTasks";
+import { useProjectBillingRate } from "@/hooks/projects/useProjectBillingRate";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -77,6 +81,12 @@ export function TimesheetEntryForm({ open, onOpenChange, selectedDate }: Timeshe
   const selectedProject = useMemo(
     () => eligibleProjects.find((p: any) => p.id === projectId),
     [eligibleProjects, projectId],
+  );
+
+  // Server-resolved rate for this project + this employee (single engine).
+  const { rate: resolvedRate, isLoading: rateLoading } = useProjectBillingRate(
+    projectId !== NONE ? projectId : null,
+    currentEmployee?.id ?? null,
   );
 
   useEffect(() => { if (selectedDate) setDate(selectedDate); }, [selectedDate]);
@@ -146,8 +156,9 @@ export function TimesheetEntryForm({ open, onOpenChange, selectedDate }: Timeshe
   const billableDisabledReason = (() => {
     if (!selectedProject) return "Pick a billable project to mark this entry as billable.";
     if (!selectedProject.is_billable) return "This project is non-billable.";
-    if (!selectedProject.hourly_rate || selectedProject.hourly_rate <= 0)
-      return "This project has no billing rate configured.";
+    if (rateLoading) return null;
+    if (!resolvedRate || resolvedRate <= 0)
+      return "No billing rate applies to you on this project.";
     return null;
   })();
 
@@ -362,7 +373,9 @@ export function TimesheetEntryForm({ open, onOpenChange, selectedDate }: Timeshe
                 <p className="text-xs text-muted-foreground">
                   {billableDisabledReason
                     ? billableDisabledReason
-                    : `Will bill at ${selectedProject?.hourly_rate}/hr on this project.`}
+                    : rateLoading
+                      ? "Checking the rate that applies to you\u2026"
+                      : `Will bill at ${formatCurrency(resolvedRate ?? 0, selectedProject?.currency ?? null)}/hr on this project.`}
                 </p>
               </div>
               <Switch
