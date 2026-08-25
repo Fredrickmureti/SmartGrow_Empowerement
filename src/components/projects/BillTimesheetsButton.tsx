@@ -36,9 +36,11 @@ export function BillTimesheetsButton({ projectId, onInvoiced }: Props) {
   const run = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invoice-project-timesheets", {
-        body: { project_id: projectId, period_from: from, period_to: to },
-      });
+      const { data, error } = await supabase.rpc("invoice_project_timesheets", {
+        _project_id: projectId,
+        _period_from: from,
+        _period_to: to,
+      } as never);
       if (error) throw error;
       const res = (data ?? {}) as { ok?: boolean; invoice_id?: string; lines?: number; hours?: number; error?: string; reason?: string };
       if (!res.ok) {
