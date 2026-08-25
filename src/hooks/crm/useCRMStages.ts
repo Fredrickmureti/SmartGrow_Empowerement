@@ -119,6 +119,46 @@ export function useCRMStages() {
     await fetchStages();
   };
 
+  /**
+   * First-run convenience: a business with no stages has an unusable board (and
+   * new leads land with no stage), so we offer the conventional five-stage
+   * funnel used by mainstream CRMs instead of forcing manual setup.
+   */
+  const seedDefaultStages = async () => {
+    if (!currentOrg || !currentBusiness) throw new Error("No organization or business selected");
+
+    const defaults = [
+      { name: "New", sequence: 10, probability: 10, color: "#64748b" },
+      { name: "Qualified", sequence: 20, probability: 30, color: "#3b82f6" },
+      { name: "Proposition", sequence: 30, probability: 60, color: "#f59e0b" },
+      { name: "Negotiation", sequence: 40, probability: 80, color: "#8b5cf6" },
+      { name: "Won", sequence: 50, probability: 100, color: "#10b981", is_won: true },
+      { name: "Lost", sequence: 60, probability: 0, color: "#ef4444", is_lost: true },
+    ];
+
+    const { error } = await supabase.from("crm_stages").insert(
+      defaults.map((s) => ({
+        name: s.name,
+        organization_id: currentOrg.id,
+        business_id: currentBusiness.id,
+        sequence: s.sequence,
+        probability: s.probability,
+        color: s.color,
+        is_won: s.is_won ?? false,
+        is_lost: s.is_lost ?? false,
+        fold: false,
+        is_active: true,
+      })),
+    );
+
+    if (error) {
+      toast.error(error.message);
+      throw error;
+    }
+
+    toast.success("Default pipeline stages created");
+    await fetchStages();
+  };
 
   return {
     stages,
@@ -126,6 +166,8 @@ export function useCRMStages() {
     createStage,
     updateStage,
     deleteStage,
+    seedDefaultStages,
     refreshStages: fetchStages,
   };
 }
+
