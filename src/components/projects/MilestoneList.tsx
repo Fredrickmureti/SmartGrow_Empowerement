@@ -150,8 +150,7 @@ export function MilestoneList({ projectId }: MilestoneListProps) {
                   />
                 </div>
                 );
-              })
-              ))}
+              })}
             </div>
           </CardContent>
         </Card>
