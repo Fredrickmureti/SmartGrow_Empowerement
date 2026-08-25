@@ -132,7 +132,7 @@ Waves 1–2 remain as previously verified. **Wave 4 is complete and verified (4.
    write-permission validation.
 6. Stage integrity triggers and the per-project unique stage name index.
 
-## Wave 4 — Workforce & timesheets (ACTIVE — execute in this order)
+## Wave 4 — Workforce & timesheets (DONE — 4.1–4.6 verified 2026-08-25)
 
 **4.1 Split `project_members` semantics.** Add `access` (read/write member),
 `is_billable_participant`, and a constrained `project_role`
