@@ -54949,7 +54949,6 @@ export type Database = {
           joined_at: string
           project_id: string
           project_role: string
-          role: string
           user_id: string
         }
         Insert: {
@@ -54960,7 +54959,6 @@ export type Database = {
           joined_at?: string
           project_id: string
           project_role?: string
-          role?: string
           user_id: string
         }
         Update: {
@@ -54971,7 +54969,6 @@ export type Database = {
           joined_at?: string
           project_id?: string
           project_role?: string
-          role?: string
           user_id?: string
         }
         Relationships: [
