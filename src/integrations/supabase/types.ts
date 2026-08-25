@@ -12072,6 +12072,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -12126,6 +12127,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string | null
+          currency: string
           description?: string | null
           email?: string | null
           expected_close_date?: string | null
@@ -12180,6 +12182,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string
           description?: string | null
           email?: string | null
           expected_close_date?: string | null
@@ -87949,6 +87952,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -93735,6 +93739,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -93806,6 +93811,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -93874,6 +93880,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -93937,6 +93944,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94000,6 +94008,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94063,6 +94072,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94130,6 +94140,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94197,6 +94208,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94264,6 +94276,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94332,6 +94345,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94395,6 +94409,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
@@ -94462,6 +94477,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string | null
+          currency: string
           description: string | null
           email: string | null
           expected_close_date: string | null
