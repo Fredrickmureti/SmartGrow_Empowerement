@@ -9,6 +9,14 @@ import { applyBranchFilter } from "@/lib/branchScope";
 import { toast } from "sonner";
 import { format, subWeeks, addWeeks, startOfWeek } from "date-fns";
 import { dispatchApprovalNotification } from "@/lib/hr/approvalNotifications";
+import {
+  insertTimesheet as writeInsertTimesheet,
+  insertTimesheets,
+  updateTimesheet as writeUpdateTimesheet,
+  deleteTimesheet as writeDeleteTimesheet,
+  type TimesheetDraft,
+} from "@/lib/timesheets/timesheetWriter";
+
 
 export interface Timesheet {
   id: string;
@@ -174,30 +182,18 @@ export function useTimesheets() {
     return data || 0;
   };
 
+  const writeScope = {
+    organizationId: currentOrg?.id ?? "",
+    businessId: currentBusiness?.id ?? null,
+    userId: user?.id ?? null,
+  };
+
   const createTimesheet = async (
     timesheet: Omit<Timesheet, "id" | "organization_id" | "created_at" | "updated_at" | "employee" | "project" | "task">
   ) => {
     if (!currentOrg || !user) throw new Error("No organization selected");
 
-    // billing_rate / billing_amount are resolved by the trg_timesheets_billing
-    // trigger from projects.hourly_rate. Sending values here would just be
-    // overwritten — and would lie to the UI before the round-trip. Always null.
-    const { billing_rate: _br, billing_amount: _ba, ...rest } = timesheet as any;
-
-    const { data, error } = await supabase
-      .from("timesheets")
-      .insert({
-        ...rest,
-        organization_id: currentOrg.id,
-        business_id: currentBusiness?.id || null,
-        billing_rate: null,
-        billing_amount: null,
-        created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+    const data = await writeInsertTimesheet(writeScope, timesheet as unknown as TimesheetDraft);
 
     toast.success("Time entry created successfully");
     await fetchTimesheets();
@@ -205,28 +201,19 @@ export function useTimesheets() {
   };
 
   const updateTimesheet = async (id: string, updates: Partial<Timesheet>) => {
-    // Strip joined + server-derived fields. Trigger recomputes billing.
-    const { employee, project, task, billing_amount, ...dbUpdates } = updates as any;
-
-    const { error } = await supabase
-      .from("timesheets")
-      .update(dbUpdates)
-      .eq("id", id);
-
-    if (error) throw error;
+    await writeUpdateTimesheet(id, updates as unknown as Record<string, unknown>);
 
     toast.success("Time entry updated successfully");
     await fetchTimesheets();
   };
 
   const deleteTimesheet = async (id: string) => {
-    const { error } = await supabase.from("timesheets").delete().eq("id", id);
-
-    if (error) throw error;
+    await writeDeleteTimesheet(id);
 
     toast.success("Time entry deleted");
     await fetchTimesheets();
   };
+
 
   /** Submit a period via the server RPC (atomic). */
   const submitTimesheets = async (
@@ -311,27 +298,23 @@ export function useTimesheets() {
     }
     const offsetDays =
       (new Date(toWeekStart).getTime() - fromStart.getTime()) / (1000 * 60 * 60 * 24);
-    const rows = source.map((t) => {
+    const drafts: TimesheetDraft[] = source.map((t) => {
       const d = new Date(t.date); d.setDate(d.getDate() + offsetDays);
       return {
-        organization_id: t.organization_id,
-        business_id: t.business_id,
         employee_id: t.employee_id,
         project_id: t.project_id,
         task_id: t.task_id,
         date: d.toISOString().slice(0, 10),
         hours: t.hours,
         description: t.description,
-        is_billable: t.is_billable,
-        status: "draft",
-        created_by: user?.id ?? null,
+        status: "draft" as const,
       };
     });
-    const { error } = await supabase.from("timesheets").insert(rows as any);
-    if (error) throw error;
-    toast.success(`Copied ${rows.length} entries from last week`);
+    const inserted = await insertTimesheets(writeScope, drafts);
+    toast.success(`Copied ${inserted} entries from last week`);
     await fetchTimesheets();
-    return rows.length;
+    return inserted;
+
   };
 
   return {

@@ -184,3 +184,46 @@ describe("architecture: single project billing-rate engine", () => {
     expect(form).toContain("useProjectBillingRate");
   });
 });
+
+/**
+ * Wave 4.4 — one canonical timesheet writer.
+ *
+ * `src/lib/timesheets/timesheetWriter.ts` is the only module allowed to mutate
+ * `timesheets`. Anything else writing that table bypasses workspace stamping
+ * (organization_id / business_id), the server-owned billing columns and the
+ * project-derived billable flag.
+ */
+const TIMESHEET_WRITER = "lib/timesheets/timesheetWriter.ts";
+
+describe("architecture: single canonical timesheet writer", () => {
+  it("no file outside the writer module mutates timesheets", () => {
+    const offenders: string[] = [];
+    const re =
+      /\.from\(\s*["'`]timesheets["'`]\s*\)[\s\S]{0,400}?\.(insert|update|upsert|delete)\s*\(/g;
+
+    for (const file of walk(SRC)) {
+      const rel = relative(SRC, file).split("\\").join("/");
+      if (rel === TIMESHEET_WRITER) continue;
+      const source = readFileSync(file, "utf8");
+      if (!source.includes(".from(")) continue;
+      re.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(source)) !== null) {
+        offenders.push(`${rel} → timesheets.${match[1]}()`);
+      }
+    }
+
+    expect(
+      offenders,
+      `Direct timesheet writes found. Use @/lib/timesheets/timesheetWriter instead:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the writer never sends billing columns or a client-chosen workspace", () => {
+    const source = readFileSync(join(SRC, TIMESHEET_WRITER), "utf8");
+    expect(source).toContain("billing_rate: null");
+    expect(source).toContain("billing_amount: null");
+    expect(source).toContain("organization_id: scope.organizationId");
+    expect(source).toContain("business_id: scope.businessId");
+  });
+});
