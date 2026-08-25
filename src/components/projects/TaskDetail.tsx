@@ -14,7 +14,6 @@ import { CheckCircle2, History, Play, Square, Timer, GitBranch, Lock, Plus } fro
 import { format } from "date-fns";
 import { useProjectTasks, useTaskFollowers } from "@/hooks/projects";
 import { TaskComments } from "@/components/projects/TaskComments";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useAuth } from "@/contexts/AuthContext";
