@@ -66,10 +66,17 @@ export default function MyTasks() {
   }, [rows]);
 
   const toggleDone = async (r: Row) => {
-    const { error } = await supabase.from("project_tasks").update({ is_done: !r.is_done, completed_at: r.is_done ? null : new Date().toISOString() }).eq("id", r.id);
-    if (error) { toast.error("Failed to update"); return; }
+    // Wave 2: task completion is server-governed (dependency + closed-project
+    // guards, non-forgeable activity log). Never flip `is_done` from here.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)(
+      r.is_done ? "project_task_reopen" : "project_task_complete",
+      { _task_id: r.id },
+    );
+    if (error) { toast.error(error.message ?? "Failed to update"); return; }
     void load();
   };
+
 
   const Section = ({ title, items, tone }: { title: string; items: Row[]; tone?: "destructive" | "default" }) => (
     <Card>
