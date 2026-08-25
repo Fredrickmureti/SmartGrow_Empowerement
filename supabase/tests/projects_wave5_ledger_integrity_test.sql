@@ -164,8 +164,9 @@ BEGIN
   VALUES (v_proj_a, v_org, v_biz, v_admin, 'PJ-54A', 'Ledger A', 'active', 'KES', 100000),
          (v_proj_b, v_org, v_biz, v_admin, 'PJ-54B', 'Ledger B', 'active', 'KES', NULL);
 
-  INSERT INTO public.project_tasks (id, organization_id, business_id, project_id, title, created_by)
-  VALUES (v_task, v_org, v_biz, v_proj_a, 'T1', v_admin);
+  INSERT INTO public.project_tasks (id, organization_id, business_id, project_id,
+                                    task_number, name, created_by)
+  VALUES (v_task, v_org, v_biz, v_proj_a, 'T-1', 'T1', v_admin);
 
   -- compute_project_profitability authorizes through auth.uid(); act as the admin.
   PERFORM set_config('request.jwt.claims',
