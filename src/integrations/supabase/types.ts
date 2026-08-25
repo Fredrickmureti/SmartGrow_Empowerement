@@ -55715,6 +55715,7 @@ export type Database = {
           tags: string[] | null
           template_id: string | null
           updated_at: string
+          version: number
         }
         Insert: {
           actual_end_date?: string | null
@@ -55758,6 +55759,7 @@ export type Database = {
           tags?: string[] | null
           template_id?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
           actual_end_date?: string | null
@@ -55801,6 +55803,7 @@ export type Database = {
           tags?: string[] | null
           template_id?: string | null
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -102557,6 +102560,7 @@ export type Database = {
           tags: string[] | null
           template_id: string | null
           updated_at: string
+          version: number
         }
         SetofOptions: {
           from: "*"
@@ -102609,6 +102613,7 @@ export type Database = {
           tags: string[] | null
           template_id: string | null
           updated_at: string
+          version: number
         }
         SetofOptions: {
           from: "*"
@@ -102677,6 +102682,7 @@ export type Database = {
           tags: string[] | null
           template_id: string | null
           updated_at: string
+          version: number
         }
         SetofOptions: {
           from: "*"
