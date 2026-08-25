@@ -1,141 +1,108 @@
 # Projects Domain — Reconstruction (live authoritative status)
 
-This file is the live status for the Projects module rebuild. Verified facts only.
+Live status for the Projects module rebuild. Verified facts only.
 Historical records: `.lovable/plan/projects-domain-reconstruction-authoritative-status-2026-08-25.md`
 and `.lovable/plan/projects-domain-reconstruction-handoff-2026-08-25.md`.
+
+Backend: the Supabase project is already connected to this app (project ref
+`jkszmrroyjfdwokbkzis`); no reconnection work is needed.
 
 ## Where the work stands
 
 | Wave | Scope | State |
 |---|---|---|
-| 1–2 | Domain model, read paths, permissions | Complete (verified in the archived record) |
-| 3 | One billing-rate engine, config lock, currency validation, stage guards | Complete and independently re-verified 2026-08-25 |
-| 4 | Workforce & timesheets (4.1–4.6) | **Complete 2026-08-25** |
-| 5 | Commercial & financial integration | **ACTIVE — this is the current phase** |
+| 1–2 | Domain model, read paths, permissions | Complete (verified in archived record) |
+| 3 | One billing-rate engine, config lock, currency validation, stage guards | Complete, re-verified |
+| 4 | Workforce & timesheets (4.1–4.6) | Complete, guard test 8/8 green |
+| 5 | Commercial & financial integration | ACTIVE — 5.1/5.2/5.3 verified, 5.4–5.5 open |
 | 6 | Milestones, documents, collaboration, outbox topics | Pending |
 | 7 | Reporting & read models (burndown, workload, portfolio KPIs writers) | Pending |
-| 8 | Scenario verification (end-to-end business simulations) | Pending |
+| 8 | End-to-end business-event simulation | Pending |
 
-### Wave 4 closure evidence (2026-08-25)
+## Verification performed this session (read from the live database)
 
-- 4.1–4.3 server-side authority: membership semantics, 6-arg `project_add_member`,
-  `_timesheet_assert_project_eligibility` trigger. Live SQL scenario test
-  `supabase/tests/projects_wave4_timesheet_authority_test.sql` passed end-to-end.
-- 4.4 one canonical timesheet writer: `src/lib/timesheets/timesheetWriter.ts` is the
-  only client module that mutates `timesheets`. It stamps `organization_id` /
-  `business_id`, sends `billing_rate` / `billing_amount` as null (server trigger owns
-  them), derives `is_billable` from `projects.is_billable`, and owns
-  `resolveMyEmployeeId`. Consumers refactored: `useTimesheets`,
-  `components/projects/ProjectTimesheets.tsx`, `components/projects/TaskDetail.tsx`.
-  Two live defects fixed by the consolidation: project time-logging screens inserted
-  rows **without `business_id`**, and **hardcoded `is_billable: false`** on billable
-  projects.
-- 4.5 workload from canonical capacity: `project_member_workload_week` derives weekly
-  capacity from `work_schedules`; `project_members.role` dropped.
-- 4.6 guard test: suite "architecture: single canonical timesheet writer" in
-  `src/__tests__/architecture.projects-server-authority.test.ts` fails the build on any
-  `timesheets` write outside the writer. **8/8 green, `tsgo --noEmit` clean.**
+- **5.1e is applied.** `trg_je_line_to_project_ledger` no longer inserts into
+  `project_cost_entries` directly; it calls `upsert_project_cost` /
+  `upsert_project_revenue`. The previous engineer's "outcome unknown" flag is cleared.
+- **5.1c/5.1d writers are in place.** Both upsert writers stamp `entry_nature`,
+  `amount_base`, `fx_rate`, `base_currency`.
+- **5.2 is done, contrary to the handoff note.** `compute_project_profitability(uuid, uuid)`
+  sums `amount_base` filtered to `entry_nature='actual'`, reports committed cost and
+  forecast revenue separately, and counts rows with `amount_base IS NULL` so the UI can
+  show "unconverted" instead of a wrong margin. The 1-arg overload delegates to it.
+- **5.3 landed.** `useProjectFinancials.ts` and `ProjectFinancials.tsx` consume the new
+  RPC shape.
+- **Still open:** `supabase/tests/projects_wave5_ledger_integrity_test.sql` does not
+  exist, and `ProjectFinancials.tsx` still reads the scalar `projects.budget`
+  (defect D4).
 
-## Wave 5 — Commercial & financial integration (ACTIVE)
+## Remaining work, in execution order
 
-### Audit findings, 2026-08-25 (read from the live database, not inferred)
+### 5.4 Ledger integrity SQL test
+New `supabase/tests/projects_wave5_ledger_integrity_test.sql` asserting: a PO plus the
+bill for the same goods produces one actual cost (PO stays a commitment); a sales order
+plus its invoice produces one actual revenue; a bill tagged to two projects saves two
+ledger rows (D3 grain); a foreign-currency document with no resolvable rate leaves
+`amount_base` NULL and raises the unconverted flag rather than fabricating a 1.0 rate.
 
-The feeder plumbing exists and every trigger is attached and enabled
-(`timesheets`, `expenses`, `bills`, `purchase_orders`, `invoices`, `sales_orders`,
-`project_milestones`, `stock_movements`, `journal_entry_lines` →
-`project_cost_entries` / `project_revenue_entries`, all through
-`upsert_project_cost` / `upsert_project_revenue`). `trg_je_line_to_project_ledger`
-correctly restricts itself to manual/unsourced journal entries, so document-driven
-JEs are not double-mirrored. Both ledger tables are currently **empty (0 rows)**, so
-these are forward-correctness defects with no historical data to repair.
+### 5.5 Budget semantics (D4)
+Stop reading `projects.budget` for budget-vs-actual. Read the canonical budgets domain
+(`budgets` / `budget_items` scoped to the project's analytic account) through a single
+server-side read, compare against actual cost in base currency, and surface budget
+consumption from that. Keep the scalar only as an informational input if the domain has
+no budget row; never as a competing source of truth.
 
-Four defects block Wave 5 from being trusted:
+### 5.6 Analytic linkage audit
+Confirm project → analytic account on every posting path (timesheet, expense, bill,
+invoice, milestone) using `project_analytic_reconciliation`; fix any path that posts
+without the project's analytic account.
 
-- **D1 — commitments are counted as actuals.** `purchase_order` cost rows and
-  `sales_order` revenue rows are commitments/forecast, but
-  `compute_project_profitability` sums every row into `cost_total` / `revenue_total`.
-  A confirmed PO that is later billed is counted twice (`purchase_order` +
-  `vendor_bill`); a `fulfilled` sales order that is invoiced is counted twice
-  (`sales_order` + `invoice`). Margin and margin % are wrong on any project that uses
-  procurement or order-to-invoice flows.
-- **D2 — mixed currencies are added together.** Each entry stores the source
-  document's own `currency`, and the RPC sums `amount` across currencies while
-  labelling the result the project currency. There is a canonical
-  `resolve_exchange_rate(org, business, currency, date)` that returns NULL rather than
-  inventing a rate; nothing in the project ledger uses it.
-- **D3 — a multi-project source document cannot be saved.** The unique index
-  `uq_project_cost_source (source_type, source_id)` allows only one ledger row per
-  source document, yet the line-tagged branches of the bill / PO / invoice / sales
-  order triggers insert one row per project (and per task). A vendor bill whose lines
-  are tagged to two projects raises a unique violation and the bill save fails.
-  Same on the revenue side.
-- **D4 — budget comes from the `projects.budget` scalar** and `budget_used_pct` is
-  computed from the mixed-currency cost total, bypassing the budgets domain.
+### Wave 6 — Milestones, documents, collaboration
+Milestone approval as a real business event (billing/acceptance effects), project
+documents through the canonical document engine with tenant/business/branch and
+membership checks on download, project activity/comments, and registration of the
+`projects.*` outbox topics with authorization-preserving consumers.
 
-### Wave 5 execution order
+### Wave 7 — Reporting & read models
+Identify or implement the writers for `project_burndown_daily` and
+`project_portfolio_kpis`; move branch scoping out of the client (`applyBranchFilter`)
+into `project_can_read` / server reads, and verify no report, count, chart, or export
+aggregates outside the caller's authorized branch/business scope.
 
-- **5.1 Ledger integrity (actual vs commitment, FX, grain).** IN PROGRESS.
-  Add `entry_nature` ('actual' | 'commitment'), `amount_base`, `fx_rate`,
-  `base_currency` to both ledger tables; regrain uniqueness to
-  (source_type, source_id, project_id, task_id/milestone_id); stamp FX through
-  `resolve_exchange_rate` inside the two upsert writers; classify PO/SO feeds as
-  commitments; rewrite `compute_project_profitability` to report actuals in base
-  currency with commitments and unconvertible rows surfaced separately; update
-  `useProjectFinancials` + `ProjectFinancials.tsx`; extend the architecture guard test.
-- **5.2 Budget semantics.** Replace the `projects.budget` scalar reading with the
-  canonical budgets domain (`budgets` / `budget_items` scoped to the project's
-  analytic account), keep a single budget-vs-actual read.
-- **5.3 Invoicing round-trip.** Verify `invoice-project-timesheets` and
-  `invoice-project-milestone` stamp `project_id` on lines, mark source rows invoiced,
-  and cannot double-bill; confirm the revenue trigger picks them up exactly once.
-- **5.4 Analytic linkage end-to-end.** Project → analytic account on every posting
-  path (timesheet, bill, invoice, milestone), audited against
-  `project_analytic_reconciliation`.
-- **5.5 Wave 5 verification.** DB scenario test for a full commercial round trip;
-  guard tests green; `tsgo --noEmit` clean before Wave 6 opens.
+### Wave 8 — End-to-end business-event simulation (explicitly requested)
+Drive the full lifecycle against the live app with a seeded tenant, fixing every bug hit
+along the way rather than working around it:
 
-## Open blockers carried forward
-
-- Writers of `project_burndown_daily` and `project_portfolio_kpis` unidentified (Wave 7).
-- Outbox topic-registration contract for `projects.*` unconfirmed (Wave 6).
-- Branch scoping in project reads is still partly client-side (`applyBranchFilter`);
-  `project_can_read` must be audited for branch enforcement before Wave 7.
+```text
+CRM lead won  →  project created (tenant/business/branch ownership stamped)
+  →  commercial config (billable, pricing model, currency via Finance)
+  →  manager assigned, team members added within authorized branch scope
+  →  stages/tasks from template  →  tasks assigned
+  →  employees log timesheets (canonical writer, server-owned rates)
+  →  expenses + a vendor bill tagged to the project
+  →  milestone completed and approved
+  →  invoice generated from timesheets and milestone  →  receivable
+  →  profitability: actual vs committed, base currency, budget consumption
+  →  closure with open-work validation  →  historical reporting intact
+```
+Plus negative security passes in the same run: Branch A user denied on a Branch B
+project/task/timesheet by forged ID, cross-business search and export denied,
+non-Finance user denied financial fields.
 
 ## Working rules
 
 - One migration per object, single-purpose — never batched.
 - Update this file immediately after each numbered item lands, with the evidence.
 - No fallbacks left behind: a replaced writer is deleted, not kept beside the new one.
+- Supabase linter baseline is 3682 pre-existing findings; compare against that number,
+  do not treat it as new debt.
 
-## Instructions for the next agent
+## Technical notes
 
-1. Verify 5.1 before writing anything new: `entry_nature` / `amount_base` / `fx_rate`
-   exist on both ledger tables; the old `uq_project_cost_source` and
-   `uq_project_revenue_source` indexes are gone and replaced at project grain;
-   `upsert_project_cost` / `upsert_project_revenue` resolve FX through
-   `resolve_exchange_rate` and never default a rate to 1 for a foreign currency;
-   `compute_project_profitability` separates actual from committed and reports
-   unconverted rows; the Financials screen shows those numbers distinctly.
-2. Then resume at **5.2 (budget semantics)**, followed by 5.3, 5.4, 5.5 — in that
-   order. Do not start Wave 6 until 5.5 is green.
-
-## Wave 5.1 status update (latest agent)
-
-**Done and verified in DB (migrations applied successfully):**
-- 5.1a `project_cost_entries`: `entry_nature` ('actual' | 'commitment'), `amount_base`, `fx_rate`, `base_currency`; uniqueness re-grained to `(source_type, source_id, project_id, coalesce(task_id, zero-uuid))`.
-- 5.1b `project_revenue_entries`: same columns; uniqueness re-grained to `(source_type, source_id, project_id, coalesce(milestone_id, zero-uuid))`.
-- 5.1c Cost writer: `upsert_project_cost(..., _entry_nature text)` — old 12-arg signature dropped. Resolves base currency from `businesses.base_currency` and rate via `resolve_exchange_rate`; `amount_base` stays NULL when no rate exists (never a fabricated 1.0). Feeders rewritten: `trg_timesheet_to_cost`, `trg_expense_to_cost`, `trg_stock_movement_to_cost`, `trg_bill_to_cost` (actual, per project+task), `trg_purchase_order_to_cost` (**commitment** — D1 fixed on cost side).
-- 5.1d Revenue writer: `upsert_project_revenue(..., _entry_nature text)` — old 10-arg signature dropped. Feeders rewritten: `trg_invoice_to_revenue` (actual, per project), `trg_sales_order_to_revenue` (**commitment** — D1 fixed on revenue side), `trg_milestone_to_revenue` (actual).
-
-**UNVERIFIED — first task for the next agent:**
-- 5.1e `trg_je_line_to_project_ledger` was migrated to call the two new writers instead of inserting into the ledger tables directly. The migration returned an infrastructure error ("Failed to initialise history table: connection timeout") and the DB then became unreachable, so **the outcome is unknown**. Verify with:
-  `select pg_get_functiondef(oid) from pg_proc where proname='trg_je_line_to_project_ledger';`
-  If the body still contains `INSERT INTO public.project_cost_entries`, re-apply that migration (it is a single idempotent `CREATE OR REPLACE FUNCTION`, safe to re-run). Until it is applied, project-tagged manual journal lines write rows with no `entry_nature`/`amount_base` stamping (they default to 'actual' with NULL base amount).
-
-**Next after that (do in order):**
-1. 5.2 `compute_project_profitability`: filter `entry_nature='actual'` and sum `amount_base` (D2). Expose committed cost/forecast revenue as separate fields, and surface a flag when any contributing row has `amount_base IS NULL` so the UI can show "unconverted" instead of a silently wrong margin.
-2. 5.3 Update `src/hooks/projects/*` + profitability UI to the new RPC shape; show commitments distinctly from actuals.
-3. 5.4 SQL test `supabase/tests/projects_wave5_ledger_integrity_test.sql`: PO+bill for the same goods yields cost once; SO+invoice yields revenue once; a bill tagged to two projects saves two rows; missing FX rate leaves `amount_base` NULL.
-4. 5.5 D4 — replace the scalar `projects.budget` with the budgets domain.
-
-Note: the Supabase linter baseline is 3682 pre-existing findings; it did not change across any Wave 5.1 migration, so none were introduced here.
+- Profitability contract: `compute_project_profitability(project_id, business_id)`
+  returns actual cost/revenue in base currency, committed cost, forecast revenue,
+  per-source breakdowns, hours, and unconverted-row counts.
+- Ledger grain: `(source_type, source_id, project_id, coalesce(task_id, zero-uuid))` on
+  cost, `(…, coalesce(milestone_id, zero-uuid))` on revenue.
+- FX only through `resolve_exchange_rate(org, business, currency, date)`, which returns
+  NULL when no rate exists.
