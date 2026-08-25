@@ -22,8 +22,12 @@ Two live build errors, both from this half-finished wiring: **FACT**
 
 ## 2. Work to complete R1
 
+**Lead type**
+0. Add `status: Database["public"]["Enums"]["crm_lead_status"]` (as a string union) to the `Lead` interface so `lead.status === "proposition"` typechecks.
+
 **LeadDetailsDialog**
 1. Widen `onDelete?: (leadId: string, reason?: string, version?: number | null) => Promise<void>`.
+
 2. Add footer buttons between the Won/Lost group and "Convert To": "Mark as Proposition" when `!isWonOrLost && !isProposition`, "Withdraw Proposition" (opens `showWithdrawDialog`) when `isProposition`.
 3. Delete the `showDeleteDialog` state and the whole old `AlertDialog` block (618-644), which also removes the dangling `confirmDelete` reference.
 4. Mount two `ReasonDialog`s: withdraw (`onConfirm={confirmWithdrawProposition}`) and archive (`destructive`, `onConfirm={confirmArchive}`), bound to their existing states.
