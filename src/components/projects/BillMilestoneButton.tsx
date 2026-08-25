@@ -28,9 +28,9 @@ export function BillMilestoneButton({ milestoneId, isInvoiced, hasBillingAmount,
   const run = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("invoice-project-milestone", {
-        body: { milestone_id: milestoneId },
-      });
+      const { data, error } = await supabase.rpc("invoice_project_milestone", {
+        _milestone_id: milestoneId,
+      } as never);
       if (error) throw error;
       const res = (data ?? {}) as { ok?: boolean; invoice_id?: string; amount?: number; error?: string; reason?: string };
       if (!res.ok) {
