@@ -167,6 +167,12 @@ BEGIN
   INSERT INTO public.project_tasks (id, organization_id, business_id, project_id, title, created_by)
   VALUES (v_task, v_org, v_biz, v_proj_a, 'T1', v_admin);
 
+  -- compute_project_profitability authorizes through auth.uid(); act as the admin.
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_admin::text, 'role', 'authenticated')::text, true);
+
+
+
   -- ===== A) grain: one document, two projects (D3) =============================
   PERFORM public.upsert_project_cost(v_proj_a, v_org, v_biz, NULL, 'vendor_bill', v_bill,
             NULL, NULL, 4000, 'KES', now(), 'bill line for A', 'actual');
