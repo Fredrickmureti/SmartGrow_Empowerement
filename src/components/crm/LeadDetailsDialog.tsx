@@ -344,8 +344,30 @@ export function LeadDetailsDialog({
                   <XCircle className="h-4 w-4 mr-2" />
                   Mark as Lost
                 </Button>
+                {isProposition ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowWithdrawDialog(true)}
+                    disabled={isConverting}
+                  >
+                    <Undo2 className="h-4 w-4 mr-2" />
+                    Withdraw Proposition
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMarkAsProposition}
+                    disabled={isConverting}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Mark as Proposition
+                  </Button>
+                )}
               </>
             )}
+
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
