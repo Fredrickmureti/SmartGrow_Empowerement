@@ -196,6 +196,10 @@ BEGIN
   END IF;
 
   -- ===== 8: non-billable participant resolves to a zero rate ==================
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_mgr::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
   UPDATE public.project_members SET is_billable_participant = false, billable_rate = 400
    WHERE project_id = v_proj_a AND user_id = v_user_w;
   SELECT public.resolve_project_billing_rate(v_proj_a, v_emp_w, NULL) INTO v_rate;
