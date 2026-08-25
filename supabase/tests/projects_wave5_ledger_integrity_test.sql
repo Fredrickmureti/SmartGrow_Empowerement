@@ -156,6 +156,15 @@ BEGIN
   INSERT INTO public.businesses (id, organization_id, name, country, base_currency, fiscal_year_start)
   VALUES (v_biz, v_org, 'PJ54 Ltd', 'KE', 'KES', 1);
 
+  -- Budget lines resolve to monthly fiscal periods; provision FY2026.
+  INSERT INTO public.fiscal_periods (organization_id, business_id, name, period_type, start_date, end_date)
+  SELECT v_org, v_biz, 'FY2026', 'year', DATE '2026-01-01', DATE '2026-12-31'
+  UNION ALL
+  SELECT v_org, v_biz, to_char(make_date(2026, m, 1), 'YYYY-MM'), 'month',
+         make_date(2026, m, 1), (make_date(2026, m, 1) + INTERVAL '1 month - 1 day')::date
+    FROM generate_series(1, 12) m;
+
+
   INSERT INTO public.organization_installed_apps (organization_id, app_id, is_active, installed_by)
   VALUES (v_org, 'projects', true, v_admin);
 
@@ -164,8 +173,9 @@ BEGIN
   VALUES (v_proj_a, v_org, v_biz, v_admin, 'PJ-54A', 'Ledger A', 'active', 'KES', 100000),
          (v_proj_b, v_org, v_biz, v_admin, 'PJ-54B', 'Ledger B', 'active', 'KES', NULL);
 
-  INSERT INTO public.project_tasks (id, organization_id, business_id, project_id, title, created_by)
-  VALUES (v_task, v_org, v_biz, v_proj_a, 'T1', v_admin);
+  INSERT INTO public.project_tasks (id, organization_id, business_id, project_id,
+                                    task_number, name, created_by)
+  VALUES (v_task, v_org, v_biz, v_proj_a, 'T-1', 'T1', v_admin);
 
   -- compute_project_profitability authorizes through auth.uid(); act as the admin.
   PERFORM set_config('request.jwt.claims',
@@ -287,13 +297,18 @@ BEGIN
   VALUES (v_aa, v_org, v_biz, v_plan, 'Project Ledger A', 'PJ-54A');
   UPDATE public.projects SET analytic_account_id = v_aa WHERE id = v_proj_a;
 
+  -- Budget lines can only be authored while the budget is a draft; activation is
+  -- a separate lifecycle step (an active budget requires a revision instead).
   INSERT INTO public.budgets (id, organization_id, business_id, name, fiscal_year, status, currency_code, created_by)
-  VALUES (v_budget, v_org, v_biz, 'PJ54 budget', 2026, 'active', 'KES', v_admin);
+  VALUES (v_budget, v_org, v_biz, 'PJ54 budget', 2026, 'draft', 'KES', v_admin);
 
   INSERT INTO public.budget_items (budget_id, business_id, analytic_account_id, account_id,
                                    period_month, budgeted_amount)
   VALUES (v_budget, v_biz, v_aa, v_coa, 1, 30000),
          (v_budget, v_biz, v_aa, v_coa, 2, 20000);
+
+  UPDATE public.budgets SET status = 'active' WHERE id = v_budget;
+
 
   v_fin := public.compute_project_profitability(v_proj_a, v_biz);
   IF v_fin->>'budget_source' <> 'budgets_domain' THEN
@@ -303,7 +318,8 @@ BEGIN
   IF (v_fin->>'budget')::numeric <> 50000 THEN
     RAISE EXCEPTION 'budget should be the sum of the budget lines (50000), got %', v_fin->>'budget';
   END IF;
-  IF (v_fin->>'budget_used_pct')::numeric <> round((5500 / 50000::numeric) * 100, 2) THEN
+  -- Actual base cost is now 5500 KES + the 90 KES converted JPY expense.
+  IF (v_fin->>'budget_used_pct')::numeric <> round((5590 / 50000::numeric) * 100, 2) THEN
     RAISE EXCEPTION 'budget consumption must compare actual base cost to the domain budget, got %',
       v_fin->>'budget_used_pct';
   END IF;
