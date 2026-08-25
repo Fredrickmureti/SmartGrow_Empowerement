@@ -61,7 +61,7 @@ interface LeadDetailsDialogProps {
   lead: Lead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onDelete?: (leadId: string) => Promise<void>;
+  onDelete?: (leadId: string, reason?: string, version?: number | null) => Promise<void>;
 }
 
 export function LeadDetailsDialog({
