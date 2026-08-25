@@ -288,13 +288,18 @@ BEGIN
   VALUES (v_aa, v_org, v_biz, v_plan, 'Project Ledger A', 'PJ-54A');
   UPDATE public.projects SET analytic_account_id = v_aa WHERE id = v_proj_a;
 
+  -- Budget lines can only be authored while the budget is a draft; activation is
+  -- a separate lifecycle step (an active budget requires a revision instead).
   INSERT INTO public.budgets (id, organization_id, business_id, name, fiscal_year, status, currency_code, created_by)
-  VALUES (v_budget, v_org, v_biz, 'PJ54 budget', 2026, 'active', 'KES', v_admin);
+  VALUES (v_budget, v_org, v_biz, 'PJ54 budget', 2026, 'draft', 'KES', v_admin);
 
   INSERT INTO public.budget_items (budget_id, business_id, analytic_account_id, account_id,
                                    period_month, budgeted_amount)
   VALUES (v_budget, v_biz, v_aa, v_coa, 1, 30000),
          (v_budget, v_biz, v_aa, v_coa, 2, 20000);
+
+  UPDATE public.budgets SET status = 'active' WHERE id = v_budget;
+
 
   v_fin := public.compute_project_profitability(v_proj_a, v_biz);
   IF v_fin->>'budget_source' <> 'budgets_domain' THEN
