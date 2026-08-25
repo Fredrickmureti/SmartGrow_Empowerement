@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, TrendingUp, TrendingDown, Clock, Wallet, ReceiptText, FileText, Building2, Users } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DollarSign, TrendingUp, TrendingDown, Clock, Wallet, ReceiptText, FileText, Building2, Users, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { useProjectFinancials } from "@/hooks/projects/useProjectFinancials";
 import { Project } from "@/hooks/projects/useProjects";
@@ -54,7 +55,17 @@ export function ProjectFinancials({ project }: Props) {
   return (
     <div className="space-y-4">
       {/* KPI grid */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      {data.has_unconverted_entries && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Profitability is incomplete</AlertTitle>
+          <AlertDescription>
+            {data.unconverted_cost_count} cost and {data.unconverted_revenue_count} revenue entries have no exchange rate. They are excluded from totals rather than treated as 1:1.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -68,10 +79,30 @@ export function ProjectFinancials({ project }: Props) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Revenue committed</p>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xl font-semibold mt-1">{fmt(data.committed_revenue_total, cur)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">Cost</p>
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-xl font-semibold mt-1">{fmt(data.cost_total, cur)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Cost committed</p>
+              <ReceiptText className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xl font-semibold mt-1">{fmt(data.committed_cost_total, cur)}</p>
           </CardContent>
         </Card>
 
@@ -170,7 +201,7 @@ export function ProjectFinancials({ project }: Props) {
                       <div className="min-w-0">
                         <p className="truncate">{e.description || "—"}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {format(new Date(e.posted_at), "MMM d, yyyy")} · <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{e.source_type.replace("_", " ")}</Badge>
+                          {format(new Date(e.posted_at), "MMM d, yyyy")} · <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{e.source_type.replace("_", " ")}</Badge> · <Badge variant="secondary" className="text-[10px] h-4 px-1 capitalize">{e.entry_nature}</Badge>
                           {e.hours != null && <> · {Number(e.hours).toFixed(2)}h</>}
                         </p>
                       </div>
@@ -195,7 +226,7 @@ export function ProjectFinancials({ project }: Props) {
                       <div className="min-w-0">
                         <p className="truncate">{e.description || "—"}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {format(new Date(e.posted_at), "MMM d, yyyy")} · <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{e.source_type.replace("_", " ")}</Badge>
+                          {format(new Date(e.posted_at), "MMM d, yyyy")} · <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{e.source_type.replace("_", " ")}</Badge> · <Badge variant="secondary" className="text-[10px] h-4 px-1 capitalize">{e.entry_nature}</Badge>
                         </p>
                       </div>
                     </div>
