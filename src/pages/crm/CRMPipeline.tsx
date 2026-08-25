@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings, TrendingUp, Users, Target, Zap, Archive } from "lucide-react";
+import { Plus, Settings, TrendingUp, Users, Target, Zap, Archive, Loader2 } from "lucide-react";
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { useCRMStages, useLeads, Lead } from "@/hooks/crm";
 import { LeadCard, NextActivity } from "@/components/crm/LeadCard";
@@ -20,10 +20,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { useBranch } from "@/contexts/BranchContext";
+import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function CRMPipeline() {
-  const { stages, isLoading: stagesLoading } = useCRMStages();
+  const { stages, isLoading: stagesLoading, seedDefaultStages } = useCRMStages();
+  const navigate = useNavigate();
   const { branches, hasMultipleBranches } = useBranch();
   // Branch is an ownership dimension of the opportunity, so it filters the
   // query (server side) rather than the rendered board.
@@ -38,6 +40,29 @@ export default function CRMPipeline() {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  /**
+   * First-run provisioning. A business with zero stages has an unusable board
+   * and new leads land without a stage, so we offer the conventional funnel
+   * instead of leaving the user to build one before they can work at all.
+   * Existing stage-less leads are then placeable from the lead record.
+   */
+  const handleSeedStages = async () => {
+    if (isReadOnly) {
+      openUpgradeModal("crm");
+      return;
+    }
+    setIsSeeding(true);
+    try {
+      await seedDefaultStages();
+      await refreshLeads();
+    } catch {
+      /* the hook already surfaced the server message */
+    } finally {
+      setIsSeeding(false);
+    }
+  };
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
@@ -279,7 +304,13 @@ export default function CRMPipeline() {
             <p className="text-xs text-muted-foreground mt-1">revenue × probability</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-blue-500">
+        <Card
+          className="border-l-4 border-l-blue-500 cursor-pointer transition-colors hover:bg-accent/40"
+          onClick={() => navigate("/crm-app/leads")}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter") navigate("/crm-app/leads"); }}
+        >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Open Leads</CardTitle>
@@ -288,6 +319,7 @@ export default function CRMPipeline() {
           </CardHeader>
           <CardContent>
             <div className="stat-value tabular-nums whitespace-nowrap">{leads.filter(l => !l.won_at && !l.lost_at).length}</div>
+            <p className="text-xs text-muted-foreground mt-1">open all leads</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-emerald-500">
