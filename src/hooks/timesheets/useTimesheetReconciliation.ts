@@ -52,7 +52,10 @@ export function useTimesheetReconciliation(from: string, to: string) {
         .limit(1000);
       if (currentBusiness?.id) q = q.eq("business_id", currentBusiness.id);
 
-      const { data, error } = await q.returns<TimesheetReconciliationRow[]>();
+      const { data, error } = (await q) as {
+        data: TimesheetReconciliationRow[] | null;
+        error: unknown;
+      };
       if (error) throw error;
       return (data ?? []).map((r) => ({
         employee_id: r.employee_id,
