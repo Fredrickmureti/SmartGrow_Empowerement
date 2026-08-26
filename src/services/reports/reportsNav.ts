@@ -137,6 +137,8 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     reportIds: [
       "management-reports",
       "business-intelligence",
+      "cross-company-comparative",
+
       // Analytic accounting consumers — the management dimension of the GL.
       "analytic-account-statement",
       "analytic-profit-and-loss",
