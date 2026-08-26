@@ -29,6 +29,8 @@ import { InventoryReconciliationCard } from "@/components/finance/InventoryRecon
 import { FinanceAccountingControls } from "@/components/finance/FinanceAccountingControls";
 import { DefaultAccountsConfig } from "@/components/finance/DefaultAccountsConfig";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
+import { ConsolidationGroupsSettings } from "@/components/settings/ConsolidationGroupsSettings";
+
 
 interface Account {
   id: string;
