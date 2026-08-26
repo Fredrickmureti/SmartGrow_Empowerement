@@ -88342,6 +88342,7 @@ export type Database = {
           schema_name: string
         }[]
       }
+      __ts_wave5_probe: { Args: never; Returns: Json }
       _account_is_postable: {
         Args: { p_account_id: string; p_business_id: string; p_org_id: string }
         Returns: boolean
