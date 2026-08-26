@@ -176,7 +176,12 @@ export default function FixedAssets() {
   });
 
   const activeAssets = assets.filter((a) => a.status === "active");
-  const totalValue = activeAssets.reduce((sum, a) => sum + a.purchase_price, 0);
+  // Assets can be acquired in different currencies, so the only valid sum is
+  // over the server-stamped base-currency cost. Never add transaction amounts.
+  const totalValue = activeAssets.reduce(
+    (sum, a) => sum + Number(a.base_purchase_price ?? a.purchase_price),
+    0,
+  );
   const totalDepreciation = activeAssets.reduce(
     (sum, a) => sum + (a.accumulated_depreciation || 0),
     0,
