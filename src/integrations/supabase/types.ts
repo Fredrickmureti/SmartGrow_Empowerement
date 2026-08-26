@@ -68526,7 +68526,6 @@ export type Database = {
       }
       timesheet_settings: {
         Row: {
-          allow_self_approval: boolean
           block_on_time_off_overlap: boolean
           business_id: string | null
           created_at: string
@@ -68547,7 +68546,6 @@ export type Database = {
           week_start_day: number | null
         }
         Insert: {
-          allow_self_approval?: boolean
           block_on_time_off_overlap?: boolean
           business_id?: string | null
           created_at?: string
@@ -68568,7 +68566,6 @@ export type Database = {
           week_start_day?: number | null
         }
         Update: {
-          allow_self_approval?: boolean
           block_on_time_off_overlap?: boolean
           business_id?: string | null
           created_at?: string
@@ -89581,7 +89578,7 @@ export type Database = {
         Returns: boolean
       }
       _timesheet_can_approve: {
-        Args: { _allow_self: boolean; _employee_id: string; _uid: string }
+        Args: { _employee_id: string; _uid: string }
         Returns: boolean
       }
       _timesheet_emit_event: {
@@ -99211,6 +99208,15 @@ export type Database = {
         }
         Returns: Json
       }
+      governance_self_action_verdict: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_org: string
+          p_subject: string
+        }
+        Returns: string
+      }
       governance_sod_violations: {
         Args: { _org_id: string }
         Returns: {
@@ -107998,6 +108004,14 @@ export type Database = {
           detail: string
           passed: boolean
           test_name: string
+        }[]
+      }
+      timesheet_approval_capability: {
+        Args: { _submission_id: string }
+        Returns: {
+          can_approve: boolean
+          reason: string
+          requires_override: boolean
         }[]
       }
       timesheet_effective_settings: {
