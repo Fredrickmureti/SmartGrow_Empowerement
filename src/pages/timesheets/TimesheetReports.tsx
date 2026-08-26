@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTimesheetMetrics } from "@/hooks/timesheets";
+import { useTimesheetMetrics, useTimesheetReconciliation } from "@/hooks/timesheets";
 
 const h = (v: number) => `${v.toFixed(2)}h`;
 
@@ -21,6 +21,9 @@ export default function TimesheetReports() {
   const [to, setTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
 
   const { byEmployee, summary, uninvoiced, isLoading, error } = useTimesheetMetrics(from, to);
+  const reconciliation = useTimesheetReconciliation(from, to);
+  const employeeName = (id: string) =>
+    byEmployee.find((e) => e.employee_id === id)?.employee_name ?? id.slice(0, 8);
 
   return (
     <div className="space-y-4 p-4 sm:p-6 lg:p-8">
@@ -64,6 +67,7 @@ export default function TimesheetReports() {
           <TabsTrigger value="overtime">Overtime</TabsTrigger>
           <TabsTrigger value="payroll">Payroll-Ready</TabsTrigger>
           <TabsTrigger value="uninvoiced">Uninvoiced</TabsTrigger>
+          <TabsTrigger value="reconciliation">Attendance vs Timesheet</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employee">
@@ -127,6 +131,32 @@ export default function TimesheetReports() {
               r.project_name,
               h(r.hours),
               r.billing_amount != null ? r.billing_amount.toFixed(2) : "—",
+            ])}
+          />
+        </TabsContent>
+
+        <TabsContent value="reconciliation" className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Attendance records presence; timesheets record worked, attributed time. They are
+            separate facts — these are the days where they disagree by more than 15 minutes.
+          </p>
+          {reconciliation.error && (
+            <Card>
+              <CardContent className="py-4 text-sm text-destructive">
+                Could not load reconciliation: {(reconciliation.error as Error).message}
+              </CardContent>
+            </Card>
+          )}
+          <ReportTable
+            loading={reconciliation.isLoading}
+            headers={["Day", "Employee", "Attended", "Recorded", "Approved", "Variance"]}
+            rows={reconciliation.mismatches.map((r) => [
+              r.day,
+              employeeName(r.employee_id),
+              h(r.attended_hours),
+              h(r.recorded_hours),
+              h(r.approved_hours),
+              `${r.variance_hours > 0 ? "+" : ""}${r.variance_hours.toFixed(2)}h`,
             ])}
           />
         </TabsContent>
