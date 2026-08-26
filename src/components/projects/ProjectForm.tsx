@@ -232,7 +232,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
       {templates.length > 0 && (
         <WorkflowSheetSection number={1} title="Template" subtitle="Optional — clone stages, tasks and milestones from an existing template.">
           <WorkflowField label="Start from template">
-            <Select value={templateId || "none"} onValueChange={(v) => setTemplateId(v === "none" ? "" : v)}>
+            <Select value={templateId || "none"} onValueChange={(v) => applyTemplateSelection(v === "none" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="No template" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Blank project —</SelectItem>
