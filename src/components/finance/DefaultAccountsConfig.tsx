@@ -239,6 +239,18 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
     systemManaged: true,
   },
   {
+    key: "cumulative_translation_adjustment",
+    label: "Cumulative Translation Adjustment (CTA)",
+    description:
+      "Equity account holding translation differences when this company's books are translated into a group presentation currency (IAS 21 / ASC 830)",
+    icon: Scale,
+    accountType: "equity",
+    codePattern: ["3900", "390"],
+    namePattern: ["translation", "cta", "comprehensive income"],
+    group: "advanced",
+  },
+
+  {
     key: "inventory_adjustment",
     label: "Inventory Adjustment",
     description: "Expense for stock write-offs, shrinkage, and adjustments",
