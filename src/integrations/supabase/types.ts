@@ -94400,6 +94400,22 @@ export type Database = {
         Args: { p_so_id: string; p_user_id: string }
         Returns: Json
       }
+      consolidation_cta_reconciliation: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          average_rate: number
+          base_currency: string
+          business_id: string
+          business_name: string
+          closing_cta: number
+          closing_rate: number
+          cta_movement: number
+          historical_rate: number
+          opening_cta: number
+          opening_rate: number
+          presentation_currency: string
+        }[]
+      }
       consolidation_member_translation_rates: {
         Args: {
           _business_id: string
@@ -94421,6 +94437,35 @@ export type Database = {
       consolidation_scope_member_count: {
         Args: { _as_of: string; _group_id: string }
         Returns: number
+      }
+      consolidation_translate_member: {
+        Args: {
+          _business_id: string
+          _date_from: string
+          _date_to: string
+          _group_id: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          base_currency: string
+          business_id: string
+          business_name: string
+          closing_balance: number
+          is_nominal: boolean
+          opening_balance: number
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+          total_credit: number
+          total_debit: number
+          translated_closing: number
+          translated_credit: number
+          translated_debit: number
+          translated_opening: number
+        }[]
       }
       consume_lots_atomic: {
         Args: {
@@ -98674,6 +98719,32 @@ export type Database = {
           ownership_percent: number
           total_credit: number
           total_debit: number
+        }[]
+      }
+      get_consolidated_trial_balance_translated: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          base_currency: string
+          business_id: string
+          business_name: string
+          closing_balance: number
+          is_nominal: boolean
+          is_parent: boolean
+          opening_balance: number
+          ownership_percent: number
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+          total_credit: number
+          total_debit: number
+          translated_closing: number
+          translated_credit: number
+          translated_debit: number
+          translated_opening: number
         }[]
       }
       get_control_account_reconciliation: {
@@ -106187,6 +106258,7 @@ export type Database = {
           method: Database["public"]["Enums"]["consolidation_method"]
           ownership_percent: number
           presentation_currency: string
+          requires_translation: boolean
         }[]
       }
       resolve_credit_note_revenue_lines: {
