@@ -97,6 +97,7 @@ export default function SalespersonPerformance() {
   );
 
   const hasForeignCurrency = metrics.some((m) => m.has_foreign_currency);
+  const unconvertibleCount = metrics.reduce((acc, m) => acc + m.unconvertible_document_count, 0);
 
   const openDrill = (salespersonId: string, name: string, metric: SalespersonMetricKey) =>
     setDrill({ salespersonId, name, metric });
@@ -179,6 +180,17 @@ export default function SalespersonPerformance() {
         <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           Some documents in this period are in a foreign currency. Amounts are shown converted to{" "}
           {baseCurrency} at each document's recorded exchange rate.
+        </div>
+      )}
+
+      {unconvertibleCount > 0 && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            {unconvertibleCount} document{unconvertibleCount === 1 ? "" : "s"} in this period
+            {" "}could not be converted to {baseCurrency} because no exchange rate is recorded on them, so
+            they are excluded from the totals below. Record the missing rates to see complete figures.
+          </span>
         </div>
       )}
 
@@ -382,7 +394,7 @@ export default function SalespersonPerformance() {
                       <TableCell>{d.document_date ?? "—"}</TableCell>
                       <TableCell>{d.contact_name ?? "—"}</TableCell>
                       <TableCell className="capitalize">{d.status ?? "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(d.amount)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{d.amount === null ? <span className="text-destructive">No rate</span> : formatCurrency(d.amount)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

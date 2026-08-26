@@ -36,6 +36,12 @@ export interface SalespersonMetrics {
   pos_sales_value: number;
   pos_sales_count: number;
   has_foreign_currency: boolean;
+  /**
+   * Documents excluded from every total above because no conversion evidence
+   * exists (foreign currency, no rate stamped on the document). Reported so a
+   * gap is visible instead of being valued 1:1.
+   */
+  unconvertible_document_count: number;
 }
 
 /** Which underlying documents a metric is made of. */
@@ -54,7 +60,8 @@ export interface SalespersonDocument {
   document_date: string | null;
   contact_id: string | null;
   contact_name: string | null;
-  amount: number;
+  /** null when the document has no conversion evidence — never shown as 1:1. */
+  amount: number | null;
   status: string | null;
 }
 
@@ -104,6 +111,7 @@ export function useSalespersonDashboard(params: UseSalespersonDashboardParams) {
         overdue_amount: Number(r.overdue_amount) || 0,
         pos_sales_value: Number(r.pos_sales_value) || 0,
         pos_sales_count: Number(r.pos_sales_count) || 0,
+        unconvertible_document_count: Number(r.unconvertible_document_count) || 0,
       }));
     },
     enabled: !!currentOrg?.id,
@@ -157,7 +165,7 @@ export function useSalespersonDocuments(args: {
       if (error) throw error;
       return ((data as unknown as SalespersonDocument[]) ?? []).map((d) => ({
         ...d,
-        amount: Number(d.amount) || 0,
+        amount: d.amount === null || d.amount === undefined ? null : Number(d.amount),
       }));
     },
     enabled: !!currentOrg?.id && !!args.salespersonId && !!args.metric,

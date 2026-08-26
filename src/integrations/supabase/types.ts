@@ -98433,6 +98433,7 @@ export type Database = {
           pos_sales_value: number
           salesperson_id: string
           salesperson_name: string
+          unconvertible_document_count: number
         }[]
       }
       get_salesperson_performance_documents: {
