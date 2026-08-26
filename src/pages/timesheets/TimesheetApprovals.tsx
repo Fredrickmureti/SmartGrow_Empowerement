@@ -6,7 +6,11 @@
  * Attendance + Leave approvals UX.
  */
 import { useMemo, useState, useCallback } from "react";
-import { useTimesheets, useTeamTimesheets } from "@/hooks/timesheets";
+import {
+  useTimesheets,
+  useTeamTimesheets,
+  useTimesheetApprovalCapabilities,
+} from "@/hooks/timesheets";
 import { TimesheetApprovalList } from "@/components/timesheets/TimesheetApprovalList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock, CheckCircle2, ClipboardCheck, Clock4, XCircle, Keyboard } from "lucide-react";
