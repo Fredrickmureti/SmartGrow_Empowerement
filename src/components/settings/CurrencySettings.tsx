@@ -746,18 +746,18 @@ export function CurrencySettings() {
                           variant="outline"
                           size="sm"
                           onClick={() => setRatePage((p) => Math.max(1, p - 1))}
-                          disabled={ratePage === 1}
+                          disabled={currentRatePage === 1}
                         >
                           Previous
                         </Button>
                         <span className="text-xs text-muted-foreground">
-                          Page {ratePage} of {totalRatePages}
+                          Page {currentRatePage} of {totalRatePages}
                         </span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setRatePage((p) => Math.min(totalRatePages, p + 1))}
-                          disabled={ratePage === totalRatePages}
+                          disabled={currentRatePage === totalRatePages}
                         >
                           Next
                         </Button>
