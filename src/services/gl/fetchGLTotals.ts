@@ -1,9 +1,15 @@
 /**
- * GL-based Revenue & Expenses calculation
- * 
- * Single source of truth for financial KPIs.
- * Uses the `get_account_movements` RPC (posted journal entries only)
- * to ensure dashboard numbers match formal financial reports exactly.
+ * GL-based Revenue & Expenses.
+ *
+ * Single source of truth for financial KPIs: the `get_gl_pnl_totals` RPC, which
+ * reads the authoritative `get_account_movements` engine (posted journal entries
+ * only) and applies the normal-balance convention inside the database — income
+ * credit-normal, expenses debit-normal.
+ *
+ * This file deliberately owns NO accounting arithmetic. It previously fetched
+ * accounts, classified them as income/expense and summed movements in the
+ * browser; that was a second definition of "revenue for a period" and could
+ * drift from the formal Profit & Loss statement. Do not reintroduce it.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +22,6 @@ export interface GLTotals {
 
 /**
  * Fetch GL-based revenue & expenses for a date range using posted journal entries.
- * This ensures all KPIs match the financial reports (single source of truth).
  *
  * @param branchId optional branch dimension filter; NULL = all branches.
  */
@@ -25,50 +30,21 @@ export async function fetchGLTotals(
   dateFrom: string,
   dateTo: string,
   businessId?: string | null,
-  branchId?: string | null
+  branchId?: string | null,
 ): Promise<GLTotals> {
-  // 1. Get account movements from GL (posted journal entries only)
-  const { data: movements, error: movError } = await supabase.rpc("get_account_movements", {
+  const { data, error } = await supabase.rpc("get_gl_pnl_totals", {
     _org_id: orgId,
     _date_from: dateFrom,
     _date_to: dateTo,
     _business_id: businessId || null,
     _branch_id: branchId || null,
   });
-  if (movError) throw movError;
+  if (error) throw error;
 
-  // 2. Get accounts to determine which are income vs expense
-  let accountsQuery = supabase
-    .from("accounts")
-    .select("id, account_type")
-    .eq("organization_id", orgId)
-    .eq("is_active", true)
-    .in("account_type", ["income", "expense"]);
-  if (businessId) {
-    accountsQuery = accountsQuery.or(`business_id.eq.${businessId},business_id.is.null`);
-  }
-  const { data: accounts, error: acctError } = await accountsQuery;
-  if (acctError) throw acctError;
-
-  // Build a lookup of account_id -> account_type
-  const typeMap = new Map<string, string>();
-  for (const acct of accounts || []) {
-    typeMap.set(acct.id, acct.account_type);
-  }
-
-  // 3. Sum movements by type (same logic as the financial report engine)
-  let revenue = 0;
-  let expenses = 0;
-  for (const mov of movements || []) {
-    const type = typeMap.get(mov.account_id);
-    if (type === "income") {
-      // Income: credit-normal, so revenue = credits - debits
-      revenue += (Number(mov.total_credit) || 0) - (Number(mov.total_debit) || 0);
-    } else if (type === "expense") {
-      // Expense: debit-normal, so expense = debits - credits
-      expenses += (Number(mov.total_debit) || 0) - (Number(mov.total_credit) || 0);
-    }
-  }
-
-  return { revenue, expenses, netProfit: revenue - expenses };
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    revenue: Number(row?.revenue ?? 0),
+    expenses: Number(row?.expenses ?? 0),
+    netProfit: Number(row?.net_profit ?? 0),
+  };
 }
