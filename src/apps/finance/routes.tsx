@@ -79,6 +79,7 @@ const AgingReport = lazy(() => import("@/pages/reports/AgingReport"));
 const SalesReports = lazy(() => import("@/pages/reports/SalesReports"));
 const PurchaseReports = lazy(() => import("@/pages/reports/PurchaseReports"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
+const CrossCompanyComparative = lazy(() => import("@/pages/reports/Consolidation"));
 const TaxReports = lazy(() => import("@/pages/reports/TaxReports"));
 const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const BusinessIntelligence = lazy(() => import("@/pages/BusinessIntelligence"));
@@ -666,6 +667,18 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Purchase Reports">
                 <PurchaseReports />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Cross-company comparative P&L — side-by-side, never summed */}
+        <Route
+          path="reports/cross-company"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Cross-Company Comparative">
+                <CrossCompanyComparative />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
