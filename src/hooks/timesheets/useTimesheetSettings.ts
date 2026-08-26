@@ -22,7 +22,10 @@ export interface TimesheetSettings {
   maximum_hours_per_day: number | null;
   overtime_threshold_daily: number | null;
   overtime_threshold_weekly: number | null;
-  allow_self_approval: boolean;
+  // NOTE: self-approval is NOT a timesheet setting. The Governance domain owns
+  // that policy (self_action_policy: 'timesheet.approve') and is the only
+  // authority on it.
+
   block_on_time_off_overlap: boolean;
 }
 
