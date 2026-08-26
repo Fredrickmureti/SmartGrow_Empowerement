@@ -10,9 +10,17 @@
  * its own native currency. We do NOT sum across companies, we do NOT do FX
  * translation, and we do NOT eliminate intercompany transactions. The page
  * makes that boundary explicit so accountants and auditors are not misled.
+ *
+ * SINGLE SOURCE OF TRUTH
+ * ----------------------
+ * Every figure below comes from `fetchGLTotals`, i.e. the `get_account_movements`
+ * RPC — the same posted-GL engine behind the Trial Balance, P&L and the
+ * dashboard. This page deliberately owns NO accounting arithmetic of its own:
+ * a second, independent balance computation would be a second source of
+ * accounting truth and could disagree with the formal statements.
  */
 import { useMemo, useState } from "react";
-import { PlatformAppLayout } from "@/apps/platform";
+import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
   CardContent,
@@ -36,8 +44,10 @@ import { GitMerge, ArrowLeft, AlertTriangle, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchGLTotals } from "@/services/gl/fetchGLTotals";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ShieldAlert } from "lucide-react";
 
@@ -51,13 +61,29 @@ interface CompanyPnl {
 }
 
 /**
- * Per-company P&L computed straight from posted journal_entry_lines so the
- * numbers are always honest (even though we deliberately do not sum them).
- *
- * For every business in the workspace we sum:
- *   income  = SUM(credit) - SUM(debit) over income accounts
- *   expense = SUM(debit)  - SUM(credit) over expense accounts
- *   net     = income - expense
+ * Companies this user may actually read, resolved server-side via
+ * `get_user_allowed_businesses`. The raw `businesses` list is org-scoped only;
+ * relying on it here would let the column set imply the existence of companies
+ * the caller has no grant for (RLS would then silently return zeros).
+ */
+function useAllowedBusinessIds(orgId: string | undefined) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["consolidation-allowed-businesses", orgId, user?.id],
+    enabled: !!orgId && !!user?.id,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.rpc("get_user_allowed_businesses", {
+        _user_id: user!.id,
+        _org_id: orgId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as string[];
+    },
+  });
+}
+
+/**
+ * Per-company P&L, one authoritative GL call per business.
  *
  * Unlike `useFinancialReport` this hook intentionally runs PER BUSINESS and
  * never blends them into a single total — that would require eliminations
@@ -67,71 +93,52 @@ function useComparativePnl(dateFrom: string, dateTo: string) {
   const { currentOrg } = useOrganization();
   const { businesses } = useBusinesses();
   const orgId = currentOrg?.id;
+  const { data: allowedIds, isLoading: allowedLoading, error: allowedError } =
+    useAllowedBusinessIds(orgId);
 
-  return useQuery({
-    queryKey: ["consolidation-comparative-pnl", orgId, dateFrom, dateTo, businesses.map((b) => b.id)],
-    enabled: !!orgId && businesses.length > 0,
+  const scopedBusinesses = useMemo(
+    () => (allowedIds ? businesses.filter((b) => allowedIds.includes(b.id)) : []),
+    [businesses, allowedIds],
+  );
+
+  const query = useQuery({
+    queryKey: [
+      "consolidation-comparative-pnl",
+      orgId,
+      dateFrom,
+      dateTo,
+      scopedBusinesses.map((b) => b.id),
+    ],
+    enabled: !!orgId && !!dateFrom && !!dateTo && scopedBusinesses.length > 0,
     queryFn: async (): Promise<CompanyPnl[]> => {
       const results: CompanyPnl[] = [];
 
-      for (const biz of businesses) {
-        // 1. Income & expense accounts for this business (or shared)
-        const { data: accounts, error: aErr } = await supabase
-          .from("accounts")
-          .select("id, account_type")
-          .eq("organization_id", orgId!)
-          .eq("is_active", true)
-          .in("account_type", ["income", "expense"])
-          .or(`business_id.eq.${biz.id},business_id.is.null`);
-        if (aErr) throw aErr;
-        if (!accounts?.length) {
-          results.push({
-            businessId: biz.id,
-            businessName: biz.name,
-            currency: biz.base_currency || "—",
-            income: 0,
-            expense: 0,
-            netIncome: 0,
-          });
-          continue;
-        }
-
-        const incomeIds = accounts.filter((a) => a.account_type === "income").map((a) => a.id);
-        const expenseIds = accounts.filter((a) => a.account_type === "expense").map((a) => a.id);
-
-        // 2. Posted JE lines for this business in the period
-        const { data: lines, error: lErr } = await supabase
-          .from("journal_entry_lines")
-          .select("account_id, debit, credit, journal_entry:journal_entries!inner(date, status, business_id)")
-          .eq("journal_entry.business_id", biz.id)
-          .eq("journal_entry.status", "posted")
-          .gte("journal_entry.date", dateFrom)
-          .lte("journal_entry.date", dateTo);
-        if (lErr) throw lErr;
-
-        let income = 0;
-        let expense = 0;
-        for (const ln of lines ?? []) {
-          const debit = Number(ln.debit ?? 0);
-          const credit = Number(ln.credit ?? 0);
-          if (incomeIds.includes(ln.account_id)) income += credit - debit;
-          else if (expenseIds.includes(ln.account_id)) expense += debit - credit;
-        }
+      for (const biz of scopedBusinesses) {
+        // Authoritative posted-GL totals — same engine as the formal reports.
+        const totals = await fetchGLTotals(orgId!, dateFrom, dateTo, biz.id, null);
 
         results.push({
           businessId: biz.id,
           businessName: biz.name,
           currency: biz.base_currency || "—",
-          income,
-          expense,
-          netIncome: income - expense,
+          income: totals.revenue,
+          expense: totals.expenses,
+          netIncome: totals.netProfit,
         });
       }
 
       return results;
     },
   });
+
+  return {
+    ...query,
+    scopedBusinesses,
+    isLoading: allowedLoading || query.isLoading,
+    error: allowedError ?? query.error,
+  };
 }
+
 
 function formatMoney(value: number, currency: string) {
   if (currency === "—") return value.toFixed(2);
