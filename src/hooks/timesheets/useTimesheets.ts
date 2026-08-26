@@ -371,6 +371,8 @@ export function useTimesheets() {
     submitTimesheets,
     approveTimesheets,
     rejectTimesheets,
+    correctTimesheet,
+    reverseTimesheet,
     copyPreviousWeek,
     refreshTimesheets: fetchTimesheets,
     refreshSubmissions: fetchSubmissions,
