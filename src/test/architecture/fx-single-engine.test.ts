@@ -60,7 +60,11 @@ describe("no parallel client FX engines", () => {
 
   it("tenant-entered rates are written as overrides, never as provider rows", () => {
     const src = read("src/contexts/CurrencyContext.tsx");
-    expect(src).toMatch(/source:\s*"override"/);
+    // The write goes through the server-validated RPC, which stamps
+    // source = 'override' and audits the actor and reason. The browser must
+    // never insert into exchange_rates itself.
+    expect(src).toMatch(/rpc\(\s*"set_exchange_rate_override"/);
+    expect(src).not.toMatch(/from\("exchange_rates"\)[\s\S]{0,200}\.insert\(/);
   });
 
   it("useAdminCurrency carries no hardcoded rate literal and no silent 1 fallback", () => {

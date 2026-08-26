@@ -40,6 +40,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { normalizeError } from "@/services/resilience";
+import { useFxRateCoverage } from "@/hooks/useFxRateCoverage";
+import { FxRateCoverageCard } from "@/components/settings/FxRateCoverageCard";
 
 interface Currency {
   id: string;
@@ -117,6 +119,23 @@ export function CurrencySettings() {
   });
 
   const canEdit = canManageCurrency;
+  const {
+    summary: coverage,
+    isLoading: coverageLoading,
+    error: coverageError,
+    refresh: refreshCoverage,
+  } = useFxRateCoverage(currentBusiness?.id ?? null);
+
+  /** Open the override dialog aimed at a specific coverage gap. */
+  const openRateForGap = (currency: string, effectiveDate?: string) => {
+    setRateForm({
+      from_currency: currency,
+      rate: 0,
+      effective_date: effectiveDate ?? new Date().toISOString().split("T")[0],
+      reason: "",
+    });
+    setShowRateDialog(true);
+  };
   const base = (currentBusiness?.base_currency ?? "").toUpperCase();
 
   const fetchCurrencies = useCallback(async () => {
@@ -262,7 +281,7 @@ export function CurrencySettings() {
         effective_date: new Date().toISOString().split("T")[0],
         reason: "",
       });
-      await fetchExchangeRates();
+      await Promise.all([fetchExchangeRates(), refreshCoverage()]);
     } catch (error: unknown) {
       toast({
         title: "Error",
@@ -425,6 +444,15 @@ export function CurrencySettings() {
         </CardContent>
       </Card>
 
+
+      <FxRateCoverageCard
+        summary={coverage}
+        isLoading={coverageLoading}
+        error={coverageError}
+        canEdit={canEdit}
+        onRefresh={() => void refreshCoverage()}
+        onRecordRate={openRateForGap}
+      />
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
