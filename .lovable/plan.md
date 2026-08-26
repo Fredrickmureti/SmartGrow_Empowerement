@@ -1,320 +1,89 @@
-# Currency Architecture Remediation — Authoritative Project Status
+# Currency Architecture Remediation — Phase 6 completion (fixed assets UI) then Phase 7
 
-Baseline: `docs/audits/currency-architecture-audit.md` (audit COMPLETE, 2026-08-26).
-This file is the single source of truth for what is done, what is pending, and what
-comes next. No re-audit. Full Phase 1–2 detail is also mirrored in
-`.lovable/plan/currency-architecture-remediation-implementation-tracker-2026-08-26.md`.
+Baseline: `docs/audits/currency-architecture-audit.md`. Authoritative status carried forward from
+`.lovable/plan/currency-architecture-remediation-authoritative-project-stat-2026-08-26.md`.
+This file supersedes the stale copy that still showed Phase 5 as "NEXT".
 
-Last updated: 2026-08-26.
+## Verification of the handover (done before planning)
 
-## Invariants (apply to every phase)
+Checked directly, not taken on trust:
 
-- No report or posting may value a foreign document at 1:1 unless the currencies are identical.
-- Every rate reaching accounting is resolved server-side by the one engine
-  (`_pick_exchange_rate_row` → `resolve_exchange_rate` → `require_exchange_rate` → `fx_stamp_document`).
-- Posted amounts, stamped rates and GL balances are never silently rewritten.
-- Base currency stays immutable once a journal entry exists; no books conversion; no branch functional currency.
-- Rate evidence is superseded, never destroyed.
-- Formatting never participates in arithmetic.
+- **Database (D6) — confirmed.** `fixed_assets` carries `currency`, `acquisition_exchange_rate`,
+  `base_purchase_price`, `base_residual_value` (all NOT NULL) and nullable
+  `disposal_exchange_rate`, `base_disposal_price`.
+- **Hooks — confirmed rewired.** `useFixedAssets.ts`, `useDepreciationRun.ts`,
+  `useDepreciationSchedule.ts` all read `base_purchase_price` / `base_residual_value` for
+  depreciation, carrying value, GL postings and totals; disposal reads back
+  `base_disposal_price`.
+- **UI — confirmed still pending.** `src/pages/FixedAssets.tsx` totals raw `purchase_price` and
+  renders every amount in base currency; `src/pages/reports/DepreciationReport.tsx` selects
+  `purchase_price` / `residual_value`; the asset form (`AssetFormBody.tsx`, `AssetCreatePage.tsx`,
+  `AssetEditPage.tsx`) has no currency field.
+- **Additional consumers the handover did not mention** (found by tracing, now in scope):
+  `src/features/finance/fixed-assets/AssetPeekSheet.tsx` and
+  `src/components/assets/DepreciationScheduleDialog.tsx` also format `purchase_price` as base
+  currency.
+- `formatCurrency(amount, currencyCode?)` already accepts an explicit currency — no formatter work
+  needed for this wave.
+- **The tree does not currently typecheck.** `AssetCreatePage.tsx(24)` fails TS2345: the hook's
+  create payload now requires `currency`, and the form does not supply it. This is a live break
+  left by the partial handover, and item 3 below is what fixes it — so this wave must be
+  implemented before anything else can ship.
 
-## Status at a glance
+## Phase 6 status
 
-| Phase | Scope | Status |
-| --- | --- | --- |
-| 1 | Stop silent 1:1 in reporting (D1) | **DONE — verified** |
-| 2 | Rate-book integrity and privilege (D4, D5, S1) | **DONE — verified** |
-| 3 | Close the stamping gaps (D2, D3, D9, D10, D11) | **DONE — verified at runtime** |
-| 4 | Rate coverage and history (D8) | **DONE — verified at runtime** |
-| 5 | Base-currency lifecycle (D13, U1, U2) | **NEXT** |
-| 6 | Non-monetary assets and budgets (D6, D7) | Pending |
-| 7 | Presentation convergence (D12, D14) | Pending |
-| 8 | Currency Settings UX (U3–U9) | Pending |
-| 9 | Regression protection (D15, S2) | Pending |
+| Item | Status |
+| --- | --- |
+| D6 — fixed-asset currency + acquisition/disposal rate stamping (DB) | Done, runtime-verified |
+| D6 — depreciation/GL hooks on base amounts | Done |
+| D6 — fixed-asset UI (list, report, form, peek, dialog) | **This wave** |
+| D7 — budget currency | Verified already correct (`_budgets_defaults` forces base currency); no change |
 
-Currently active phase: **Phase 5** (Phase 4 completed and runtime-verified 2026-08-26).
+## This wave — scope
 
----
+Presentation and read paths only. No schema change, no trigger change, no accounting arithmetic
+change, no client-side conversion, no rate ever sent from the client.
 
-## Completed work
+1. `src/pages/FixedAssets.tsx`
+   - KPI "total value" sums `base_purchase_price` (base currency — mixed-currency sums are only
+     valid in base).
+   - Per-row purchase price renders in the asset's own currency:
+     `formatCurrency(asset.purchase_price, asset.currency)`.
+   - Book value / accumulated depreciation stay base currency (they are derived base amounts).
+2. `src/pages/reports/DepreciationReport.tsx`
+   - Select and total `base_purchase_price` / `base_residual_value`; the report stays a
+     base-currency report, header currency unchanged.
+3. `src/features/finance/fixed-assets/AssetFormBody.tsx` + `AssetCreatePage.tsx` /
+   `AssetEditPage.tsx`
+   - Add a catalogue-driven currency selector (enabled business currencies, default base).
+   - The form sends `currency` only. It never sends `acquisition_exchange_rate`,
+     `base_purchase_price` or `base_residual_value` — the trigger stamps those.
+   - On edit, currency is disabled once the asset is depreciated or its acquisition posted (the
+     database already refuses; the UI must explain rather than let it fail).
+   - Surface the `23514` "no exchange rate on file" refusal as an actionable message.
+4. `AssetPeekSheet.tsx` and `DepreciationScheduleDialog.tsx`
+   - Purchase price in asset currency; depreciation/book value in base currency; show the stamped
+     acquisition rate as provenance where a foreign currency is involved.
 
-### Phase 1 — Stop silent 1:1 in reporting (D1) — DONE 2026-08-26
+## Must not change
 
-**Was.** `finance_sales_analysis`, `finance_purchase_analysis`,
-`finance_sales_revenue_reconciliation`, `finance_purchase_expense_reconciliation`
-valued documents at `COALESCE(NULLIF(rate, 0), 1)`; a rate-less foreign document was
-reported at face value and reconciliations could tie out on that invented figure.
+- `trg_fixed_assets_stamp_currency` / `_tg_stamp_fixed_asset_currency`, `fx_stamp_document`,
+  `resolve_exchange_rate`, `_pick_exchange_rate_row`.
+- Any stamped rate, posted amount, GL entry or closed period.
+- Budget currency behaviour (already correct).
+- No `COALESCE(rate, 1)`; no client-side FX arithmetic; formatting stays out of arithmetic.
 
-**Now.** New `public.fx_report_document_rate(document_currency, stamped_rate, base_currency)`
-(`IMMUTABLE`, fixed search path) returns the stamped rate, `1` only for a genuine
-base-currency document, otherwise `NULL`. All four functions use it, exclude
-unconvertible rows from every measure, count them explicitly
-(`totals.unconvertible_document_count` + `unconvertible` breakdown; per-kind counts on
-the reconciliations), and `in_balance` is false while any count is non-zero.
+## Validation
 
-**Client.** `src/services/finance/salesAnalysis.ts`, `src/services/finance/purchaseAnalysis.ts`,
-`src/hooks/useSalesAnalysis.ts`, `src/hooks/usePurchaseAnalysis.ts`,
-`src/pages/reports/SalesReports.tsx`, `src/pages/reports/PurchaseReports.tsx` —
-the reports now state which documents could not be valued in the base currency and why.
+- `tsgo --noEmit`.
+- Fixed-asset and currency-architecture test suites.
+- Read-only DB check that no new client write path can supply a rate.
 
-**Unchanged by design.** Posted amounts, stamped rates, GL balances, the GL side of both
-reconciliations, rate precedence, every stamping path.
+## Next after this wave
 
-**Verified.** Helper and the new SQL shapes executed against live data (Joshua Holdings,
-Dekto Logistics): zero unconvertible documents, totals unchanged (gross 17,400.00 for
-Joshua Holdings). Typecheck clean.
-
-### Phase 2 — Rate-book integrity and privilege (D4, D5, S1) — DONE 2026-08-26
-
-**Was.** `exchange_rates_all` granted every business member full `ALL` rights with no
-finance-role predicate (S1); only provider rows were immutable, so manual/override rows
-could be edited or deleted, destroying the evidence behind posted documents (D4); rates
-could be dated into a closed period with no guard and no audit of who changed what (D5);
-the client had a direct table insert and a delete button.
-
-**Now.**
-- `tg_exchange_rates_immutable` blocks UPDATE and DELETE for **every** source. A correction
-  is a new dated row, which the unchanged precedence rule already outranks.
-- `tg_exchange_rates_write_guard` (BEFORE INSERT): rate must be > 0; an interactive caller
-  must have business access **and** `is_finance_manager`; a non-provider rate dated inside a
-  non-open `fiscal_periods` row is refused. Provider publishing and platform admins are
-  deliberately exempt from the finance-role and closed-period rules — provider rows are
-  reference data and a tenant override still outranks them.
-- `tg_exchange_rates_audit` (AFTER INSERT) writes `public.exchange_rate_audit`: actor,
-  stated reason, new rate, and the prior rate/source/date it supersedes for that pair,
-  resolved with the same precedence order the engine uses.
-- RLS: `exchange_rates_all` dropped. `exchange_rates_select` stays broad (read the rate book);
-  `exchange_rates_insert` requires business access **and** a finance role. No UPDATE/DELETE
-  policy exists. `UPDATE`/`DELETE` revoked from `authenticated`; `anon` has nothing.
-- `exchange_rate_audit`: RLS on, read-only to finance managers of the company, all other
-  privileges revoked from `anon`/`authenticated`; written only by the definer trigger.
-- `set_exchange_rate_override` now enforces the finance role, requires a non-empty reason,
-  and passes it to the audit trigger via a transaction-local setting.
-- Client: `CurrencyContext.addExchangeRate` routes through `set_exchange_rate_override`
-  (reason now a required argument) instead of a raw insert; the delete button and handler
-  are gone from `src/components/settings/CurrencySettings.tsx`, with the append-only rule
-  stated in the card description.
-
-**Unchanged by design.** Rate precedence, `publish_platform_rates` (insert-only,
-`ON CONFLICT DO NOTHING` — compatible with absolute immutability), every stamped rate,
-`resolve_exchange_rate`/`require_exchange_rate`/`fx_stamp_document`.
-
-**Verified.** Catalog inspection confirms: policies are exactly `exchange_rates_select`
-(SELECT, authenticated) and `exchange_rates_insert` (INSERT, authenticated); triggers
-`tg_exchange_rates_immutable`, `tg_exchange_rates_write_guard`, `tg_exchange_rates_audit`,
-plus the pre-existing normalise and org-lock triggers; `authenticated` holds SELECT+INSERT
-only on `exchange_rates` and SELECT only on `exchange_rate_audit`; `anon` holds nothing on
-either. No edge function or database routine updates or deletes `exchange_rates`.
-Security linter total unchanged at the pre-existing 3684 baseline — the phase added no new
-findings. Typecheck clean.
-
-### Phase 3 — Close the stamping gaps (D2, D3, D9, D10, D11) — DONE 2026-08-26
-
-**Verification of Phases 1–2 before starting (catalog, not trust in the log).**
-`fx_report_document_rate` exists and none of the four reporting functions still contains a
-`COALESCE(rate, 1)`; `exchange_rates` carries exactly `exchange_rates_select` (SELECT) and
-`exchange_rates_insert` (INSERT) with no UPDATE/DELETE policy and all three Phase 2 triggers
-attached; `exchange_rate_audit` exposes SELECT only. Both phases confirmed genuinely complete.
-
-**Was.** `bill_payments.currency_rate` defaulted to 1 with no currency column and no server
-stamping; `bank_transactions.exchange_rate` defaulted to 1 with no stamping; `rfq_quotations`
-had `currency`/`exchange_rate` and no triggers at all; estimates, sales orders, purchase orders
-and customer refunds could have their stamped rate changed after posting; invoices did not
-re-stamp on a document-date change while bills did.
-
-**Now.**
-- `bill_payments` has an explicit `currency` (backfilled from the paying bank account, else the
-  business base currency; `NOT NULL`). `trg_bill_payments_stamp_currency` stamps currency and
-  `currency_rate` through `fx_stamp_document` on `payment_date`, refuses a foreign payment with
-  no rate on file, ignores any client-supplied rate, and refuses a currency/rate change once the
-  payment is posted (`journal_entries`) or allocated (`bill_payment_allocations`).
-- `bank_transactions.exchange_rate` lost its `DEFAULT 1`.
-  `trg_bank_transactions_stamp_currency` stamps `original_currency` (transaction, else bank
-  account, else base) and the rate on `transaction_date`, and freezes both once the transaction
-  is reconciled or carries a `journal_entry_id`.
-- `trg_rfq_quotations_stamp_currency` stamps quotations (org/business resolved through `rfqs`,
-  date = `submitted_at`) and freezes them once superseded or withdrawn.
-- D9: `_fx_document_is_posted_any(text[], uuid)` added; estimates, sales orders, purchase orders
-  and customer refunds now refuse a currency/rate change on a posted document and re-stamp on a
-  document-date change while unposted.
-- D11: invoices now re-stamp on an `issue_date` change while unposted — symmetric with bills.
-- `fx_stamped_rate_review(business_id)` (finance managers only, `authenticated`-execute) lists
-  payments and bank transactions whose stored rate disagrees with the rate book. Read-only.
-
-**Unchanged by design.** The one resolution engine, rate precedence, every already-stamped rate,
-posted GL amounts, allocation and realized-FX arithmetic, closed periods, `publish_platform_rates`.
-No historical row was re-rated; the backfill only labelled the payment currency.
-
-**Verified at runtime** (self-cancelling transactions, all test rows discarded):
-base-currency payment accepted and stamped 1; foreign payment with no rate refused; a
-client-supplied rate of 999 overwritten with the engine's 1; a payment saved without a currency
-stamped KES/1; bank transaction stamped from its account (KES/1); foreign bank transaction
-refused with no rate; rate change on a reconciled transaction refused; a EUR bank transaction
-stamped 140.76086957, exactly `resolve_exchange_rate`. All nine stamping triggers confirmed
-attached. Typecheck clean. Security linter 3685 vs the 3684 baseline — the single delta is
-`fx_stamped_rate_review` being callable by signed-in users, which is intended: it enforces
-`is_finance_manager` internally. The four pre-existing document stamp functions were kept
-`SECURITY INVOKER` and the new internal trigger functions have `EXECUTE` revoked from
-`anon`/`authenticated`.
-### Phase 4 — Rate coverage and history (D8) — DONE 2026-08-26
-
-**Was.** Nothing reported rate coverage. A business could not see which currencies it actually
-transacts in, when its rate book starts, how old the provider snapshot is, or how many documents
-fall before coverage. `publish_platform_rates` returned an inflated count (it incremented for
-every candidate pair, including the ones `ON CONFLICT DO NOTHING` skipped), so the cron job's
-return value was not usable as a health signal. The retention and publishing policy, and the
-policy for dates before coverage, were undocumented.
-
-**Now.**
-- `fx_rate_coverage(business_id)` — read-only, one row per foreign currency actually used across
-  invoices, bills, vendor payments, bank transactions, estimates, sales orders, purchase orders,
-  credit notes, customer refunds and expenses: `first_used_on`, `last_used_on`, `document_count`,
-  `coverage_start`, `latest_rate_date`, `rate_dates`, the currently effective `latest_rate` and
-  `latest_source` (through `_pick_exchange_rate_row`, the one engine), `uncovered_documents`, and
-  `status` in `none | partial | stale | covered`.
-- `fx_rate_coverage_summary(business_id)` — the coverage indicator payload: base currency,
-  `provider_snapshot_as_of`, `provider_snapshot_age_days`, `last_published_at`, counts of
-  currencies with no rate / partial coverage / stale coverage, total documents before coverage,
-  and the full per-currency array.
-- Both are `SECURITY DEFINER` with a fixed search path, refuse callers without company access
-  (`42501`), are revoked from `anon` and granted to `authenticated` only, and never write.
-- `publish_platform_rates` now counts only rows actually recorded (`GET DIAGNOSTICS ROW_COUNT`);
-  it remains idempotent via `exchange_rates_scope_unique`. No other behaviour changed.
-- `docs/finance/fx-rate-coverage.md` documents the pipeline, the publishing schedule
-  (`publish-fx-rates`, `5,35 * * * *`), indefinite rate retention (rates are evidence and are
-  never purged; corrections are new dated rows), coverage reporting, and the pre-coverage policy:
-  refusal with `23514`, then a dated override with a mandatory reason, then stamping.
-
-**Deliberately not done — no invented history.** Provider history was *not* back-filled to each
-business's earliest transaction date. `platform_exchange_rates` holds only a current USD snapshot,
-so writing it under earlier dates would fabricate evidence and silently re-value history. Coverage
-starts when the business first published or recorded a rate; earlier dates are handled by the
-documented dated-override path. No stamped rate, posted amount or closed period was touched.
-
-**Verified at runtime** (self-cancelling transactions, all test rows discarded): a EUR bank
-transaction dated 2026-08-20 produced `first_used=2026-08-20 docs=1 cov=2026-08-12..2026-08-26
-uncovered=0 status=covered`; the same insert dated 2026-07-01 — before coverage — was refused with
-`23514 No exchange rate on file for EUR -> KES on 2026-07-01`, which is the pre-coverage policy
-working end to end; a repeat `publish_platform_rates()` returned `0` (previously it would have
-returned 14 per business); `provider_snapshot_age_days = 124`. Grants confirmed:
-`anon` cannot execute either new function, `authenticated` can, `publish_platform_rates` stays
-closed to both. Security linter 3687 — the +2 against the Phase 3 figure is exactly the two new
-`authenticated`-callable definer functions, both of which enforce company access internally.
-
-
-
-
-
----
-
-## Pending work
-
-### Phase 5 — Base-currency lifecycle (D13, U1, U2)
-`business_currency_readiness(business_id)` returns lifecycle state, counts of affected drafts,
-and explicit blockers including journal entries, foreign bank accounts, enabled non-base
-operating currencies, reconciliations and closed periods. Replace the client's direct
-`businesses.base_currency` update with one finance-authorized, reason-required RPC that locks the
-business row, rechecks readiness, changes the base currency, and explicitly re-stamps eligible
-drafts through `fx_stamp_document` in the same transaction. The RPC must update each draft's
-stored rate/base amount directly from the engine result; a no-op row update is insufficient
-because the existing document triggers only re-stamp when currency or document date changes.
-Posted documents and journal entries are never touched. Record actor, reason, old/new currency,
-draft counts and timestamp in a dedicated append-only audit table. Remove the unattached duplicate
-`enforce_business_currency_immutable`; preserve `lock_business_currency_after_je`, its `23514`
-boundary, rate precedence and all posted-document immutability guards unchanged.
-
-**Client scope for this phase.** Replace the editable Select with a lifecycle-aware base-currency
-status panel driven by readiness, show blockers before confirmation, require a reason, call only
-the audited RPC, and translate database refusal codes into actionable messages. Searchable
-operating-currency and rate-book redesign remains Phase 8.
-
-### Phase 6 — Non-monetary assets and budgets (D6, D7)
-`fixed_assets` gains currency + acquisition rate (+ derived base cost), stamped at
-acquisition and immutable (IAS 21 historical rate). Budget currency policy decided after
-reading the budget architecture — recommended base-currency-only. Resolve the fixed-asset
-acquisition RPC UNKNOWN first.
-
-### Phase 7 — Presentation convergence (D12, D14)
-One catalogue-driven formatter (`decimal_places`, `symbol`); remove the hardcoded 2dp and
-symbol map from `src/design-system/reports/format.ts` and `currencyPresentation.ts`;
-optional `en-IN` grouping, presentation only; document vocabulary, no broad rename.
-
-### Phase 8 — Currency Settings UX (U3–U9)
-Three surfaces: base currency as a lifecycle status card driven by Phase 5 readiness;
-operating currencies as an enabled list plus a searchable add dialog; rate book filtered to
-enabled pairs showing the currently effective rate and provenance from
-`describe_exchange_rate`, with history **and the Phase 2 `exchange_rate_audit` trail**
-behind a per-pair drill-down. (The audit trail is written and secured today but has no UI
-yet — that surfacing belongs here.)
-
-### Phase 9 — Regression protection (D15, S2)
-Architecture tests: no `COALESCE(<rate>, 1)` in any `pg_proc` body or view; every
-rate-bearing table has a stamping trigger; every currency table's write policy carries a
-role predicate. Partial unique index on `(business_id, fiscal_period_id) WHERE status='posted'`
-plus an advisory lock in `revalue_fx_balances`. Resolve S2. Block disabling a currency with
-open balances.
-
----
-
-## Known residual risks
-
-- The SQL runner cannot invoke the four Phase 1 reporting RPCs (`42501` by design), so their
-  end-to-end execution is proven through their constituent SQL and typecheck, not through an
-  authenticated session. Worth one authenticated smoke test of Sales and Purchase Reports.
-- Phase 2 write paths (immutability refusal, closed-period refusal, non-finance refusal) were
-  verified structurally from the catalog, not by executing a rejected DML as each role.
-- `exchange_rate_audit` has no UI consumer until Phase 8.
-- `fx_stamped_rate_review` has no UI consumer yet; surface it with the Phase 8 rate-book drill-down.
-- `fx_rate_coverage` / `fx_rate_coverage_summary` have no UI consumer yet — the coverage indicator
-  is Phase 8 work. The functions are ready and stable.
-- **Operational, not code:** the provider snapshot in `platform_exchange_rates` is 124 days old
-  (last refresh 2026-04-24) because `provider-run` is invoked on demand only and no provider
-  credentials appear to be configured. `publish_platform_rates` therefore republishes an ageing
-  snapshot as today's rate. Configure provider credentials and schedule `provider-run`; the new
-  `provider_snapshot_age_days` field exposes this. Needs the user's provider account.
-- Coverage for every business starts at the first published rate (2026-08-12 here); documents
-  dated earlier are refused until a finance manager records a dated override with a reason.
-- Legacy `rfq_quotations` rows predating Phase 3 may still hold a null `exchange_rate`; they are
-  left untouched (no history rewrite) and re-stamp on their next edit.
-- The Phase 3 posted-document guards match `journal_entries.source_type` values
-  `estimate(s)`, `sales_order(s)`, `purchase_order(s)`, `customer_refund(s)`, `bill_payment(s)`,
-  `payment`. If a posting path introduces another spelling, extend the arrays.
-- Phases 1–4 currently rely mainly on catalog/runtime verification; dedicated architecture and
-  adversarial regression tests for the new reporting, privilege, stamping and coverage invariants
-  remain Phase 9 work.
-- Silent `COALESCE(<rate>, 1)` patterns still exist outside the four Phase 1 reporting functions.
-  Phase 9 must inventory and eliminate or explicitly justify every remaining occurrence before
-  enabling its global no-silent-1:1 guard.
-
-## Instructions for the next agent
-
-1. **Verify before you build.** Confirm Phases 1–4 are genuinely complete and enterprise-grade
-   before writing anything new. Check the catalog, not this log:
-   - No `COALESCE(<rate>, 1)` in any reporting function; `fx_report_document_rate` is `IMMUTABLE`
-     with a fixed search path.
-   - `exchange_rates` has no UPDATE/DELETE policy and `authenticated` holds no UPDATE/DELETE
-     privilege; the normalize/immutable/write-guard/audit triggers are attached;
-     `exchange_rate_audit` is readable by finance managers only and closed to `anon`.
-   - All nine stamping triggers are attached (`bill_payments`, `bank_transactions`,
-     `rfq_quotations`, invoices, bills, estimates, sales orders, purchase orders,
-     customer refunds); `bank_transactions.exchange_rate` and `bill_payments.currency_rate` carry
-     no `DEFAULT 1`; `bill_payments.currency` is `NOT NULL`.
-   - `fx_rate_coverage`, `fx_rate_coverage_summary` and `fx_stamped_rate_review` are
-     `authenticated`-only, enforce company access internally, and write nothing.
-   - Re-verify with self-cancelling transactions (insert, assert, `RAISE EXCEPTION` to roll back);
-     never leave test rows behind.
-   - Ideally also run one authenticated smoke test: open Sales and Purchase Reports, record an
-     override from Currency Settings (a reason is mandatory) and confirm the
-     `exchange_rate_audit` row carries actor, reason and prior value.
-2. **Then resume at Phase 5 — Base-currency lifecycle (D13, U1, U2).** Do not jump to a later
-   phase, do not start UI work that belongs to Phase 8, and do not touch unrelated areas.
-   Implement the readiness function, append-only audit table, finance-authorized change RPC and
-   the narrow base-currency settings UI described in the Phase 5 section. Re-stamp drafts by
-   explicitly invoking the one engine per eligible row; do not rely on no-op updates to fire the
-   existing triggers. Remove the dead duplicate `enforce_business_currency_immutable`. The
-   journal-entry hard lock does not change.
-3. **Working protocol per phase.** Read only that phase's audit section; enumerate the exact
-   objects involved; inspect only those; before editing, state current behaviour, why it is
-   defective, what changes, what explicitly does not, and which invariants hold; make the
-   smallest coherent change; validate at runtime; then update **this file** immediately — status
-   table, completed-work entry, residual risks and the next milestone. Bring each phase to a
-   coherent, production-ready state before moving on; never leave a half-wired workflow.
+**Phase 7 — presentation convergence (D12, D14):** one catalogue-driven formatter
+(`decimal_places`, `symbol`); remove the hardcoded 2dp and symbol map from
+`src/design-system/reports/format.ts` and `currencyPresentation.ts`; zero-decimal currencies
+correct in reports and PDFs; optional `en-IN` grouping, presentation only.
+Then Phase 8 (Currency Settings UX) and Phase 9 (regression protection: D15 revaluation
+concurrency, S2, architecture tests).
