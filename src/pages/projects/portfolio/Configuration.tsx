@@ -165,14 +165,25 @@ export default function ProjectsConfiguration() {
 
   const savePricing = async () => {
     if (!selectedProject) return;
+    // A rate-driven model with no rate anywhere would silently bill zero.
+    if (pricing.rateMode === "default" && !(Number(hourlyRate) > 0)) {
+      toast.error("Enter a project hourly rate", { description: "This pricing model bills every hour at the project rate." });
+      return;
+    }
+    if (pricing.billable && !currency) {
+      toast.error("Pick a billing currency");
+      return;
+    }
     setSavingPricing(true);
     const patch: Record<string, unknown> = {
       pricing_type: pricingType,
-      is_billable: isBillable,
+      // Derived, never independently toggled.
+      is_billable: pricing.billable,
       allow_timesheets: allowTimesheets,
-      hourly_rate: hourlyRate ? Number(hourlyRate) : null,
+      // A rate is meaningless for models that do not price by the hour.
+      hourly_rate: pricing.rateMode === "none" || !hourlyRate ? null : Number(hourlyRate),
     };
-    if (currency.trim()) patch.currency = currency.trim().toUpperCase();
+    if (currency) patch.currency = currency.toUpperCase();
     try {
       // Billing configuration is governed server-side: only an admin or the
       // project manager may change it (project_update_config).
@@ -185,6 +196,7 @@ export default function ProjectsConfiguration() {
     }
     void refreshProjects();
   };
+
 
 
   const projectName = useMemo(() => projects.find((p) => p.id === selectedProject)?.name, [projects, selectedProject]);
