@@ -96931,6 +96931,26 @@ export type Database = {
         Args: { _account_type: string; _detail_type: string }
         Returns: boolean
       }
+      fx_rate_coverage: {
+        Args: { p_business_id: string }
+        Returns: {
+          coverage_start: string
+          currency: string
+          document_count: number
+          first_used_on: string
+          last_used_on: string
+          latest_rate: number
+          latest_rate_date: string
+          latest_source: string
+          rate_dates: number
+          status: string
+          uncovered_documents: number
+        }[]
+      }
+      fx_rate_coverage_summary: {
+        Args: { p_business_id: string }
+        Returns: Json
+      }
       fx_realized_gain_loss: {
         Args: { _business_id: string; _from?: string; _to?: string }
         Returns: Json
