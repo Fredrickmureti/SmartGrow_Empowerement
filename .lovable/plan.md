@@ -111,13 +111,51 @@ findings. Typecheck clean.
 
 ## Pending work
 
-### Phase 3 — Close the stamping gaps (D2, D3, D9, D10, D11) — NEXT
-Stamping through `fx_stamp_document` for `bank_transactions` (D2), `bill_payments`
-(D3 — needs an explicit `currency` column) and `rfq_quotations` (D10, zero triggers today);
-add the `_fx_document_is_posted` guard to estimates, sales orders, customer refunds and
-purchase orders (D9); align invoice re-stamping with the bill rule — re-stamp on a
-document-date change while unposted (D11). Any backfill reports mismatches, never rewrites.
-Depends on Phase 2 (done).
+### Phase 3 — Close the stamping gaps (D2, D3, D9, D10, D11) — NEXT (detailed, re-verified 2026-08-26)
+
+Independent verification done this turn (catalog inspection, not trust in the log):
+Phase 1 helper `fx_report_document_rate` exists and none of the four reporting functions
+contains a `COALESCE(rate, 1)` any more; `exchange_rates` carries exactly
+`exchange_rates_select` (SELECT) + `exchange_rates_insert` (INSERT) with no UPDATE/DELETE
+policy, and the three Phase 2 triggers (`immutable`, `write_guard`, `audit`) are attached;
+`exchange_rate_audit` exposes SELECT only. Phase 3 gaps confirmed as still open:
+`bank_transactions.exchange_rate` and `bill_payments.currency_rate` exist with **no**
+currency-stamping trigger, `bill_payments` has **no** `currency` column, `rfq_quotations`
+has `currency` + `exchange_rate` and **no** triggers at all, while `bills`, `estimates` and
+`customer_refunds` do carry `trg_*_stamp_currency`.
+
+Work items, in dependency order:
+
+3a. `bill_payments` — add a `currency` column (default = the paying bank account's currency,
+    else business base), stamp `currency_rate` server-side through `fx_stamp_document` on the
+    payment date, refuse the payment when no rate can be resolved for a foreign payment, and
+    make the stamped rate immutable once the payment is posted/allocated. Realized-FX
+    calculation must keep using the **bill's** stamped rate against the payment's stamped
+    rate; no change to existing allocation arithmetic.
+3b. `bank_transactions` — stamp `exchange_rate` for transactions whose currency differs from
+    the bank account's/base currency via the same engine; validate > 0; freeze the rate once
+    the transaction is reconciled or has produced an accounting event
+    (`trg_bank_txn_reconcile_closed_window` already marks the boundary to respect).
+3c. `rfq_quotations` — add a stamping trigger mirroring `trg_estimates_stamp_currency`
+    (pre-accounting document: stamp on insert, re-stamp while still editable).
+3d. D9 posted-immutability guards — extend `_fx_document_is_posted` enforcement to
+    `estimates`, `sales_orders`, `customer_refunds`, `purchase_orders` stamp triggers so a
+    stamped rate cannot move after the document has posted.
+3e. D11 symmetry — invoices re-stamp on a document-date change **only while unposted**,
+    matching the bill rule.
+
+Backfill policy: none of the above rewrites history. A read-only report lists existing rows
+whose stamped rate disagrees with resolvable evidence; remediation is proposed separately.
+
+Must not change: rate precedence, the one resolution engine, posted GL amounts, any already
+stamped rate, closed periods, `publish_platform_rates`.
+
+Validation per item: catalog check that the trigger exists and is attached; an accepted
+same-currency write; a refused foreign write with no rate; a refused rate mutation after
+posting; typecheck; security linter delta against the 3684 baseline.
+
+Depends on Phase 2 (verified done).
+
 
 ### Phase 4 — Rate coverage and history (D8)
 Backfill provider history to each business's earliest transaction date; documented
