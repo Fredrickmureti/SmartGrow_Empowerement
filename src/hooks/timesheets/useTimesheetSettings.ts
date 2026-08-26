@@ -32,7 +32,7 @@ export function useTimesheetSettings() {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetch = useCallback(async () => {
-    if (!currentOrg) return;
+    if (!currentOrg) { setIsLoading(false); return; }
     setIsLoading(true);
     const { data, error } = await supabase
       .from("timesheet_settings")
