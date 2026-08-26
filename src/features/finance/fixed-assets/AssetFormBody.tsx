@@ -69,7 +69,15 @@ interface Props {
   acquisitionLockReason?: string;
 }
 
-export function AssetFormBody({ values, onChange, categories }: Props) {
+export function AssetFormBody({
+  values,
+  onChange,
+  categories,
+  currencyOptions,
+  baseCurrency,
+  acquisitionLocked = false,
+  acquisitionLockReason,
+}: Props) {
   const set = <K extends keyof AssetFormValues>(k: K, v: AssetFormValues[K]) =>
     onChange({ ...values, [k]: v });
 
