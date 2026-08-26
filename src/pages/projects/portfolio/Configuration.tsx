@@ -120,7 +120,7 @@ export default function ProjectsConfiguration() {
     const p = projects.find((x) => x.id === selectedProject);
     if (!p) return;
     setPricingType((p as { pricing_type?: string | null }).pricing_type || "non_billable");
-    setIsBillable(Boolean(p.is_billable));
+    
     setAllowTimesheets(Boolean((p as { allow_timesheets?: boolean | null }).allow_timesheets ?? true));
     setHourlyRate(p.hourly_rate != null ? String(p.hourly_rate) : "");
     setCurrency((p as { currency?: string | null }).currency || "");
