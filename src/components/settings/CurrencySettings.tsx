@@ -31,7 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -238,32 +238,9 @@ export function CurrencySettings() {
     }
   };
 
-  const handleDeleteRate = async (rate: ExchangeRate) => {
-    if (rate.source === "provider") return;
-    if (!confirm("Remove this rate? Documents already posted keep the rate they were stamped with."))
-      return;
-    if (!currentOrg?.id || !currentBusiness?.id) {
-      toast({ title: "Select a company first", variant: "destructive" });
-      return;
-    }
-    try {
-      const { error } = await supabase
-        .from("exchange_rates")
-        .delete()
-        .eq("id", rate.id)
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
-      if (error) throw error;
-      toast({ title: "Rate removed" });
-      await fetchExchangeRates();
-    } catch (error: unknown) {
-      toast({
-        title: "Error",
-        description: normalizeError(error).message,
-        variant: "destructive",
-      });
-    }
-  };
+  // No delete path: the rate book is append-only evidence. A wrong rate is
+  // corrected by recording a new dated override, which outranks the old row
+  // while leaving the basis of already-posted documents explainable.
 
   if (isLoading) {
     return (
@@ -358,7 +335,8 @@ export function CurrencySettings() {
             <CardDescription>
               Every rate the company can use, and where it came from. Overrides win over
               manual rates, which win over platform rates; the most recent effective date
-              wins. Documents keep the rate they were stamped with.
+              wins. Documents keep the rate they were stamped with. Rates are never edited
+              or deleted — a correction is recorded as a new dated override.
             </CardDescription>
           </div>
           {canEdit && (
@@ -385,7 +363,6 @@ export function CurrencySettings() {
                     <TableHead className="hidden md:table-cell">Provider</TableHead>
                     <TableHead className="hidden sm:table-cell">Effective</TableHead>
                     <TableHead className="hidden lg:table-cell">Published</TableHead>
-                    {canEdit && <TableHead className="w-12" />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -411,19 +388,6 @@ export function CurrencySettings() {
                           ? new Date(rate.published_at).toLocaleString()
                           : "—"}
                       </TableCell>
-                      {canEdit && (
-                        <TableCell>
-                          {rate.source !== "provider" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteRate(rate)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      )}
                     </TableRow>
                   ))}
                 </TableBody>

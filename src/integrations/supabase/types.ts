@@ -21006,6 +21006,63 @@ export type Database = {
           },
         ]
       }
+      exchange_rate_audit: {
+        Row: {
+          actor_id: string | null
+          business_id: string
+          created_at: string
+          effective_date: string
+          exchange_rate_id: string
+          from_currency: string
+          id: string
+          organization_id: string
+          prior_effective_date: string | null
+          prior_rate: number | null
+          prior_rate_id: string | null
+          prior_source: string | null
+          rate: number
+          reason: string | null
+          source: string
+          to_currency: string
+        }
+        Insert: {
+          actor_id?: string | null
+          business_id: string
+          created_at?: string
+          effective_date: string
+          exchange_rate_id: string
+          from_currency: string
+          id?: string
+          organization_id: string
+          prior_effective_date?: string | null
+          prior_rate?: number | null
+          prior_rate_id?: string | null
+          prior_source?: string | null
+          rate: number
+          reason?: string | null
+          source: string
+          to_currency: string
+        }
+        Update: {
+          actor_id?: string | null
+          business_id?: string
+          created_at?: string
+          effective_date?: string
+          exchange_rate_id?: string
+          from_currency?: string
+          id?: string
+          organization_id?: string
+          prior_effective_date?: string | null
+          prior_rate?: number | null
+          prior_rate_id?: string | null
+          prior_source?: string | null
+          rate?: number
+          reason?: string | null
+          source?: string
+          to_currency?: string
+        }
+        Relationships: []
+      }
       exchange_rates: {
         Row: {
           business_id: string
