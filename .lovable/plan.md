@@ -77,3 +77,5 @@ Drive the module the way a real customer would, in the browser, fixing every def
 - Update this file immediately after each numbered item lands, with the evidence.
 - No fallbacks left behind: a replaced writer is deleted, not kept beside the new one.
 - Nothing is "done" without a test or a live trace proving the business event end to end.
+=================PROGRESS STATUS========================
+Wave 6.1 is closed: milestone reach/reopen/bill now runs through guarded RPCs, billing requires a reached milestone, events are published on registered projects.* topics, and the UI reflects the new rules.
