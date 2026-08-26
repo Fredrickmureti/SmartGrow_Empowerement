@@ -1,118 +1,72 @@
-# Timesheets — Architecture Re-Audit and Controlled Migration (Live Status)
+# Timesheets — Handover Verification Verdict (2026-08-26) and Wave 5 Closure
 
-Authoritative status for the Timesheets domain boundary work. Original scope and
-domain verdict: `.lovable/plan/timesheets-architecture-re-audit-and-controlled-migration-2026-08-26.md`.
+## Phase 1 — verification result (queried against the live database, not the notes)
 
-Last updated: 2026-08-26. Active phase: **Wave 5 (cleanup and verification) — in progress**.
+Confirmed genuinely landed:
 
-## Domain rule (unchanged, governs all further work)
+- **Governance boundary (Wave 1).** `guard_timesheet_self_approval` resolves the employee's
+  user and calls `governance_assert_not_self(..., 'timesheet.approve', organization_id, ...)`
+  with the real org; trigger `sod_timesheet_submissions_guard` is attached to
+  `timesheet_submissions`. `timesheet_settings` no longer has an `allow_self_approval`
+  column, and `approve_timesheet_submission` explicitly defers the self-action verdict to
+  Governance. One authority for "may this person approve their own time".
+- **Server-authoritative capability (Wave 2).** `governance_self_action_verdict` and
+  `timesheet_approval_capability` exist and mirror enforcement read-only
+  (`not_self`/`allow`/`warn`/`override_available` → block).
+- **Event boundary (Wave 3).** All seven `timesheet.*` topics are registered. Nine active
+  subscriptions route `approved`/`rejected`/`corrected`/`locked`/`unlocked` to handlers that
+  live in Projects and Payroll; `submitted` and `billable_ready` are deliberate pull topics.
+- **Invoice engine removed (Wave 4).** `invoice_project_timesheets` is now a one-line wrapper
+  over `sales_invoice_project_timesheets`; Timesheets no longer constructs invoices.
 
-Governance decides *who may act*. Timesheets decides *what state the time record is in*.
-Downstream domains (Payroll, Projects, Sales, Finance, Notifications) decide what
-approved time *means*. One authority per responsibility; Timesheets owns no downstream effect.
+Claims that did **not** survive verification:
 
-## Wave 1 — Governance boundary — DONE, verified
+1. **Project-manager approval is not implemented.** The plan states `_timesheet_can_approve`
+   covers "admin / hr_admin / direct manager / project manager". The live function checks only
+   `has_role(admin)`, `has_role(hr_admin)` and direct `manager_id`. `_timesheet_is_project_manager`
+   exists but is referenced by no other function — a dead helper, and a real capability gap:
+   an RLS policy (`timesheets_select_project_manager`) lets a PM *see* project time they cannot act on.
+2. **Approval competence is hardcoded to two role names.** `admin` / `hr_admin` are baked into the
+   function rather than resolved from the permission catalogue the rest of the product uses, so an
+   org cannot grant or withhold timesheet approval without changing SQL.
+3. **Nothing has been exercised.** The tenant holds 0 timesheets and 0 submissions, so no
+   lifecycle claim — approval, self-action block, override consumption, event dispatch,
+   downstream recompute — has ever run end to end.
 
-- `guard_timesheet_self_approval` now resolves and passes the real `organization_id`
-  (verified: function body references `organization_id`, no `p_org => NULL` path remains).
-  Org governance mode, `self_action_policy('timesheet.approve')` and time-boxed
-  overrides now actually govern timesheet approval.
-- `_timesheet_can_approve` is competence-only (admin / hr_admin / direct manager /
-  project manager). The self-action verdict comes solely from Governance.
-- `timesheet_settings.allow_self_approval` dropped (verified: column absent), and
-  no timesheet RPC references it (verified). Settings screen now states that
-  Governance owns the policy.
-- Business-scoped settings resolution used by the approval RPC.
+## Wave 5 closure — the work that remains
 
-## Wave 2 — Server-authoritative approval capability — DONE, verified
+**5.1 Fix the approval-competence gap (correctness, before testing).**
+Rebuild `_timesheet_can_approve` around one authority: a permission check
+(`timesheets.approve` in the existing permission model) plus the two structural relationships —
+direct manager, and project manager via `_timesheet_is_project_manager` for the projects on the
+submission. Role names stop being hardcoded; the seeded defaults keep admin/HR working as today.
+`timesheet_approval_capability` inherits the same function, so the UI badge and the enforced
+decision cannot diverge.
 
-- `governance_self_action_verdict(actor, subject, action, org, entity_id)` — read-only
-  projection of the Governance decision (`not_self` / `allow` / `warn` /
-  `override_available` / `block`). Mirrors enforcement exactly, including
-  entity-scoped overrides, and mutates nothing.
-- `timesheet_approval_capability(submission_id)` returns `can_approve`,
-  `requires_override`, `reason`. Execute revoked from `anon`; granted to
-  `authenticated` and `service_role`.
-- Client consumes it: `useTimesheetApprovalCapability`, `TimesheetApprovals`,
-  `TimesheetApprovalList` (governance badges, disabled approve/reject, reason surfaced).
-  No client-side self-approval rule remains anywhere under `src/**/timesheets` (verified by search).
+**5.2 Behavioural proof on a disposable fixture.**
+Seed org + employee + manager + project manager + project + period via migration, then assert:
+self-approval blocked in `standard` mode; auto-allowed in `solo`; allowed exactly once with a
+valid override then re-blocked; manager and project-manager approve, unrelated user refused;
+concurrent approve idempotent under `FOR UPDATE`; locked-period mutation refused; each event
+emitted once per idempotency key with the subscriber's projection visible
+(`projects.spent_hours`, `payroll_runs.needs_recompute_reason`).
 
-## Wave 3 — Event boundary reconnected — DONE, verified
+**5.3 One write path per value.**
+`trg_timesheet_to_cost` writes `project_cost_entries` per row while the Wave 3 subscriber writes
+`projects.spent_hours`. Confirm these are distinct facts with distinct owners and that no third
+path (client aggregation or a Projects trigger) recomputes either; delete whichever duplicate exists.
 
-Every `timesheet.*` topic now has an explicit resolution — push subscriber or a
-recorded pull-consumption decision. No topic is left as an orphaned producer.
+**5.4 Screen gates are decoration, not control.**
+`TimesheetApprovals` and `TeamTimesheets` gate on client permissions. Prove the server refuses the
+same access (RLS + the rebuilt competence function) so the client gate is only an affordance.
 
-| Topic | Resolution |
-| --- | --- |
-| `timesheet.approved` | push → Projects spent-hours recompute, Payroll run flag |
-| `timesheet.rejected` | push → Projects spent-hours recompute, Payroll run flag |
-| `timesheet.corrected` | push → Projects entry recompute, Payroll entry flag |
-| `timesheet.locked` | push → Payroll entry flag |
-| `timesheet.unlocked` | push → Projects entry recompute, Payroll entry flag |
-| `timesheet.submitted` | pull by design — notification delivered by `trg_timesheet_submission_notify`; reporting reads the outbox (recorded in the topic description) |
-| `timesheet.billable_ready` | pull by design — Sales chooses when to bill; Finance/reporting read the outbox (recorded in the topic description) |
+**5.5 Cleanup.**
+Remove any helper left dead after 5.1/5.3, keep the security-linter count at its 3711 baseline,
+and record the closure verdict here.
 
-- Handlers live in the consuming domain: `projects_recompute_spent_hours_for_submission`,
-  `projects_recompute_spent_hours_for_timesheet`, `payroll_flag_runs_for_timesheet_submission`,
-  `payroll_flag_runs_for_timesheet`. Draft/pending runs are flagged; finalized runs are
-  never mutated — they get a `payroll.timesheet.affects_finalized_run` audit entry.
-- `tg_business_event_outbox_react_timesheet` dispatches both submission-scoped and
-  timesheet-scoped events, gated on active subscription rows, and never breaks the
-  outbox writer (events stay durably enqueued on handler failure).
-- Entry-level handlers are `service_role`-only (revoked from `anon`/`authenticated`).
+## Technical notes
 
-## Wave 4 — Invoice engine removed from Timesheets — DONE, verified
-
-- `sales_invoice_project_timesheets` (Sales domain) now creates the invoice.
-- `timesheets_mark_invoiced` is the only writer of the timesheet `is_invoiced` state,
-  called by Billing.
-- Legacy `invoice_project_timesheets` is a thin wrapper over the Sales function
-  (verified: no direct `INSERT ... INTO public.invoices` remains in it), so existing
-  callers `BillFromTimesheetsDialog.tsx` and `BillTimesheetsButton.tsx` keep working.
-
-## Wave 5 — Cleanup and verification — ACTIVE, partially done
-
-Done:
-- Dead settings removed (`allow_self_approval` in DB, hook type, and Settings UI).
-- Dead client rules removed for the *approval decision*; the per-row authority is
-  now purely a projection of server state.
-- Structural verification queries run for Waves 1–4 (results recorded above).
-- Build green after each change.
-
-Pending (this is where the next agent starts):
-1. **Behavioural test pass.** Not yet executed — the tenant has 0 timesheets /
-   0 submissions, so these need a disposable seeded fixture (org + employee +
-   manager + period) and teardown:
-   - self-approval blocked in `standard` mode;
-   - auto-allowed in `solo` mode;
-   - allowed once with a valid override, then re-blocked after the override is consumed;
-   - manager vs non-manager approval (competence path);
-   - concurrent approve is idempotent under `FOR UPDATE`;
-   - locked-period mutation refused;
-   - event emitted exactly once per idempotency key and the registered subscriber ran
-     (assert on `business_event_outbox` + the projected `projects.spent_hours` /
-     `payroll_runs.needs_recompute_reason`).
-2. **Screen-level gate review.** `TimesheetApprovals` (`!canApproveTimesheets && !isManager`)
-   and `TeamTimesheets` still derive *screen visibility* from client permissions. That is
-   acceptable as a navigation affordance, but confirm the server refuses the same access
-   (RLS + RPC competence check) so the gate is decoration and not the control.
-3. **Duplicated totals check.** Confirm `trg_timesheet_to_cost` / `trg_timesheets_billing`
-   do not write project cost or billing state that a Wave 3 subscriber now also writes —
-   exactly one write path per value.
-
-## Handoff — instructions for the next agent
-
-1. **Verify before you build.** Re-run the structural checks behind the "verified"
-   claims above before extending anything: confirm `guard_timesheet_self_approval`
-   passes the org, `timesheet_settings.allow_self_approval` is gone, no timesheet RPC
-   decides self-action, `invoice_project_timesheets` is only a wrapper, and every
-   `timesheet.*` topic still resolves to a push subscriber or a recorded pull decision.
-   If any check fails, fix that regression before new work.
-2. **Then resume at Wave 5 item 1** (behavioural test pass), then items 2 and 3.
-   Do not start a new domain while Wave 5 is open.
-3. **Close Wave 5 properly**: no orphaned topics, no duplicated write paths, no dead
-   settings or client rules, and the security linter count unchanged (baseline: 3711
-   pre-existing project-wide issues; none introduced by this work).
-4. Only after Wave 5 closes does the roadmap move on — the next domain follows the
-   same method: verify current state by query first, name one authority per
-   responsibility, then migrate.
+- Every step lands as migration + code change + a verification query whose result is recorded
+  in this file; no half-migrated state and no legacy fallbacks.
+- Governance remains the sole authority for *who may act*; Timesheets owns only the state of the
+  time record; Payroll/Projects/Sales/Finance decide what approved time means.
