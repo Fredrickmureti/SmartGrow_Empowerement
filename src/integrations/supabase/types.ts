@@ -101502,6 +101502,10 @@ export type Database = {
         Args: { _business_id: string; _org_id: string }
         Returns: Json
       }
+      payroll_flag_runs_for_timesheet_submission: {
+        Args: { _actor: string; _submission_id: string }
+        Returns: Json
+      }
       payroll_generate_reclassification_je: {
         Args: { p_run_id: string }
         Returns: string
@@ -103870,6 +103874,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      projects_recompute_spent_hours_for_submission: {
+        Args: { _submission_id: string }
+        Returns: Json
       }
       promote_pack_version: {
         Args: {
@@ -106776,6 +106784,14 @@ export type Database = {
           structure_id: string
         }[]
       }
+      sales_invoice_project_timesheets: {
+        Args: {
+          _period_from?: string
+          _period_to?: string
+          _project_id: string
+        }
+        Returns: Json
+      }
       save_integration_connection: {
         Args: {
           p_activate?: boolean
@@ -108021,6 +108037,10 @@ export type Database = {
           overtime_threshold_weekly: number
           week_start_day: number
         }[]
+      }
+      timesheets_mark_invoiced: {
+        Args: { _ids: string[]; _invoice_id: string }
+        Returns: number
       }
       to_base_amount: {
         Args: {
