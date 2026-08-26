@@ -88343,6 +88343,19 @@ export type Database = {
         }[]
       }
       __ts_wave5_probe: { Args: never; Returns: Json }
+      __ts_wave5_seed_ids: {
+        Args: {
+          _biz: string
+          _first: string
+          _hire: string
+          _last: string
+          _mgr: string
+          _num: string
+          _org: string
+          _user: string
+        }
+        Returns: string
+      }
       _account_is_postable: {
         Args: { p_account_id: string; p_business_id: string; p_org_id: string }
         Returns: boolean
