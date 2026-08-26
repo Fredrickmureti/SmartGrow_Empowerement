@@ -209,10 +209,23 @@ closed to both. Security linter 3687 — the +2 against the Phase 3 figure is ex
 ## Pending work
 
 ### Phase 5 — Base-currency lifecycle (D13, U1, U2)
-`business_currency_readiness(business_id)` returning lifecycle state and every blocker;
-audited change RPC that re-stamps drafts in the same transaction while the change is still
-permitted; remove the dead duplicate `enforce_business_currency_immutable`. The
-journal-entry hard lock does not change.
+`business_currency_readiness(business_id)` returns lifecycle state, counts of affected drafts,
+and explicit blockers including journal entries, foreign bank accounts, enabled non-base
+operating currencies, reconciliations and closed periods. Replace the client's direct
+`businesses.base_currency` update with one finance-authorized, reason-required RPC that locks the
+business row, rechecks readiness, changes the base currency, and explicitly re-stamps eligible
+drafts through `fx_stamp_document` in the same transaction. The RPC must update each draft's
+stored rate/base amount directly from the engine result; a no-op row update is insufficient
+because the existing document triggers only re-stamp when currency or document date changes.
+Posted documents and journal entries are never touched. Record actor, reason, old/new currency,
+draft counts and timestamp in a dedicated append-only audit table. Remove the unattached duplicate
+`enforce_business_currency_immutable`; preserve `lock_business_currency_after_je`, its `23514`
+boundary, rate precedence and all posted-document immutability guards unchanged.
+
+**Client scope for this phase.** Replace the editable Select with a lifecycle-aware base-currency
+status panel driven by readiness, show blockers before confirmation, require a reason, call only
+the audited RPC, and translate database refusal codes into actionable messages. Searchable
+operating-currency and rate-book redesign remains Phase 8.
 
 ### Phase 6 — Non-monetary assets and budgets (D6, D7)
 `fixed_assets` gains currency + acquisition rate (+ derived base cost), stamped at
@@ -265,6 +278,12 @@ open balances.
 - The Phase 3 posted-document guards match `journal_entries.source_type` values
   `estimate(s)`, `sales_order(s)`, `purchase_order(s)`, `customer_refund(s)`, `bill_payment(s)`,
   `payment`. If a posting path introduces another spelling, extend the arrays.
+- Phases 1–4 currently rely mainly on catalog/runtime verification; dedicated architecture and
+  adversarial regression tests for the new reporting, privilege, stamping and coverage invariants
+  remain Phase 9 work.
+- Silent `COALESCE(<rate>, 1)` patterns still exist outside the four Phase 1 reporting functions.
+  Phase 9 must inventory and eliminate or explicitly justify every remaining occurrence before
+  enabling its global no-silent-1:1 guard.
 
 ## Instructions for the next agent
 
@@ -288,10 +307,11 @@ open balances.
      `exchange_rate_audit` row carries actor, reason and prior value.
 2. **Then resume at Phase 5 — Base-currency lifecycle (D13, U1, U2).** Do not jump to a later
    phase, do not start UI work that belongs to Phase 8, and do not touch unrelated areas.
-   Phase 5 scope, unchanged: `business_currency_readiness(business_id)` returning lifecycle state
-   and every blocker; an audited change RPC that re-stamps drafts in the same transaction while
-   the change is still permitted; remove the dead duplicate
-   `enforce_business_currency_immutable`. The journal-entry hard lock does not change.
+   Implement the readiness function, append-only audit table, finance-authorized change RPC and
+   the narrow base-currency settings UI described in the Phase 5 section. Re-stamp drafts by
+   explicitly invoking the one engine per eligible row; do not rely on no-op updates to fire the
+   existing triggers. Remove the dead duplicate `enforce_business_currency_immutable`. The
+   journal-entry hard lock does not change.
 3. **Working protocol per phase.** Read only that phase's audit section; enumerate the exact
    objects involved; inspect only those; before editing, state current behaviour, why it is
    defective, what changes, what explicitly does not, and which invariants hold; make the
