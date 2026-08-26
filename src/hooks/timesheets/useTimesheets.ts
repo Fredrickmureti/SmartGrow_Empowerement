@@ -33,7 +33,7 @@ export interface Timesheet {
   is_billable: boolean;
   billing_rate: number | null;
   billing_amount: number | null;
-  status: "draft" | "submitted" | "approved" | "rejected";
+  status: "draft" | "submitted" | "approved" | "rejected" | "superseded";
   submitted_at: string | null;
   submitted_by?: string | null;
   approved_by: string | null;
