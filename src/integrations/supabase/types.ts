@@ -96870,6 +96870,14 @@ export type Database = {
         Args: { _business_id: string; _from?: string; _to?: string }
         Returns: Json
       }
+      fx_report_document_rate: {
+        Args: {
+          p_base_currency: string
+          p_document_currency: string
+          p_stamped_rate: number
+        }
+        Returns: number
+      }
       fx_revaluation_readiness: {
         Args: { _as_of: string; _business_id: string }
         Returns: Json
