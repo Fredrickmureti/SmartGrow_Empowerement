@@ -129,6 +129,23 @@ export function CurrencySettings() {
     reason: "",
   });
 
+  // ---- Presentation state (no business logic): the catalogue is >150 rows and
+  // the rate book grows without bound, so both are searched/filtered/paged in
+  // the browser instead of being dumped onto the page. ----
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [currencyQuery, setCurrencyQuery] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState<"all" | "enabled" | "available">(
+    "all",
+  );
+  const [rateQuery, setRateQuery] = useState("");
+  const [rateSource, setRateSource] = useState<"all" | "override" | "manual" | "provider">(
+    "all",
+  );
+  const [ratePage, setRatePage] = useState(1);
+  const RATES_PER_PAGE = 20;
+
+
+
   const canEdit = canManageCurrency;
   const {
     summary: coverage,
