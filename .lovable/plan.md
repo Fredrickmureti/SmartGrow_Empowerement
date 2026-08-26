@@ -23,15 +23,15 @@ Last updated: 2026-08-26.
 | --- | --- | --- |
 | 1 | Stop silent 1:1 in reporting (D1) | **DONE — verified** |
 | 2 | Rate-book integrity and privilege (D4, D5, S1) | **DONE — verified** |
-| 3 | Close the stamping gaps (D2, D3, D9, D10, D11) | **NEXT — not started** |
-| 4 | Rate coverage and history (D8) | Pending |
+| 3 | Close the stamping gaps (D2, D3, D9, D10, D11) | **DONE — verified at runtime** |
+| 4 | Rate coverage and history (D8) | **NEXT** |
 | 5 | Base-currency lifecycle (D13, U1, U2) | Pending |
 | 6 | Non-monetary assets and budgets (D6, D7) | Pending |
 | 7 | Presentation convergence (D12, D14) | Pending |
 | 8 | Currency Settings UX (U3–U9) | Pending |
 | 9 | Regression protection (D15, S2) | Pending |
 
-Currently active phase: **Phase 3** (not yet begun).
+Currently active phase: **Phase 4** (Phase 3 completed and runtime-verified 2026-08-26).
 
 ---
 
@@ -111,50 +111,54 @@ findings. Typecheck clean.
 
 ## Pending work
 
-### Phase 3 — Close the stamping gaps (D2, D3, D9, D10, D11) — NEXT (detailed, re-verified 2026-08-26)
+### Phase 3 — Close the stamping gaps (D2, D3, D9, D10, D11) — DONE 2026-08-26
 
-Independent verification done this turn (catalog inspection, not trust in the log):
-Phase 1 helper `fx_report_document_rate` exists and none of the four reporting functions
-contains a `COALESCE(rate, 1)` any more; `exchange_rates` carries exactly
-`exchange_rates_select` (SELECT) + `exchange_rates_insert` (INSERT) with no UPDATE/DELETE
-policy, and the three Phase 2 triggers (`immutable`, `write_guard`, `audit`) are attached;
-`exchange_rate_audit` exposes SELECT only. Phase 3 gaps confirmed as still open:
-`bank_transactions.exchange_rate` and `bill_payments.currency_rate` exist with **no**
-currency-stamping trigger, `bill_payments` has **no** `currency` column, `rfq_quotations`
-has `currency` + `exchange_rate` and **no** triggers at all, while `bills`, `estimates` and
-`customer_refunds` do carry `trg_*_stamp_currency`.
+**Verification of Phases 1–2 before starting (catalog, not trust in the log).**
+`fx_report_document_rate` exists and none of the four reporting functions still contains a
+`COALESCE(rate, 1)`; `exchange_rates` carries exactly `exchange_rates_select` (SELECT) and
+`exchange_rates_insert` (INSERT) with no UPDATE/DELETE policy and all three Phase 2 triggers
+attached; `exchange_rate_audit` exposes SELECT only. Both phases confirmed genuinely complete.
 
-Work items, in dependency order:
+**Was.** `bill_payments.currency_rate` defaulted to 1 with no currency column and no server
+stamping; `bank_transactions.exchange_rate` defaulted to 1 with no stamping; `rfq_quotations`
+had `currency`/`exchange_rate` and no triggers at all; estimates, sales orders, purchase orders
+and customer refunds could have their stamped rate changed after posting; invoices did not
+re-stamp on a document-date change while bills did.
 
-3a. `bill_payments` — add a `currency` column (default = the paying bank account's currency,
-    else business base), stamp `currency_rate` server-side through `fx_stamp_document` on the
-    payment date, refuse the payment when no rate can be resolved for a foreign payment, and
-    make the stamped rate immutable once the payment is posted/allocated. Realized-FX
-    calculation must keep using the **bill's** stamped rate against the payment's stamped
-    rate; no change to existing allocation arithmetic.
-3b. `bank_transactions` — stamp `exchange_rate` for transactions whose currency differs from
-    the bank account's/base currency via the same engine; validate > 0; freeze the rate once
-    the transaction is reconciled or has produced an accounting event
-    (`trg_bank_txn_reconcile_closed_window` already marks the boundary to respect).
-3c. `rfq_quotations` — add a stamping trigger mirroring `trg_estimates_stamp_currency`
-    (pre-accounting document: stamp on insert, re-stamp while still editable).
-3d. D9 posted-immutability guards — extend `_fx_document_is_posted` enforcement to
-    `estimates`, `sales_orders`, `customer_refunds`, `purchase_orders` stamp triggers so a
-    stamped rate cannot move after the document has posted.
-3e. D11 symmetry — invoices re-stamp on a document-date change **only while unposted**,
-    matching the bill rule.
+**Now.**
+- `bill_payments` has an explicit `currency` (backfilled from the paying bank account, else the
+  business base currency; `NOT NULL`). `trg_bill_payments_stamp_currency` stamps currency and
+  `currency_rate` through `fx_stamp_document` on `payment_date`, refuses a foreign payment with
+  no rate on file, ignores any client-supplied rate, and refuses a currency/rate change once the
+  payment is posted (`journal_entries`) or allocated (`bill_payment_allocations`).
+- `bank_transactions.exchange_rate` lost its `DEFAULT 1`.
+  `trg_bank_transactions_stamp_currency` stamps `original_currency` (transaction, else bank
+  account, else base) and the rate on `transaction_date`, and freezes both once the transaction
+  is reconciled or carries a `journal_entry_id`.
+- `trg_rfq_quotations_stamp_currency` stamps quotations (org/business resolved through `rfqs`,
+  date = `submitted_at`) and freezes them once superseded or withdrawn.
+- D9: `_fx_document_is_posted_any(text[], uuid)` added; estimates, sales orders, purchase orders
+  and customer refunds now refuse a currency/rate change on a posted document and re-stamp on a
+  document-date change while unposted.
+- D11: invoices now re-stamp on an `issue_date` change while unposted — symmetric with bills.
+- `fx_stamped_rate_review(business_id)` (finance managers only, `authenticated`-execute) lists
+  payments and bank transactions whose stored rate disagrees with the rate book. Read-only.
 
-Backfill policy: none of the above rewrites history. A read-only report lists existing rows
-whose stamped rate disagrees with resolvable evidence; remediation is proposed separately.
+**Unchanged by design.** The one resolution engine, rate precedence, every already-stamped rate,
+posted GL amounts, allocation and realized-FX arithmetic, closed periods, `publish_platform_rates`.
+No historical row was re-rated; the backfill only labelled the payment currency.
 
-Must not change: rate precedence, the one resolution engine, posted GL amounts, any already
-stamped rate, closed periods, `publish_platform_rates`.
-
-Validation per item: catalog check that the trigger exists and is attached; an accepted
-same-currency write; a refused foreign write with no rate; a refused rate mutation after
-posting; typecheck; security linter delta against the 3684 baseline.
-
-Depends on Phase 2 (verified done).
+**Verified at runtime** (self-cancelling transactions, all test rows discarded):
+base-currency payment accepted and stamped 1; foreign payment with no rate refused; a
+client-supplied rate of 999 overwritten with the engine's 1; a payment saved without a currency
+stamped KES/1; bank transaction stamped from its account (KES/1); foreign bank transaction
+refused with no rate; rate change on a reconciled transaction refused; a EUR bank transaction
+stamped 140.76086957, exactly `resolve_exchange_rate`. All nine stamping triggers confirmed
+attached. Typecheck clean. Security linter 3685 vs the 3684 baseline — the single delta is
+`fx_stamped_rate_review` being callable by signed-in users, which is intended: it enforces
+`is_finance_manager` internally. The four pre-existing document stamp functions were kept
+`SECURITY INVOKER` and the new internal trigger functions have `EXECUTE` revoked from
+`anon`/`authenticated`.
 
 
 ### Phase 4 — Rate coverage and history (D8)
@@ -205,6 +209,12 @@ open balances.
 - Phase 2 write paths (immutability refusal, closed-period refusal, non-finance refusal) were
   verified structurally from the catalog, not by executing a rejected DML as each role.
 - `exchange_rate_audit` has no UI consumer until Phase 8.
+- `fx_stamped_rate_review` has no UI consumer yet; surface it with the Phase 8 rate-book drill-down.
+- Legacy `rfq_quotations` rows predating Phase 3 may still hold a null `exchange_rate`; they are
+  left untouched (no history rewrite) and re-stamp on their next edit.
+- The Phase 3 posted-document guards match `journal_entries.source_type` values
+  `estimate(s)`, `sales_order(s)`, `purchase_order(s)`, `customer_refund(s)`, `bill_payment(s)`,
+  `payment`. If a posting path introduces another spelling, extend the arrays.
 
 ## Instructions for the next agent
 
