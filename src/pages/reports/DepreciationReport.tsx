@@ -35,14 +35,24 @@ import {
 } from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+/**
+ * This is a base-currency report: cost and residual value are the
+ * server-stamped base amounts (`base_purchase_price` / `base_residual_value`),
+ * which is also the basis depreciation and the GL use. The transaction
+ * currency is carried for provenance only and never summed.
+ */
 interface AssetDepreciation {
   id: string;
   asset_number: string;
   name: string;
   category_name: string;
   purchase_date: string;
+  /** Base-currency acquisition cost. */
   purchase_price: number;
+  /** Base-currency residual value. */
   residual_value: number;
+  currency: string;
+  acquisition_exchange_rate: number | null;
   depreciation_method: string;
   useful_life_years: number;
   accumulated_depreciation: number;
