@@ -340,6 +340,45 @@ export function CurrencySettings() {
     activeCurrencies.filter((c) => c.is_base).map((c) => c.currency_code),
   );
 
+  const isBaseCode = (code: string) => serverBaseSet.has(code) || code === base;
+
+  const enabledCurrencies = currencies.filter(
+    (c) => isBaseCode(c.code) || enabledSet.has(c.code),
+  );
+  const enabledCount = enabledCurrencies.length;
+
+  const currencyNeedle = currencyQuery.trim().toLowerCase();
+  const visibleCurrencies = currencies.filter((c) => {
+    const on = isBaseCode(c.code) || enabledSet.has(c.code);
+    if (currencyFilter === "enabled" && !on) return false;
+    if (currencyFilter === "available" && on) return false;
+    if (!currencyNeedle) return true;
+    return (
+      c.code.toLowerCase().includes(currencyNeedle) ||
+      c.name.toLowerCase().includes(currencyNeedle)
+    );
+  });
+
+  const rateNeedle = rateQuery.trim().toLowerCase();
+  const filteredRates = exchangeRates.filter((r) => {
+    if (rateSource !== "all" && r.source !== rateSource) return false;
+    if (!rateNeedle) return true;
+    return (
+      `${r.from_currency}/${r.to_currency}`.toLowerCase().includes(rateNeedle) ||
+      (r.provider_key ?? "").toLowerCase().includes(rateNeedle)
+    );
+  });
+  const totalRatePages = Math.max(1, Math.ceil(filteredRates.length / RATES_PER_PAGE));
+  const currentRatePage = Math.min(ratePage, totalRatePages);
+  const pagedRates = filteredRates.slice(
+    (currentRatePage - 1) * RATES_PER_PAGE,
+    currentRatePage * RATES_PER_PAGE,
+  );
+  const rangeStart = filteredRates.length === 0 ? 0 : (currentRatePage - 1) * RATES_PER_PAGE + 1;
+  const rangeEnd = (currentRatePage - 1) * RATES_PER_PAGE + pagedRates.length;
+
+
+
 
   return (
     <div className="space-y-6">
