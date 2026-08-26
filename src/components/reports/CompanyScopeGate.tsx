@@ -59,7 +59,7 @@ export function CompanyScopeGate({ children, reportName = "this report" }: Compa
             eliminations and currency translation, which live in a dedicated consolidation
             module.
           </p>
-          <Button variant="outline" size="sm" onClick={() => navigate("/reports/consolidation")}>
+          <Button variant="outline" size="sm" onClick={() => navigate("/finance/reports/cross-company")}>
             <GitMerge className="h-4 w-4 mr-2" />
             Open Consolidation
           </Button>
