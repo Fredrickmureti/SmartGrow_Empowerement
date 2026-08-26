@@ -371,7 +371,19 @@ export default function FixedAssets() {
                         </TableCell>
                         <TableCell>{getStatusBadge(asset.status)}</TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(asset.purchase_price)}
+                          {formatCurrency(asset.purchase_price, asset.currency)}
+                          {asset.currency &&
+                            asset.currency !== baseCurrency && (
+                              <div className="text-xs text-muted-foreground">
+                                {formatCurrency(
+                                  Number(
+                                    asset.base_purchase_price ??
+                                      asset.purchase_price,
+                                  ),
+                                )}{" "}
+                                @ {asset.acquisition_exchange_rate}
+                              </div>
+                            )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrency(asset.book_value || 0)}
