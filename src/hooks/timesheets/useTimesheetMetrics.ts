@@ -89,9 +89,11 @@ export function useTimesheetMetrics(from: string, to: string) {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
 
-  const args = {
+  // p_business_id is nullable server-side (null = all businesses in the org);
+  // the generated Args type models it as non-null, hence the single narrow cast.
+  const rpcArgs = {
     p_organization_id: currentOrg?.id ?? "",
-    p_business_id: currentBusiness?.id ?? null,
+    p_business_id: (currentBusiness?.id ?? null) as unknown as string,
     p_from: from,
     p_to: to,
   };
@@ -102,12 +104,9 @@ export function useTimesheetMetrics(from: string, to: string) {
     queryKey: ["timesheet-metrics", "employee", ...scope],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc(
-        "get_timesheet_employee_metrics" as any,
-        args as any,
-      );
+      const { data, error } = await supabase.rpc("get_timesheet_employee_metrics", rpcArgs);
       if (error) throw error;
-      return ((data as any[]) ?? []).map((r) => ({
+      return (data ?? []).map((r) => ({
         employee_id: r.employee_id,
         employee_name: r.employee_name || "Unknown",
         employee_number: r.employee_number ?? null,
@@ -127,12 +126,9 @@ export function useTimesheetMetrics(from: string, to: string) {
     queryKey: ["timesheet-metrics", "project", ...scope],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc(
-        "get_timesheet_project_metrics" as any,
-        args as any,
-      );
+      const { data, error } = await supabase.rpc("get_timesheet_project_metrics", rpcArgs);
       if (error) throw error;
-      return ((data as any[]) ?? []).map((r) => ({
+      return (data ?? []).map((r) => ({
         project_id: r.project_id ?? null,
         project_name: r.project_name || "No project",
         project_number: r.project_number ?? null,
@@ -153,9 +149,9 @@ export function useTimesheetMetrics(from: string, to: string) {
     queryKey: ["timesheet-metrics", "summary", ...scope],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_timesheet_summary" as any, args as any);
+      const { data, error } = await supabase.rpc("get_timesheet_summary", rpcArgs);
       if (error) throw error;
-      const r = ((data as any[]) ?? [])[0];
+      const r = (data ?? [])[0];
       if (!r) return EMPTY_SUMMARY;
       return {
         total_hours: num(r.total_hours),
@@ -175,12 +171,9 @@ export function useTimesheetMetrics(from: string, to: string) {
     queryKey: ["timesheet-metrics", "uninvoiced", ...scope],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc(
-        "get_timesheet_uninvoiced_billable" as any,
-        args as any,
-      );
+      const { data, error } = await supabase.rpc("get_timesheet_uninvoiced_billable", rpcArgs);
       if (error) throw error;
-      return ((data as any[]) ?? []).map((r) => ({
+      return (data ?? []).map((r) => ({
         timesheet_id: r.timesheet_id,
         date: r.date,
         employee_id: r.employee_id,
