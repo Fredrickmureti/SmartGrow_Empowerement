@@ -132,7 +132,15 @@ export function AssetFormBody({ values, onChange, categories }: Props) {
         </div>
       </Section>
 
-      <Section title="Cost & depreciation">
+      <Section
+        title="Cost & depreciation"
+        description={
+          acquisitionLocked
+            ? acquisitionLockReason ??
+              "Acquisition currency, date and cost are frozen because this asset has been depreciated or posted."
+            : "Cost is recorded in the acquisition currency. The exchange rate and the base-currency cost are stamped by the system on the purchase date."
+        }
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="a-pdate">Purchase date *</Label>
@@ -141,11 +149,34 @@ export function AssetFormBody({ values, onChange, categories }: Props) {
               type="date"
               value={values.purchase_date}
               onChange={(e) => set("purchase_date", e.target.value)}
+              disabled={acquisitionLocked}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="a-price">Purchase price *</Label>
+            <Label htmlFor="a-currency">Currency *</Label>
+            <Select
+              value={values.currency || baseCurrency}
+              onValueChange={(v) => set("currency", v)}
+              disabled={acquisitionLocked}
+            >
+              <SelectTrigger id="a-currency">
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencyOptions.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {code}
+                    {code === baseCurrency ? " (base)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="a-price">
+              Purchase price * {values.currency ? `(${values.currency})` : ""}
+            </Label>
             <Input
               id="a-price"
               type="number"
@@ -155,9 +186,11 @@ export function AssetFormBody({ values, onChange, categories }: Props) {
               onChange={(e) =>
                 set("purchase_price", parseFloat(e.target.value) || 0)
               }
+              disabled={acquisitionLocked}
               required
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="a-residual">Residual value</Label>
             <Input
