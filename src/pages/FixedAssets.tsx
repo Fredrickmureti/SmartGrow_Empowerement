@@ -66,7 +66,7 @@ import { DepreciationRunSheet } from "@/features/finance/fixed-assets/Depreciati
 export default function FixedAssets() {
   const navigate = useNavigate();
   const { assets, isLoading, deleteAsset } = useFixedAssets();
-  const { formatCurrency, isReady: currencyReady } = useCurrency();
+  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageAssets } = useFinancePermission("finance.manage_assets");
