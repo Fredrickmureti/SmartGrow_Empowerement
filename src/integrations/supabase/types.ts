@@ -93972,6 +93972,30 @@ export type Database = {
         Args: { p_older_than_days?: number; p_org_id: string }
         Returns: number
       }
+      close_consolidation_member: {
+        Args: { _effective_to?: string; _id: string }
+        Returns: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          group_id: string
+          id: string
+          method: Database["public"]["Enums"]["consolidation_method"]
+          notes: string | null
+          organization_id: string
+          ownership_percent: number
+          parent_business_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "consolidation_group_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       close_department: {
         Args: { p_department_id: string }
         Returns: {
