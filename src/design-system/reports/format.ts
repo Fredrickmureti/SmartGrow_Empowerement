@@ -21,13 +21,13 @@
  * asserts this file and the edge formatter agree on a shared fixture set.
  */
 
-export const EMPTY_CELL = "—";
-
 import {
   formatCurrencyDigits,
   getCurrencyDecimals,
   getCurrencyPrefix,
 } from "@/lib/currency/catalogue";
+
+export const EMPTY_CELL = "—";
 
 /** Symbol as printed, including its separating space (`KSh `, `$`). */
 export function getCurrencySymbol(code?: string | null): string {

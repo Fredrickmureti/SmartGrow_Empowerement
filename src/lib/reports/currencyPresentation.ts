@@ -15,6 +15,8 @@
  *   when the run actually contains a foreign line.
  */
 
+import { formatCurrencyDigits } from "@/lib/currency/catalogue";
+
 export interface FxLine {
   entryCurrency?: string | null;
   originalDebit?: number | null;
@@ -55,10 +57,10 @@ export function formatDocumentAmount(
         ? line.originalCredit
         : null;
   if (amount == null) return "";
-  return `${line.entryCurrency!.toUpperCase()} ${new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(amount))}`;
+  const code = line.entryCurrency!.toUpperCase();
+  // Minor units come from the currency catalogue: a JPY supplement must not
+  // grow phantom cents just because the base currency has two decimals.
+  return `${code} ${formatCurrencyDigits(amount, code)}`;
 }
 
 /** Translation rate applied to the document, or null for a domestic line. */
