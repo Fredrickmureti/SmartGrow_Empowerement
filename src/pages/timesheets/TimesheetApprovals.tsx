@@ -6,7 +6,11 @@
  * Attendance + Leave approvals UX.
  */
 import { useMemo, useState, useCallback } from "react";
-import { useTimesheets, useTeamTimesheets } from "@/hooks/timesheets";
+import {
+  useTimesheets,
+  useTeamTimesheets,
+  useTimesheetApprovalCapabilities,
+} from "@/hooks/timesheets";
 import { TimesheetApprovalList } from "@/components/timesheets/TimesheetApprovalList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock, CheckCircle2, ClipboardCheck, Clock4, XCircle, Keyboard } from "lucide-react";
@@ -42,13 +46,27 @@ export default function TimesheetApprovals() {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Server-authoritative: lifecycle + competence + Governance self-action verdict.
+  const { capabilities, refresh: refreshCapabilities } =
+    useTimesheetApprovalCapabilities(pendingIds);
+
   const handleApprove = useCallback(
     (id: string) => {
+      const cap = capabilities[id];
+      if (cap && !cap.canApprove) {
+        toast.error(
+          cap.reason === "self_action_blocked"
+            ? "Governance blocks approving your own timesheet. Request an exception first."
+            : "You are not allowed to approve this submission.",
+        );
+        return;
+      }
       Promise.resolve(approveTimesheets(id))
         .then(() => toast.success("Timesheet approved"))
-        .catch((e: any) => toast.error(e?.message ?? "Could not approve"));
+        .catch((e: any) => toast.error(e?.message ?? "Could not approve"))
+        .finally(() => void refreshCapabilities());
     },
-    [approveTimesheets],
+    [approveTimesheets, capabilities, refreshCapabilities],
   );
   const handleReject = useCallback(
     (id: string) => {
@@ -56,9 +74,10 @@ export default function TimesheetApprovals() {
       if (!reason || !reason.trim()) return;
       Promise.resolve(rejectTimesheets(id, reason.trim()))
         .then(() => toast.success("Timesheet rejected"))
-        .catch((e: any) => toast.error(e?.message ?? "Could not reject"));
+        .catch((e: any) => toast.error(e?.message ?? "Could not reject"))
+        .finally(() => void refreshCapabilities());
     },
-    [rejectTimesheets],
+    [rejectTimesheets, refreshCapabilities],
   );
 
   useListHotkeys({
@@ -102,8 +121,12 @@ export default function TimesheetApprovals() {
       <KpiStrip tiles={tiles} />
       <TimesheetApprovalList
         submissions={pendingSubmissions}
-        onApprove={approveTimesheets}
-        onReject={rejectTimesheets}
+        capabilities={capabilities}
+        onApprove={async (id) => handleApprove(id)}
+        onReject={async (id, reason) => {
+          await rejectTimesheets(id, reason);
+          await refreshCapabilities();
+        }}
         isLoading={isLoading}
       />
     </div>

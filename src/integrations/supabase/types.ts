@@ -68526,7 +68526,6 @@ export type Database = {
       }
       timesheet_settings: {
         Row: {
-          allow_self_approval: boolean
           block_on_time_off_overlap: boolean
           business_id: string | null
           created_at: string
@@ -68547,7 +68546,6 @@ export type Database = {
           week_start_day: number | null
         }
         Insert: {
-          allow_self_approval?: boolean
           block_on_time_off_overlap?: boolean
           business_id?: string | null
           created_at?: string
@@ -68568,7 +68566,6 @@ export type Database = {
           week_start_day?: number | null
         }
         Update: {
-          allow_self_approval?: boolean
           block_on_time_off_overlap?: boolean
           business_id?: string | null
           created_at?: string
@@ -89581,7 +89578,7 @@ export type Database = {
         Returns: boolean
       }
       _timesheet_can_approve: {
-        Args: { _allow_self: boolean; _employee_id: string; _uid: string }
+        Args: { _employee_id: string; _uid: string }
         Returns: boolean
       }
       _timesheet_emit_event: {
@@ -99211,6 +99208,15 @@ export type Database = {
         }
         Returns: Json
       }
+      governance_self_action_verdict: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_org: string
+          p_subject: string
+        }
+        Returns: string
+      }
       governance_sod_violations: {
         Args: { _org_id: string }
         Returns: {
@@ -101494,6 +101500,10 @@ export type Database = {
       }
       payroll_finalize_pack_install_v2: {
         Args: { _business_id: string; _org_id: string }
+        Returns: Json
+      }
+      payroll_flag_runs_for_timesheet_submission: {
+        Args: { _actor: string; _submission_id: string }
         Returns: Json
       }
       payroll_generate_reclassification_je: {
@@ -103864,6 +103874,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      projects_recompute_spent_hours_for_submission: {
+        Args: { _submission_id: string }
+        Returns: Json
       }
       promote_pack_version: {
         Args: {
@@ -106770,6 +106784,14 @@ export type Database = {
           structure_id: string
         }[]
       }
+      sales_invoice_project_timesheets: {
+        Args: {
+          _period_from?: string
+          _period_to?: string
+          _project_id: string
+        }
+        Returns: Json
+      }
       save_integration_connection: {
         Args: {
           p_activate?: boolean
@@ -108000,6 +108022,14 @@ export type Database = {
           test_name: string
         }[]
       }
+      timesheet_approval_capability: {
+        Args: { _submission_id: string }
+        Returns: {
+          can_approve: boolean
+          reason: string
+          requires_override: boolean
+        }[]
+      }
       timesheet_effective_settings: {
         Args: { p_business_id: string; p_organization_id: string }
         Returns: {
@@ -108007,6 +108037,10 @@ export type Database = {
           overtime_threshold_weekly: number
           week_start_day: number
         }[]
+      }
+      timesheets_mark_invoiced: {
+        Args: { _ids: string[]; _invoice_id: string }
+        Returns: number
       }
       to_base_amount: {
         Args: {
