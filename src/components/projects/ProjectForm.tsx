@@ -8,6 +8,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import {
   WorkflowSheet,
   WorkflowSheetGrid,
@@ -53,23 +54,33 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   const { can } = usePermissions();
   const canCreate = can("manageProjects");
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
-  const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([]);
+  interface TemplateOption {
+    id: string;
+    name: string;
+    default_billable: boolean | null;
+    default_currency: string | null;
+  }
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [templateId, setTemplateId] = useState<string>("");
 
   useEffect(() => {
     if (!open || !currentOrg) return;
     (async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      // A template bound to another business is refused by
+      // apply_project_template, so it must not be offered here.
+      let q = supabase
         .from("project_templates")
-        .select("id, name")
+        .select("id, name, default_billable, default_currency")
         .eq("organization_id", currentOrg.id)
-        .eq("is_active", true)
-        .order("name");
-      setTemplates((data ?? []) as Array<{ id: string; name: string }>);
+        .eq("is_active", true);
+      if (currentBusiness?.id) q = q.or(`business_id.is.null,business_id.eq.${currentBusiness.id}`);
+      const { data } = await q.order("name");
+      setTemplates((data ?? []) as TemplateOption[]);
     })();
-  }, [open, currentOrg]);
+  }, [open, currentOrg, currentBusiness?.id]);
+
 
   const { contacts } = useContacts();
   const { employees } = useEmployees();
@@ -119,6 +130,25 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isBillable = pricingType !== "non_billable";
+
+  /**
+   * Selecting a template also seeds its billing defaults — otherwise
+   * `default_billable` / `default_currency` are stored and never used.
+   * The currency is only adopted when the business actually has it enabled.
+   */
+  const applyTemplateSelection = (id: string) => {
+    setTemplateId(id);
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    if (t.default_billable === false) {
+      setPricingType("non_billable");
+    } else if (t.default_billable && pricingType === "non_billable") {
+      setPricingType("employee_rate");
+    }
+    const code = (t.default_currency ?? "").toUpperCase();
+    if (code && currencyCodes.includes(code)) setCurrency(code);
+  };
+
 
   const validation = useMemo(() => {
     const errs: string[] = [];
@@ -221,7 +251,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
       {templates.length > 0 && (
         <WorkflowSheetSection number={1} title="Template" subtitle="Optional — clone stages, tasks and milestones from an existing template.">
           <WorkflowField label="Start from template">
-            <Select value={templateId || "none"} onValueChange={(v) => setTemplateId(v === "none" ? "" : v)}>
+            <Select value={templateId || "none"} onValueChange={(v) => applyTemplateSelection(v === "none" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="No template" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Blank project —</SelectItem>
