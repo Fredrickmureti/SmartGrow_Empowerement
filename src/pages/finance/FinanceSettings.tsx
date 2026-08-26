@@ -126,6 +126,12 @@ export default function FinanceSettings() {
             used by the `apply-default-mappings` edge function. */}
         <DefaultAccountsConfig />
 
+        {/* Consolidation group structure (Brick 1). Configuration only — no
+            consolidated figures are produced here. Write actions are hidden
+            for roles the RLS write policy would refuse. */}
+        <ConsolidationGroupsSettings />
+
+
         {/* Only after the company context has settled — a company that is
             still loading is NOT "no company selected". */}
         {!businessLoading && !currentBusiness?.id && (
