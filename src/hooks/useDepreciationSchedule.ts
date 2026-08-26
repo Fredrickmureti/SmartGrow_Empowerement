@@ -32,6 +32,9 @@ export interface AssetWithSchedule {
   purchase_date: string;
   purchase_price: number;
   residual_value: number;
+  /** Base-currency cost stamped at acquisition. The accounting basis for depreciation. */
+  base_purchase_price?: number | null;
+  base_residual_value?: number | null;
   useful_life_years: number;
   depreciation_method: string;
   accumulated_depreciation: number;
@@ -116,12 +119,16 @@ export function useDepreciationSchedule(assetId?: string) {
       const scheduleItems: Omit<DepreciationSchedule, "id" | "created_at">[] = [];
       let currentDate = startOfMonth(addMonths(purchaseDate, 1));
       let accumulatedDep = 0;
-      let bookValue = asset.purchase_price;
+      // Schedules are an accounting artefact: they run on the base-currency cost
+      // stamped at acquisition, not on the transaction-currency purchase price.
+      const baseCost = Number(asset.base_purchase_price ?? asset.purchase_price);
+      const baseResidual = Number(asset.base_residual_value ?? asset.residual_value);
+      let bookValue = baseCost;
 
-      while (currentDate <= endDate && bookValue > asset.residual_value) {
+      while (currentDate <= endDate && bookValue > baseResidual) {
         const monthlyDep = calculateDepreciation(
-          asset.purchase_price,
-          asset.residual_value,
+          baseCost,
+          baseResidual,
           asset.useful_life_years,
           asset.depreciation_method,
           accumulatedDep,
@@ -132,7 +139,7 @@ export function useDepreciationSchedule(assetId?: string) {
         if (monthlyDep <= 0) break;
 
         accumulatedDep += monthlyDep;
-        bookValue = asset.purchase_price - accumulatedDep;
+        bookValue = baseCost - accumulatedDep;
 
         scheduleItems.push({
           organization_id: organizationId,
@@ -142,7 +149,7 @@ export function useDepreciationSchedule(assetId?: string) {
           period_end: format(endOfMonth(currentDate), "yyyy-MM-dd"),
           depreciation_amount: monthlyDep,
           accumulated_depreciation: accumulatedDep,
-          book_value: Math.max(bookValue, asset.residual_value),
+          book_value: Math.max(bookValue, baseResidual),
           journal_entry_id: null,
           is_posted: false,
           posted_at: null,
@@ -265,6 +272,9 @@ export function useDepreciationSchedule(assetId?: string) {
           name,
           purchase_price,
           residual_value,
+          currency,
+          base_purchase_price,
+          base_residual_value,
           status,
           category:asset_categories(
             id,

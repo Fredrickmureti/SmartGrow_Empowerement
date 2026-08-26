@@ -96,12 +96,17 @@ export function useDepreciationRun() {
       const preview: DepreciationPreviewItem[] = [];
 
       for (const asset of assets) {
-        const bookValue = asset.book_value ?? (asset.purchase_price - asset.accumulated_depreciation);
-        if (bookValue <= asset.residual_value) continue;
+        // Depreciation is an accounting measure: it runs on the base-currency
+        // cost stamped at acquisition (IAS 21 historical rate), never on the
+        // transaction-currency purchase_price.
+        const baseCost = Number(asset.base_purchase_price ?? asset.purchase_price);
+        const baseResidual = Number(asset.base_residual_value ?? asset.residual_value);
+        const bookValue = asset.book_value ?? (baseCost - asset.accumulated_depreciation);
+        if (bookValue <= baseResidual) continue;
 
         const monthlyDep = calculateMonthlyDepreciation(
-          asset.purchase_price,
-          asset.residual_value,
+          baseCost,
+          baseResidual,
           asset.useful_life_years,
           asset.depreciation_method,
           bookValue,
@@ -116,9 +121,9 @@ export function useDepreciationRun() {
           assetName: asset.name,
           categoryName: asset.category?.name || "Uncategorized",
           method: asset.depreciation_method,
-          purchasePrice: asset.purchase_price,
+          purchasePrice: baseCost,
           bookValue,
-          residualValue: asset.residual_value,
+          residualValue: baseResidual,
           monthlyDepreciation: monthlyDep,
           depreciationAccountId: asset.category?.depreciation_account_id || mappings.depreciation_expense_id || null,
           accumulatedDepreciationAccountId: asset.category?.accumulated_depreciation_account_id || mappings.accumulated_depreciation_account_id || null,
