@@ -44,6 +44,7 @@ import { GitMerge, ArrowLeft, AlertTriangle, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -151,8 +152,12 @@ function formatMoney(value: number, currency: string) {
 
 export default function Consolidation() {
   const navigate = useNavigate();
-  const { userRole } = useOrganization();
-  const canViewConsolidation = userRole?.role === "owner" || userRole?.role === "super_admin";
+  // Authorization mirrors the database, not an org-role guess: cross-company
+  // figures need the same `finance.view_consolidated` permission the ledger RPCs
+  // enforce. Tri-state — never render a denial while the answer is still loading.
+  const { allowed: canViewConsolidation, isLoading: permLoading } = useFinancePermission(
+    "finance.view_consolidated",
+  );
 
   const today = new Date();
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
@@ -221,7 +226,7 @@ export default function Consolidation() {
     [rows],
   );
 
-  if (!canViewConsolidation) {
+  if (!permLoading && !canViewConsolidation) {
     return (
       <ReportsLayout>
         <div className="max-w-2xl mx-auto px-4 py-12">
@@ -234,9 +239,9 @@ export default function Consolidation() {
                 <div>
                   <CardTitle>Restricted view</CardTitle>
                   <CardDescription>
-                    Cross-company comparative reports are limited to workspace
-                    Owners and Super Admins because they expose figures from every
-                    legal entity in the workspace.
+                    Cross-company comparative reports need the{" "}
+                    <strong>consolidated view</strong> finance permission, because they
+                    expose figures from every legal entity you can access.
                   </CardDescription>
                 </div>
               </div>
