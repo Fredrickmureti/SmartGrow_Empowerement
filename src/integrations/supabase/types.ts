@@ -89114,9 +89114,30 @@ export type Database = {
         Args: { _employee_id: string; _project_id: string }
         Returns: undefined
       }
+      _timesheet_can_amend: {
+        Args: {
+          _business_id: string
+          _employee_id: string
+          _org_id: string
+          _uid: string
+        }
+        Returns: boolean
+      }
       _timesheet_can_approve: {
         Args: { _allow_self: boolean; _employee_id: string; _uid: string }
         Returns: boolean
+      }
+      _timesheet_emit_event: {
+        Args: {
+          _branch_id?: string
+          _event_type: string
+          _idempotency_key: string
+          _org_id: string
+          _payload: Json
+          _source_doc_id: string
+          _source_doc_type: string
+        }
+        Returns: undefined
       }
       _upsert_default_account_setting: {
         Args: {
@@ -93698,6 +93719,18 @@ export type Database = {
       convert_uom: {
         Args: { p_from_uom: string; p_qty: number; p_to_uom: string }
         Returns: number
+      }
+      correct_timesheet_entry: {
+        Args: {
+          _description?: string
+          _hours?: number
+          _is_billable?: boolean
+          _project_id?: string
+          _reason: string
+          _task_id?: string
+          _timesheet_id: string
+        }
+        Returns: string
       }
       count_my_employee_drafts: {
         Args: { p_business_id: string; p_org_id: string }
@@ -105975,6 +106008,10 @@ export type Database = {
       reverse_stock_movement: {
         Args: { p_movement_id: string; p_reason?: string }
         Returns: string
+      }
+      reverse_timesheet_entry: {
+        Args: { _reason: string; _timesheet_id: string }
+        Returns: undefined
       }
       reverse_vendor_credit_note_atomic: {
         Args: {

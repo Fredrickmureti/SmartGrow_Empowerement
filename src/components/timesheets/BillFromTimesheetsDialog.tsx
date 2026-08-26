@@ -1,12 +1,15 @@
 import { normalizeError } from "@/services/resilience";
 /**
- * BillFromTimesheetsDialog — turn approved, unbilled, billable timesheets
- * for a customer into invoice lines.
+ * BillFromTimesheetsDialog — invoice approved, unbilled, billable time.
  *
- * Migrated to the WorkflowSheet pattern (HR design-system Pass 3).
+ * Ownership boundary: this dialog NEVER constructs invoices or prices hours.
+ * It previews what the server would bill and then delegates the whole
+ * operation to the `invoice_project_timesheets` RPC, which owns rate
+ * resolution, invoice numbering, line building and marking the source
+ * timesheets as invoiced inside a single transaction (with an advisory lock
+ * that makes double-billing impossible).
  */
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,19 +27,17 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useContacts } from "@/hooks/useContacts";
 import { isCustomerContact } from "@/services/finance/customerIdentity";
-import { useInvoices } from "@/hooks/useInvoices";
 import { toast } from "sonner";
 
-interface Row {
-  id: string;
-  date: string;
-  hours: number;
-  billing_rate: number;
-  billing_amount: number;
-  description: string | null;
+/** Server-side preview of what one project would bill. Display only. */
+interface ProjectGroup {
   project_id: string;
   project_name: string;
-  employee_name: string;
+  entries: number;
+  hours: number;
+  amount: number;
+  from: string;
+  to: string;
 }
 
 interface Props {
@@ -51,7 +52,6 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { contacts } = useContacts();
-  const { createInvoice } = useInvoices();
 
   const customers = useMemo(
     // The enum name is not a property on contacts — see customerIdentity.ts.
@@ -60,26 +60,28 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
   );
 
   const [selectedContact, setSelectedContact] = useState<string | null>(contactId ?? null);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [dueDate, setDueDate] = useState(format(new Date(Date.now() + 14 * 86400000), "yyyy-MM-dd"));
+  const [periodFrom, setPeriodFrom] = useState<string>("");
+  const [periodTo, setPeriodTo] = useState<string>("");
 
   useEffect(() => { setSelectedContact(contactId ?? null); }, [contactId]);
 
+  // Preview only: the same filter the RPC applies (approved, billable, not invoiced).
+  // Superseded/corrected entries are excluded because they are no longer 'approved'.
   useEffect(() => {
     if (!open) return;
-    if (!selectedContact || !currentOrg || !currentBusiness) { setRows([]); return; }
+    if (!selectedContact || !currentOrg || !currentBusiness) { setGroups([]); return; }
     let cancelled = false;
     (async () => {
       setLoading(true);
       let q: any = (supabase as any)
         .from("timesheets")
         .select(`
-          id, date, hours, billing_rate, billing_amount, description, project_id,
-          project:projects!inner(id, name, customer_id),
-          employee:employees(first_name, last_name)
+          id, date, hours, billing_amount, project_id,
+          project:projects!inner(id, name, customer_id)
         `)
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
@@ -88,49 +90,43 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
         .eq("is_invoiced", false)
         .eq("project.customer_id", selectedContact);
       if (projectId) q = q.eq("project_id", projectId);
+      if (periodFrom) q = q.gte("date", periodFrom);
+      if (periodTo) q = q.lte("date", periodTo);
       const { data, error } = await q;
       if (cancelled) return;
       if (error) {
         toast.error(normalizeError(error).message);
-        setRows([]);
+        setGroups([]);
       } else {
-        const mapped: Row[] = (data || []).map((r: any) => ({
-          id: r.id,
-          date: r.date,
-          hours: Number(r.hours || 0),
-          billing_rate: Number(r.billing_rate || 0),
-          billing_amount: Number(r.billing_amount || 0),
-          description: r.description,
-          project_id: r.project_id,
-          project_name: r.project?.name ?? "Project",
-          employee_name: r.employee ? `${r.employee.first_name} ${r.employee.last_name}` : "Unknown",
-        }));
-        setRows(mapped);
-        setPicked(new Set(mapped.map((m) => m.id)));
+        const m = new Map<string, ProjectGroup>();
+        for (const r of (data || []) as any[]) {
+          const g = m.get(r.project_id) || {
+            project_id: r.project_id,
+            project_name: r.project?.name ?? "Project",
+            entries: 0, hours: 0, amount: 0,
+            from: r.date, to: r.date,
+          };
+          g.entries += 1;
+          g.hours += Number(r.hours || 0);
+          g.amount += Number(r.billing_amount || 0);
+          if (r.date < g.from) g.from = r.date;
+          if (r.date > g.to) g.to = r.date;
+          m.set(r.project_id, g);
+        }
+        const list = Array.from(m.values());
+        setGroups(list);
+        setPicked(new Set(list.map((g) => g.project_id)));
       }
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [open, selectedContact, projectId, currentOrg?.id, currentBusiness?.id]);
+  }, [open, selectedContact, projectId, periodFrom, periodTo, currentOrg?.id, currentBusiness?.id]);
 
-  const grouped = useMemo(() => {
-    const m = new Map<string, { project_id: string; project_name: string; rate: number; hours: number; amount: number; ids: string[] }>();
-    for (const r of rows) {
-      if (!picked.has(r.id)) continue;
-      const g = m.get(r.project_id) || {
-        project_id: r.project_id, project_name: r.project_name,
-        rate: r.billing_rate, hours: 0, amount: 0, ids: [],
-      };
-      g.hours += r.hours;
-      g.amount += r.billing_amount;
-      g.ids.push(r.id);
-      m.set(r.project_id, g);
-    }
-    return Array.from(m.values());
-  }, [rows, picked]);
+  const selected = useMemo(() => groups.filter((g) => picked.has(g.project_id)), [groups, picked]);
+  const total = selected.reduce((s, g) => s + g.amount, 0);
+  const pickedEntries = selected.reduce((s, g) => s + g.entries, 0);
+  const allPicked = groups.length > 0 && picked.size === groups.length;
 
-  const total = grouped.reduce((s, g) => s + g.amount, 0);
-  const allPicked = rows.length > 0 && picked.size === rows.length;
   const togglePick = (id: string) => {
     setPicked((p) => {
       const n = new Set(p);
@@ -139,35 +135,40 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
     });
   };
   const toggleAll = () => {
-    setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)));
+    setPicked(allPicked ? new Set() : new Set(groups.map((g) => g.project_id)));
   };
 
   const handleConfirm = async () => {
-    if (!selectedContact || grouped.length === 0) return;
+    if (selected.length === 0) return;
     setSubmitting(true);
     try {
-      const items = grouped.map((g) => ({
-        description: `${g.project_name} — ${g.hours}h @ ${g.rate}`,
-        quantity: g.hours,
-        unit_price: g.rate,
-        tax_rate: 0,
-        tax_amount: 0,
-        discount_percent: 0,
-        line_total: g.amount,
-        product_id: null as any,
-      }));
-      const inv: any = await createInvoice(
-        { contact_id: selectedContact, due_date: dueDate, notes: "Generated from approved timesheets" },
-        items as any,
-      );
-      const allIds = grouped.flatMap((g) => g.ids);
-      const { error: markErr } = await (supabase as any).rpc("mark_timesheets_invoiced", {
-        _invoice_id: inv.id, _timesheet_ids: allIds,
-      });
-      if (markErr) throw markErr;
-      toast.success(`Invoice created from ${allIds.length} timesheet rows.`);
-      onInvoiced?.(inv.id);
-      onOpenChange(false);
+      const created: string[] = [];
+      const failures: string[] = [];
+      for (const g of selected) {
+        const { data, error } = await (supabase as any).rpc("invoice_project_timesheets", {
+          _project_id: g.project_id,
+          _period_from: periodFrom || g.from,
+          _period_to: periodTo || g.to,
+        });
+        if (error) {
+          failures.push(`${g.project_name}: ${normalizeError(error).message}`);
+          continue;
+        }
+        const res: any = data || {};
+        if (res.invoice_id) created.push(res.invoice_id);
+        else failures.push(`${g.project_name}: ${res.message || "nothing billable"}`);
+      }
+
+      if (created.length > 0) {
+        toast.success(
+          created.length === 1
+            ? "Invoice created from approved timesheets."
+            : `${created.length} invoices created from approved timesheets.`,
+        );
+        onInvoiced?.(created[0]);
+      }
+      if (failures.length > 0) toast.error(failures.join(" · "));
+      if (failures.length === 0) onOpenChange(false);
     } catch (e: any) {
       toast.error(normalizeError(e).message || "Failed to invoice timesheets");
     } finally {
@@ -175,22 +176,20 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
     }
   };
 
-  const pickedCount = grouped.reduce((s, g) => s + g.ids.length, 0);
-
   const footer = (
     <>
       <div className="mr-auto text-sm">
-        {grouped.length > 0 ? (
+        {selected.length > 0 ? (
           <span>
-            <span className="text-muted-foreground">Total</span>{" "}
+            <span className="text-muted-foreground">Estimated total</span>{" "}
             <span className="font-semibold">{total.toFixed(2)}</span>
-            <span className="text-muted-foreground"> · {pickedCount} entries</span>
+            <span className="text-muted-foreground"> · {pickedEntries} entries</span>
           </span>
         ) : null}
       </div>
       <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-      <Button disabled={submitting || grouped.length === 0 || !selectedContact} onClick={handleConfirm}>
-        {submitting ? "Creating…" : `Create invoice (${pickedCount})`}
+      <Button disabled={submitting || selected.length === 0} onClick={handleConfirm}>
+        {submitting ? "Creating…" : `Create invoice${selected.length > 1 ? "s" : ""} (${selected.length})`}
       </Button>
     </>
   );
@@ -201,10 +200,10 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
       onOpenChange={onOpenChange}
       size="xl"
       title="Bill from timesheets"
-      description="Create an invoice for approved, unbilled hours. One line per project."
+      description="One invoice per project, built and priced on the server from approved, unbilled hours."
       footer={footer}
     >
-      <WorkflowSheetSection number={1} title="Invoice target" subtitle="Who you're invoicing and when it's due.">
+      <WorkflowSheetSection number={1} title="Invoice target" subtitle="Who you're invoicing and which period to bill.">
         <WorkflowSheetGrid>
           <WorkflowField label="Customer" required>
             <Select value={selectedContact ?? ""} onValueChange={setSelectedContact}>
@@ -216,19 +215,22 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
               </SelectContent>
             </Select>
           </WorkflowField>
-          <WorkflowField label="Due date">
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <WorkflowField label="Period from">
+            <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+          </WorkflowField>
+          <WorkflowField label="Period to">
+            <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
           </WorkflowField>
         </WorkflowSheetGrid>
       </WorkflowSheetSection>
 
       <WorkflowSheetSection
         number={2}
-        title="Billable entries"
-        subtitle="Pick the approved unbilled hours to include."
+        title="Projects to bill"
+        subtitle="Approved unbilled hours, grouped by project. Rates and invoice lines are resolved by the server."
         fullWidth
         right={
-          rows.length > 0 ? (
+          groups.length > 0 ? (
             <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={toggleAll}>
               {allPicked ? "Deselect all" : "Select all"}
             </Button>
@@ -242,40 +244,29 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
             </div>
           ) : !selectedContact ? (
             <p className="text-sm text-muted-foreground p-4">Pick a customer to load billable hours.</p>
-          ) : rows.length === 0 ? (
+          ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground p-4">No approved unbilled hours for this customer.</p>
           ) : (
             <ul className="divide-y">
-              {rows.map((r) => (
-                <li key={r.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                  <Checkbox checked={picked.has(r.id)} onCheckedChange={() => togglePick(r.id)} />
-                  <span className="font-mono text-xs w-24 shrink-0">{r.date}</span>
-                  <span className="flex-1 truncate">{r.project_name} — {r.employee_name}</span>
-                  <Badge variant="outline">{r.hours}h</Badge>
-                  <span className="w-20 text-right tabular-nums">{r.billing_amount.toFixed(2)}</span>
+              {groups.map((g) => (
+                <li key={g.project_id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <Checkbox checked={picked.has(g.project_id)} onCheckedChange={() => togglePick(g.project_id)} />
+                  <span className="flex-1 truncate">{g.project_name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{g.from} → {g.to}</span>
+                  <Badge variant="outline">{g.hours}h</Badge>
+                  <span className="w-20 text-right tabular-nums">{g.amount.toFixed(2)}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
+        {groups.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Amounts shown are an estimate from stored billing snapshots. The invoice total is
+            computed by the server at the moment of billing.
+          </p>
+        )}
       </WorkflowSheetSection>
-
-      {grouped.length > 0 && (
-        <WorkflowSheetSection number={3} title="Summary" subtitle="One invoice line per project." fullWidth>
-          <div className="rounded-md border divide-y text-sm">
-            {grouped.map((g) => (
-              <div key={g.project_id} className="flex justify-between px-3 py-2">
-                <span>{g.project_name} · {g.hours}h @ {g.rate}</span>
-                <span className="font-medium tabular-nums">{g.amount.toFixed(2)}</span>
-              </div>
-            ))}
-            <div className="flex justify-between px-3 py-2 font-semibold bg-muted/30">
-              <span>Total</span>
-              <span className="tabular-nums">{total.toFixed(2)}</span>
-            </div>
-          </div>
-        </WorkflowSheetSection>
-      )}
     </WorkflowSheet>
   );
 }
