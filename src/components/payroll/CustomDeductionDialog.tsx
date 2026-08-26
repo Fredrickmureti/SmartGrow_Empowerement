@@ -49,9 +49,12 @@ const METHODS: { value: CustomDeductionComputationMethod; label: string }[] = [
   { value: "formula",              label: "Formula (advanced — deferred)" },
 ];
 
+const NONE = "__none__";
+
 export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
   const { create, update } = useCustomDeductionTypeMutations();
   const { accounts = [] } = useAccounts();
+  const { data: components = [] } = usePackSchemeComponents();
 
   const [form, setForm] = useState<CustomDeductionTypeInput>({
     code: "",
@@ -70,6 +73,7 @@ export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
     requires_approval: false,
     is_active: true,
     payroll_rule_code: null,
+    scheme_component_id: null,
   });
 
   useEffect(() => {
