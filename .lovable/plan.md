@@ -1,107 +1,106 @@
-# Currency Architecture Remediation — authoritative status
+# Currency & FX — handover verification verdict, then Phase 9
 
 Baseline audit: `docs/audits/currency-architecture-audit.md`.
-This file is the single source of truth for where the remediation stands.
+Predecessor status file: `.lovable/plan.md` (superseded by this document).
 
-## Phase status
+## A. What the previous work actually established (verified, not assumed)
 
-| Phase | Scope | Status |
-| --- | --- | --- |
-| 1–5 | FX engine, rate resolution, stamping, transactional documents | Done (verified in earlier waves) |
-| 6 | Fixed assets: DB currency + rate stamping, depreciation/GL on base amounts | Done, verified |
-| 6 | Fixed assets UI: list, depreciation report, create/edit form, peek, schedule dialog | **Done this wave** |
-| 7 | Presentation convergence (D12, D14): one catalogue-driven formatter | **Done this wave** |
-| 8 | Currency Settings UX | **Done this wave** |
-| 9 | Regression protection: D15 revaluation concurrency, S2, architecture tests | **NEXT** |
+Checked directly against the live database and the codebase this turn:
 
-## Completed this wave
+- One rate engine is real and intact: `_pick_exchange_rate_row` → `resolve_exchange_rate`
+  → `require_exchange_rate` → `fx_stamp_document`, plus `describe_exchange_rate`.
+- Phase 3 stamping is genuinely done. Every rate-bearing transactional table now carries a
+  currency-stamping trigger: invoices, credit notes, estimates, sales orders, bills,
+  bill payments, bank transactions, POs, purchase returns, vendor credit notes,
+  RFQ quotations, landed-cost vouchers, customer refunds, procurement contracts.
+- Phase 2 rate-book integrity is done: `exchange_rates` has only `select` and `insert`
+  policies (no UPDATE, no DELETE — evidence cannot be destroyed), insert is gated by
+  `is_finance_manager`, and `_tg_exchange_rates_audit` / `_immutable` / `_write_guard`
+  triggers exist with an `exchange_rate_audit` table. S1 is closed.
+- Phase 5 lifecycle is done: `business_currency_readiness` and
+  `change_business_base_currency` exist; the journal-entry hard lock is untouched.
+- Phase 4 coverage is done: `fx_rate_coverage` / `fx_rate_coverage_summary` exist and are
+  read by `useFxRateCoverage.ts` + `FxRateCoverageCard.tsx` (read-only, no client math).
+- Phase 6/7 code is present and typechecks clean (`tsgo --noEmit` passes):
+  fixed-asset currency UI, `src/lib/currency/catalogue.ts` and its edge mirror.
 
-### Phase 6 completion — fixed-asset UI
-- `AssetFormBody.tsx` carries a `currency` field with a catalogue-driven selector
-  (enabled business currencies, defaulting to base) and an `acquisitionLocked` mode.
-- `AssetCreatePage.tsx` / `AssetEditPage.tsx` send `currency` only — never a rate,
-  never a base amount; the trigger stamps those. Edit freezes the acquisition
-  measurement once the asset is depreciated or disposed, and explains why.
-- `assetCurrencyError.ts` turns the `23514` "no exchange rate on file" refusal and the
-  immutability refusals into actionable finance-user messages.
-- `src/pages/FixedAssets.tsx`: KPI totals `base_purchase_price`; per-row purchase price
-  renders in the asset's own currency with the base equivalent and stamped rate.
-- `src/pages/reports/DepreciationReport.tsx`: selects and totals
-  `base_purchase_price` / `base_residual_value` — a base-currency report throughout.
+Also confirmed: `.lovable/plan/currency-architecture-remediation-implementation-tracker-2026-08-26.md`
+is **stale** (claims Phases 2–9 NOT STARTED). The database contradicts it. This file
+becomes the single source of truth; the tracker will be marked superseded, not deleted.
 
-### Phase 7 — presentation convergence
-- New catalogue as the only source of currency presentation facts:
-  `src/lib/currency/catalogue.ts` (client) and
-  `supabase/functions/_shared/format/catalogue.ts` (edge mirror). Holds ISO 4217 minor
-  units, seed symbols, `setCurrencyCatalogue` / `loadCurrencyCatalogue` hydration from
-  the `currencies` table, `getCurrencyDecimals`, `getCurrencyPrefix`,
-  `formatCurrencyDigits`.
-- Removed the hardcoded symbol map and the hardcoded 2dp policy from
-  `src/design-system/reports/format.ts`, `supabase/functions/_shared/format/currency.ts`,
-  `src/lib/reports/currencyPresentation.ts` and
-  `supabase/functions/_shared/reports/currencyPresentation.ts`. Zero-decimal (JPY, RWF)
-  and three-decimal (KWD, BHD) currencies now render correctly in reports, ledger FX
-  supplements and PDFs.
-- Hydration wired: `CurrencyContext` installs the tenant catalogue on fetch;
-  `process-scheduled-reports` and `generate-document` load it before rendering.
-- `src/pages/reports/LotTraceabilityReport.tsx` moved off `formatCurrency` onto
-  `formatAccountingNumber`, so screen and PDF agree on negatives and minor units.
-- `report-format-parity.test.ts` rewritten: asserts client/edge catalogue sections are
-  byte-identical, that no module re-introduces a private symbol map or a 2dp constant,
-  and that fixtures render with per-currency minor units.
+## B. What the verification found still open (evidence, not claim)
 
-### Verification run this wave
-- `tsgo --noEmit` clean.
-- `report-format-parity`, `reports-single-engine`, `ledger-reports-single-source`: 27/27 green.
-- Pre-existing, unrelated failures remain in the wider suite (WMS RPC grants,
-  balance-sheet statement builders returning NaN). They predate this wave and are not
-  currency-presentation defects.
+1. **Phase 1 is incomplete — two live functions still invent a 1:1 rate.**
+   `get_salesperson_performance` and `get_salesperson_performance_documents` still contain
+   `COALESCE(NULLIF(<rate>, 0), 1)`. They are consumed by `src/hooks/useSalespersonDashboard.ts`.
+   Phase 1 fixed four reporting functions and missed these two. No view carries the pattern.
+2. **D15 is only half closed.** The partial unique index exists
+   (`fx_revaluation_runs_one_open_per_period` on `(business_id, fiscal_period_id) WHERE status='posted'`),
+   but `revalue_fx_balances` contains no advisory lock, and the index does not bind when
+   `fiscal_period_id IS NULL`. Two concurrent period-less runs can still double-post.
+3. **S2 confirmed latent.** `exchange_rates_select` is
+   `user_can_access_business(auth.uid(), business_id)`, so organization-scoped rows
+   (business-null) that the server engine legitimately resolves are invisible to the client
+   mirror — the UI can show "no rate" for a rate that will in fact be stamped.
+4. **Rate-bearing tables with no stamping trigger:** `expenses`, `pos_payment_sessions`,
+   `project_cost_entries`, `project_revenue_entries`. Whether each is an accounting event
+   in a foreign currency is not yet established — this needs a read, not an assumption.
+5. **No build-level ratchet.** The architecture-test suite has no test that fails the build
+   when a new SQL object introduces `COALESCE(<rate>, 1)`, a hardcoded currency symbol, or
+   a hardcoded 2-decimal money format.
 
-## Phase 8 — Currency Settings UX (this wave)
+## C. What I will not touch
 
-Verified already present and correct in `src/components/settings/CurrencySettings.tsx`:
-- Base currency card driven by `business_currency_readiness` (ready / confirmation_required /
-  locked), changed only through `change_business_base_currency` with a mandatory reason.
-- Operating currencies via `list_business_active_currencies` / `set_business_active_currency`;
-  the base row cannot be switched off.
-- Rate book listing with provenance (source, provider key, effective and published dates),
-  append-only — no edit or delete path; corrections are new dated overrides written by
-  `set_exchange_rate_override`.
+Posted amounts, stamped rates, GL history, closed periods, the base-currency journal lock.
+No books-conversion feature. No second rate engine. No branch functional currency.
+No renames for style. No unrelated module work.
 
-Added this wave — the missing coverage indicator called for in
-`docs/finance/fx-rate-coverage.md`:
-- `src/hooks/useFxRateCoverage.ts` — read-only reader over `fx_rate_coverage_summary`.
-  No client arithmetic; every status is server-computed.
-- `src/components/settings/FxRateCoverageCard.tsx` — per-currency usage, coverage extent,
-  latest rate with provenance, uncovered-document count and status badge
-  (none / partial / stale / covered), plus provider-snapshot age and last publish time.
-- Wired into `CurrencySettings` above the Rate Book. "Record rate" opens the override
-  dialog pre-aimed at the gap (currency + earliest uncovered date); saving an override
-  refreshes both the rate book and coverage.
+## D. Plan — Phase 9, in dependency order
 
-Also corrected `src/test/architecture/fx-single-engine.test.ts`: it asserted that
-`CurrencyContext` contained a literal `source: "override"`, which stopped being true when
-the write moved to the `set_exchange_rate_override` RPC. It now asserts the RPC call and
-that the browser never inserts into `exchange_rates` directly — the stronger invariant.
+**9.0 Close the Phase 1 residue (D1 leftover).**
+Migration: replace the invented rate in `get_salesperson_performance` and
+`get_salesperson_performance_documents` with the existing `fx_report_document_rate` helper,
+exclude unconvertible rows from measures and report an explicit unconvertible count —
+identical to the pattern Phase 1 already established. Update
+`useSalespersonDashboard.ts` and its dashboard consumer to render the absence, never a zero.
 
-Verification: `tsgo --noEmit` clean; `fx-single-engine` 31/31 and `currency-integrity`
-green.
+**9.1 D15 — revaluation concurrency.**
+Migration: take a transaction-scoped advisory lock keyed on
+`(business_id, run_date/fiscal_period)` at the top of `revalue_fx_balances`, and the same
+key in `reverse_fx_revaluation_run` so a reversal cannot interleave with a run. Keep the
+partial unique index and extend the guard to cover period-less runs. Behaviour on
+contention: refuse with an explicit "a revaluation is already running" error — never queue,
+never post twice.
 
-## Next: Phase 9 — regression protection
-- D15: revaluation concurrency (`revalue_fx_balances` / `reverse_fx_revaluation_run`
-  must not interleave into double postings).
-- S2 from the audit.
-- Architecture tests that fail the build if any new module hardcodes a currency symbol,
-  a decimal count, or a `COALESCE(rate, 1)`.
+**9.2 S2 — organization-scoped rate visibility.**
+Widen `exchange_rates_select` so a member can read the organization-scoped rows that apply
+to their business (read-only; insert stays finance-manager-gated). Verify the client mirror
+then shows the same rate the server would stamp.
 
-## Instructions for the next agent
-1. **Verify before continuing.** Confirm, do not assume: catalogue hydration fires in
-   both runtimes (client context and both edge functions), no module has re-added a
-   symbol map or `minimumFractionDigits: 2` for money, the fixed-asset form still cannot
-   send a rate or a base amount, and Currency Settings writes rates only through
-   `set_exchange_rate_override` while reading coverage only from
-   `fx_rate_coverage_summary`.
-2. Then resume at **Phase 9** — do not jump to unrelated modules.
-3. Keep the invariants: one FX engine, no client-side conversion, no
-   `COALESCE(rate, 1)`, formatting never inside arithmetic, stamped rates immutable.
-4. Update this file at the end of each wave so it stays authoritative.
+**9.3 Establish the four unstamped tables.**
+Read each write path (`expenses`, `pos_payment_sessions`, `project_cost_entries`,
+`project_revenue_entries`) and decide per table: it is base-currency-only by construction
+(document it and add a check), or it is a foreign-currency accounting event (add the
+`fx_stamp_document` trigger + posted-immutability guard). No trigger added speculatively.
+
+**9.4 Currency-disable guard.**
+Confirm server-side that `set_business_active_currency` refuses to disable a currency with
+open AR/AP, a bank account, or an unposted draft in that currency; add the refusal if it is
+missing. Deactivation semantics only — never deletion.
+
+**9.5 The ratchet (regression protection).**
+New architecture tests, run against pg catalog snapshots and the source tree:
+no `COALESCE(<rate>, 1)` in any `pg_proc` body or view definition; every rate-bearing table
+either has a stamping trigger or is on a documented base-currency-only allowlist; every
+currency/rate table write policy carries a role predicate; no module re-introduces a private
+currency-symbol map or a hardcoded money decimal count.
+
+Each step: smallest coherent change, targeted validation, then this file updated.
+
+## E. Technical notes
+
+Migrations use `CREATE OR REPLACE FUNCTION` with `SET search_path = public` and preserve
+existing grants. No table in `public` is created without matching `GRANT` statements.
+Validation per step: `tsgo --noEmit`, the relevant `src/test/architecture` suites
+(`fx-single-engine`, `currency-integrity`, `report-format-parity`), and before/after SQL
+totals proving that documents which already have a rate report identically.
