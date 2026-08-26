@@ -24,14 +24,14 @@ Last updated: 2026-08-26.
 | 1 | Stop silent 1:1 in reporting (D1) | **DONE — verified** |
 | 2 | Rate-book integrity and privilege (D4, D5, S1) | **DONE — verified** |
 | 3 | Close the stamping gaps (D2, D3, D9, D10, D11) | **DONE — verified at runtime** |
-| 4 | Rate coverage and history (D8) | **NEXT** |
-| 5 | Base-currency lifecycle (D13, U1, U2) | Pending |
+| 4 | Rate coverage and history (D8) | **DONE — verified at runtime** |
+| 5 | Base-currency lifecycle (D13, U1, U2) | **NEXT** |
 | 6 | Non-monetary assets and budgets (D6, D7) | Pending |
 | 7 | Presentation convergence (D12, D14) | Pending |
 | 8 | Currency Settings UX (U3–U9) | Pending |
 | 9 | Regression protection (D15, S2) | Pending |
 
-Currently active phase: **Phase 4** (Phase 3 completed and runtime-verified 2026-08-26).
+Currently active phase: **Phase 5** (Phase 4 completed and runtime-verified 2026-08-26).
 
 ---
 
@@ -155,18 +155,58 @@ attached. Typecheck clean. Security linter 3685 vs the 3684 baseline — the sin
 `is_finance_manager` internally. The four pre-existing document stamp functions were kept
 `SECURITY INVOKER` and the new internal trigger functions have `EXECUTE` revoked from
 `anon`/`authenticated`.
+### Phase 4 — Rate coverage and history (D8) — DONE 2026-08-26
+
+**Was.** Nothing reported rate coverage. A business could not see which currencies it actually
+transacts in, when its rate book starts, how old the provider snapshot is, or how many documents
+fall before coverage. `publish_platform_rates` returned an inflated count (it incremented for
+every candidate pair, including the ones `ON CONFLICT DO NOTHING` skipped), so the cron job's
+return value was not usable as a health signal. The retention and publishing policy, and the
+policy for dates before coverage, were undocumented.
+
+**Now.**
+- `fx_rate_coverage(business_id)` — read-only, one row per foreign currency actually used across
+  invoices, bills, vendor payments, bank transactions, estimates, sales orders, purchase orders,
+  credit notes, customer refunds and expenses: `first_used_on`, `last_used_on`, `document_count`,
+  `coverage_start`, `latest_rate_date`, `rate_dates`, the currently effective `latest_rate` and
+  `latest_source` (through `_pick_exchange_rate_row`, the one engine), `uncovered_documents`, and
+  `status` in `none | partial | stale | covered`.
+- `fx_rate_coverage_summary(business_id)` — the coverage indicator payload: base currency,
+  `provider_snapshot_as_of`, `provider_snapshot_age_days`, `last_published_at`, counts of
+  currencies with no rate / partial coverage / stale coverage, total documents before coverage,
+  and the full per-currency array.
+- Both are `SECURITY DEFINER` with a fixed search path, refuse callers without company access
+  (`42501`), are revoked from `anon` and granted to `authenticated` only, and never write.
+- `publish_platform_rates` now counts only rows actually recorded (`GET DIAGNOSTICS ROW_COUNT`);
+  it remains idempotent via `exchange_rates_scope_unique`. No other behaviour changed.
+- `docs/finance/fx-rate-coverage.md` documents the pipeline, the publishing schedule
+  (`publish-fx-rates`, `5,35 * * * *`), indefinite rate retention (rates are evidence and are
+  never purged; corrections are new dated rows), coverage reporting, and the pre-coverage policy:
+  refusal with `23514`, then a dated override with a mandatory reason, then stamping.
+
+**Deliberately not done — no invented history.** Provider history was *not* back-filled to each
+business's earliest transaction date. `platform_exchange_rates` holds only a current USD snapshot,
+so writing it under earlier dates would fabricate evidence and silently re-value history. Coverage
+starts when the business first published or recorded a rate; earlier dates are handled by the
+documented dated-override path. No stamped rate, posted amount or closed period was touched.
+
+**Verified at runtime** (self-cancelling transactions, all test rows discarded): a EUR bank
+transaction dated 2026-08-20 produced `first_used=2026-08-20 docs=1 cov=2026-08-12..2026-08-26
+uncovered=0 status=covered`; the same insert dated 2026-07-01 — before coverage — was refused with
+`23514 No exchange rate on file for EUR -> KES on 2026-07-01`, which is the pre-coverage policy
+working end to end; a repeat `publish_platform_rates()` returned `0` (previously it would have
+returned 14 per business); `provider_snapshot_age_days = 124`. Grants confirmed:
+`anon` cannot execute either new function, `authenticated` can, `publish_platform_rates` stays
+closed to both. Security linter 3687 — the +2 against the Phase 3 figure is exactly the two new
+`authenticated`-callable definer functions, both of which enforce company access internally.
+
+
 
 
 
 ---
 
 ## Pending work
-
-### Phase 4 — Rate coverage and history (D8)
-Backfill provider history to each business's earliest transaction date; documented
-retention/publishing schedule; coverage indicator; documented policy for dates before
-coverage (recommended: dated override with a mandatory reason — now enforced by Phase 2).
-Never invent a rate.
 
 ### Phase 5 — Base-currency lifecycle (D13, U1, U2)
 `business_currency_readiness(business_id)` returning lifecycle state and every blocker;
@@ -211,6 +251,15 @@ open balances.
   verified structurally from the catalog, not by executing a rejected DML as each role.
 - `exchange_rate_audit` has no UI consumer until Phase 8.
 - `fx_stamped_rate_review` has no UI consumer yet; surface it with the Phase 8 rate-book drill-down.
+- `fx_rate_coverage` / `fx_rate_coverage_summary` have no UI consumer yet — the coverage indicator
+  is Phase 8 work. The functions are ready and stable.
+- **Operational, not code:** the provider snapshot in `platform_exchange_rates` is 124 days old
+  (last refresh 2026-04-24) because `provider-run` is invoked on demand only and no provider
+  credentials appear to be configured. `publish_platform_rates` therefore republishes an ageing
+  snapshot as today's rate. Configure provider credentials and schedule `provider-run`; the new
+  `provider_snapshot_age_days` field exposes this. Needs the user's provider account.
+- Coverage for every business starts at the first published rate (2026-08-12 here); documents
+  dated earlier are refused until a finance manager records a dated override with a reason.
 - Legacy `rfq_quotations` rows predating Phase 3 may still hold a null `exchange_rate`; they are
   left untouched (no history rewrite) and re-stamp on their next edit.
 - The Phase 3 posted-document guards match `journal_entries.source_type` values
@@ -219,20 +268,33 @@ open balances.
 
 ## Instructions for the next agent
 
-1. **Verify before you build.** Confirm Phases 1 and 2 are genuinely complete and
-   enterprise-grade before writing anything new:
-   - No `COALESCE(<rate>, 1)` remains in the four reporting functions; `fx_report_document_rate`
-     is `IMMUTABLE` with a fixed search path.
+1. **Verify before you build.** Confirm Phases 1–4 are genuinely complete and enterprise-grade
+   before writing anything new. Check the catalog, not this log:
+   - No `COALESCE(<rate>, 1)` in any reporting function; `fx_report_document_rate` is `IMMUTABLE`
+     with a fixed search path.
    - `exchange_rates` has no UPDATE/DELETE policy and `authenticated` holds no UPDATE/DELETE
-     privilege; the three triggers are attached; `exchange_rate_audit` is read-only to finance
-     managers and closed to `anon`.
-   - Ideally run an authenticated smoke test: open Sales Reports and Purchase Reports, record an
-     override from Currency Settings (a reason is now mandatory), and confirm an
-     `exchange_rate_audit` row appears with actor, reason and prior value.
-2. **Then resume at Phase 3**, in the order listed above. Do not jump to a later phase or to
-   unrelated work.
+     privilege; the normalize/immutable/write-guard/audit triggers are attached;
+     `exchange_rate_audit` is readable by finance managers only and closed to `anon`.
+   - All nine stamping triggers are attached (`bill_payments`, `bank_transactions`,
+     `rfq_quotations`, invoices, bills, estimates, sales orders, purchase orders,
+     customer refunds); `bank_transactions.exchange_rate` and `bill_payments.currency_rate` carry
+     no `DEFAULT 1`; `bill_payments.currency` is `NOT NULL`.
+   - `fx_rate_coverage`, `fx_rate_coverage_summary` and `fx_stamped_rate_review` are
+     `authenticated`-only, enforce company access internally, and write nothing.
+   - Re-verify with self-cancelling transactions (insert, assert, `RAISE EXCEPTION` to roll back);
+     never leave test rows behind.
+   - Ideally also run one authenticated smoke test: open Sales and Purchase Reports, record an
+     override from Currency Settings (a reason is mandatory) and confirm the
+     `exchange_rate_audit` row carries actor, reason and prior value.
+2. **Then resume at Phase 5 — Base-currency lifecycle (D13, U1, U2).** Do not jump to a later
+   phase, do not start UI work that belongs to Phase 8, and do not touch unrelated areas.
+   Phase 5 scope, unchanged: `business_currency_readiness(business_id)` returning lifecycle state
+   and every blocker; an audited change RPC that re-stamps drafts in the same transaction while
+   the change is still permitted; remove the dead duplicate
+   `enforce_business_currency_immutable`. The journal-entry hard lock does not change.
 3. **Working protocol per phase.** Read only that phase's audit section; enumerate the exact
    objects involved; inspect only those; before editing, state current behaviour, why it is
    defective, what changes, what explicitly does not, and which invariants hold; make the
-   smallest coherent change; validate; then update **this file** immediately — status table,
-   completed-work entry, residual risks and the next milestone.
+   smallest coherent change; validate at runtime; then update **this file** immediately — status
+   table, completed-work entry, residual risks and the next milestone. Bring each phase to a
+   coherent, production-ready state before moving on; never leave a half-wired workflow.
