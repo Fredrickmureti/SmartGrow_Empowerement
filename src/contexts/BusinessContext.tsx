@@ -260,7 +260,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const switchBusiness = useCallback(async (businessId: string) => {
     if (!currentOrg) return;
     if (!businessId) {
-      throw new Error("switchBusiness requires a valid company id. The legacy 'All Companies' pseudo-mode no longer exists — see /reports/consolidation for cross-company aggregation.");
+      throw new Error("switchBusiness requires a valid company id. The legacy 'All Companies' pseudo-mode no longer exists — see /finance/reports/cross-company for cross-company comparison.");
     }
     const business = businesses.find((b) => b.id === businessId);
     if (!business) return;

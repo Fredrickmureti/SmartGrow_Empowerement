@@ -29,6 +29,8 @@ import { InventoryReconciliationCard } from "@/components/finance/InventoryRecon
 import { FinanceAccountingControls } from "@/components/finance/FinanceAccountingControls";
 import { DefaultAccountsConfig } from "@/components/finance/DefaultAccountsConfig";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
+import { ConsolidationGroupsSettings } from "@/components/settings/ConsolidationGroupsSettings";
+
 
 interface Account {
   id: string;
@@ -125,6 +127,12 @@ export default function FinanceSettings() {
             and detail-type eligibility is enforced per role — same engine
             used by the `apply-default-mappings` edge function. */}
         <DefaultAccountsConfig />
+
+        {/* Consolidation group structure (Brick 1). Configuration only — no
+            consolidated figures are produced here. Write actions are hidden
+            for roles the RLS write policy would refuse. */}
+        <ConsolidationGroupsSettings />
+
 
         {/* Only after the company context has settled — a company that is
             still loading is NOT "no company selected". */}
