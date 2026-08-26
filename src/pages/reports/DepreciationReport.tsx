@@ -83,7 +83,9 @@ function DepreciationReportInner() {
       let q = supabase
         .from("fixed_assets")
         .select(`
-          id, asset_number, name, purchase_date, purchase_price, residual_value,
+          id, asset_number, name, purchase_date,
+          purchase_price, residual_value, currency, acquisition_exchange_rate,
+          base_purchase_price, base_residual_value,
           depreciation_method, useful_life_years, accumulated_depreciation,
           book_value, status, branch_id,
           asset_categories(name)
