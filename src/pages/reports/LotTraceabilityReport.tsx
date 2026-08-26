@@ -33,6 +33,7 @@ import {
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
+import { formatAccountingNumber } from "@/design-system/reports/format";
 import { DollarSign, AlertTriangle, ShieldAlert } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -73,7 +74,7 @@ function LotTraceabilityReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
-  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
+  const { baseCurrency, isReady: currencyReady } = useCurrency();
 
   const [asOf, setAsOf] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [lotNumber, setLotNumber] = useState("");
@@ -180,7 +181,7 @@ function LotTraceabilityReportInner() {
               receiptNumber: r.receipt_number,
               expiryDate: r.expiry_date,
               lotStatus: r.lot_status,
-              valueLabel: formatCurrency(Number(r.total_value ?? 0), baseCurrency),
+              valueLabel: formatAccountingNumber(Number(r.total_value ?? 0), baseCurrency),
             })
         : undefined,
     }));
@@ -210,7 +211,7 @@ function LotTraceabilityReportInner() {
       },
     });
     return detail;
-  }, [rows, totals, bizId, formatCurrency, baseCurrency]);
+  }, [rows, totals, bizId, baseCurrency]);
 
   /**
    * Server-built export: the same reportType + as-of + dimensions send
@@ -315,7 +316,7 @@ function LotTraceabilityReportInner() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(totals.totalValue, baseCurrency)}
+                {formatAccountingNumber(totals.totalValue, baseCurrency)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Same cost-layer basis as Inventory Valuation
@@ -329,7 +330,7 @@ function LotTraceabilityReportInner() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(totals.expiringValue, baseCurrency)}
+                {formatAccountingNumber(totals.expiringValue, baseCurrency)}
               </div>
               <p className="text-xs text-muted-foreground">Expired or expiring within 30 days</p>
             </CardContent>
@@ -341,7 +342,7 @@ function LotTraceabilityReportInner() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(totals.blockedValue, baseCurrency)}
+                {formatAccountingNumber(totals.blockedValue, baseCurrency)}
               </div>
               <p className="text-xs text-muted-foreground">Quarantined or recalled lots</p>
             </CardContent>

@@ -22,6 +22,7 @@
  */
 
 import type { ReportColumn } from "../reportPdfGenerator.ts";
+import { formatCurrencyDigits } from "../format/catalogue.ts";
 
 /** Row keys the ledger documents use for the FX supplement. */
 export const FX_KEYS = {
@@ -81,11 +82,10 @@ export function formatDocumentAmount(
   const credit = num(line.originalCredit);
   const amount = debit && debit !== 0 ? debit : credit && credit !== 0 ? credit : null;
   if (amount === null) return "";
-  const formatted = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(amount));
-  return `${(line.entryCurrency as string).toUpperCase()} ${formatted}`;
+  // Minor units come from the currency catalogue, so a JPY supplement never
+  // gains phantom cents from the base currency's two decimals.
+  const code = (line.entryCurrency as string).toUpperCase();
+  return `${code} ${formatCurrencyDigits(amount, code)}`;
 }
 
 /** The rate used to translate the document into base currency, or null. */

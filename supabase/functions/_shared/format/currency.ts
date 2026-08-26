@@ -7,27 +7,37 @@
  *   - Payroll PDFs
  *
  * Rules:
- *   - Currency symbol prefixes the value.
+ *   - Currency symbol prefixes the value; alphabetic symbols keep a space.
  *   - Negatives render in parentheses (accounting convention).
- *   - Two fraction digits, en-US grouping.
+ *   - Fraction digits come from the currency catalogue (`public.currencies`,
+ *     falling back to ISO 4217 minor units) — NOT a hardcoded 2. A JPY or RWF
+ *     figure prints as a whole-unit amount.
+ *
+ * Symbols and minor units live in `./catalogue.ts`, which mirrors the client
+ * catalogue in `src/lib/currency/catalogue.ts`.
  */
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "¥",
-  KES: "KES ", KSH: "KSh ", UGX: "UGX ", TZS: "TZS ", NGN: "₦",
-  ZAR: "R", GHS: "GH₵", INR: "₹", AUD: "A$", CAD: "C$",
-  CHF: "CHF ", SEK: "kr ", NOK: "kr ", DKK: "kr ",
-  BRL: "R$", MXN: "MX$", ARS: "ARS ", COP: "COP ",
-  AED: "AED ", SAR: "SAR ", QAR: "QAR ", KWD: "KD ",
-  SGD: "S$", HKD: "HK$", NZD: "NZ$", PHP: "₱", THB: "฿",
-  MYR: "RM ", IDR: "Rp ", VND: "₫", KRW: "₩", TWD: "NT$",
-  EGP: "E£", MAD: "MAD ", XOF: "CFA ", XAF: "FCFA ",
-  RWF: "RF ", ETB: "Br ", BWP: "P", MWK: "MK ", ZMW: "ZK ",
-};
+import {
+  formatCurrencyDigits,
+  getCurrencyDecimals,
+  getCurrencyPrefix,
+  getCurrencySymbolRaw,
+} from "./catalogue.ts";
 
+export {
+  getCurrencyDecimals,
+  loadCurrencyCatalogue,
+  setCurrencyCatalogue,
+} from "./catalogue.ts";
+
+/** Symbol as printed, including its separating space where applicable. */
 export function getCurrencySymbol(code?: string): string {
-  if (!code) return "";
-  return CURRENCY_SYMBOLS[code.toUpperCase()] || `${code.toUpperCase()} `;
+  return getCurrencyPrefix(code);
+}
+
+/** Bare symbol with no spacing — for headers and column captions. */
+export function getCurrencyGlyph(code?: string): string {
+  return getCurrencySymbolRaw(code);
 }
 
 /**
@@ -44,17 +54,13 @@ function coerceFinite(value: unknown): number {
 
 /**
  * Accountant-grade number formatting.
- * Negative: (KES 1,234.56)
- * Positive: KES 1,234.56
+ * Negative: (KSh 1,234.56)
+ * Positive: KSh 1,234.56
  */
 export function formatAccountingNumber(value: number, currencyCode?: string): string {
-  const symbol = getCurrencySymbol(currencyCode);
+  const symbol = getCurrencyPrefix(currencyCode);
   const safe = coerceFinite(value);
-  const absVal = Math.abs(safe);
-  const formatted = absVal.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const formatted = formatCurrencyDigits(safe, currencyCode);
   if (safe < 0) {
     return `(${symbol}${formatted})`;
   }
@@ -63,12 +69,17 @@ export function formatAccountingNumber(value: number, currencyCode?: string): st
 
 /**
  * Plain amount (no currency symbol). Negatives keep a minus sign.
- * Used for line totals inside sales documents that already show currency in headers.
+ * Used for line totals inside sales documents that already show currency in
+ * headers. The currency code is optional but should be passed when known, so
+ * zero-decimal currencies do not gain phantom cents.
  */
-export function formatAmount(value: number): string {
-  return coerceFinite(value).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+export function formatAmount(value: number, currencyCode?: string): string {
+  const safe = coerceFinite(value);
+  const digits = formatCurrencyDigits(safe, currencyCode);
+  return safe < 0 ? `-${digits}` : digits;
 }
 
+/** Minor units, re-exported for renderers that need to align columns. */
+export function currencyDecimals(code?: string): number {
+  return getCurrencyDecimals(code);
+}

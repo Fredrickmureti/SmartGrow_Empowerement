@@ -10,7 +10,9 @@
  * read `-KES 1,234` on screen and `(KES 1,234.00)` in its own PDF.
  *
  * Rules (identical to the PDF engine):
- *   - currency: `KES 1,234.56`, negatives in parentheses `(KES 1,234.56)`
+ *   - currency: `KSh 1,234.56`, negatives in parentheses `(KSh 1,234.56)`
+ *   - fraction digits come from the currency catalogue (ISO minor units),
+ *     never a hardcoded 2 — JPY/RWF print whole units
  *   - number:   en-US grouping, no forced decimals
  *   - percent:  one fraction digit + `%`
  *   - empty / null / undefined / "" → em dash `—`
@@ -19,42 +21,32 @@
  * asserts this file and the edge formatter agree on a shared fixture set.
  */
 
+import {
+  formatCurrencyDigits,
+  getCurrencyDecimals,
+  getCurrencyPrefix,
+} from "@/lib/currency/catalogue";
+
 export const EMPTY_CELL = "—";
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "¥",
-  KES: "KES ", KSH: "KSh ", UGX: "UGX ", TZS: "TZS ", NGN: "₦",
-  ZAR: "R", GHS: "GH₵", INR: "₹", AUD: "A$", CAD: "C$",
-  CHF: "CHF ", SEK: "kr ", NOK: "kr ", DKK: "kr ",
-  BRL: "R$", MXN: "MX$", ARS: "ARS ", COP: "COP ",
-  AED: "AED ", SAR: "SAR ", QAR: "QAR ", KWD: "KD ",
-  SGD: "S$", HKD: "HK$", NZD: "NZ$", PHP: "₱", THB: "฿",
-  MYR: "RM ", IDR: "Rp ", VND: "₫", KRW: "₩", TWD: "NT$",
-  EGP: "E£", MAD: "MAD ", XOF: "CFA ", XAF: "FCFA ",
-  RWF: "RF ", ETB: "Br ", BWP: "P", MWK: "MK ", ZMW: "ZK ",
-};
-
+/** Symbol as printed, including its separating space (`KSh `, `$`). */
 export function getCurrencySymbol(code?: string | null): string {
-  if (!code) return "";
-  return CURRENCY_SYMBOLS[code.toUpperCase()] || `${code.toUpperCase()} `;
+  return getCurrencyPrefix(code);
 }
 
-/** `KES 1,234.56` / `(KES 1,234.56)` — the accounting convention. */
+/** Minor units for a currency, catalogue-driven (JPY 0, KWD 3, default 2). */
+export { getCurrencyDecimals };
+
+/** `KSh 1,234.56` / `(KSh 1,234.56)` — the accounting convention. */
 export function formatAccountingNumber(value: number, currencyCode?: string | null): string {
   const symbol = getCurrencySymbol(currencyCode);
-  const formatted = Math.abs(value).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const formatted = formatCurrencyDigits(value, currencyCode);
   return value < 0 ? `(${symbol}${formatted})` : `${symbol}${formatted}`;
 }
 
 /** Amount with no symbol; negatives still parenthesised. */
-export function formatAccountingAmount(value: number): string {
-  const formatted = Math.abs(value).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+export function formatAccountingAmount(value: number, currencyCode?: string | null): string {
+  const formatted = formatCurrencyDigits(value, currencyCode);
   return value < 0 ? `(${formatted})` : formatted;
 }
 
@@ -101,7 +93,7 @@ export function formatReportValue(
       case "currency":
         return formatAccountingNumber(value, currency);
       case "amount":
-        return formatAccountingAmount(value);
+        return formatAccountingAmount(value, currency);
       case "number":
         return formatReportNumber(value);
       case "percent":
