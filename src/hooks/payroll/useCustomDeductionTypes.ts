@@ -56,6 +56,14 @@ export interface CustomDeductionType {
    * `custom_<code>` fallback.
    */
   payroll_rule_code: string | null;
+  /**
+   * Optional binding to a localization-pack `statutory_scheme_components`
+   * row. Set together with `payroll_rule_code` when this deduction represents
+   * a pack-published scheme component (e.g. Kenya HELB, NSSF Type-105). It is
+   * what makes the deduction remittable to the scheme's external authority
+   * and eligible for that scheme's statutory return.
+   */
+  scheme_component_id: string | null;
 }
 
 export type CustomDeductionTypeInput = Omit<
