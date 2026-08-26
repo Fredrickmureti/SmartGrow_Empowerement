@@ -60,3 +60,44 @@ export function useBusinessCurrencies() {
     refresh: fetchCurrencies,
   };
 }
+
+/**
+ * Same contract as `useBusinessCurrencies`, for an explicitly chosen company
+ * rather than the currently selected one. Needed wherever a form names the
+ * company it is configuring (e.g. a consolidation group's parent), because the
+ * enabled-currency rule is enforced per company in the database.
+ */
+export function useBusinessCurrenciesFor(businessId: string | null | undefined) {
+  const [currencies, setCurrencies] = useState<BusinessCurrency[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!businessId) {
+      setCurrencies([]);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    void supabase
+      .rpc("list_business_active_currencies", { _business_id: businessId })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Error loading company currencies:", error);
+          setCurrencies([]);
+        } else {
+          setCurrencies(
+            ((data ?? []) as BusinessCurrency[]).filter((c) => c.is_enabled !== false),
+          );
+        }
+        setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
+
+  return { currencies, isLoading };
+}
+
