@@ -9962,6 +9962,70 @@ export type Database = {
           },
         ]
       }
+      consolidation_group_change_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          after_state: Json | null
+          before_state: Json | null
+          business_id: string | null
+          created_at: string
+          entity: string
+          group_id: string
+          id: string
+          member_id: string | null
+          organization_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          business_id?: string | null
+          created_at?: string
+          entity: string
+          group_id: string
+          id?: string
+          member_id?: string | null
+          organization_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          business_id?: string | null
+          created_at?: string
+          entity?: string
+          group_id?: string
+          id?: string
+          member_id?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_group_change_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_change_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_change_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consolidation_group_members: {
         Row: {
           business_id: string
