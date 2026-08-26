@@ -95,13 +95,21 @@ export default function ProjectsConfiguration() {
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [newName, setNewName] = useState("");
 
-  // Pricing form state (mirrors selected project)
+  // Pricing form state (mirrors selected project). `is_billable` is NOT a
+  // separate decision — it is derived from the pricing model, so the two can
+  // never contradict each other.
   const [pricingType, setPricingType] = useState<string>("non_billable");
-  const [isBillable, setIsBillable] = useState(false);
   const [allowTimesheets, setAllowTimesheets] = useState(true);
   const [hourlyRate, setHourlyRate] = useState<string>("");
   const [currency, setCurrency] = useState<string>("");
   const [savingPricing, setSavingPricing] = useState(false);
+  const { currencies } = useCurrencies();
+
+  const pricing = useMemo(
+    () => PRICING_OPTIONS.find((o) => o.value === pricingType) ?? PRICING_OPTIONS[0],
+    [pricingType],
+  );
+
 
   useEffect(() => {
     if (!selectedProject && projects[0]) setSelectedProject(projects[0].id);
