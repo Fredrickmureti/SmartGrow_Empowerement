@@ -7,10 +7,16 @@ import { format } from "date-fns";
 import { Check, X, Clock, Calendar, User } from "lucide-react";
 import { TeamTimesheetSubmission } from "@/hooks/timesheets/useTeamTimesheets";
 import { TimesheetApprovalDialog } from "./TimesheetApprovalDialog";
+import type { TimesheetApprovalCapabilityMap } from "@/hooks/timesheets/useTimesheetApprovalCapability";
 import { TimesheetAuditPanel } from "./TimesheetAuditPanel";
 
 interface TimesheetApprovalListProps {
   submissions: TeamTimesheetSubmission[];
+  /**
+   * Server-authoritative verdict per submission (lifecycle + approval
+   * competence + Governance self-action policy). The client never derives it.
+   */
+  capabilities?: TimesheetApprovalCapabilityMap;
   onApprove: (id: string) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
   isLoading?: boolean;
@@ -18,6 +24,7 @@ interface TimesheetApprovalListProps {
 
 export function TimesheetApprovalList({
   submissions,
+  capabilities,
   onApprove,
   onReject,
   isLoading,
@@ -139,10 +146,26 @@ export function TimesheetApprovalList({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-end gap-2">
+                {capabilities?.[submission.id] &&
+                  !capabilities[submission.id].canApprove && (
+                    <Badge variant="outline" className="text-amber-600 border-amber-300">
+                      {capabilities[submission.id].reason === "self_action_blocked"
+                        ? "Blocked by Governance"
+                        : "Approval not permitted"}
+                    </Badge>
+                  )}
+                {capabilities?.[submission.id]?.requiresOverride &&
+                  capabilities[submission.id].canApprove && (
+                    <Badge variant="outline" className="text-amber-600 border-amber-300">
+                      Governance exception in effect
+                    </Badge>
+                  )}
+                <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={capabilities?.[submission.id]?.canApprove === false}
                   className="text-green-600 hover:text-green-700 hover:bg-green-50"
                   onClick={() => handleApprove(submission)}
                 >
@@ -158,6 +181,7 @@ export function TimesheetApprovalList({
                   <X className="h-4 w-4 mr-1" />
                   Reject
                 </Button>
+                </div>
               </div>
             </div>
           ))}
