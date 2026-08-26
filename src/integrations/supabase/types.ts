@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      __ts_wave5_results: {
+        Row: {
+          id: string
+          ran_at: string
+          result: Json
+        }
+        Insert: {
+          id?: string
+          ran_at?: string
+          result: Json
+        }
+        Update: {
+          id?: string
+          ran_at?: string
+          result?: Json
+        }
+        Relationships: []
+      }
       _e2e_milk_log: {
         Row: {
           at: string
@@ -88343,6 +88361,7 @@ export type Database = {
         }[]
       }
       __ts_wave5_probe: { Args: never; Returns: Json }
+      __ts_wave5_record: { Args: { _r: Json }; Returns: undefined }
       __ts_wave5_seed_ids: {
         Args: {
           _biz: string
