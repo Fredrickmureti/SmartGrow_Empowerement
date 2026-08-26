@@ -1,149 +1,66 @@
-# Timesheet Domain — Authoritative Project Status & Roadmap
+# Timesheets — Architecture Re-Audit and Controlled Migration
 
-_Last updated: 2026-08-26. This file is the single source of truth for timesheet-domain
-status. Update it after every implementation step._
+## Domain verdict (from first principles)
 
----
+A timesheet is **the authoritative record of how an employee's working time was spent against a business context** (project / task / cost object). It owns the time record and its lifecycle only. It owns nothing downstream.
 
-## 1. Completed and verified
+- Timesheets own: time entry data, entry validation, submission period, submit/approve/reject/correct/reverse state machine, lock state, audit history.
+- Timesheets do not own: authorization policy (Governance), pay computation (Payroll), project cost interpretation (Projects), invoicing (Sales/Billing), accounting entries (Finance), notification delivery (Notifications), physical presence (Attendance).
+- Timesheets produce events: `timesheet.submitted / approved / rejected / corrected / locked / unlocked / billable_ready`.
+- Timesheets consume: employee + manager graph, project/task eligibility, org/branch scope, governance policy, payroll period lock state.
 
-| Wave | Scope | Status |
-|---|---|---|
-| 1 | **Event contract** — `_timesheet_emit_event` in DB, wired into lifecycle functions, timesheet topics registered; approval/rejection are the emitters. | Verified in DB + code |
-| 2 | **Billing boundary** — `invoice_project_timesheets` + `resolve_timesheet_billing_rate` server-side; `BillFromTimesheetsDialog.tsx` calls the RPC as one atomic operation; client-side invoice construction deleted. | Verified |
-| 3 | **Corrections / immutability** — `correct_timesheet_entry`, `reverse_timesheet_entry`, `_timesheet_can_amend`, `trg_timesheet_correction_supersede`, `tg_prevent_locked_timesheet_mutation`. Approved/locked/invoiced time is amended, never overwritten. | Verified |
-| 4 | **Canonical metrics** — `timesheet_effective_settings`, `get_timesheet_employee_metrics`, `get_timesheet_project_metrics`, `get_timesheet_summary`, `get_timesheet_uninvoiced_billable`, canonical/daily/weekly views. `useTimesheetMetrics.ts` is the only metrics reader; `TimesheetReports.tsx` and `ByProject.tsx` both server-only. All temporary `as any` RPC casts removed. | Closed |
-| 5 | **Payroll consumer** — `compute-payroll` gate now excludes `superseded` rows (Wave-3 corrections no longer block payroll); org filter added to the hours-override query; function deployed. | Landed, **not yet exercised end to end** |
-| 6 | **Access control (partial)** — `_timesheet_is_project_manager` helper + `timesheets_select_project_manager` RLS policy (project-scoped read-only). | Landed, **not yet adversarially tested** |
-| 7 | **Attendance boundary** — `v_timesheet_attendance_reconciliation` view (presence vs recorded work), `useTimesheetReconciliation.ts`, reconciliation tab in `TimesheetReports.tsx`. Referential integrity: `_timesheet_block_referenced_delete()` blocks deletion of projects/tasks/employees with non-draft time. | Landed, **not yet exercised end to end** |
-| — | **Settings page hang** — `useTimesheetSettings.ts` now always clears `isLoading`; `TimesheetSettings.tsx` renders `DEFAULT_SETTINGS` when the org has no row yet. | Fixed (symptom only) |
+## Verified findings (queried this session, not taken from prior claims)
 
----
+1. Lifecycle exists and is largely server-authoritative: tables `timesheets`, `timesheet_submissions`, `timesheet_settings`, `timesheet_audit_log`; RPCs `submit_timesheet_period`, `approve_timesheet_submission`, `reject_timesheet_submission`, `correct_timesheet_entry`, `reverse_timesheet_entry`, `lock_timesheets_for_payroll`; state-machine, lock-guard, period-guard, correction-supersede, cost-rate-snapshot and audit triggers all enabled. **Verdict: correct foundation.**
+2. **Duplicated business authority on self-approval — confirmed.** `approve_timesheet_submission` reads `timesheet_settings.allow_self_approval` and decides via `_timesheet_can_approve(...)`, while trigger `sod_timesheet_submissions_guard → guard_timesheet_self_approval` independently calls `governance_assert_not_self('timesheet.approve')`. Two authorities, same decision. **Verdict: architecturally wrong / wrong ownership.**
+3. **The Timesheet-local setting cannot ever take effect, and the Governance policy is bypassed too.** `guard_timesheet_self_approval` passes `p_org => NULL`. With a NULL org, `governance_assert_not_self` skips role lookup, `governance_mode`, `self_action_policy` and the override consumption path, and falls through to an unconditional `block`. Every other guard in the system (17 of them: expense, leave, bill, payment, loan, contract, journal, stock, PO, refund, …) passes the organization id. Timesheets is the sole outlier. **Verdict: defect — the settings toggle is a misleading UI, and governance overrides/modes are unreachable for timesheets.**
+4. **`timesheet_settings` is read inconsistently.** `timesheet_effective_settings` resolves business-scoped then org-level rows; `approve_timesheet_submission` reads `organization_id` only and ignores `business_id` scoping. **Verdict: needs improvement.**
+5. **Events are emitted into a void.** All 8 `timesheet.*` topics are registered in `business_event_topics` with consumer domains (payroll, projects, sales, finance, reporting, notifications), and `_timesheet_emit_event` writes to `business_event_outbox`, but `business_event_subscriptions` has **zero** timesheet rows. **Verdict: dead events / orphaned producer.**
+6. **Timesheets is acting as an invoice engine.** `invoice_project_timesheets` inserts into `public.invoices` and `public.invoice_items` directly from the Timesheets domain. **Verdict: wrong ownership.**
+7. Client-side authority leaks: `useTeamTimesheets` decides scope from `can("approveTimesheets")` + `directReports` locally; `TimesheetApprovals` gates the whole screen on client-derived `canApproveTimesheets || isManager`; `TimesheetSettings.tsx` presents `allow_self_approval` as if it were the deciding policy. **Verdict: duplicated rule engine in the UI.**
+8. Current tenant is empty (0 timesheets, 0 submissions, 0 settings rows) and org `governance_mode = 'solo'` — so the migration carries no data-backfill risk, and solo-mode self-approval is *supposed* to be auto-allowed today but is being blocked by finding 3.
 
-## 2. Currently active phase
+## Target architecture
 
-**Phase A — Timesheet Settings surface hardening.** The loading hang is fixed, but the
-page has not been audited: it is unknown whether every control is actually wired to a
-consumer, and the layout is a flat stack of cards.
+```text
+Employee → draft entry → submit  ─┐
+                                  ├─ Timesheets: state machine + validation (owner)
+Approver → approve/reject ────────┘        │
+        │                                  ├─ authorization asked of Governance
+        │                                  │   (self-action policy, org mode, overrides, SoD)
+        └────────────────────────────► timesheet.* events → business_event_outbox
+                                             │
+        Payroll ◄── approved payable time ───┤ (payroll applies its own rules)
+        Projects ◄── project hours/cost ─────┤
+        Sales/Billing ◄── billable_ready ────┤ (Sales creates the invoice, not Timesheets)
+        Finance ◄── labour cost/accrual ─────┤
+        Notifications / Reporting ◄──────────┘
+```
 
----
+One authority per responsibility: **Governance decides *who may*; Timesheets decides *what state the time record is in*; downstream domains decide what the approved time means.**
 
-## 3. Roadmap — tackle strictly in this order
+## Work plan
 
-### Phase A — Settings surface: truth audit, then presentation (ACTIVE, do first)
+### Wave 1 — Governance boundary (highest-value correction)
+- Migration: rewrite `guard_timesheet_self_approval` to resolve and pass `NEW.organization_id`, matching all 17 sibling guards. This makes org governance mode, `self_action_policy('timesheet.approve')` and time-boxed overrides actually govern timesheet approval.
+- Migration: strip the self-approval decision out of `approve_timesheet_submission` / `_timesheet_can_approve`. The RPC keeps only *competence* checks (admin / hr_admin / direct manager / project manager) and lifecycle checks; the *self-action* verdict comes solely from Governance.
+- Migration: drop `timesheet_settings.allow_self_approval` (duplicate authority, currently inert, no rows to migrate) and remove it from the settings hook/type and the Settings screen. Replace it with a read-only line in Timesheet Settings pointing at the Governance self-action policy for `timesheet.approve`.
+- Migration: make the RPC use business-scoped settings resolution (same precedence as `timesheet_effective_settings`).
 
-**A1. Control-by-control truth audit.** For every field in `TimesheetSettings.tsx`
-(`submission_frequency`, `week_start_day`, `require_project`, `require_task`,
-`require_approval`, `default_billable`, `minimum_hours_per_day`,
-`maximum_hours_per_day`, `overtime_threshold_daily`, `overtime_threshold_weekly`,
-`allow_self_approval`, `block_on_time_off_overlap`), produce a written table with:
+### Wave 2 — Server-authoritative approval capability
+- Add `timesheet_approval_capability(_submission_id)` (or extend the submissions read) returning `can_approve`, `requires_override`, `reason` computed server-side.
+- `useTeamTimesheets` / `TimesheetApprovals` / `TimesheetApprovalList` consume that flag instead of recomputing permissions client-side; the screen gate becomes a projection of server state. Approve/reject buttons surface the governance reason (`GOV_SELF_ACTION` → override request path) instead of a raw error toast.
 
-- the DB column it writes,
-- every runtime consumer (entry form, hook, trigger, RPC, edge function) found by
-  grepping the key name across `src/` and `supabase/`,
-- whether enforcement is client-only, server-only, or both,
-- verdict: **live**, **half-wired** (saved but never read), or **dead**.
+### Wave 3 — Reconnect the event boundary
+- Register `business_event_subscriptions` handlers for the timesheet topics that have real consumers today (payroll lock/consumption, project cost, billable-ready, notifications, reporting), or retire topics that have no consumer. No topic may remain with an emitting producer and no subscriber.
+- Verify `trg_timesheet_to_cost` and `trg_timesheets_billing` against the chosen boundary so project cost / billing state has exactly one write path.
 
-Record the table in `docs/timesheets/settings-truth-audit.md`. No control may remain
-in the UI with verdict *dead*: either wire it to a real server-side consumer or remove
-it. Half-wired controls must gain server enforcement — client-only validation is not
-enforcement in an ERP.
+### Wave 4 — Remove the invoice engine from Timesheets
+- Move `invoice_project_timesheets`'s invoice creation into the Sales/Billing domain, driven by `timesheet.billable_ready` + an explicit Sales action. Timesheets keeps only `mark_timesheets_invoiced` (its own record's invoiced state, called by Billing).
 
-Known suspects to check first (do not assume): `submission_frequency` /
-`week_start_day` (are period boundaries actually derived from these, or is a hardcoded
-Mon–Sun week used in the weekly view and submission grouping?), `minimum_hours_per_day`
-(is it enforced anywhere?), and the overtime thresholds (are they consumed by payroll,
-or only displayed in reports?).
+### Wave 5 — Cleanup and verification
+- Remove dead settings, dead client rules, and duplicated totals; confirm no legacy fallback remains.
+- Tests: self-approval blocked in `standard` mode, auto-allowed in `solo` mode, allowed once with a valid override and then re-blocked (override consumed); manager-vs-non-manager approval; concurrent approve is idempotent under `FOR UPDATE`; locked-period mutation refused; event emitted exactly once per idempotency key and picked up by a subscriber.
 
-**A2. Save/feedback correctness.** Verify the save path: optimistic vs refetch,
-error surfacing (no silent failures), dirty-state guard on navigation, and that saving
-from `DEFAULT_SETTINGS` genuinely inserts the org row (upsert with `organization_id`,
-not a blind update). Confirm RLS permits the insert for an admin and refuses it for a
-regular employee. Add a disabled/read-only mode for users without settings permission
-rather than letting the save fail server-side.
-
-**A3. Presentation and grouping.** Restructure into scoped, scannable sections with
-explanatory copy — mirror how mature systems (Odoo *Timesheets → Configuration*,
-Harvest, Replicon) group this:
-
-1. **Recording** — what an entry must contain (project/task required, default billable,
-   min/max hours per day).
-2. **Periods & submission** — frequency, week start, period lock behaviour.
-3. **Approval** — approval required, self-approval, approver fallback/escalation.
-4. **Overtime** — daily/weekly thresholds and which consumer acts on them.
-5. **Conflicts** — time-off overlap, attendance variance tolerance.
-
-Each setting shows a one-line description of its *runtime effect* and where it is
-enforced (client / server / both). Use existing design-system tokens and shadcn
-patterns only — no hardcoded colours. Sticky save bar showing unsaved-change state.
-Follow the scope rules in `docs/settings-source-of-truth.md`: timesheet settings are
-org-scoped and are **not** branch-overridable unless a whitelist row is added by
-migration.
-
-**A4. Edge-case reasoning (write it down, then implement).** Before coding, reason
-explicitly about: part-day and overnight entries; DST transitions and cross-timezone
-employees; week boundaries when `week_start_day` changes mid-period; employees hired or
-terminated mid-period; retroactive settings changes (must NOT retro-invalidate already
-approved/invoiced time — settings resolution must be as-of the entry date, which is what
-`timesheet_effective_settings` should provide; verify it does); contractors vs salaried
-vs hourly; leave/holiday days; zero-hour and negative-duration guards.
-
-Phase A is done when the audit doc exists, every control is live and server-enforced,
-the page is grouped as above, and a Playwright pass confirms each control persists and
-changes observable behaviour.
-
-### Phase B — Wave 8: concurrency, idempotency, seeded end-to-end proof (next)
-
-**B1. Concurrency and state guards.**
-- Optimistic-concurrency token (`updated_at` or a version column) on entry edit; reject
-  edit-while-under-review with a typed error, not a last-write-wins overwrite.
-- Duplicate-submission guard: submitting the same period twice must be a no-op, not a
-  second `timesheet_submissions` row.
-- Approve/reject races: two approvers acting simultaneously — exactly one wins, the
-  loser gets a clear conflict error.
-- Idempotency keys on `invoice_project_timesheets` so a retried billing call cannot
-  double-invoice the same hours; assert the second call returns the first result.
-
-**B2. Seeded scenario data (via migration, org-scoped, clearly marked as seed).**
-Hourly employee, salaried project employee, contractor, one billable customer project,
-one internal project, one payroll period.
-
-**B3. Scenarios A–J, each executed and evidenced (DB assertions + Playwright where UI
-is involved):** A record, B submit, C approve, D reject-and-resubmit, E billable →
-invoice, F payroll consumption, G project costing, H correction after approval (and its
-downstream effect on an already-issued invoice), I concurrent conflict, J retry with no
-duplicate effect. Record pass/fail per scenario in `docs/timesheets/wave8-e2e.md`.
-
-**B4. Adversarial access-control pass** (closes Wave 6): employee cannot read another
-employee's entries; project manager sees only their project's time and cannot approve;
-payroll/finance read-only; cross-business and cross-branch isolation enforced by RLS,
-never by a UI filter. Prove each with a direct query as the wrong actor.
-
-### Phase C — Hardening and closeout
-
-- Attendance-vs-timesheet variance tolerance made configurable (feeds Phase A section 5).
-- Performance: index review for the metrics RPCs at 100k+ entries; check `EXPLAIN` on
-  the canonical views.
-- Final linter/security-scan pass and documentation refresh.
-
----
-
-## 4. Instructions for the next agent
-
-1. **Verify before you build.** Do not trust section 1 of this file. Re-check each
-   "verified" claim against the live database (`supabase--read_query`) and the actual
-   source files. Items marked *not yet exercised end to end* (Waves 5, 6, 7) have never
-   been proven with real data — treat them as unproven, not done.
-2. **No shallow checks.** "The function exists" is not verification. Verification means
-   calling it with realistic inputs and asserting the resulting rows, or driving the UI
-   with Playwright and reading the outcome.
-3. **Where the correct behaviour is unclear, research how mature systems do it**
-   (Odoo, SAP CATS, Harvest, Replicon, Workday) and record the chosen precedent and
-   rationale in the relevant doc before implementing.
-4. **Start at Phase A1** and work strictly in order. Finish each phase to a coherent,
-   production-ready state before moving on. No partial features, no orphaned UI, no
-   half-wired settings left behind.
-5. **Migrations stay small and single-purpose** (one object per migration) — per project
-   memory, large batched migrations have destabilised this database.
-6. **Update this file after every step**: move completed items into section 1 with the
-   evidence used, and advance the "currently active phase" marker.
+## Notes on scope
+Attendance, Payroll internals, Projects internals and Finance posting rules are inspected only where the timesheet dependency graph reaches them (Waves 3–4). No rewrite of those domains.
