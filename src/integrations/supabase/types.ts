@@ -86777,6 +86777,19 @@ export type Database = {
           },
         ]
       }
+      v_timesheet_attendance_reconciliation: {
+        Row: {
+          approved_hours: number | null
+          attended_hours: number | null
+          business_id: string | null
+          day: string | null
+          employee_id: string | null
+          organization_id: string | null
+          recorded_hours: number | null
+          variance_hours: number | null
+        }
+        Relationships: []
+      }
       v_timesheet_daily_metrics: {
         Row: {
           approved_hours: number | null
@@ -89582,6 +89595,10 @@ export type Database = {
           _source_doc_type: string
         }
         Returns: undefined
+      }
+      _timesheet_is_project_manager: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
       }
       _upsert_default_account_setting: {
         Args: {
