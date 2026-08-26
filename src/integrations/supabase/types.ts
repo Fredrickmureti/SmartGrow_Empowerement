@@ -98817,6 +98817,20 @@ export type Database = {
           source_type: string
         }[]
       }
+      get_gl_pnl_totals: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _date_from: string
+          _date_to: string
+          _org_id: string
+        }
+        Returns: {
+          expenses: number
+          net_profit: number
+          revenue: number
+        }[]
+      }
       get_gl_transactions: {
         Args: {
           _account_ids: string[]
