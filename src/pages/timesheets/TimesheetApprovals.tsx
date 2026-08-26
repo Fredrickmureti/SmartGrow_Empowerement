@@ -46,13 +46,27 @@ export default function TimesheetApprovals() {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Server-authoritative: lifecycle + competence + Governance self-action verdict.
+  const { capabilities, refresh: refreshCapabilities } =
+    useTimesheetApprovalCapabilities(pendingIds);
+
   const handleApprove = useCallback(
     (id: string) => {
+      const cap = capabilities[id];
+      if (cap && !cap.canApprove) {
+        toast.error(
+          cap.reason === "self_action_blocked"
+            ? "Governance blocks approving your own timesheet. Request an exception first."
+            : "You are not allowed to approve this submission.",
+        );
+        return;
+      }
       Promise.resolve(approveTimesheets(id))
         .then(() => toast.success("Timesheet approved"))
-        .catch((e: any) => toast.error(e?.message ?? "Could not approve"));
+        .catch((e: any) => toast.error(e?.message ?? "Could not approve"))
+        .finally(() => void refreshCapabilities());
     },
-    [approveTimesheets],
+    [approveTimesheets, capabilities, refreshCapabilities],
   );
   const handleReject = useCallback(
     (id: string) => {
