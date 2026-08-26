@@ -66,7 +66,7 @@ import { DepreciationRunSheet } from "@/features/finance/fixed-assets/Depreciati
 export default function FixedAssets() {
   const navigate = useNavigate();
   const { assets, isLoading, deleteAsset } = useFixedAssets();
-  const { formatCurrency, isReady: currencyReady } = useCurrency();
+  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageAssets } = useFinancePermission("finance.manage_assets");
@@ -176,7 +176,12 @@ export default function FixedAssets() {
   });
 
   const activeAssets = assets.filter((a) => a.status === "active");
-  const totalValue = activeAssets.reduce((sum, a) => sum + a.purchase_price, 0);
+  // Assets can be acquired in different currencies, so the only valid sum is
+  // over the server-stamped base-currency cost. Never add transaction amounts.
+  const totalValue = activeAssets.reduce(
+    (sum, a) => sum + Number(a.base_purchase_price ?? a.purchase_price),
+    0,
+  );
   const totalDepreciation = activeAssets.reduce(
     (sum, a) => sum + (a.accumulated_depreciation || 0),
     0,
@@ -366,7 +371,19 @@ export default function FixedAssets() {
                         </TableCell>
                         <TableCell>{getStatusBadge(asset.status)}</TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(asset.purchase_price)}
+                          {formatCurrency(asset.purchase_price, asset.currency)}
+                          {asset.currency &&
+                            asset.currency !== baseCurrency && (
+                              <div className="text-xs text-muted-foreground">
+                                {formatCurrency(
+                                  Number(
+                                    asset.base_purchase_price ??
+                                      asset.purchase_price,
+                                  ),
+                                )}{" "}
+                                @ {asset.acquisition_exchange_rate}
+                              </div>
+                            )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrency(asset.book_value || 0)}

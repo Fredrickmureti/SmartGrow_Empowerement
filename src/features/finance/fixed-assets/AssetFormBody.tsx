@@ -24,6 +24,12 @@ export interface AssetFormValues {
   category_id: string;
   purchase_date: string;
   purchase_price: number;
+  /**
+   * Transaction currency of the acquisition. The form never sends a rate:
+   * the acquisition rate and the base cost are stamped server-side by the
+   * one FX engine on `purchase_date`.
+   */
+  currency: string;
   residual_value: number;
   useful_life_years: number;
   depreciation_method: string;
@@ -38,6 +44,7 @@ export const emptyAssetForm = (): AssetFormValues => ({
   category_id: "",
   purchase_date: format(new Date(), "yyyy-MM-dd"),
   purchase_price: 0,
+  currency: "",
   residual_value: 0,
   useful_life_years: 5,
   depreciation_method: "straight_line",
@@ -50,9 +57,27 @@ interface Props {
   values: AssetFormValues;
   onChange: (next: AssetFormValues) => void;
   categories: AssetCategory[];
+  /** Currencies this business is enabled to transact in (server-resolved). */
+  currencyOptions: string[];
+  baseCurrency: string;
+  /**
+   * Acquisition currency/date/cost are frozen once the asset has been
+   * depreciated or its acquisition has posted. The database refuses the
+   * change; the form explains it instead of letting the write fail.
+   */
+  acquisitionLocked?: boolean;
+  acquisitionLockReason?: string;
 }
 
-export function AssetFormBody({ values, onChange, categories }: Props) {
+export function AssetFormBody({
+  values,
+  onChange,
+  categories,
+  currencyOptions,
+  baseCurrency,
+  acquisitionLocked = false,
+  acquisitionLockReason,
+}: Props) {
   const set = <K extends keyof AssetFormValues>(k: K, v: AssetFormValues[K]) =>
     onChange({ ...values, [k]: v });
 
@@ -115,7 +140,15 @@ export function AssetFormBody({ values, onChange, categories }: Props) {
         </div>
       </Section>
 
-      <Section title="Cost & depreciation">
+      <Section
+        title="Cost & depreciation"
+        description={
+          acquisitionLocked
+            ? acquisitionLockReason ??
+              "Acquisition currency, date and cost are frozen because this asset has been depreciated or posted."
+            : "Cost is recorded in the acquisition currency. The exchange rate and the base-currency cost are stamped by the system on the purchase date."
+        }
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="a-pdate">Purchase date *</Label>
@@ -124,11 +157,34 @@ export function AssetFormBody({ values, onChange, categories }: Props) {
               type="date"
               value={values.purchase_date}
               onChange={(e) => set("purchase_date", e.target.value)}
+              disabled={acquisitionLocked}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="a-price">Purchase price *</Label>
+            <Label htmlFor="a-currency">Currency *</Label>
+            <Select
+              value={values.currency || baseCurrency}
+              onValueChange={(v) => set("currency", v)}
+              disabled={acquisitionLocked}
+            >
+              <SelectTrigger id="a-currency">
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencyOptions.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {code}
+                    {code === baseCurrency ? " (base)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="a-price">
+              Purchase price * {values.currency ? `(${values.currency})` : ""}
+            </Label>
             <Input
               id="a-price"
               type="number"
@@ -138,9 +194,11 @@ export function AssetFormBody({ values, onChange, categories }: Props) {
               onChange={(e) =>
                 set("purchase_price", parseFloat(e.target.value) || 0)
               }
+              disabled={acquisitionLocked}
               required
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="a-residual">Residual value</Label>
             <Input

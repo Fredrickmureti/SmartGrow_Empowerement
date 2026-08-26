@@ -35,14 +35,24 @@ import {
 } from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+/**
+ * This is a base-currency report: cost and residual value are the
+ * server-stamped base amounts (`base_purchase_price` / `base_residual_value`),
+ * which is also the basis depreciation and the GL use. The transaction
+ * currency is carried for provenance only and never summed.
+ */
 interface AssetDepreciation {
   id: string;
   asset_number: string;
   name: string;
   category_name: string;
   purchase_date: string;
+  /** Base-currency acquisition cost. */
   purchase_price: number;
+  /** Base-currency residual value. */
   residual_value: number;
+  currency: string;
+  acquisition_exchange_rate: number | null;
   depreciation_method: string;
   useful_life_years: number;
   accumulated_depreciation: number;
@@ -73,7 +83,9 @@ function DepreciationReportInner() {
       let q = supabase
         .from("fixed_assets")
         .select(`
-          id, asset_number, name, purchase_date, purchase_price, residual_value,
+          id, asset_number, name, purchase_date,
+          purchase_price, residual_value, currency, acquisition_exchange_rate,
+          base_purchase_price, base_residual_value,
           depreciation_method, useful_life_years, accumulated_depreciation,
           book_value, status, branch_id,
           asset_categories(name)
@@ -94,8 +106,10 @@ function DepreciationReportInner() {
         name: a.name,
         category_name: a.asset_categories?.name || "Uncategorized",
         purchase_date: a.purchase_date,
-        purchase_price: a.purchase_price || 0,
-        residual_value: a.residual_value || 0,
+        purchase_price: Number(a.base_purchase_price ?? a.purchase_price ?? 0),
+        residual_value: Number(a.base_residual_value ?? a.residual_value ?? 0),
+        currency: a.currency || baseCurrency,
+        acquisition_exchange_rate: a.acquisition_exchange_rate ?? null,
         depreciation_method: a.depreciation_method || "straight_line",
         useful_life_years: a.useful_life_years || 0,
         accumulated_depreciation: a.accumulated_depreciation || 0,
