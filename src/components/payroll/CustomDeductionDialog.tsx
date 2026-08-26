@@ -287,25 +287,64 @@ export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
             </div>
           </div>
 
-          <div className="border-t pt-3">
-            <Label>Pack rule code (advanced)</Label>
-            <Input
-              value={form.payroll_rule_code ?? ""}
-              onChange={(e) => {
-                const v = e.target.value.toLowerCase().replace(/\s+/g, "_").trim();
-                setForm({ ...form, payroll_rule_code: v === "" ? null : v });
-              }}
-              placeholder="e.g. nssf_voluntary — leave blank unless bound to a pack return column"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Optional. When a localization pack return template or token
-              expects a specific rule code (e.g. Kenya NSSF Type-105
-              <code className="mx-1">nssf_voluntary</code>), set it here so this
-              deduction's payslip lines are emitted under that code. Must be
-              lowercase snake_case and must not start with{" "}
-              <code>custom_</code>.
-            </p>
+          <div className="border-t pt-3 space-y-3">
+            <div>
+              <Label>Statutory scheme binding</Label>
+              <Select
+                value={form.scheme_component_id ?? NONE}
+                onValueChange={(v) => {
+                  if (v === NONE) {
+                    setForm({ ...form, scheme_component_id: null, payroll_rule_code: null });
+                    return;
+                  }
+                  const comp = components.find((c) => c.id === v);
+                  setForm({
+                    ...form,
+                    scheme_component_id: v,
+                    payroll_rule_code: comp?.rule_code ?? form.payroll_rule_code,
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None — ordinary employer-defined deduction" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None — ordinary employer-defined deduction</SelectItem>
+                  {components.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.display_name} · {c.rule_code}
+                      {c.authority_name ? ` · ${c.authority_name}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {components.length === 0
+                  ? "No localization pack scheme components are installed for this business. Leave unbound."
+                  : "Bind this deduction to a component published by your localization pack (e.g. Kenya HELB, NSSF Type-105) so its payslip lines are emitted under the pack's rule code, remitted to the scheme's authority, and picked up by that scheme's statutory return. Leave as None for gym, SACCO, parking and similar deductions."}
+              </p>
+            </div>
+
+            <div>
+              <Label>Pack rule code (advanced)</Label>
+              <Input
+                value={form.payroll_rule_code ?? ""}
+                disabled={!!form.scheme_component_id}
+                onChange={(e) => {
+                  const v = e.target.value.toLowerCase().replace(/\s+/g, "_").trim();
+                  setForm({ ...form, payroll_rule_code: v === "" ? null : v });
+                }}
+                placeholder="e.g. nssf_voluntary — leave blank unless bound to a pack return column"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {form.scheme_component_id
+                  ? "Set automatically from the selected scheme component."
+                  : "Optional escape hatch for packs whose scheme components are not yet published. Must be lowercase snake_case and must not start with "}
+                {!form.scheme_component_id && <code>custom_</code>}
+              </p>
+            </div>
           </div>
+
         </div>
 
         <DialogFooter>
