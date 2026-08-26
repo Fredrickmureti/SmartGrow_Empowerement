@@ -29,7 +29,7 @@ describe("fetchGLTotals delegates to the ledger", () => {
 
 describe("cross-company comparative authorization", () => {
   it("gates on the finance permission the database enforces, not an org role", () => {
-    expect(comparative).toContain('useFinancePermission("finance.view_consolidated")');
+    expect(comparative).toMatch(/useFinancePermission\(\s*"finance\.view_consolidated"/);
     expect(comparative).not.toMatch(/userRole\?\.role === "owner"/);
   });
 
