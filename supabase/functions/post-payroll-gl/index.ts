@@ -1268,6 +1268,117 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ─── Custom deduction liabilities: one row per deduction type ───
+      // Money withheld from the employee under a custom deduction is owed to an
+      // external party exactly like a statutory deduction. Previously custom
+      // deductions received a GL credit but never a `payroll_liabilities` row,
+      // so they could never be remitted or aged. rule_code mirrors the payslip
+      // line (`payroll_rule_code` when the type is bound to a pack scheme
+      // component, `custom_<code>` otherwise), which keeps the
+      // (run, rule_code) unique index idempotent across re-posts.
+      if (customDedMap.size > 0) {
+        const cdIds = Array.from(customDedMap.keys());
+        const { data: cdTypeRows } = await supabaseAdmin
+          .from("custom_deduction_types")
+          .select(
+            "id, code, label, payroll_rule_code, gl_liability_account_id, scheme_component_id",
+          )
+          .in("id", cdIds);
+        const cdTypeById = new Map<string, any>(
+          (cdTypeRows || []).map((r: any) => [r.id, r]),
+        );
+
+        // Resolve the external authority through the pack chain
+        // scheme_component → scheme → statutory_authorities, when bound.
+        const componentIds = (cdTypeRows || [])
+          .map((r: any) => r.scheme_component_id)
+          .filter(Boolean) as string[];
+        const authorityByComponent = new Map<
+          string,
+          { name: string; country: string | null }
+        >();
+        if (componentIds.length > 0) {
+          const { data: compRows } = await supabaseAdmin
+            .from("statutory_scheme_components")
+            .select(
+              "id, statutory_schemes:scheme_id(country_code, display_name, statutory_authorities:authority_id(display_name, country_code))",
+            )
+            .in("id", componentIds);
+          for (const c of (compRows || []) as any[]) {
+            const scheme = c.statutory_schemes;
+            const auth = scheme?.statutory_authorities;
+            authorityByComponent.set(c.id, {
+              name: auth?.display_name || scheme?.display_name || "",
+              country: auth?.country_code || scheme?.country_code || null,
+            });
+          }
+        }
+
+        for (const cd of customDedMap.values()) {
+          const total = Number(cd.employee_amount || 0) +
+            Number(cd.employer_amount || 0);
+          if (total <= 0) continue;
+
+          const cdType = cdTypeById.get(cd.deduction_type_id) || {};
+          const ruleCode: string = cdType.payroll_rule_code ||
+            `custom_${cd.code || cd.deduction_type_id}`;
+
+          // A pack-bound custom deduction must not collide with a statutory
+          // liability already written from deductionMap for the same run.
+          if (liabRows.some((r) => r.rule_code === ruleCode)) continue;
+
+          const bound = cdType.scheme_component_id
+            ? authorityByComponent.get(cdType.scheme_component_id)
+            : null;
+          const countryCode = bound?.country || fallbackCountry;
+
+          // Pack-driven due date when the code is known to the pack; otherwise
+          // fall back to the org's generic remittance due day.
+          let dueDate: string | null = null;
+          const { data: computedDue } = await supabaseAdmin.rpc(
+            "compute_remittance_due_date",
+            {
+              p_organization_id: organization_id,
+              p_business_id: business_id || null,
+              p_country_code: countryCode,
+              p_rule_code: ruleCode,
+              p_period_end: payrollRun.pay_period_end,
+            },
+          );
+          dueDate = (computedDue as any) ?? null;
+          if (!dueDate) {
+            const pe = new Date(payrollRun.pay_period_end);
+            dueDate = new Date(pe.getFullYear(), pe.getMonth() + 1, policyDueDay)
+              .toISOString()
+              .slice(0, 10);
+          }
+
+          liabRows.push({
+            organization_id,
+            business_id,
+            branch_id: payrollRun.branch_id || null,
+            payroll_run_id,
+            rule_code: ruleCode,
+            authority_name: bound?.name || cdType.label || cd.label || ruleCode,
+            label: cdType.label || cd.label || ruleCode,
+            country_code: countryCode,
+            period_start: payrollRun.pay_period_start,
+            period_end: payrollRun.pay_period_end,
+            due_date: dueDate,
+            original_amount: total,
+            paid_amount: 0,
+            outstanding_amount: total,
+            status: "open",
+            liability_account_id: cd.gl_liability_account_id ??
+              cdType.gl_liability_account_id ?? null,
+            notes:
+              `Auto-created from payroll ${payrollRun.payroll_number} (custom deduction ${
+                cdType.code || cd.code || ""
+              })`.trim(),
+            created_by: userId,
+          });
+        }
+      }
 
 
       if (liabRows.length > 0) {
