@@ -151,7 +151,6 @@ function formatMoney(value: number, currency: string) {
 
 export default function Consolidation() {
   const navigate = useNavigate();
-  const { businesses } = useBusinesses();
   const { userRole } = useOrganization();
   const canViewConsolidation = userRole?.role === "owner" || userRole?.role === "super_admin";
 
@@ -159,7 +158,7 @@ export default function Consolidation() {
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
 
-  const { data: rows, isLoading, error } = useComparativePnl(
+  const { data: rows, isLoading, error, scopedBusinesses } = useComparativePnl(
     canViewConsolidation ? dateFrom : "",
     canViewConsolidation ? dateTo : "",
   );
@@ -224,7 +223,7 @@ export default function Consolidation() {
 
   if (!canViewConsolidation) {
     return (
-      <PlatformAppLayout>
+      <ReportsLayout>
         <div className="max-w-2xl mx-auto px-4 py-12">
           <Card>
             <CardHeader>
@@ -250,12 +249,12 @@ export default function Consolidation() {
             </CardContent>
           </Card>
         </div>
-      </PlatformAppLayout>
+      </ReportsLayout>
     );
   }
 
   return (
-    <PlatformAppLayout>
+    <ReportsLayout>
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-2">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -325,7 +324,7 @@ export default function Consolidation() {
           </CardContent>
         </Card>
 
-        {businesses.length === 0 ? (
+        {scopedBusinesses.length === 0 ? (
           <Card>
             <CardHeader>
               <CardTitle>No companies yet</CardTitle>
@@ -389,6 +388,6 @@ export default function Consolidation() {
           </CardContent>
         </Card>
       </div>
-    </PlatformAppLayout>
+    </ReportsLayout>
   );
 }
