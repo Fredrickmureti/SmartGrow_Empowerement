@@ -145,7 +145,7 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
       const created: string[] = [];
       const failures: string[] = [];
       for (const g of selected) {
-        const { data, error } = await (supabase as any).rpc("invoice_project_timesheets", {
+        const { data, error } = await supabase.rpc("invoice_project_timesheets", {
           _project_id: g.project_id,
           _period_from: periodFrom || g.from,
           _period_to: periodTo || g.to,
