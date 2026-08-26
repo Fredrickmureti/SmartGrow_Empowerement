@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { resolveRateFromBook } from "@/services/fx/rateBook";
+import { setCurrencyCatalogue } from "@/lib/currency/catalogue";
 
 export interface Currency {
   id: string;
@@ -91,6 +92,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
       setCurrencies(data || []);
+      // Install the tenant catalogue into the shared presentation layer so
+      // report/PDF formatters use each currency's own symbol and minor units.
+      setCurrencyCatalogue(data || []);
       setCurrenciesLoaded(true);
     } catch (error) {
       console.error("Error fetching currencies:", error);
