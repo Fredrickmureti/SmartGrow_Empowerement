@@ -28,6 +28,7 @@ import {
   type CustomDeductionTaxTreatment,
   type CustomDeductionComputationMethod,
 } from "@/hooks/payroll/useCustomDeductionTypes";
+import { usePackSchemeComponents } from "@/hooks/payroll/usePackSchemeComponents";
 
 interface Props {
   open: boolean;
@@ -95,6 +96,7 @@ export function CustomDeductionDialog({ open, onOpenChange, editing }: Props) {
         requires_approval: editing.requires_approval,
         is_active: editing.is_active,
         payroll_rule_code: editing.payroll_rule_code ?? null,
+        scheme_component_id: editing.scheme_component_id ?? null,
       });
     }
   }, [editing]);
