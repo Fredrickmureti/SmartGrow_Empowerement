@@ -22,6 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Plus, Trash2, Save } from "lucide-react";
 import { ProjectTemplatesCard } from "@/components/projects/ProjectTemplatesCard";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import { useCurrencies } from "@/hooks/useCurrencies";
 
 interface Stage { id: string; project_id: string; name: string; sequence: number; is_closed: boolean; color: string | null; }
 
