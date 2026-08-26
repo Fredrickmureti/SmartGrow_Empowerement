@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS = {
   maximum_hours_per_day: null,
   overtime_threshold_daily: null,
   overtime_threshold_weekly: null,
-  allow_self_approval: false,
+  
   block_on_time_off_overlap: false,
 };
 
