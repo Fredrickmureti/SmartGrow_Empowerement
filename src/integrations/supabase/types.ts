@@ -7082,6 +7082,7 @@ export type Database = {
           client_request_id: string | null
           created_at: string
           created_by: string | null
+          currency: string
           currency_rate: number
           id: string
           is_sample_data: boolean
@@ -7111,6 +7112,7 @@ export type Database = {
           client_request_id?: string | null
           created_at?: string
           created_by?: string | null
+          currency: string
           currency_rate?: number
           id?: string
           is_sample_data?: boolean
@@ -7140,6 +7142,7 @@ export type Database = {
           client_request_id?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string
           currency_rate?: number
           id?: string
           is_sample_data?: boolean
@@ -88286,6 +88289,10 @@ export type Database = {
         Args: { p_id: string; p_source_type: string }
         Returns: boolean
       }
+      _fx_document_is_posted_any: {
+        Args: { p_id: string; p_source_types: string[] }
+        Returns: boolean
+      }
       _inventory_layer_valuation_as_of: {
         Args: {
           p_as_of?: string
@@ -90464,6 +90471,7 @@ export type Database = {
           client_request_id: string | null
           created_at: string
           created_by: string | null
+          currency: string
           currency_rate: number
           id: string
           is_sample_data: boolean
@@ -96947,6 +96955,17 @@ export type Database = {
           p_org: string
         }
         Returns: Record<string, unknown>
+      }
+      fx_stamped_rate_review: {
+        Args: { p_business_id: string }
+        Returns: {
+          currency: string
+          document_date: string
+          document_id: string
+          document_kind: string
+          rate_book_rate: number
+          stamped_rate: number
+        }[]
       }
       garnishment_apply_pack_to_org: {
         Args: { p_org_id: string; p_pack_id: string }
