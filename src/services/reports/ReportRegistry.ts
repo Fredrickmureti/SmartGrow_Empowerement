@@ -618,6 +618,17 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["management", "executive", "kpi", "margins", "summary", "dashboard"],
   },
   {
+    id: "cross-company-comparative",
+    name: "Cross-Company Comparative",
+    description: "Side-by-side P&L per legal entity — no cross-entity totals",
+    category: "management",
+    path: "/finance/reports/cross-company",
+    icon: BarChart3,
+    permission: "viewReports",
+    reportType: "cross_company_comparative",
+    keywords: ["consolidation", "multi-company", "cross company", "group", "entities", "comparative"],
+  },
+  {
     id: "business-intelligence",
     name: "Business Intelligence",
     description: "Interactive dashboards and custom analysis",
