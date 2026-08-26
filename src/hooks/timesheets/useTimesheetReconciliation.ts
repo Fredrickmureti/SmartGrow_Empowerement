@@ -39,9 +39,11 @@ export function useTimesheetReconciliation(from: string, to: string) {
     queryFn: async () => {
       // The view is newer than the generated types snapshot, so the table name
       // is not in the union yet; the row shape is pinned by .returns<T>() below.
-      let q = (supabase.from as unknown as (t: string) => ReturnType<typeof supabase.from>)(
-        "v_timesheet_attendance_reconciliation",
-      )
+      const client = supabase as unknown as {
+        from: (t: string) => any;
+      };
+      let q = client
+        .from("v_timesheet_attendance_reconciliation")
         .select("employee_id, day, attended_hours, recorded_hours, approved_hours, variance_hours")
         .eq("organization_id", currentOrg!.id)
         .gte("day", from)
@@ -50,7 +52,10 @@ export function useTimesheetReconciliation(from: string, to: string) {
         .limit(1000);
       if (currentBusiness?.id) q = q.eq("business_id", currentBusiness.id);
 
-      const { data, error } = await q.returns<TimesheetReconciliationRow[]>();
+      const { data, error } = (await q) as {
+        data: TimesheetReconciliationRow[] | null;
+        error: unknown;
+      };
       if (error) throw error;
       return (data ?? []).map((r) => ({
         employee_id: r.employee_id,
