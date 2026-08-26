@@ -31,7 +31,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, CheckCircle2, LockKeyhole, Loader2, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  LockKeyhole,
+  Loader2,
+  Plus,
+  Search,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   Dialog,
   DialogContent,
