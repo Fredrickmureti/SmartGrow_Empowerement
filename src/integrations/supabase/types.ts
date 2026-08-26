@@ -100569,6 +100569,10 @@ export type Database = {
         Args: { _source_type: string }
         Returns: string
       }
+      normalize_profile_change_value: {
+        Args: { p_field_key: string; p_raw: string }
+        Returns: string
+      }
       notify_admins_new_signup: {
         Args: {
           _email: string
