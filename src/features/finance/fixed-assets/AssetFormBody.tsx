@@ -24,6 +24,12 @@ export interface AssetFormValues {
   category_id: string;
   purchase_date: string;
   purchase_price: number;
+  /**
+   * Transaction currency of the acquisition. The form never sends a rate:
+   * the acquisition rate and the base cost are stamped server-side by the
+   * one FX engine on `purchase_date`.
+   */
+  currency: string;
   residual_value: number;
   useful_life_years: number;
   depreciation_method: string;
@@ -38,6 +44,7 @@ export const emptyAssetForm = (): AssetFormValues => ({
   category_id: "",
   purchase_date: format(new Date(), "yyyy-MM-dd"),
   purchase_price: 0,
+  currency: "",
   residual_value: 0,
   useful_life_years: 5,
   depreciation_method: "straight_line",
@@ -50,6 +57,16 @@ interface Props {
   values: AssetFormValues;
   onChange: (next: AssetFormValues) => void;
   categories: AssetCategory[];
+  /** Currencies this business is enabled to transact in (server-resolved). */
+  currencyOptions: string[];
+  baseCurrency: string;
+  /**
+   * Acquisition currency/date/cost are frozen once the asset has been
+   * depreciated or its acquisition has posted. The database refuses the
+   * change; the form explains it instead of letting the write fail.
+   */
+  acquisitionLocked?: boolean;
+  acquisitionLockReason?: string;
 }
 
 export function AssetFormBody({ values, onChange, categories }: Props) {
