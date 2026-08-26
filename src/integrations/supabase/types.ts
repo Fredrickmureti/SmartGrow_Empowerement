@@ -89578,7 +89578,7 @@ export type Database = {
         Returns: boolean
       }
       _timesheet_can_approve: {
-        Args: { _employee_id: string; _uid: string }
+        Args: { _submission_id: string; _uid: string }
         Returns: boolean
       }
       _timesheet_emit_event: {
