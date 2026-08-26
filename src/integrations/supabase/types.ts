@@ -22227,22 +22227,28 @@ export type Database = {
       fixed_assets: {
         Row: {
           accumulated_depreciation: number | null
+          acquisition_exchange_rate: number
           asset_number: string
           assigned_at: string | null
           assigned_to: string | null
           assigned_to_employee_id: string | null
           assignment_notes: string | null
           barcode: string | null
+          base_disposal_price: number | null
+          base_purchase_price: number
+          base_residual_value: number
           book_value: number | null
           branch_id: string | null
           business_id: string
           category_id: string | null
           created_at: string
           created_by: string | null
+          currency: string
           depreciation_method: string | null
           depreciation_start_date: string | null
           description: string | null
           disposal_date: string | null
+          disposal_exchange_rate: number | null
           disposal_price: number | null
           disposal_reason: string | null
           id: string
@@ -22267,22 +22273,28 @@ export type Database = {
         }
         Insert: {
           accumulated_depreciation?: number | null
+          acquisition_exchange_rate: number
           asset_number: string
           assigned_at?: string | null
           assigned_to?: string | null
           assigned_to_employee_id?: string | null
           assignment_notes?: string | null
           barcode?: string | null
+          base_disposal_price?: number | null
+          base_purchase_price: number
+          base_residual_value: number
           book_value?: number | null
           branch_id?: string | null
           business_id: string
           category_id?: string | null
           created_at?: string
           created_by?: string | null
+          currency: string
           depreciation_method?: string | null
           depreciation_start_date?: string | null
           description?: string | null
           disposal_date?: string | null
+          disposal_exchange_rate?: number | null
           disposal_price?: number | null
           disposal_reason?: string | null
           id?: string
@@ -22307,22 +22319,28 @@ export type Database = {
         }
         Update: {
           accumulated_depreciation?: number | null
+          acquisition_exchange_rate?: number
           asset_number?: string
           assigned_at?: string | null
           assigned_to?: string | null
           assigned_to_employee_id?: string | null
           assignment_notes?: string | null
           barcode?: string | null
+          base_disposal_price?: number | null
+          base_purchase_price?: number
+          base_residual_value?: number
           book_value?: number | null
           branch_id?: string | null
           business_id?: string
           category_id?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string
           depreciation_method?: string | null
           depreciation_start_date?: string | null
           description?: string | null
           disposal_date?: string | null
+          disposal_exchange_rate?: number | null
           disposal_price?: number | null
           disposal_reason?: string | null
           id?: string
