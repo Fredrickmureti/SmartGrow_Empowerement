@@ -31,7 +31,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, CheckCircle2, LockKeyhole, Loader2, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  LockKeyhole,
+  Loader2,
+  Plus,
+  Search,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   Dialog,
   DialogContent,
@@ -117,6 +128,23 @@ export function CurrencySettings() {
     effective_date: new Date().toISOString().split("T")[0],
     reason: "",
   });
+
+  // ---- Presentation state (no business logic): the catalogue is >150 rows and
+  // the rate book grows without bound, so both are searched/filtered/paged in
+  // the browser instead of being dumped onto the page. ----
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [currencyQuery, setCurrencyQuery] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState<"all" | "enabled" | "available">(
+    "all",
+  );
+  const [rateQuery, setRateQuery] = useState("");
+  const [rateSource, setRateSource] = useState<"all" | "override" | "manual" | "provider">(
+    "all",
+  );
+  const [ratePage, setRatePage] = useState(1);
+  const RATES_PER_PAGE = 20;
+
+
 
   const canEdit = canManageCurrency;
   const {
@@ -312,6 +340,45 @@ export function CurrencySettings() {
     activeCurrencies.filter((c) => c.is_base).map((c) => c.currency_code),
   );
 
+  const isBaseCode = (code: string) => serverBaseSet.has(code) || code === base;
+
+  const enabledCurrencies = currencies.filter(
+    (c) => isBaseCode(c.code) || enabledSet.has(c.code),
+  );
+  const enabledCount = enabledCurrencies.length;
+
+  const currencyNeedle = currencyQuery.trim().toLowerCase();
+  const visibleCurrencies = currencies.filter((c) => {
+    const on = isBaseCode(c.code) || enabledSet.has(c.code);
+    if (currencyFilter === "enabled" && !on) return false;
+    if (currencyFilter === "available" && on) return false;
+    if (!currencyNeedle) return true;
+    return (
+      c.code.toLowerCase().includes(currencyNeedle) ||
+      c.name.toLowerCase().includes(currencyNeedle)
+    );
+  });
+
+  const rateNeedle = rateQuery.trim().toLowerCase();
+  const filteredRates = exchangeRates.filter((r) => {
+    if (rateSource !== "all" && r.source !== rateSource) return false;
+    if (!rateNeedle) return true;
+    return (
+      `${r.from_currency}/${r.to_currency}`.toLowerCase().includes(rateNeedle) ||
+      (r.provider_key ?? "").toLowerCase().includes(rateNeedle)
+    );
+  });
+  const totalRatePages = Math.max(1, Math.ceil(filteredRates.length / RATES_PER_PAGE));
+  const currentRatePage = Math.min(ratePage, totalRatePages);
+  const pagedRates = filteredRates.slice(
+    (currentRatePage - 1) * RATES_PER_PAGE,
+    currentRatePage * RATES_PER_PAGE,
+  );
+  const rangeStart = filteredRates.length === 0 ? 0 : (currentRatePage - 1) * RATES_PER_PAGE + 1;
+  const rangeEnd = (currentRatePage - 1) * RATES_PER_PAGE + pagedRates.length;
+
+
+
 
   return (
     <div className="space-y-6">
@@ -413,34 +480,136 @@ export function CurrencySettings() {
       </Dialog>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Operating Currencies</CardTitle>
-          <CardDescription>
-            Currencies this company is allowed to transact in. The base currency is always
-            enabled and cannot be switched off. Any other currency must be enabled here
-            before a document can be raised in it — and it still needs a rate on file.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            {currencies.map((c) => {
-              const isBase = serverBaseSet.has(c.code) || c.code === base;
-              return (
-                <label
-                  key={c.id}
-                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-                >
-                  <Switch
-                    checked={isBase || enabledSet.has(c.code)}
-                    disabled={!canEdit || isBase}
-                    onCheckedChange={(v) => handleToggleCurrency(c.code, v)}
-                  />
-                  <span className="font-medium">{c.code}</span>
-                  {isBase && <Badge variant="outline">Base</Badge>}
-                </label>
-              );
-            })}
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2">
+              Operating Currencies
+              <Badge variant="secondary" className="font-normal">
+                {enabledCount} of {currencies.length} enabled
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Currencies this company is allowed to transact in. The base currency is always
+              enabled and cannot be switched off. Any other currency must be enabled here
+              before a document can be raised in it — and it still needs a rate on file.
+            </CardDescription>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setCurrencyPickerOpen((v) => !v)}
+            aria-expanded={currencyPickerOpen}
+          >
+            {currencyPickerOpen ? (
+              <>
+                <ChevronUp className="mr-2 h-4 w-4" />
+                Done
+              </>
+            ) : (
+              <>
+                <ChevronDown className="mr-2 h-4 w-4" />
+                Manage currencies
+              </>
+            )}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Collapsed summary — only what this company actually uses. */}
+          <div className="flex flex-wrap gap-2">
+            {enabledCurrencies.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No currencies enabled yet.
+              </p>
+            ) : (
+              enabledCurrencies.map((c) => (
+                <Badge
+                  key={c.id}
+                  variant={isBaseCode(c.code) ? "default" : "secondary"}
+                  className="gap-1.5 py-1 font-normal"
+                >
+                  <span className="font-medium">{c.code}</span>
+                  <span className="text-[11px] opacity-80">{c.name}</span>
+                  {isBaseCode(c.code) && <LockKeyhole className="h-3 w-3" />}
+                </Badge>
+              ))
+            )}
+          </div>
+
+          {currencyPickerOpen && (
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={currencyQuery}
+                    onChange={(e) => setCurrencyQuery(e.target.value)}
+                    placeholder="Search by code or name (e.g. KES, Euro)"
+                    className="pl-8"
+                    aria-label="Search currencies"
+                  />
+                </div>
+                <div className="flex gap-1 rounded-md border p-0.5">
+                  {(["all", "enabled", "available"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      type="button"
+                      size="sm"
+                      variant={currencyFilter === f ? "secondary" : "ghost"}
+                      className="h-7 px-3 text-xs capitalize"
+                      onClick={() => setCurrencyFilter(f)}
+                    >
+                      {f}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <ScrollArea className="h-[300px] pr-3">
+                {visibleCurrencies.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No currency matches “{currencyQuery}”.
+                  </p>
+                ) : (
+                  <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                    {visibleCurrencies.map((c) => {
+                      const isBase = isBaseCode(c.code);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
+                        >
+                          <span className="min-w-0">
+                            <span className="font-medium">{c.code}</span>
+                            <span className="ml-2 truncate text-xs text-muted-foreground">
+                              {c.name}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {isBase && (
+                              <Badge variant="outline" className="text-[10px]">
+                                Base
+                              </Badge>
+                            )}
+                            <Switch
+                              checked={isBase || enabledSet.has(c.code)}
+                              disabled={!canEdit || isBase}
+                              onCheckedChange={(v) => handleToggleCurrency(c.code, v)}
+                              aria-label={`Enable ${c.code}`}
+                            />
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground">
+                Showing {visibleCurrencies.length} of {currencies.length} catalogue
+                currencies.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -455,9 +624,14 @@ export function CurrencySettings() {
       />
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div>
-            <CardTitle>Rate Book</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Rate Book
+              <Badge variant="secondary" className="font-normal">
+                {exchangeRates.length} {exchangeRates.length === 1 ? "rate" : "rates"}
+              </Badge>
+            </CardTitle>
             <CardDescription>
               Every rate the company can use, and where it came from. Overrides win over
               manual rates, which win over platform rates; the most recent effective date
@@ -466,62 +640,137 @@ export function CurrencySettings() {
             </CardDescription>
           </div>
           {canEdit && (
-            <Button size="sm" onClick={() => setShowRateDialog(true)} disabled={!base}>
+            <Button size="sm" className="shrink-0" onClick={() => setShowRateDialog(true)} disabled={!base}>
               <Plus className="mr-2 h-4 w-4" />
               Add override
             </Button>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {exchangeRates.length === 0 ? (
             <p className="text-muted-foreground text-sm py-4 text-center">
               No rates on file. Foreign-currency documents will be refused until a rate
               exists — they are never posted at 1:1.
             </p>
           ) : (
-            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Pair</TableHead>
-                    <TableHead>Rate</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead className="hidden md:table-cell">Provider</TableHead>
-                    <TableHead className="hidden sm:table-cell">Effective</TableHead>
-                    <TableHead className="hidden lg:table-cell">Published</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {exchangeRates.map((rate) => (
-                    <TableRow key={rate.id}>
-                      <TableCell className="font-medium">
-                        {rate.from_currency}/{rate.to_currency}
-                      </TableCell>
-                      <TableCell>{Number(rate.rate)}</TableCell>
-                      <TableCell>
-                        <Badge variant={sourceVariant(rate.source)}>
-                          {SOURCE_LABEL[rate.source] ?? rate.source}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">
-                        {rate.provider_key ?? "—"}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        {rate.effective_date}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">
-                        {rate.published_at
-                          ? new Date(rate.published_at).toLocaleString()
-                          : "—"}
-                      </TableCell>
-                    </TableRow>
+            <>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={rateQuery}
+                    onChange={(e) => {
+                      setRateQuery(e.target.value);
+                      setRatePage(1);
+                    }}
+                    placeholder="Search a pair or provider (e.g. USD, EUR/KES)"
+                    className="pl-8"
+                    aria-label="Search rate book"
+                  />
+                </div>
+                <div className="flex gap-1 rounded-md border p-0.5">
+                  {(["all", "override", "manual", "provider"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      type="button"
+                      size="sm"
+                      variant={rateSource === f ? "secondary" : "ghost"}
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => {
+                        setRateSource(f);
+                        setRatePage(1);
+                      }}
+                    >
+                      {f === "all" ? "All" : (SOURCE_LABEL[f] ?? f)}
+                    </Button>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
+                </div>
+              </div>
+
+              {filteredRates.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No rate matches this search.
+                </p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Pair</TableHead>
+                          <TableHead>Rate</TableHead>
+                          <TableHead>Source</TableHead>
+                          <TableHead className="hidden md:table-cell">Provider</TableHead>
+                          <TableHead className="hidden sm:table-cell">Effective</TableHead>
+                          <TableHead className="hidden lg:table-cell">Published</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pagedRates.map((rate) => (
+                          <TableRow key={rate.id}>
+                            <TableCell className="font-medium">
+                              {rate.from_currency}/{rate.to_currency}
+                            </TableCell>
+                            <TableCell>{Number(rate.rate)}</TableCell>
+                            <TableCell>
+                              <Badge variant={sourceVariant(rate.source)}>
+                                {SOURCE_LABEL[rate.source] ?? rate.source}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-muted-foreground">
+                              {rate.provider_key ?? "—"}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              {rate.effective_date}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-muted-foreground">
+                              {rate.published_at
+                                ? new Date(rate.published_at).toLocaleString()
+                                : "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Showing {rangeStart}–{rangeEnd} of {filteredRates.length}
+                      {filteredRates.length !== exchangeRates.length &&
+                        ` (filtered from ${exchangeRates.length})`}
+                    </p>
+                    {totalRatePages > 1 && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRatePage((p) => Math.max(1, p - 1))}
+                          disabled={currentRatePage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Page {currentRatePage} of {totalRatePages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRatePage((p) => Math.min(totalRatePages, p + 1))}
+                          disabled={currentRatePage === totalRatePages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
 
       <Dialog open={showRateDialog} onOpenChange={setShowRateDialog}>
         <DialogContent>
