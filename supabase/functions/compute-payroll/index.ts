@@ -1744,6 +1744,10 @@ Deno.serve(async (req) => {
         .select("employee_id, status")
         .eq("organization_id", organization_id)
         .in("employee_id", tsGateEmpIds)
+        // Superseded originals are historical facts replaced by an approved
+        // correction (Wave 3). They must never gate a payroll run: the
+        // correction row carries the authoritative hours.
+        .neq("status", "superseded")
         .gte("date", pay_period_start)
         .lte("date", pay_period_end);
       const badByEmp: Record<string, Record<string, number>> = {};
@@ -2462,6 +2466,7 @@ Deno.serve(async (req) => {
       const { data: tsRows } = await supabaseAdmin
         .from("v_timesheet_payroll_ready")
         .select("employee_id, period_month, total_hours, locked_hours")
+        .eq("organization_id", organization_id)
         .in("employee_id", timesheetEmpIds)
         .gte("period_month", monthStart)
         .lte("period_month", pay_period_end);
