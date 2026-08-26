@@ -49,7 +49,7 @@ export default function AssetEditPage() {
       vendor_id: asset.vendor_id || "",
     });
     setHydrated(true);
-  }, [asset, hydrated]);
+  }, [asset, hydrated, baseCurrency]);
 
   const submit = useRecordFormSubmit<FixedAsset | void>({
     entityLabel: "Asset",
@@ -60,21 +60,33 @@ export default function AssetEditPage() {
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!asset) return;
-    submit.run(() =>
-      updateAsset(asset.id, {
-        name: values.name,
-        description: values.description || null,
-        category_id: values.category_id || null,
-        purchase_date: values.purchase_date,
-        purchase_price: values.purchase_price,
-        residual_value: values.residual_value,
-        useful_life_years: values.useful_life_years,
-        depreciation_method: values.depreciation_method,
-        serial_number: values.serial_number || null,
-        location: values.location || null,
-        vendor_id: values.vendor_id || null,
-      }),
-    );
+    submit.run(async () => {
+      try {
+        return await updateAsset(asset.id, {
+          name: values.name,
+          description: values.description || null,
+          category_id: values.category_id || null,
+          serial_number: values.serial_number || null,
+          location: values.location || null,
+          vendor_id: values.vendor_id || null,
+          useful_life_years: values.useful_life_years,
+          depreciation_method: values.depreciation_method,
+          // The acquisition measurement is only sent while it is still open.
+          // A rate is never sent: re-stamping happens server-side when the
+          // currency or the purchase date changes.
+          ...(acquisitionLocked
+            ? {}
+            : {
+                purchase_date: values.purchase_date,
+                purchase_price: values.purchase_price,
+                currency: values.currency || baseCurrency,
+                residual_value: values.residual_value,
+              }),
+        } as any);
+      } catch (err) {
+        throw describeAssetCurrencyError(err);
+      }
+    });
   };
 
   if (!asset) {
@@ -103,6 +115,16 @@ export default function AssetEditPage() {
         values={values}
         onChange={setValues}
         categories={categories}
+        currencyOptions={currencyCodes}
+        baseCurrency={baseCurrency}
+        acquisitionLocked={acquisitionLocked}
+        acquisitionLockReason={
+          acquisitionLocked
+            ? `Acquisition currency, date and cost are frozen: this asset has been ${
+                asset.status === "disposed" ? "disposed" : "depreciated"
+              }. Recorded at ${asset.currency} ${asset.purchase_price} @ ${asset.acquisition_exchange_rate}.`
+            : undefined
+        }
       />
     </RecordFormShell>
   );
