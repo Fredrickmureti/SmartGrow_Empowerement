@@ -74,9 +74,10 @@ export default function TimesheetApprovals() {
       if (!reason || !reason.trim()) return;
       Promise.resolve(rejectTimesheets(id, reason.trim()))
         .then(() => toast.success("Timesheet rejected"))
-        .catch((e: any) => toast.error(e?.message ?? "Could not reject"));
+        .catch((e: any) => toast.error(e?.message ?? "Could not reject"))
+        .finally(() => void refreshCapabilities());
     },
-    [rejectTimesheets],
+    [rejectTimesheets, refreshCapabilities],
   );
 
   useListHotkeys({
