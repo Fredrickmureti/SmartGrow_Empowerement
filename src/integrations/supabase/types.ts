@@ -88393,6 +88393,10 @@ export type Database = {
         Args: { p_id: string; p_source_types: string[] }
         Returns: boolean
       }
+      _fx_reval_lock_key: {
+        Args: { _business_id: string; _scope: string }
+        Returns: number
+      }
       _inventory_layer_valuation_as_of: {
         Args: {
           p_as_of?: string
