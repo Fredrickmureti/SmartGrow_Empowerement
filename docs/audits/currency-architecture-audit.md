@@ -408,7 +408,7 @@ Dependency-ordered. Each phase is independently shippable and independently veri
 - **Depends on:** Phase 1 (so reports do not mask the change).
 - **Must not change:** the precedence rule, provider publishing, any stamped rate.
 - **Validation:** attempt UPDATE and DELETE on an override as owner — both must fail; attempt an override insert into a closed period — must fail; posted document rates unchanged.
-- **Invariants:** a rate consumed by a posting is永 recoverable; only a finance manager writes rates; the closed-period boundary applies to rate evidence as it does to entries.
+- **Invariants:** a rate consumed by a posting is permanently recoverable; only a finance manager writes rates; the closed-period boundary applies to rate evidence as it does to entries.
 
 ### Phase 3 — Close the stamping gaps (D2, D3, D10, D9, D11)
 - **What:** Add `_tg_stamp_*_currency` triggers routing through `fx_stamp_document` for `bank_transactions`, `bill_payments` (adding an explicit `currency` column), and `rfq_quotations`. Add the `_fx_document_is_posted` immutability guard to estimates, sales orders, customer refunds, and POs. Align the invoice re-stamp rule with the bill rule (re-stamp on document-date change while unposted).
