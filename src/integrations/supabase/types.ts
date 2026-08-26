@@ -10034,6 +10034,7 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           group_id: string
+          historical_rate_date: string | null
           id: string
           method: Database["public"]["Enums"]["consolidation_method"]
           notes: string | null
@@ -10049,6 +10050,7 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           group_id: string
+          historical_rate_date?: string | null
           id?: string
           method?: Database["public"]["Enums"]["consolidation_method"]
           notes?: string | null
@@ -10064,6 +10066,7 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           group_id?: string
+          historical_rate_date?: string | null
           id?: string
           method?: Database["public"]["Enums"]["consolidation_method"]
           notes?: string | null
@@ -10150,6 +10153,7 @@ export type Database = {
           code: string | null
           created_at: string
           created_by: string | null
+          cta_account_id: string | null
           description: string | null
           id: string
           is_active: boolean
@@ -10163,6 +10167,7 @@ export type Database = {
           code?: string | null
           created_at?: string
           created_by?: string | null
+          cta_account_id?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
@@ -10176,6 +10181,7 @@ export type Database = {
           code?: string | null
           created_at?: string
           created_by?: string | null
+          cta_account_id?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
@@ -10186,6 +10192,27 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "consolidation_groups_cta_account_id_fkey"
+            columns: ["cta_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_cta_account_id_fkey"
+            columns: ["cta_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_cta_account_id_fkey"
+            columns: ["cta_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "consolidation_groups_organization_id_fkey"
             columns: ["organization_id"]
@@ -88887,6 +88914,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _consolidation_fy_start: {
+        Args: { _business_id: string; _on_date: string }
+        Returns: string
+      }
       _crm_assert_lead_access: {
         Args: { p_lead_id: string; p_operation: string }
         Returns: {
@@ -93981,6 +94012,7 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           group_id: string
+          historical_rate_date: string | null
           id: string
           method: Database["public"]["Enums"]["consolidation_method"]
           notes: string | null
@@ -94367,6 +94399,24 @@ export type Database = {
       confirm_sales_order_atomic: {
         Args: { p_so_id: string; p_user_id: string }
         Returns: Json
+      }
+      consolidation_member_translation_rates: {
+        Args: {
+          _business_id: string
+          _date_from: string
+          _date_to: string
+          _group_id: string
+        }
+        Returns: {
+          average_rate: number
+          closing_rate: number
+          from_currency: string
+          historical_date: string
+          historical_rate: number
+          opening_rate: number
+          prior_average_rate: number
+          to_currency: string
+        }[]
       }
       consolidation_scope_member_count: {
         Args: { _as_of: string; _group_id: string }
@@ -97868,6 +97918,17 @@ export type Database = {
         Args: { _account_type: string; _detail_type: string }
         Returns: boolean
       }
+      fx_period_average_rate: {
+        Args: {
+          _business_id: string
+          _date_from: string
+          _date_to: string
+          _from_currency: string
+          _org_id: string
+          _to_currency: string
+        }
+        Returns: number
+      }
       fx_rate_coverage: {
         Args: { p_business_id: string }
         Returns: {
@@ -97887,6 +97948,16 @@ export type Database = {
       fx_rate_coverage_summary: {
         Args: { p_business_id: string }
         Returns: Json
+      }
+      fx_rate_on: {
+        Args: {
+          _business_id: string
+          _from_currency: string
+          _on_date: string
+          _org_id: string
+          _to_currency: string
+        }
+        Returns: number
       }
       fx_realized_gain_loss: {
         Args: { _business_id: string; _from?: string; _to?: string }
