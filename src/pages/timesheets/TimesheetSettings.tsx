@@ -15,11 +15,30 @@ import { useTimesheetSettings } from "@/hooks/timesheets";
 const FREQUENCIES = ["daily", "weekly", "biweekly", "monthly"] as const;
 const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+/** Used when the org has no timesheet_settings row yet; saving persists these. */
+const DEFAULT_SETTINGS = {
+  submission_frequency: "weekly",
+  week_start_day: 1,
+  require_project: false,
+  require_task: false,
+  require_approval: true,
+  default_billable: false,
+  minimum_hours_per_day: null,
+  maximum_hours_per_day: null,
+  overtime_threshold_daily: null,
+  overtime_threshold_weekly: null,
+  allow_self_approval: false,
+  block_on_time_off_overlap: false,
+};
+
 export default function TimesheetSettings() {
   const { settings, isLoading, save } = useTimesheetSettings();
   const [draft, setDraft] = useState<any>(null);
 
-  useEffect(() => { if (settings) setDraft({ ...settings }); }, [settings]);
+  useEffect(() => {
+    if (isLoading) return;
+    setDraft({ ...DEFAULT_SETTINGS, ...(settings ?? {}) });
+  }, [settings, isLoading]);
 
   if (isLoading || !draft) {
     return <div className="p-8 text-center text-sm text-muted-foreground">Loading settings…</div>;
