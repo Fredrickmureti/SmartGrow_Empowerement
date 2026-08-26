@@ -68515,6 +68515,13 @@ export type Database = {
             referencedRelation: "timesheets"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "timesheet_audit_log_timesheet_id_fkey"
+            columns: ["timesheet_id"]
+            isOneToOne: false
+            referencedRelation: "v_timesheet_entry_canonical"
+            referencedColumns: ["id"]
+          },
         ]
       }
       timesheet_settings: {
@@ -68951,6 +68958,13 @@ export type Database = {
             columns: ["correction_of"]
             isOneToOne: false
             referencedRelation: "timesheets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_correction_of_fkey"
+            columns: ["correction_of"]
+            isOneToOne: false
+            referencedRelation: "v_timesheet_entry_canonical"
             referencedColumns: ["id"]
           },
           {
@@ -86763,6 +86777,327 @@ export type Database = {
           },
         ]
       }
+      v_timesheet_daily_metrics: {
+        Row: {
+          approved_hours: number | null
+          billable_hours: number | null
+          business_id: string | null
+          daily_overtime_hours: number | null
+          date: string | null
+          employee_id: string | null
+          invoiced_hours: number | null
+          non_billable_hours: number | null
+          organization_id: string | null
+          overtime_threshold_daily: number | null
+          payroll_locked_hours: number | null
+          regular_hours: number | null
+          total_hours: number | null
+          uninvoiced_billable_hours: number | null
+          week_start_day: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_timesheet_entry_canonical: {
+        Row: {
+          approved_hours: number | null
+          billable_hours: number | null
+          billing_amount: number | null
+          branch_id: string | null
+          business_id: string | null
+          correction_of: string | null
+          date: string | null
+          employee_id: string | null
+          hours: number | null
+          id: string | null
+          invoiced_hours: number | null
+          is_billable: boolean | null
+          is_correction: boolean | null
+          is_invoiced: boolean | null
+          non_billable_hours: number | null
+          organization_id: string | null
+          payroll_locked: boolean | null
+          payroll_locked_hours: number | null
+          project_id: string | null
+          status: string | null
+          task_id: string | null
+          uninvoiced_billable_hours: number | null
+        }
+        Insert: {
+          approved_hours?: never
+          billable_hours?: never
+          billing_amount?: number | null
+          branch_id?: string | null
+          business_id?: string | null
+          correction_of?: string | null
+          date?: string | null
+          employee_id?: string | null
+          hours?: never
+          id?: string | null
+          invoiced_hours?: never
+          is_billable?: never
+          is_correction?: never
+          is_invoiced?: never
+          non_billable_hours?: never
+          organization_id?: string | null
+          payroll_locked?: never
+          payroll_locked_hours?: never
+          project_id?: string | null
+          status?: string | null
+          task_id?: string | null
+          uninvoiced_billable_hours?: never
+        }
+        Update: {
+          approved_hours?: never
+          billable_hours?: never
+          billing_amount?: number | null
+          branch_id?: string | null
+          business_id?: string | null
+          correction_of?: string | null
+          date?: string | null
+          employee_id?: string | null
+          hours?: never
+          id?: string | null
+          invoiced_hours?: never
+          is_billable?: never
+          is_correction?: never
+          is_invoiced?: never
+          non_billable_hours?: never
+          organization_id?: string | null
+          payroll_locked?: never
+          payroll_locked_hours?: never
+          project_id?: string | null
+          status?: string | null
+          task_id?: string | null
+          uninvoiced_billable_hours?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timesheets_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_correction_of_fkey"
+            columns: ["correction_of"]
+            isOneToOne: false
+            referencedRelation: "timesheets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_correction_of_fkey"
+            columns: ["correction_of"]
+            isOneToOne: false
+            referencedRelation: "v_timesheet_entry_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_timesheet_payroll_ready: {
         Row: {
           billable_hours: number | null
@@ -86772,6 +87107,115 @@ export type Database = {
           organization_id: string | null
           period_month: string | null
           total_hours: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_timesheet_weekly_metrics: {
+        Row: {
+          approved_hours: number | null
+          billable_hours: number | null
+          business_id: string | null
+          daily_overtime_hours: number | null
+          employee_id: string | null
+          non_billable_hours: number | null
+          organization_id: string | null
+          overtime_hours: number | null
+          payroll_locked_hours: number | null
+          total_hours: number | null
+          week_start: string | null
+          weekly_overtime_hours: number | null
         }
         Relationships: [
           {
@@ -98554,6 +98998,86 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_timesheet_employee_metrics: {
+        Args: {
+          p_business_id: string
+          p_from: string
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: {
+          approved_hours: number
+          billable_hours: number
+          employee_id: string
+          employee_name: string
+          employee_number: string
+          non_billable_hours: number
+          overtime_hours: number
+          payroll_locked_hours: number
+          total_hours: number
+          uninvoiced_billable_hours: number
+          utilization_pct: number
+        }[]
+      }
+      get_timesheet_project_metrics: {
+        Args: {
+          p_business_id: string
+          p_from: string
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: {
+          approved_hours: number
+          billable_hours: number
+          customer_id: string
+          invoiced_hours: number
+          non_billable_hours: number
+          project_id: string
+          project_is_billable: boolean
+          project_name: string
+          project_number: string
+          total_hours: number
+          uninvoiced_billable_hours: number
+          utilization_pct: number
+        }[]
+      }
+      get_timesheet_summary: {
+        Args: {
+          p_business_id: string
+          p_from: string
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: {
+          approved_hours: number
+          billable_hours: number
+          employee_count: number
+          non_billable_hours: number
+          overtime_hours: number
+          payroll_locked_hours: number
+          total_hours: number
+          uninvoiced_billable_hours: number
+          utilization_pct: number
+        }[]
+      }
+      get_timesheet_uninvoiced_billable: {
+        Args: {
+          p_business_id: string
+          p_from: string
+          p_organization_id: string
+          p_to: string
+        }
+        Returns: {
+          billing_amount: number
+          date: string
+          employee_id: string
+          employee_name: string
+          hours: number
+          project_id: string
+          project_name: string
+          timesheet_id: string
+        }[]
+      }
       get_top_vendor_spend: {
         Args: {
           p_branch_id?: string
@@ -107457,6 +107981,14 @@ export type Database = {
           detail: string
           passed: boolean
           test_name: string
+        }[]
+      }
+      timesheet_effective_settings: {
+        Args: { p_business_id: string; p_organization_id: string }
+        Returns: {
+          overtime_threshold_daily: number
+          overtime_threshold_weekly: number
+          week_start_day: number
         }[]
       }
       to_base_amount: {
