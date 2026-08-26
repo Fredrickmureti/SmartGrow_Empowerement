@@ -99212,6 +99212,7 @@ export type Database = {
         Args: {
           p_action: string
           p_actor: string
+          p_entity_id?: string
           p_org: string
           p_subject: string
         }
@@ -101500,6 +101501,10 @@ export type Database = {
       }
       payroll_finalize_pack_install_v2: {
         Args: { _business_id: string; _org_id: string }
+        Returns: Json
+      }
+      payroll_flag_runs_for_timesheet: {
+        Args: { _actor: string; _timesheet_id: string }
         Returns: Json
       }
       payroll_flag_runs_for_timesheet_submission: {
@@ -103877,6 +103882,10 @@ export type Database = {
       }
       projects_recompute_spent_hours_for_submission: {
         Args: { _submission_id: string }
+        Returns: Json
+      }
+      projects_recompute_spent_hours_for_timesheet: {
+        Args: { _timesheet_id: string }
         Returns: Json
       }
       promote_pack_version: {
