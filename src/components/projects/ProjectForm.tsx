@@ -53,6 +53,7 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
   const { can } = usePermissions();
   const canCreate = can("manageProjects");
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
   interface TemplateOption {
     id: string;
