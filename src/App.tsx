@@ -168,6 +168,7 @@ import {
 // ============================================
 const MigrationPage = lazy(() => import("@/pages/settings/MigrationPage"));
 const ConsolidationReport = lazy(() => import("@/pages/reports/Consolidation"));
+const ConsolidatedTrialBalanceReport = lazy(() => import("@/pages/reports/ConsolidatedTrialBalance"));
 const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDiagnostic"));
 const PrintLatencyDiagnostic = lazy(() => import("@/pages/diagnostics/PrintLatency"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
@@ -363,6 +364,7 @@ const App = () => (
                             <Route path="/upgrade" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Upgrade /></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/billing" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><BillingHistory /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/reports/consolidation" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Consolidation"><ConsolidationReport /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
+                            <Route path="/reports/consolidated-trial-balance" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="ConsolidatedTrialBalance"><ConsolidatedTrialBalanceReport /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings" element={<ProtectedRoute><NonVendorRoute><Settings /></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/workspace" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><WorkspaceSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/company" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><CompanySettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />

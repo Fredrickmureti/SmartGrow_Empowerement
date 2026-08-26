@@ -94368,6 +94368,10 @@ export type Database = {
         Args: { p_so_id: string; p_user_id: string }
         Returns: Json
       }
+      consolidation_scope_member_count: {
+        Args: { _as_of: string; _group_id: string }
+        Returns: number
+      }
       consume_lots_atomic: {
         Args: {
           p_allocations: Json
@@ -98581,6 +98585,24 @@ export type Database = {
           id: string
           payload: Json
           plan_id: string
+        }[]
+      }
+      get_consolidated_trial_balance: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          business_id: string
+          business_name: string
+          closing_balance: number
+          is_nominal: boolean
+          is_parent: boolean
+          opening_balance: number
+          ownership_percent: number
+          total_credit: number
+          total_debit: number
         }[]
       }
       get_control_account_reconciliation: {
@@ -106064,6 +106086,23 @@ export type Database = {
       resolve_branch_setting: {
         Args: { p_branch_id: string; p_setting_key: string }
         Returns: Json
+      }
+      resolve_consolidation_scope: {
+        Args: { _as_of: string; _group_id: string }
+        Returns: {
+          base_currency: string
+          blocker: string
+          business_id: string
+          business_name: string
+          effective_from: string
+          effective_to: string
+          group_id: string
+          group_name: string
+          is_parent: boolean
+          method: Database["public"]["Enums"]["consolidation_method"]
+          ownership_percent: number
+          presentation_currency: string
+        }[]
       }
       resolve_credit_note_revenue_lines: {
         Args: {

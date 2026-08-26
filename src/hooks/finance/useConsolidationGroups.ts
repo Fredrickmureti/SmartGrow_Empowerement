@@ -269,11 +269,10 @@ export function useConsolidationGroupMutations() {
    */
   const closeMember = useMutation({
     mutationFn: async ({ id, effectiveTo }: { id: string; effectiveTo: string }) => {
-      const { error } = await supabase.rpc(
-        // Generated types lag one migration behind for this RPC.
-        "close_consolidation_member" as never,
-        { _id: id, _effective_to: effectiveTo } as never,
-      );
+      const { error } = await supabase.rpc("close_consolidation_member", {
+        _id: id,
+        _effective_to: effectiveTo,
+      });
       if (error) throw error;
     },
     onSuccess: invalidate,
