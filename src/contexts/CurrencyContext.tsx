@@ -35,7 +35,14 @@ interface CurrencyContextType {
   getExchangeRate: (fromCurrency: string, toCurrency: string, date?: string) => number | null;
   /** Converted amount, or `null` when no rate is on file. */
   convertCurrency: (amount: number, fromCurrency: string, toCurrency: string, date?: string) => number | null;
-  addExchangeRate: (fromCurrency: string, toCurrency: string, rate: number, effectiveDate?: string) => Promise<void>;
+  /** Records a tenant override through the server RPC. A reason is mandatory. */
+  addExchangeRate: (
+    fromCurrency: string,
+    toCurrency: string,
+    rate: number,
+    reason: string,
+    effectiveDate?: string,
+  ) => Promise<void>;
   refreshCurrencies: () => Promise<void>;
   refreshExchangeRates: () => Promise<void>;
 }
@@ -178,24 +185,27 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * A tenant-entered rate is an OVERRIDE: it outranks the provider-published
-   * row for the same day and never mutates it.
+   * row for the same day and never mutates it. The write goes through
+   * `set_exchange_rate_override`, the single server-validated entry point —
+   * it enforces the finance role, rejects a date inside a closed period, and
+   * records who changed the rate, why, and what it superseded.
    */
   const addExchangeRate = async (
     fromCurrency: string,
     toCurrency: string,
     rate: number,
-    effectiveDate?: string
+    reason: string,
+    effectiveDate?: string,
   ) => {
-    if (!currentOrg) throw new Error("No organization selected");
+    if (!currentBusiness) throw new Error("No company selected");
 
-    const { error } = await supabase.from("exchange_rates").insert({
-      organization_id: currentOrg.id,
-      business_id: currentBusiness?.id ?? null,
-      from_currency: fromCurrency.toUpperCase(),
-      to_currency: toCurrency.toUpperCase(),
-      rate,
-      effective_date: effectiveDate || new Date().toISOString().split("T")[0],
-      source: "override",
+    const { error } = await supabase.rpc("set_exchange_rate_override", {
+      p_business_id: currentBusiness.id,
+      p_from_currency: fromCurrency,
+      p_to_currency: toCurrency,
+      p_rate: rate,
+      p_effective_date: effectiveDate || new Date().toISOString().split("T")[0],
+      p_reason: reason,
     });
 
     if (error) throw error;
