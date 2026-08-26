@@ -121,8 +121,12 @@ export default function TimesheetApprovals() {
       <KpiStrip tiles={tiles} />
       <TimesheetApprovalList
         submissions={pendingSubmissions}
-        onApprove={approveTimesheets}
-        onReject={rejectTimesheets}
+        capabilities={capabilities}
+        onApprove={async (id) => handleApprove(id)}
+        onReject={async (id, reason) => {
+          await rejectTimesheets(id, reason);
+          await refreshCapabilities();
+        }}
         isLoading={isLoading}
       />
     </div>
