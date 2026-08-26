@@ -9962,6 +9962,290 @@ export type Database = {
           },
         ]
       }
+      consolidation_exchange_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          from_currency: string
+          group_id: string
+          id: string
+          note: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          rate: number
+          rate_type: Database["public"]["Enums"]["consolidation_rate_type"]
+          source: string
+          to_currency: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          from_currency: string
+          group_id: string
+          id?: string
+          note?: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          rate: number
+          rate_type: Database["public"]["Enums"]["consolidation_rate_type"]
+          source?: string
+          to_currency: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          from_currency?: string
+          group_id?: string
+          id?: string
+          note?: string | null
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          rate?: number
+          rate_type?: Database["public"]["Enums"]["consolidation_rate_type"]
+          source?: string
+          to_currency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_exchange_rates_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_exchange_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "consolidation_exchange_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "consolidation_exchange_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consolidation_group_members: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          group_id: string
+          id: string
+          method: Database["public"]["Enums"]["consolidation_method"]
+          notes: string | null
+          organization_id: string
+          ownership_percent: number
+          parent_business_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          group_id: string
+          id?: string
+          method?: Database["public"]["Enums"]["consolidation_method"]
+          notes?: string | null
+          organization_id: string
+          ownership_percent?: number
+          parent_business_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          group_id?: string
+          id?: string
+          method?: Database["public"]["Enums"]["consolidation_method"]
+          notes?: string | null
+          organization_id?: string
+          ownership_percent?: number
+          parent_business_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_group_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_parent_business_id_fkey"
+            columns: ["parent_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_parent_business_id_fkey"
+            columns: ["parent_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_group_members_parent_business_id_fkey"
+            columns: ["parent_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
+      consolidation_groups: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          parent_business_id: string
+          presentation_currency: string
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          parent_business_id: string
+          presentation_currency: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          parent_business_id?: string
+          presentation_currency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_parent_business_id_fkey"
+            columns: ["parent_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_parent_business_id_fkey"
+            columns: ["parent_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_parent_business_id_fkey"
+            columns: ["parent_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           address_line1: string | null
@@ -111446,6 +111730,8 @@ export type Database = {
         | "succeeded"
         | "failed"
         | "skipped"
+      consolidation_method: "full" | "proportional" | "equity" | "excluded"
+      consolidation_rate_type: "closing" | "average" | "historical"
       contact_type: "customer" | "supplier" | "both"
       contract_amendment_kind:
         | "renewal"
@@ -112636,6 +112922,8 @@ export const Constants = {
         "failed",
         "skipped",
       ],
+      consolidation_method: ["full", "proportional", "equity", "excluded"],
+      consolidation_rate_type: ["closing", "average", "historical"],
       contact_type: ["customer", "supplier", "both"],
       contract_amendment_kind: [
         "renewal",
