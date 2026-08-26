@@ -22,17 +22,73 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Plus, Trash2, Save } from "lucide-react";
 import { ProjectTemplatesCard } from "@/components/projects/ProjectTemplatesCard";
+import { CurrencyCombobox } from "@/components/contacts/CurrencyCombobox";
+import { useCurrencies } from "@/hooks/useCurrencies";
 
 interface Stage { id: string; project_id: string; name: string; sequence: number; is_closed: boolean; color: string | null; }
 
-const PRICING_OPTIONS = [
-  { value: "non_billable", label: "Non-billable" },
-  { value: "employee_rate", label: "Employee rate" },
-  { value: "task_rate", label: "Task rate" },
-  { value: "project_rate", label: "Project rate" },
-  { value: "fixed_price", label: "Fixed price" },
-  { value: "milestone", label: "Per milestone" },
+/**
+ * The pricing model is the single decision. Everything else in this card is a
+ * consequence of it: whether the project is billable at all, whether a rate is
+ * meaningful, and where the rate is actually resolved from at billing time.
+ */
+type RateMode = "none" | "default" | "fallback";
+
+const PRICING_OPTIONS: {
+  value: string;
+  label: string;
+  billable: boolean;
+  rateMode: RateMode;
+  rateLabel?: string;
+  help: string;
+}[] = [
+  {
+    value: "non_billable",
+    label: "Non-billable",
+    billable: false,
+    rateMode: "none",
+    help: "Time and costs are tracked for reporting only. Nothing on this project can be invoiced.",
+  },
+  {
+    value: "employee_rate",
+    label: "Employee rate",
+    billable: true,
+    rateMode: "fallback",
+    rateLabel: "Fallback hourly rate",
+    help: "Each team member's own billable rate is used. The fallback applies only to members with no rate of their own.",
+  },
+  {
+    value: "task_rate",
+    label: "Task rate",
+    billable: true,
+    rateMode: "fallback",
+    rateLabel: "Fallback hourly rate",
+    help: "Each task carries its own rate. The fallback applies to tasks with no rate set.",
+  },
+  {
+    value: "project_rate",
+    label: "Project rate",
+    billable: true,
+    rateMode: "default",
+    rateLabel: "Project hourly rate",
+    help: "One rate for every hour logged on this project, whoever logs it.",
+  },
+  {
+    value: "fixed_price",
+    label: "Fixed price",
+    billable: true,
+    rateMode: "none",
+    help: "The agreed contract amount is billed regardless of hours. Set the amount on the project's budget; hours are cost-tracking only.",
+  },
+  {
+    value: "milestone",
+    label: "Per milestone",
+    billable: true,
+    rateMode: "none",
+    help: "Revenue is released milestone by milestone. Each milestone carries its own amount and is invoiced when reached.",
+  },
 ];
+
 
 export default function ProjectsConfiguration() {
   const { projects, refreshProjects, updateProject } = useProjects();
@@ -41,13 +97,21 @@ export default function ProjectsConfiguration() {
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [newName, setNewName] = useState("");
 
-  // Pricing form state (mirrors selected project)
+  // Pricing form state (mirrors selected project). `is_billable` is NOT a
+  // separate decision — it is derived from the pricing model, so the two can
+  // never contradict each other.
   const [pricingType, setPricingType] = useState<string>("non_billable");
-  const [isBillable, setIsBillable] = useState(false);
   const [allowTimesheets, setAllowTimesheets] = useState(true);
   const [hourlyRate, setHourlyRate] = useState<string>("");
   const [currency, setCurrency] = useState<string>("");
   const [savingPricing, setSavingPricing] = useState(false);
+  const { currencies } = useCurrencies();
+
+  const pricing = useMemo(
+    () => PRICING_OPTIONS.find((o) => o.value === pricingType) ?? PRICING_OPTIONS[0],
+    [pricingType],
+  );
+
 
   useEffect(() => {
     if (!selectedProject && projects[0]) setSelectedProject(projects[0].id);
@@ -58,7 +122,7 @@ export default function ProjectsConfiguration() {
     const p = projects.find((x) => x.id === selectedProject);
     if (!p) return;
     setPricingType((p as { pricing_type?: string | null }).pricing_type || "non_billable");
-    setIsBillable(Boolean(p.is_billable));
+    
     setAllowTimesheets(Boolean((p as { allow_timesheets?: boolean | null }).allow_timesheets ?? true));
     setHourlyRate(p.hourly_rate != null ? String(p.hourly_rate) : "");
     setCurrency((p as { currency?: string | null }).currency || "");
@@ -103,14 +167,25 @@ export default function ProjectsConfiguration() {
 
   const savePricing = async () => {
     if (!selectedProject) return;
+    // A rate-driven model with no rate anywhere would silently bill zero.
+    if (pricing.rateMode === "default" && !(Number(hourlyRate) > 0)) {
+      toast.error("Enter a project hourly rate", { description: "This pricing model bills every hour at the project rate." });
+      return;
+    }
+    if (pricing.billable && !currency) {
+      toast.error("Pick a billing currency");
+      return;
+    }
     setSavingPricing(true);
     const patch: Record<string, unknown> = {
       pricing_type: pricingType,
-      is_billable: isBillable,
+      // Derived, never independently toggled.
+      is_billable: pricing.billable,
       allow_timesheets: allowTimesheets,
-      hourly_rate: hourlyRate ? Number(hourlyRate) : null,
+      // A rate is meaningless for models that do not price by the hour.
+      hourly_rate: pricing.rateMode === "none" || !hourlyRate ? null : Number(hourlyRate),
     };
-    if (currency.trim()) patch.currency = currency.trim().toUpperCase();
+    if (currency) patch.currency = currency.toUpperCase();
     try {
       // Billing configuration is governed server-side: only an admin or the
       // project manager may change it (project_update_config).
@@ -123,6 +198,7 @@ export default function ProjectsConfiguration() {
     }
     void refreshProjects();
   };
+
 
 
   const projectName = useMemo(() => projects.find((p) => p.id === selectedProject)?.name, [projects, selectedProject]);
@@ -182,30 +258,55 @@ export default function ProjectsConfiguration() {
           <CardDescription>Drives how the Financials tab posts revenue and how timesheets are invoiced.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
+          <div className="space-y-1 sm:col-span-2">
             <Label>Pricing model</Label>
             <Select value={pricingType} onValueChange={setPricingType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="sm:max-w-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PRICING_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">{pricing.help}</p>
           </div>
-          <div className="space-y-1">
-            <Label>Default hourly rate</Label>
-            <Input type="number" step="0.01" min="0" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} placeholder="0.00" />
-          </div>
-          <div className="space-y-1">
-            <Label>Currency (ISO)</Label>
-            <Input value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="USD" maxLength={3} />
-          </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div>
-              <Label>Billable project</Label>
-              <p className="text-xs text-muted-foreground">Costs and revenue post to the analytic ledger.</p>
+
+          {pricing.rateMode !== "none" && (
+            <div className="space-y-1">
+              <Label>{pricing.rateLabel ?? "Hourly rate"}</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="0.00"
+              />
+              <p className="text-xs text-muted-foreground">
+                {pricing.rateMode === "default"
+                  ? "Applied to every billable hour on this project."
+                  : "Used only where no more specific rate is set."}
+              </p>
             </div>
-            <Switch checked={isBillable} onCheckedChange={setIsBillable} />
+          )}
+
+          {pricing.billable && (
+            <div className="space-y-1">
+              <Label>Billing currency</Label>
+              <CurrencyCombobox currencies={currencies} value={currency} onValueChange={setCurrency} />
+              <p className="text-xs text-muted-foreground">Invoices raised from this project are issued in this currency.</p>
+            </div>
+          )}
+
+          <div className="sm:col-span-2 rounded-md border p-3 text-sm">
+            <span className="font-medium">Billing status: </span>
+            {pricing.billable ? (
+              <span>Billable — revenue and costs post to the project's analytic account.</span>
+            ) : (
+              <span className="text-muted-foreground">
+                Not billable — time and costs are tracked for reporting only. Choose another pricing model to invoice this project.
+              </span>
+            )}
           </div>
+
           <div className="flex items-center justify-between rounded-md border p-3">
             <div>
               <Label>Allow timesheets</Label>
