@@ -107,10 +107,6 @@ either. No edge function or database routine updates or deletes `exchange_rates`
 Security linter total unchanged at the pre-existing 3684 baseline — the phase added no new
 findings. Typecheck clean.
 
----
-
-## Pending work
-
 ### Phase 3 — Close the stamping gaps (D2, D3, D9, D10, D11) — DONE 2026-08-26
 
 **Verification of Phases 1–2 before starting (catalog, not trust in the log).**
@@ -160,6 +156,11 @@ attached. Typecheck clean. Security linter 3685 vs the 3684 baseline — the sin
 `SECURITY INVOKER` and the new internal trigger functions have `EXECUTE` revoked from
 `anon`/`authenticated`.
 
+
+
+---
+
+## Pending work
 
 ### Phase 4 — Rate coverage and history (D8)
 Backfill provider history to each business's earliest transaction date; documented
