@@ -37,7 +37,18 @@ export interface FixedAsset {
   name: string;
   description: string | null;
   purchase_date: string;
+  /** Cost in the currency the asset was actually bought in. Evidence, not the accounting basis. */
   purchase_price: number;
+  /** Transaction currency. Server-stamped; immutable once depreciated or posted. */
+  currency: string;
+  /** Rate resolved server-side on purchase_date — the IAS 21 historical rate. */
+  acquisition_exchange_rate: number;
+  /** purchase_price x acquisition_exchange_rate. The accounting basis for depreciation and GL. */
+  base_purchase_price: number;
+  base_residual_value: number;
+  /** Rate on disposal_date; proceeds are monetary so they translate at disposal, not at acquisition. */
+  disposal_exchange_rate: number | null;
+  base_disposal_price: number | null;
   vendor_id: string | null;
   invoice_reference: string | null;
   branch_id: string | null;
@@ -189,12 +200,26 @@ export function useFixedAssets() {
     return data;
   };
 
-  const createAsset = async (asset: Omit<FixedAsset, "id" | "organization_id" | "asset_number" | "created_at" | "updated_at" | "category">) => {
+  const createAsset = async (
+    asset: Omit<
+      FixedAsset,
+      | "id"
+      | "organization_id"
+      | "asset_number"
+      | "created_at"
+      | "updated_at"
+      | "category"
+      | "acquisition_exchange_rate"
+      | "base_purchase_price"
+      | "base_residual_value"
+      | "disposal_exchange_rate"
+      | "base_disposal_price"
+    > & { currency?: string },
+  ) => {
     if (!can("manageFinancials")) { toast.error("You don't have permission to create assets"); throw new Error("Permission denied"); }
     if (!currentOrg || !user) throw new Error("No organization selected");
 
     const assetNumber = await getNextAssetNumber();
-    const bookValue = asset.purchase_price - asset.accumulated_depreciation;
     // Stamp branch from active scope when caller did not specify one.
     const stampedBranchId = asset.branch_id ?? scope.branchId ?? null;
 
@@ -206,13 +231,20 @@ export function useFixedAssets() {
         organization_id: currentOrg.id,
         business_id: currentBusiness?.id,
         asset_number: assetNumber,
-        book_value: bookValue,
+        // currency, acquisition_exchange_rate, base_purchase_price,
+        // base_residual_value and book_value are stamped server-side by
+        // trg_fixed_assets_stamp_currency through the one FX engine. A
+        // client-supplied rate is ignored; a foreign asset with no rate on
+        // file is refused rather than recorded at face value.
         created_by: user.id,
       } as any)
       .select()
       .single();
 
     if (error) throw error;
+
+    // The ledger is kept in the base currency: post the server-stamped base cost.
+    const baseCost = Number((data as any).base_purchase_price ?? asset.purchase_price);
 
     // Post acquisition journal entry: Dr Fixed Asset, Cr Cash/Bank
     const mappings = getFixedAssetAccountMappings();
@@ -227,8 +259,8 @@ export function useFixedAssets() {
           // Stamp the JE with the asset's branch so consolidated/branch reports reconcile.
           branch_id: stampedBranchId,
           entries: [
-            { account_id: mappings.fixed_asset_account_id, debit_amount: asset.purchase_price, credit_amount: 0, description: `Asset acquisition - ${asset.name}` },
-            { account_id: mappings.payment_account_id, debit_amount: 0, credit_amount: asset.purchase_price, description: `Payment for asset - ${assetNumber}` },
+            { account_id: mappings.fixed_asset_account_id, debit_amount: baseCost, credit_amount: 0, description: `Asset acquisition - ${asset.name}` },
+            { account_id: mappings.payment_account_id, debit_amount: 0, credit_amount: baseCost, description: `Payment for asset - ${assetNumber}` },
           ],
         });
       } catch (glError) {
@@ -245,7 +277,7 @@ export function useFixedAssets() {
       entityType: "fixed_asset",
       entityId: data.id,
       entityName: `${assetNumber} - ${asset.name}`,
-      changesSummary: `Fixed asset created: ${assetNumber}, purchase price ${asset.purchase_price}`,
+      changesSummary: `Fixed asset created: ${assetNumber}, purchase price ${asset.purchase_price} ${(data as any).currency ?? ""} (base ${baseCost} @ ${(data as any).acquisition_exchange_rate})`,
     });
 
     toast.success(`Asset ${assetNumber} created successfully`);
@@ -258,9 +290,10 @@ export function useFixedAssets() {
     if (updates.purchase_price !== undefined || updates.accumulated_depreciation !== undefined) {
       const asset = assets.find((a) => a.id === id);
       if (asset) {
-        const purchasePrice = updates.purchase_price ?? asset.purchase_price;
+        // Carrying value is a base-currency measure against the historical cost.
+        const baseCost = Number(asset.base_purchase_price ?? asset.purchase_price);
         const accumulatedDepreciation = updates.accumulated_depreciation ?? asset.accumulated_depreciation;
-        updates.book_value = purchasePrice - accumulatedDepreciation;
+        updates.book_value = baseCost - accumulatedDepreciation;
       }
     }
 
@@ -284,7 +317,10 @@ export function useFixedAssets() {
     const asset = assets.find((a) => a.id === id);
     if (!asset) throw new Error("Asset not found");
 
-    const { error } = await supabase
+    // The server stamps disposal_exchange_rate on the disposal date and derives
+    // base_disposal_price; proceeds are monetary, so they do NOT use the
+    // acquisition rate.
+    const { data: disposed, error } = await supabase
       .from("fixed_assets")
       .update({
         status: "disposed",
@@ -292,9 +328,14 @@ export function useFixedAssets() {
         disposal_price: disposalPrice,
         disposal_reason: reason,
       })
-      .eq("id", id);
+      .eq("id", id)
+      .select("disposal_exchange_rate, base_disposal_price, base_purchase_price")
+      .single();
 
     if (error) throw error;
+
+    const baseProceeds = Number((disposed as any)?.base_disposal_price ?? disposalPrice);
+    const baseCost = Number((disposed as any)?.base_purchase_price ?? asset.purchase_price);
 
     // Post disposal journal entry
     // Dr Cash/Bank (disposal price)
@@ -309,15 +350,15 @@ export function useFixedAssets() {
     const cashAccountId = mappings.payment_account_id;
 
     if (assetAccountId && accumDepAccountId && cashAccountId) {
-      const bookValue = asset.purchase_price - asset.accumulated_depreciation;
-      const gainLoss = disposalPrice - bookValue;
+      const bookValue = baseCost - asset.accumulated_depreciation;
+      const gainLoss = baseProceeds - bookValue;
 
       try {
         const entries = [
           // Dr Cash/Bank for disposal proceeds
-          ...(disposalPrice > 0 ? [{
+          ...(baseProceeds > 0 ? [{
             account_id: cashAccountId,
-            debit_amount: disposalPrice,
+            debit_amount: baseProceeds,
             credit_amount: 0,
             description: `Disposal proceeds - ${asset.name}`,
           }] : []),
@@ -332,7 +373,7 @@ export function useFixedAssets() {
           {
             account_id: assetAccountId,
             debit_amount: 0,
-            credit_amount: asset.purchase_price,
+            credit_amount: baseCost,
             description: `Asset disposal - ${asset.name}`,
           },
         ];
@@ -401,7 +442,9 @@ export function useFixedAssets() {
   // Calculate monthly depreciation for an asset
   const calculateMonthlyDepreciation = (asset: FixedAsset): number => {
     if (asset.depreciation_method === "straight_line") {
-      const depreciableAmount = asset.purchase_price - asset.residual_value;
+      const depreciableAmount =
+        Number(asset.base_purchase_price ?? asset.purchase_price) -
+        Number(asset.base_residual_value ?? asset.residual_value);
       const totalMonths = asset.useful_life_years * 12;
       return Math.round((depreciableAmount / totalMonths) * 100) / 100;
     } else if (asset.depreciation_method === "reducing_balance") {
@@ -416,7 +459,12 @@ export function useFixedAssets() {
   // Get asset statistics
   const getAssetStats = () => {
     const activeAssets = assets.filter((a) => a.status === "active");
-    const totalPurchaseValue = activeAssets.reduce((sum, a) => sum + a.purchase_price, 0);
+    // Totals are base-currency measures: mixing transaction currencies would add
+    // unlike units.
+    const totalPurchaseValue = activeAssets.reduce(
+      (sum, a) => sum + Number(a.base_purchase_price ?? a.purchase_price),
+      0,
+    );
     const totalBookValue = activeAssets.reduce((sum, a) => sum + (a.book_value || 0), 0);
     const totalAccumulatedDepreciation = activeAssets.reduce((sum, a) => sum + a.accumulated_depreciation, 0);
 
