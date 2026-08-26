@@ -31,7 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, LockKeyhole, Loader2, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +68,19 @@ interface ActiveCurrency {
   is_base: boolean;
 }
 
+interface CurrencyReadiness {
+  state: "ready" | "confirmation_required" | "locked";
+  can_change: boolean;
+  requires_confirmation: boolean;
+  journal_entry_count: number;
+  draft_total: number;
+  draft_counts: Record<string, number>;
+  foreign_bank_account_count: number;
+  non_base_operating_currency_count: number;
+  reconciliation_count: number;
+  closed_period_count: number;
+}
+
 
 const SOURCE_LABEL: Record<string, string> = {
   override: "Override",
@@ -90,6 +103,9 @@ export function CurrencySettings() {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [activeCurrencies, setActiveCurrencies] = useState<ActiveCurrency[]>([]);
   const [baseCurrency, setBaseCurrency] = useState("");
+  const [readiness, setReadiness] = useState<CurrencyReadiness | null>(null);
+  const [showBaseCurrencyDialog, setShowBaseCurrencyDialog] = useState(false);
+  const [changeReason, setChangeReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showRateDialog, setShowRateDialog] = useState(false);
@@ -148,6 +164,18 @@ export function CurrencySettings() {
     setActiveCurrencies((data ?? []) as ActiveCurrency[]);
   }, [currentBusiness]);
 
+  const fetchReadiness = useCallback(async () => {
+    if (!currentBusiness) return;
+    const { data, error } = await supabase.rpc("business_currency_readiness", {
+      p_business_id: currentBusiness.id,
+    });
+    if (error) {
+      console.error("Error fetching base-currency readiness:", error);
+      return;
+    }
+    setReadiness(data as unknown as CurrencyReadiness);
+  }, [currentBusiness]);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -155,23 +183,26 @@ export function CurrencySettings() {
       fetchCurrencies(),
       fetchExchangeRates(),
       fetchActiveCurrencies(),
+      fetchReadiness(),
     ]).finally(() => setIsLoading(false));
     setBaseCurrency(currentBusiness?.base_currency ?? "");
-  }, [fetchCurrencies, fetchExchangeRates, fetchActiveCurrencies, currentBusiness]);
+  }, [fetchCurrencies, fetchExchangeRates, fetchActiveCurrencies, fetchReadiness, currentBusiness]);
 
   const handleSaveBaseCurrency = async () => {
     if (!currentBusiness || !canEdit) return;
     setIsSaving(true);
     try {
-      // base_currency lives on businesses; trg_business_currency_lock rejects
-      // a change once the first journal entry exists.
-      const { error } = await supabase
-        .from("businesses")
-        .update({ base_currency: baseCurrency })
-        .eq("id", currentBusiness.id);
+      const { error } = await supabase.rpc("change_business_base_currency", {
+        p_business_id: currentBusiness.id,
+        p_new_currency: baseCurrency,
+        p_reason: changeReason,
+        p_confirm_impacts: readiness?.requires_confirmation ?? false,
+      });
       if (error) throw error;
-      toast({ title: "Base currency updated" });
-      await refreshBusinesses();
+      toast({ title: `Base currency changed to ${baseCurrency}` });
+      setShowBaseCurrencyDialog(false);
+      setChangeReason("");
+      await Promise.all([refreshBusinesses(), fetchReadiness(), fetchActiveCurrencies()]);
     } catch (error: unknown) {
       toast({
         title: "Error",
@@ -181,6 +212,11 @@ export function CurrencySettings() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const openBaseCurrencyChange = () => {
+    if (!readiness?.can_change || baseCurrency === base) return;
+    setShowBaseCurrencyDialog(true);
   };
 
   const handleToggleCurrency = async (code: string, enabled: boolean) => {
@@ -268,11 +304,36 @@ export function CurrencySettings() {
             journal entry is posted.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
+          <div className="flex items-start gap-3 rounded-md border p-4">
+            {readiness?.state === "locked" ? (
+              <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            ) : readiness?.state === "confirmation_required" ? (
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+            )}
+            <div className="space-y-1">
+              <p className="font-medium">
+                {readiness?.state === "locked"
+                  ? "Base currency is permanently locked"
+                  : readiness?.state === "confirmation_required"
+                    ? "Changes require an impact review"
+                    : "Base currency can be changed"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {readiness?.state === "locked"
+                  ? `${readiness.journal_entry_count} accounting ${readiness.journal_entry_count === 1 ? "entry exists" : "entries exist"}; historical books will not be converted.`
+                  : readiness?.state === "confirmation_required"
+                    ? "Draft rates and related currency settings will be reviewed before the change is applied."
+                    : "No accounting history or dependent currency setup blocks a change."}
+              </p>
+            </div>
+          </div>
           <div className="flex gap-4 items-end max-w-md">
             <div className="flex-1 space-y-2">
               <Label>Base currency</Label>
-              <Select value={baseCurrency} onValueChange={setBaseCurrency} disabled={!canEdit}>
+              <Select value={baseCurrency} onValueChange={setBaseCurrency} disabled={!canEdit || !readiness?.can_change}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -286,14 +347,51 @@ export function CurrencySettings() {
               </Select>
             </div>
             {canEdit && (
-              <Button onClick={handleSaveBaseCurrency} disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save
+              <Button onClick={openBaseCurrencyChange} disabled={isSaving || !readiness?.can_change || baseCurrency === base}>
+                Review change
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showBaseCurrencyDialog} onOpenChange={setShowBaseCurrencyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change base currency to {baseCurrency}</DialogTitle>
+            <DialogDescription>
+              This changes how new accounting amounts are measured. Posted history is never rewritten.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {readiness?.requires_confirmation && (
+              <div className="space-y-2 rounded-md border p-4 text-sm">
+                <p className="font-medium">Affected setup</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  {readiness.draft_total > 0 && <li>{readiness.draft_total} draft documents will be re-stamped</li>}
+                  {readiness.foreign_bank_account_count > 0 && <li>{readiness.foreign_bank_account_count} bank accounts use the current or another currency</li>}
+                  {readiness.non_base_operating_currency_count > 0 && <li>{readiness.non_base_operating_currency_count} additional operating currencies are enabled</li>}
+                  {readiness.reconciliation_count > 0 && <li>{readiness.reconciliation_count} reconciliation sessions exist</li>}
+                  {readiness.closed_period_count > 0 && <li>{readiness.closed_period_count} closed periods exist</li>}
+                </ul>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="base-currency-reason">Reason</Label>
+              <Input
+                id="base-currency-reason"
+                value={changeReason}
+                onChange={(event) => setChangeReason(event.target.value)}
+                placeholder="Why is the company changing its accounting currency?"
+              />
+            </div>
+            <Button className="w-full" onClick={handleSaveBaseCurrency} disabled={isSaving || !changeReason.trim()}>
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirm change
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

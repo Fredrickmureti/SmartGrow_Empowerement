@@ -25,13 +25,13 @@ Last updated: 2026-08-26.
 | 2 | Rate-book integrity and privilege (D4, D5, S1) | **DONE — verified** |
 | 3 | Close the stamping gaps (D2, D3, D9, D10, D11) | **DONE — verified at runtime** |
 | 4 | Rate coverage and history (D8) | **DONE — verified at runtime** |
-| 5 | Base-currency lifecycle (D13, U1, U2) | **NEXT** |
-| 6 | Non-monetary assets and budgets (D6, D7) | Pending |
+| 5 | Base-currency lifecycle (D13, U1, U2) | **DONE — verified** |
+| 6 | Non-monetary assets and budgets (D6, D7) | **NEXT** |
 | 7 | Presentation convergence (D12, D14) | Pending |
 | 8 | Currency Settings UX (U3–U9) | Pending |
 | 9 | Regression protection (D15, S2) | Pending |
 
-Currently active phase: **Phase 5** (Phase 4 completed and runtime-verified 2026-08-26).
+Currently active phase: **Phase 6** (Phase 5 completed and catalog/test-verified 2026-08-26).
 
 ---
 
@@ -200,6 +200,35 @@ returned 14 per business); `provider_snapshot_age_days = 124`. Grants confirmed:
 closed to both. Security linter 3687 — the +2 against the Phase 3 figure is exactly the two new
 `authenticated`-callable definer functions, both of which enforce company access internally.
 
+### Phase 5 — Base-currency lifecycle (D13, U1, U2) — DONE 2026-08-26
+
+**Was.** Currency Settings updated `businesses.base_currency` directly. The journal-entry trigger
+correctly blocked changes after accounting history existed, but the client had no readiness view,
+reason, impact confirmation, audit record or atomic draft re-stamp.
+
+**Now.** `business_currency_readiness` reports the hard journal-entry lock, draft counts, foreign
+bank accounts, enabled non-base currencies, reconciliations and closed periods. The only client
+write path is `change_business_base_currency`: it locks the company row, requires company access
+and a finance role, validates the currency and mandatory reason, rechecks readiness, requires
+explicit impact confirmation, changes the base currency and re-stamps eligible drafts through
+`fx_stamp_document` in one transaction. `business_currency_change_audit` is append-only, RLS
+protected and records actor, old/new currency, reason, draft counts and the readiness snapshot.
+The unattached duplicate `enforce_business_currency_immutable` was removed.
+
+**Client.** Currency Settings now presents ready / confirmation-required / permanently-locked
+states, disables the selector at the journal-entry boundary, shows affected setup before change,
+requires a reason and calls only the audited RPC.
+
+**Unchanged by design.** `lock_business_currency_after_je`, its `23514` boundary, rate precedence,
+posted documents, stamped posted rates, journal entries and closed accounting history.
+
+**Verified.** Catalog inspection confirms both RPCs are authenticated-only security-definer
+functions with fixed search paths, the duplicate function is absent, the audit table has RLS and
+an append-only trigger, and the client contains no direct base-currency update. Currency
+architecture tests pass (13/13). The linter remains on the project's eight pre-existing finding
+categories; its total rose by the two intentionally authenticated RPCs, both of which perform
+business-access checks and the mutating RPC additionally enforces the finance role.
+
 
 
 
@@ -207,25 +236,6 @@ closed to both. Security linter 3687 — the +2 against the Phase 3 figure is ex
 ---
 
 ## Pending work
-
-### Phase 5 — Base-currency lifecycle (D13, U1, U2)
-`business_currency_readiness(business_id)` returns lifecycle state, counts of affected drafts,
-and explicit blockers including journal entries, foreign bank accounts, enabled non-base
-operating currencies, reconciliations and closed periods. Replace the client's direct
-`businesses.base_currency` update with one finance-authorized, reason-required RPC that locks the
-business row, rechecks readiness, changes the base currency, and explicitly re-stamps eligible
-drafts through `fx_stamp_document` in the same transaction. The RPC must update each draft's
-stored rate/base amount directly from the engine result; a no-op row update is insufficient
-because the existing document triggers only re-stamp when currency or document date changes.
-Posted documents and journal entries are never touched. Record actor, reason, old/new currency,
-draft counts and timestamp in a dedicated append-only audit table. Remove the unattached duplicate
-`enforce_business_currency_immutable`; preserve `lock_business_currency_after_je`, its `23514`
-boundary, rate precedence and all posted-document immutability guards unchanged.
-
-**Client scope for this phase.** Replace the editable Select with a lifecycle-aware base-currency
-status panel driven by readiness, show blockers before confirmation, require a reason, call only
-the audited RPC, and translate database refusal codes into actionable messages. Searchable
-operating-currency and rate-book redesign remains Phase 8.
 
 ### Phase 6 — Non-monetary assets and budgets (D6, D7)
 `fixed_assets` gains currency + acquisition rate (+ derived base cost), stamped at
@@ -284,6 +294,9 @@ open balances.
 - Silent `COALESCE(<rate>, 1)` patterns still exist outside the four Phase 1 reporting functions.
   Phase 9 must inventory and eliminate or explicitly justify every remaining occurrence before
   enabling its global no-silent-1:1 guard.
+- The external Supabase session could not be injected into the local browser, so Phase 5 still
+  warrants one signed-in smoke test on `/settings/company?tab=currency`: verify the locked state
+  for a posted company and the reason/confirmation dialog for an unposted company.
 
 ## Instructions for the next agent
 

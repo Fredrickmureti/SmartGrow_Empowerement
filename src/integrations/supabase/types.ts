@@ -8515,6 +8515,88 @@ export type Database = {
           },
         ]
       }
+      business_currency_change_audit: {
+        Row: {
+          actor_id: string
+          business_id: string
+          created_at: string
+          draft_counts: Json
+          id: string
+          impact_snapshot: Json
+          new_currency: string
+          old_currency: string
+          organization_id: string
+          reason: string
+        }
+        Insert: {
+          actor_id: string
+          business_id: string
+          created_at?: string
+          draft_counts?: Json
+          id?: string
+          impact_snapshot?: Json
+          new_currency: string
+          old_currency: string
+          organization_id: string
+          reason: string
+        }
+        Update: {
+          actor_id?: string
+          business_id?: string
+          created_at?: string
+          draft_counts?: Json
+          id?: string
+          impact_snapshot?: Json
+          new_currency?: string
+          old_currency?: string
+          organization_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_currency_change_audit_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_currency_change_audit_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "business_currency_change_audit_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "business_currency_change_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "business_currency_change_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "business_currency_change_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_event_outbox: {
         Row: {
           actor_user_id: string | null
@@ -92059,6 +92141,10 @@ export type Database = {
         }[]
       }
       build_invoice_je_lines: { Args: { p_invoice_id: string }; Returns: Json }
+      business_currency_readiness: {
+        Args: { p_business_id: string }
+        Returns: Json
+      }
       calculate_leave_days: {
         Args: {
           p_end_date: string
@@ -92436,6 +92522,15 @@ export type Database = {
       capture_pending_billable_activities: {
         Args: { p_business_id: string; p_limit?: number }
         Returns: number
+      }
+      change_business_base_currency: {
+        Args: {
+          p_business_id: string
+          p_confirm_impacts?: boolean
+          p_new_currency: string
+          p_reason: string
+        }
+        Returns: Json
       }
       change_compensation: {
         Args: {
