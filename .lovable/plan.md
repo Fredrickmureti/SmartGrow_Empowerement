@@ -25,6 +25,10 @@ Checked directly, not taken on trust:
   currency.
 - `formatCurrency(amount, currencyCode?)` already accepts an explicit currency — no formatter work
   needed for this wave.
+- **The tree does not currently typecheck.** `AssetCreatePage.tsx(24)` fails TS2345: the hook's
+  create payload now requires `currency`, and the form does not supply it. This is a live break
+  left by the partial handover, and item 3 below is what fixes it — so this wave must be
+  implemented before anything else can ship.
 
 ## Phase 6 status
 
