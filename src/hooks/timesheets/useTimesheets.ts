@@ -275,6 +275,48 @@ export function useTimesheets() {
   };
 
   /**
+   * Correct an approved entry. The server creates a linked draft correction
+   * entry; the original stays an immutable historical fact until the
+   * correction is approved, at which point it is superseded.
+   */
+  const correctTimesheet = async (
+    timesheetId: string,
+    reason: string,
+    changes?: {
+      hours?: number;
+      description?: string | null;
+      is_billable?: boolean;
+      project_id?: string | null;
+      task_id?: string | null;
+    },
+  ) => {
+    const { data, error } = await supabase.rpc("correct_timesheet_entry" as any, {
+      _timesheet_id: timesheetId,
+      _reason: reason,
+      _hours: changes?.hours ?? null,
+      _description: changes?.description ?? null,
+      _is_billable: changes?.is_billable ?? null,
+      _project_id: changes?.project_id ?? null,
+      _task_id: changes?.task_id ?? null,
+    });
+    if (error) throw error;
+    toast.success("Correction created — submit it for approval to replace the original entry");
+    await fetchTimesheets();
+    return data as unknown as string;
+  };
+
+  /** Reverse an approved entry (no replacement). Requires a reason. */
+  const reverseTimesheet = async (timesheetId: string, reason: string) => {
+    const { error } = await supabase.rpc("reverse_timesheet_entry" as any, {
+      _timesheet_id: timesheetId,
+      _reason: reason,
+    });
+    if (error) throw error;
+    toast.success("Time entry reversed");
+    await fetchTimesheets();
+  };
+
+  /**
    * Copy every entry from `fromWeekStart` (7 days) into the matching weekday of
    * `toWeekStart`. Useful for repeating a typical week. Skips weekends with no
    * source entries; only `draft` rows are produced (so they need re-submitting).
