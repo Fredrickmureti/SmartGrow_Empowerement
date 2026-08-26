@@ -256,30 +256,55 @@ export default function ProjectsConfiguration() {
           <CardDescription>Drives how the Financials tab posts revenue and how timesheets are invoiced.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
+          <div className="space-y-1 sm:col-span-2">
             <Label>Pricing model</Label>
             <Select value={pricingType} onValueChange={setPricingType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="sm:max-w-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PRICING_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">{pricing.help}</p>
           </div>
-          <div className="space-y-1">
-            <Label>Default hourly rate</Label>
-            <Input type="number" step="0.01" min="0" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} placeholder="0.00" />
-          </div>
-          <div className="space-y-1">
-            <Label>Currency (ISO)</Label>
-            <Input value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="USD" maxLength={3} />
-          </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div>
-              <Label>Billable project</Label>
-              <p className="text-xs text-muted-foreground">Costs and revenue post to the analytic ledger.</p>
+
+          {pricing.rateMode !== "none" && (
+            <div className="space-y-1">
+              <Label>{pricing.rateLabel ?? "Hourly rate"}</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="0.00"
+              />
+              <p className="text-xs text-muted-foreground">
+                {pricing.rateMode === "default"
+                  ? "Applied to every billable hour on this project."
+                  : "Used only where no more specific rate is set."}
+              </p>
             </div>
-            <Switch checked={isBillable} onCheckedChange={setIsBillable} />
+          )}
+
+          {pricing.billable && (
+            <div className="space-y-1">
+              <Label>Billing currency</Label>
+              <CurrencyCombobox currencies={currencies} value={currency} onValueChange={setCurrency} />
+              <p className="text-xs text-muted-foreground">Invoices raised from this project are issued in this currency.</p>
+            </div>
+          )}
+
+          <div className="sm:col-span-2 rounded-md border p-3 text-sm">
+            <span className="font-medium">Billing status: </span>
+            {pricing.billable ? (
+              <span>Billable — revenue and costs post to the project's analytic account.</span>
+            ) : (
+              <span className="text-muted-foreground">
+                Not billable — time and costs are tracked for reporting only. Choose another pricing model to invoice this project.
+              </span>
+            )}
           </div>
+
           <div className="flex items-center justify-between rounded-md border p-3">
             <div>
               <Label>Allow timesheets</Label>
