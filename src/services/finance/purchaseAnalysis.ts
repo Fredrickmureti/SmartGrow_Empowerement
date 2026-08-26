@@ -69,6 +69,19 @@ export interface PurchaseAnalysisTotals {
   quantity: number;
   purchase_documents: number;
   return_documents: number;
+  /**
+   * Documents in range that carry no conversion evidence (foreign currency,
+   * no stamped rate). They are EXCLUDED from every measure above — their base
+   * value is unknown, never assumed to be 1:1.
+   */
+  unconvertible_document_count: number;
+}
+
+/** Documents excluded for want of a rate, split by kind. */
+export interface UnconvertibleDocuments {
+  purchase_documents: number;
+  return_documents: number;
+  total: number;
 }
 
 export interface PurchaseAnalysisResult {
@@ -77,6 +90,7 @@ export interface PurchaseAnalysisResult {
   to: string;
   rows: PurchaseAnalysisRow[];
   totals: PurchaseAnalysisTotals;
+  unconvertible: UnconvertibleDocuments;
   paging: { total_rows: number; limit: number | null; offset: number };
 }
 
@@ -103,6 +117,13 @@ export const EMPTY_PURCHASE_TOTALS: PurchaseAnalysisTotals = {
   quantity: 0,
   purchase_documents: 0,
   return_documents: 0,
+  unconvertible_document_count: 0,
+};
+
+export const EMPTY_UNCONVERTIBLE: UnconvertibleDocuments = {
+  purchase_documents: 0,
+  return_documents: 0,
+  total: 0,
 };
 
 function normalizeRow(raw: Record<string, unknown>): PurchaseAnalysisRow {
@@ -146,6 +167,7 @@ export async function fetchPurchaseAnalysis(
   const rows = Array.isArray(payload.rows) ? (payload.rows as Record<string, unknown>[]) : [];
   const totals = (payload.totals ?? {}) as Record<string, unknown>;
   const paging = (payload.paging ?? {}) as Record<string, unknown>;
+  const unconvertible = (payload.unconvertible ?? {}) as Record<string, unknown>;
 
   return {
     dimension: isPurchaseDimension(payload.dimension) ? payload.dimension : params.dimension,
@@ -162,6 +184,12 @@ export async function fetchPurchaseAnalysis(
       quantity: num(totals.quantity),
       purchase_documents: Number(totals.purchase_documents ?? 0) || 0,
       return_documents: Number(totals.return_documents ?? 0) || 0,
+      unconvertible_document_count: Number(totals.unconvertible_document_count ?? 0) || 0,
+    },
+    unconvertible: {
+      purchase_documents: Number(unconvertible.purchase_documents ?? 0) || 0,
+      return_documents: Number(unconvertible.return_documents ?? 0) || 0,
+      total: Number(unconvertible.total ?? 0) || 0,
     },
     paging: {
       total_rows: Number(paging.total_rows ?? 0) || 0,
@@ -181,6 +209,12 @@ export interface PurchaseExpenseReconciliation {
   glPurchaseReturns: number;
   ledgerNetPurchases: number;
   variance: number;
+  /** Bills in range with no conversion evidence; excluded from the document side. */
+  unconvertibleBillCount: number;
+  /** Vendor credit notes in range with no conversion evidence; excluded from the document side. */
+  unconvertibleVendorCreditNoteCount: number;
+  unconvertibleDocumentCount: number;
+  /** False while any document is unconvertible — an unknown value is not a tie-out. */
   inBalance: boolean;
 }
 
@@ -222,6 +256,9 @@ export async function fetchPurchaseExpenseReconciliation(params: {
     glPurchaseReturns: num(row.gl_purchase_returns),
     ledgerNetPurchases: num(row.ledger_net_purchases),
     variance: num(row.variance),
+    unconvertibleBillCount: Number(row.unconvertible_bill_count ?? 0) || 0,
+    unconvertibleVendorCreditNoteCount: Number(row.unconvertible_vendor_credit_note_count ?? 0) || 0,
+    unconvertibleDocumentCount: Number(row.unconvertible_document_count ?? 0) || 0,
     inBalance: Boolean(row.in_balance),
   };
 }

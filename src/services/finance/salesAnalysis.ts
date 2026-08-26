@@ -74,6 +74,19 @@ export interface SalesAnalysisTotals {
   quantity: number;
   sale_documents: number;
   return_documents: number;
+  /**
+   * Documents in range that carry no conversion evidence (foreign currency,
+   * no stamped rate). They are EXCLUDED from every measure above — their base
+   * value is unknown, never assumed to be 1:1.
+   */
+  unconvertible_document_count: number;
+}
+
+/** Documents excluded for want of a rate, split by kind. */
+export interface UnconvertibleDocuments {
+  sale_documents: number;
+  return_documents: number;
+  total: number;
 }
 
 export interface SalesAnalysisResult {
@@ -82,6 +95,7 @@ export interface SalesAnalysisResult {
   to: string;
   rows: SalesAnalysisRow[];
   totals: SalesAnalysisTotals;
+  unconvertible: UnconvertibleDocuments;
   paging: { total_rows: number; limit: number | null; offset: number };
 }
 
@@ -110,6 +124,13 @@ export const EMPTY_SALES_TOTALS: SalesAnalysisTotals = {
   quantity: 0,
   sale_documents: 0,
   return_documents: 0,
+  unconvertible_document_count: 0,
+};
+
+export const EMPTY_UNCONVERTIBLE: UnconvertibleDocuments = {
+  sale_documents: 0,
+  return_documents: 0,
+  total: 0,
 };
 
 function normalizeRow(raw: Record<string, unknown>): SalesAnalysisRow {
@@ -156,6 +177,7 @@ export async function fetchSalesAnalysis(
   const rows = Array.isArray(payload.rows) ? (payload.rows as Record<string, unknown>[]) : [];
   const totals = (payload.totals ?? {}) as Record<string, unknown>;
   const paging = (payload.paging ?? {}) as Record<string, unknown>;
+  const unconvertible = (payload.unconvertible ?? {}) as Record<string, unknown>;
 
   return {
     dimension: isSalesDimension(payload.dimension) ? payload.dimension : params.dimension,
@@ -174,6 +196,12 @@ export async function fetchSalesAnalysis(
       quantity: num(totals.quantity),
       sale_documents: Number(totals.sale_documents ?? 0) || 0,
       return_documents: Number(totals.return_documents ?? 0) || 0,
+      unconvertible_document_count: Number(totals.unconvertible_document_count ?? 0) || 0,
+    },
+    unconvertible: {
+      sale_documents: Number(unconvertible.sale_documents ?? 0) || 0,
+      return_documents: Number(unconvertible.return_documents ?? 0) || 0,
+      total: Number(unconvertible.total ?? 0) || 0,
     },
     paging: {
       total_rows: Number(paging.total_rows ?? 0) || 0,
@@ -192,6 +220,12 @@ export interface SalesRevenueReconciliation {
   glDiscountsGiven: number;
   ledgerNetSales: number;
   variance: number;
+  /** Invoices in range with no conversion evidence; excluded from the document side. */
+  unconvertibleInvoiceCount: number;
+  /** Credit notes in range with no conversion evidence; excluded from the document side. */
+  unconvertibleCreditNoteCount: number;
+  unconvertibleDocumentCount: number;
+  /** False while any document is unconvertible — an unknown value is not a tie-out. */
   inBalance: boolean;
 }
 
@@ -232,6 +266,9 @@ export async function fetchSalesRevenueReconciliation(params: {
     glDiscountsGiven: num(row.gl_discounts_given),
     ledgerNetSales: num(row.ledger_net_sales),
     variance: num(row.variance),
+    unconvertibleInvoiceCount: Number(row.unconvertible_invoice_count ?? 0) || 0,
+    unconvertibleCreditNoteCount: Number(row.unconvertible_credit_note_count ?? 0) || 0,
+    unconvertibleDocumentCount: Number(row.unconvertible_document_count ?? 0) || 0,
     inBalance: Boolean(row.in_balance),
   };
 }

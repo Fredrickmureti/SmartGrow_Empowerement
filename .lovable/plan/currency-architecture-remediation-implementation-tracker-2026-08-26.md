@@ -29,7 +29,7 @@ Baseline: `docs/audits/currency-architecture-audit.md` (audit COMPLETE, 2026-08-
 
 Status values: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE`.
 
-### Phase 1 — Stop silent 1:1 in reporting (D1) — **NOT STARTED**
+### Phase 1 — Stop silent 1:1 in reporting (D1) — **DONE** (2026-08-26)
 Replace `COALESCE(NULLIF(exchange_rate, 0), 1)` with NULL propagation in `finance_sales_analysis`, `finance_purchase_analysis`, `finance_sales_revenue_reconciliation`, `finance_purchase_expense_reconciliation`; surface an explicit unconvertible-document count mirroring `finance_ar_net_position_by_currency`. Update consumers to render an absence, not a zero. Depends on: nothing.
 Validation: before/after totals identical where every document has a rate; absence reported where one does not.
 
@@ -73,3 +73,42 @@ Architecture tests: no `COALESCE(<rate>, 1)` in any `pg_proc` body or view; ever
 ## Change log
 
 _(append one entry per completed phase)_
+
+### Phase 1 — Stop silent 1:1 in reporting (D1) — completed 2026-08-26
+
+**Current behaviour before.** `finance_sales_analysis`, `finance_purchase_analysis`,
+`finance_sales_revenue_reconciliation` and `finance_purchase_expense_reconciliation`
+valued every document at `COALESCE(NULLIF(rate, 0), 1)`. A foreign document with no
+stamped rate was silently reported at face value in the base currency, and the two
+reconciliations could report `in_balance = true` on that invented measurement.
+
+**Database changes.**
+- New `public.fx_report_document_rate(document_currency, stamped_rate, base_currency)`
+  — `IMMUTABLE`, `SET search_path = public`, granted to `authenticated`/`service_role`.
+  Returns the stamped rate when positive, `1` only when the document currency IS the
+  base unit, else `NULL` (unconvertible). It never invents a rate.
+- All four functions now join `businesses` for the base currency and use the helper.
+  Unconvertible rows are excluded from every measure and counted explicitly:
+  analysis exposes `totals.unconvertible_document_count` plus an `unconvertible`
+  breakdown; the reconciliations expose per-kind counts, and `in_balance` is false
+  while any count is non-zero.
+
+**Code changes.** `src/services/finance/salesAnalysis.ts`,
+`src/services/finance/purchaseAnalysis.ts` (result types + normalisers),
+`src/hooks/useSalesAnalysis.ts`, `src/hooks/usePurchaseAnalysis.ts` (pass-through),
+`src/pages/reports/SalesReports.tsx`, `src/pages/reports/PurchaseReports.tsx`
+(an explicit "could not be valued in <base>" notice, and a tie-out banner that says
+the period cannot balance while documents are excluded).
+
+**Unchanged by design.** Posted amounts, stamped rates, GL balances, the GL side of
+both reconciliations, rate precedence, and every stamping path.
+
+**Validation.** Helper and the new CTE/LATERAL shapes executed against live data for
+Joshua Holdings and Dekto Logistics: zero unconvertible invoices, bills or credit
+notes, and document totals unchanged (gross 17,400.00 for Joshua Holdings), so
+existing correct reports are untouched. Typecheck clean.
+
+**Remaining risk.** Direct RPC invocation from the SQL runner is denied by design
+(`42501` — the runner is not an authorised finance caller), so end-to-end execution
+of the four functions is proven only through their constituent SQL, not through an
+authenticated session. A no-`COALESCE(<rate>, 1)` architecture test is Phase 9 work.

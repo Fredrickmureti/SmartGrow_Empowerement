@@ -85,7 +85,7 @@ function SalesReportsInner() {
 
   const branchId = filters.branchId ?? null;
 
-  const { rows: data, totals, isLoading, error } = useSalesAnalysis({
+  const { rows: data, totals, unconvertible, isLoading, error } = useSalesAnalysis({
     orgId: currentOrg?.id,
     businessId: currentBusiness?.id ?? null,
     branchId,
@@ -279,6 +279,20 @@ function SalesReportsInner() {
         </ReportFilters>
       }
     >
+      {unconvertible.total > 0 && (
+        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <span className="font-medium">
+            {unconvertible.total} document{unconvertible.total === 1 ? "" : "s"} could not be
+            valued in {baseCurrency}.
+          </span>{" "}
+          {unconvertible.sale_documents} invoice
+          {unconvertible.sale_documents === 1 ? "" : "s"} and {unconvertible.return_documents}{" "}
+          credit note{unconvertible.return_documents === 1 ? "" : "s"} are in a foreign currency
+          with no exchange rate recorded on the document. They are excluded from the figures
+          below rather than counted at face value. Record the missing rate to include them.
+        </div>
+      )}
+
       {reconciliation && !reconciliation.inBalance && (
         <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <span className="font-medium">
@@ -290,6 +304,15 @@ function SalesReportsInner() {
           {formatCurrency(reconciliation.glSalesReturns, baseCurrency)} and discounts{" "}
           {formatCurrency(reconciliation.glDiscountsGiven, baseCurrency)}) — variance{" "}
           {formatCurrency(reconciliation.variance, baseCurrency)} for the period.
+          {reconciliation.unconvertibleDocumentCount > 0 && (
+            <>
+              {" "}
+              {reconciliation.unconvertibleDocumentCount} document
+              {reconciliation.unconvertibleDocumentCount === 1 ? " is" : "s are"} excluded from
+              the document side for want of an exchange rate, so this period cannot tie out
+              until the missing rates are recorded.
+            </>
+          )}
         </div>
       )}
 
