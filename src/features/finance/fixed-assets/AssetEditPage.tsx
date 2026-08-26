@@ -12,16 +12,25 @@ import {
   useRecordFormSubmit,
 } from "@/design-system";
 import { useFixedAssets, type FixedAsset } from "@/hooks/useFixedAssets";
+import { useBusinessCurrencies } from "@/hooks/useBusinessCurrencies";
+import { describeAssetCurrencyError } from "./assetCurrencyError";
 import { AssetFormBody, emptyAssetForm, type AssetFormValues } from "./AssetFormBody";
 
 export default function AssetEditPage() {
   const { id: assetId = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { assets, categories, updateAsset } = useFixedAssets();
+  const { currencyCodes, baseCurrency } = useBusinessCurrencies();
 
   const asset = assets.find((a) => a.id === assetId) || null;
   const [values, setValues] = useState<AssetFormValues>(emptyAssetForm);
   const [hydrated, setHydrated] = useState(false);
+
+  // The acquisition measurement is frozen once the asset has been depreciated
+  // or disposed — the database refuses the change, so the form disables it.
+  const acquisitionLocked =
+    !!asset &&
+    (Number(asset.accumulated_depreciation ?? 0) > 0 || asset.status === "disposed");
 
   useEffect(() => {
     if (!asset || hydrated) return;
@@ -31,6 +40,7 @@ export default function AssetEditPage() {
       category_id: asset.category_id || "",
       purchase_date: asset.purchase_date,
       purchase_price: asset.purchase_price,
+      currency: asset.currency || baseCurrency,
       residual_value: asset.residual_value || 0,
       useful_life_years: asset.useful_life_years || 5,
       depreciation_method: asset.depreciation_method || "straight_line",
