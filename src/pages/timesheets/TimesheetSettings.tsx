@@ -102,12 +102,13 @@ export default function TimesheetSettings() {
       <Card>
         <CardHeader><CardTitle className="text-base">Approvals & overlaps</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <Toggle
-            label="Allow self-approval"
-            description="If off, the server will refuse approval requests on a user's own submissions."
-            checked={!!draft.allow_self_approval}
-            onChange={(v) => set("allow_self_approval", v)}
-          />
+          <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Self-approval</span> is governed
+            organisation-wide, not here. Whether someone may approve their own timesheet is
+            decided by the Governance policy for “Approve own timesheet”, including any
+            time-limited approved exception.
+          </div>
+
           <Toggle
             label="Block entries overlapping approved time off"
             description="If off, overlap is only flagged in the UI. If on, the entry will be rejected on save."
