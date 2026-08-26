@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireCronAuth } from "../_shared/requireCronAuth.ts";
+import { loadCurrencyCatalogue } from "../_shared/format/catalogue.ts";
 import { renderReport, getReportSpec, resolveReportColumns } from "../_shared/reports/index.ts";
 import { scopeBranchForReport } from "../_shared/reports/branchScopability.ts";
 
