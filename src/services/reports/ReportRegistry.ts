@@ -629,6 +629,17 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["consolidation", "multi-company", "cross company", "group", "entities", "comparative"],
   },
   {
+    id: "consolidated-trial-balance",
+    name: "Consolidated Trial Balance",
+    description: "Consolidation group combined account by account, from the posted ledger",
+    category: "management",
+    path: "/reports/consolidated-trial-balance",
+    icon: BarChart3,
+    permission: "viewReports",
+    reportType: "consolidated_trial_balance",
+    keywords: ["consolidated", "consolidation", "group", "trial balance", "multi-company", "subsidiary", "ifrs 10"],
+  },
+  {
     id: "business-intelligence",
     name: "Business Intelligence",
     description: "Interactive dashboards and custom analysis",
