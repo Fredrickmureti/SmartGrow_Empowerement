@@ -131,6 +131,25 @@ export function ProjectForm({ open, onOpenChange }: ProjectFormProps) {
 
   const isBillable = pricingType !== "non_billable";
 
+  /**
+   * Selecting a template also seeds its billing defaults — otherwise
+   * `default_billable` / `default_currency` are stored and never used.
+   * The currency is only adopted when the business actually has it enabled.
+   */
+  const applyTemplateSelection = (id: string) => {
+    setTemplateId(id);
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    if (t.default_billable === false) {
+      setPricingType("non_billable");
+    } else if (t.default_billable && pricingType === "non_billable") {
+      setPricingType("employee_rate");
+    }
+    const code = (t.default_currency ?? "").toUpperCase();
+    if (code && currencyCodes.includes(code)) setCurrency(code);
+  };
+
+
   const validation = useMemo(() => {
     const errs: string[] = [];
     if (!name.trim()) errs.push("Project name is required.");
