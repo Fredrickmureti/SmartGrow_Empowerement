@@ -1,147 +1,132 @@
-# Consolidation — execution status (verified, not inherited)
+# Consolidation — verification verdict (2026-08-26 late) and Brick 2 execution plan
 
-Authority: this file. Every statement marked VERIFIED was proven by direct
-inspection on 2026-08-26, not copied from a prior agent's claims. Prior claims
-were re-checked and several were wrong; corrections are recorded inline.
+Authority: this file. Everything under VERIFIED below was proven this session by
+direct inspection of the live database and the codebase, not inherited from the
+previous engineer's notes.
 
 ## Roadmap (chronological — do not reorder or skip)
 
 | Brick | Scope | Status |
 |-------|-------|--------|
-| 1 | Group and ownership foundation | **DONE** |
-| 2 | Consolidated trial balance over the group | **NEXT — not started** |
-| 3 | FX translation (different base currencies) | Pending, blocked by Brick 2 |
-| 4 | Intercompany elimination | Pending, blocked by Brick 3 |
-| 5 | Consolidated statement presentation | Pending, blocked by Brick 4 |
+| 0 | Comparative cross-company view on the authoritative engine | DONE (with one debt item, B0-1 below) |
+| 1 | Group + ownership foundation (config, guards, audit, RLS) | DONE (with three debt items, B1-1..B1-3) |
+| 2 | Consolidated trial balance over a group, one presentation currency | NEXT — nothing built yet |
+| 3 | FX translation (closing/average/historical rates, CTA) | Blocked by Brick 2 |
+| 4 | Intercompany identification + elimination engine | Blocked by Brick 3 |
+| 5 | Consolidated statement presentation + drill-down + runs | Blocked by Brick 4 |
 
-**Currently active phase: none in flight.** Brick 1 is closed. The next task is
-Brick 2 (below). No Brick 2 code exists yet — confirmed: no aggregation engine,
-no group resolver, no new RPCs beyond Brick 1's.
+## Phase 1 — independent verification of the previous engineer's claims
 
----
+### VERIFIED as genuinely done
+- Live database: `_consolidation_group_guard`, `_consolidation_member_guard`,
+  `_consolidation_group_log`, `_consolidation_member_log` all exist as SECURITY
+  DEFINER functions and are attached as triggers on `consolidation_groups` and
+  `consolidation_group_members` (4 triggers confirmed). `close_consolidation_member`
+  exists as an RPC.
+- RLS is real and cross-business aware: read requires `is_org_member` **and**
+  `user_can_access_business`; writes additionally require an org role of
+  owner/admin/super_admin. Change log is SELECT-only for signed-in users and is
+  further gated on access to the group's parent company.
+- `consolidation_exchange_rates` / `consolidation_rate_type` are indeed absent —
+  the premature placeholder really was removed. No Brick 2–5 phantom schema exists.
+- Client surface exists and is reachable: `ConsolidationGroupsSettings.tsx` is
+  imported and rendered by `src/pages/finance/FinanceSettings.tsx` (lines 32, 134).
+- `src/test/architecture/consolidation-group-foundation.test.ts` — executed here,
+  9 tests pass.
+- The comparative report at `/reports/consolidation` (`src/App.tsx:365`,
+  `src/pages/reports/Consolidation.tsx`) is a real route and does read posted GL
+  through `fetchGLTotals` → `get_account_movements`. It does not sum across
+  entities, apply FX, or eliminate anything — that honesty is correct and must be
+  preserved until Brick 2 exists.
 
-## Brick 1 — group and ownership foundation: DONE
+### Claims corrected / debt found (treated as pending work, not "done")
+- **B1-1 — stale `as never` cast.** The plan says `close_consolidation_member` is
+  missing from generated types. It is present (`src/integrations/supabase/types.ts`
+  around line 93975). The cast in `src/hooks/finance/useConsolidationGroups.ts:274`
+  is now unnecessary and hides type errors. Remove it.
+- **B1-2 — membership write policy does not require access to the parent.**
+  `consolidation_group_members_write` checks `user_can_access_business(member)` but
+  not access to the group's `parent_business_id`, while `consolidation_groups_select`
+  does. An org admin who can access company B but not parent A can therefore attach
+  B to A's group. Tighten the policy (or the guard) to require access to the parent
+  as well.
+- **B1-3 — SQL suite never executed.** `supabase/tests/consolidation_group_foundation_test.sql`
+  has still not been run against a database. Guards are only proven by their
+  refusals; run it (or port the assertions to a runnable harness) before Brick 2
+  layers on top of them.
+- **B0-1 — statement classification duplicated in `fetchGLTotals`.**
+  `src/services/gl/fetchGLTotals.ts` re-implements income/expense sign
+  normalisation in JavaScript from raw `get_account_movements` rows, while the
+  authoritative statement path is `src/hooks/useFinancialReport.ts` +
+  `src/services/reports/ReportCalculationEngine.ts` + `AccountClassification.ts`.
+  That is two classification implementations — exactly what section 10 of the
+  brief forbids. Brick 2 must consume the authoritative classification, and the
+  comparative page should be moved onto it too.
+- **B0-2 — inconsistent view permission.** The report page hardcodes
+  `owner || super_admin` for viewing, while group configuration writes allow
+  owner/admin/super_admin and RLS governs reads. Consolidation viewing needs one
+  defined permission, checked server-side, not a hardcoded role list in a page.
+- **B0-3 — N sequential client round trips.** The comparative page loops
+  `fetchGLTotals` once per company from the browser. Acceptable for side-by-side;
+  not acceptable as Brick 2's aggregation path.
 
-### VERIFIED (database)
-- `consolidation_groups`, `consolidation_group_members` hardened by
-  `_consolidation_group_guard` / `_consolidation_member_guard`: same-organization
-  coherence, presentation currency must be an **enabled operating currency** of
-  the parent company, `full` method requires >= 50% ownership, declared parent
-  must be a member for the same period, no ownership cycles, no overlapping
-  membership periods for one company, `business_id` / `group_id` immutable after
-  insert, `created_by` stamped from `auth.uid()`.
-- `consolidation_group_change_log` records every group/member insert, update and
-  delete through SECURITY DEFINER triggers; signed-in users hold SELECT only.
-  (Migrations: `20260826185735_…`, `20260826190142_…`.)
-- `close_consolidation_member(uuid, date)` ends a membership with an effective
-  date instead of deleting it; a later non-overlapping membership is then
-  permitted, so ownership history stays reproducible.
-- Premature placeholder removed: `consolidation_exchange_rates` and
-  `consolidation_rate_type` dropped. They return with Brick 3's translation
-  engine that gives them meaning, not before.
+## Phase 2 — plan corrections and additions
 
-### VERIFIED (client)
-- `src/hooks/finance/useConsolidationGroups.ts` — write access gated by
-  `useCanManageConsolidation` (matches the RLS write policy), companies
-  restricted to `get_user_allowed_businesses`, `useConsolidationChangeLog`
-  read-only, `closeMember` routed through the RPC.
-- `src/hooks/useBusinessCurrencies.ts` — `useBusinessCurrenciesFor(businessId)`
-  resolves the enabled operating currencies of the chosen parent.
-- `src/components/settings/ConsolidationGroupsSettings.tsx` — reachable,
-  imported and rendered by `src/pages/finance/FinanceSettings.tsx` (lines
-  32, 131–134). No longer an orphan component.
-- `src/contexts/BusinessContext.tsx` — stale wording removed from the
-  `switchBusiness` error.
+Added to the roadmap on the evidence above:
+1. Brick 2 gets a **server-side** group/date resolver and aggregation path; no
+   per-company client fan-out and no JavaScript re-derivation of account
+   classification.
+2. A single `consolidation.view` authorization decision, resolved server-side and
+   consistent with the RLS that already governs the group tables (fixes B0-2).
+3. Brick 1 debt (B1-1..B1-3) is closed **before** Brick 2 code lands, because
+   Brick 2's correctness depends on those guards being proven.
+4. Period integrity is explicit in Brick 2: membership effective dates and fiscal
+   period state (closed/open) must both be respected, and a member with no posted
+   period data must be reported as such rather than silently contributing zero.
 
-### VERIFIED (tests)
-- `supabase/tests/consolidation_group_foundation_test.sql` — every guard
-  asserted by the refusal it raises, plus change-log recording, close-out
-  semantics, cross-tenant RLS isolation and an over-block check for the owner.
-- `src/test/architecture/consolidation-group-foundation.test.ts` — passing:
-  screen reachability, no hard delete of membership, authoritative pickers, no
-  ledger reads or accounting arithmetic in the configuration surface, no stale
-  route reference.
+## Brick 2 — exact scope (the only thing to build after the debt items)
 
-### Corrections to prior claims (recorded honestly)
-- `/reports/consolidation` is **not** a non-existent path. It is a real route
-  (`src/App.tsx:365`) rendering `src/pages/reports/Consolidation.tsx`, the
-  legitimate side-by-side cross-company comparative view fed by the
-  authoritative `fetchGLTotals` / `get_account_movements` RPC. `Dashboard.tsx`,
-  `CompanyScopeGate.tsx` and several report hooks reference it correctly. The
-  prior audit's "stale route" finding and the earlier "zero consolidation
-  tables" finding were both wrong.
-- The comparative view is intentionally NOT a consolidation engine: no summing
-  across entities, no FX, no eliminations. Brick 2+ must not regress this —
-  until the group engine exists, side-by-side is the only honest cross-company
-  display.
+Deliverable: a **consolidated trial balance** for one consolidation group as of a
+date range, in the group's presentation currency, refusing to run when it cannot
+be produced honestly.
 
-### Residual gap (honest)
-- The SQL suite has not been executed against a database in this environment
-  (no local stack here); it runs under `supabase test db`.
-- `close_consolidation_member` is not yet in the generated Supabase TypeScript
-  types; the hook uses an `as never` cast as a temporary bridge. Regenerate
-  types and remove the cast.
-- The DB linter reports ~3,711 pre-existing security findings (mostly legacy
-  SECURITY DEFINER functions missing `search_path`). Not introduced by Brick 1;
-  do not fold them into consolidation work — track separately.
+1. **Group resolution (server-side, SQL).** Resolve the group's members as of the
+   reporting date from effective-dated membership: company, ownership percentage,
+   consolidation method. Enforce that the caller can access **every** company in
+   scope; refuse the whole run otherwise (never silently drop a company).
+2. **Balances from the authoritative engine only.** Per member, opening balances
+   from `get_ledger_opening_balances` and period movements from
+   `get_account_movements`. No new balance mathematics.
+3. **Classification from the authoritative source.** Account type/classification
+   comes from `AccountClassification` / `ReportCalculationEngine`, not a new map.
+4. **Method semantics.** `full` contributes 100% of member balances and records
+   the non-controlling share separately as a distinct, labelled figure. `equity`
+   contributes a single equity-method line, never member account balances.
+5. **Refuse, never approximate.** Blocking conditions surfaced as explicit,
+   actionable UI errors: any member whose base currency differs from the group's
+   presentation currency (needs Brick 3), missing/ambiguous membership, ownership
+   that cannot be resolved, unauthorized company in scope.
+6. **No eliminations, no FX, no CTA, no consolidated statements, no persisted
+   runs** in this brick. Cross-entity intercompany balances stay visible and
+   uneliminated, and the report says so on its face.
+7. **UI.** One report in the finance reports area: group picker (only groups the
+   user may read), date range, per-account group total with per-member columns so
+   every figure is traceable to its source company.
+8. **Tests.** Architecture tests: no second balance/classification engine, no
+   client fan-out, refusal paths present. Behavioural tests: mixed-currency group
+   refuses; `equity` member contributes no account balances; a company the user
+   cannot access blocks the run; membership closed mid-period is excluded from the
+   correct date onward.
 
----
+## Checkpoint discipline
 
-## Brick 2 — NEXT: consolidated trial balance over the group
+Brick 2 closes only when resolver, authorization, report UI, refusal paths and
+tests are all in place, and this file is updated with the VERIFIED evidence for
+each. Bricks 3–5 stay untouched until then — including their schema and UI.
 
-Scope when started:
-- Resolve group membership as of a reporting date (ownership + method + period,
-  using the effective-dated membership Brick 1 now guarantees) and feed the
-  **existing** authoritative engine (`get_account_movements` /
-  `get_ledger_opening_balances`) once per member company. No second accounting
-  engine, no JavaScript aggregation of ledger rows.
-- Method semantics: `full` includes 100% of balances with a non-controlling
-  interest split; `equity` contributes a single equity-method line, not member
-  balances.
-- Refuse rather than approximate: a member whose base currency differs from the
-  group's presentation currency blocks the run until Brick 3 (translation)
-  exists. Surface this as an explicit, actionable error in the UI.
-- Deliverable shape: a consolidated trial balance report reachable from the
-  finance reports area, a group/date/method resolver (server-side), and tests
-  proving the resolver feeds only the authoritative RPCs and that
-  currency-mismatched groups refuse to run.
+## Note on the Supabase connection request
 
-## Scope boundaries
-
-No FX translation (Brick 3), no intercompany elimination (Brick 4), no
-consolidated statement presentation (Brick 5) until the brick below it is
-proven. No premature placeholders: schema and UI for a later brick may not be
-added before that brick is being built.
-
----
-
-## Instructions for the next agent
-
-1. **Verify before building.** Do not trust this file or any prior audit
-   blindly. Before writing new code, independently confirm:
-   - The Brick 1 migrations are applied and the guard functions, change-log
-     triggers and `close_consolidation_member` RPC exist in the live database
-     (query `information_schema` / `pg_proc`, or run the SQL suite).
-   - `supabase/tests/consolidation_group_foundation_test.sql` actually passes
-     (`supabase test db`) — it has not been executed here yet.
-   - `src/test/architecture/consolidation-group-foundation.test.ts` passes.
-   - The settings screen renders in Finance settings and behaves per the
-     guards (drive it in the browser if in doubt).
-   - Regenerate Supabase types and remove the `as never` cast on
-     `close_consolidation_member`; confirm the RPC is typed.
-   If any verification fails, fix that first — it is part of Brick 1, not new
-   work.
-2. **Then start Brick 2 exactly as scoped above.** It is the next chronological
-   milestone. Do not start Bricks 3–5, do not refactor unrelated areas, and do
-   not add placeholder schema/UI for later bricks.
-3. **Engine discipline.** All figures must come from the existing authoritative
-   RPCs (`get_account_movements`, `get_ledger_opening_balances`). A second
-   JavaScript balance computation is a second source of accounting truth and is
-   forbidden — the existing architecture tests enforce this pattern.
-4. **Refuse, never approximate.** Currency mismatch (pre-Brick 3), missing
-   membership data, or unverifiable ownership must block the run with a clear
-   error, never produce a best-effort number.
-5. **Finish Brick 2 coherently** — resolver, report UI, errors, and tests —
-   and update this file (status table + VERIFIED evidence) before touching
-   anything else. Keep execution chronological; leave no orphaned components,
-   partial workflows, or unreachable screens.
+The project is already connected to an external Supabase project (ref
+`jkszmrroyjfdwokbkzis`), which is where all the verification above was run.
+Lovable cannot switch that link from inside a chat; if `AccrualFlowCorporation`
+is a different project, it must be re-linked from the Cloud/integration settings.
