@@ -104827,7 +104827,7 @@ export type Database = {
         Returns: Json
       }
       reject_timesheet_submission: {
-        Args: { _reason: string; _submission_id: string }
+        Args: { _reason?: string; _submission_id: string }
         Returns: undefined
       }
       release_pick_wave: {
