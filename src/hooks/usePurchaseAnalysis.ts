@@ -10,6 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   EMPTY_PURCHASE_TOTALS,
+  EMPTY_UNCONVERTIBLE,
   fetchPurchaseAnalysis,
   fetchPurchaseExpenseReconciliation,
   type PurchaseAnalysisResult,
@@ -38,6 +39,7 @@ const EMPTY_RESULT = (
   to,
   rows: [],
   totals: { ...EMPTY_PURCHASE_TOTALS },
+  unconvertible: { ...EMPTY_UNCONVERTIBLE },
   paging: { total_rows: 0, limit: null, offset: 0 },
 });
 
@@ -85,6 +87,7 @@ export function usePurchaseAnalysis(options: UsePurchaseAnalysisOptions) {
     data: query.data ?? EMPTY_RESULT(dimension, from, to),
     rows: query.data?.rows ?? [],
     totals: query.data?.totals ?? { ...EMPTY_PURCHASE_TOTALS },
+    unconvertible: query.data?.unconvertible ?? { ...EMPTY_UNCONVERTIBLE },
   };
 }
 

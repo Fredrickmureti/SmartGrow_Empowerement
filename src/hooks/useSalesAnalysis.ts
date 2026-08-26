@@ -9,6 +9,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   EMPTY_SALES_TOTALS,
+  EMPTY_UNCONVERTIBLE,
   fetchSalesAnalysis,
   fetchSalesRevenueReconciliation,
   type SalesAnalysisResult,
@@ -37,6 +38,7 @@ const EMPTY_RESULT = (
   to,
   rows: [],
   totals: { ...EMPTY_SALES_TOTALS },
+  unconvertible: { ...EMPTY_UNCONVERTIBLE },
   paging: { total_rows: 0, limit: null, offset: 0 },
 });
 
@@ -84,6 +86,7 @@ export function useSalesAnalysis(options: UseSalesAnalysisOptions) {
     data: query.data ?? EMPTY_RESULT(dimension, from, to),
     rows: query.data?.rows ?? [],
     totals: query.data?.totals ?? { ...EMPTY_SALES_TOTALS },
+    unconvertible: query.data?.unconvertible ?? { ...EMPTY_UNCONVERTIBLE },
   };
 }
 
