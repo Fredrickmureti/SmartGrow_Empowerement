@@ -504,6 +504,8 @@ export default function ConsolidationEliminations() {
                 <CardTitle className="text-base">Generated eliminations</CardTitle>
                 <CardDescription>
                   Engine output for {period}. These rows cannot be edited by hand.
+                  Open a leg to see the source accounts and posted entries behind it.
+
                 </CardDescription>
               </div>
               {hasRun && <ReportExportButtons getExportConfig={getEliminationsExport} />}
