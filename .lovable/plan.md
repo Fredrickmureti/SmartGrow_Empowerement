@@ -177,6 +177,218 @@ Next in sequence is Step 7.4 — drill-down from an elimination leg to the inter
 
 
 
-KINDLY NOTE , YOU ARE ALLOWED TO SEED TEST DATA WHERE ITS NEEDED AND WHEN THE TEST TENANT DOES NOT PROVIDE IT
-NO SHALLOW IMPLEMENATTIONS
-MAKE SURE EVERY BRICK AND DOMAIN YOU MODEL FOLLOWS BEST ACCOUNTING PRACTICES USED MY MODERN ERP SYSTEMS LIKE Oracle FCCS/NetSuite, Dynamics 365, sap s/4 etc like make it as modern as possible, no room for an error , accuracy is non negotiable on an accounting software
+# Implementation & Validation Standards
+
+## 1. Test Data Is Allowed When Necessary
+
+You are explicitly allowed to **seed controlled test data** whenever it is required to properly validate a business flow, accounting behavior, integration, migration, or edge case.
+
+* If the test tenant already contains suitable data, use it.
+* If the required data does not exist, create the minimum realistic test data necessary to exercise the scenario.
+* Test data should represent realistic business events and accounting conditions rather than arbitrary placeholder records.
+* Clearly distinguish seeded test data from existing tenant data and avoid polluting the environment unnecessarily.
+
+**Do not skip validation simply because the tenant lacks suitable test data.**
+
+---
+
+## 2. No Shallow Implementations
+
+There is **zero tolerance for superficial or cosmetic implementations**.
+
+Do not implement a feature merely because the UI appears to work or because the immediate error disappears.
+
+For every brick/domain you touch:
+
+* Understand the underlying business event.
+* Identify the authoritative source of truth.
+* Trace the complete lifecycle of the transaction.
+* Understand its accounting implications.
+* Verify relationships and dependencies across domains.
+* Consider downstream reporting, reconciliation, auditability, reversals, corrections, and edge cases.
+* Validate both the normal path and failure/exception paths.
+* Ensure the implementation is consistent with the broader architecture.
+
+If the existing architecture is incorrect, incomplete, or inconsistent, identify and address the underlying problem rather than layering another workaround on top of it.
+
+---
+
+## 3. Accounting Accuracy Is Non-Negotiable
+
+This is accounting software. **Correctness takes priority over implementation speed.**
+
+Every accounting-related domain and business event must follow sound accounting principles and modern ERP practices.
+
+Use established enterprise ERP patterns as reference points, including systems such as:
+
+* Oracle Financials / FCCS
+* Oracle NetSuite
+* Microsoft Dynamics 365 Finance
+* SAP S/4HANA
+* Other mature modern ERP/accounting platforms where relevant
+
+Do not blindly copy another system. **Research and reason about the underlying accounting principle and business requirement first**, then determine the appropriate implementation for this system.
+
+Every accounting brick should be designed with:
+
+* Correct debit/credit behavior
+* Proper account ownership and control accounts
+* Appropriate posting dates and accounting periods
+* Clear transaction states and posting states
+* Immutable posted accounting where appropriate
+* Controlled corrections, reversals, and adjustments
+* Proper treatment of source documents versus accounting entries
+* Reconciliation capability
+* Audit trails
+* Complete traceability
+* Correct aggregation into financial statements and reports
+
+If there is uncertainty about an accounting treatment, **stop and investigate rather than guessing**.
+
+---
+
+## 4. Complete Traceability Is a Core System Principle
+
+Every financial transaction and journal entry must be traceable back to its origin.
+
+The system should make it possible to answer questions such as:
+
+> **Why does this accounting entry exist?**
+> **What business event created it?**
+> **What source document triggered that event?**
+> **Which user/system action caused it?**
+> **What downstream records were created from it?**
+
+Where applicable, maintain a clear chain such as:
+
+**Business Event → Source Transaction → Accounting Event → Journal → Journal Lines → Ledger → Financial Report**
+
+The user should be able to **drill down and navigate back through this chain** using appropriate drill-downs and deep links.
+
+Do not create accounting entries that become orphaned from their source transaction or whose origin cannot be reconstructed.
+
+---
+
+## 5. The System Must Be Context-Aware
+
+Do not treat each page or module as an isolated CRUD interface.
+
+The system should understand the **business context and state** of the work the user is performing.
+
+For example, when an accountant attempts an action that cannot proceed because a prerequisite is missing, the system should ideally:
+
+1. Understand what is blocking the business event.
+2. Identify the actual prerequisite.
+3. Explain why the process is blocked.
+4. Determine whether the issue can be safely resolved from the current workspace.
+5. Provide an appropriate remediation action where possible.
+6. Otherwise, provide a deep link to the dedicated workspace where the prerequisite can be completed.
+7. Return the user to the original workflow without requiring duplicate or unnecessary actions.
+
+The objective is not merely to display an error such as:
+
+> "Account mapping missing."
+
+The system should understand the business situation and help the user resolve it.
+
+**No dead ends. No unnecessary duplicate actions. No forcing users to rediscover where a prerequisite must be configured.**
+
+---
+
+## 6. Business Events Must Be the Primary Reasoning Model
+
+When implementing or auditing a domain, reason from the **business event first**, not from the UI or database table.
+
+Determine:
+
+* What actually happened in the business?
+* Which domain owns that event?
+* What record is authoritative?
+* What state transition occurred?
+* What accounting consequence, if any, should follow?
+* Which downstream records should be generated?
+* Which records should remain references rather than duplicates?
+* What happens if the event is cancelled, reversed, corrected, or partially completed?
+* What should happen if a prerequisite is missing?
+* How should the user discover and resolve the issue?
+
+This should prevent duplicated logic, conflicting sources of truth, double posting, and disconnected workflows.
+
+---
+
+## 7. Prevent Double Actions and Duplicate Effects
+
+The architecture must account for the possibility that the same business event may be triggered more than once.
+
+Where applicable, ensure operations are:
+
+* Idempotent
+* Uniquely constrained
+* State-aware
+* Transactionally safe
+* Protected against duplicate posting
+* Protected against duplicate downstream document creation
+
+A retry, refresh, repeated button click, background job retry, or API replay must not accidentally create duplicate accounting consequences.
+
+**One business event should produce one authoritative accounting consequence unless the accounting model explicitly requires otherwise.**
+
+---
+
+## 8. SQL Migrations and Test Execution Must Be Resource-Aware
+
+When using SQL migrations, seed scripts, or business-event simulations for testing, **do not overwhelm the Supabase database**.
+
+Previous implementations have caused instability by executing very large migrations or test workloads in a single operation. Avoid repeating this pattern.
+
+For large migrations or test scenarios:
+
+* Break the work into logical, manageable batches.
+* Execute migrations incrementally where practical.
+* Avoid unnecessarily large transactions.
+* Avoid repeatedly recreating or reseeding large datasets.
+* Use targeted test fixtures instead of generating excessive data.
+* Run focused business-event simulations rather than unnecessarily executing the entire test suite after every small change.
+* Verify database health between particularly heavy operations.
+* Prefer efficient SQL and set-based operations over unnecessarily expensive row-by-row processing.
+* Avoid concurrent workloads that provide little additional validation but significantly increase database load.
+
+The objective is to **validate thoroughly without destabilizing the shared test environment**.
+
+If a migration is large, reason about how it should be safely executed before running it. Do not simply send the entire workload to Supabase in one massive operation.
+
+---
+
+## 9. Verify Before Declaring Completion
+
+Never consider a brick complete merely because the implementation compiles or the happy path works.
+
+Before moving forward, verify:
+
+* The intended business behavior works.
+* The accounting treatment is correct.
+* The database state is correct.
+* Related domains behave correctly.
+* Existing functionality has not regressed.
+* Transactions are traceable to their origin.
+* Drill-downs/deep links work where required.
+* Failure and remediation paths behave correctly.
+* Duplicate execution does not create duplicate effects.
+* Relevant reports and balances remain accurate.
+* The implementation fits the existing architecture.
+
+Only after the current brick has been properly validated should you proceed to the next chronological item.
+
+---
+
+## 10. General Principle
+
+Treat every implementation as if it will eventually be used in a **serious production accounting environment**.
+
+Prioritize, in order:
+
+**Accounting correctness → Data integrity → Business-event integrity → Traceability → Architectural consistency → Resilience → User experience → Implementation speed**
+
+Do not optimize for merely "making the test pass."
+
+The goal is to build a **modern, context-aware, auditable, deeply traceable ERP/accounting system** where the accounting truth is reliable, every important business event has a clear lifecycle, and users can understand not only **what happened**, but also **why it happened, where it came from, what it affected, and how to resolve anything preventing the next business event.**
