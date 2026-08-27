@@ -77,16 +77,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Spark Joy audits enterprise accounting queues, focusing on POS posting pipeline architecture." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Spark Joy audits enterprise accounting queues, focusing on POS posting pipeline architecture." },
+      { title: "AccrualFlow" },
+      { name: "description", content: "AccrualFlow — multi-entity accounting, consolidation, POS and financial reporting." },
+      { name: "author", content: "AccrualFlow" },
+      { property: "og:title", content: "AccrualFlow" },
+      { property: "og:description", content: "AccrualFlow — multi-entity accounting, consolidation, POS and financial reporting." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "Spark Joy audits enterprise accounting queues, focusing on POS posting pipeline architecture." },
+      { name: "twitter:title", content: "AccrualFlow" },
+      { name: "twitter:description", content: "AccrualFlow — multi-entity accounting, consolidation, POS and financial reporting." },
     ],
     links: [
       {
