@@ -132,8 +132,137 @@ consolidation-run object — those belong to later bricks and do not exist.
 
 ### Still open
 
-A live multi-member walkthrough in the running application has **not** been
+A live multi-member walkthrough was outstanding at the time of this section and
 performed. The tenant has no populated multi-member group, so the UI path is
 verified only by the architecture ratchet and the SQL suite, not by observing
 a real group render in the browser.
 
+
+---
+
+## Brick 6 — CLOSED (2026-08-27)
+
+### The live multi-member walkthrough that was outstanding
+
+The "Still open" note above — no populated multi-member group, so the engine had
+only ever run against rolling-back test fixtures — is now closed. A genuine
+second member was seeded into the live tenant and the engine was exercised
+against it as the organization's owning user (`request.jwt.claims` set to the
+owner, `SET ROLE authenticated`), so every finance read check and RLS policy
+applied exactly as it does for a signed-in user. Run unauthenticated, the same
+calls refuse with `42501 Not authorized for this organization` — which is
+itself the correct behaviour and is why the walkthrough had to be performed
+under an identity.
+
+### The fixture
+
+- **Mombasa Port Services** — new company in the existing organization, base
+  currency **USD**, its own chart of accounts with deliberately different codes
+  from the parent (`1010`, `2180`, `3100`, `4100`, `5180`).
+- **Joshua Holdings** — parent, base currency **KES**, presentation currency of
+  the group. Two intercompany accounts added (`1180` receivable, `4180`
+  management fee income).
+- USD→KES rates for Jan–Jul 2026 (126.00 rising to 133.00), so every day of the
+  reporting window has a resolvable rate rather than an absence.
+- Group chart of 7 lines; 147 mappings across both members. The parent's
+  translation reserve (`3050`) is named as the group's `cta_account_id` and is
+  **not** mapped — it is presented on its own.
+- Posted entries: subsidiary opening capital USD 500,000 (1 May), port revenue
+  USD 80,000 (15 Jul), and the reciprocal 30 June management-fee recharge —
+  KES 2,630,000 in the parent, USD 20,000 in the subsidiary.
+
+### What the engine produced (1 Jun – 31 Jul 2026)
+
+`resolve_consolidation_scope` → **2 members**.
+
+`get_consolidated_trial_balance_translated` returned one row per member account,
+each carrying its group account, its `is_mapped` verdict and the rate class and
+rate the engine chose:
+
+| Member | Account | Group | Rate class | Rate |
+| --- | --- | --- | --- | --- |
+| Joshua Holdings (KES) | 1180 Intercompany receivable | G1100 | closing | 1 |
+| Joshua Holdings (KES) | 4180 Intercompany mgmt fees | G4900 | average | 1 |
+| Mombasa (USD) | 1010 Cash at bank | G1900 | closing | 133.00 |
+| Mombasa (USD) | 2180 Intercompany payable | G2100 | closing | 133.00 |
+| Mombasa (USD) | 3100 Share capital | G3900 | transaction | 130.00 |
+| Mombasa (USD) | 4100 Port service revenue | G4900 | average | 131.5327868852459016 |
+| Mombasa (USD) | 5180 Intercompany mgmt fees | G5900 | average | 131.5327868852459016 |
+
+The three rate classes behave as the standard requires: assets and liabilities
+at closing, income and expense at the period average, equity held at its
+transaction (historical) rate. The average is a genuine daily average over the
+seeded series, not a spot rate reused.
+
+`consolidation_intercompany_activity` reported both sides of the recharge, each
+on its group account and at the same rate the trial balance used:
+
+- Joshua Holdings → Mombasa: `1180` (G1100) **+2,630,000 KES**, `4180` (G4900)
+  **−2,630,000 KES**.
+- Mombasa → Joshua Holdings: `2180` (G2100) **−2,660,000 KES** (USD 20,000 at
+  closing 133.00), `5180` (G5900) **+2,630,655.74 KES** (at average 131.5328).
+
+The reciprocal pair therefore disagrees by **30,000 KES** on the balance-sheet
+leg and **655.74 KES** on the profit-and-loss leg. Both differences are pure
+translation — the same USD 20,000 seen at booking, closing and average rates —
+and both stay **reported as a named difference**. Nothing was netted, and no
+elimination entry was produced, which is exactly the boundary of this brick.
+
+`consolidation_intercompany_coverage` was **silent** while both counterparties
+carried a declaration for the period.
+
+### Two deliberate failure paths, both driven live and both reversed
+
+1. **Unmapped intercompany account.** The mapping for Mombasa's `2180` was
+   removed and the activity report re-run. It refused:
+   `22023: These posted accounts have no group account mapping: 2180
+   Intercompany payable - Joshua Holdings (Mombasa Port Services); map them
+   before consolidating`. The amount was never silently dropped. Mapping
+   restored and re-verified afterwards.
+2. **Undeclared counterparty.** Mombasa's intercompany declaration was removed
+   and the coverage worklist re-run. It named the blind spot — contact
+   `Joshua Holdings (intercompany)`, 2 lines, 20,000 of activity, first and last
+   dated 30 June 2026 — with no counterparty suggestion, because suggestion is
+   only made on exact legal-identifier identity and the parent carries no tax
+   identifier. Declaration restored and re-verified afterwards.
+
+### A defect found and corrected during the walkthrough
+
+The parent, **Joshua Holdings**, was recorded in the group as
+`method = 'proportional'` at 100% ownership — the basis used for a joint
+venture, not for the parent of a group. At 100% the arithmetic is identical, so
+no reported figure was wrong, but the group's stated basis was. Corrected to
+`full`, with the reason recorded on the member row. This matters before Brick 7:
+elimination logic that branches on consolidation method would have treated the
+parent as a jointly controlled entity.
+
+### Guards now in force
+
+- `src/test/architecture/consolidation-intercompany.test.ts` — **24 tests, all
+  passing** (run this session). Covers the declaration layer plus the activity
+  and coverage RPCs: the client must reach the engine by RPC, must not re-derive
+  balances, rates, mappings or counterparty suggestions, must render a refusal
+  as an explanation and never as an empty table, and must not reach for any
+  elimination or consolidation-run object.
+- `supabase/tests/consolidation_account_mapping_test.sql` already asserts that
+  the translation reserve cannot be mapped as an ordinary line — the same
+  invariant that (correctly) refused the first attempt at this fixture.
+- `supabase/tests/consolidation_intercompany_test.sql` — 619 lines, three
+  blocks, including the group-account projection, GL-only intercompany activity,
+  the unmapped refusal, the coverage worklist and cross-organization isolation.
+
+### Deliberately still absent
+
+Elimination arithmetic, persisted consolidation runs, consolidated cash flow,
+equity method, minority interest. No scaffolding, no disabled controls, no
+placeholder rows for any of them.
+
+### Carried into Brick 7
+
+- The intercompany suite's Blocks 1 and 2, and the Brick 1–5 suites, have not
+  been re-executed since the Brick 6 changes; `psql` is unavailable in this
+  environment, so they need to be run file-by-file through the SQL path.
+- The brick log still lacks sections for Bricks 1, 2, 3 and 5.
+- The walkthrough fixture (Mombasa Port Services and its entries) is **left in
+  the live tenant** so the multi-member path stays exercisable; it is clearly
+  named and can be archived when no longer wanted.
