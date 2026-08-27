@@ -55,8 +55,12 @@ describe("consolidation eliminations — engine ownership", () => {
   it("the report page computes nothing and renders the server's refusal verbatim", () => {
     const src = read(PAGE);
     expect(arithmeticOffenders(src)).toEqual([]);
-    expect(src).toContain("e instanceof Error ? e.message");
+    // toAppError keeps the PostgrestError's message, details and hint — the
+    // refusal reaches the screen in the database's own words, unedited.
+    expect(src).toContain('toAppError(e, "The elimination run was refused").message');
+    expect(src).toContain("setRefusal(message)");
   });
+
 
   it("the policy screen holds decisions only — no elimination figures", () => {
     const src = read(SETTINGS);
