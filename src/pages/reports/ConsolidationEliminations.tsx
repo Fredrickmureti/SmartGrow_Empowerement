@@ -507,19 +507,17 @@ export default function ConsolidationEliminations() {
               {hasRun && <ReportExportButtons getExportConfig={getEliminationsExport} />}
             </CardHeader>
             <CardContent>
-              {!hasRun && !eliminationsQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">
-                  Nothing generated for this period yet. Generating is safe to repeat: a
-                  new run replaces the period's set rather than adding to it.
-                </p>
-              ) : (
-                <ReportTable
-                  columns={columns}
-                  rows={rows}
-                  isLoading={eliminationsQuery.isLoading}
-                />
-              )}
+              <EliminationEvidencePanel
+                groupId={groupId}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                currency={currency}
+                eliminations={eliminations}
+                rules={rulesQuery.data ?? []}
+                isLoading={eliminationsQuery.isLoading}
+              />
             </CardContent>
+
           </Card>
         )}
 
