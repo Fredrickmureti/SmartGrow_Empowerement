@@ -356,5 +356,13 @@ export function useConsolidationGroupMutations() {
     onSuccess: invalidate,
   });
 
-  return { createGroup, deleteGroup, addMember, updateMember, closeMember };
+  return {
+    createGroup,
+    deleteGroup,
+    addMember,
+    updateMember,
+    closeMember,
+    updateGroupTranslationSettings,
+  };
+
 }
