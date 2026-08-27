@@ -33,6 +33,8 @@ const AccountEditPage = lazy(() => import("@/features/finance/accounts/AccountEd
 const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard"));
 const AccountRegister = lazy(() => import("@/pages/finance/AccountRegister"));
 const ReportCenter = lazy(() => import("@/pages/finance/ReportCenter"));
+const ConsolidatedTrialBalanceReport = lazy(() => import("@/pages/reports/ConsolidatedTrialBalance"));
+const ConsolidatedStatementsReport = lazy(() => import("@/pages/reports/ConsolidatedStatements"));
 // ContactDetail removed — unified into /contacts-app/profile via ContactRedirect (see route below)
 const AccountsReceivable = lazy(() => import("@/pages/finance/AccountsReceivable"));
 const AccountsPayable = lazy(() => import("@/pages/finance/AccountsPayable"));
@@ -623,6 +625,28 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Trial Balance">
                 <TrialBalance />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/consolidated-trial-balance"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Consolidated Trial Balance">
+                <ConsolidatedTrialBalanceReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/consolidated-statements"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Consolidated Statements">
+                <ConsolidatedStatementsReport />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

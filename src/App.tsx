@@ -364,9 +364,11 @@ const App = () => (
                             {/* Auth-only routes (no subscription check) */}
                             <Route path="/upgrade" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Upgrade /></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/billing" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><BillingHistory /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/reports/consolidation" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Consolidation"><ConsolidationReport /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/reports/consolidated-trial-balance" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="ConsolidatedTrialBalance"><ConsolidatedTrialBalanceReport /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/reports/consolidated-statements" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="ConsolidatedStatements"><ConsolidatedStatementsReport /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
+                            {/* Legacy mounts — consolidated reports now live inside the
+                                Finance reports shell so the sidebar & reports nav reach them. */}
+                            <Route path="/reports/consolidation" element={<Navigate to="/finance/reports/cross-company" replace />} />
+                            <Route path="/reports/consolidated-trial-balance" element={<Navigate to="/finance/reports/consolidated-trial-balance" replace />} />
+                            <Route path="/reports/consolidated-statements" element={<Navigate to="/finance/reports/consolidated-statements" replace />} />
                            <Route path="/settings" element={<ProtectedRoute><NonVendorRoute><Settings /></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/workspace" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><WorkspaceSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/company" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><CompanySettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />

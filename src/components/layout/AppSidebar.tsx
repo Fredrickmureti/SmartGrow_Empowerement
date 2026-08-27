@@ -145,6 +145,8 @@ const reportNavItems: NavItem[] = [
   { title: "Intelligence", href: "/business-intelligence", icon: BarChart3, permission: "viewReports" },
   { title: "Financial", href: "/finance/reports/financial", icon: PiggyBank, permission: "viewReports" },
   { title: "Trial Balance", href: "/finance/reports/trial-balance", icon: Calculator, permission: "viewReports" },
+  { title: "Consolidated TB", href: "/finance/reports/consolidated-trial-balance", icon: Calculator, permission: "viewReports" },
+  { title: "Consolidated Statements", href: "/finance/reports/consolidated-statements", icon: FileText, permission: "viewReports" },
   { title: "General Ledger", href: "/finance/reports/general-ledger", icon: BookOpen, permission: "viewReports" },
   { title: "Aging Reports", href: "/finance/reports/aging", icon: Clock, permission: "viewReports" },
   { title: "Sales", href: "/finance/reports/sales", icon: FileText, permission: "viewReports" },
