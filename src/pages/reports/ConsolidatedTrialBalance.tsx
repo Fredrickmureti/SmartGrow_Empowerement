@@ -58,11 +58,13 @@ import { useConsolidationGroups, CONSOLIDATION_METHOD_LABELS } from "@/hooks/fin
 import {
   useConsolidationScope,
   useConsolidatedTrialBalance,
+  useConsolidationCtaReconciliation,
   groupTrialBalanceByAccount,
   describeConsolidationBlocker,
   nonControllingShare,
   type ConsolidatedTrialBalanceRow,
 } from "@/hooks/finance/useConsolidatedTrialBalance";
+
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
 function formatAmount(value: number, currency: string) {
