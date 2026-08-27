@@ -1,122 +1,66 @@
-# Consolidation — handover verification (2026-08-27, 08:4x UTC) and closing Brick 6
+# Consolidation — verified handover (2026-08-27, 10:0x UTC) and closing Brick 6
 
-Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already connected; no connection work is needed.
+Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already connected. No connection work is needed.
 
-Every claim below was re-checked this session against the live database and the repository. Nothing in the previous engineer's status note was accepted on trust.
+Every statement in the "current state" section below was re-checked this session against the live database and the repository. The previous engineer's notes were treated as unverified until confirmed.
 
-## Phase 1 — what the previous engineer actually landed
+## Phase 1 — verified current state
 
-Confirmed present:
+### Confirmed genuinely present
 
-- Bricks 1–5 objects all exist in the live database: `consolidation_groups`, `consolidation_group_members`, `consolidation_group_accounts`, `consolidation_account_mappings`, `consolidation_group_change_log`, `consolidation_intercompany_partners`, each with its guard and audit trigger function, plus the engine functions `resolve_consolidation_scope`, `consolidation_translate_member`, `consolidation_member_translation_rates`, `get_consolidated_trial_balance`, `get_consolidated_trial_balance_translated`, `get_consolidated_statement_lines` / `_totals`, `consolidation_cta_reconciliation`, `consolidation_unmapped_accounts`.
-- **Step 1 landed.** `consolidation_intercompany_activity(_group_id, _date_from, _date_to)` exists, is INVOKER-rights, granted only to `authenticated` and `service_role`, and projects intercompany journal activity onto the translated consolidated trial balance — so the group-account dimension and the rate used come from the same engine the statements use, not from a second calculation. It refuses (SQLSTATE 22023) and names the offending account/company when intercompany activity touches an account the consolidated trial balance does not report.
-- **Step 2 landed.** `consolidation_intercompany_coverage(_group_id, _date_from, _date_to)` exists with the same rights and grant profile.
-- **Step 3 landed.** `useConsolidationIntercompany.ts` exposes both RPCs, and `ConsolidationIntercompany.tsx` renders the coverage worklist with its own error, loading and empty states alongside the existing declare/reconcile sections.
+- **Bricks 1–5 engine exists in the live database.** All consolidation functions are present, all are INVOKER-rights (`prosecdef = false`) except the trigger guards, and every callable one is granted to `authenticated` and `service_role` only — no `anon`, no `public`. Confirmed: `resolve_consolidation_scope`, `consolidation_translate_member`, `consolidation_member_translation_rates`, `get_consolidated_trial_balance`, `get_consolidated_trial_balance_translated`, `get_consolidated_statement_lines`, `get_consolidated_statement_totals`, `consolidation_cta_reconciliation`, `consolidation_unmapped_accounts`, `consolidation_group_uses_group_chart`, `consolidation_scope_member_count`, `close_consolidation_member`, plus the eleven `_consolidation_*` guard and audit triggers.
+- **Brick 6 database surface landed.** `consolidation_intercompany_balances`, `consolidation_intercompany_activity` and `consolidation_intercompany_coverage` all exist with the same rights and grant profile.
+- **Brick 6 application surface landed.** `useConsolidationIntercompany.ts` exposes all three RPCs through a shared `callConsolidationRpc` helper, and `ConsolidationIntercompany.tsx` renders declarations, reconciliation and the coverage worklist.
+- **Step 4a is in fact done, contrary to the previous plan's own Phase 1 note.** The plan text says "Step 4 has not been started" and that the suite is "still the original 243-line suite". That is stale. `supabase/tests/consolidation_intercompany_test.sql` is 619 lines and carries a third block covering the group-account projection, GL-only intercompany activity, the unmapped refusal, the coverage worklist and cross-organization isolation — a two-member, two-currency, two-chart fixture that rolls itself back.
 
-## Phase 1 — what is not true, and what therefore remains open
+### Confirmed still open
 
-- **Step 4 has not been started.** `supabase/tests/consolidation_intercompany_test.sql` is still the original 243-line suite: it contains no assertion mentioning the activity projection, the coverage worklist, the group-account dimension, or the unmapped-account refusal.
-- **No suite has been executed for Brick 6.** `.lovable/consolidation-brick-log.md` still ends at "Brick 4 — CLOSED" followed by "Next — Brick 6". There is no recorded execution and no Brick 6 section.
-- **The architecture ratchet was not extended.** `src/test/architecture/consolidation-intercompany.test.ts` exists but contains no reference to the coverage RPC, the activity RPC, or the group-account columns, so the new surface is unguarded against regression.
-- **Consolidation has still never run against more than one member.** The live group set holds a single member, zero group accounts, zero mappings, zero declarations. Every multi-entity proof exists only inside rolling-back test transactions.
+- **The architecture ratchet was not extended.** `src/test/architecture/consolidation-intercompany.test.ts` mentions only `consolidation_intercompany_partners` and `consolidation_intercompany_balances`. It contains no reference to the activity RPC, the coverage RPC, or the group-account columns. Everything Brick 6 added last session is unguarded against regression.
+- **Only Block 3 has been executed.** Blocks 1 and 2 of the intercompany suite, and the Brick 1–5 suites, have not been re-run since the Brick 6 changes.
+- **The brick log is incomplete.** `.lovable/consolidation-brick-log.md` contains a Brick 4 section and nothing else — no Brick 6 section, and also no Brick 1, 2, 3 or 5 sections. It is not the closure record the process assumes.
+- **Consolidation has still never run against more than one member in live data.** The live tenant holds 1 group, 1 member, 0 group accounts, 0 mappings, 0 intercompany declarations. Every multi-entity proof exists only inside rolling-back test transactions.
 
-So Brick 6 is code-complete but unproven. Brick 6 is not closeable, and Brick 7 (eliminations) must not start.
+So Brick 6 is code-complete and partially proven. It is not closeable, and Brick 7 (eliminations) must not start.
 
 ## Phase 2 — plan corrections carried forward
 
-- Brick 6 stays identification only: no elimination arithmetic, no persisted runs, no minority interest, no placeholders.
-- One accounting truth: intercompany figures stay a projection of `get_consolidated_trial_balance_translated`. No second rate resolver, no JavaScript arithmetic.
+- Brick 6 stays identification only: no elimination arithmetic, no persisted runs, no minority interest, no placeholders, no disabled controls.
+- One accounting truth: intercompany figures stay a projection of `get_consolidated_trial_balance_translated`. No second rate resolver, no browser arithmetic.
 - A brick closes only when its SQL suite has been executed against the live database and the result recorded in the brick log.
-- Added to the worklist from this session's review: the refusal path in `consolidation_intercompany_activity` must be asserted (an unmapped intercompany account must refuse, never silently drop), and cross-organization RLS isolation of declarations must be asserted, because neither is covered today.
+- **Added this session:** the brick log must be backfilled for Bricks 1, 2, 3 and 5, not only Brick 6. A closure record that skips four bricks cannot answer "where did this consolidated number come from?".
+- **Added this session:** the stale-status failure mode itself needs fixing. The plan file asserted the suite was untouched when it had grown by 376 lines. Status claims must be re-derived from the repository at the start of each session, never copied forward.
 
 ## Work order — Brick 6 closure
 
-### Step 4a — extend the SQL suite
+### Step A — extend the architecture ratchet
 
-Add to `supabase/tests/consolidation_intercompany_test.sql`, keeping the contract-block / behaviour-block shape and the rollback:
+Extend `src/test/architecture/consolidation-intercompany.test.ts` so it holds:
 
-- A two-member group in different currencies with different account codes: GL-side intercompany activity (a recharge booked straight to GL, not through AR/AP) is reported, carries the group account, and its translated amount matches the rate the translated trial balance used.
-- An intercompany account left unmapped: the activity report refuses and the message names the account and company.
-- Coverage names a counterparty with ledger activity and no declaration, and falls silent once the declaration covers the period.
-- Coverage suggests a counterparty only on exact tax/registration-number identity, never on a name match.
-- A foreign organization reads neither declarations nor coverage; the owning user is not over-blocked.
-- Reciprocal pairing and the unreciprocated difference stay reported as a named difference, never netted.
+- the activity and coverage RPCs stay reachable from the hook and the page, and both appear in the generated database types;
+- the client never derives intercompany pairs, account mappings or translated amounts itself;
+- the group-account columns stay on the reconciliation table;
+- refusals from either RPC stay rendered as an explanation, never as an empty table or a zero.
 
-### Step 4b — execute the suite and record the result
+### Step B — execute the suites and record the result
 
-Run the whole Brick 6 suite against the live database, plus the Brick 1–5 suites as a regression pass, and record pass/fail per block.
+Run the intercompany suite's Blocks 1 and 2 as a regression pass, then the Brick 1–5 suites: `consolidation_group_foundation_test.sql`, `consolidation_translation_test.sql`, `consolidated_trial_balance_test.sql`, `consolidated_trial_balance_reconciliation_test.sql`, `consolidation_account_mapping_test.sql`, `consolidated_statements_test.sql`. Record pass/fail per block.
 
-### Step 4c — extend the architecture ratchet
+These run one file at a time, never batched — the suites are large and running them together has previously overwhelmed the database.
 
-Extend `src/test/architecture/consolidation-intercompany.test.ts` so it holds: the coverage RPC stays reachable from the page, the client never derives intercompany pairs or account mappings itself, group-account columns stay on the reconciliation table, and refusals stay rendered as explanations rather than empty tables.
+### Step C — live multi-member walkthrough
 
-### Step 4d — live multi-member walkthrough
+Drive a genuine two-member group (different base currencies, different charts) through group settings, consolidated trial balance, consolidated statements and the intercompany page in the running app. Record what was observed, including one deliberate unmapped-account refusal. Fixture data is created and removed within the walkthrough; nothing is left seeded in the live tenant.
 
-Drive a genuine two-member group (different base currencies, different charts) through group settings, consolidated trial balance, consolidated statements and the intercompany page in the running app; record what was observed, including one deliberate refusal.
+### Step D — write the brick log
 
-### Step 4e — write the Brick 6 section of the brick log
-
-What was established, changed and verified; the accounting rules and security boundaries that now exist; which suites ran; what is deliberately still absent.
+Write the Brick 6 section, and backfill Bricks 1, 2, 3 and 5, each recording: what was established, what changed, what was verified, the accounting rules and security boundaries that now exist, which suites ran, and what is deliberately still absent.
 
 ## Explicitly out of scope until Brick 6 closes
 
-Elimination arithmetic, persisted consolidation runs, consolidated cash flow, equity method, minority interest. No TODO scaffolding and no disabled controls for any of them.
+Elimination arithmetic, persisted consolidation runs, consolidated cash flow, equity method, minority interest. No TODO scaffolding for any of them.
 
 ## Technical notes
 
 - Any new database object goes in its own small migration; grants to `authenticated` and `service_role` only.
-- Test data is created and rolled back inside the suite; nothing is seeded into the live tenant.
+- Test data is created and rolled back inside each suite; nothing is seeded into the live tenant.
 - Contact-to-business scoping uses `contacts.business_id` / `contacts.organization_id`; `commercial_partner_id` and `parent_contact_id` stay contact-hierarchy concerns.
-
-
-
-===================IMPLEMENTATION progress STATUS========================
-
-Block 3 passed — the intentional final RAISE is the suite's own rollback marker, so nothing was written to the database, and the closing rate (108.90) confirms the fixture was genuinely translating rather than sitting at 1:1.
-
-Verified in this run:
-
-An unmapped intercompany account (IC-01) refuses the activity report and names the account.
-Both sides of a GL-only recharge report separately (parent +5 000 KES on G-1100; subsidiary −400 USD on G-2100 at the closing rate), nothing netted.
-The intercompany figure agrees with get_consolidated_trial_balance_translated on both group account and rate — one engine, not two.
-Coverage surfaces undeclared ledger activity, suggests a member only on exact tax-ID identity (never on a name match), and falls silent once declared.
-A foreign organization reads neither the declarations nor either RPC (42501); the owning user is not over-blocked.
-Remaining to close Brick 6 (paused, no credits):
-
-Re-run Blocks 1 and 2 of the same file as a regression pass, plus the Brick 1–5 suites.
-Extend src/test/architecture/consolidation-intercompany.test.ts with the coverage/activity RPC ratchets.
-Live two-member walkthrough in the running app, including one deliberate refusal.
-Write the Brick 6 section of .lovable/consolidation-brick-log.md.
-Brick 7 (eliminations) stays closed until those four are done.
-
-
-KINDLY NOTEM WHEN RUNNING TEST MIGRATIONS, RUN THEM carefully and professionally so that you dont ovewhelm the database because there are some big test migartions that when run all at once makes supabase shut down 
-
-==========================================================
-# Execution Instructions
-
-1. **Verify Previous Implementation**
-
-   * Before making any new changes, carefully verify that the previous implementation has been fully completed, correctly integrated, and actually landed in the codebase and database where applicable.
-   * Do not assume that a previous task was completed merely because the relevant code appears to exist. Validate the actual behavior, dependencies, and business flow.
-
-2. **Proceed Chronologically**
-
-   * Once the previous step has been verified, identify the **next logical step, brick, or item in the sequence**.
-   * Follow the established implementation order rather than jumping ahead or working on unrelated areas.
-
-3. **Work Professionally and Analytically**
-
-   * Approach each step systematically and from first principles.
-   * Understand the existing architecture, business logic, dependencies, and intended behavior before making changes.
-   * Avoid rushed, speculative, or superficial implementations.
-
-4. **Maintain Stability**
-
-   * Preserve existing functionality and architectural integrity while progressing to the next step.
-   * Ensure each completed brick leaves the system in a stable, coherent state before proceeding further.
-
-5. **Keep the Process Organized**
-
-   * Clearly establish what has already been completed, what remains, and what the current step is intended to accomplish.
-   * Work through the sequence incrementally and methodically rather than attempting to implement everything at once.
