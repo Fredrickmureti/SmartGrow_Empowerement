@@ -33,7 +33,7 @@ function arithmeticOffenders(src: string): string[] {
         line,
       ),
     )
-    .filter((line) => !line.trim().startsWith("*") && !line.trim().startsWith("//"));
+    .filter((line) => !/^\s*(\/\/|\/?\*)/.test(line));
 }
 
 describe("consolidation eliminations — engine ownership", () => {
