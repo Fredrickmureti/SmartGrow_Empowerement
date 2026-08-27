@@ -297,11 +297,17 @@ BEGIN
   END IF;
 
   ------------------------------------------------------- 5. disagreements ---
-  -- The subsidiary restates its side to 4,800: the two sides no longer agree.
-  UPDATE public.journal_entry_lines SET debit = 4800
-   WHERE business_id = v_s AND account_id = v_exp_s;
-  UPDATE public.journal_entry_lines SET credit = 4800
-   WHERE business_id = v_s AND account_id = v_due_s;
+  -- The subsidiary restates its side down to 4,800 the only way the ledger
+  -- allows: posted lines are immutable, so it books a correcting entry.
+  INSERT INTO public.journal_entries
+    (organization_id, business_id, entry_number, entry_date, description, status, currency, exchange_rate)
+  VALUES (v_org, v_s, 'EL-S-3', DATE '2026-03-20', 'Recharge correction', 'draft', 'KES', 1) RETURNING id INTO v_je;
+  INSERT INTO public.journal_entry_lines
+    (organization_id, business_id, journal_entry_id, account_id, contact_id, debit, credit)
+  VALUES (v_org, v_s, v_je, v_due_s, v_c_par, 200, 0),
+         (v_org, v_s, v_je, v_exp_s, NULL,      0, 200);
+  UPDATE public.journal_entries SET status = 'posted', posted_at = now() WHERE id = v_je;
+
 
   v_refused := false;
   BEGIN
