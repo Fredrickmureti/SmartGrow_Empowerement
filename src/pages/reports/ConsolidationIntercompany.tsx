@@ -15,7 +15,7 @@
  * NO elimination entries: a mismatch is a finding for an accountant, and the
  * consolidated statements are unchanged by anything on this screen.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
