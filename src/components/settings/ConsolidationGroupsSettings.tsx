@@ -43,7 +43,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CalendarOff, GitMerge, History, Info, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarOff,
+  Coins,
+  GitMerge,
+  History,
+  Info,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBusinessCurrenciesFor } from "@/hooks/useBusinessCurrencies";
@@ -52,12 +61,14 @@ import {
   useCanManageConsolidation,
   useConsolidationAllowedBusinessIds,
   useConsolidationChangeLog,
+  useConsolidationCtaAccountOptions,
   useConsolidationGroupMembers,
   useConsolidationGroupMutations,
   useConsolidationGroups,
   type ConsolidationMethod,
 } from "@/hooks/finance/useConsolidationGroups";
 import { normalizeError } from "@/services/resilience";
+
 
 const METHODS = Object.keys(CONSOLIDATION_METHOD_LABELS) as ConsolidationMethod[];
 
