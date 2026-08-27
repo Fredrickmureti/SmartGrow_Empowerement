@@ -25,6 +25,11 @@ export const REPORT_SCOPE_KEYS = [
   "from",
   "to",
   "asOf",
+  // The member company a drill-down belongs to. Single-company reports never
+  // set it; consolidation drill-downs always do, because the record beneath a
+  // group figure lives in one company's books and the destination must open
+  // in that company rather than in whichever one happened to be active.
+  "business",
   "branch",
   "department",
   "employee",
@@ -39,6 +44,7 @@ export const REPORT_SCOPE_KEYS = [
   "currency",
   "compare",
 ] as const;
+
 
 export type ReportScopeKey = (typeof REPORT_SCOPE_KEYS)[number];
 
