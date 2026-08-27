@@ -106,6 +106,15 @@ export default function ConsolidatedTrialBalance() {
     dateTo,
   );
 
+  /** True when at least one member keeps its books in another currency. */
+  const hasTranslation = (scopeQuery.data ?? []).some((m) => m.requires_translation);
+
+  const ctaQuery = useConsolidationCtaReconciliation(
+    canViewConsolidated && scopeIsClean && hasTranslation ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
+
   const currency = selectedGroup?.presentation_currency ?? "USD";
   const accountLines = useMemo(
     () => groupTrialBalanceByAccount(tbQuery.data ?? []),
@@ -150,9 +159,12 @@ export default function ConsolidatedTrialBalance() {
     ];
     if (showMembers) {
       base.splice(2, 0, { key: "company", header: "Company" });
+      if (hasTranslation) {
+        base.splice(3, 0, { key: "rate", header: "Rate applied", align: "right" });
+      }
     }
     return base;
-  }, [showMembers]);
+  }, [showMembers, hasTranslation]);
 
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = [];
@@ -163,8 +175,11 @@ export default function ConsolidatedTrialBalance() {
         id: line.account_id,
         values: {
           code: line.account_code ?? "—",
-          name: line.account_name,
+          name:
+            line.account_name +
+            (line.is_residual ? " (currency translation reserve)" : ""),
           company: showMembers ? "Group total" : "",
+          rate: "",
           opening: money(line.opening_balance),
           debit: money(line.total_debit),
           credit: money(line.total_credit),
@@ -174,22 +189,32 @@ export default function ConsolidatedTrialBalance() {
 
       if (!showMembers) continue;
       for (const c of line.contributions as ConsolidatedTrialBalanceRow[]) {
+        const source = c.base_currency ?? currency;
+        const translated = source !== c.presentation_currency;
+        // Foreign members are shown in their own currency, with the rate that
+        // restated them, so a reviewer can retrace every group figure.
+        const show = (own: number, group: number) =>
+          translated
+            ? `${formatAmount(own, source)} → ${money(group)}`
+            : money(group);
         out.push({
           id: `${line.account_id}:${c.business_id}`,
           values: {
             code: "",
             name: "",
             company: c.business_name + (c.is_parent ? " (parent)" : ""),
-            opening: money(Number(c.opening_balance)),
-            debit: money(Number(c.total_debit)),
-            credit: money(Number(c.total_credit)),
-            closing: money(Number(c.closing_balance)),
+            rate: describeRate(c),
+            opening: show(Number(c.opening_balance), Number(c.translated_opening)),
+            debit: show(Number(c.total_debit), Number(c.translated_debit)),
+            credit: show(Number(c.total_credit), Number(c.translated_credit)),
+            closing: show(Number(c.closing_balance), Number(c.translated_closing)),
           },
         });
       }
     }
     return out;
   }, [accountLines, showMembers, currency]);
+
 
   if (!permLoading && !canViewConsolidated) {
     return (
