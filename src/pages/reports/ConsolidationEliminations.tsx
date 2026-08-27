@@ -52,7 +52,7 @@ import {
   Scissors,
   ShieldAlert,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { toAppError } from "@/lib/supabaseError";
@@ -532,6 +532,8 @@ export default function ConsolidationEliminations() {
                 eliminations={eliminations}
                 rules={rulesQuery.data ?? []}
                 isLoading={eliminationsQuery.isLoading}
+                focusAccountId={focusAccountId}
+                onClearFocus={() => setFocusAccountId(null)}
               />
             </CardContent>
 
