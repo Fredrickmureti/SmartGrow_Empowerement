@@ -267,3 +267,64 @@ placeholder rows for any of them.
 - The walkthrough fixture (Mombasa Port Services and its entries) is **left in
   the live tenant** so the multi-member path stays exercisable; it is clearly
   named and can be archived when no longer wanted.
+
+---
+
+## Phase 0 — SQL suite re-execution (verified 2026-08-27)
+
+Every committed consolidation SQL suite was executed against the live
+`AccrualFlowCorporation` database this session, block by block, through the SQL
+path (`psql` is unavailable here). Each behaviour block ends in a deliberate
+`RAISE EXCEPTION 'rollback: …'`, so a suite is only proven when the database
+returns that exact rollback message — and every fixture is discarded.
+
+| Suite | Block | Result (verbatim rollback / pass marker) |
+|---|---|---|
+| `consolidation_group_foundation_test.sql` | 1 contract | passed (run earlier this session) |
+| `consolidation_group_foundation_test.sql` | 2 + 3 contract | `rollback: foundation contract blocks 2 and 3 passed` |
+| `consolidation_group_foundation_test.sql` | 4 behaviour | `rollback: consolidation group foundation fixture passed` |
+| `consolidation_translation_test.sql` | behaviour | `rollback: consolidation FX translation invariants passed (CTA movement 4200.00, proof 4200.00)` |
+| `consolidated_trial_balance_test.sql` | contract | `rollback: Brick 2 consolidated trial balance invariants passed` |
+| `consolidated_trial_balance_reconciliation_test.sql` | behaviour | `rollback: consolidated trial balance reconciliation passed (dr 1400 = 1000 + 400)` |
+| `consolidated_statements_test.sql` | contract | `rollback: consolidated statements contract checks passed` |
+| `consolidated_statements_test.sql` | behaviour | `rollback: consolidated statements passed (assets 441570.00, liabilities 0, equity 441570.00, result 32220.00)` |
+| `consolidation_account_mapping_test.sql` | contract | `rollback: consolidation account mapping contract checks passed` |
+| `consolidation_account_mapping_test.sql` | behaviour | `rollback: consolidation account mapping passed (group revenue 75000, cost 30000, cash 185000)` |
+| `consolidation_intercompany_test.sql` | 1 contract | `rollback: Brick 6 intercompany contract passed` |
+| `consolidation_intercompany_test.sql` | 2 behaviour | `rollback: Brick 6 intercompany behaviour passed` |
+| `consolidation_intercompany_test.sql` | 3 projection/coverage/isolation | `rollback: Brick 6 projection, coverage and isolation invariants passed (closing rate 108.90000000)` |
+
+Nothing was committed by any of these runs.
+
+### What this closes out
+
+- Bricks 1–6 are now **proven on the current database**, not merely claimed:
+  ownership-history guards, IAS 21 rate classes with an independent CTA proof,
+  trial-balance tie-out to `get_account_movements`, statement balancing and
+  wrong-statement refusal, group-chart merging with a named unmapped refusal,
+  and intercompany pairing, projection, coverage and cross-organization
+  isolation.
+- The two Brick 6 blocks carried forward from last session (Blocks 1 and 2) have
+  now been run and pass.
+
+### Privilege and RLS posture (verified)
+
+All six consolidation tables have RLS enabled with policies present, and `anon`
+holds no `SELECT` on any of them:
+
+`consolidation_groups` (2), `consolidation_group_members` (2),
+`consolidation_group_accounts` (2), `consolidation_account_mappings` (2),
+`consolidation_intercompany_partners` (2), `consolidation_group_change_log` (1).
+
+The Supabase linter reports 3,716 findings project-wide (SECURITY DEFINER view
+and function-executability classes dominating). None of them is a consolidation
+object: no consolidation table appears under `RLS Disabled in Public` or
+`RLS Enabled No Policy`, which is the class that would indicate a consolidation
+defect. The remaining findings are pre-existing, platform-wide, and outside this
+subsystem's scope — they are not silently accepted here, only recorded as not
+introduced by consolidation.
+
+### Phase 0 exit condition: met
+
+Foundations are verified. Brick 7 (elimination engine) may now be started on a
+proven base.
