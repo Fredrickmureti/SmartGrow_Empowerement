@@ -55,8 +55,12 @@ describe("consolidation eliminations — engine ownership", () => {
   it("the report page computes nothing and renders the server's refusal verbatim", () => {
     const src = read(PAGE);
     expect(arithmeticOffenders(src)).toEqual([]);
-    expect(src).toContain("e instanceof Error ? e.message");
+    // toAppError keeps the PostgrestError's message, details and hint — the
+    // refusal reaches the screen in the database's own words, unedited.
+    expect(src).toContain('toAppError(e, "The elimination run was refused").message');
+    expect(src).toContain("setRefusal(message)");
   });
+
 
   it("the policy screen holds decisions only — no elimination figures", () => {
     const src = read(SETTINGS);
@@ -100,5 +104,59 @@ describe("consolidation eliminations — wiring", () => {
     expect(read("components/settings/ConsolidationGroupsSettings.tsx")).toContain(
       "<ConsolidationEliminationRules",
     );
+  });
+});
+
+/**
+ * Brick 7.1 guard: a refusal carries its own remedy, and every judgement in
+ * that remedy comes from the server.
+ *
+ * The failure this prevents is a client that reads the refusal *sentence* and
+ * guesses what to do about it — string matching on prose that the database is
+ * free to reword, offering an action the engine would then reject.
+ */
+describe("consolidation eliminations — refusal remedies", () => {
+  const PANEL = "components/finance/EliminationRefusalPanel.tsx";
+  const REMEDIES = "lib/finance/eliminationRemedies.ts";
+
+  it("the diagnosis comes from the server's preflight RPC", () => {
+    expect(read(HOOK)).toContain("consolidation_diagnose_eliminations");
+    expect(read(PAGE)).toContain("useEliminationDiagnosis");
+  });
+
+  it("remedies are structured codes, never inferred from the refusal text", () => {
+    for (const rel of [PANEL, REMEDIES, PAGE]) {
+      const src = read(rel);
+      // No prose sniffing of the database's words.
+      expect(src).not.toMatch(/message\s*\.\s*(includes|match|indexOf|toLowerCase)/);
+      expect(src).not.toMatch(/refusal\s*\.\s*(includes|match|indexOf|toLowerCase)/);
+    }
+    expect(read(PANEL)).toContain("row.remedies");
+  });
+
+  it("the panel shows the server's own message and never computes an amount", () => {
+    const src = read(PANEL);
+    expect(src).toContain("{row.message}");
+    // The tolerance offered is the server's suggestion, not a local sum.
+    expect(src).toContain("row.suggested_tolerance");
+    expect(arithmeticOffenders(src)).toEqual([]);
+  });
+
+  it("only engine-valid remedies are applied in place; the rest are links", () => {
+    const src = read(REMEDIES);
+    expect(src).toContain("APPLICABLE_REMEDIES");
+    expect(src).toContain("configure_cta_account");
+    expect(src).toContain("configure_difference_account");
+    // Applying a policy remedy goes through the same guarded rule upsert.
+    expect(read(PANEL)).toContain("saveRule.mutateAsync");
+  });
+
+  it("the settings screen honours the group and class named in the link", () => {
+    const settings = read("components/settings/ConsolidationGroupsSettings.tsx");
+    expect(settings).toContain("consolidationGroup");
+    expect(settings).toContain("eliminationClass");
+    expect(settings).toContain('id="consolidation-translation-reserve"');
+    expect(settings).toContain('id="consolidation-group-members"');
+    expect(read(SETTINGS)).toContain("eliminationClassAnchor");
   });
 });

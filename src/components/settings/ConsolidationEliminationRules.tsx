@@ -12,7 +12,9 @@
  * No elimination amount is calculated here or anywhere else in the browser.
  * `consolidation_generate_eliminations` reads these rows and does the work.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { eliminationClassAnchor } from "@/lib/finance/eliminationRemedies";
+
 import {
   Card,
   CardContent,
@@ -61,7 +63,15 @@ interface Props {
   groupId: string;
   groupName: string;
   canManage: boolean;
+  /**
+   * The class an elimination refusal sent the accountant here to settle, and
+   * the remedy code it named. Both come from the server's diagnosis by way of
+   * the URL — nothing is inferred from a message.
+   */
+  focusClass?: string | null;
+  focusRemedy?: string | null;
 }
+
 
 interface Draft {
   is_active: boolean;
@@ -83,12 +93,19 @@ function draftFrom(rule: EliminationRule | undefined): Draft {
   };
 }
 
-export function ConsolidationEliminationRules({ groupId, groupName, canManage }: Props) {
+export function ConsolidationEliminationRules({
+  groupId,
+  groupName,
+  canManage,
+  focusClass = null,
+  focusRemedy = null,
+}: Props) {
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const accountsQuery = useConsolidationGroupAccounts(groupId);
   const { saveRule } = useConsolidationEliminationMutations();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [savingClass, setSavingClass] = useState<string | null>(null);
+
 
   const ruleFor = useMemo(() => {
     const map = new Map<string, EliminationRule>();
@@ -97,6 +114,28 @@ export function ConsolidationEliminationRules({ groupId, groupName, canManage }:
   }, [rulesQuery.data]);
 
   const accounts = accountsQuery.data ?? [];
+
+  /**
+   * Arriving from a refusal that named "configure a difference account" only
+   * makes sense with that policy selected, so the draft starts there. It stays
+   * a draft: nothing is saved until the accountant names the account and saves.
+   */
+  const prefilled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusClass || focusRemedy !== "configure_difference_account") return;
+    const key = `${groupId}:${focusClass}`;
+    if (prefilled.current === key) return;
+    prefilled.current = key;
+    setDrafts((prev) => ({
+      ...prev,
+      [focusClass]: {
+        ...draftFrom(ruleFor.get(focusClass)),
+        ...prev[focusClass],
+        difference_policy: "post_difference" as EliminationDifferencePolicy,
+      },
+    }));
+  }, [focusClass, focusRemedy, groupId, ruleFor]);
+
 
   const draftOf = (cls: EliminationClass): Draft =>
     drafts[cls] ?? draftFrom(ruleFor.get(cls));
@@ -186,8 +225,30 @@ export function ConsolidationEliminationRules({ groupId, groupName, canManage }:
           const stored = ruleFor.get(cls);
           const dirty = !!drafts[cls];
           const typeMatched = accounts.filter((a) => a.is_active);
+          const focused = focusClass === cls;
           return (
-            <div key={cls} className="rounded-lg border p-4 space-y-4">
+
+              <div
+                key={cls}
+                id={eliminationClassAnchor(cls)}
+                className={
+                  focused
+                    ? "rounded-lg border-2 border-primary p-4 space-y-4"
+                    : "rounded-lg border p-4 space-y-4"
+                }
+              >
+                {focused && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      An elimination run for this group was refused over this class.
+                      {focusRemedy === "configure_difference_account"
+                        ? " Name the group account the residual should be disclosed in, then save — the next run reads this policy."
+                        : " Settle the policy below, then run the eliminations again."}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-medium">

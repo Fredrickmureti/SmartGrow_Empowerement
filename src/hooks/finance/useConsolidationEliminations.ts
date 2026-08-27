@@ -189,7 +189,63 @@ export function useConsolidationEliminations(
 }
 
 /** The per-class elimination policy for a group. */
+/**
+ * One structured finding from the server's read-only preflight. Every field is
+ * the database's own verdict: the residual, the tolerance and policy in force,
+ * whether the gap is a translation effect, and the remedy codes the engine
+ * would actually accept. Nothing here is inferred from a message.
+ */
+export interface EliminationDiagnosisRow {
+  finding_kind: "pair_difference" | string;
+  elimination_class: EliminationClass | null;
+  business_a_id: string | null;
+  business_a_name: string | null;
+  business_a_currency: string | null;
+  business_b_id: string | null;
+  business_b_name: string | null;
+  business_b_currency: string | null;
+  presentation_currency: string | null;
+  difference_signed: number | null;
+  difference_amount: number | null;
+  effective_tolerance: number | null;
+  effective_policy: string | null;
+  rule_exists: boolean | null;
+  is_cross_currency: boolean | null;
+  cause: string;
+  would_refuse: boolean;
+  suggested_tolerance: number | null;
+  remedies: string[];
+  message: string;
+}
+
+/**
+ * Why the run would be refused, before anyone runs it. Same intercompany
+ * flows, same tolerance test, same policy resolution as
+ * `consolidation_generate_eliminations` — so preflight and run cannot
+ * disagree — and it writes nothing.
+ */
+export function useEliminationDiagnosis(
+  groupId: string | null,
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  return useQuery({
+    queryKey: ["consolidation-elimination-diagnosis", groupId, dateFrom, dateTo],
+    enabled: !!groupId && !!dateFrom && !!dateTo,
+    queryFn: async (): Promise<EliminationDiagnosisRow[]> => {
+      const { data, error } = await supabase.rpc("consolidation_diagnose_eliminations", {
+        _group_id: groupId!,
+        _date_from: dateFrom!,
+        _date_to: dateTo!,
+      });
+      if (error) throw toAppError(error);
+      return (data ?? []) as unknown as EliminationDiagnosisRow[];
+    },
+  });
+}
+
 export function useConsolidationEliminationRules(groupId: string | null) {
+
   return useQuery({
     queryKey: ["consolidation-elimination-rules", groupId],
     enabled: !!groupId,
@@ -277,6 +333,10 @@ export function useConsolidationEliminationMutations() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["consolidation-eliminations"] });
     queryClient.invalidateQueries({ queryKey: ["consolidation-elimination-rules"] });
+    queryClient.invalidateQueries({
+      queryKey: ["consolidation-elimination-diagnosis"],
+    });
+
     queryClient.invalidateQueries({
       queryKey: ["consolidated-statement-lines-eliminated"],
     });

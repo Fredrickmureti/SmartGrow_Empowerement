@@ -15,7 +15,9 @@
  * - Membership is effective-dated history: a company is closed out with an end
  *   date, never deleted, so past periods stay reproducible.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import {
   Card,
   CardContent,
@@ -92,9 +94,45 @@ export function ConsolidationGroupsSettings() {
     updateGroupTranslationSettings,
   } = useConsolidationGroupMutations();
 
+  /**
+   * A refusal on the eliminations report links straight here, naming the group
+   * (and sometimes the elimination class) in the URL, so the accountant lands
+   * on the setting that is actually in the way instead of hunting for it.
+   */
+  const [searchParams] = useSearchParams();
+  const requestedGroupId = searchParams.get("consolidationGroup");
+  const requestedClass = searchParams.get("eliminationClass");
+  const requestedRemedy = searchParams.get("remedy");
+
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null;
+  // A requested group only wins while the person has not chosen another one.
+  const activeGroupId =
+    selectedGroupId ??
+    (requestedGroupId && groups.some((g) => g.id === requestedGroupId)
+      ? requestedGroupId
+      : null) ??
+    groups[0]?.id ??
+    null;
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
+
+  /**
+   * Bring the linked-to setting into view once the group's cards have actually
+   * rendered — the hash alone cannot, because the target does not exist on the
+   * first paint. Runs once per hash so it never fights the person's scrolling.
+   */
+  const scrolledToHash = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeGroup) return;
+    const hash = window.location.hash.replace("#", "");
+    if (!hash || scrolledToHash.current === hash) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+    scrolledToHash.current = hash;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeGroup, requestedClass, requestedRemedy]);
+
+
+
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
   const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
@@ -354,7 +392,8 @@ export function ConsolidationGroupsSettings() {
       </Card>
 
       {activeGroup && (
-        <Card>
+        <Card id="consolidation-group-members">
+
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -611,7 +650,8 @@ export function ConsolidationGroupsSettings() {
       )}
 
       {activeGroup && (
-        <Card>
+        <Card id="consolidation-translation-reserve">
+
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -729,8 +769,15 @@ export function ConsolidationGroupsSettings() {
           groupId={activeGroup.id}
           groupName={activeGroup.name}
           canManage={canManage}
+          focusClass={
+            requestedGroupId === activeGroup.id ? requestedClass : null
+          }
+          focusRemedy={
+            requestedGroupId === activeGroup.id ? requestedRemedy : null
+          }
         />
       )}
+
 
 
       {activeGroup && (

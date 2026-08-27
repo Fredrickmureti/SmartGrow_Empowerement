@@ -453,3 +453,62 @@ versus equity elimination, and NCI allocation. Also absent: Brick 8 (persisted,
 versioned consolidation runs and audit trail), Brick 9 (ownership / minority
 interest) and Brick 10 (consolidated cash flow). No scaffolding, no disabled
 controls and no placeholder rows exist for any of them.
+
+## Brick 7.1 — a refusal that carries its own remedy (2026-08-27)
+
+### What was verified before building
+
+The reported "40,000 KES refusal" between Mombasa Port Services and Joshua
+Holdings is not an engine defect. The live tenant has one active group (Joshua
+Holdings Group, presentation currency KES) with a translation reserve account
+configured and **zero** rows in `consolidation_elimination_rules`, so the engine
+falls back to tolerance `0` and policy `refuse`. Two members keep books in a
+currency other than KES, so retranslation leaves a residual the default policy
+must refuse. The gap was a *configuration* gap with no affordance to close it.
+
+### What was built
+
+- `public.consolidation_diagnose_eliminations(group, from, to)` — a read-only
+  preflight, SECURITY INVOKER with a fixed `search_path`, behind the same
+  owner/admin/super-admin authorization boundary as generation. It reads the
+  same `consolidation_intercompany_flows` the generator reads, so preflight and
+  run cannot disagree, and it writes nothing. Per class and per pair it returns
+  the signed and absolute residual, the tolerance and policy in force, whether a
+  rule exists, whether the pair is cross-currency, a machine-readable `cause`,
+  `would_refuse`, a `suggested_tolerance`, the `remedies` codes the engine would
+  accept, and the sentence to show. Scope refusals and flow refusals come back
+  as findings (`scope_not_reportable`, `intercompany_flows_refused`) instead of
+  an opaque exception.
+- `EliminationRefusalPanel` on the eliminations report: the database's refusal
+  verbatim, plus the structured diagnosis. Remedies the engine accepts as policy
+  (`set_policy_post_to_cta`, `set_policy_post_difference`, `raise_tolerance` at
+  the server's own suggested figure) are one click, written through the same
+  guarded `consolidation_elimination_rules` upsert and hidden from roles that
+  may not manage consolidation. Remedies that need a human choice
+  (`configure_cta_account`, `configure_difference_account`) or evidence
+  (`review_intercompany`, `review_group_membership`) are deep links.
+- Finance settings now honour `?consolidationGroup=&eliminationClass=&remedy=`:
+  the named group is selected, the linked block is scrolled to, the elimination
+  class block is outlined with an explanation of why the accountant is there,
+  and `configure_difference_account` prefills the policy draft — while still
+  requiring the account to be named and saved.
+
+### Architectural line held
+
+No arithmetic and no prose sniffing in the browser. The client never inspects
+the refusal text to decide what to offer; it renders `cause` and `remedies`
+codes the server produced. No second FX resolver, no second accounting engine,
+no scaffolding for Bricks 8-10. Guarded by five new cases in
+`src/test/architecture/consolidation-eliminations.test.ts` (13 passing), one of
+which fails if any of these files starts matching on `message`/`refusal` text.
+
+### Not yet proved
+
+The remedy loop has not been exercised end-to-end as a signed-in user. This
+project uses an external (BYO) Supabase project, so the sandbox cannot mint a
+preview session, and the SQL tooling role is not `authenticated` (it lacks
+EXECUTE on `has_role`/`has_org_role`, by design). The live proof that must still
+be recorded here: diagnose → apply "carry it to the translation reserve" →
+regenerate successfully → the residual appears in the translation reserve; plus
+the same-currency pair still refusing `post_to_cta`, and a member of another
+organization receiving nothing.

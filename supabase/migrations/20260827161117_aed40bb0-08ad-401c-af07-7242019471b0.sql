@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.consolidation_diagnose_eliminations(uuid, date, date) TO PUBLIC;
