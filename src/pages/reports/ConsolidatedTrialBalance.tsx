@@ -1,24 +1,27 @@
 /**
- * Consolidated Trial Balance (Brick 2).
+ * Consolidated Trial Balance (Bricks 2 and 3).
  *
  * The first genuinely *consolidated* report in the system: it aggregates the
- * member companies of a consolidation group into one trial balance.
+ * member companies of a consolidation group into one trial balance, restated
+ * into the group's reporting currency.
  *
  * SINGLE SOURCE OF TRUTH
  * ----------------------
- * Every figure comes from the `get_consolidated_trial_balance` RPC, which reads
- * only the authoritative ledger functions (`get_ledger_opening_balances`,
- * `get_account_movements`). This page performs no accounting arithmetic beyond
- * regrouping the server's rows by account, so it can never disagree with the
- * formal single-entity statements.
+ * Every figure comes from `get_consolidated_trial_balance_translated`, which
+ * reads only the authoritative ledger functions and applies IAS 21 rates
+ * server-side. This page performs no accounting arithmetic beyond regrouping
+ * the server's rows by account, so it can never disagree with the formal
+ * single-entity statements.
  *
  * HONEST LIMITS (deliberately not faked here)
  * -------------------------------------------
- * - No FX translation / CTA: mixed-currency groups are refused, not approximated.
  * - No intercompany eliminations: the report says so explicitly.
  * - No equity-method accounting: such members are refused, not guessed.
+ * - Translation is refused, never approximated, when the rate history does not
+ *   cover the period or the group has no translation reserve account.
  * Non-controlling interests are *disclosed*, never netted into group figures.
  */
+
 import { useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
