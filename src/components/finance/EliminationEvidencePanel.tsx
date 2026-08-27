@@ -20,7 +20,7 @@ import { Fragment, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2, Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Filter, Loader2, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toAppError } from "@/lib/supabaseError";
