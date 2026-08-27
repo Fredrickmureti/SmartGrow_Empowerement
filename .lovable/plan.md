@@ -70,6 +70,12 @@ been configured for. Two real defects sit behind it:
 
 ## What this brick does
 
+### 0. Make Brick 7 compile
+Type `sectionsOf()` generically so the eliminated line shape survives grouping
+(dropping the local `as unknown as` cast), and give `ReportTableProps` a real
+`isLoading` state with a loading row treatment, rather than deleting the prop
+from the two call sites. Typecheck must pass before anything else is touched.
+
 ### 1. Surface the server's refusal verbatim
 Normalise Supabase errors into real `Error` objects at the hook boundary
 (message + `details`/`hint` preserved, code retained) for every consolidation
