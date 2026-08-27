@@ -232,6 +232,76 @@ export default function ConsolidationIntercompany() {
     (r) => r.suggested_counterparty_business_id,
   ).length;
 
+  /**
+   * One export per section. The three tables answer different questions and
+   * carry different columns (and, for the worklist, different currencies), so
+   * they are exported as separate artifacts rather than mashed into one sheet
+   * where a reader could add up figures that are not comparable.
+   *
+   * Every export is derived from the same rows the screen renders — no figure is
+   * recomputed for the export.
+   */
+  const period = `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`;
+  const groupLabel = selectedGroup?.name ?? "Consolidation group";
+
+  const buildConfig = useCallback(
+    (
+      title: string,
+      subtitle: string,
+      sheetName: string,
+      cols: ReportColumn[],
+      rws: ReportRow[],
+      cur?: string,
+    ): ExportConfig => ({
+      title,
+      subtitle,
+      dateRange: period,
+      columns: toExportColumns(cols as ReportColumn<never>[]),
+      rows: toExportRows(rws, cols as ReportColumn<never>[]),
+      sheetName,
+      currency: cur,
+      formatProfile: "financial",
+    }),
+    [period],
+  );
+
+  const getReconciliationExport = useCallback(
+    (): ExportConfig =>
+      buildConfig(
+        "Intercompany Reconciliation",
+        `${groupLabel} · declared pairs, restated into ${currency} at the group's closing rate · no eliminations produced`,
+        "Intercompany",
+        columns,
+        rows,
+        currency,
+      ),
+    [buildConfig, columns, rows, currency, groupLabel],
+  );
+
+  const getActivityExport = useCallback(
+    (): ExportConfig =>
+      buildConfig(
+        "Intercompany Activity by Group Account",
+        `${groupLabel} · read from the consolidated trial balance itself, so it cannot drift from the statement lines`,
+        "IC by group account",
+        activityColumns,
+        activityRows,
+        currency,
+      ),
+    [buildConfig, activityColumns, activityRows, currency, groupLabel],
+  );
+
+  const getCoverageExport = useCallback(
+    (): ExportConfig =>
+      buildConfig(
+        "Undeclared Intercompany Activity",
+        `${groupLabel} · trading partners with no declaration for the period · amounts in each company's OWN currency, untranslated`,
+        "Undeclared",
+        coverageColumns,
+        coverageRows,
+      ),
+    [buildConfig, coverageColumns, coverageRows, groupLabel],
+  );
 
 
   const unreconciled = (balancesQuery.data ?? []).filter((r) => !isReconciled(r));
