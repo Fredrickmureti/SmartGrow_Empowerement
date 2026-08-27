@@ -141,6 +141,11 @@ export default function ConsolidatedTrialBalance() {
     () => groupTrialBalanceByAccount(tbQuery.data ?? []),
     [tbQuery.data],
   );
+  const unmappedLineCount = useMemo(
+    () => accountLines.filter((l) => !l.is_mapped && !l.is_residual).length,
+    [accountLines],
+  );
+
 
   const totals = useMemo(() => {
     let debit = 0;
