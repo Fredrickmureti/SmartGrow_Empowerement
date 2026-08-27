@@ -145,6 +145,126 @@ export function isReconciled(row: IntercompanyPairRow): boolean {
   return Number(row.difference) === 0;
 }
 
+/**
+ * Intercompany ledger activity at the grain the statements are read at:
+ * member pair x group account. This is a projection of the translated
+ * consolidated trial balance, so the account identity, its group-account
+ * mapping and the rate applied are the same ones the statements use — an
+ * intercompany figure here can never disagree with the line it belongs to.
+ */
+export interface IntercompanyActivityRow {
+  group_id: string;
+  presentation_currency: string;
+  declaring_business_id: string;
+  declaring_business_name: string;
+  declaring_base_currency: string;
+  counterparty_business_id: string;
+  counterparty_business_name: string;
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  group_account_id: string | null;
+  group_account_code: string | null;
+  group_account_name: string | null;
+  is_mapped: boolean;
+  rate_class: string;
+  rate_used: number;
+  debit_base: number;
+  credit_base: number;
+  net_base: number;
+  debit: number;
+  credit: number;
+  net: number;
+  line_count: number;
+  contact_count: number;
+}
+
+/**
+ * Activity against a contact of a member company that carries NO declaration
+ * for the period — the one blind spot a declaration-only model has. A
+ * suggestion is offered only when a legal identifier matches another member
+ * exactly; `suggestion_basis` says which. Amounts stay in the member's own
+ * currency because this is a completeness worklist, not a reported figure.
+ */
+export interface IntercompanyCoverageRow {
+  group_id: string;
+  business_id: string;
+  business_name: string;
+  base_currency: string;
+  contact_id: string;
+  contact_name: string;
+  contact_type: string;
+  contact_tax_id: string | null;
+  gl_line_count: number;
+  gl_debit_base: number;
+  gl_credit_base: number;
+  gl_net_base: number;
+  receivable_base: number;
+  payable_base: number;
+  first_activity: string | null;
+  last_activity: string | null;
+  suggested_counterparty_business_id: string | null;
+  suggested_counterparty_business_name: string | null;
+  suggestion_basis: string | null;
+}
+
+// The generated types file lags behind a just-deployed function; the argument
+// and row shapes are asserted above and enforced by the RPC itself.
+async function callConsolidationRpc<T>(
+  fn: "consolidation_intercompany_activity" | "consolidation_intercompany_coverage",
+  args: { _group_id: string; _date_from: string; _date_to: string },
+): Promise<T[]> {
+  const rpc = supabase.rpc as unknown as (
+    name: string,
+    params: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+  const { data, error } = await rpc(fn, args);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as T[];
+}
+
+/**
+ * Intercompany activity per group account. The RPC refuses the run for the same
+ * reasons the consolidated statements do (unresolvable scope, missing rate,
+ * unmapped posted account) — show its message rather than an empty table.
+ */
+export function useConsolidationIntercompanyActivity(
+  groupId: string | null,
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  return useQuery({
+    queryKey: ["consolidation-intercompany-activity", groupId, dateFrom, dateTo],
+    enabled: !!groupId && !!dateFrom && !!dateTo,
+    queryFn: () =>
+      callConsolidationRpc<IntercompanyActivityRow>("consolidation_intercompany_activity", {
+        _group_id: groupId!,
+        _date_from: dateFrom!,
+        _date_to: dateTo!,
+      }),
+  });
+}
+
+/** The undeclared-activity worklist. */
+export function useConsolidationIntercompanyCoverage(
+  groupId: string | null,
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  return useQuery({
+    queryKey: ["consolidation-intercompany-coverage", groupId, dateFrom, dateTo],
+    enabled: !!groupId && !!dateFrom && !!dateTo,
+    queryFn: () =>
+      callConsolidationRpc<IntercompanyCoverageRow>("consolidation_intercompany_coverage", {
+        _group_id: groupId!,
+        _date_from: dateFrom!,
+        _date_to: dateTo!,
+      }),
+  });
+}
+
+
 export function useConsolidationIntercompanyMutations() {
   const { currentOrg } = useOrganization();
   const queryClient = useQueryClient();
