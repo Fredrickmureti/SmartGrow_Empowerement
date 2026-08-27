@@ -40,6 +40,11 @@ export interface ReportTableProps {
   virtualizeAbove?: number;
   /** Rendered when `rows` is empty. */
   emptyMessage?: string;
+  /**
+   * While the data is in flight: shows a fetching notice instead of the
+   * "no rows" verdict, which would otherwise claim emptiness we can't know yet.
+   */
+  isLoading?: boolean;
   caption?: string;
   className?: string;
 }
