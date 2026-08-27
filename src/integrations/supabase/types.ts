@@ -94953,6 +94953,16 @@ export type Database = {
           would_refuse: boolean
         }[]
       }
+      consolidation_eliminations_balance: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          is_balanced: boolean
+          out_of_balance: number
+          total_credit: number
+          total_debit: number
+        }[]
+      }
       consolidation_generate_eliminations: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
