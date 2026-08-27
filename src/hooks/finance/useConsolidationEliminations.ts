@@ -74,7 +74,22 @@ export interface EliminationRule {
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string | null;
   notes: string | null;
+  /** True while the row still holds the seeded default policy (Step 7.3). */
+  is_system_default: boolean;
+  seeded_at: string | null;
 }
+
+/**
+ * The template the database seeds for every new group, mirrored here only so
+ * the settings screen can say "this is still the default". The authoritative
+ * values live in `_consolidation_seed_default_rules`.
+ */
+export const ELIMINATION_RULE_DEFAULTS = {
+  is_active: true,
+  tolerance_amount: 1,
+  difference_policy: "post_to_cta" as EliminationDifferencePolicy,
+} as const;
+
 
 export interface EliminationGenerationSummary {
   elimination_class: EliminationClass;
