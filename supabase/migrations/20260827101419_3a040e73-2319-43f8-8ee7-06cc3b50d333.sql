@@ -1,0 +1,13 @@
+-- Brick 6 defect: consolidation_intercompany_partners was created with table
+-- privileges granted to `anon`, unlike every other consolidation table.
+--
+-- Row level security currently scopes both policies to `authenticated`, so no
+-- row is reachable anonymously today. The grant is nevertheless wrong: it is a
+-- latent exposure that becomes live the instant a policy is widened, and it is
+-- inconsistent with consolidation_groups, consolidation_group_members,
+-- consolidation_group_accounts, consolidation_account_mappings and
+-- consolidation_group_change_log, none of which grant anything to anon.
+--
+-- This is the same defect that was found and fixed on the group chart and the
+-- mapping tables when Brick 4 closed; the intercompany table was missed.
+REVOKE ALL ON public.consolidation_intercompany_partners FROM anon;
