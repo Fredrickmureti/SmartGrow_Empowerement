@@ -105,7 +105,12 @@ Brick 7 is now closed: the eliminations surface is proven green (behaviour suite
 
 
 
+because I attempred to genearte eliminations 
 
+Before starting brick 8 I want you run a test on intercompany eliminations like simulate real event  because I attempted to do to and an error message was printed on the screen (The elimination run was refused
+
+The elimination run was refused) and a toast of (The elimination run was refused
+) ) and this console log was logged in the browser --> (@supabase_supabase-js.js?v=818a1ce2:19821  POST https://jkszmrroyjfdwokbkzis.supabase.co/rest/v1/rpc/consolidation_generate_eliminations 400 (Bad Request))
 
 ==============================================
 # Execution Instructions
