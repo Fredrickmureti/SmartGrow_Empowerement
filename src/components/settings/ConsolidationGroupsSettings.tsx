@@ -707,6 +707,18 @@ export function ConsolidationGroupsSettings() {
       )}
 
 
+      {activeGroup && (
+        <ConsolidationAccountMapping
+          groupId={activeGroup.id}
+          groupName={activeGroup.name}
+          canManage={canManage}
+          members={openMembers.map((m) => ({
+            business_id: m.business_id,
+            name: businessName(m.business_id),
+          }))}
+        />
+      )}
+
 
       {activeGroup && (
         <Card>
