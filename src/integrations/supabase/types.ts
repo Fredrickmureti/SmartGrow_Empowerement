@@ -94928,6 +94928,17 @@ export type Database = {
           presentation_currency: string
         }[]
       }
+      consolidation_generate_eliminations: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          difference_amount: number
+          eliminated_credit: number
+          eliminated_debit: number
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          line_count: number
+          pair_count: number
+        }[]
+      }
       consolidation_group_uses_group_chart: {
         Args: { _group_id: string }
         Returns: boolean
@@ -95007,6 +95018,31 @@ export type Database = {
           suggested_counterparty_business_id: string
           suggested_counterparty_business_name: string
           suggestion_basis: string
+        }[]
+      }
+      consolidation_intercompany_flows: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          basis: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          credit_base: number
+          credit_presentation: number
+          debit_base: number
+          debit_presentation: number
+          declaring_business_id: string
+          declaring_business_name: string
+          entry_count: number
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
         }[]
       }
       consolidation_member_translation_rates: {
@@ -99324,6 +99360,24 @@ export type Database = {
           statement: string
         }[]
       }
+      get_consolidated_statement_lines_eliminated: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          aggregated_amount: number
+          consolidated_amount: number
+          elimination_amount: number
+          is_derived: boolean
+          is_residual: boolean
+          presentation_currency: string
+          section: string
+          section_order: number
+          statement: string
+        }[]
+      }
       get_consolidated_statement_totals: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -99337,6 +99391,22 @@ export type Database = {
           total_income: number
           total_liabilities: number
           translation_reserve: number
+        }[]
+      }
+      get_consolidated_statement_totals_eliminated: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          balance_sheet_difference: number
+          eliminations_credit: number
+          eliminations_debit: number
+          is_balanced: boolean
+          net_result: number
+          presentation_currency: string
+          total_assets: number
+          total_equity: number
+          total_expense: number
+          total_income: number
+          total_liabilities: number
         }[]
       }
       get_consolidated_trial_balance: {
