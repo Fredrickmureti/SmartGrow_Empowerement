@@ -651,6 +651,17 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["consolidated", "consolidation", "group", "income statement", "profit and loss", "balance sheet", "ifrs 10", "ias 21"],
   },
   {
+    id: "intercompany-identification",
+    name: "Intercompany Identification",
+    description: "Declared intra-group relationships and the reconciliation of both sides' balances",
+    category: "management",
+    path: "/finance/reports/intercompany",
+    icon: BarChart3,
+    permission: "viewReports",
+    reportType: "intercompany_identification",
+    keywords: ["intercompany", "inter-company", "consolidation", "group", "elimination", "reconciliation", "related party"],
+  },
+  {
     id: "business-intelligence",
     name: "Business Intelligence",
     description: "Interactive dashboards and custom analysis",

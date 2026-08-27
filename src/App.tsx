@@ -366,6 +366,7 @@ const App = () => (
                             <Route path="/reports/consolidation" element={<Navigate to="/finance/reports/cross-company" replace />} />
                             <Route path="/reports/consolidated-trial-balance" element={<Navigate to="/finance/reports/consolidated-trial-balance" replace />} />
                             <Route path="/reports/consolidated-statements" element={<Navigate to="/finance/reports/consolidated-statements" replace />} />
+                            <Route path="/reports/intercompany" element={<Navigate to="/finance/reports/intercompany" replace />} />
                            <Route path="/settings" element={<ProtectedRoute><NonVendorRoute><Settings /></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/workspace" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><WorkspaceSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/company" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><CompanySettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
