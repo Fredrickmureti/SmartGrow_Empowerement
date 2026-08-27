@@ -131,17 +131,16 @@ export default function ConsolidatedStatements() {
   const currency =
     totalsQuery.data?.presentation_currency ?? selectedGroup?.presentation_currency ?? "USD";
   // Shaped for sectionsOf: `amount` is the consolidated column, so section
-  // grouping and ordering behave exactly as before.
+  // grouping and ordering behave exactly as before. sectionsOf is generic in
+  // the line shape, so the three columns survive the grouping. The cast only
+  // narrows the server's `string` statement/section to their unions; the
+  // column fields come from the eliminated row type, so they can't drift.
   const lines = useMemo(
     () =>
       (linesQuery.data ?? []).map((l) => ({
         ...l,
         amount: l.consolidated_amount,
-      })) as unknown as (ConsolidatedStatementLine & {
-        aggregated_amount: number;
-        elimination_amount: number;
-        consolidated_amount: number;
-      })[],
+      })) as unknown as ThreeColumnLine[],
     [linesQuery.data],
   );
   const totals = totalsQuery.data ?? null;
