@@ -181,15 +181,17 @@ BEGIN
   END IF;
 
   ------------------------------------------- 6: uncovered rates are refused --
-  DELETE FROM public.exchange_rates
-   WHERE organization_id = v_org AND effective_date = DATE '2026-03-10';
+  -- Recorded rates are immutable and carry forward from the latest dated row,
+  -- so a rate is genuinely absent only before the first one ever recorded.
+  -- December 2025 sits before every rate in this fixture.
   v_blocked := false;
   BEGIN
-    PERFORM * FROM public.consolidation_translate_member(v_group, v_s, DATE '2026-03-01', DATE '2026-03-31');
+    PERFORM * FROM public.consolidation_translate_member(v_group, v_s, DATE '2025-12-01', DATE '2025-12-31');
   EXCEPTION WHEN others THEN v_blocked := (SQLSTATE = '22023'); END;
   IF NOT v_blocked THEN
-    RAISE EXCEPTION 'translation proceeded over a day with no exchange rate on file';
+    RAISE EXCEPTION 'translation proceeded over a period with no exchange rate on file';
   END IF;
+
 
   RAISE EXCEPTION 'rollback: consolidation FX translation invariants passed (CTA movement %, proof %)',
     v_rec.cta_movement, v_rec.expected_cta_movement;
