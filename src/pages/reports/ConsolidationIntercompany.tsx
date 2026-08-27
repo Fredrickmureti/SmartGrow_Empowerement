@@ -584,12 +584,17 @@ export default function ConsolidationIntercompany() {
 
         {groupId && scopeIsClean && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Intercompany reconciliation</CardTitle>
-              <CardDescription>
-                Each declared pair, in {currency}: the receivable one company carries
-                against the payable its counterparty carries back.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Intercompany reconciliation</CardTitle>
+                <CardDescription>
+                  Each declared pair, in {currency}: the receivable one company carries
+                  against the payable its counterparty carries back.
+                </CardDescription>
+              </div>
+              {rows.length > 0 && !balancesQuery.error && (
+                <ReportExportButtons getExportConfig={getReconciliationExport} compact />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {balancesQuery.error ? (
