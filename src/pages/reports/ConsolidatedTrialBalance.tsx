@@ -466,7 +466,21 @@ export default function ConsolidatedTrialBalance() {
                     </div>
                   ) : (
                     <>
+                      {unmappedLineCount > 0 && (
+                        <Alert variant="destructive">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription className="text-sm">
+                            {unmappedLineCount} account{unmappedLineCount === 1 ? "" : "s"}{" "}
+                            still report under a member company's own chart because no
+                            group account maps them. Until they are mapped under{" "}
+                            <strong>Finance → Settings → Consolidation groups</strong>, the
+                            same economic account in two companies appears twice instead of
+                            once.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <ReportSurface
+
                         title={`Consolidated trial balance — ${selectedGroup?.name ?? ""}`}
                         profile="financial"
                       >
