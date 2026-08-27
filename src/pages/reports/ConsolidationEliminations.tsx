@@ -55,6 +55,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
+import { toAppError } from "@/lib/supabaseError";
 import { useConsolidationGroups } from "@/hooks/finance/useConsolidationGroups";
 import {
   useConsolidationScope,
@@ -239,7 +240,9 @@ export default function ConsolidationEliminations() {
       );
     } catch (e) {
       // Verbatim: the refusal names the exact pair, rate or mapping at fault.
-      const message = e instanceof Error ? e.message : "The elimination run was refused";
+      // toAppError keeps a PostgrestError's message/details/hint — a bare
+      // `instanceof Error` test would have thrown all of that away.
+      const message = toAppError(e, "The elimination run was refused").message;
       setRefusal(message);
       toast.error(message);
     }

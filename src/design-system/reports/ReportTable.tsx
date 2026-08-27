@@ -40,6 +40,11 @@ export interface ReportTableProps {
   virtualizeAbove?: number;
   /** Rendered when `rows` is empty. */
   emptyMessage?: string;
+  /**
+   * While the data is in flight: shows a fetching notice instead of the
+   * "no rows" verdict, which would otherwise claim emptiness we can't know yet.
+   */
+  isLoading?: boolean;
   caption?: string;
   className?: string;
 }
@@ -68,6 +73,7 @@ export function ReportTable({
   maxHeight = 720,
   virtualizeAbove = 400,
   emptyMessage = "No rows for the selected criteria",
+  isLoading = false,
   caption,
   className,
 }: ReportTableProps) {
@@ -114,7 +120,9 @@ export function ReportTable({
 
   if (rows.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">{emptyMessage}</p>
+      <p className="py-10 text-center text-sm text-muted-foreground" aria-busy={isLoading}>
+        {isLoading ? "Loading…" : emptyMessage}
+      </p>
     );
   }
 

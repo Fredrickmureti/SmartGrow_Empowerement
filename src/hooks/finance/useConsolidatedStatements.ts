@@ -15,6 +15,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 
 export type ConsolidatedStatement = "income_statement" | "balance_sheet";
 
@@ -78,7 +79,7 @@ export function useConsolidatedStatementLines(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidatedStatementLine[];
     },
   });
@@ -102,19 +103,25 @@ export function useConsolidatedStatementTotals(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       const rows = (data ?? []) as ConsolidatedStatementTotals[];
       return rows[0] ?? null;
     },
   });
 }
 
-/** Lines of one statement, in the server's order, grouped by section. */
-export function sectionsOf(
-  lines: ConsolidatedStatementLine[],
+/**
+ * Lines of one statement, in the server's order, grouped by section.
+ *
+ * Generic in the line shape so richer rows — the eliminated projection's
+ * aggregated / elimination / consolidated columns — survive the grouping
+ * instead of being narrowed back to the aggregated-only line.
+ */
+export function sectionsOf<T extends ConsolidatedStatementLine>(
+  lines: T[],
   statement: ConsolidatedStatement,
-): { section: ConsolidatedStatementSection; lines: ConsolidatedStatementLine[] }[] {
-  const out: { section: ConsolidatedStatementSection; lines: ConsolidatedStatementLine[] }[] = [];
+): { section: ConsolidatedStatementSection; lines: T[] }[] {
+  const out: { section: ConsolidatedStatementSection; lines: T[] }[] = [];
   for (const line of lines) {
     if (line.statement !== statement) continue;
     const last = out[out.length - 1];

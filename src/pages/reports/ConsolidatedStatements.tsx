@@ -67,8 +67,20 @@ import {
 import {
   useEliminatedStatementLines,
   useEliminatedStatementTotals,
+  type EliminatedStatementLine,
 } from "@/hooks/finance/useConsolidationEliminations";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+
+/**
+ * A statement line carrying the three columns. The section/statement unions
+ * come from the aggregated line type; the amounts come from the eliminated
+ * projection, so neither can drift from its source.
+ */
+type ThreeColumnLine = ConsolidatedStatementLine &
+  Pick<
+    EliminatedStatementLine,
+    "aggregated_amount" | "elimination_amount" | "consolidated_amount"
+  >;
 
 function formatAmount(value: number, currency: string) {
   try {
@@ -131,17 +143,16 @@ export default function ConsolidatedStatements() {
   const currency =
     totalsQuery.data?.presentation_currency ?? selectedGroup?.presentation_currency ?? "USD";
   // Shaped for sectionsOf: `amount` is the consolidated column, so section
-  // grouping and ordering behave exactly as before.
+  // grouping and ordering behave exactly as before. sectionsOf is generic in
+  // the line shape, so the three columns survive the grouping. The cast only
+  // narrows the server's `string` statement/section to their unions; the
+  // column fields come from the eliminated row type, so they can't drift.
   const lines = useMemo(
     () =>
       (linesQuery.data ?? []).map((l) => ({
         ...l,
         amount: l.consolidated_amount,
-      })) as unknown as (ConsolidatedStatementLine & {
-        aggregated_amount: number;
-        elimination_amount: number;
-        consolidated_amount: number;
-      })[],
+      })) as unknown as ThreeColumnLine[],
     [linesQuery.data],
   );
   const totals = totalsQuery.data ?? null;

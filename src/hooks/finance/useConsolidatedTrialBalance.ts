@@ -20,6 +20,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 import type { ConsolidationMethod } from "./useConsolidationGroups";
 
 export interface ConsolidationScopeMember {
@@ -143,7 +144,7 @@ export function useConsolidationScope(groupId: string | null, asOf: string | nul
         _group_id: groupId!,
         _as_of: asOf!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationScopeMember[];
     },
   });
@@ -168,7 +169,7 @@ export function useConsolidatedTrialBalance(
         "get_consolidated_trial_balance_translated",
         { _group_id: groupId!, _date_from: dateFrom!, _date_to: dateTo! },
       );
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidatedTrialBalanceRow[];
     },
   });
@@ -194,7 +195,7 @@ export function useConsolidationCtaReconciliation(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationCtaRow[];
     },
   });

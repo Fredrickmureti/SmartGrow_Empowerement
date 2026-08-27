@@ -19,6 +19,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 import { useOrganization } from "@/hooks/useOrganization";
 
 export type GroupAccountType = "asset" | "liability" | "equity" | "income" | "expense";
@@ -97,7 +98,7 @@ export function useConsolidationGroupAccounts(groupId: string | null) {
         .eq("group_id", groupId!)
         .order("sort_order")
         .order("code");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationGroupAccount[];
     },
   });
@@ -120,7 +121,7 @@ export function useConsolidationAccountMappings(groupId: string | null) {
         )
         .eq("group_id", groupId!)
         .order("effective_from");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationAccountMapping[];
     },
   });
@@ -148,7 +149,7 @@ export function useConsolidationMemberAccounts(businessIds: string[]) {
         .eq("is_active", true)
         .eq("is_header", false)
         .order("code");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as MemberAccountOption[];
     },
   });
@@ -173,7 +174,7 @@ export function useConsolidationUnmappedAccounts(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as UnmappedConsolidationAccount[];
     },
   });
@@ -206,7 +207,7 @@ export function useConsolidationMappingMutations() {
         .insert({ ...input, organization_id: orgId })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return data.id as string;
     },
     onSuccess: invalidate,
@@ -233,7 +234,7 @@ export function useConsolidationMappingMutations() {
         .from("consolidation_group_accounts")
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -244,7 +245,7 @@ export function useConsolidationMappingMutations() {
         .from("consolidation_group_accounts")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -261,7 +262,7 @@ export function useConsolidationMappingMutations() {
       const { error } = await supabase
         .from("consolidation_account_mappings")
         .insert({ ...input, organization_id: orgId });
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -278,7 +279,7 @@ export function useConsolidationMappingMutations() {
         .from("consolidation_account_mappings")
         .update({ group_account_id })
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -293,7 +294,7 @@ export function useConsolidationMappingMutations() {
         .from("consolidation_account_mappings")
         .update({ effective_to: effectiveTo })
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
