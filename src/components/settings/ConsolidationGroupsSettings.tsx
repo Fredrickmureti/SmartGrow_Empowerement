@@ -68,6 +68,8 @@ import {
   type ConsolidationMethod,
 } from "@/hooks/finance/useConsolidationGroups";
 import { normalizeError } from "@/services/resilience";
+import { ConsolidationAccountMapping } from "@/components/settings/ConsolidationAccountMapping";
+
 
 
 const METHODS = Object.keys(CONSOLIDATION_METHOD_LABELS) as ConsolidationMethod[];
