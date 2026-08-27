@@ -104,6 +104,8 @@ export default function ConsolidatedTrialBalance() {
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
+  const { canOpen: canOpenMemberLedger } = useMemberLedgerAccess();
+
 
   const today = new Date();
   const [groupId, setGroupId] = useState<string | null>(null);
@@ -231,8 +233,28 @@ export default function ConsolidatedTrialBalance() {
           translated
             ? `${formatAmount(own, source)} → ${money(group)}`
             : money(group);
+        // Lineage rule for a consolidated TB: the GROUP row is an aggregation
+        // of several members' accounts and has no single ledger to open, so it
+        // is not a drill target. The CONTRIBUTION row is one member's own
+        // account — that is where the trail into real books begins. The
+        // translation-reserve residual belongs to the group, not to any
+        // member's chart, so it stays unlinked by construction.
+        const openable =
+          !line.is_residual && !!c.account_id && canOpenMemberLedger(c.business_id);
         out.push({
           id: `${line.account_id}:${c.business_id}`,
+          meta: { accountId: c.account_id, businessId: c.business_id },
+          onClick: openable
+            ? () =>
+                navigate(
+                  ledgerDrillHref({
+                    businessId: c.business_id,
+                    accountId: c.account_id,
+                    dateFrom,
+                    dateTo,
+                  }),
+                )
+            : undefined,
           values: {
             code: "",
             name: "",
@@ -247,7 +269,8 @@ export default function ConsolidatedTrialBalance() {
       }
     }
     return out;
-  }, [accountLines, showMembers, currency]);
+  }, [accountLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+
 
   /**
    * Export config — the exported artifact is built from the SAME row model the
