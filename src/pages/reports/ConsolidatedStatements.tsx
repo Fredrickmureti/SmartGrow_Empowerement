@@ -67,8 +67,20 @@ import {
 import {
   useEliminatedStatementLines,
   useEliminatedStatementTotals,
+  type EliminatedStatementLine,
 } from "@/hooks/finance/useConsolidationEliminations";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+
+/**
+ * A statement line carrying the three columns. The section/statement unions
+ * come from the aggregated line type; the amounts come from the eliminated
+ * projection, so neither can drift from its source.
+ */
+type ThreeColumnLine = ConsolidatedStatementLine &
+  Pick<
+    EliminatedStatementLine,
+    "aggregated_amount" | "elimination_amount" | "consolidated_amount"
+  >;
 
 function formatAmount(value: number, currency: string) {
   try {
