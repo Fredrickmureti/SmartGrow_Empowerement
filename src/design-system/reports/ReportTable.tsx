@@ -73,6 +73,7 @@ export function ReportTable({
   maxHeight = 720,
   virtualizeAbove = 400,
   emptyMessage = "No rows for the selected criteria",
+  isLoading = false,
   caption,
   className,
 }: ReportTableProps) {
