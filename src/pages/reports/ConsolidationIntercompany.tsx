@@ -153,6 +153,79 @@ export default function ConsolidationIntercompany() {
     }));
   }, [balancesQuery.data, currency]);
 
+  // Activity, per group account: the dimension that lets an intercompany figure
+  // be traced to the consolidated statement line it sits on.
+  const activityColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "declaring", header: "Company" },
+      { key: "counterparty", header: "Counterparty" },
+      { key: "group_account", header: "Group account" },
+      { key: "account", header: "Its account" },
+      { key: "debit", header: "Debit", align: "right" },
+      { key: "credit", header: "Credit", align: "right" },
+      { key: "net", header: "Net", align: "right" },
+      { key: "rate", header: "Rate" },
+    ],
+    [],
+  );
+
+  const activityRows = useMemo<ReportRow[]>(() => {
+    const money = (v: number) => formatAmount(Number(v), currency);
+    return (activityQuery.data ?? []).map((r) => ({
+      id: `${r.declaring_business_id}:${r.counterparty_business_id}:${r.account_id}`,
+      values: {
+        declaring: r.declaring_business_name,
+        counterparty: r.counterparty_business_name,
+        group_account: r.group_account_code
+          ? `${r.group_account_code} · ${r.group_account_name}`
+          : "Unmapped",
+        account: `${r.account_code} · ${r.account_name}`,
+        debit: money(r.debit),
+        credit: money(r.credit),
+        net: money(r.net),
+        rate: `${r.rate_class} @ ${Number(r.rate_used)}`,
+      },
+    }));
+  }, [activityQuery.data, currency]);
+
+  const coverageColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "business", header: "Company" },
+      { key: "contact", header: "Undeclared contact" },
+      { key: "receivable", header: "Receivable", align: "right" },
+      { key: "payable", header: "Payable", align: "right" },
+      { key: "activity", header: "Posted lines", align: "right" },
+      { key: "suggestion", header: "Possible group company" },
+    ],
+    [],
+  );
+
+  const coverageRows = useMemo<ReportRow[]>(() => {
+    return (coverageQuery.data ?? []).map((r) => ({
+      id: `${r.business_id}:${r.contact_id}`,
+      values: {
+        business: `${r.business_name} (${r.base_currency})`,
+        contact: r.contact_name,
+        // Deliberately in the member's own currency: a worklist must never be
+        // blocked by, or imply, a translation.
+        receivable: formatAmount(Number(r.receivable_base), r.base_currency),
+        payable: formatAmount(Number(r.payable_base), r.base_currency),
+        activity: String(r.gl_line_count),
+        suggestion: r.suggested_counterparty_business_name
+          ? `${r.suggested_counterparty_business_name} — same ${
+              r.suggestion_basis === "tax_id" ? "tax number" : "registration number"
+            }`
+          : "—",
+      },
+    }));
+  }, [coverageQuery.data]);
+
+  const suggestedCount = (coverageQuery.data ?? []).filter(
+    (r) => r.suggested_counterparty_business_id,
+  ).length;
+
+
+
   const unreconciled = (balancesQuery.data ?? []).filter((r) => !isReconciled(r));
 
   const submitDeclaration = async () => {
