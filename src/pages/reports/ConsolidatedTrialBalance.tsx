@@ -362,6 +362,11 @@ export default function ConsolidatedTrialBalance() {
               straight from the posted general ledger.
             </p>
           </div>
+          {/* Export is offered only once there is a combined balance to export —
+              never for a scope the engine refused. */}
+          {scopeIsClean && rows.length > 0 && !tbError && (
+            <ReportExportButtons getExportConfig={getExportConfig} />
+          )}
         </div>
 
         <Alert>
