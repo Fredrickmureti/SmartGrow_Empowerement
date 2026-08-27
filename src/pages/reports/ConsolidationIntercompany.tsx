@@ -634,16 +634,21 @@ export default function ConsolidationIntercompany() {
 
         {groupId && scopeIsClean && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Intercompany activity by group account
-              </CardTitle>
-              <CardDescription>
-                The same declared relationships, broken out to the consolidated line each
-                figure sits on — including intercompany activity booked straight to the
-                ledger, such as recharges and intra-group loans, which never touches the
-                receivables or payables sub-ledgers.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">
+                  Intercompany activity by group account
+                </CardTitle>
+                <CardDescription>
+                  The same declared relationships, broken out to the consolidated line each
+                  figure sits on — including intercompany activity booked straight to the
+                  ledger, such as recharges and intra-group loans, which never touches the
+                  receivables or payables sub-ledgers.
+                </CardDescription>
+              </div>
+              {activityRows.length > 0 && !activityQuery.error && (
+                <ReportExportButtons getExportConfig={getActivityExport} compact />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {activityQuery.error ? (
