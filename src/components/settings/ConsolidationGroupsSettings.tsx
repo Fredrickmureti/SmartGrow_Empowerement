@@ -15,7 +15,9 @@
  * - Membership is effective-dated history: a company is closed out with an end
  *   date, never deleted, so past periods stay reproducible.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import {
   Card,
   CardContent,
