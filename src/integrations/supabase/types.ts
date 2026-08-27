@@ -10454,6 +10454,136 @@ export type Database = {
           },
         ]
       }
+      consolidation_intercompany_partners: {
+        Row: {
+          business_id: string
+          contact_id: string
+          counterparty_business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          group_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          contact_id: string
+          counterparty_business_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          group_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          contact_id?: string
+          counterparty_business_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          group_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_intercompany_partne_counterparty_business_id_fkey"
+            columns: ["counterparty_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partne_counterparty_business_id_fkey"
+            columns: ["counterparty_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partne_counterparty_business_id_fkey"
+            columns: ["counterparty_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_party_supplier"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "consolidation_intercompany_partners_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           address_line1: string | null
@@ -94625,6 +94755,29 @@ export type Database = {
       consolidation_group_uses_group_chart: {
         Args: { _group_id: string }
         Returns: boolean
+      }
+      consolidation_intercompany_balances: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          counterparty_amount: number
+          counterparty_amount_base: number
+          counterparty_base_currency: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          counterparty_closing_rate: number
+          counterparty_contacts: number
+          declaring_amount: number
+          declaring_amount_base: number
+          declaring_base_currency: string
+          declaring_business_id: string
+          declaring_business_name: string
+          declaring_closing_rate: number
+          declaring_contacts: number
+          difference: number
+          group_id: string
+          presentation_currency: string
+          relation: string
+        }[]
       }
       consolidation_member_translation_rates: {
         Args: {
