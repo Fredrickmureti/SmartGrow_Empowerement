@@ -96,3 +96,121 @@ describe("the report is reachable", () => {
     expect(reportsNav).toContain("intercompany-identification");
   });
 });
+
+/**
+ * Brick 6, second half — the group-account projection and the coverage
+ * worklist.
+ *
+ * Two RPCs were added on top of the declaration layer:
+ *
+ * - `consolidation_intercompany_activity` projects intercompany ledger
+ *   activity onto the *translated* consolidated trial balance, so the group
+ *   account and the rate come from the same engine the statements use. There
+ *   must never be a second place that decides what an intercompany figure is.
+ * - `consolidation_intercompany_coverage` lists activity against a member's
+ *   contact that carries no declaration for the period — the blind spot a
+ *   declaration-only model has by construction.
+ *
+ * Both refuse rather than under-report. These tests hold that shape in place.
+ */
+describe("the group-account projection is wired to the one engine", () => {
+  it("reaches the activity RPC through the hook", () => {
+    expect(hook).toContain("consolidation_intercompany_activity");
+    expect(hook).toContain("useConsolidationIntercompanyActivity");
+  });
+
+  it("reaches the coverage RPC through the hook", () => {
+    expect(hook).toContain("consolidation_intercompany_coverage");
+    expect(hook).toContain("useConsolidationIntercompanyCoverage");
+  });
+
+  it("both RPCs exist in the generated database types", () => {
+    expect(types).toContain("consolidation_intercompany_activity");
+    expect(types).toContain("consolidation_intercompany_coverage");
+  });
+
+  it("the page consumes both hooks rather than re-deriving either", () => {
+    expect(page).toContain("useConsolidationIntercompanyActivity");
+    expect(page).toContain("useConsolidationIntercompanyCoverage");
+  });
+
+  it("keeps the group-account dimension on the activity table", () => {
+    // The projection is only trustworthy if the reader can see which group
+    // account the figure lands on; without it the number cannot be tied back
+    // to the statement line it belongs to.
+    expect(page).toContain("group_account_code");
+    expect(page).toContain("group_account_name");
+    expect(page).toContain("Group account");
+  });
+
+  it("shows the rate the engine used, never one the browser picked", () => {
+    expect(hook).toContain("rate_used");
+    expect(hook).toContain("rate_class");
+    for (const source of [hook, page]) {
+      expect(source).not.toContain("resolve_exchange_rate");
+      expect(source).not.toContain("exchange_rates");
+    }
+  });
+});
+
+describe("the client owns no part of the projection", () => {
+  it("never reads the ledger or the trial balance directly for these views", () => {
+    for (const source of [hook, page]) {
+      expect(source).not.toContain("journal_entry_lines");
+      expect(source).not.toContain("get_consolidated_trial_balance");
+      expect(source).not.toContain("consolidation_account_mappings");
+      expect(source).not.toContain("consolidation_group_accounts");
+    }
+  });
+
+  it("never resolves an account mapping in the browser", () => {
+    // is_mapped and the group account are the server's verdict. A client-side
+    // fallback would silently invent a mapping the statements do not have.
+    expect(page).not.toMatch(/is_mapped\s*(\?\?|\|\|)\s*true/);
+    expect(page).not.toMatch(/group_account_code\s*(\?\?|\|\|)\s*[a-z]*account_code/i);
+  });
+
+  it("never sums or nets activity across members in the browser", () => {
+    expect(page).not.toMatch(/\.reduce\([^)]*net_base/);
+    expect(page).not.toMatch(/\.reduce\([^)]*\bnet\b\s*[,)]/);
+    expect(page).not.toMatch(/debit\s*-\s*credit/);
+  });
+
+  it("suggests a counterparty only on the server's stated basis", () => {
+    // The RPC suggests on exact legal-identifier identity and says which in
+    // suggestion_basis. A name-similarity guess in the client would turn an
+    // auditable identification into an inference.
+    expect(hook).toContain("suggestion_basis");
+    expect(page).not.toMatch(/name.*\.(includes|startsWith|match)\(/i);
+  });
+});
+
+describe("refusals stay visible on both new surfaces", () => {
+  it("renders the activity engine's message instead of an empty table", () => {
+    expect(page).toContain("activityQuery.error");
+    expect(page).toMatch(/activityQuery\.error[\s\S]{0,400}?\.message/);
+  });
+
+  it("renders the coverage engine's message instead of an empty table", () => {
+    expect(page).toContain("coverageQuery.error");
+    expect(page).toMatch(/coverageQuery\.error[\s\S]{0,400}?\.message/);
+  });
+
+  it("distinguishes a refusal from a genuinely empty period", () => {
+    // An error branch and an empty branch must both exist, and the error
+    // branch must be tested first — otherwise a refused run reads as "nothing
+    // to report", which is the exact failure this brick refuses to allow.
+    for (const q of ["activity", "coverage"]) {
+      const errorAt = page.indexOf(`${q}Query.error ?`);
+      const emptyAt = page.indexOf(`${q}Rows.length === 0`);
+      expect(errorAt).toBeGreaterThan(-1);
+      expect(emptyAt).toBeGreaterThan(-1);
+      expect(errorAt).toBeLessThan(emptyAt);
+    }
+  });
+
+  it("still produces no elimination entries", () => {
+    expect(page).toContain("No elimination entries are produced");
+    expect(hook).not.toMatch(/elimination/i);
+  });
+});
