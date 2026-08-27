@@ -109,12 +109,18 @@ export function useConsolidatedStatementTotals(
   });
 }
 
-/** Lines of one statement, in the server's order, grouped by section. */
-export function sectionsOf(
-  lines: ConsolidatedStatementLine[],
+/**
+ * Lines of one statement, in the server's order, grouped by section.
+ *
+ * Generic in the line shape so richer rows — the eliminated projection's
+ * aggregated / elimination / consolidated columns — survive the grouping
+ * instead of being narrowed back to the aggregated-only line.
+ */
+export function sectionsOf<T extends ConsolidatedStatementLine>(
+  lines: T[],
   statement: ConsolidatedStatement,
-): { section: ConsolidatedStatementSection; lines: ConsolidatedStatementLine[] }[] {
-  const out: { section: ConsolidatedStatementSection; lines: ConsolidatedStatementLine[] }[] = [];
+): { section: ConsolidatedStatementSection; lines: T[] }[] {
+  const out: { section: ConsolidatedStatementSection; lines: T[] }[] = [];
   for (const line of lines) {
     if (line.statement !== statement) continue;
     const last = out[out.length - 1];
