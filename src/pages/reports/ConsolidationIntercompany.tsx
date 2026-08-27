@@ -79,6 +79,8 @@ export default function ConsolidationIntercompany() {
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
+  const { canOpen: canOpenMemberLedger } = useMemberLedgerAccess();
+
 
   const today = new Date();
   const [groupId, setGroupId] = useState<string | null>(null);
