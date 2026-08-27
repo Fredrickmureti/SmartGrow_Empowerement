@@ -36,6 +36,7 @@ import {
   Boxes,
   ShieldCheck,
   BarChart3,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 
@@ -131,13 +132,22 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     ],
   },
   {
+    key: "consolidation",
+    label: "Consolidation & group",
+    icon: Network,
+    reportIds: [
+      "cross-company-comparative",
+      "consolidated-trial-balance",
+      "consolidated-statements",
+    ],
+  },
+  {
     key: "analytics",
     label: "Analytics",
     icon: BarChart3,
     reportIds: [
       "management-reports",
       "business-intelligence",
-      "cross-company-comparative",
 
       // Analytic accounting consumers — the management dimension of the GL.
       "analytic-account-statement",
