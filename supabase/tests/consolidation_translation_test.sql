@@ -182,15 +182,17 @@ BEGIN
 
   ------------------------------------------- 6: uncovered rates are refused --
   -- Recorded rates are immutable and carry forward from the latest dated row,
-  -- so a rate is genuinely absent only before the first one ever recorded.
-  -- December 2025 sits before every rate in this fixture.
+  -- so a rate is genuinely absent only before the first one ever recorded. This
+  -- fixture's rates start on 1 January 2026, so a January period has no opening
+  -- (31 December) rate and translation must refuse rather than approximate.
   v_blocked := false;
   BEGIN
-    PERFORM * FROM public.consolidation_translate_member(v_group, v_s, DATE '2025-12-01', DATE '2025-12-31');
+    PERFORM * FROM public.consolidation_translate_member(v_group, v_s, DATE '2026-01-01', DATE '2026-01-31');
   EXCEPTION WHEN others THEN v_blocked := (SQLSTATE = '22023'); END;
   IF NOT v_blocked THEN
-    RAISE EXCEPTION 'translation proceeded over a period with no exchange rate on file';
+    RAISE EXCEPTION 'translation proceeded over a period with an uncovered exchange rate';
   END IF;
+
 
 
   RAISE EXCEPTION 'rollback: consolidation FX translation invariants passed (CTA movement %, proof %)',
