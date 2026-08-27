@@ -38,6 +38,7 @@ export const ELIMINATION_CLASS_LABELS: Record<string, string> = {
 export const ELIMINATION_POLICY_LABELS: Record<string, string> = {
   refuse: "Refuse the run",
   post_difference: "Post the difference to an account",
+  post_to_cta: "Carry the difference to the translation reserve",
 };
 
 /** One generated elimination leg, as stored by the engine. */

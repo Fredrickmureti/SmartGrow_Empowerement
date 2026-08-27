@@ -254,7 +254,17 @@ export function ConsolidationEliminationRules({ groupId, groupName, canManage }:
                       ))}
                     </SelectContent>
                   </Select>
+                  {draft.difference_policy === "post_to_cta" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Only for pairs where a company reports in another currency: the
+                      residual left by translating trading legs at average rates and
+                      balances at closing rates goes to the group's translation reserve.
+                      A gap between two companies that both report in the presentation
+                      currency is still refused.
+                    </p>
+                  ) : null}
                 </div>
+
 
                 <div className="space-y-1">
                   <Label>Difference account</Label>
