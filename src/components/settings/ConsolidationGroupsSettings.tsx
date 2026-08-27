@@ -80,14 +80,24 @@ export function ConsolidationGroupsSettings() {
   const canManage = useCanManageConsolidation();
   const { data: allowedIds } = useConsolidationAllowedBusinessIds();
   const { data: groups = [], isLoading } = useConsolidationGroups();
-  const { createGroup, deleteGroup, addMember, updateMember, closeMember } =
-    useConsolidationGroupMutations();
+  const {
+    createGroup,
+    deleteGroup,
+    addMember,
+    updateMember,
+    closeMember,
+    updateGroupTranslationSettings,
+  } = useConsolidationGroupMutations();
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null;
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
   const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
+  const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
+    activeGroup?.parent_business_id ?? null,
+  );
+
 
   const [newName, setNewName] = useState("");
   const [newParent, setNewParent] = useState("");
