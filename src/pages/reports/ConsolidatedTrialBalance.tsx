@@ -70,6 +70,9 @@ import {
 } from "@/hooks/finance/useConsolidatedTrialBalance";
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
+import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
+
 
 function formatAmount(value: number, currency: string) {
   try {
