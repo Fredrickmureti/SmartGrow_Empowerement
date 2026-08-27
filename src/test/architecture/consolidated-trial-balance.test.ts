@@ -38,8 +38,14 @@ const types = readFileSync(join(root, "src/integrations/supabase/types.ts"), "ut
 
 const clientSources = [hookSource, pageSource, settingsSource, groupsHookSource].join("\n");
 
+/**
+ * A member row as the translated RPC returns it. Since Brick 4 every reportable
+ * line carries the group account it maps to, so the fixture defaults to a
+ * mapped row keyed on the account code; the unmapped case is exercised in
+ * consolidation-account-mapping.test.ts.
+ */
 function row(over: Partial<ConsolidatedTrialBalanceRow>): ConsolidatedTrialBalanceRow {
-  return {
+  const base: ConsolidatedTrialBalanceRow = {
     business_id: "b1",
     business_name: "Alpha",
     is_parent: true,
@@ -61,9 +67,24 @@ function row(over: Partial<ConsolidatedTrialBalanceRow>): ConsolidatedTrialBalan
     translated_debit: 0,
     translated_credit: 0,
     translated_closing: 0,
+    group_account_id: null,
+    group_account_code: null,
+    group_account_name: null,
+    is_mapped: false,
     ...over,
   };
+  if (over.is_mapped === undefined && over.group_account_id === undefined) {
+    return {
+      ...base,
+      group_account_id: `g-${base.account_code}`,
+      group_account_code: base.account_code,
+      group_account_name: base.account_name,
+      is_mapped: true,
+    };
+  }
+  return base;
 }
+
 
 describe("server owns aggregation and translation", () => {
   it("exposes the consolidation RPCs in the generated database types", () => {

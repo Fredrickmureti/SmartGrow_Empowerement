@@ -223,7 +223,7 @@ BEGIN
   -- The statements are a projection, so they must refuse for the same reason.
   v_refused := false;
   BEGIN
-    PERFORM * FROM public.get_consolidated_statement_totals(v_group, v_from, v_to);
+    PERFORM count(*) FROM public.get_consolidated_statement_totals(v_group, v_from, v_to);
   EXCEPTION WHEN others THEN v_refused := true; END;
   IF NOT v_refused THEN
     RAISE EXCEPTION 'the statements reported figures the trial balance refuses';
