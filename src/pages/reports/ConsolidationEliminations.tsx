@@ -55,6 +55,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
+import { toAppError } from "@/lib/supabaseError";
 import { useConsolidationGroups } from "@/hooks/finance/useConsolidationGroups";
 import {
   useConsolidationScope,
