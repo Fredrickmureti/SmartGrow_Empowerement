@@ -63,6 +63,9 @@ import {
 } from "@/hooks/finance/useConsolidationIntercompany";
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
+import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
+
 
 function formatAmount(value: number, currency: string) {
   try {
@@ -177,10 +180,30 @@ export default function ConsolidationIntercompany() {
     [],
   );
 
+  // Lineage: an activity row IS one member company's posting into one of its
+  // own accounts, so it has a single authoritative destination — that company's
+  // General Ledger, at that account, over this period. The link carries the
+  // company (see `crossEntityDrill`); it is offered only where the viewer may
+  // reach that company's books, and the destination re-checks that on the
+  // server regardless.
   const activityRows = useMemo<ReportRow[]>(() => {
     const money = (v: number) => formatAmount(Number(v), currency);
-    return (activityQuery.data ?? []).map((r) => ({
+    return (activityQuery.data ?? []).map((r) => {
+      const openable = canOpenMemberLedger(r.declaring_business_id);
+      return {
       id: `${r.declaring_business_id}:${r.counterparty_business_id}:${r.account_id}`,
+      meta: { accountId: r.account_id, businessId: r.declaring_business_id },
+      onClick: openable
+        ? () =>
+            navigate(
+              ledgerDrillHref({
+                businessId: r.declaring_business_id,
+                accountId: r.account_id,
+                dateFrom,
+                dateTo,
+              }),
+            )
+        : undefined,
       values: {
         declaring: r.declaring_business_name,
         counterparty: r.counterparty_business_name,
@@ -193,8 +216,17 @@ export default function ConsolidationIntercompany() {
         net: money(r.net),
         rate: `${r.rate_class} @ ${Number(r.rate_used)}`,
       },
-    }));
-  }, [activityQuery.data, currency]);
+      };
+    });
+  }, [activityQuery.data, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+
+  /** Rows whose books this viewer may not open — said plainly, not hidden. */
+  const activityBlocked = useMemo(
+    () =>
+      (activityQuery.data ?? []).some((r) => !canOpenMemberLedger(r.declaring_business_id)),
+    [activityQuery.data, canOpenMemberLedger],
+  );
+
 
   const coverageColumns = useMemo<ReportColumn[]>(
     () => [
