@@ -328,3 +328,128 @@ introduced by consolidation.
 
 Foundations are verified. Brick 7 (elimination engine) may now be started on a
 proven base.
+
+---
+
+## Backfill — Bricks 1, 2, 3 and 5 (evidence-only sections)
+
+These sections were missing from this log. They record only what was proven by
+executing the committed SQL suites against the live `AccrualFlowCorporation`
+database in the Phase 0 run above; nothing is claimed that an execution did not
+return.
+
+### Brick 1 — consolidation groups, members and ownership history
+Suite: `supabase/tests/consolidation_group_foundation_test.sql`.
+Executed blocks 1, 2+3 (contract) and 4 (behaviour); the database returned
+`rollback: foundation contract blocks 2 and 3 passed` and
+`rollback: consolidation group foundation fixture passed`.
+Proven: group/member contracts, ownership-history guards (no overlapping
+effective ranges, no member outside its group's organization), and that every
+fixture is discarded by the deliberate rollback. RLS is enabled with policies on
+`consolidation_groups`, `consolidation_group_members` and
+`consolidation_group_change_log`; `anon` holds no `SELECT` on any of them.
+
+### Brick 2 — FX translation and the consolidated trial balance
+Suites: `consolidation_translation_test.sql`,
+`consolidated_trial_balance_test.sql`,
+`consolidated_trial_balance_reconciliation_test.sql`.
+Returned: `rollback: consolidation FX translation invariants passed (CTA
+movement 4200.00, proof 4200.00)`, `rollback: Brick 2 consolidated trial balance
+invariants passed`, and `rollback: consolidated trial balance reconciliation
+passed (dr 1400 = 1000 + 400)`.
+Proven: IAS 21 rate classes (closing / average / historical) applied per account
+class, a CTA movement matched by an independent proof computation, and a
+consolidated trial balance that ties out to `get_account_movements` rather than
+to a second ledger.
+
+### Brick 3 — consolidated statements
+Suite: `consolidated_statements_test.sql`, contract and behaviour blocks.
+Returned: `rollback: consolidated statements contract checks passed` and
+`rollback: consolidated statements passed (assets 441570.00, liabilities 0,
+equity 441570.00, result 32220.00)`.
+Proven: statements balance from server-side arithmetic, and a line requested
+against the wrong statement is refused rather than silently dropped.
+
+### Brick 5 — group chart mapping coverage
+Suite: `consolidation_account_mapping_test.sql`, contract and behaviour blocks.
+Returned: `rollback: consolidation account mapping contract checks passed` and
+`rollback: consolidation account mapping passed (group revenue 75000, cost
+30000, cash 185000)`.
+Proven: member accounts merge into the group chart through
+`consolidation_account_mappings`, and an unmapped account produces a named
+refusal instead of an under-stated total. (Brick 4's own section above records
+the two defects found and fixed in this area.)
+
+---
+
+## Brick 7 — intercompany eliminations: CLOSED 2026-08-27
+
+### What was established
+
+The elimination engine (`consolidation_elimination_rules`,
+`consolidation_eliminations` and the generation functions) now has a complete,
+reachable user surface. Every figure the user sees is produced by the database;
+the front end reads engine output and writes only policy rows.
+
+### Verified by execution, in this session
+
+The Brick 7 behaviour suite (`supabase/tests/consolidation_eliminations_test.sql`)
+was run against the live database and ended in its deliberate
+`ERROR: P0001: BRICK7 BEHAVIOUR OK`, so nothing was committed. Its three blocks
+proved:
+
+1. reciprocal intercompany pairs eliminate to zero in the presentation currency;
+2. the elimination legs land on the statements and regeneration is idempotent —
+   a second run replaces, it does not double;
+3. an asymmetric (disagreeing) pair is **refused** by default, and only posts to
+   the configured difference account when the group's policy says so and the
+   gap is inside tolerance.
+
+The architecture guard suite passes: `consolidation-eliminations.test.ts`
+(8 tests) and `consolidated-statements.test.ts` (9 tests), 17 tests green.
+
+### What changed
+
+- `src/pages/reports/ConsolidationEliminations.tsx` — the Intercompany
+  Eliminations report: group and period pickers, generate/regenerate calling
+  the server engine, engine refusals surfaced verbatim, every elimination leg
+  with its class, both companies, both source accounts, the group account and
+  presentation-currency debit/credit, drill-down to the intercompany positions
+  consumed, run totals, Excel/CSV export, and an explicit "not generated for
+  this period yet" state distinct from "nothing to eliminate".
+- `src/components/settings/ConsolidationEliminationRules.tsx` — per-group
+  policy: active, tolerance, difference policy and difference group account,
+  mounted inside `ConsolidationGroupsSettings` beside account mapping.
+- `src/pages/reports/ConsolidatedStatements.tsx` — three columns, Aggregated /
+  Eliminations / Consolidated, driven by the `_eliminated` RPCs; the balance
+  verdict comes from the server's `is_balanced`, never a client sum.
+- Registration: `src/apps/finance/routes.tsx`, `ReportRegistry.ts`,
+  `reportsNav.ts`, `src/lib/apps/registry.ts`, `AppSidebar.tsx`.
+- `src/test/architecture/consolidation-eliminations.test.ts` — guard asserting
+  no elimination arithmetic in TypeScript and that the client never writes to
+  `consolidation_eliminations`.
+
+### Accounting rules now enforced
+
+Reciprocal balances and flows eliminate against each other only when both legs
+agree within the group's tolerance; a disagreement is a refusal unless the group
+explicitly elects a difference account. Eliminations are expressed in the
+presentation currency using the same translation rates as the rest of the
+consolidation — there is no second FX resolver and no second accounting engine.
+Regeneration for a period is idempotent.
+
+### Security boundary
+
+The client may insert, update and delete only in
+`consolidation_elimination_rules`; `consolidation_eliminations` is written
+exclusively by the generation functions. All consolidation tables have RLS
+enabled with policies, `anon` holds no `SELECT`, and cross-organization access
+is refused (proved in the Brick 6 isolation block).
+
+### Deliberately still absent
+
+Unrealised profit in inventory, intercompany fixed-asset transfers, investment
+versus equity elimination, and NCI allocation. Also absent: Brick 8 (persisted,
+versioned consolidation runs and audit trail), Brick 9 (ownership / minority
+interest) and Brick 10 (consolidated cash flow). No scaffolding, no disabled
+controls and no placeholder rows exist for any of them.
