@@ -249,6 +249,64 @@ export default function ConsolidatedTrialBalance() {
     return out;
   }, [accountLines, showMembers, currency]);
 
+  /**
+   * Export config — the exported artifact is built from the SAME row model the
+   * screen renders (`toExportRows`), so a CSV/XLSX/PDF cannot show a figure the
+   * page does not. Amounts are exported as already-formatted strings in the
+   * group's PRESENTATION currency: the ambient export context carries the
+   * active entity's base currency, which is not the currency of a consolidated
+   * statement, so numeric re-formatting downstream would mislabel every figure.
+   */
+  const getExportConfig = useCallback((): ExportConfig => {
+    const exportRows: ReportRow[] = [
+      ...rows,
+      {
+        id: "tb-total",
+        kind: "grandTotal",
+        values: {
+          code: "",
+          name: "TOTAL",
+          company: showMembers ? "" : undefined,
+          rate: "",
+          opening: "",
+          debit: formatAmount(totals.debit, currency),
+          credit: formatAmount(totals.credit, currency),
+          closing:
+            Math.abs(totals.difference) < 0.005
+              ? "In balance"
+              : `Out of balance by ${formatAmount(totals.difference, currency)}`,
+        },
+      },
+    ];
+    if (unmappedLineCount > 0) {
+      exportRows.push({
+        id: "tb-unmapped-note",
+        kind: "note",
+        label: `* ${unmappedLineCount} account(s) report under a member company's own chart because no group account maps them.`,
+      });
+    }
+    return {
+      title: "Consolidated Trial Balance",
+      subtitle: `${selectedGroup?.name ?? "Consolidation group"} · combined from the posted ledger · intercompany balances NOT eliminated`,
+      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
+      columns: toExportColumns(columns as ReportColumn<never>[]),
+      rows: toExportRows(exportRows, columns as ReportColumn<never>[]),
+      sheetName: "Consolidated TB",
+      currency,
+      formatProfile: "financial",
+    };
+  }, [
+    rows,
+    columns,
+    currency,
+    dateFrom,
+    dateTo,
+    selectedGroup?.name,
+    showMembers,
+    totals,
+    unmappedLineCount,
+  ]);
+
 
   if (!permLoading && !canViewConsolidated) {
     return (
