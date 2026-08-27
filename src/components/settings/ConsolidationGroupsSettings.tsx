@@ -68,6 +68,8 @@ import {
   type ConsolidationMethod,
 } from "@/hooks/finance/useConsolidationGroups";
 import { normalizeError } from "@/services/resilience";
+import { ConsolidationAccountMapping } from "@/components/settings/ConsolidationAccountMapping";
+
 
 
 const METHODS = Object.keys(CONSOLIDATION_METHOD_LABELS) as ConsolidationMethod[];
@@ -706,6 +708,18 @@ export function ConsolidationGroupsSettings() {
         </Card>
       )}
 
+
+      {activeGroup && (
+        <ConsolidationAccountMapping
+          groupId={activeGroup.id}
+          groupName={activeGroup.name}
+          canManage={canManage}
+          members={openMembers.map((m) => ({
+            business_id: m.business_id,
+            name: businessName(m.business_id),
+          }))}
+        />
+      )}
 
 
       {activeGroup && (

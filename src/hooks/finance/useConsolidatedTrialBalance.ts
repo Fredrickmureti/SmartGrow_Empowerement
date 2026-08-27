@@ -61,6 +61,16 @@ export interface ConsolidatedTrialBalanceRow {
   account_code: string | null;
   account_name: string;
   account_type: string;
+  /**
+   * The group account this member account resolves to (Brick 4). Null only for
+   * the engine's own translation-reserve residual line, which belongs to the
+   * group rather than to any member's chart.
+   */
+  group_account_id: string | null;
+  group_account_code: string | null;
+  group_account_name: string | null;
+  /** False when the line is reported under its member account for want of a mapping. */
+  is_mapped: boolean;
   is_nominal: boolean;
   rate_class: TranslationRateClass;
   rate_used: number | null;
@@ -75,6 +85,7 @@ export interface ConsolidatedTrialBalanceRow {
   translated_credit: number;
   translated_closing: number;
 }
+
 
 /** Per-member proof that the translation reserve is what it should be. */
 export interface ConsolidationCtaRow {
@@ -189,13 +200,19 @@ export function useConsolidationCtaReconciliation(
   });
 }
 
-/** One consolidated line per account, with the member contributions kept. */
+/**
+ * One consolidated line per *group* account, with the member contributions
+ * kept underneath it for drill-down.
+ */
 export interface ConsolidatedAccountLine {
+  /** Group account id, or the member account id when nothing maps it yet. */
   account_id: string;
   account_code: string | null;
   account_name: string;
   account_type: string;
   is_residual: boolean;
+  /** False when this line is a member account reported for want of a mapping. */
+  is_mapped: boolean;
   opening_balance: number;
   total_debit: number;
   total_credit: number;
@@ -204,10 +221,17 @@ export interface ConsolidatedAccountLine {
 }
 
 /**
- * Combine member rows by account, in the group's presentation currency.
+ * Combine member rows by *group* account, in the group's presentation currency.
+ * The group chart is what makes this a consolidation rather than a stack of
+ * member ledgers: the same economic account in two companies lands on one line.
+ *
  * Full-consolidation members contribute 100 % of their balances (IFRS 10 /
  * ASC 810 control model); the non-controlling share is *disclosed*, never
  * netted off, so this stays a pure regrouping of the server's figures.
+ *
+ * Rows the server could not resolve to a group account keep their member
+ * identity instead of being merged on a guess — and are flagged unmapped, so a
+ * reviewer sees exactly which balances still lack a group account.
  */
 export function groupTrialBalanceByAccount(
   rows: ConsolidatedTrialBalanceRow[],
@@ -215,7 +239,11 @@ export function groupTrialBalanceByAccount(
   const byAccount = new Map<string, ConsolidatedAccountLine>();
 
   for (const row of rows) {
-    const existing = byAccount.get(row.account_id);
+    const mapped = row.is_mapped && !!row.group_account_id;
+    // Unmapped member accounts are keyed per company: two companies' accounts
+    // may share a code without being the same account.
+    const key = mapped ? row.group_account_id! : `member:${row.business_id}:${row.account_id}`;
+    const existing = byAccount.get(key);
     if (existing) {
       existing.opening_balance += Number(row.translated_opening);
       existing.total_debit += Number(row.translated_debit);
@@ -225,12 +253,13 @@ export function groupTrialBalanceByAccount(
       existing.contributions.push(row);
       continue;
     }
-    byAccount.set(row.account_id, {
-      account_id: row.account_id,
-      account_code: row.account_code,
-      account_name: row.account_name,
+    byAccount.set(key, {
+      account_id: mapped ? row.group_account_id! : row.account_id,
+      account_code: mapped ? row.group_account_code : row.account_code,
+      account_name: mapped ? (row.group_account_name ?? row.account_name) : row.account_name,
       account_type: row.account_type,
       is_residual: row.rate_class === "residual",
+      is_mapped: mapped,
       opening_balance: Number(row.translated_opening),
       total_debit: Number(row.translated_debit),
       total_credit: Number(row.translated_credit),
@@ -243,6 +272,7 @@ export function groupTrialBalanceByAccount(
     (a.account_code ?? "").localeCompare(b.account_code ?? ""),
   );
 }
+
 
 /**
  * Non-controlling interest disclosure: the minority share of each member's

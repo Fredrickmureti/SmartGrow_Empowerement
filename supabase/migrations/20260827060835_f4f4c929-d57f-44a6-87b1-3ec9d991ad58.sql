@@ -1,0 +1,12 @@
+REVOKE ALL ON FUNCTION public._consolidation_group_account_guard() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._consolidation_mapping_guard() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._consolidation_mapping_log() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._consolidation_cta_account_guard() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.consolidation_group_uses_group_chart(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.consolidation_unmapped_accounts(uuid, date, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.consolidation_group_uses_group_chart(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.consolidation_unmapped_accounts(uuid, date, date) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.get_consolidated_trial_balance_translated(uuid, date, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_consolidated_trial_balance_translated(uuid, date, date) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.get_consolidated_statement_lines(uuid, date, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_consolidated_statement_lines(uuid, date, date) TO authenticated, service_role;

@@ -141,6 +141,11 @@ export default function ConsolidatedTrialBalance() {
     () => groupTrialBalanceByAccount(tbQuery.data ?? []),
     [tbQuery.data],
   );
+  const unmappedLineCount = useMemo(
+    () => accountLines.filter((l) => !l.is_mapped && !l.is_residual).length,
+    [accountLines],
+  );
+
 
   const totals = useMemo(() => {
     let debit = 0;
@@ -198,7 +203,10 @@ export default function ConsolidatedTrialBalance() {
           code: line.account_code ?? "—",
           name:
             line.account_name +
-            (line.is_residual ? " (currency translation reserve)" : ""),
+            (line.is_residual ? " (currency translation reserve)" : "") +
+            (!line.is_mapped && !line.is_residual
+              ? " — not mapped to a group account"
+              : ""),
           company: showMembers ? "Group total" : "",
           rate: "",
           opening: money(line.opening_balance),
@@ -207,6 +215,7 @@ export default function ConsolidatedTrialBalance() {
           closing: money(line.closing_balance),
         },
       });
+
 
       if (!showMembers) continue;
       for (const c of line.contributions as ConsolidatedTrialBalanceRow[]) {
@@ -462,7 +471,21 @@ export default function ConsolidatedTrialBalance() {
                     </div>
                   ) : (
                     <>
+                      {unmappedLineCount > 0 && (
+                        <Alert variant="destructive">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription className="text-sm">
+                            {unmappedLineCount} account{unmappedLineCount === 1 ? "" : "s"}{" "}
+                            still report under a member company's own chart because no
+                            group account maps them. Until they are mapped under{" "}
+                            <strong>Finance → Settings → Consolidation groups</strong>, the
+                            same economic account in two companies appears twice instead of
+                            once.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <ReportSurface
+
                         title={`Consolidated trial balance — ${selectedGroup?.name ?? ""}`}
                         profile="financial"
                       >
