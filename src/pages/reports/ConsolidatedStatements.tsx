@@ -96,13 +96,38 @@ function formatAmount(value: number, currency: string) {
  * the group's figure. Every one of the three comes from the server — the page
  * never subtracts one column from another.
  */
-const COLUMNS: ReportColumn[] = [
-  { key: "code", header: "Account" },
-  { key: "name", header: "Description" },
-  { key: "aggregated", header: "Aggregated", align: "right" },
-  { key: "elimination", header: "Eliminations", align: "right" },
-  { key: "consolidated", header: "Consolidated", align: "right" },
-];
+function buildColumns(onOpenEliminations: (accountId: string) => void): ReportColumn[] {
+  return [
+    { key: "code", header: "Account" },
+    { key: "name", header: "Description" },
+    { key: "aggregated", header: "Aggregated", align: "right" },
+    {
+      key: "elimination",
+      header: "Eliminations",
+      align: "right",
+      // The figure is the server's; the link only carries the group, period
+      // and account across to the eliminations report so the accountant can
+      // read the legs behind it.
+      render: (row) => {
+        const value = row.values?.elimination;
+        const accountId = row.values?.eliminationAccountId;
+        if (typeof value !== "string" || value === "—" || typeof accountId !== "string") {
+          return <span className="tabular-nums">{(value as string) ?? ""}</span>;
+        }
+        return (
+          <button
+            type="button"
+            className="tabular-nums underline underline-offset-2 hover:text-primary"
+            onClick={() => onOpenEliminations(accountId)}
+          >
+            {value}
+          </button>
+        );
+      },
+    },
+    { key: "consolidated", header: "Consolidated", align: "right" },
+  ];
+}
 
 export default function ConsolidatedStatements() {
   const navigate = useNavigate();
@@ -187,6 +212,7 @@ export default function ConsolidatedStatements() {
               Number(line.elimination_amount) === 0
                 ? "—"
                 : money(line.elimination_amount),
+            eliminationAccountId: line.account_id ?? null,
             consolidated: money(line.consolidated_amount),
           },
         });
