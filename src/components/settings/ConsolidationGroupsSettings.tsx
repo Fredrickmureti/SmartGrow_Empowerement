@@ -751,8 +751,15 @@ export function ConsolidationGroupsSettings() {
           groupId={activeGroup.id}
           groupName={activeGroup.name}
           canManage={canManage}
+          focusClass={
+            requestedGroupId === activeGroup.id ? requestedClass : null
+          }
+          focusRemedy={
+            requestedGroupId === activeGroup.id ? requestedRemedy : null
+          }
         />
       )}
+
 
 
       {activeGroup && (
