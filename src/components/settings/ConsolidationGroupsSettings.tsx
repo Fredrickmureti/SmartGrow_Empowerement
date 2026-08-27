@@ -115,6 +115,24 @@ export function ConsolidationGroupsSettings() {
     null;
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
 
+  /**
+   * Bring the linked-to setting into view once the group's cards have actually
+   * rendered — the hash alone cannot, because the target does not exist on the
+   * first paint. Runs once per hash so it never fights the person's scrolling.
+   */
+  const scrolledToHash = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeGroup) return;
+    const hash = window.location.hash.replace("#", "");
+    if (!hash || scrolledToHash.current === hash) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+    scrolledToHash.current = hash;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeGroup, requestedClass, requestedRemedy]);
+
+
+
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
   const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
