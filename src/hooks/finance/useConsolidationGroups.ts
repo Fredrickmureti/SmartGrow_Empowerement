@@ -119,6 +119,42 @@ export function useConsolidationAllowedBusinessIds() {
   });
 }
 
+export interface CtaAccountOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/**
+ * Equity accounts of the group's parent company that may carry the cumulative
+ * translation adjustment. The filter mirrors the database guard exactly —
+ * parent company, equity type, postable, active — so the picker can never
+ * offer an account the database will refuse.
+ */
+export function useConsolidationCtaAccountOptions(parentBusinessId: string | null) {
+  const { currentOrg } = useOrganization();
+  const orgId = currentOrg?.id;
+
+  return useQuery({
+    queryKey: ["consolidation-cta-accounts", orgId, parentBusinessId],
+    enabled: !!orgId && !!parentBusinessId,
+    queryFn: async (): Promise<CtaAccountOption[]> => {
+      const { data, error } = await supabase
+        .from("accounts")
+        .select("id, code, name")
+        .eq("organization_id", orgId!)
+        .eq("business_id", parentBusinessId!)
+        .eq("account_type", "equity")
+        .eq("is_active", true)
+        .eq("is_header", false)
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as CtaAccountOption[];
+    },
+  });
+}
+
+
 export function useConsolidationGroups() {
   const { currentOrg } = useOrganization();
   const orgId = currentOrg?.id;
