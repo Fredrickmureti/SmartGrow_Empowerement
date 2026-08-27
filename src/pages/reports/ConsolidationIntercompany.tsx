@@ -548,6 +548,110 @@ export default function ConsolidationIntercompany() {
             </CardContent>
           </Card>
         )}
+
+        {groupId && scopeIsClean && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Intercompany activity by group account
+              </CardTitle>
+              <CardDescription>
+                The same declared relationships, broken out to the consolidated line each
+                figure sits on — including intercompany activity booked straight to the
+                ledger, such as recharges and intra-group loans, which never touches the
+                receivables or payables sub-ledgers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {activityQuery.error ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {activityQuery.error instanceof Error
+                      ? activityQuery.error.message
+                      : "This period cannot be reported."}
+                  </AlertDescription>
+                </Alert>
+              ) : activityQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : activityRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No posted intercompany ledger activity in this period for the declared
+                  relationships.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Accounts, group mappings and rates are read from the consolidated
+                    trial balance itself, so these figures cannot drift from the statement
+                    lines they belong to. Still no eliminations: nothing here is removed
+                    from the consolidated statements.
+                  </p>
+                  <ReportTable
+                    columns={activityColumns}
+                    rows={activityRows}
+                    currency={currency}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {groupId && scopeIsClean && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Undeclared activity</CardTitle>
+              <CardDescription>
+                Because intercompany status is only ever declared, an undeclared
+                relationship is invisible to every figure above. This worklist shows the
+                trading partners of each member company that carry no declaration for the
+                period, so the gap is reviewed rather than assumed away.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {coverageQuery.error ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {coverageQuery.error instanceof Error
+                      ? coverageQuery.error.message
+                      : "This worklist cannot be produced."}
+                  </AlertDescription>
+                </Alert>
+              ) : coverageQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : coverageRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Every trading partner with activity in this period is either declared as
+                  a group company or has been reviewed and left as third party.
+                </p>
+              ) : (
+                <>
+                  {suggestedCount > 0 && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        {suggestedCount} undeclared contact
+                        {suggestedCount === 1 ? " carries" : "s carry"} the same tax or
+                        registration number as another company in the group. That is a
+                        prompt to check, not a conclusion — nothing becomes intercompany
+                        until you declare it above.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Amounts are shown in each company's own currency and are not
+                    translated, because nothing in this list is a reported figure. Names
+                    are never used to suggest a match.
+                  </p>
+                  <ReportTable columns={coverageColumns} rows={coverageRows} />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
       </div>
     </ReportsLayout>
   );
