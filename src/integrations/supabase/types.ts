@@ -94756,6 +94756,36 @@ export type Database = {
         Args: { _group_id: string }
         Returns: boolean
       }
+      consolidation_intercompany_activity: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          contact_count: number
+          counterparty_business_id: string
+          counterparty_business_name: string
+          credit: number
+          credit_base: number
+          debit: number
+          debit_base: number
+          declaring_base_currency: string
+          declaring_business_id: string
+          declaring_business_name: string
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          group_id: string
+          is_mapped: boolean
+          line_count: number
+          net: number
+          net_base: number
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+        }[]
+      }
       consolidation_intercompany_balances: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -94777,6 +94807,30 @@ export type Database = {
           group_id: string
           presentation_currency: string
           relation: string
+        }[]
+      }
+      consolidation_intercompany_coverage: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          base_currency: string
+          business_id: string
+          business_name: string
+          contact_id: string
+          contact_name: string
+          contact_tax_id: string
+          contact_type: Database["public"]["Enums"]["contact_type"]
+          first_activity: string
+          gl_credit_base: number
+          gl_debit_base: number
+          gl_line_count: number
+          gl_net_base: number
+          group_id: string
+          last_activity: string
+          payable_base: number
+          receivable_base: number
+          suggested_counterparty_business_id: string
+          suggested_counterparty_business_name: string
+          suggestion_basis: string
         }[]
       }
       consolidation_member_translation_rates: {

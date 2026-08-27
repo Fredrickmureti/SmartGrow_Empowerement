@@ -48,9 +48,12 @@ import {
   useConsolidationIntercompanyPartners,
   useConsolidationMemberContacts,
   useConsolidationIntercompanyBalances,
+  useConsolidationIntercompanyActivity,
+  useConsolidationIntercompanyCoverage,
   useConsolidationIntercompanyMutations,
   isReconciled,
 } from "@/hooks/finance/useConsolidationIntercompany";
+
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
 function formatAmount(value: number, currency: string) {
@@ -101,8 +104,20 @@ export default function ConsolidationIntercompany() {
     dateFrom,
     dateTo,
   );
+  const activityQuery = useConsolidationIntercompanyActivity(
+    canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
+  const coverageQuery = useConsolidationIntercompanyCoverage(
+    canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
   const { declarePartner, closeDeclaration, deleteDeclaration } =
     useConsolidationIntercompanyMutations();
+
+
 
   const contactsForBusiness = useMemo(
     () => (contactsQuery.data ?? []).filter((c) => c.business_id === declBusiness),
@@ -137,6 +152,79 @@ export default function ConsolidationIntercompany() {
       },
     }));
   }, [balancesQuery.data, currency]);
+
+  // Activity, per group account: the dimension that lets an intercompany figure
+  // be traced to the consolidated statement line it sits on.
+  const activityColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "declaring", header: "Company" },
+      { key: "counterparty", header: "Counterparty" },
+      { key: "group_account", header: "Group account" },
+      { key: "account", header: "Its account" },
+      { key: "debit", header: "Debit", align: "right" },
+      { key: "credit", header: "Credit", align: "right" },
+      { key: "net", header: "Net", align: "right" },
+      { key: "rate", header: "Rate" },
+    ],
+    [],
+  );
+
+  const activityRows = useMemo<ReportRow[]>(() => {
+    const money = (v: number) => formatAmount(Number(v), currency);
+    return (activityQuery.data ?? []).map((r) => ({
+      id: `${r.declaring_business_id}:${r.counterparty_business_id}:${r.account_id}`,
+      values: {
+        declaring: r.declaring_business_name,
+        counterparty: r.counterparty_business_name,
+        group_account: r.group_account_code
+          ? `${r.group_account_code} · ${r.group_account_name}`
+          : "Unmapped",
+        account: `${r.account_code} · ${r.account_name}`,
+        debit: money(r.debit),
+        credit: money(r.credit),
+        net: money(r.net),
+        rate: `${r.rate_class} @ ${Number(r.rate_used)}`,
+      },
+    }));
+  }, [activityQuery.data, currency]);
+
+  const coverageColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "business", header: "Company" },
+      { key: "contact", header: "Undeclared contact" },
+      { key: "receivable", header: "Receivable", align: "right" },
+      { key: "payable", header: "Payable", align: "right" },
+      { key: "activity", header: "Posted lines", align: "right" },
+      { key: "suggestion", header: "Possible group company" },
+    ],
+    [],
+  );
+
+  const coverageRows = useMemo<ReportRow[]>(() => {
+    return (coverageQuery.data ?? []).map((r) => ({
+      id: `${r.business_id}:${r.contact_id}`,
+      values: {
+        business: `${r.business_name} (${r.base_currency})`,
+        contact: r.contact_name,
+        // Deliberately in the member's own currency: a worklist must never be
+        // blocked by, or imply, a translation.
+        receivable: formatAmount(Number(r.receivable_base), r.base_currency),
+        payable: formatAmount(Number(r.payable_base), r.base_currency),
+        activity: String(r.gl_line_count),
+        suggestion: r.suggested_counterparty_business_name
+          ? `${r.suggested_counterparty_business_name} — same ${
+              r.suggestion_basis === "tax_id" ? "tax number" : "registration number"
+            }`
+          : "—",
+      },
+    }));
+  }, [coverageQuery.data]);
+
+  const suggestedCount = (coverageQuery.data ?? []).filter(
+    (r) => r.suggested_counterparty_business_id,
+  ).length;
+
+
 
   const unreconciled = (balancesQuery.data ?? []).filter((r) => !isReconciled(r));
 
@@ -460,6 +548,110 @@ export default function ConsolidationIntercompany() {
             </CardContent>
           </Card>
         )}
+
+        {groupId && scopeIsClean && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Intercompany activity by group account
+              </CardTitle>
+              <CardDescription>
+                The same declared relationships, broken out to the consolidated line each
+                figure sits on — including intercompany activity booked straight to the
+                ledger, such as recharges and intra-group loans, which never touches the
+                receivables or payables sub-ledgers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {activityQuery.error ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {activityQuery.error instanceof Error
+                      ? activityQuery.error.message
+                      : "This period cannot be reported."}
+                  </AlertDescription>
+                </Alert>
+              ) : activityQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : activityRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No posted intercompany ledger activity in this period for the declared
+                  relationships.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Accounts, group mappings and rates are read from the consolidated
+                    trial balance itself, so these figures cannot drift from the statement
+                    lines they belong to. Still no eliminations: nothing here is removed
+                    from the consolidated statements.
+                  </p>
+                  <ReportTable
+                    columns={activityColumns}
+                    rows={activityRows}
+                    currency={currency}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {groupId && scopeIsClean && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Undeclared activity</CardTitle>
+              <CardDescription>
+                Because intercompany status is only ever declared, an undeclared
+                relationship is invisible to every figure above. This worklist shows the
+                trading partners of each member company that carry no declaration for the
+                period, so the gap is reviewed rather than assumed away.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {coverageQuery.error ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {coverageQuery.error instanceof Error
+                      ? coverageQuery.error.message
+                      : "This worklist cannot be produced."}
+                  </AlertDescription>
+                </Alert>
+              ) : coverageQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : coverageRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Every trading partner with activity in this period is either declared as
+                  a group company or has been reviewed and left as third party.
+                </p>
+              ) : (
+                <>
+                  {suggestedCount > 0 && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        {suggestedCount} undeclared contact
+                        {suggestedCount === 1 ? " carries" : "s carry"} the same tax or
+                        registration number as another company in the group. That is a
+                        prompt to check, not a conclusion — nothing becomes intercompany
+                        until you declare it above.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Amounts are shown in each company's own currency and are not
+                    translated, because nothing in this list is a reported figure. Names
+                    are never used to suggest a match.
+                  </p>
+                  <ReportTable columns={coverageColumns} rows={coverageRows} />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
       </div>
     </ReportsLayout>
   );
