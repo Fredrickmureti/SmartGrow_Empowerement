@@ -102,9 +102,13 @@ describe("consolidated statements — reachable and honest", () => {
     expect(registrySource).toContain("/reports/consolidated-statements");
   });
 
-  it("states the limits it has rather than implying eliminations exist", () => {
-    expect(pageSource).toContain("Intercompany balances are not yet eliminated");
+  it("says plainly whether eliminations were generated for the period", () => {
+    // Brick 7 replaced the blanket "not yet eliminated" notice: the page now
+    // shows all three columns and states which case the reader is looking at.
+    expect(pageSource).toContain("No eliminations have been generated for this period");
+    expect(pageSource).toContain("Intra-group positions have been eliminated");
   });
+
 
   it("surfaces engine refusals instead of rendering a number anyway", () => {
     expect(pageSource).toContain("describeConsolidationBlocker");
