@@ -120,7 +120,9 @@ export function ReportTable({
 
   if (rows.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">{emptyMessage}</p>
+      <p className="py-10 text-center text-sm text-muted-foreground" aria-busy={isLoading}>
+        {isLoading ? "Loading…" : emptyMessage}
+      </p>
     );
   }
 
