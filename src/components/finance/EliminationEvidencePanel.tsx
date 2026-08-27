@@ -189,6 +189,8 @@ export function EliminationEvidencePanel({
         );
       })}
     </div>
+      )}
+    </div>
   );
 }
 
