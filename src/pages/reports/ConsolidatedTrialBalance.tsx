@@ -22,7 +22,7 @@
  * Non-controlling interests are *disclosed*, never netted into group figures.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
