@@ -178,6 +178,8 @@ describe("regrouping is arithmetic-free beyond addition of server rows", () => {
       "member_has_no_base_currency",
       "ownership_percent_missing",
       "cta_account_not_configured",
+      "insufficient_rate_coverage",
+
     ]) {
       expect(describeConsolidationBlocker(blocker)).not.toBe(blocker);
     }

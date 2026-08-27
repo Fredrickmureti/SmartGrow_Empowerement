@@ -110,6 +110,9 @@ export const CONSOLIDATION_BLOCKER_LABELS: Record<string, string> = {
     "A member company has no ownership percentage recorded, so its share of the group cannot be established.",
   cta_account_not_configured:
     "A member company keeps its books in another currency, but this group has no translation reserve account. Choose one under Finance → Settings → Consolidation groups; without it the translation difference would have nowhere to go and the report would not balance.",
+  insufficient_rate_coverage:
+    "The exchange rate history does not cover this period for a member company kept in another currency. Record the missing rates; translating on a guessed rate would misstate every figure it touches.",
+
 };
 
 export function describeConsolidationBlocker(blocker: string): string {
