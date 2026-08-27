@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trg_consolidation_cta_account_guard ON public.consolidation_groups;
