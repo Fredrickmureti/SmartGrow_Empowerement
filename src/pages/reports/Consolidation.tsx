@@ -41,7 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GitMerge, ArrowLeft, AlertTriangle, Info } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
@@ -282,10 +282,11 @@ export default function Consolidation() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-sm">
-            <strong>This is not a GAAP/IFRS consolidation.</strong> True consolidated
-            statements require intercompany eliminations and FX translation, which live in
-            a future Lovable module. Use the columns below to compare companies — do not
-            add the figures together.
+            <strong>This is a side-by-side comparison, not a consolidation.</strong> Each
+            column stays on its own books in its own currency — use it to compare
+            companies, not to add the figures together. For consolidated results with FX
+            translation and intercompany identification, use the consolidated reports
+            below.
           </AlertDescription>
         </Alert>
 
@@ -377,19 +378,30 @@ export default function Consolidation() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">What's coming</CardTitle>
+            <CardTitle className="text-base">Consolidated reporting</CardTitle>
             <CardDescription>
-              Roadmap for the full consolidation engine.
+              Full consolidation with FX translation and intercompany identification,
+              presented in the group currency.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground pl-2">
-              <li>FX translation to a chosen presentation currency (CTA reserves)</li>
-              <li>Intercompany AR ↔ AP eliminations</li>
-              <li>Investment / equity eliminations</li>
-              <li>Minority-interest reporting</li>
-              <li>Comparative Balance Sheet and Cash-Flow views</li>
-            </ul>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/finance/reports/consolidated-trial-balance">
+                  Consolidated Trial Balance
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/finance/reports/consolidated-statements">
+                  Consolidated Statements
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/finance/reports/intercompany">
+                  Intercompany Activity
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
