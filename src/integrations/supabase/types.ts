@@ -10085,6 +10085,182 @@ export type Database = {
           },
         ]
       }
+      consolidation_elimination_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          difference_group_account_id: string | null
+          difference_policy: Database["public"]["Enums"]["consolidation_elimination_difference_policy"]
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          group_id: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          organization_id: string
+          tolerance_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          difference_group_account_id?: string | null
+          difference_policy?: Database["public"]["Enums"]["consolidation_elimination_difference_policy"]
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          group_id: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id: string
+          tolerance_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          difference_group_account_id?: string | null
+          difference_policy?: Database["public"]["Enums"]["consolidation_elimination_difference_policy"]
+          elimination_class?: Database["public"]["Enums"]["consolidation_elimination_class"]
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id?: string
+          tolerance_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_elimination_rule_difference_group_account_id_fkey"
+            columns: ["difference_group_account_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_group_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rules_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consolidation_eliminations: {
+        Row: {
+          account_type: Database["public"]["Enums"]["account_type"]
+          counterparty_business_id: string
+          credit: number
+          debit: number
+          declaring_business_id: string
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          generated_at: string
+          generated_by: string | null
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          group_id: string
+          id: string
+          is_difference: boolean
+          organization_id: string
+          period_end: string
+          period_start: string
+          presentation_currency: string
+          source_evidence: Json
+        }
+        Insert: {
+          account_type: Database["public"]["Enums"]["account_type"]
+          counterparty_business_id: string
+          credit?: number
+          debit?: number
+          declaring_business_id: string
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          generated_at?: string
+          generated_by?: string | null
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          group_id: string
+          id?: string
+          is_difference?: boolean
+          organization_id: string
+          period_end: string
+          period_start: string
+          presentation_currency: string
+          source_evidence?: Json
+        }
+        Update: {
+          account_type?: Database["public"]["Enums"]["account_type"]
+          counterparty_business_id?: string
+          credit?: number
+          debit?: number
+          declaring_business_id?: string
+          elimination_class?: Database["public"]["Enums"]["consolidation_elimination_class"]
+          generated_at?: string
+          generated_by?: string | null
+          group_account_code?: string
+          group_account_id?: string
+          group_account_name?: string
+          group_id?: string
+          id?: string
+          is_difference?: boolean
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          presentation_currency?: string
+          source_evidence?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_eliminations_counterparty_business_id_fkey"
+            columns: ["counterparty_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_eliminations_counterparty_business_id_fkey"
+            columns: ["counterparty_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_eliminations_counterparty_business_id_fkey"
+            columns: ["counterparty_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_eliminations_declaring_business_id_fkey"
+            columns: ["declaring_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_eliminations_declaring_business_id_fkey"
+            columns: ["declaring_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_eliminations_declaring_business_id_fkey"
+            columns: ["declaring_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_eliminations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consolidation_group_accounts: {
         Row: {
           account_type: Database["public"]["Enums"]["account_type"]
@@ -112398,6 +112574,10 @@ export type Database = {
         | "succeeded"
         | "failed"
         | "skipped"
+      consolidation_elimination_class:
+        | "intercompany_balance"
+        | "intercompany_trading"
+      consolidation_elimination_difference_policy: "refuse" | "post_difference"
       consolidation_method: "full" | "proportional" | "equity" | "excluded"
       contact_type: "customer" | "supplier" | "both"
       contract_amendment_kind:
@@ -113588,6 +113768,14 @@ export const Constants = {
         "succeeded",
         "failed",
         "skipped",
+      ],
+      consolidation_elimination_class: [
+        "intercompany_balance",
+        "intercompany_trading",
+      ],
+      consolidation_elimination_difference_policy: [
+        "refuse",
+        "post_difference",
       ],
       consolidation_method: ["full", "proportional", "equity", "excluded"],
       contact_type: ["customer", "supplier", "both"],
