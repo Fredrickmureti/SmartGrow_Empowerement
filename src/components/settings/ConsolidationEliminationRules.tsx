@@ -201,9 +201,9 @@ export function ConsolidationEliminationRules({
           const stored = ruleFor.get(cls);
           const dirty = !!drafts[cls];
           const typeMatched = accounts.filter((a) => a.is_active);
+          const focused = focusClass === cls;
           return (
-            const focused = focusClass === cls;
-            return (
+
               <div
                 key={cls}
                 id={eliminationClassAnchor(cls)}
