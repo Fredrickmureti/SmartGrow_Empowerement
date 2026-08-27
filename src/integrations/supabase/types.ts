@@ -10095,8 +10095,10 @@ export type Database = {
           group_id: string
           id: string
           is_active: boolean
+          is_system_default: boolean
           notes: string | null
           organization_id: string
+          seeded_at: string | null
           tolerance_amount: number
           updated_at: string
         }
@@ -10109,8 +10111,10 @@ export type Database = {
           group_id: string
           id?: string
           is_active?: boolean
+          is_system_default?: boolean
           notes?: string | null
           organization_id: string
+          seeded_at?: string | null
           tolerance_amount?: number
           updated_at?: string
         }
@@ -10123,8 +10127,10 @@ export type Database = {
           group_id?: string
           id?: string
           is_active?: boolean
+          is_system_default?: boolean
           notes?: string | null
           organization_id?: string
+          seeded_at?: string | null
           tolerance_amount?: number
           updated_at?: string
         }
@@ -89421,6 +89427,10 @@ export type Database = {
         Args: { _business_id: string; _on_date: string }
         Returns: string
       }
+      _consolidation_seed_default_rules: {
+        Args: { _group_id: string }
+        Returns: number
+      }
       _crm_assert_lead_access: {
         Args: { p_lead_id: string; p_operation: string }
         Returns: {
@@ -95100,6 +95110,10 @@ export type Database = {
       }
       consolidation_scope_member_count: {
         Args: { _as_of: string; _group_id: string }
+        Returns: number
+      }
+      consolidation_seed_default_elimination_rules: {
+        Args: { _group_id: string }
         Returns: number
       }
       consolidation_translate_member: {

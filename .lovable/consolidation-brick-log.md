@@ -512,3 +512,61 @@ be recorded here: diagnose → apply "carry it to the translation reserve" →
 regenerate successfully → the residual appears in the translation reserve; plus
 the same-currency pair still refusing `post_to_cta`, and a member of another
 organization receiving nothing.
+
+## Step 7.3 — Default elimination policy templates (2026-08-27)
+
+### What was established
+
+A consolidation group used to start with no elimination policy at all, so the
+engine fell back to tolerance 0 / `refuse` and the very first run of a new group
+failed on the first rounding cent. The product already ships a default chart of
+accounts; eliminations now follow the same principle.
+
+### What changed (database)
+
+- `consolidation_elimination_rules` gained `is_system_default` and `seeded_at`.
+- `_consolidation_seed_default_rules(group)` holds the single template: the class
+  is produced, tolerance is **1.00 of the group's presentation currency**
+  (rounding scale, not a materiality figure sized to swallow a residual), and the
+  difference policy is `post_to_cta`.
+- `trg_consolidation_group_seed_rules` seeds both standard classes on group
+  creation; the migration backfilled every existing group's missing classes.
+- `trg_consolidation_elimination_rule_default_flag` flips a row out of
+  system-default state on any human edit, so an override can never masquerade as
+  a shipped default.
+- `consolidation_seed_default_elimination_rules(group)` is the caller-facing
+  reseed of *missing* classes only — SECURITY INVOKER, owner/admin/super-admin of
+  the group's organisation, `anon` revoked. The internal seeder is not reachable
+  by `anon` or `authenticated`.
+
+### Accounting rule now enforced
+
+The default carries a cross-currency residual to the translation reserve
+(IAS 21 / ASC 830) and still refuses a same-currency disagreement, because that
+is two companies not agreeing, not a translation effect. Combined with Step 7.2,
+a seeded group's first run is balanced or explicitly refused — never silently
+one-sided.
+
+### Verified by execution
+
+- Live rows: the group's two existing policies (tolerance 41,500 and 1,500,
+  policy `refuse`) were left byte-identical and are correctly reported as
+  customised, not default. No group is missing a class.
+- `supabase/tests/consolidation_elimination_defaults_test.sql` (new): trigger
+  wiring, grants, the backfill invariant, reseed-is-never-destructive, and the
+  edit-flips-the-flag rule.
+- `bunx vitest run src/test/architecture/consolidation-eliminations.test.ts`
+  → 13/13 green. `tsgo --noEmit` clean.
+
+### Surface
+
+`ConsolidationEliminationRules` now labels each class **System default** /
+**Customised for this group** / **Not configured**, and its unsaved values start
+from the seeded template rather than tolerance 0 / refuse.
+
+### Intentionally absent
+
+Investment-versus-equity and NCI templates (Brick 9 territory), and any
+auto-widening of a tolerance. The live group's 41,500 tolerance is a customised
+figure and Step 7.2's remediation of it remains a decision for the accountant,
+not something a seeder overwrites.

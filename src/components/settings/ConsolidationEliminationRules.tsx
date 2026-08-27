@@ -35,11 +35,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AlertTriangle, Info, Loader2, Scissors } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useConsolidationGroupAccounts } from "@/hooks/finance/useConsolidationAccountMapping";
 import {
   ELIMINATION_CLASS_LABELS,
   ELIMINATION_POLICY_LABELS,
+  ELIMINATION_RULE_DEFAULTS,
   useConsolidationEliminationRules,
   useConsolidationEliminationMutations,
   type EliminationClass,
@@ -85,10 +87,12 @@ const NO_ACCOUNT = "__none__";
 /** The rule as stored, or the engine's own default when none has been saved. */
 function draftFrom(rule: EliminationRule | undefined): Draft {
   return {
-    is_active: rule?.is_active ?? true,
-    tolerance_amount: rule ? String(rule.tolerance_amount) : "0",
+    is_active: rule?.is_active ?? ELIMINATION_RULE_DEFAULTS.is_active,
+    tolerance_amount: String(
+      rule ? rule.tolerance_amount : ELIMINATION_RULE_DEFAULTS.tolerance_amount,
+    ),
     difference_policy:
-      rule?.difference_policy ?? ("refuse" as EliminationDifferencePolicy),
+      rule?.difference_policy ?? ELIMINATION_RULE_DEFAULTS.difference_policy,
     difference_group_account_id: rule?.difference_group_account_id ?? NO_ACCOUNT,
   };
 }
@@ -255,10 +259,28 @@ export function ConsolidationEliminationRules({
                     {ELIMINATION_CLASS_LABELS[cls] ?? cls}
                   </p>
                   <p className="text-xs text-muted-foreground">{CLASS_HELP[cls]}</p>
+                  <div className="mt-1">
+                    {stored ? (
+                      <Badge variant={stored.is_system_default ? "secondary" : "outline"}>
+                        {stored.is_system_default
+                          ? "System default"
+                          : "Customised for this group"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Not configured</Badge>
+                    )}
+                  </div>
+                  {stored?.is_system_default && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Seeded when the group was created: a rounding-scale tolerance, with a
+                      currency-translation residual carried to the group's translation
+                      reserve. Saving any change here makes it this group's own policy.
+                    </p>
+                  )}
                   {!stored && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      No policy saved — the engine refuses the run when the sides
-                      disagree at all.
+                      No policy row for this class — the values shown are the system
+                      default; save to apply them.
                     </p>
                   )}
                 </div>
