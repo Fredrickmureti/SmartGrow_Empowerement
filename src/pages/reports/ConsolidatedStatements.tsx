@@ -130,13 +130,9 @@ export default function ConsolidatedStatements() {
     for (const group of sectionsOf(lines, statement)) {
       out.push({
         id: `${statement}:${group.section}`,
-        values: {
-          code: "",
-          name: CONSOLIDATED_SECTION_LABELS[group.section],
-          amount: "",
-        },
-        emphasis: "header",
-      } as ReportRow);
+        kind: "section",
+        label: CONSOLIDATED_SECTION_LABELS[group.section],
+      });
       for (const line of group.lines) {
         out.push({
           id: `${statement}:${group.section}:${line.account_id ?? "derived"}`,
