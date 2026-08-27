@@ -12,7 +12,9 @@
  * No elimination amount is calculated here or anywhere else in the browser.
  * `consolidation_generate_eliminations` reads these rows and does the work.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { eliminationClassAnchor } from "@/lib/finance/eliminationRemedies";
+
 import {
   Card,
   CardContent,
