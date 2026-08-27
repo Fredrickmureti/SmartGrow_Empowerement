@@ -56,7 +56,10 @@ import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { toAppError } from "@/lib/supabaseError";
-import { useConsolidationGroups } from "@/hooks/finance/useConsolidationGroups";
+import {
+  useConsolidationGroups,
+  useCanManageConsolidation,
+} from "@/hooks/finance/useConsolidationGroups";
 import {
   useConsolidationScope,
   describeConsolidationBlocker,
@@ -69,7 +72,10 @@ import {
   useConsolidationEliminationMutations,
   useConsolidationIntercompanyFlows,
   useEliminatedStatementTotals,
+  useEliminationDiagnosis,
 } from "@/hooks/finance/useConsolidationEliminations";
+import { EliminationRefusalPanel } from "@/components/finance/EliminationRefusalPanel";
+
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
 function formatAmount(value: number, currency: string) {
@@ -112,7 +118,12 @@ export default function ConsolidationEliminations() {
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const flowsQuery = useConsolidationIntercompanyFlows(readyGroupId, dateFrom, dateTo);
   const totalsQuery = useEliminatedStatementTotals(readyGroupId, dateFrom, dateTo);
+  // Read-only server preflight: why this period would be refused, and which
+  // remedies the engine itself would accept.
+  const diagnosisQuery = useEliminationDiagnosis(readyGroupId, dateFrom, dateTo);
+  const canManageConsolidation = useCanManageConsolidation();
   const { generate } = useConsolidationEliminationMutations();
+
 
   const eliminations = eliminationsQuery.data ?? [];
   const hasRun = eliminations.length > 0;
@@ -380,15 +391,19 @@ export default function ConsolidationEliminations() {
           </Alert>
         )}
 
-        {refusal && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              <p className="font-medium">The elimination run was refused</p>
-              <p className="text-sm mt-1 whitespace-pre-wrap">{refusal}</p>
-            </AlertDescription>
-          </Alert>
+        {groupId && (
+          <EliminationRefusalPanel
+            groupId={groupId}
+            currency={currency}
+            canManage={canManageConsolidation}
+            refusal={refusal}
+            diagnosis={diagnosisQuery.data ?? []}
+            isLoading={diagnosisQuery.isLoading}
+            error={diagnosisQuery.error}
+            rules={rulesQuery.data ?? []}
+          />
         )}
+
 
         {groupId && (
           <Card>

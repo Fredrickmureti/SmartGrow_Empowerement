@@ -94928,6 +94928,31 @@ export type Database = {
           presentation_currency: string
         }[]
       }
+      consolidation_diagnose_eliminations: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          business_a_currency: string
+          business_a_id: string
+          business_a_name: string
+          business_b_currency: string
+          business_b_id: string
+          business_b_name: string
+          cause: string
+          difference_amount: number
+          difference_signed: number
+          effective_policy: string
+          effective_tolerance: number
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          finding_kind: string
+          is_cross_currency: boolean
+          message: string
+          presentation_currency: string
+          remedies: string[]
+          rule_exists: boolean
+          suggested_tolerance: number
+          would_refuse: boolean
+        }[]
+      }
       consolidation_generate_eliminations: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {

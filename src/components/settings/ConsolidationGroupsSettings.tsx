@@ -92,9 +92,27 @@ export function ConsolidationGroupsSettings() {
     updateGroupTranslationSettings,
   } = useConsolidationGroupMutations();
 
+  /**
+   * A refusal on the eliminations report links straight here, naming the group
+   * (and sometimes the elimination class) in the URL, so the accountant lands
+   * on the setting that is actually in the way instead of hunting for it.
+   */
+  const [searchParams] = useSearchParams();
+  const requestedGroupId = searchParams.get("consolidationGroup");
+  const requestedClass = searchParams.get("eliminationClass");
+  const requestedRemedy = searchParams.get("remedy");
+
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null;
+  // A requested group only wins while the person has not chosen another one.
+  const activeGroupId =
+    selectedGroupId ??
+    (requestedGroupId && groups.some((g) => g.id === requestedGroupId)
+      ? requestedGroupId
+      : null) ??
+    groups[0]?.id ??
+    null;
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
+
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
   const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
