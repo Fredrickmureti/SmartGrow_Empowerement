@@ -334,12 +334,18 @@ BEGIN
   IF v_dr <> v_cr THEN
     RAISE EXCEPTION 'eliminations with a posted difference must still balance: % vs %', v_dr, v_cr;
   END IF;
-  SELECT round(sum(debit - credit), 2) INTO v_amount
+  -- Each class carries its own 200 residual, and they carry opposite signs: the
+  -- balance-sheet pair is 200 short on the payable side, the trading pair 200
+  -- short on the cost side. The engine therefore posts one debit difference and
+  -- one credit difference of 200 each — measure the gross residual, not the net,
+  -- or the two cancel and the disagreement disappears from view.
+  SELECT count(*), round(sum(abs(debit - credit)), 2) INTO v_rows, v_amount
     FROM public.consolidation_eliminations
    WHERE group_id = v_group AND is_difference;
-  IF v_amount <> 400 THEN
-    RAISE EXCEPTION 'the two 200 disagreements must surface as 400 of difference, got %', v_amount;
+  IF v_rows <> 2 OR v_amount <> 400 THEN
+    RAISE EXCEPTION 'the two 200 disagreements must surface as two difference legs totalling 400, got % legs totalling %', v_rows, v_amount;
   END IF;
+
 
   SELECT * INTO v_t FROM public.get_consolidated_statement_totals_eliminated(v_group, v_from, v_to);
   IF NOT v_t.is_balanced THEN
