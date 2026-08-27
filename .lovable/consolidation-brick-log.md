@@ -570,3 +570,59 @@ Investment-versus-equity and NCI templates (Brick 9 territory), and any
 auto-widening of a tolerance. The live group's 41,500 tolerance is a customised
 figure and Step 7.2's remediation of it remains a decision for the accountant,
 not something a seeder overwrites.
+
+## Step 7.4 — Elimination drill-down (evidence, not assertion)
+
+### What was actually there before
+
+The previous log claimed drill-down existed. It did not.
+`ConsolidationEliminations.tsx` rendered two flat tables and never read
+`source_evidence`, which itself held only `entry_count`,
+`source_account_ids` and `net_debit_before_elimination` — counts, not evidence.
+No leg could be traced to a journal entry.
+
+### What was built
+
+- `consolidation_intercompany_entry_lines(group, from, to)` — new SECURITY
+  INVOKER, fixed-search-path function returning the *posted journal entries*
+  behind every declared intra-group position, translated at the group's own
+  rates. It carries the existing guards verbatim: scope blockers, refusal on an
+  entry tagged to two sister companies, refusal on accounts the consolidated
+  trial balance does not report.
+- `consolidation_intercompany_flows` was rewritten as a pure aggregation of that
+  function — same signature, same columns, presentation amounts still rounded
+  once from the base sums. The summary and the detail now cannot disagree,
+  because there is only one computation.
+- `consolidation_elimination_evidence(group, from, to, class, declaring,
+  counterparty, group_account)` — the per-leg drill-down. Authorisation mirrors
+  generation and diagnosis (organisation owner/admin/super_admin); anonymous
+  execution is revoked. Each row carries a server-decided
+  `viewer_can_open_ledger` from `user_can_access_business`.
+
+### Surface
+
+Generated eliminations are now expandable. A leg opens to the source account,
+rate class and rate, and every posted entry, in local and presentation currency.
+Journal-entry and general-ledger links appear only where the server said the
+viewer may open that company's books; otherwise the row says so. Difference legs
+have no source entries by construction, so they show the tolerance and policy in
+force instead of an empty table.
+
+### Verified
+
+- `tsgo --noEmit` clean.
+- Live August 2026 eliminations remain the balanced set recorded in Step 7.3.
+
+### Not verified, and why
+
+Numeric parity of the rebuilt flows against the stored August run could not be
+asserted from an unauthenticated session: the underlying translated trial
+balance refuses a caller with no organisation role, and this project is an
+external Supabase instance where no preview session can be minted. The rebuild
+is a projection of the same CTEs rather than a reimplementation, but the tie-out
+must be re-run by a signed-in accountant before this period is relied on.
+
+### Intentionally absent
+
+Audit/run history, period control and reversal, persisted runs, NCI, and the
+consolidated cash flow statement.
