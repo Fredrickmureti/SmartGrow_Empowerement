@@ -153,7 +153,7 @@ export function useConsolidationGroupMembers(groupId: string | null) {
       const { data, error } = await supabase
         .from("consolidation_group_members")
         .select(
-          "id, organization_id, group_id, business_id, parent_business_id, ownership_percent, method, effective_from, effective_to, notes",
+          "id, organization_id, group_id, business_id, parent_business_id, ownership_percent, method, effective_from, effective_to, notes, historical_rate_date",
         )
         .eq("group_id", groupId!)
         .order("effective_from")
