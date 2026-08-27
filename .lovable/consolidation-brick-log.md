@@ -130,12 +130,13 @@ must reach the engine by RPC, must not re-derive balances, rates or
 suggestions client-side, and must not reach for any elimination or
 consolidation-run object — those belong to later bricks and do not exist.
 
-### Still open
+### Still open (at the time of this section — since closed)
 
-A live multi-member walkthrough was outstanding at the time of this section and
-performed. The tenant has no populated multi-member group, so the UI path is
-verified only by the architecture ratchet and the SQL suite, not by observing
-a real group render in the browser.
+A live multi-member walkthrough in the running application had **not** been
+performed. The tenant had no populated multi-member group, so the UI path was
+verified only by the architecture ratchet and the SQL suite. Closed by the
+Brick 6 section below, which records the live two-member run.
+
 
 
 ---
