@@ -139,6 +139,7 @@ export const REPORT_FAMILIES: ReportFamily[] = [
       "cross-company-comparative",
       "consolidated-trial-balance",
       "consolidated-statements",
+      "intercompany-identification",
     ],
   },
   {
