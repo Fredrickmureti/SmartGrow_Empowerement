@@ -211,6 +211,10 @@ describe("refusals stay visible on both new surfaces", () => {
 
   it("still produces no elimination entries", () => {
     expect(page).toContain("No elimination entries are produced");
-    expect(hook).not.toMatch(/elimination/i);
+    // The hook may *say* it eliminates nothing; it must not reach for any
+    // elimination object, which is the next brick and does not exist yet.
+    expect(hook).not.toMatch(/from\(\s*["'][a-z_]*elimination/i);
+    expect(hook).not.toMatch(/rpc\(\s*["'][a-z_]*elimination/i);
+    expect(hook).not.toMatch(/consolidation_run/i);
   });
 });
