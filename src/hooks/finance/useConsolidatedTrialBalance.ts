@@ -61,6 +61,16 @@ export interface ConsolidatedTrialBalanceRow {
   account_code: string | null;
   account_name: string;
   account_type: string;
+  /**
+   * The group account this member account resolves to (Brick 4). Null only for
+   * the engine's own translation-reserve residual line, which belongs to the
+   * group rather than to any member's chart.
+   */
+  group_account_id: string | null;
+  group_account_code: string | null;
+  group_account_name: string | null;
+  /** False when the line is reported under its member account for want of a mapping. */
+  is_mapped: boolean;
   is_nominal: boolean;
   rate_class: TranslationRateClass;
   rate_used: number | null;
@@ -75,6 +85,7 @@ export interface ConsolidatedTrialBalanceRow {
   translated_credit: number;
   translated_closing: number;
 }
+
 
 /** Per-member proof that the translation reserve is what it should be. */
 export interface ConsolidationCtaRow {
