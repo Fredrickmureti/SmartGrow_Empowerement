@@ -270,7 +270,7 @@ export function useConsolidationEliminationRules(groupId: string | null) {
         .select("*")
         .eq("group_id", groupId!);
       if (error) throw toAppError(error);
-      return (data ?? []) as EliminationRule[];
+      return (data ?? []) as unknown as EliminationRule[];
     },
   });
 }
