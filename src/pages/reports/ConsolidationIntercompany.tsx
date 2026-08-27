@@ -15,7 +15,7 @@
  * NO elimination entries: a mismatch is a finding for an accountant, and the
  * consolidated statements are unchanged by anything on this screen.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
@@ -37,7 +37,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ReportTable, type ReportColumn, type ReportRow } from "@/design-system/reports";
+import {
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
+import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { ArrowLeft, ArrowLeftRight, Info, ShieldAlert, AlertTriangle, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -224,6 +232,76 @@ export default function ConsolidationIntercompany() {
     (r) => r.suggested_counterparty_business_id,
   ).length;
 
+  /**
+   * One export per section. The three tables answer different questions and
+   * carry different columns (and, for the worklist, different currencies), so
+   * they are exported as separate artifacts rather than mashed into one sheet
+   * where a reader could add up figures that are not comparable.
+   *
+   * Every export is derived from the same rows the screen renders — no figure is
+   * recomputed for the export.
+   */
+  const period = `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`;
+  const groupLabel = selectedGroup?.name ?? "Consolidation group";
+
+  const buildConfig = useCallback(
+    (
+      title: string,
+      subtitle: string,
+      sheetName: string,
+      cols: ReportColumn[],
+      rws: ReportRow[],
+      cur?: string,
+    ): ExportConfig => ({
+      title,
+      subtitle,
+      dateRange: period,
+      columns: toExportColumns(cols as ReportColumn<never>[]),
+      rows: toExportRows(rws, cols as ReportColumn<never>[]),
+      sheetName,
+      currency: cur,
+      formatProfile: "financial",
+    }),
+    [period],
+  );
+
+  const getReconciliationExport = useCallback(
+    (): ExportConfig =>
+      buildConfig(
+        "Intercompany Reconciliation",
+        `${groupLabel} · declared pairs, restated into ${currency} at the group's closing rate · no eliminations produced`,
+        "Intercompany",
+        columns,
+        rows,
+        currency,
+      ),
+    [buildConfig, columns, rows, currency, groupLabel],
+  );
+
+  const getActivityExport = useCallback(
+    (): ExportConfig =>
+      buildConfig(
+        "Intercompany Activity by Group Account",
+        `${groupLabel} · read from the consolidated trial balance itself, so it cannot drift from the statement lines`,
+        "IC by group account",
+        activityColumns,
+        activityRows,
+        currency,
+      ),
+    [buildConfig, activityColumns, activityRows, currency, groupLabel],
+  );
+
+  const getCoverageExport = useCallback(
+    (): ExportConfig =>
+      buildConfig(
+        "Undeclared Intercompany Activity",
+        `${groupLabel} · trading partners with no declaration for the period · amounts in each company's OWN currency, untranslated`,
+        "Undeclared",
+        coverageColumns,
+        coverageRows,
+      ),
+    [buildConfig, coverageColumns, coverageRows, groupLabel],
+  );
 
 
   const unreconciled = (balancesQuery.data ?? []).filter((r) => !isReconciled(r));
@@ -506,12 +584,17 @@ export default function ConsolidationIntercompany() {
 
         {groupId && scopeIsClean && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Intercompany reconciliation</CardTitle>
-              <CardDescription>
-                Each declared pair, in {currency}: the receivable one company carries
-                against the payable its counterparty carries back.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Intercompany reconciliation</CardTitle>
+                <CardDescription>
+                  Each declared pair, in {currency}: the receivable one company carries
+                  against the payable its counterparty carries back.
+                </CardDescription>
+              </div>
+              {rows.length > 0 && !balancesQuery.error && (
+                <ReportExportButtons getExportConfig={getReconciliationExport} compact />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {balancesQuery.error ? (
@@ -551,16 +634,21 @@ export default function ConsolidationIntercompany() {
 
         {groupId && scopeIsClean && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Intercompany activity by group account
-              </CardTitle>
-              <CardDescription>
-                The same declared relationships, broken out to the consolidated line each
-                figure sits on — including intercompany activity booked straight to the
-                ledger, such as recharges and intra-group loans, which never touches the
-                receivables or payables sub-ledgers.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">
+                  Intercompany activity by group account
+                </CardTitle>
+                <CardDescription>
+                  The same declared relationships, broken out to the consolidated line each
+                  figure sits on — including intercompany activity booked straight to the
+                  ledger, such as recharges and intra-group loans, which never touches the
+                  receivables or payables sub-ledgers.
+                </CardDescription>
+              </div>
+              {activityRows.length > 0 && !activityQuery.error && (
+                <ReportExportButtons getExportConfig={getActivityExport} compact />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {activityQuery.error ? (
