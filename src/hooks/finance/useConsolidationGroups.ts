@@ -293,6 +293,28 @@ export function useConsolidationGroupMutations() {
     onSuccess: invalidate,
   });
 
+  /**
+   * Group-level translation settings. Only the reserve account is editable
+   * here: the parent company and presentation currency are structural and
+   * changing them would silently restate every period already reported.
+   */
+  const updateGroupTranslationSettings = useMutation({
+    mutationFn: async ({
+      id,
+      cta_account_id,
+    }: {
+      id: string;
+      cta_account_id: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("consolidation_groups")
+        .update({ cta_account_id })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
   const updateMember = useMutation({
     mutationFn: async ({
       id,
@@ -301,7 +323,11 @@ export function useConsolidationGroupMutations() {
       Partial<
         Pick<
           ConsolidationGroupMember,
-          "ownership_percent" | "method" | "parent_business_id" | "notes"
+          | "ownership_percent"
+          | "method"
+          | "parent_business_id"
+          | "notes"
+          | "historical_rate_date"
         >
       >) => {
       const { error } = await supabase
@@ -312,6 +338,7 @@ export function useConsolidationGroupMutations() {
     },
     onSuccess: invalidate,
   });
+
 
   /**
    * Ends a membership by stamping `effective_to` server-side. There is no
