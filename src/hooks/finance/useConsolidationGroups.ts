@@ -130,7 +130,7 @@ export function useConsolidationGroups() {
       const { data, error } = await supabase
         .from("consolidation_groups")
         .select(
-          "id, organization_id, name, code, parent_business_id, presentation_currency, description, is_active",
+          "id, organization_id, name, code, parent_business_id, presentation_currency, description, is_active, cta_account_id",
         )
         .eq("organization_id", orgId!)
         .order("name");
