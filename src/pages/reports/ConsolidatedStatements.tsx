@@ -131,6 +131,19 @@ function buildColumns(onOpenEliminations: (accountId: string) => void): ReportCo
 
 export default function ConsolidatedStatements() {
   const navigate = useNavigate();
+  const openEliminations = useCallback(
+    (accountId: string) => {
+      const params = new URLSearchParams({
+        consolidationGroup: groupIdRef.current ?? "",
+        date_from: dateFromRef.current,
+        date_to: dateToRef.current,
+        group_account_id: accountId,
+      });
+      navigate(`/finance/reports/consolidation-eliminations?${params.toString()}`);
+    },
+    [navigate],
+  );
+  const COLUMNS = useMemo(() => buildColumns(openEliminations), [openEliminations]);
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
 
