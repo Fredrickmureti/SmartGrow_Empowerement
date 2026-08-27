@@ -61,7 +61,15 @@ interface Props {
   groupId: string;
   groupName: string;
   canManage: boolean;
+  /**
+   * The class an elimination refusal sent the accountant here to settle, and
+   * the remedy code it named. Both come from the server's diagnosis by way of
+   * the URL — nothing is inferred from a message.
+   */
+  focusClass?: string | null;
+  focusRemedy?: string | null;
 }
+
 
 interface Draft {
   is_active: boolean;
