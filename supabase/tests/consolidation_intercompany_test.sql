@@ -506,11 +506,15 @@ BEGIN
     RAISE EXCEPTION 'expected both intercompany positions as separate rows, got %', v_rows;
   END IF;
 
-  -- The figure ties to the consolidated statement line it belongs to: it can
-  -- never exceed what the translated trial balance reports for that account.
-  SELECT t.translated_closing INTO v_row
-    FROM public.get_consolidated_trial_balance_translated(v_group, v_from, v_to) t
-   WHERE t.business_id = v_s AND t.account_id = v_due_s;
+  -- The figure is a projection of the statement line it belongs to: the group
+  -- account reported here must be the one the translated trial balance reports.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.get_consolidated_trial_balance_translated(v_group, v_from, v_to) t
+     WHERE t.business_id = v_s AND t.account_id = v_due_s
+       AND t.group_account_id = v_ga_owed AND t.rate_used = v_close
+  ) THEN
+    RAISE EXCEPTION 'the intercompany row and the translated trial balance disagree on the group account or rate';
+  END IF;
 
   --------------------------------- 4: the coverage worklist tells the truth ---
   IF EXISTS (
