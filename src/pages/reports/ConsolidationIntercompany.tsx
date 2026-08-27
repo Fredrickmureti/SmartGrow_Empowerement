@@ -707,8 +707,16 @@ export default function ConsolidationIntercompany() {
                     Accounts, group mappings and rates are read from the consolidated
                     trial balance itself, so these figures cannot drift from the statement
                     lines they belong to. Still no eliminations: nothing here is removed
-                    from the consolidated statements.
+                    from the consolidated statements. Open a row to see the posting company's
+                    own ledger for that account and period.
                   </p>
+                  {activityBlocked && (
+                    <p className="text-xs text-muted-foreground">
+                      Some rows belong to companies whose books you are not permitted to
+                      open, so those rows do not lead anywhere.
+                    </p>
+                  )}
+
                   <ReportTable
                     columns={activityColumns}
                     rows={activityRows}
