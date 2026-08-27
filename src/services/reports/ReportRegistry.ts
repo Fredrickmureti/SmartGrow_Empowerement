@@ -662,6 +662,17 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["intercompany", "inter-company", "consolidation", "group", "elimination", "reconciliation", "related party"],
   },
   {
+    id: "intercompany-eliminations",
+    name: "Intercompany Eliminations",
+    description: "Removal of declared intra-group balances and trading from the group's figures",
+    category: "management",
+    path: "/finance/reports/eliminations",
+    icon: BarChart3,
+    permission: "viewReports",
+    reportType: "intercompany_eliminations",
+    keywords: ["elimination", "eliminations", "intercompany", "consolidation", "group", "ifrs 10", "intra-group"],
+  },
+  {
     id: "business-intelligence",
     name: "Business Intelligence",
     description: "Interactive dashboards and custom analysis",

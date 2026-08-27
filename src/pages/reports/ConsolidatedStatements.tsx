@@ -64,6 +64,10 @@ import {
   type ConsolidatedStatement,
   type ConsolidatedStatementLine,
 } from "@/hooks/finance/useConsolidatedStatements";
+import {
+  useEliminatedStatementLines,
+  useEliminatedStatementTotals,
+} from "@/hooks/finance/useConsolidationEliminations";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
 function formatAmount(value: number, currency: string) {
@@ -74,10 +78,18 @@ function formatAmount(value: number, currency: string) {
   }
 }
 
+/**
+ * Three columns, in the order an accountant reads them: what the member
+ * ledgers add up to, what the elimination engine removed, and what remains as
+ * the group's figure. Every one of the three comes from the server — the page
+ * never subtracts one column from another.
+ */
 const COLUMNS: ReportColumn[] = [
   { key: "code", header: "Account" },
   { key: "name", header: "Description" },
-  { key: "amount", header: "Amount", align: "right" },
+  { key: "aggregated", header: "Aggregated", align: "right" },
+  { key: "elimination", header: "Eliminations", align: "right" },
+  { key: "consolidated", header: "Consolidated", align: "right" },
 ];
 
 export default function ConsolidatedStatements() {
@@ -107,21 +119,37 @@ export default function ConsolidatedStatements() {
   );
   const scopeIsClean = !!scopeQuery.data && blockers.length === 0;
 
-  const linesQuery = useConsolidatedStatementLines(
-    canViewConsolidated && scopeIsClean ? groupId : null,
-    dateFrom,
-    dateTo,
-  );
-  const totalsQuery = useConsolidatedStatementTotals(
-    canViewConsolidated && scopeIsClean ? groupId : null,
-    dateFrom,
-    dateTo,
-  );
+  const readyGroupId = canViewConsolidated && scopeIsClean ? groupId : null;
+
+  // Aggregated-only figures stay in play because they carry the balance-sheet
+  // verdict and the currency translation reserve; the eliminated projection
+  // carries the three columns and the post-elimination totals.
+  const totalsQuery = useConsolidatedStatementTotals(readyGroupId, dateFrom, dateTo);
+  const linesQuery = useEliminatedStatementLines(readyGroupId, dateFrom, dateTo);
+  const eliminatedTotalsQuery = useEliminatedStatementTotals(readyGroupId, dateFrom, dateTo);
 
   const currency =
     totalsQuery.data?.presentation_currency ?? selectedGroup?.presentation_currency ?? "USD";
-  const lines = linesQuery.data ?? [];
+  // Shaped for sectionsOf: `amount` is the consolidated column, so section
+  // grouping and ordering behave exactly as before.
+  const lines = useMemo(
+    () =>
+      (linesQuery.data ?? []).map((l) => ({
+        ...l,
+        amount: l.consolidated_amount,
+      })) as unknown as (ConsolidatedStatementLine & {
+        aggregated_amount: number;
+        elimination_amount: number;
+        consolidated_amount: number;
+      })[],
+    [linesQuery.data],
+  );
   const totals = totalsQuery.data ?? null;
+  const eliminatedTotals = eliminatedTotalsQuery.data ?? null;
+  const hasEliminations =
+    !!eliminatedTotals &&
+    (Number(eliminatedTotals.eliminations_debit) !== 0 ||
+      Number(eliminatedTotals.eliminations_credit) !== 0);
 
   const rowsFor = (statement: ConsolidatedStatement): ReportRow[] => {
     const out: ReportRow[] = [];
@@ -143,7 +171,12 @@ export default function ConsolidatedStatements() {
           values: {
             code: line.account_code ?? "—",
             name: describe(line),
-            amount: money(line.amount),
+            aggregated: money(line.aggregated_amount),
+            elimination:
+              Number(line.elimination_amount) === 0
+                ? "—"
+                : money(line.elimination_amount),
+            consolidated: money(line.consolidated_amount),
           },
         });
       }
@@ -166,21 +199,21 @@ export default function ConsolidatedStatements() {
       if (totals) {
         if (statement === "income_statement") {
           exportRows.push(
-            { id: "is-income", kind: "subtotal", values: { code: "", name: "Total income", amount: money(totals.total_income) } },
-            { id: "is-expense", kind: "subtotal", values: { code: "", name: "Total expenses", amount: money(totals.total_expense) } },
-            { id: "is-result", kind: "grandTotal", values: { code: "", name: "Result for the period", amount: money(totals.net_result) } },
+            { id: "is-income", kind: "subtotal", values: { code: "", name: "Total income", aggregated: "", elimination: "", consolidated: money(totals.total_income) } },
+            { id: "is-expense", kind: "subtotal", values: { code: "", name: "Total expenses", aggregated: "", elimination: "", consolidated: money(totals.total_expense) } },
+            { id: "is-result", kind: "grandTotal", values: { code: "", name: "Result for the period", aggregated: "", elimination: "", consolidated: money(totals.net_result) } },
           );
         } else {
           exportRows.push(
-            { id: "bs-assets", kind: "subtotal", values: { code: "", name: "Total assets", amount: money(totals.total_assets) } },
-            { id: "bs-liabilities", kind: "subtotal", values: { code: "", name: "Total liabilities", amount: money(totals.total_liabilities) } },
-            { id: "bs-equity", kind: "subtotal", values: { code: "", name: "Total equity", amount: money(totals.total_equity) } },
+            { id: "bs-assets", kind: "subtotal", values: { code: "", name: "Total assets", aggregated: "", elimination: "", consolidated: money(totals.total_assets) } },
+            { id: "bs-liabilities", kind: "subtotal", values: { code: "", name: "Total liabilities", aggregated: "", elimination: "", consolidated: money(totals.total_liabilities) } },
+            { id: "bs-equity", kind: "subtotal", values: { code: "", name: "Total equity", aggregated: "", elimination: "", consolidated: money(totals.total_equity) } },
           );
           if (Number(totals.translation_reserve) !== 0) {
             exportRows.push({
               id: "bs-cta",
               kind: "detail",
-              values: { code: "", name: "of which currency translation reserve", amount: money(totals.translation_reserve) },
+              values: { code: "", name: "of which currency translation reserve", aggregated: "", elimination: "", consolidated: money(totals.translation_reserve) },
             });
           }
           exportRows.push({
@@ -196,7 +229,11 @@ export default function ConsolidatedStatements() {
       const isIncome = statement === "income_statement";
       return {
         title: isIncome ? "Consolidated Income Statement" : "Consolidated Balance Sheet",
-        subtitle: `${selectedGroup?.name ?? "Consolidation group"} · projected from the consolidated trial balance · intercompany balances NOT eliminated`,
+        subtitle: `${selectedGroup?.name ?? "Consolidation group"} · projected from the consolidated trial balance · ${
+          hasEliminations
+            ? "aggregated, eliminations and consolidated columns"
+            : "no eliminations generated for this period"
+        }`,
         ...(isIncome
           ? {
               dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
@@ -248,8 +285,10 @@ export default function ConsolidatedStatements() {
   }
 
   const scopeError = scopeQuery.error;
-  const dataError = linesQuery.error ?? totalsQuery.error;
-  const isLoading = linesQuery.isLoading || totalsQuery.isLoading;
+  const dataError =
+    linesQuery.error ?? totalsQuery.error ?? eliminatedTotalsQuery.error;
+  const isLoading =
+    linesQuery.isLoading || totalsQuery.isLoading || eliminatedTotalsQuery.isLoading;
 
   return (
     <ReportsLayout>
@@ -278,8 +317,17 @@ export default function ConsolidatedStatements() {
             Figures are a projection of the consolidated trial balance: controlled
             companies at 100 % (IFRS 10 / ASC 810), foreign companies restated under
             IAS 21.{" "}
-            <strong>Intercompany balances are not yet eliminated</strong>, so intra-group
-            trading still appears on both sides.
+            Each line is shown three ways: aggregated from the member ledgers, the
+            eliminations the engine removed, and the consolidated figure that remains.{" "}
+            {hasEliminations ? (
+              <strong>Intra-group positions have been eliminated for this period.</strong>
+            ) : (
+              <strong>
+                No eliminations have been generated for this period, so intra-group
+                trading still appears on both sides — run them from the Intercompany
+                Eliminations report.
+              </strong>
+            )}
           </AlertDescription>
         </Alert>
 
@@ -415,6 +463,14 @@ export default function ConsolidatedStatements() {
                       Result for the period:{" "}
                       <strong>{formatAmount(Number(totals.net_result), currency)}</strong>
                     </span>
+                    {eliminatedTotals && (
+                      <span>
+                        Consolidated result:{" "}
+                        <strong>
+                          {formatAmount(Number(eliminatedTotals.net_result), currency)}
+                        </strong>
+                      </span>
+                    )}
                   </div>
                 )}
               </CardContent>

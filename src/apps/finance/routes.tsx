@@ -36,6 +36,7 @@ const ReportCenter = lazy(() => import("@/pages/finance/ReportCenter"));
 const ConsolidatedTrialBalanceReport = lazy(() => import("@/pages/reports/ConsolidatedTrialBalance"));
 const ConsolidatedStatementsReport = lazy(() => import("@/pages/reports/ConsolidatedStatements"));
 const ConsolidationIntercompanyReport = lazy(() => import("@/pages/reports/ConsolidationIntercompany"));
+const ConsolidationEliminationsReport = lazy(() => import("@/pages/reports/ConsolidationEliminations"));
 // ContactDetail removed — unified into /contacts-app/profile via ContactRedirect (see route below)
 const AccountsReceivable = lazy(() => import("@/pages/finance/AccountsReceivable"));
 const AccountsPayable = lazy(() => import("@/pages/finance/AccountsPayable"));
@@ -659,6 +660,17 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Intercompany Identification">
                 <ConsolidationIntercompanyReport />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/eliminations"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Intercompany Eliminations">
+                <ConsolidationEliminationsReport />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
