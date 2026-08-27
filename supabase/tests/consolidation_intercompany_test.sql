@@ -577,8 +577,11 @@ BEGIN
   END IF;
 
   ------------------------------------- 5: another organization sees nothing ---
+  -- Row-level security only bites for a non-privileged role, so the isolation
+  -- assertions below run as `authenticated`, exactly as the application does.
   PERFORM set_config('request.jwt.claims',
     json_build_object('sub', v_user_b::text, 'role', 'authenticated')::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
 
   IF (SELECT count(*) FROM public.consolidation_intercompany_partners
        WHERE group_id = v_group) <> 0 THEN
@@ -599,12 +602,18 @@ BEGIN
     RAISE EXCEPTION 'a foreign organization ran the intercompany activity report for this group';
   END IF;
 
-  -- The owner is not over-blocked by the isolation above.
+  -- The owner is not over-blocked by the isolation above: still as
+  -- `authenticated`, only the claims change.
   PERFORM set_config('request.jwt.claims',
     json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
+  IF (SELECT count(*) FROM public.consolidation_intercompany_partners
+       WHERE group_id = v_group) <> 2 THEN
+    RAISE EXCEPTION 'the owning user cannot read its own two intercompany declarations';
+  END IF;
   IF (SELECT count(*) FROM public.consolidation_intercompany_activity(v_group, v_from, v_to)) < 2 THEN
     RAISE EXCEPTION 'the owning user lost access to its own intercompany activity';
   END IF;
+  EXECUTE 'RESET ROLE';
 
   RAISE EXCEPTION 'rollback: Brick 6 projection, coverage and isolation invariants passed (closing rate %)', v_close;
 END $$;
