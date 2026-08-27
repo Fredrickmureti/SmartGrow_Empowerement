@@ -48,9 +48,12 @@ import {
   useConsolidationIntercompanyPartners,
   useConsolidationMemberContacts,
   useConsolidationIntercompanyBalances,
+  useConsolidationIntercompanyActivity,
+  useConsolidationIntercompanyCoverage,
   useConsolidationIntercompanyMutations,
   isReconciled,
 } from "@/hooks/finance/useConsolidationIntercompany";
+
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
 function formatAmount(value: number, currency: string) {
