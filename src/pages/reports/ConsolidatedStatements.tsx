@@ -421,14 +421,20 @@ export default function ConsolidatedStatements() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Consolidated balance sheet — {selectedGroup?.name}
-                </CardTitle>
-                <CardDescription>
-                  Position as of {dateTo}, presented in {currency}. The result for the
-                  period is carried as its own equity line until the year is closed.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-base">
+                    Consolidated balance sheet — {selectedGroup?.name}
+                  </CardTitle>
+                  <CardDescription>
+                    Position as of {dateTo}, presented in {currency}. The result for the
+                    period is carried as its own equity line until the year is closed.
+                  </CardDescription>
+                </div>
+                <ReportExportButtons
+                  getExportConfig={getExportConfig("balance_sheet")}
+                  compact
+                />
               </CardHeader>
               <CardContent className="space-y-4">
                 <ReportSurface
