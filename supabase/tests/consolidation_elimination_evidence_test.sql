@@ -97,6 +97,7 @@ END $$;
 DO $$
 DECLARE
   r record;
+  leg record;
   v_from date;
   v_to date;
   v_flow_debit numeric;
@@ -133,7 +134,7 @@ BEGIN
         r.group_id, v_flow_debit, v_line_debit;
     END IF;
 
-    FOR r IN
+    FOR leg IN
       SELECT el.group_id, el.elimination_class, el.declaring_business_id,
              el.counterparty_business_id, el.group_account_id,
              el.period_start, el.period_end, el.debit, el.credit
@@ -145,15 +146,15 @@ BEGIN
       SELECT coalesce(sum(ev.debit_presentation - ev.credit_presentation), 0)
         INTO v_evidence
         FROM public.consolidation_elimination_evidence(
-               r.group_id, r.period_start, r.period_end, r.elimination_class,
-               r.declaring_business_id, r.counterparty_business_id, r.group_account_id) ev;
+               leg.group_id, leg.period_start, leg.period_end, leg.elimination_class,
+               leg.declaring_business_id, leg.counterparty_business_id, leg.group_account_id) ev;
 
       -- An elimination reverses the position it removes: the leg's credit is
       -- the position's debit and vice versa.
-      IF abs(v_evidence + (r.debit - r.credit)) >= 1 THEN
+      IF abs(v_evidence + (leg.debit - leg.credit)) >= 1 THEN
         RAISE EXCEPTION
           'leg % / % : the evidence nets to % but the leg removed %',
-          r.elimination_class, r.group_account_id, v_evidence, (r.debit - r.credit);
+          leg.elimination_class, leg.group_account_id, v_evidence, (leg.debit - leg.credit);
       END IF;
       v_checked := v_checked + 1;
     END LOOP;
