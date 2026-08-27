@@ -94410,9 +94410,18 @@ export type Database = {
           closing_cta: number
           closing_rate: number
           cta_movement: number
+          equity_movement: number
+          expected_cta_movement: number
+          expected_from_equity_movements: number
+          expected_from_opening_net_assets: number
+          expected_from_result: number
           historical_rate: number
+          is_reconciled: boolean
+          movement_difference: number
           opening_cta: number
+          opening_net_assets: number
           opening_rate: number
+          period_result: number
           presentation_currency: string
         }[]
       }
