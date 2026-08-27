@@ -16,7 +16,7 @@
  * - Any scope or rate gap the engine refuses is surfaced verbatim.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
