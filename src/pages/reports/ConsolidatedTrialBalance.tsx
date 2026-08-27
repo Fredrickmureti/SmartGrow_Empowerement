@@ -296,13 +296,16 @@ export default function ConsolidatedTrialBalance() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-sm">
-            Balances are combined at 100 % for controlled companies (IFRS 10 / ASC 810).{" "}
+            Balances are combined at 100 % for controlled companies (IFRS 10 / ASC 810)
+            and companies kept in another currency are restated under IAS 21 — assets
+            and liabilities at the closing rate, income and expense at the average
+            rate, equity at the rate of the day it moved.{" "}
             <strong>Intercompany balances are not yet eliminated</strong>, so intra-group
-            trading still appears on both sides. Currency translation and eliminations
-            arrive in later phases; until then this report refuses any scope it cannot
-            combine honestly.
+            trading still appears on both sides. This report refuses any scope it cannot
+            combine honestly rather than approximating it.
           </AlertDescription>
         </Alert>
+
 
         <Card>
           <CardHeader>
