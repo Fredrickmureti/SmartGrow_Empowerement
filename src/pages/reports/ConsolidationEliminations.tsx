@@ -75,6 +75,8 @@ import {
   useEliminationDiagnosis,
 } from "@/hooks/finance/useConsolidationEliminations";
 import { EliminationRefusalPanel } from "@/components/finance/EliminationRefusalPanel";
+import { EliminationEvidencePanel } from "@/components/finance/EliminationEvidencePanel";
+
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
