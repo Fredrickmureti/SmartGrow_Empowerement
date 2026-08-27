@@ -52,7 +52,7 @@ import {
   Scissors,
   ShieldAlert,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { toAppError } from "@/lib/supabaseError";
@@ -93,10 +93,23 @@ export default function ConsolidationEliminations() {
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
 
+  // A consolidated statement line links here with its group, period and the
+  // group account whose Eliminations column was clicked, so the drill-down
+  // opens on the same figure the accountant was reading.
+  const [searchParams] = useSearchParams();
   const today = new Date();
-  const [groupId, setGroupId] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
+  const [groupId, setGroupId] = useState<string | null>(
+    searchParams.get("consolidationGroup"),
+  );
+  const [dateFrom, setDateFrom] = useState(
+    searchParams.get("date_from") ?? format(startOfMonth(today), "yyyy-MM-dd"),
+  );
+  const [dateTo, setDateTo] = useState(
+    searchParams.get("date_to") ?? format(endOfMonth(today), "yyyy-MM-dd"),
+  );
+  const [focusAccountId, setFocusAccountId] = useState<string | null>(
+    searchParams.get("group_account_id"),
+  );
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
@@ -519,6 +532,8 @@ export default function ConsolidationEliminations() {
                 eliminations={eliminations}
                 rules={rulesQuery.data ?? []}
                 isLoading={eliminationsQuery.isLoading}
+                focusAccountId={focusAccountId}
+                onClearFocus={() => setFocusAccountId(null)}
               />
             </CardContent>
 

@@ -626,3 +626,31 @@ must be re-run by a signed-in accountant before this period is relied on.
 
 Audit/run history, period control and reversal, persisted runs, NCI, and the
 consolidated cash flow statement.
+
+### Step 7.4 closure — statement → eliminations path, tests
+
+- The Eliminations column on a consolidated statement line is now a link. It
+  carries `consolidationGroup`, `date_from`, `date_to` and `group_account_id` to
+  the eliminations report, which reads those params and shows only the legs that
+  moved that group account, with a "show all" escape. The figure itself is still
+  the server's; the link carries identity, not arithmetic.
+- No separate `consolidation_line_eliminations` RPC was added, deliberately.
+  The generated legs are already read under RLS by the eliminations page, and
+  "which legs touched this account" is a filter on rows the server returned, not
+  a new accounting question. A second RPC would have duplicated the read seam
+  without adding a control. The evidence beneath each leg still comes only from
+  `consolidation_elimination_evidence`.
+- `supabase/tests/consolidation_elimination_evidence_test.sql` added: posture
+  (invoker, pinned search_path, anon revoked, authenticated granted),
+  delegation (flows aggregate the entry-level reader; the reader gates on scope
+  and translates through the consolidated trial balance; evidence applies the
+  same org check and decides ledger access server-side), and a live parity block
+  that reconciles every non-difference leg to its own evidence and the flow
+  summary to its own entry lines. The parity block skips itself with a notice
+  when run without a signed-in session, because the invoker chain refuses
+  anonymous callers — that remains the one thing only the accountant can run.
+- Architecture suite extended (`consolidation-eliminations.test.ts`, 17 passing):
+  no arithmetic or reduce in the evidence panel, every ledger navigation inside
+  the `viewer_can_open_ledger` guard, difference legs explained by policy, and
+  the statement → drill-down parameters asserted on both ends.
+- `tsgo --noEmit` clean.

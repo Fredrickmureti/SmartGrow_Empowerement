@@ -160,3 +160,52 @@ describe("consolidation eliminations — refusal remedies", () => {
     expect(read(SETTINGS)).toContain("eliminationClassAnchor");
   });
 });
+
+/**
+ * Brick 7.4 guard: the drill-down is evidence the server produced, and access
+ * to another company's ledger is the server's decision.
+ *
+ * The failure this prevents is a panel that re-adds journal lines in the
+ * browser to "prove" a leg, or that offers a ledger link the viewer's role
+ * cannot open, turning a traceability feature into a leak surface.
+ */
+describe("consolidation eliminations — drill-down evidence", () => {
+  const EVIDENCE = "components/finance/EliminationEvidencePanel.tsx";
+
+  it("evidence comes from the server RPC and is never recomputed in the browser", () => {
+    expect(read(HOOK)).toContain("consolidation_elimination_evidence");
+    const src = read(EVIDENCE);
+    expect(arithmeticOffenders(src)).toEqual([]);
+    expect(src).toContain("useEliminationEvidence");
+    // No local reduce/sum over the evidence rows.
+    expect(src).not.toMatch(/\.reduce\(/);
+  });
+
+  it("ledger links appear only where the server allowed them", () => {
+    const src = read(EVIDENCE);
+    expect(src).toContain("viewer_can_open_ledger");
+    // Every navigation to a member company's books is inside that guard.
+    const links = src.match(/navigate\(/g) ?? [];
+    const guards = src.match(/r\.viewer_can_open_ledger \? \(/g) ?? [];
+    expect(links.length).toBeGreaterThan(0);
+    expect(guards.length).toBe(links.length);
+  });
+
+  it("a difference leg explains its policy instead of fabricating evidence", () => {
+    const src = read(EVIDENCE);
+    expect(src).toContain("DifferenceExplanation");
+    expect(src).toContain("ELIMINATION_POLICY_LABELS");
+    expect(src).toContain("tolerance_amount");
+  });
+
+  it("a statement line carries group, period and account into the drill-down", () => {
+    const statements = read(STATEMENTS);
+    expect(statements).toContain("/finance/reports/eliminations?");
+    expect(statements).toContain("group_account_id");
+    expect(statements).toContain("consolidationGroup");
+    const page = read(PAGE);
+    expect(page).toContain("useSearchParams");
+    expect(page).toContain('searchParams.get("group_account_id")');
+    expect(page).toContain("focusAccountId");
+  });
+});

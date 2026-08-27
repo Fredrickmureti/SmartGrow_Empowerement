@@ -20,7 +20,7 @@ import { Fragment, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2, Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Filter, Loader2, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toAppError } from "@/lib/supabaseError";
@@ -60,6 +60,13 @@ interface Props {
   eliminations: EliminationRow[];
   rules: EliminationRule[];
   isLoading: boolean;
+  /**
+   * Arrived here from a consolidated statement line: show only the legs that
+   * moved that group account. This is a filter over rows the server already
+   * returned — no figure is recomputed or re-summed here.
+   */
+  focusAccountId?: string | null;
+  onClearFocus?: () => void;
 }
 
 export function EliminationEvidencePanel({
@@ -70,6 +77,8 @@ export function EliminationEvidencePanel({
   eliminations,
   rules,
   isLoading,
+  focusAccountId = null,
+  onClearFocus,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -91,9 +100,43 @@ export function EliminationEvidencePanel({
     );
   }
 
+  const visible = focusAccountId
+    ? eliminations.filter((r) => r.group_account_id === focusAccountId)
+    : eliminations;
+  const focusLabel = focusAccountId
+    ? eliminations.find((r) => r.group_account_id === focusAccountId)
+    : null;
+
   return (
+    <div className="space-y-2">
+      {focusAccountId && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">
+            Showing only the legs that moved{" "}
+            <span className="font-medium text-foreground">
+              {focusLabel
+                ? `${focusLabel.group_account_code} · ${focusLabel.group_account_name}`
+                : "the selected statement line"}
+            </span>
+            .
+          </span>
+          {onClearFocus && (
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={onClearFocus}>
+              Show all eliminations
+            </Button>
+          )}
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No generated elimination touches that account in this period. The Eliminations
+          column on that statement line comes from a different account, or the period has
+          not been regenerated since the line changed.
+        </p>
+      ) : (
     <div className="border rounded-md divide-y">
-      {eliminations.map((row) => {
+      {visible.map((row) => {
         const isOpen = openId === row.id;
         return (
           <Fragment key={row.id}>
@@ -145,6 +188,8 @@ export function EliminationEvidencePanel({
           </Fragment>
         );
       })}
+    </div>
+      )}
     </div>
   );
 }
