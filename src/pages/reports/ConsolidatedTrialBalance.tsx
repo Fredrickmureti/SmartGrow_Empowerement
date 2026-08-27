@@ -1,24 +1,27 @@
 /**
- * Consolidated Trial Balance (Brick 2).
+ * Consolidated Trial Balance (Bricks 2 and 3).
  *
  * The first genuinely *consolidated* report in the system: it aggregates the
- * member companies of a consolidation group into one trial balance.
+ * member companies of a consolidation group into one trial balance, restated
+ * into the group's reporting currency.
  *
  * SINGLE SOURCE OF TRUTH
  * ----------------------
- * Every figure comes from the `get_consolidated_trial_balance` RPC, which reads
- * only the authoritative ledger functions (`get_ledger_opening_balances`,
- * `get_account_movements`). This page performs no accounting arithmetic beyond
- * regrouping the server's rows by account, so it can never disagree with the
- * formal single-entity statements.
+ * Every figure comes from `get_consolidated_trial_balance_translated`, which
+ * reads only the authoritative ledger functions and applies IAS 21 rates
+ * server-side. This page performs no accounting arithmetic beyond regrouping
+ * the server's rows by account, so it can never disagree with the formal
+ * single-entity statements.
  *
  * HONEST LIMITS (deliberately not faked here)
  * -------------------------------------------
- * - No FX translation / CTA: mixed-currency groups are refused, not approximated.
  * - No intercompany eliminations: the report says so explicitly.
  * - No equity-method accounting: such members are refused, not guessed.
+ * - Translation is refused, never approximated, when the rate history does not
+ *   cover the period or the group has no translation reserve account.
  * Non-controlling interests are *disclosed*, never netted into group figures.
  */
+
 import { useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
@@ -55,11 +58,13 @@ import { useConsolidationGroups, CONSOLIDATION_METHOD_LABELS } from "@/hooks/fin
 import {
   useConsolidationScope,
   useConsolidatedTrialBalance,
+  useConsolidationCtaReconciliation,
   groupTrialBalanceByAccount,
   describeConsolidationBlocker,
   nonControllingShare,
   type ConsolidatedTrialBalanceRow,
 } from "@/hooks/finance/useConsolidatedTrialBalance";
+
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
 function formatAmount(value: number, currency: string) {
@@ -69,6 +74,27 @@ function formatAmount(value: number, currency: string) {
     return `${currency} ${value.toFixed(2)}`;
   }
 }
+
+/**
+ * Which IAS 21 rate restated a line, in the words an accountant would use.
+ * Equity has no single rate — it moves at the rate of the day it moved — so the
+ * figure shown there is the effective rate actually applied.
+ */
+const RATE_CLASS_LABELS: Record<string, string> = {
+  closing: "closing rate",
+  average: "average rate",
+  transaction: "transaction-date rate",
+  residual: "balancing figure",
+};
+
+function describeRate(row: ConsolidatedTrialBalanceRow): string {
+  if (row.base_currency === row.presentation_currency) return "—";
+  const label = RATE_CLASS_LABELS[row.rate_class] ?? row.rate_class;
+  if (row.rate_used === null || row.rate_used === undefined) return label;
+  return `${Number(row.rate_used).toFixed(4)} · ${label}`;
+}
+
+
 
 export default function ConsolidatedTrialBalance() {
   const navigate = useNavigate();
@@ -97,6 +123,15 @@ export default function ConsolidatedTrialBalance() {
 
   const tbQuery = useConsolidatedTrialBalance(
     canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
+
+  /** True when at least one member keeps its books in another currency. */
+  const hasTranslation = (scopeQuery.data ?? []).some((m) => m.requires_translation);
+
+  const ctaQuery = useConsolidationCtaReconciliation(
+    canViewConsolidated && scopeIsClean && hasTranslation ? groupId : null,
     dateFrom,
     dateTo,
   );
@@ -145,9 +180,12 @@ export default function ConsolidatedTrialBalance() {
     ];
     if (showMembers) {
       base.splice(2, 0, { key: "company", header: "Company" });
+      if (hasTranslation) {
+        base.splice(3, 0, { key: "rate", header: "Rate applied", align: "right" });
+      }
     }
     return base;
-  }, [showMembers]);
+  }, [showMembers, hasTranslation]);
 
   const rows = useMemo<ReportRow[]>(() => {
     const out: ReportRow[] = [];
@@ -158,8 +196,11 @@ export default function ConsolidatedTrialBalance() {
         id: line.account_id,
         values: {
           code: line.account_code ?? "—",
-          name: line.account_name,
+          name:
+            line.account_name +
+            (line.is_residual ? " (currency translation reserve)" : ""),
           company: showMembers ? "Group total" : "",
+          rate: "",
           opening: money(line.opening_balance),
           debit: money(line.total_debit),
           credit: money(line.total_credit),
@@ -169,22 +210,32 @@ export default function ConsolidatedTrialBalance() {
 
       if (!showMembers) continue;
       for (const c of line.contributions as ConsolidatedTrialBalanceRow[]) {
+        const source = c.base_currency ?? currency;
+        const translated = source !== c.presentation_currency;
+        // Foreign members are shown in their own currency, with the rate that
+        // restated them, so a reviewer can retrace every group figure.
+        const show = (own: number, group: number) =>
+          translated
+            ? `${formatAmount(own, source)} → ${money(group)}`
+            : money(group);
         out.push({
           id: `${line.account_id}:${c.business_id}`,
           values: {
             code: "",
             name: "",
             company: c.business_name + (c.is_parent ? " (parent)" : ""),
-            opening: money(Number(c.opening_balance)),
-            debit: money(Number(c.total_debit)),
-            credit: money(Number(c.total_credit)),
-            closing: money(Number(c.closing_balance)),
+            rate: describeRate(c),
+            opening: show(Number(c.opening_balance), Number(c.translated_opening)),
+            debit: show(Number(c.total_debit), Number(c.translated_debit)),
+            credit: show(Number(c.total_credit), Number(c.translated_credit)),
+            closing: show(Number(c.closing_balance), Number(c.translated_closing)),
           },
         });
       }
     }
     return out;
   }, [accountLines, showMembers, currency]);
+
 
   if (!permLoading && !canViewConsolidated) {
     return (
@@ -245,13 +296,16 @@ export default function ConsolidatedTrialBalance() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-sm">
-            Balances are combined at 100 % for controlled companies (IFRS 10 / ASC 810).{" "}
+            Balances are combined at 100 % for controlled companies (IFRS 10 / ASC 810)
+            and companies kept in another currency are restated under IAS 21 — assets
+            and liabilities at the closing rate, income and expense at the average
+            rate, equity at the rate of the day it moved.{" "}
             <strong>Intercompany balances are not yet eliminated</strong>, so intra-group
-            trading still appears on both sides. Currency translation and eliminations
-            arrive in later phases; until then this report refuses any scope it cannot
-            combine honestly.
+            trading still appears on both sides. This report refuses any scope it cannot
+            combine honestly rather than approximating it.
           </AlertDescription>
         </Alert>
+
 
         <Card>
           <CardHeader>
@@ -352,6 +406,12 @@ export default function ConsolidatedTrialBalance() {
                           <span className="font-medium">{m.business_name}</span>
                           {m.is_parent && <Badge variant="secondary">Parent</Badge>}
                           <Badge variant="outline">{m.base_currency ?? "no currency"}</Badge>
+                          {m.requires_translation && (
+                            <Badge variant="outline">
+                              translated to {m.presentation_currency}
+                            </Badge>
+                          )}
+
                           <span className="text-muted-foreground">
                             {Number(m.ownership_percent ?? 0)}% ·{" "}
                             {CONSOLIDATION_METHOD_LABELS[m.method] ?? m.method}
@@ -440,6 +500,97 @@ export default function ConsolidatedTrialBalance() {
                 </CardContent>
               </Card>
             )}
+
+            {scopeIsClean && hasTranslation && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Currency translation reserve</CardTitle>
+                  <CardDescription>
+                    What the restatement above put into the reserve, checked against an
+                    independent proof built from each company's opening net assets, its
+                    result for the period and its dated equity movements.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {ctaQuery.error ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        {ctaQuery.error instanceof Error
+                          ? ctaQuery.error.message
+                          : "Could not prove the translation reserve."}
+                      </AlertDescription>
+                    </Alert>
+                  ) : ctaQuery.isLoading ? (
+                    <Skeleton className="h-24 w-full" />
+                  ) : (
+                    (ctaQuery.data ?? []).map((c) => (
+                      <div key={c.business_id} className="space-y-1 border-b pb-3 last:border-0 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{c.business_name}</span>
+                          <Badge variant="outline">
+                            {c.base_currency} → {c.presentation_currency}
+                          </Badge>
+                          {c.is_reconciled ? (
+                            <Badge variant="secondary">Proved</Badge>
+                          ) : (
+                            <Badge variant="destructive">Does not reconcile</Badge>
+                          )}
+                        </div>
+                        <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 text-muted-foreground">
+                          <span>
+                            Reserve brought forward:{" "}
+                            <strong className="text-foreground">
+                              {formatAmount(Number(c.opening_cta), currency)}
+                            </strong>
+                          </span>
+                          <span>
+                            Movement this period:{" "}
+                            <strong className="text-foreground">
+                              {formatAmount(Number(c.cta_movement), currency)}
+                            </strong>
+                          </span>
+                          <span>
+                            On opening net assets:{" "}
+                            {formatAmount(Number(c.expected_from_opening_net_assets), currency)}
+                          </span>
+                          <span>
+                            On the period result:{" "}
+                            {formatAmount(Number(c.expected_from_result), currency)}
+                          </span>
+                          <span>
+                            On equity movements:{" "}
+                            {formatAmount(Number(c.expected_from_equity_movements), currency)}
+                          </span>
+                          <span>
+                            Reserve carried forward:{" "}
+                            <strong className="text-foreground">
+                              {formatAmount(Number(c.closing_cta), currency)}
+                            </strong>
+                          </span>
+                        </div>
+                        {!c.is_reconciled && (
+                          <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              The reserve moved by{" "}
+                              {formatAmount(Number(c.cta_movement), currency)} but the
+                              independent proof expects{" "}
+                              {formatAmount(Number(c.expected_cta_movement), currency)} — a
+                              difference of{" "}
+                              {formatAmount(Number(c.movement_difference), currency)}. Treat
+                              the translated figures for this company as unreliable until
+                              this is explained.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+
 
             {scopeIsClean && nciDisclosure.length > 0 && (
               <Card>

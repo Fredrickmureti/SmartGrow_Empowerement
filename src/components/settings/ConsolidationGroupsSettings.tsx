@@ -127,6 +127,27 @@ export function ConsolidationGroupsSettings() {
     [members],
   );
 
+  const businessCurrency = (id: string | null) =>
+    businesses.find((b) => b.id === id)?.base_currency ?? null;
+
+  /**
+   * Companies whose own books are kept in a currency other than the group's
+   * reporting currency. Only these need translating — and only their presence
+   * makes a translation reserve account mandatory.
+   */
+  const foreignMembers = useMemo(
+    () =>
+      activeGroup
+        ? openMembers.filter((m) => {
+            const currency = businessCurrency(m.business_id);
+            return !!currency && currency !== activeGroup.presentation_currency;
+          })
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openMembers, activeGroup, businesses],
+  );
+
+
   const availableBusinesses = useMemo(
     () =>
       scopedBusinesses.filter((b) => !openMembers.some((m) => m.business_id === b.id)),
@@ -185,12 +206,13 @@ export function ConsolidationGroupsSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Defining a group records the ownership structure only. It does not
-          change any company's books, and no consolidated statement is produced
-          yet — currency translation and intercompany eliminations are separate,
-          later steps.
+          Defining a group records the ownership structure and the currency
+          rules used to report it. It never changes any company's own books —
+          consolidated figures are produced at report time from each company's
+          posted ledger.
         </AlertDescription>
       </Alert>
+
 
       {!canManage && (
         <Alert>
@@ -369,10 +391,12 @@ export function ConsolidationGroupsSettings() {
                     <TableHead>Owned by</TableHead>
                     <TableHead className="text-right">Ownership</TableHead>
                     <TableHead>Method</TableHead>
+                    <TableHead>Opening equity rate date</TableHead>
                     <TableHead>Effective from</TableHead>
                     <TableHead>Until</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
+
                 </TableHeader>
                 <TableBody>
                   {members.map((member) => {
@@ -420,7 +444,36 @@ export function ConsolidationGroupsSettings() {
                             </Select>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {businessCurrency(member.business_id) ===
+                          activeGroup.presentation_currency ? (
+                            <span className="text-muted-foreground">
+                              same currency
+                            </span>
+                          ) : closed || !canManage ? (
+                            member.historical_rate_date ?? member.effective_from
+                          ) : (
+                            <Input
+                              type="date"
+                              className="h-8 w-[150px]"
+                              value={member.historical_rate_date ?? member.effective_from}
+                              onChange={async (e) => {
+                                const value = e.target.value;
+                                if (!value) return;
+                                try {
+                                  await updateMember.mutateAsync({
+                                    id: member.id,
+                                    historical_rate_date: value,
+                                  });
+                                } catch (error) {
+                                  fail(error, "Could not update the rate date");
+                                }
+                              }}
+                            />
+                          )}
+                        </TableCell>
                         <TableCell>{member.effective_from}</TableCell>
+
                         <TableCell>
                           {closed ? (
                             <Badge variant="outline">closed {member.effective_to}</Badge>
@@ -457,7 +510,7 @@ export function ConsolidationGroupsSettings() {
                   })}
                   {members.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-muted-foreground">
+                      <TableCell colSpan={8} className="text-muted-foreground">
                         No entities in this group yet.
                       </TableCell>
                     </TableRow>
@@ -553,6 +606,107 @@ export function ConsolidationGroupsSettings() {
           </CardContent>
         </Card>
       )}
+
+      {activeGroup && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Coins className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Currency translation</CardTitle>
+                <CardDescription>
+                  Companies kept in another currency are restated into{" "}
+                  {activeGroup.presentation_currency} at report time. The
+                  difference that restatement creates is held in a reserve
+                  account of the parent company — it is never spread across the
+                  figures it came from.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {foreignMembers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Every company in this group already keeps its books in{" "}
+                {activeGroup.presentation_currency}, so nothing needs
+                translating.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Translated at report time:{" "}
+                  {foreignMembers
+                    .map(
+                      (m) =>
+                        `${businessName(m.business_id)} (${businessCurrency(m.business_id)})`,
+                    )
+                    .join(", ")}
+                  .
+                </p>
+
+                {!activeGroup.cta_account_id && (
+                  <Alert variant="destructive">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Consolidated reports for this group are blocked until a
+                      translation reserve account is chosen. Without somewhere
+                      to hold the translation difference, the consolidated
+                      figures would not balance.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Translation reserve account</Label>
+                    <Select
+                      value={activeGroup.cta_account_id ?? ""}
+                      disabled={!canManage}
+                      onValueChange={async (value) => {
+                        try {
+                          await updateGroupTranslationSettings.mutateAsync({
+                            id: activeGroup.id,
+                            cta_account_id: value,
+                          });
+                          toast({ title: "Translation reserve account saved" });
+                        } catch (error) {
+                          fail(error, "Could not save the reserve account");
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an equity account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ctaAccounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.code} — {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      An equity account of{" "}
+                      {businessName(activeGroup.parent_business_id)}. Reserves
+                      of the companies being translated cannot be used.
+                    </p>
+                    {ctaAccounts.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        The parent company has no equity account available yet —
+                        add one in its chart of accounts first.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+
 
       {activeGroup && (
         <Card>
