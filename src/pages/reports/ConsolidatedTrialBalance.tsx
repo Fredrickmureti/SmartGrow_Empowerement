@@ -454,16 +454,24 @@ export default function ConsolidatedTrialBalance() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="members"
-                checked={showMembers}
-                onCheckedChange={setShowMembers}
-              />
-              <Label htmlFor="members" className="text-sm font-normal">
-                Show each company's contribution under every account
-              </Label>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="members"
+                  checked={showMembers}
+                  onCheckedChange={setShowMembers}
+                />
+                <Label htmlFor="members" className="text-sm font-normal">
+                  Show each company's contribution under every account
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A group figure is an aggregation and opens nothing. A company's
+                contribution is that company's own account, so it opens its ledger for
+                this period — where your access permits.
+              </p>
             </div>
+
           </CardContent>
         </Card>
 
