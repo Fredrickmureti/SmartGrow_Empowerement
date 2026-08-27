@@ -113,6 +113,28 @@ export function ConsolidationEliminationRules({
 
   const accounts = accountsQuery.data ?? [];
 
+  /**
+   * Arriving from a refusal that named "configure a difference account" only
+   * makes sense with that policy selected, so the draft starts there. It stays
+   * a draft: nothing is saved until the accountant names the account and saves.
+   */
+  const prefilled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusClass || focusRemedy !== "configure_difference_account") return;
+    const key = `${groupId}:${focusClass}`;
+    if (prefilled.current === key) return;
+    prefilled.current = key;
+    setDrafts((prev) => ({
+      ...prev,
+      [focusClass]: {
+        ...draftFrom(ruleFor.get(focusClass)),
+        ...prev[focusClass],
+        difference_policy: "post_difference" as EliminationDifferencePolicy,
+      },
+    }));
+  }, [focusClass, focusRemedy, groupId, ruleFor]);
+
+
   const draftOf = (cls: EliminationClass): Draft =>
     drafts[cls] ?? draftFrom(ruleFor.get(cls));
 
