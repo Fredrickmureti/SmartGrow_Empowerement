@@ -112647,7 +112647,10 @@ export type Database = {
       consolidation_elimination_class:
         | "intercompany_balance"
         | "intercompany_trading"
-      consolidation_elimination_difference_policy: "refuse" | "post_difference"
+      consolidation_elimination_difference_policy:
+        | "refuse"
+        | "post_difference"
+        | "post_to_cta"
       consolidation_method: "full" | "proportional" | "equity" | "excluded"
       contact_type: "customer" | "supplier" | "both"
       contract_amendment_kind:
@@ -113846,6 +113849,7 @@ export const Constants = {
       consolidation_elimination_difference_policy: [
         "refuse",
         "post_difference",
+        "post_to_cta",
       ],
       consolidation_method: ["full", "proportional", "equity", "excluded"],
       contact_type: ["customer", "supplier", "both"],
