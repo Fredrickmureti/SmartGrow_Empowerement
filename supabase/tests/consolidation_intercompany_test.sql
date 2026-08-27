@@ -117,10 +117,17 @@ BEGIN
     (id, organization_id, name, parent_business_id, presentation_currency)
   VALUES (v_group, v_org, 'IC Test Group', v_p, 'KES');
 
+  -- Membership is backdated a year. Without an explicit effective_from the
+  -- column defaults to CURRENT_DATE, and the partner guard then correctly
+  -- refuses check 2 below, which restores a declaration to current_date - 365:
+  -- a company cannot be declared an intercompany partner for a period during
+  -- which it was not yet a member of the group. Backdating membership is the
+  -- realistic fixture — an established group, not one founded this morning.
   INSERT INTO public.consolidation_group_members
-    (organization_id, group_id, business_id, parent_business_id, ownership_percent)
-  VALUES (v_org, v_group, v_p, NULL, 100),
-         (v_org, v_group, v_s, v_p,  100);
+    (organization_id, group_id, business_id, parent_business_id, ownership_percent,
+     effective_from)
+  VALUES (v_org, v_group, v_p, NULL, 100, current_date - 400),
+         (v_org, v_group, v_s, v_p,  100, current_date - 400);
 
   -- AR/AP control accounts must be provisioned through the system-account
   -- helper; a direct INSERT of system_role is refused by the accounts guard.

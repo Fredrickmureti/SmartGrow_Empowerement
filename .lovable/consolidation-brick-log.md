@@ -55,14 +55,85 @@ repository. Nothing here is carried over from an earlier engineer's status note.
 - `src/test/architecture/consolidated-trial-balance.test.ts` — fixture updated so
   rows carry the group account the RPC now returns.
 
-## Next — Brick 6: intercompany identification only
+## Brick 6 — intercompany identification: CLOSED 2026-08-28
 
-Confirmed absent from the database: any intercompany, elimination,
-related-party, trading-partner or persisted consolidation-run table. Available
-ledger hooks: `journal_entry_lines.contact_id`, `contacts.business_id`,
-`contacts.commercial_partner_id`, `contacts.parent_contact_id`.
+Scope was and remains **identification only** — explicit, auditable
+contact-to-member links, never inference from account names or descriptions.
+Eliminations, persisted runs, consolidated cash flow, equity method and
+minority interest remain out of scope until their own bricks. The engine
+still produces no elimination entries, and the UI says so.
 
-Scope stays **identification only** — explicit, auditable contact-to-member
-links, never inference from account names or descriptions. Eliminations,
-persisted runs, consolidated cash flow, equity method and minority interest
-remain out of scope until their own bricks.
+### Verified by execution, in this session
+
+All three blocks of `supabase/tests/consolidation_intercompany_test.sql` were
+run against the connected database. Each block ends in a deliberate
+`RAISE EXCEPTION`, so the whole `DO` block — a single statement — rolls back
+atomically regardless of autocommit. Residue was checked by query after each
+run: zero rows left behind for every fixture object (organizations,
+businesses, groups, accounts, contacts, journal entries, auth users).
+
+- **Block 1 (contract)** — PASS. `consolidation_intercompany_balances` is
+  SECURITY INVOKER, reads the AR/AP sub-ledger views, translates through
+  `consolidation_member_translation_rates`, gates on
+  `resolve_consolidation_scope`, never defaults a missing rate to 1:1,
+  is executable by `authenticated` and not by `anon`. Unknown group and
+  inverted date range are both refused.
+- **Block 2 (behaviour)** — PASS. A 40,000 / 38,000 asymmetric pair reports as
+  one row in the correct direction with the 2,000 disagreement surfaced, never
+  silently netted. A zero-position direction is not reported. Future-dated
+  declarations do not affect the period. Self-counterparty, foreign-contact and
+  overlapping declarations are all rejected, and every change lands in
+  `consolidation_group_change_log`.
+- **Block 3 (projection, coverage, isolation)** — PASS, closing rate
+  **108.90** (not 1, so translation is genuinely exercised). Two organizations,
+  two base currencies, two disjoint charts, one group chart. An unmapped
+  intercompany account refuses the whole report and names the offending account
+  (`IC-01`) rather than reporting a partial figure. GL-only intercompany
+  activity — a recharge with no invoice, invisible to AR/AP — is picked up and
+  carries its group account. Both sides stay separate rows. The rate and group
+  account agree with `get_consolidated_trial_balance_translated`, so the
+  intercompany view is a projection of the statement, not a second engine.
+  Coverage suggests a member only on `tax_id` identity; stripping the tax id
+  kills the suggestion, proving name resemblance alone never suggests. A
+  foreign organization reads nothing and is refused with `42501`.
+
+### Two real defects were found and fixed
+
+1. **`anon` held full DML on `consolidation_intercompany_partners`.**
+   `pg_class.relacl` showed `anon=arwdDxtm`, meaning an unauthenticated caller
+   could read, insert, update and delete intercompany declarations — the very
+   records that determine which balances get identified as intra-group. This is
+   the same defect pattern already fixed on the other consolidation tables, so
+   the new table had been created without the lesson applied. Fixed by
+   migration revoking all privileges from `anon`; re-verified from `relacl`,
+   which now shows only `authenticated` and `service_role`. Block 1 asserts the
+   absence of any `anon` grant, so this cannot regress silently.
+
+   Note: `information_schema.role_table_grants` was unreliable here — it
+   returned nothing for `anon` even while the ACL clearly held the grants.
+   `pg_class.relacl` is the source of truth for privilege verification.
+
+2. **Block 2's fixture could never pass.** It restored a declaration's
+   `effective_from` to `current_date - 365` while
+   `consolidation_group_members.effective_from` defaults to `CURRENT_DATE`, so
+   `_consolidation_partner_guard` correctly refused: a company cannot be
+   declared an intercompany partner for a period in which it was not a member.
+   The guard was right and the test was wrong. Membership is now backdated 400
+   days, which is also the realistic fixture — an established group rather than
+   one founded this morning. Block 3 already did this correctly.
+
+### Architecture ratchet
+
+`src/test/architecture/consolidation-intercompany.test.ts` extended to 24
+tests, all passing. New guards cover the activity and coverage RPCs: the hook
+must reach the engine by RPC, must not re-derive balances, rates or
+suggestions client-side, and must not reach for any elimination or
+consolidation-run object — those belong to later bricks and do not exist.
+
+### Still open
+
+A live multi-member walkthrough in the running application has **not** been
+performed. The tenant has no populated multi-member group, so the UI path is
+verified only by the architecture ratchet and the SQL suite, not by observing
+a real group render in the browser.
+
