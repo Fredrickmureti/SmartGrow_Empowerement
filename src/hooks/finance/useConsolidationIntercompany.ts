@@ -273,7 +273,10 @@ export function useConsolidationIntercompanyMutations() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["consolidation-intercompany-partners"] });
     queryClient.invalidateQueries({ queryKey: ["consolidation-intercompany-balances"] });
+    queryClient.invalidateQueries({ queryKey: ["consolidation-intercompany-activity"] });
+    queryClient.invalidateQueries({ queryKey: ["consolidation-intercompany-coverage"] });
   };
+
 
   const declarePartner = useMutation({
     mutationFn: async (input: {
