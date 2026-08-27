@@ -1,105 +1,70 @@
-# Consolidation — independent verification (2026-08-27, evening) and Brick 6: intercompany foundation
+# Consolidation — verification (2026-08-27, 07:0x UTC) and Brick 6: intercompany identification
 
-Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already connected. No connection work is needed.
+Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already connected — no connection work needed.
 
-Nothing here is taken from the previous engineer's notes on trust. Every statement below was re-checked this session against the live database and the repo.
+Everything below was re-checked this session against the live database and the repo. Nothing is carried over from the previous engineer's claims.
 
-## Phase 1 — verified current state
+## Phase 1 — what is actually there
 
-| Previous claim | Verdict | Evidence |
-| --- | --- | --- |
-| Group foundation + scope security (Bricks 1–2) | True | `consolidation_groups`, `consolidation_group_members`, `consolidation_group_change_log` exist; `resolve_consolidation_scope` is INVOKER-rights, only `consolidation_scope_member_count` and the trigger guards are `SECURITY DEFINER` |
-| One accounting engine | True | The consolidation functions read the authoritative ledger primitives; the pages and hooks hold no accounting arithmetic |
-| FX translation + CTA (Brick 3) | True | `consolidation_translate_member`, `consolidation_member_translation_rates`, `consolidation_cta_reconciliation`, `get_consolidated_trial_balance_translated` all present |
-| Consolidated statements (Brick 5) | True | `get_consolidated_statement_lines` / `_totals` are projections of the translated trial balance; unposted period result is its own equity line; report refuses rather than showing an unbalanced statement |
-| Brick 4 account mapping landed | Substantially true | `consolidation_group_accounts`, `consolidation_account_mappings` (+ `_consolidation_mapping_guard`/`_log`), `consolidation_unmapped_accounts`, `consolidation_group_uses_group_chart` exist; `get_consolidated_statement_lines` groups by `group_account_id`, the translated trial balance refuses on unmapped posted accounts; `useConsolidationAccountMapping` and `ConsolidationAccountMapping` (582 lines) are wired into group settings, and the trial balance surfaces the unmapped count |
-| Stray `anon` execute grant on `_consolidation_cta_account_guard` | Already fixed | ACL is `postgres`/`service_role` only |
-| Intercompany / eliminations / consolidation runs exist | False, and correctly absent | No table matching intercompany, elimination, related-party, trading-partner or consolidation-run exists |
+Confirmed present in the database (queried directly):
 
-Real outstanding gaps found this session:
+- **Group foundation**: `consolidation_groups` (parent business, presentation currency, CTA account), `consolidation_group_members` (parent business, `ownership_percent`, `method`, `effective_from/to`, `historical_rate_date`), `consolidation_group_change_log`. RLS on, policies scoped by `is_org_member` + `user_can_access_business` for reads and org owner/admin roles for writes. No `anon` privileges on any consolidation table.
+- **Account mapping (Brick 4)**: `consolidation_group_accounts`, `consolidation_account_mappings`, both with guard and audit triggers attached. The shared audit trigger now reads the row generically out of `to_jsonb`, so the previously fatal `NEW.business_id` bug is genuinely fixed.
+- **Engines**: `resolve_consolidation_scope`, `get_consolidated_trial_balance`, `get_consolidated_trial_balance_translated`, `consolidation_translate_member`, `consolidation_member_translation_rates`, `consolidation_cta_reconciliation`, `consolidation_unmapped_accounts`, `consolidation_group_uses_group_chart`, `get_consolidated_statement_lines`/`_totals`. All are INVOKER-rights; only the trigger guards and `consolidation_scope_member_count` are DEFINER; `anon` can execute none of them.
+- **App surface**: `Consolidation.tsx`, `ConsolidatedTrialBalance.tsx`, `ConsolidatedStatements.tsx` plus four `useConsolidat*` hooks; six SQL suites and four architecture ratchets. The four architecture suites were executed this session: 40 tests, all passing.
 
-1. **Brick 4 has no database-level validation.** `supabase/tests/` contains suites for the group foundation, translation, trial balance and statements — but none for mapping. The mapping semantics that matter (two charts merging onto one group account, refusal on an unmapped posted account, cross-account-type rejection, single-chart identity, cross-organization RLS isolation) are unproven.
-2. **No architecture ratchet on the mapping surface.** The existing ratchet asserts consolidation RPCs are reachable from a hook; nothing prevents the mapping tables from drifting out of the UI.
-3. **Intercompany is greenfield, and the hook already exists in the ledger.** `journal_entry_lines` carries `contact_id`, and `contacts` carries `business_id`, `commercial_partner_id`, `parent_contact_id`. Intercompany identification should build on that counterparty link — not on account names or descriptions.
+Confirmed genuinely absent: any intercompany, elimination, related-party, trading-partner or persisted consolidation-run table or column. Nothing to preserve or integrate — Brick 6 is greenfield.
+
+Two real defects found this session that the previous notes do not mention:
+
+1. **Duplicate CTA guard trigger.** `consolidation_groups` carries both `consolidation_cta_account_guard` and `trg_consolidation_cta_account_guard`, bound to the same function. The guard runs twice on every group write; a rejection surfaces twice and a future guard change has two attachment points to keep in step. One must be dropped.
+2. **Consolidation has never been exercised with more than one member.** The live group has exactly one member business, and the group chart and mapping tables hold zero rows. Every multi-entity proof lives only inside rolling-back test transactions. This is not a code defect, but it means the group/mapping UI has never been driven against real data — the trial balance and statement pages must be walked through against a genuine two-member group as part of this brick's validation.
 
 ## Phase 2 — plan additions
 
-- Close Brick 4 with real database proof before starting Brick 6. An implemented capability with no executable invariant is not a closed brick.
-- Brick 6 delivers *identification only*: which ledger activity is intercompany, and against which group member. No elimination arithmetic, no consolidation-run persistence, no minority interest. Those are Bricks 7–8.
-- Intercompany identity must be an explicit, auditable link from a contact to a group member business — never inferred from names, codes or descriptions at read time.
+- Fix the duplicate trigger before adding new schema; it is a one-object migration.
+- Brick 6 is **identification only**: which ledger activity is intercompany and against which member business. No elimination arithmetic, no persisted runs, no minority interest — those are Bricks 7 and 8.
+- Intercompany identity must be an explicit, effective-dated, auditable link from a `contacts` row to a counterparty member business. Never inferred from account names, codes or descriptions. `journal_entry_lines.contact_id` already exists (populated on 7 of 37 current lines) and is the join key.
 - The intercompany report must be a projection of the same translated engine, so an intercompany figure and a consolidated figure can never disagree.
-- Unreciprocated intercompany balances (A says receivable 100, B says payable 90) must be surfaced as a named difference, never quietly netted.
+- Unreciprocated balances (A says receivable 100, B says payable 90) are reported as a named difference, never quietly netted.
+- A coverage worklist must name ledger activity against a contact that resolves to a member business but has no declared link — that worklist is what keeps Brick 7 honest.
 
 ## Work order
 
-### Step A — close Brick 4 (blocking)
+### Step A — hygiene (blocking, one small migration)
 
-- New suite `supabase/tests/consolidation_account_mapping_test.sql`: two members with different charts mapped onto one group chart merge to one line per group account; a posted balance in an unmapped account refuses the report and names the account; a single-chart group returns byte-identical figures to the unmapped path; a mapping across account types is rejected by the guard; a mapping belonging to another organization is invisible under RLS; effective-dated overlap on the same member account is rejected.
-- Record the execution result of every consolidation suite in this file. A suite that has not been run is not evidence.
-- Extend the architecture ratchet so the group-chart and mapping tables must appear in a hook, and so the trial balance page must render the unmapped refusal.
-- Fix anything the suites surface before writing new features.
+Drop the redundant CTA guard trigger, keeping a single attachment. Confirm afterwards that exactly one trigger references `_consolidation_cta_account_guard`.
 
-### Step B — Brick 6, database
+### Step B — Brick 6 schema (one migration)
 
-- `consolidation_intercompany_partners`: for a group, an explicit effective-dated link from a `contacts` row in one member business to the counterparty member business, with creator, timestamps and change logging via the existing consolidation log pattern. Unique per group / contact / period. Guard: both businesses must be members of the group over the link's effective period; the contact must belong to the declaring member business; a business cannot be its own counterparty.
-- `consolidation_intercompany_balances(_group_id, _date_from, _date_to)`: reads the translated engine, joins ledger lines to declared partners, and returns per member pair, per group account, the declaring side, the counterparty side, presentation-currency amounts, and the unreciprocated difference.
-- `consolidation_intercompany_coverage(...)`: names ledger activity against a contact that resolves to a member business but has no declared partner link — the worklist that keeps Brick 7 honest.
-- RLS mirroring `consolidation_groups` (organization-scoped, caller must reach the group and both businesses), grants to `authenticated` and `service_role` only, no `anon`. INVOKER rights everywhere except triggers.
+`consolidation_intercompany_partners`: organization, group, declaring business, `contact_id`, counterparty business, effective from/to, notes, creator, timestamps. Grants to `authenticated` and `service_role` only; RLS mirroring `consolidation_account_mappings` (org member + access to both businesses + access to the group's parent business; writes restricted to org owner/admin/super_admin). Guard trigger rejects: a counterparty that is not a group member over the link's period, a declaring business that is not a member, a contact that does not belong to the declaring business, self-counterparty, and an overlapping period for the same contact. Audit trigger reuses the existing consolidation change-log pattern.
 
-### Step C — Brick 6, application
+### Step C — Brick 6 engines (separate migrations, one function each)
 
-- Intercompany partner management in the consolidation group settings area: declare counterparties per member, effective dates, and a coverage worklist for undeclared counterparty activity.
-- An intercompany report under finance reporting: pairs, group accounts, both sides, differences, drill-down to the originating member account and journal lines.
+- `consolidation_intercompany_balances(_group_id, _date_from, _date_to)` — reads the translated engine, joins ledger lines to declared partners, returns per member pair and group account: declaring side, counterparty side, presentation-currency amounts, and the unreciprocated difference.
+- `consolidation_intercompany_coverage(_group_id, _date_from, _date_to)` — undeclared counterparty activity worklist.
+
+Both INVOKER-rights, `anon` execute revoked, refusing rather than fabricating when scope, rates or mappings are incomplete.
+
+### Step D — application
+
+- Intercompany partner management inside consolidation group settings: declare counterparties per member with effective dates, plus the coverage worklist.
+- An intercompany report under finance reporting built on `src/design-system/reports` (no hand-rolled tables, no JS arithmetic), with drill-down to the originating member account and journal lines.
 - Refusals rendered as explanations naming the offending rows, matching the existing scope, rate-coverage and mapping refusals.
 
-### Step D — Brick 6, validation
+### Step E — validation
 
-- New suite: partner guard rejects non-member counterparties, self-counterparty and foreign-business contacts; balances function pairs both sides correctly; asymmetric balances report a difference rather than netting; RLS isolates partners across organizations; a group with no declared partners returns an empty result and never a fabricated one.
-- Architecture ratchet extended to the new RPCs.
-
-### Checkpoint
-
-When Brick 6 closes, this file records what was established, the accounting rules that hold, the security boundaries, the suites that were executed with their results, and what Brick 7 depends on.
+- `supabase/tests/consolidation_intercompany_test.sql`: guard rejects non-member counterparty, self-counterparty, foreign-business contact and overlapping periods; both sides of a real intercompany sale pair correctly; an asymmetric pair reports a difference rather than netting; a group with no declared partners returns empty, never fabricated; RLS isolates partners across organizations.
+- Architecture ratchet for the new RPCs and the mapping/partner UI reachability.
+- Walk a genuine two-member group through the group settings, trial balance, statements and new intercompany pages, and record what was observed.
+- Every executed suite and its result recorded in `.lovable/consolidation-brick-log.md`.
 
 ## Explicitly out of scope until Brick 6 closes
 
 Elimination arithmetic, persisted consolidation runs, consolidated cash flow, equity method, minority interest. No placeholders, no TODO scaffolding, no disabled buttons for any of them.
 
+## Technical notes
 
-===================IMPLEMENTATION progress STATUS========================
-
-Brick 4 is genuinely closed now — and verification caught two real defects rather than confirming the previous claims:
-
-The group chart of accounts was impossible to create. The shared audit trigger read NEW.business_id, a column that doesn't exist on consolidation_group_accounts, so every insert failed; the table was empty in your database, meaning mapping had never actually worked. Fixed by reading the row generically.
-anon held table privileges on both mapping tables (RLS masked it). Revoked.
-After the fixes, the executed suite proves the real accounting outcome: two companies with unrelated account codes merge into one line per group account (revenue 75 000, cost 30 000, cash 185 000), unmapped posted accounts refuse both the trial balance and the statements by name, and cross-type / CTA / non-member / overlapping-period mappings are all rejected, with change logging and tenant isolation intact. Details are in .lovable/consolidation-brick-log.md; Brick 6 (intercompany identification only) is next when you want to proceed.
-
-
-==========================================================
-# Execution Instructions
-
-1. **Verify Previous Implementation**
-
-   * Before making any new changes, carefully verify that the previous implementation has been fully completed, correctly integrated, and actually landed in the codebase and database where applicable.
-   * Do not assume that a previous task was completed merely because the relevant code appears to exist. Validate the actual behavior, dependencies, and business flow.
-
-2. **Proceed Chronologically**
-
-   * Once the previous step has been verified, identify the **next logical step, brick, or item in the sequence**.
-   * Follow the established implementation order rather than jumping ahead or working on unrelated areas.
-
-3. **Work Professionally and Analytically**
-
-   * Approach each step systematically and from first principles.
-   * Understand the existing architecture, business logic, dependencies, and intended behavior before making changes.
-   * Avoid rushed, speculative, or superficial implementations.
-
-4. **Maintain Stability**
-
-   * Preserve existing functionality and architectural integrity while progressing to the next step.
-   * Ensure each completed brick leaves the system in a stable, coherent state before proceeding further.
-
-5. **Keep the Process Organized**
-
-   * Clearly establish what has already been completed, what remains, and what the current step is intended to accomplish.
-   * Work through the sequence incrementally and methodically rather than attempting to implement everything at once.
+- Migrations stay small and single-purpose (one object each) per the standing rule for this database.
+- No second FX resolver and no second accounting engine: intercompany figures come from `get_consolidated_trial_balance_translated` and the existing rate book.
+- Contact→business scoping uses `contacts.business_id` (NOT NULL) and `contacts.organization_id`; `commercial_partner_id`/`parent_contact_id` remain contact-hierarchy concerns and are not repurposed as intercompany links.
