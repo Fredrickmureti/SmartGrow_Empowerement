@@ -69,6 +69,7 @@ import {
 } from "@/hooks/finance/useConsolidationGroups";
 import { normalizeError } from "@/services/resilience";
 import { ConsolidationAccountMapping } from "@/components/settings/ConsolidationAccountMapping";
+import { ConsolidationEliminationRules } from "@/components/settings/ConsolidationEliminationRules";
 
 
 
@@ -718,6 +719,16 @@ export function ConsolidationGroupsSettings() {
             business_id: m.business_id,
             name: businessName(m.business_id),
           }))}
+        />
+      )}
+
+      {/* Elimination policy (Brick 7 configuration). Decisions only — the
+          engine produces every elimination figure. */}
+      {activeGroup && (
+        <ConsolidationEliminationRules
+          groupId={activeGroup.id}
+          groupName={activeGroup.name}
+          canManage={canManage}
         />
       )}
 
