@@ -104,8 +104,20 @@ export default function ConsolidationIntercompany() {
     dateFrom,
     dateTo,
   );
+  const activityQuery = useConsolidationIntercompanyActivity(
+    canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
+  const coverageQuery = useConsolidationIntercompanyCoverage(
+    canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
   const { declarePartner, closeDeclaration, deleteDeclaration } =
     useConsolidationIntercompanyMutations();
+
+
 
   const contactsForBusiness = useMemo(
     () => (contactsQuery.data ?? []).filter((c) => c.business_id === declBusiness),
