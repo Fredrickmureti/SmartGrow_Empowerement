@@ -21,6 +21,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 import { useOrganization } from "@/hooks/useOrganization";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -158,7 +159,7 @@ export function useConsolidationEliminations(
         .eq("period_end", dateTo!)
         .order("elimination_class", { ascending: true })
         .order("group_account_code", { ascending: true });
-      if (error) throw error;
+      if (error) throw toAppError(error);
 
       const rows = data ?? [];
       const ids = Array.from(
@@ -196,7 +197,7 @@ export function useConsolidationEliminationRules(groupId: string | null) {
         .from("consolidation_elimination_rules")
         .select("*")
         .eq("group_id", groupId!);
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as EliminationRule[];
     },
   });
@@ -220,7 +221,7 @@ export function useConsolidationIntercompanyFlows(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as unknown as IntercompanyFlowRow[];
     },
   });
@@ -240,7 +241,7 @@ export function useEliminatedStatementLines(
         "get_consolidated_statement_lines_eliminated",
         { _group_id: groupId!, _date_from: dateFrom!, _date_to: dateTo! },
       );
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as unknown as EliminatedStatementLine[];
     },
   });
@@ -260,7 +261,7 @@ export function useEliminatedStatementTotals(
         "get_consolidated_statement_totals_eliminated",
         { _group_id: groupId!, _date_from: dateFrom!, _date_to: dateTo! },
       );
-      if (error) throw error;
+      if (error) throw toAppError(error);
       const rows = (data ?? []) as unknown as EliminatedStatementTotals[];
       return rows[0] ?? null;
     },
@@ -299,7 +300,7 @@ export function useConsolidationEliminationMutations() {
         _date_from: input.date_from,
         _date_to: input.date_to,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as unknown as EliminationGenerationSummary[];
     },
     onSuccess: invalidate,
@@ -322,7 +323,7 @@ export function useConsolidationEliminationMutations() {
           { ...input, organization_id: orgId },
           { onConflict: "group_id,elimination_class" },
         );
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
