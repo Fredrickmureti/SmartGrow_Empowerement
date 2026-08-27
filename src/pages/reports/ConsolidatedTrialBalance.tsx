@@ -406,6 +406,12 @@ export default function ConsolidatedTrialBalance() {
                           <span className="font-medium">{m.business_name}</span>
                           {m.is_parent && <Badge variant="secondary">Parent</Badge>}
                           <Badge variant="outline">{m.base_currency ?? "no currency"}</Badge>
+                          {m.requires_translation && (
+                            <Badge variant="outline">
+                              translated to {m.presentation_currency}
+                            </Badge>
+                          )}
+
                           <span className="text-muted-foreground">
                             {Number(m.ownership_percent ?? 0)}% ·{" "}
                             {CONSOLIDATION_METHOD_LABELS[m.method] ?? m.method}
