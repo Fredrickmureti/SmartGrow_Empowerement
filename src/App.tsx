@@ -169,6 +169,7 @@ import {
 const MigrationPage = lazy(() => import("@/pages/settings/MigrationPage"));
 const ConsolidationReport = lazy(() => import("@/pages/reports/Consolidation"));
 const ConsolidatedTrialBalanceReport = lazy(() => import("@/pages/reports/ConsolidatedTrialBalance"));
+const ConsolidatedStatementsReport = lazy(() => import("@/pages/reports/ConsolidatedStatements"));
 const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDiagnostic"));
 const PrintLatencyDiagnostic = lazy(() => import("@/pages/diagnostics/PrintLatency"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
