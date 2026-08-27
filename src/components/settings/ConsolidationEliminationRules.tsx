@@ -202,7 +202,29 @@ export function ConsolidationEliminationRules({
           const dirty = !!drafts[cls];
           const typeMatched = accounts.filter((a) => a.is_active);
           return (
-            <div key={cls} className="rounded-lg border p-4 space-y-4">
+            const focused = focusClass === cls;
+            return (
+              <div
+                key={cls}
+                id={eliminationClassAnchor(cls)}
+                className={
+                  focused
+                    ? "rounded-lg border-2 border-primary p-4 space-y-4"
+                    : "rounded-lg border p-4 space-y-4"
+                }
+              >
+                {focused && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      An elimination run for this group was refused over this class.
+                      {focusRemedy === "configure_difference_account"
+                        ? " Name the group account the residual should be disclosed in, then save — the next run reads this policy."
+                        : " Settle the policy below, then run the eliminations again."}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-medium">
