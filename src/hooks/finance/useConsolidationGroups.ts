@@ -33,6 +33,13 @@ export interface ConsolidationGroup {
   presentation_currency: string;
   description: string | null;
   is_active: boolean;
+  /**
+   * Equity account of the parent company that carries the cumulative
+   * translation adjustment. Translation is refused outright while this is
+   * unset: a translated statement with nowhere to put the reserve would not
+   * balance, and a silently absorbed difference is a misstatement.
+   */
+  cta_account_id: string | null;
 }
 
 export interface ConsolidationGroupMember {
@@ -46,7 +53,15 @@ export interface ConsolidationGroupMember {
   effective_from: string;
   effective_to: string | null;
   notes: string | null;
+  /**
+   * Date whose rate translates this company's *opening* equity — the rate on
+   * the day the parent acquired it. Movements during a period always translate
+   * at their own transaction-date rate, never at this one. Defaults to
+   * `effective_from` when unset.
+   */
+  historical_rate_date: string | null;
 }
+
 
 export interface ConsolidationChangeLogEntry {
   id: string;
