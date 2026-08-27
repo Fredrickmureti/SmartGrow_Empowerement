@@ -102,7 +102,14 @@ export interface ReportRowMeta {
   journalId?: string;
   sourceDocType?: string;
   sourceDocId?: string;
+  /**
+   * Member company the underlying records belong to. Single-company reports
+   * leave it unset; a consolidated row must carry it, because the account id
+   * alone does not say whose books the figure came from.
+   */
+  businessId?: string;
 }
+
 
 
 const NUMERIC_FORMATS = new Set<ReportValueFormat>([
