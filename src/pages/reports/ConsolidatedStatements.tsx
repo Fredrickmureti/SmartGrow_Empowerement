@@ -1,0 +1,420 @@
+/**
+ * Consolidated Statements (Brick 5) — group income statement and balance sheet.
+ *
+ * SINGLE SOURCE OF TRUTH
+ * ----------------------
+ * Every figure, including the totals and the "does it balance" verdict, comes
+ * from `get_consolidated_statement_lines` / `get_consolidated_statement_totals`,
+ * which are projections of the same translated consolidated trial balance this
+ * app already reports. This page performs no accounting arithmetic at all, so
+ * it cannot drift from the trial balance or from the single-entity statements.
+ *
+ * HONEST LIMITS (stated, never papered over)
+ * ------------------------------------------
+ * - No intercompany eliminations yet: intra-group trading still appears twice.
+ * - Non-controlling interests are disclosed on the trial balance, not netted.
+ * - Any scope or rate gap the engine refuses is surfaced verbatim.
+ */
+
+import { useMemo, useState } from "react";
+import { ReportsLayout } from "@/apps/reports";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
+import { FileBarChart, ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { useConsolidationGroups } from "@/hooks/finance/useConsolidationGroups";
+import {
+  useConsolidationScope,
+  describeConsolidationBlocker,
+} from "@/hooks/finance/useConsolidatedTrialBalance";
+import {
+  useConsolidatedStatementLines,
+  useConsolidatedStatementTotals,
+  sectionsOf,
+  CONSOLIDATED_SECTION_LABELS,
+  type ConsolidatedStatement,
+  type ConsolidatedStatementLine,
+} from "@/hooks/finance/useConsolidatedStatements";
+import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+
+function formatAmount(value: number, currency: string) {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  } catch {
+    return `${currency} ${value.toFixed(2)}`;
+  }
+}
+
+const COLUMNS: ReportColumn[] = [
+  { key: "code", header: "Account" },
+  { key: "name", header: "Description" },
+  { key: "amount", header: "Amount", align: "right" },
+];
+
+export default function ConsolidatedStatements() {
+  const navigate = useNavigate();
+  const { allowed: canViewConsolidated, isLoading: permLoading } =
+    useFinancePermission("finance.view_consolidated");
+
+  const today = new Date();
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
+  const [dateTo, setDateTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
+
+  const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
+  const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
+  const selectedGroup = activeGroups.find((g) => g.id === groupId) ?? null;
+
+  const scopeQuery = useConsolidationScope(
+    canViewConsolidated ? groupId : null,
+    canViewConsolidated ? dateTo : null,
+  );
+  const blockers = useMemo(
+    () =>
+      Array.from(
+        new Set((scopeQuery.data ?? []).map((m) => m.blocker).filter(Boolean) as string[]),
+      ),
+    [scopeQuery.data],
+  );
+  const scopeIsClean = !!scopeQuery.data && blockers.length === 0;
+
+  const linesQuery = useConsolidatedStatementLines(
+    canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
+  const totalsQuery = useConsolidatedStatementTotals(
+    canViewConsolidated && scopeIsClean ? groupId : null,
+    dateFrom,
+    dateTo,
+  );
+
+  const currency =
+    totalsQuery.data?.presentation_currency ?? selectedGroup?.presentation_currency ?? "USD";
+  const lines = linesQuery.data ?? [];
+  const totals = totalsQuery.data ?? null;
+
+  const rowsFor = (statement: ConsolidatedStatement): ReportRow[] => {
+    const out: ReportRow[] = [];
+    const money = (v: number) => formatAmount(Number(v), currency);
+    const describe = (l: ConsolidatedStatementLine) =>
+      l.account_name +
+      (l.is_residual ? " (currency translation reserve)" : "") +
+      (l.is_derived ? " (not yet posted to equity)" : "");
+
+    for (const group of sectionsOf(lines, statement)) {
+      out.push({
+        id: `${statement}:${group.section}`,
+        kind: "section",
+        label: CONSOLIDATED_SECTION_LABELS[group.section],
+      });
+      for (const line of group.lines) {
+        out.push({
+          id: `${statement}:${group.section}:${line.account_id ?? "derived"}`,
+          values: {
+            code: line.account_code ?? "—",
+            name: describe(line),
+            amount: money(line.amount),
+          },
+        });
+      }
+    }
+    return out;
+  };
+
+  if (!permLoading && !canViewConsolidated) {
+    return (
+      <ReportsLayout>
+        <div className="max-w-2xl mx-auto px-4 py-12">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <CardTitle>Restricted view</CardTitle>
+                  <CardDescription>
+                    Consolidated statements need the <strong>consolidated view</strong>{" "}
+                    finance permission, because they expose balances from every company in
+                    the group.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Go back
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </ReportsLayout>
+    );
+  }
+
+  const scopeError = scopeQuery.error;
+  const dataError = linesQuery.error ?? totalsQuery.error;
+  const isLoading = linesQuery.isLoading || totalsQuery.isLoading;
+
+  return (
+    <ReportsLayout>
+      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-2">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+
+        <div className="flex items-start gap-4">
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <FileBarChart className="h-6 w-6 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold tracking-tight">Consolidated Statements</h1>
+            <p className="text-muted-foreground mt-1">
+              The group's income statement and balance sheet, built from the same
+              consolidated trial balance — never recalculated alongside it.
+            </p>
+          </div>
+        </div>
+
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-sm">
+            Figures are a projection of the consolidated trial balance: controlled
+            companies at 100 % (IFRS 10 / ASC 810), foreign companies restated under
+            IAS 21.{" "}
+            <strong>Intercompany balances are not yet eliminated</strong>, so intra-group
+            trading still appears on both sides.
+          </AlertDescription>
+        </Alert>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Group and period</CardTitle>
+            <CardDescription>
+              Membership is effective-dated, so the group is resolved as of the end date.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label>Consolidation group</Label>
+              <Select value={groupId ?? ""} onValueChange={(v) => setGroupId(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder={groupsLoading ? "Loading…" : "Select a group"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name} ({g.presentation_currency})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="from">From</Label>
+              <Input
+                id="from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="to">To</Label>
+              <Input
+                id="to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {!groupId ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Pick a consolidation group</CardTitle>
+              <CardDescription>
+                Groups, ownership and consolidation methods are configured under{" "}
+                <strong>Finance → Settings → Consolidation groups</strong>.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : scopeError ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {scopeError instanceof Error
+                ? scopeError.message
+                : "Could not resolve the consolidation scope."}
+            </AlertDescription>
+          </Alert>
+        ) : scopeQuery.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : !scopeIsClean ? (
+          <div className="space-y-3">
+            {blockers.map((b) => (
+              <Alert key={b} variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  {describeConsolidationBlocker(b)}
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        ) : dataError ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {dataError instanceof Error
+                ? dataError.message
+                : "The consolidated statements could not be produced for this period."}
+            </AlertDescription>
+          </Alert>
+        ) : isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        ) : (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Consolidated income statement — {selectedGroup?.name}
+                </CardTitle>
+                <CardDescription>
+                  {dateFrom} to {dateTo}, presented in {currency}.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ReportSurface
+                  title={`Consolidated income statement — ${selectedGroup?.name ?? ""}`}
+                  profile="financial"
+                >
+                  <ReportTable
+                    columns={COLUMNS}
+                    rows={rowsFor("income_statement")}
+                    caption="Group income and expenses for the period"
+                    emptyMessage="No posted income or expenses for this group and period"
+                  />
+                </ReportSurface>
+                {totals && (
+                  <div className="flex flex-wrap gap-6 text-sm">
+                    <span>
+                      Total income:{" "}
+                      <strong>{formatAmount(Number(totals.total_income), currency)}</strong>
+                    </span>
+                    <span>
+                      Total expenses:{" "}
+                      <strong>{formatAmount(Number(totals.total_expense), currency)}</strong>
+                    </span>
+                    <span>
+                      Result for the period:{" "}
+                      <strong>{formatAmount(Number(totals.net_result), currency)}</strong>
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Consolidated balance sheet — {selectedGroup?.name}
+                </CardTitle>
+                <CardDescription>
+                  Position as of {dateTo}, presented in {currency}. The result for the
+                  period is carried as its own equity line until the year is closed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ReportSurface
+                  title={`Consolidated balance sheet — ${selectedGroup?.name ?? ""}`}
+                  profile="financial"
+                >
+                  <ReportTable
+                    columns={COLUMNS}
+                    rows={rowsFor("balance_sheet")}
+                    caption="Group assets, liabilities and equity"
+                    emptyMessage="No balances for this group and period"
+                  />
+                </ReportSurface>
+                {totals && (
+                  <div className="flex flex-wrap items-center gap-6 text-sm">
+                    <span>
+                      Assets:{" "}
+                      <strong>{formatAmount(Number(totals.total_assets), currency)}</strong>
+                    </span>
+                    <span>
+                      Liabilities:{" "}
+                      <strong>
+                        {formatAmount(Number(totals.total_liabilities), currency)}
+                      </strong>
+                    </span>
+                    <span>
+                      Equity:{" "}
+                      <strong>{formatAmount(Number(totals.total_equity), currency)}</strong>
+                    </span>
+                    {Number(totals.translation_reserve) !== 0 && (
+                      <Badge variant="outline">
+                        Translation reserve{" "}
+                        {formatAmount(Number(totals.translation_reserve), currency)}
+                      </Badge>
+                    )}
+                    {totals.is_balanced ? (
+                      <span className="text-emerald-600">In balance</span>
+                    ) : (
+                      <span className="text-destructive font-semibold">
+                        Out of balance by{" "}
+                        {formatAmount(Number(totals.balance_difference), currency)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {totals && !totals.is_balanced && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      The consolidated balance sheet does not balance. Treat these figures
+                      as unreliable and check the consolidated trial balance and the
+                      currency translation reserve before using them.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </ReportsLayout>
+  );
+}

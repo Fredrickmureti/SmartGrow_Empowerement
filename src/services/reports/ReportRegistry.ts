@@ -640,6 +640,17 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["consolidated", "consolidation", "group", "trial balance", "multi-company", "subsidiary", "ifrs 10"],
   },
   {
+    id: "consolidated-statements",
+    name: "Consolidated Statements",
+    description: "Group income statement and balance sheet, projected from the consolidated trial balance",
+    category: "management",
+    path: "/reports/consolidated-statements",
+    icon: BarChart3,
+    permission: "viewReports",
+    reportType: "consolidated_statements",
+    keywords: ["consolidated", "consolidation", "group", "income statement", "profit and loss", "balance sheet", "ifrs 10", "ias 21"],
+  },
+  {
     id: "business-intelligence",
     name: "Business Intelligence",
     description: "Interactive dashboards and custom analysis",

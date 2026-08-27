@@ -98712,6 +98712,37 @@ export type Database = {
           plan_id: string
         }[]
       }
+      get_consolidated_statement_lines: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          amount: number
+          is_derived: boolean
+          is_residual: boolean
+          presentation_currency: string
+          section: string
+          section_order: number
+          statement: string
+        }[]
+      }
+      get_consolidated_statement_totals: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          balance_difference: number
+          is_balanced: boolean
+          net_result: number
+          presentation_currency: string
+          total_assets: number
+          total_equity: number
+          total_expense: number
+          total_income: number
+          total_liabilities: number
+          translation_reserve: number
+        }[]
+      }
       get_consolidated_trial_balance: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
