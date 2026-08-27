@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useRef } from "react";
-import { useBusiness } from "@/contexts/BusinessContext";
+import { useBusinesses } from "@/contexts/BusinessContext";
 import { useReportWorkspaceState } from "./useReportWorkspaceState";
 
 export interface EntityScopeFromUrl {
@@ -31,7 +31,7 @@ export interface EntityScopeFromUrl {
 
 export function useEntityScopeFromUrl(): EntityScopeFromUrl {
   const workspace = useReportWorkspaceState();
-  const { businesses, currentBusiness, switchBusiness, isLoading } = useBusiness();
+  const { businesses, currentBusiness, switchBusiness, isLoading } = useBusinesses();
   const requestedBusinessId = workspace.scope.business ?? null;
   const attempted = useRef<string | null>(null);
 
