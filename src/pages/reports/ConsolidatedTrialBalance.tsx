@@ -501,6 +501,97 @@ export default function ConsolidatedTrialBalance() {
               </Card>
             )}
 
+            {scopeIsClean && hasTranslation && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Currency translation reserve</CardTitle>
+                  <CardDescription>
+                    What the restatement above put into the reserve, checked against an
+                    independent proof built from each company's opening net assets, its
+                    result for the period and its dated equity movements.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {ctaQuery.error ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        {ctaQuery.error instanceof Error
+                          ? ctaQuery.error.message
+                          : "Could not prove the translation reserve."}
+                      </AlertDescription>
+                    </Alert>
+                  ) : ctaQuery.isLoading ? (
+                    <Skeleton className="h-24 w-full" />
+                  ) : (
+                    (ctaQuery.data ?? []).map((c) => (
+                      <div key={c.business_id} className="space-y-1 border-b pb-3 last:border-0 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{c.business_name}</span>
+                          <Badge variant="outline">
+                            {c.base_currency} → {c.presentation_currency}
+                          </Badge>
+                          {c.is_reconciled ? (
+                            <Badge variant="secondary">Proved</Badge>
+                          ) : (
+                            <Badge variant="destructive">Does not reconcile</Badge>
+                          )}
+                        </div>
+                        <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 text-muted-foreground">
+                          <span>
+                            Reserve brought forward:{" "}
+                            <strong className="text-foreground">
+                              {formatAmount(Number(c.opening_cta), currency)}
+                            </strong>
+                          </span>
+                          <span>
+                            Movement this period:{" "}
+                            <strong className="text-foreground">
+                              {formatAmount(Number(c.cta_movement), currency)}
+                            </strong>
+                          </span>
+                          <span>
+                            On opening net assets:{" "}
+                            {formatAmount(Number(c.expected_from_opening_net_assets), currency)}
+                          </span>
+                          <span>
+                            On the period result:{" "}
+                            {formatAmount(Number(c.expected_from_result), currency)}
+                          </span>
+                          <span>
+                            On equity movements:{" "}
+                            {formatAmount(Number(c.expected_from_equity_movements), currency)}
+                          </span>
+                          <span>
+                            Reserve carried forward:{" "}
+                            <strong className="text-foreground">
+                              {formatAmount(Number(c.closing_cta), currency)}
+                            </strong>
+                          </span>
+                        </div>
+                        {!c.is_reconciled && (
+                          <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              The reserve moved by{" "}
+                              {formatAmount(Number(c.cta_movement), currency)} but the
+                              independent proof expects{" "}
+                              {formatAmount(Number(c.expected_cta_movement), currency)} — a
+                              difference of{" "}
+                              {formatAmount(Number(c.movement_difference), currency)}. Treat
+                              the translated figures for this company as unreliable until
+                              this is explained.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+
+
             {scopeIsClean && nciDisclosure.length > 0 && (
               <Card>
                 <CardHeader>
