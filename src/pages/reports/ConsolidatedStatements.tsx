@@ -131,19 +131,6 @@ function buildColumns(onOpenEliminations: (accountId: string) => void): ReportCo
 
 export default function ConsolidatedStatements() {
   const navigate = useNavigate();
-  const openEliminations = useCallback(
-    (accountId: string) => {
-      const params = new URLSearchParams({
-        consolidationGroup: groupIdRef.current ?? "",
-        date_from: dateFromRef.current,
-        date_to: dateToRef.current,
-        group_account_id: accountId,
-      });
-      navigate(`/finance/reports/consolidation-eliminations?${params.toString()}`);
-    },
-    [navigate],
-  );
-  const COLUMNS = useMemo(() => buildColumns(openEliminations), [openEliminations]);
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
 
@@ -151,6 +138,23 @@ export default function ConsolidatedStatements() {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
+
+  // Statement line → the legs behind its Eliminations figure. Group, period
+  // and group account travel as query params; the eliminations report reads
+  // them and shows only that account's legs.
+  const openEliminations = useCallback(
+    (accountId: string) => {
+      const params = new URLSearchParams({
+        consolidationGroup: groupId ?? "",
+        date_from: dateFrom,
+        date_to: dateTo,
+        group_account_id: accountId,
+      });
+      navigate(`/finance/reports/eliminations?${params.toString()}`);
+    },
+    [navigate, groupId, dateFrom, dateTo],
+  );
+  const COLUMNS = useMemo(() => buildColumns(openEliminations), [openEliminations]);
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
   const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
