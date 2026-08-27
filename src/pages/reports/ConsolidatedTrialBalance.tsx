@@ -75,6 +75,27 @@ function formatAmount(value: number, currency: string) {
   }
 }
 
+/**
+ * Which IAS 21 rate restated a line, in the words an accountant would use.
+ * Equity has no single rate — it moves at the rate of the day it moved — so the
+ * figure shown there is the effective rate actually applied.
+ */
+const RATE_CLASS_LABELS: Record<string, string> = {
+  closing: "closing rate",
+  average: "average rate",
+  transaction: "transaction-date rate",
+  residual: "balancing figure",
+};
+
+function describeRate(row: ConsolidatedTrialBalanceRow): string {
+  if (row.base_currency === row.presentation_currency) return "—";
+  const label = RATE_CLASS_LABELS[row.rate_class] ?? row.rate_class;
+  if (row.rate_used === null || row.rate_used === undefined) return label;
+  return `${Number(row.rate_used).toFixed(4)} · ${label}`;
+}
+
+
+
 export default function ConsolidatedTrialBalance() {
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
