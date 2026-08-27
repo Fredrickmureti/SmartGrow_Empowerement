@@ -1,86 +1,84 @@
-# Consolidation — handover verification (2026-08-27) and closing Brick 3
+# Consolidation — independent verification (2026-08-27, later) and the next brick
 
 Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already
-connected; no connection work is needed.
+connected. No connection work is needed.
 
-Everything below was re-checked directly against the live database and the files in
-this session. The previous engineer's progress notes were treated as unverified.
+Everything below was checked directly against the live database and the files in this
+session. The previous engineer's progress note was treated as unverified.
 
-## Phase 1 — verification of the previous engineer's claims
+## Phase 1 — what is actually true right now
 
-| Claim | Verdict | Evidence |
+| Previous claim | Verdict | Evidence |
 |---|---|---|
-| Brick 1: no second accounting engine | True | The consolidation functions read only the authoritative ledger primitives; the comparative page holds no arithmetic |
-| Brick 2/3 database objects exist | True | `consolidation_translate_member`, `get_consolidated_trial_balance_translated`, `consolidation_cta_reconciliation`, `consolidation_member_translation_rates` all present; only the member-count helper is SECURITY DEFINER, the rest are INVOKER so RLS still applies |
-| Step B accounting corrections landed | True in the database | The translation function classes accounts as closing / average / transaction / historical, and the reconciliation function recomputes the expected reserve movement independently rather than restating the residual |
-| Step E: translation test suite written | Partly | `supabase/tests/consolidation_translation_test.sql` exists and is genuinely discriminating (it aborts if the fixture rates are not distinct), but it has not been executed in this session and the earlier suites have not been re-run against the current function bodies |
-| Step C: configuration surface done | **False — half landed** | `useConsolidationGroups` reads and writes the reserve account and per-member historical rate date, but `ConsolidationGroupsSettings` only has the imports wired: there is no reserve-account selector and no historical-rate-date control. A mixed-currency group can still be created that is permanently blocked with no way for a user to fix it |
-| Step D: reporting surface | **False — not started** | `ConsolidatedTrialBalance` still calls only the untranslated RPC and still tells the user "no FX translation / CTA"; nothing in the app consumes the translated RPC |
+| Group settings configure the reserve account and each foreign company's equity rate date | True | `ConsolidationGroupsSettings` has a translation-settings card with an equity-account picker and a per-member historical rate date, both persisted through `useConsolidationGroups` |
+| The Consolidated Trial Balance reads the translated engine | True | The page calls only the translated RPC, renders per-line rate class, own-currency figures per company, the reserve line and an independent reserve proof |
+| An architecture test fails if a consolidation RPC is unreachable from the UI | True | `consolidated-trial-balance.test.ts` asserts every user-facing consolidation RPC appears in a hook |
+| Brick 3 database side is real | True | `consolidation_translate_member`, `get_consolidated_trial_balance_translated`, `consolidation_cta_reconciliation`, `consolidation_member_translation_rates` all exist; only guards and the member-count helper are SECURITY DEFINER, so RLS still applies to every read path |
+| Front-end and architecture tests pass | True | 22 consolidation architecture assertions pass |
+| The four SQL suites have been executed against the current function bodies | **Unproven** | Nothing in the repo or the plan records a run. A test written but never executed is not evidence |
 
-Typecheck is currently clean, so the half-finished state is silent — which is exactly
-the failure mode worth guarding against.
+Also established, not from the old notes:
 
-**Conclusion:** the database side of Brick 3 is real and defensible. Brick 3 is *not*
-closed, because a capability the product does not expose is not a delivered capability.
-Resume at Step C.
+- There is **no** intercompany, trading-partner, related-party or elimination object
+  anywhere in the database. Brick 6/7 are genuinely greenfield.
+- Consolidated reporting today is **trial balance only**. There is no consolidated
+  P&L and no consolidated balance sheet on the translated engine. The old comparative
+  page still shows companies side by side in their own currencies and still says
+  consolidation is future work.
+
+**Conclusion:** Brick 3 is functionally complete but not closed — it has never been
+validated end to end against the live functions. Resume at validation, close the brick,
+then build Brick 5 (consolidated statements), not intercompany.
 
 ## Phase 2 — additions to the plan
 
-- Re-run all four SQL suites against the current function bodies before building UI.
-  A test written but never executed is not evidence.
-- Add an architecture test that fails when a consolidation RPC exists with no consumer
-  in `src/`, mirroring the existing consolidated-trial-balance architecture test. This
-  class of half-landed work must break the build, not sit quietly.
-- The reserve-account picker must mirror the database guard exactly (active, postable
-  equity accounts of the parent company) so the UI cannot offer a choice the database
-  will reject.
+- The consolidated P&L and balance sheet must be projections of the same translated
+  trial balance, not new queries. One translation, one set of statements.
+- The balance sheet must prove it balances *including* the translation reserve, and
+  refuse to render rather than show an out-of-balance statement.
+- Retained earnings and the current-period result need an explicit, stated rule at
+  group level; this is where a silent second accounting truth would otherwise appear.
+- The comparative page's "consolidation is future work" copy is now false for currency
+  translation. It must be corrected and pointed at the real statements without
+  deleting the side-by-side view, which is still legitimate management reporting.
 
 ## Work order
 
-### Step A — re-validate (blocking)
-Execute `consolidation_group_foundation_test.sql`,
-`consolidated_trial_balance_test.sql`,
-`consolidated_trial_balance_reconciliation_test.sql` and
-`consolidation_translation_test.sql` against the live functions. Fix whatever they
-surface. Record the results in this file. Nothing else starts until they pass.
+### Step A — validate Brick 3 (blocking)
+Execute all four suites against the live functions:
+`consolidation_group_foundation_test.sql`, `consolidated_trial_balance_test.sql`,
+`consolidated_trial_balance_reconciliation_test.sql`,
+`consolidation_translation_test.sql`. Fix whatever they surface. Record the outcome
+here. Nothing else starts until they pass.
 
-### Step B — finish the configuration surface
-- Translation-settings card in `ConsolidationGroupsSettings`: reserve (CTA) equity
-  account selector, restricted to the parent company's active postable equity
-  accounts, with an explicit warning when a mixed-currency group has none.
-- Per-member historical rate date control, shown only for members whose base currency
-  differs from the group's presentation currency.
-- Refuse saving a mixed-currency group with no reserve account, stating the reason.
+### Step B — close Brick 3
+Write the stop/go checkpoint into this file: what was established, the accounting
+rules that now hold (current-rate method, dated equity movements, average-rate result,
+reserve as residual with an independent proof), the security boundaries, what passed,
+and what Brick 5 depends on.
 
-### Step C — reporting surface
-- `ConsolidatedTrialBalance` switches to the translated RPC when the group is mixed
-  currency: presentation-currency columns, per-line rate class and rate applied,
-  per-member translated figures, and the translation-reserve line.
-- Reconciliation panel driven by `consolidation_cta_reconciliation`, showing the
-  residual, the independently computed expectation, the difference and the pass/fail
-  flag.
-- Remove the stale "no FX translation / CTA" copy.
-- Zero FX arithmetic in TypeScript — the browser renders what the database computed.
-- Refusal reasons (missing rate coverage, missing reserve account, inaccessible member,
-  equity-method member) are surfaced as explanations, never as a blank report.
+### Step C — Brick 5: consolidated statements
+- A single group-level statement engine in SQL that consumes the translated trial
+  balance and classifies accounts through the existing authoritative account-type
+  classification — no new classification logic, no arithmetic in TypeScript.
+- Consolidated P&L: income and expense at the period average rate, group result,
+  per-company contribution on drill-down, non-controlling share disclosed separately.
+- Consolidated balance sheet: assets and liabilities at closing rate, equity at
+  dated/historical rates, translation reserve as its own equity line, with a hard
+  balance check that blocks the report when it fails.
+- Every blocker (rate gap, missing reserve account, inaccessible member, equity-method
+  member, closed-period edge) is explained in plain English, never a blank report.
+- Drill-down from any consolidated figure to the contributing company and account.
+- Explicit, visible statement that intercompany balances are not yet eliminated.
 
-### Step D — tests and checkpoint
-- Same-currency group: translation is a no-op and totals are unchanged.
-- Rate-coverage gap and missing-reserve-account refusals.
-- The architecture test that every consolidation RPC has a consumer.
-- Then write the Brick 3 stop/go checkpoint into this file: what was established,
-  what accounting rules now hold, what security boundaries exist, what passed, and
-  what Brick 4 depends on.
+### Step D — tests for Brick 5
+Same-currency group is a no-op; mixed-currency group ties to the translated trial
+balance; the balance sheet balances only with the reserve included; refusal paths;
+scope isolation (a user without access to one member cannot see group figures);
+architecture test extended to the new RPCs.
 
-## Explicitly out of scope until Brick 3 closes
+## Explicitly out of scope until Brick 5 closes
 
 Intercompany identification, eliminations, consolidated cash flow, persisted
-consolidation runs, minority interest, equity method. No placeholders for any of them.
-
-
-=============IMPLEMENATATION PROGRESS AND STATUS==============
-Brick 3 is now reachable end to end: the group settings screen configures the translation reserve account and each foreign company's opening-equity rate date, and the Consolidated Trial Balance now reads the translated engine — per-line rate class, own-currency-to-group amounts when you expand companies, the reserve line the engine emits, and an independent reserve proof per company. Blockers (missing reserve account, uncovered rates) are explained in plain English instead of silently approximated, and an architecture test now fails if any consolidation RPC is left unreachable from the UI.
-
-INSTRUCTIONS
-============
-Look at the plan status and chronologically pick the next item in queue , verify previous implementation has been landed then continue with the vision professioanlly, chronologically in a stable manner and composed manner 
+consolidation runs, minority-interest equity roll-forward, equity method. No
+placeholders for any of them.
