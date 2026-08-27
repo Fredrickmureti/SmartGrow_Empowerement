@@ -41,9 +41,13 @@ import {
 import {
   ReportSurface,
   ReportTable,
+  toExportColumns,
+  toExportRows,
   type ReportColumn,
   type ReportRow,
 } from "@/design-system/reports";
+import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { FileBarChart, ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
