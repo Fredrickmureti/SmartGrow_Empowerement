@@ -375,13 +375,19 @@ export default function ConsolidatedStatements() {
         ) : (
           <>
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Consolidated income statement — {selectedGroup?.name}
-                </CardTitle>
-                <CardDescription>
-                  {dateFrom} to {dateTo}, presented in {currency}.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-base">
+                    Consolidated income statement — {selectedGroup?.name}
+                  </CardTitle>
+                  <CardDescription>
+                    {dateFrom} to {dateTo}, presented in {currency}.
+                  </CardDescription>
+                </div>
+                <ReportExportButtons
+                  getExportConfig={getExportConfig("income_statement")}
+                  compact
+                />
               </CardHeader>
               <CardContent className="space-y-4">
                 <ReportSurface
