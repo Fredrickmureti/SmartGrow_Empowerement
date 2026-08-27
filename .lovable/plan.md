@@ -1,146 +1,127 @@
-# Consolidation — Brick 7 completion (eliminations user surface)
+# Consolidation — simulate a real elimination run, then fix what the refusal exposed
 
-## Verified current state (checked this session, not taken from the log)
+Scope: reproduce the failed "Generate eliminations" event on the live
+`AccrualFlowCorporation` tenant, establish the real cause, and fix it properly.
+Brick 8 (persisted consolidation runs) stays out of scope.
 
-Checked directly against the `AccrualFlowCorporation` database and the repo:
+## Verified current state (checked this session against the live database and repo)
 
-- **Elimination backend exists.** `consolidation_elimination_rules`,
-  `consolidation_eliminations`, and the functions
-  `consolidation_generate_eliminations`,
-  `get_consolidated_statement_lines_eliminated`,
-  `get_consolidated_statement_totals_eliminated` are all present. All three
-  engine functions are SECURITY INVOKER, so the caller's row-level access still
-  decides which companies they can consolidate; only the guard and change-log
-  triggers are definer, which is correct.
-- **The read/command layer exists and is honest.** `useConsolidationEliminations.ts`
-  contains no arithmetic: elimination rows, per-class rules, intercompany-flow
-  drill-down, the two three-column statement RPCs, plus `generate` and
-  `saveRule`. It never inserts into the engine-output table.
-- **There is no user-facing surface.** No eliminations page, no route in the
-  finance route table, no entry in the report registry, reports nav, app
-  registry or sidebar, and no architecture test for eliminations. The four
-  existing consolidation pages show pre-elimination figures only.
-- **The behaviour proof is claimed green but unre-run.** The behaviour block in
-  `supabase/tests/consolidation_eliminations_test.sql` will be re-executed as
-  the first step so the arithmetic is proven in this session, not inherited.
+Confirmed by direct queries and file reads, not from the previous log:
 
-Verdict: Brick 7's engine is real; Brick 7 is incomplete because nobody can see
-or drive it. This plan finishes Brick 7 and stops there.
+- **Group and scope are real.** `Joshua Holdings Group` (JHG), presentation
+  currency KES, parent `Joshua Holdings` (KES). Two full-method members at 100%:
+  Joshua Holdings (KES, from 2020-01-01) and Mombasa Port Services (USD, from
+  2026-01-01). 7 group accounts, 147 account mappings, a CTA group account is
+  set on the group, 2 intercompany partner declarations (both directions).
+- **The intercompany fixture is a single reciprocal pair, dated 2026-06-30:**
+  - Joshua Holdings, KES: Dr 1180 Intercompany receivable 2,630,000 /
+    Cr 4180 Intercompany management fees 2,630,000.
+  - Mombasa Port Services, USD: Dr 5180 Intercompany management fees 20,000 /
+    Cr 2180 Intercompany payable 20,000.
+  - Both entries are posted, tagged to the declared partner contacts, and every
+    one of the four accounts is mapped to a group account.
+- **FX history:** monthly USD→KES manual rates 126.00 (Jan) rising to 131.50 at
+  2026-06-30, then 132/133, then a provider series at 129.50 from mid-August.
+  20,000 × 131.50 = 2,630,000 exactly.
+- **No elimination rule rows exist for this group** —
+  `consolidation_elimination_rules` is empty, so the engine falls back to
+  `tolerance 0` and `difference_policy = refuse`.
+- **Zero rows in `consolidation_eliminations`** — no run has ever succeeded.
 
-## Scope of this brick
+### Diagnosis of the 400
 
-### 1. Re-prove the engine
-Re-run the behaviour segments of `consolidation_eliminations_test.sql` (they
-roll themselves back). Required demonstrations: a reciprocal pair eliminated to
-zero on both the balance and trading legs; a cross-currency pair eliminated at
-the group rate class, never at a coalesced rate of 1; an asymmetric pair
-refused by default and posted to the named difference account under an explicit
-policy; regeneration producing an identical set rather than duplicates;
-hand-written eliminations refused; a caller who cannot reach every member
-refused. If the engine is wrong the engine is fixed; if the fixture is wrong
-the fixture is fixed, and the log records which.
+The engine settles each company pair per elimination class and refuses when the
+two sides disagree beyond tolerance without a named difference account
+(`ERRCODE 22023` → PostgREST 400). Two disagreements are structurally
+guaranteed with this fixture:
 
-### 2. Eliminations report page
-A new `ConsolidationEliminations` report under Finance reports, built in the
-same shape as `ConsolidationIntercompany` (group and period pickers, report
-layout shell, permission gate, empty/loading/error states):
+- **`intercompany_trading`**: IAS 21 translates income/expense at the *period
+  average* rate. The subsidiary's USD 20,000 expense becomes ~2,56x,xxx KES at
+  a Jan–Jun average, against the parent's 2,630,000 KES income booked at spot.
+  The residual is a genuine translation difference, not a data error.
+- **`intercompany_balance`**: ties to zero only when the period's *closing* rate
+  is 131.50, i.e. a period ending 2026-06-30. For any later period end
+  (e.g. year-to-date, closing 129.50) the pair disagrees by ~40,000 KES.
 
-- every elimination leg with its class, both companies, both source accounts,
-  the group account, presentation-currency debit and credit, the rate class and
-  rate used, and a difference flag;
-- drill-down from a leg to the intercompany positions the engine consumed;
-- a **Generate** action calling the engine server-side, surfacing its refusals
-  verbatim — uncovered rate, out-of-scope member, unmapped account, reciprocal
-  disagreement — never a silent partial result;
-- an explicit "not generated for this period yet" state, distinct from
-  "nothing to eliminate".
+So the refusal is the engine behaving as designed on data that no policy has
+been configured for. Two real defects sit behind it:
 
-### 3. Rule configuration
-Per group and elimination class: active, tolerance, difference policy and
-difference account, placed with the other consolidation configuration in
-settings (`ConsolidationGroupsSettings` / `ConsolidationAccountMapping`
-neighbourhood), not in the report.
+1. **The refusal reason never reaches the user.** The hook does
+   `if (error) throw error`, throwing a PostgrestError *plain object*. The page
+   then does `e instanceof Error ? e.message : "The elimination run was refused"`
+   — false for a PostgrestError — so the specific, carefully worded server
+   message ("the two sides of the ... position between A and B differ by X KES")
+   is discarded and the user gets a bare "refused" with no reason. This is the
+   direct cause of the unactionable screen.
+2. **A cross-currency group has no honest default for the average-vs-closing
+   residual.** Mature systems (Oracle FCCS, NetSuite, D365 F&O) never refuse
+   this class of run: the residual on intercompany translation is routed to CTA
+   / a designated translation-difference account under IAS 21 / ASC 830.
+   Refusing forever means a multi-currency group can never eliminate at all.
 
-### 4. Three-column consolidated statements
-`ConsolidatedStatements` gains aggregated / eliminations / consolidated columns
-driven by the `_eliminated` RPCs. Existing single-column figures keep their
-current meaning and the pre-elimination column stays visible. Balance verdict
-comes from the server's `is_balanced`, not from a client sum.
+## What this brick does
 
-### 5. Registration and guard test
-Route in `src/apps/finance/routes.tsx`, entry in `ReportRegistry.ts`,
-`reportsNav.ts`, `src/lib/apps/registry.ts` and `AppSidebar.tsx`, gated on the
-same permission as its siblings. An architecture test in
-`src/test/architecture/` asserting no elimination arithmetic lives in
-TypeScript, matching the existing consolidation architecture tests.
+### 1. Surface the server's refusal verbatim
+Normalise Supabase errors into real `Error` objects at the hook boundary
+(message + `details`/`hint` preserved, code retained) for every consolidation
+call site, so refusals print the exact pair, amount, rate class or mapping at
+fault. Cover it with a test asserting a PostgrestError-shaped rejection still
+produces its message on screen.
 
-### 6. Checkpoint
-Write the Brick 7 section of `.lovable/consolidation-brick-log.md`: what was
-established, what changed, what was verified by execution, the accounting rules
-now enforced, the security boundary, and what is intentionally absent
-(unrealised profit in inventory, intercompany fixed-asset transfers, investment
-versus equity elimination, NCI allocation). Backfill the missing sections for
-bricks 1, 2, 3 and 5 from executed evidence only.
+### 2. Make the difference treatment configurable and honest
+- Add a `post_to_cta` difference policy handling: the residual on a
+  cross-currency intercompany pair posts to the group's CTA account, labelled
+  as a translation difference, instead of requiring a hand-picked account.
+- Keep `refuse` as the default for **same-currency** pairs, where a
+  disagreement really is a data error and must not be papered over.
+- The engine records which policy was applied, the rate classes on both sides
+  and both untranslated amounts in `source_evidence`, so the number stays
+  explainable.
+- The rules editor in the consolidation group settings exposes the new policy
+  with copy explaining when each is correct.
 
-## Explicitly out of scope here
+### 3. Simulate the real event end to end
+Drive the actual UI in a browser against the live tenant, signed in as a real
+user, and run **Generate** for:
+- 2026-01-01 → 2026-06-30 (closing rate ties the balance leg; trading leg leaves
+  a translation residual → routed to CTA, balance leg eliminates to zero),
+- 2026-01-01 → 2026-12-31 (closing rate 129.50; balance leg also leaves a
+  residual → routed to CTA),
+- a same-currency disagreement (seeded intra-KES pair with a deliberate 500 KES
+  mismatch) → run refused with the reason legible on screen,
+- a second run over the same period → identical set, no duplicates.
 
-Brick 8 (persisted, versioned consolidation runs and audit trail), Brick 9
-(ownership / non-controlling interest), Brick 10 (consolidated cash flow). No
-placeholders for them are created.
+Where the tenant lacks a scenario, test data is seeded through the normal
+posting path (a KES↔KES intercompany pair between two KES members, or an extra
+period's entries), never by writing engine-output tables.
+
+### 4. Prove the arithmetic
+Extend `supabase/tests/consolidation_eliminations_test.sql` with the
+cross-currency residual case (asserting the residual equals
+`closing/average rate delta × the foreign amount`, and that the eliminated
+consolidated balance sheet still reports `is_balanced`), and re-run the whole
+behaviour suite plus the consolidation architecture tests.
+
+### 5. Checkpoint
+Append to `.lovable/consolidation-brick-log.md`: the reproduced failure, the
+verified cause, the policy semantics now enforced, the executed evidence, and
+the confirmation that Brick 7 is genuinely usable before Brick 8 begins.
+
+## Explicitly not in this brick
+
+Persisted/versioned consolidation runs (Brick 8), non-controlling interest,
+unrealised profit in inventory, intercompany fixed-asset transfers, investment
+vs equity elimination, consolidated cash flow. No placeholders for them.
 
 ## Technical notes
 
-- No new migrations are expected; the Brick 7 schema is complete. If the
-  behaviour proof exposes an engine defect, the fix goes in a migration.
+- Engine changes go through a migration; the difference-routing logic stays in
+  `consolidation_generate_eliminations`, not in TypeScript.
 - No second FX resolver: rates keep coming from
-  `consolidation_member_translation_rates` / `fx_rate_on`.
-- No second accounting engine: eliminations consume the intercompany and
-  translation functions, which consume the authoritative finance primitives.
-- The front end reads engine output and writes only policy rows.
-
-
-
-=================IMPLEMENTATION PROGRESS AND STATUS LOG=============
-Brick 7 is now closed: the eliminations surface is proven green (behaviour suite BRICK7 BEHAVIOUR OK, 17 architecture tests passing) and the brick log has its Brick 7 checkpoint plus the backfilled Bricks 1, 2, 3 and 5 sections written from executed evidence only. Next up would be Brick 8 (persisted, versioned consolidation runs) whenever you want it.
-
-
-
-because I attempred to genearte eliminations 
-
-Before starting brick 8 I want you run a test on intercompany eliminations like simulate real event  because I attempted to do to and an error message was printed on the screen (The elimination run was refused
-
-The elimination run was refused) and a toast of (The elimination run was refused
-) ) and this console log was logged in the browser --> (@supabase_supabase-js.js?v=818a1ce2:19821  POST https://jkszmrroyjfdwokbkzis.supabase.co/rest/v1/rpc/consolidation_generate_eliminations 400 (Bad Request))
-
-==============================================
-# Execution Instructions
-
-1. **Verify Previous Implementation**
-
-   * Before making any new changes, carefully verify that the previous implementation has been fully completed, correctly integrated, and actually landed in the codebase and database where applicable.
-   * Do not assume that a previous task was completed merely because the relevant code appears to exist. Validate the actual behavior, dependencies, and business flow.
-
-2. **Proceed Chronologically**
-
-   * Once the previous step has been verified, identify the **next logical step, brick, or item in the sequence**.
-   * Follow the established implementation order rather than jumping ahead or working on unrelated areas.
-
-3. **Work Professionally and Analytically**
-
-   * Approach each step systematically and from first principles.
-   * Understand the existing architecture, business logic, dependencies, and intended behavior before making changes.
-   * Avoid rushed, speculative, or superficial implementations.
-
-4. **Maintain Stability**
-
-   * Preserve existing functionality and architectural integrity while progressing to the next step.
-   * Ensure each completed brick leaves the system in a stable, coherent state before proceeding further.
-
-5. **Keep the Process Organized**
-
-   * Clearly establish what has already been completed, what remains, and what the current step is intended to accomplish.
-   * Work through the sequence incrementally and methodically rather than attempting to implement everything at once.
-
-
-
-KINDLY NOTE , YOU ARE ALLOWED TO SEED TEST DATA WHERE ITS NEEDED AND WHEN THE TEST TENANT DOES NOT PROVIDE IT
+  `consolidation_member_translation_rates` → `fx_rate_on` /
+  `fx_period_average_rate`.
+- No second accounting engine: eliminations keep consuming
+  `consolidation_intercompany_flows` →
+  `get_consolidated_trial_balance_translated` → the finance primitives.
+- Authorisation is unchanged: SECURITY INVOKER engine functions plus the
+  org-role check on generation.
