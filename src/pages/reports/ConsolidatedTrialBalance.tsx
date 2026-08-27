@@ -198,7 +198,10 @@ export default function ConsolidatedTrialBalance() {
           code: line.account_code ?? "—",
           name:
             line.account_name +
-            (line.is_residual ? " (currency translation reserve)" : ""),
+            (line.is_residual ? " (currency translation reserve)" : "") +
+            (!line.is_mapped && !line.is_residual
+              ? " — not mapped to a group account"
+              : ""),
           company: showMembers ? "Group total" : "",
           rate: "",
           opening: money(line.opening_balance),
@@ -207,6 +210,7 @@ export default function ConsolidatedTrialBalance() {
           closing: money(line.closing_balance),
         },
       });
+
 
       if (!showMembers) continue;
       for (const c of line.contributions as ConsolidatedTrialBalanceRow[]) {
