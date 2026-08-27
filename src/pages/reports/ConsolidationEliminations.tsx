@@ -75,6 +75,8 @@ import {
   useEliminationDiagnosis,
 } from "@/hooks/finance/useConsolidationEliminations";
 import { EliminationRefusalPanel } from "@/components/finance/EliminationRefusalPanel";
+import { EliminationEvidencePanel } from "@/components/finance/EliminationEvidencePanel";
+
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 
@@ -502,24 +504,24 @@ export default function ConsolidationEliminations() {
                 <CardTitle className="text-base">Generated eliminations</CardTitle>
                 <CardDescription>
                   Engine output for {period}. These rows cannot be edited by hand.
+                  Open a leg to see the source accounts and posted entries behind it.
+
                 </CardDescription>
               </div>
               {hasRun && <ReportExportButtons getExportConfig={getEliminationsExport} />}
             </CardHeader>
             <CardContent>
-              {!hasRun && !eliminationsQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">
-                  Nothing generated for this period yet. Generating is safe to repeat: a
-                  new run replaces the period's set rather than adding to it.
-                </p>
-              ) : (
-                <ReportTable
-                  columns={columns}
-                  rows={rows}
-                  isLoading={eliminationsQuery.isLoading}
-                />
-              )}
+              <EliminationEvidencePanel
+                groupId={groupId}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                currency={currency}
+                eliminations={eliminations}
+                rules={rulesQuery.data ?? []}
+                isLoading={eliminationsQuery.isLoading}
+              />
             </CardContent>
+
           </Card>
         )}
 

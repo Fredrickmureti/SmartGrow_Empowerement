@@ -299,6 +299,85 @@ export function useConsolidationIntercompanyFlows(
   });
 }
 
+/**
+ * The evidence beneath ONE elimination leg: the source accounts and the posted
+ * journal entries the engine consumed, in both the company's currency and the
+ * group's, with the rate it used.
+ *
+ * Nothing is filtered or summed here — the server decides which entries belong
+ * to the leg, and it also decides, per row, whether this viewer is allowed to
+ * open that company's ledger (`viewer_can_open_ledger`). The UI never infers
+ * that from the current workspace.
+ */
+export interface EliminationEvidenceRow {
+  declaring_business_id: string;
+  declaring_business_name: string;
+  counterparty_business_id: string;
+  counterparty_business_name: string;
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  group_account_id: string;
+  group_account_code: string;
+  group_account_name: string;
+  presentation_currency: string;
+  rate_class: string;
+  rate_used: number;
+  basis: string;
+  journal_entry_id: string;
+  entry_number: string | null;
+  entry_date: string;
+  entry_description: string | null;
+  debit_base: number;
+  credit_base: number;
+  debit_presentation: number;
+  credit_presentation: number;
+  viewer_can_open_ledger: boolean;
+}
+
+export interface EliminationLegKey {
+  elimination_class: EliminationClass;
+  declaring_business_id: string;
+  counterparty_business_id: string;
+  group_account_id: string;
+}
+
+export function useEliminationEvidence(
+  groupId: string | null,
+  dateFrom: string | null,
+  dateTo: string | null,
+  leg: EliminationLegKey | null,
+) {
+  return useQuery({
+    queryKey: [
+      "consolidation-elimination-evidence",
+      groupId,
+      dateFrom,
+      dateTo,
+      leg?.elimination_class,
+      leg?.declaring_business_id,
+      leg?.counterparty_business_id,
+      leg?.group_account_id,
+    ],
+    enabled: !!groupId && !!dateFrom && !!dateTo && !!leg,
+    queryFn: async (): Promise<EliminationEvidenceRow[]> => {
+      const { data, error } = await supabase.rpc("consolidation_elimination_evidence", {
+        _group_id: groupId!,
+        _date_from: dateFrom!,
+        _date_to: dateTo!,
+        _elimination_class: leg!.elimination_class,
+        _declaring_business_id: leg!.declaring_business_id,
+        _counterparty_business_id: leg!.counterparty_business_id,
+        _group_account_id: leg!.group_account_id,
+      } as never);
+      if (error) throw toAppError(error);
+      return (data ?? []) as unknown as EliminationEvidenceRow[];
+    },
+  });
+}
+
+
 /** Statement lines with the aggregated / eliminations / consolidated columns. */
 export function useEliminatedStatementLines(
   groupId: string | null,

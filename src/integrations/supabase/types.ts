@@ -94963,6 +94963,43 @@ export type Database = {
           would_refuse: boolean
         }[]
       }
+      consolidation_elimination_evidence: {
+        Args: {
+          _counterparty_business_id: string
+          _date_from: string
+          _date_to: string
+          _declaring_business_id: string
+          _elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          _group_account_id: string
+          _group_id: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          basis: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          credit_base: number
+          credit_presentation: number
+          debit_base: number
+          debit_presentation: number
+          declaring_business_id: string
+          declaring_business_name: string
+          entry_date: string
+          entry_description: string
+          entry_number: string
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          journal_entry_id: string
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+          viewer_can_open_ledger: boolean
+        }[]
+      }
       consolidation_eliminations_balance: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -95063,6 +95100,34 @@ export type Database = {
           suggested_counterparty_business_id: string
           suggested_counterparty_business_name: string
           suggestion_basis: string
+        }[]
+      }
+      consolidation_intercompany_entry_lines: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          basis: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          credit_base: number
+          credit_presentation: number
+          debit_base: number
+          debit_presentation: number
+          declaring_business_id: string
+          declaring_business_name: string
+          entry_date: string
+          entry_description: string
+          entry_number: string
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          journal_entry_id: string
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
         }[]
       }
       consolidation_intercompany_flows: {
