@@ -24,6 +24,8 @@ import { ChevronDown, ChevronRight, ExternalLink, Filter, Loader2, Lock } from "
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toAppError } from "@/lib/supabaseError";
+import { ledgerDrillHref, journalEntryDrillHref } from "@/lib/reports/crossEntityDrill";
+
 import {
   ELIMINATION_CLASS_LABELS,
   ELIMINATION_POLICY_LABELS,
@@ -320,7 +322,12 @@ function LegEvidence({
                       variant="link"
                       size="sm"
                       className="h-auto p-0"
-                      onClick={() => navigate(`/finance/journal-entries/${r.journal_entry_id}`)}
+                      onClick={() =>
+                        navigate(
+                          journalEntryDrillHref(r.journal_entry_id, r.declaring_business_id),
+                        )
+                      }
+
                     >
                       {r.entry_number ?? "Journal entry"}
                       <ExternalLink className="h-3 w-3 ml-1" />
@@ -347,9 +354,15 @@ function LegEvidence({
                       className="h-auto p-0 text-left"
                       onClick={() =>
                         navigate(
-                          `/finance/reports/general-ledger?account_id=${r.account_id}&date_from=${dateFrom}&date_to=${dateTo}`,
+                          ledgerDrillHref({
+                            businessId: r.declaring_business_id,
+                            accountId: r.account_id,
+                            dateFrom,
+                            dateTo,
+                          }),
                         )
                       }
+
                     >
                       {r.account_code} · {r.account_name}
                     </Button>

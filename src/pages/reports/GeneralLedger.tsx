@@ -23,6 +23,8 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { EntityScopeNotice } from "@/components/reports/EntityScopeNotice";
+
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -301,7 +303,11 @@ function GeneralLedgerInner() {
   );
 
   return (
+    <>
+    {/* A cross-entity drill-down names its company in the URL; honour it and say so. */}
+    <EntityScopeNotice />
     <ReportPageLayout
+
       title="General Ledger"
       description="Detailed transaction history for all accounts"
       isLoading={isLoading || !currencyReady}
@@ -400,6 +406,8 @@ function GeneralLedgerInner() {
         sourceId={drawerSource.id}
       />
     </ReportPageLayout>
+    </>
+
   );
 }
 
