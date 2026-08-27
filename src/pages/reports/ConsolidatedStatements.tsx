@@ -151,6 +151,70 @@ export default function ConsolidatedStatements() {
     return out;
   };
 
+  /**
+   * Export config per statement. Built from the same rows the screen shows,
+   * with the server's own totals appended as total lines — nothing is
+   * recomputed for the export. Amounts travel as formatted strings in the
+   * group's presentation currency, which is not the active entity's base
+   * currency.
+   */
+  const getExportConfig = useCallback(
+    (statement: ConsolidatedStatement) => (): ExportConfig => {
+      const money = (v: number) => formatAmount(Number(v), currency);
+      const exportRows: ReportRow[] = [...rowsFor(statement)];
+
+      if (totals) {
+        if (statement === "income_statement") {
+          exportRows.push(
+            { id: "is-income", kind: "subtotal", values: { code: "", name: "Total income", amount: money(totals.total_income) } },
+            { id: "is-expense", kind: "subtotal", values: { code: "", name: "Total expenses", amount: money(totals.total_expense) } },
+            { id: "is-result", kind: "grandTotal", values: { code: "", name: "Result for the period", amount: money(totals.net_result) } },
+          );
+        } else {
+          exportRows.push(
+            { id: "bs-assets", kind: "subtotal", values: { code: "", name: "Total assets", amount: money(totals.total_assets) } },
+            { id: "bs-liabilities", kind: "subtotal", values: { code: "", name: "Total liabilities", amount: money(totals.total_liabilities) } },
+            { id: "bs-equity", kind: "subtotal", values: { code: "", name: "Total equity", amount: money(totals.total_equity) } },
+          );
+          if (Number(totals.translation_reserve) !== 0) {
+            exportRows.push({
+              id: "bs-cta",
+              kind: "detail",
+              values: { code: "", name: "of which currency translation reserve", amount: money(totals.translation_reserve) },
+            });
+          }
+          exportRows.push({
+            id: "bs-balanced",
+            kind: "note",
+            label: totals.is_balanced
+              ? "The consolidated balance sheet is in balance."
+              : `The consolidated balance sheet is OUT OF BALANCE by ${money(totals.balance_difference)} — treat these figures as unreliable.`,
+          });
+        }
+      }
+
+      const isIncome = statement === "income_statement";
+      return {
+        title: isIncome ? "Consolidated Income Statement" : "Consolidated Balance Sheet",
+        subtitle: `${selectedGroup?.name ?? "Consolidation group"} · projected from the consolidated trial balance · intercompany balances NOT eliminated`,
+        ...(isIncome
+          ? {
+              dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
+            }
+          : { asOf: format(new Date(dateTo), "MMM d, yyyy") }),
+        columns: toExportColumns(COLUMNS as ReportColumn<never>[]),
+        rows: toExportRows(exportRows, COLUMNS as ReportColumn<never>[]),
+        sheetName: isIncome ? "Income statement" : "Balance sheet",
+        currency,
+        formatProfile: "financial",
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lines, totals, currency, dateFrom, dateTo, selectedGroup?.name],
+  );
+
+
+
   if (!permLoading && !canViewConsolidated) {
     return (
       <ReportsLayout>
