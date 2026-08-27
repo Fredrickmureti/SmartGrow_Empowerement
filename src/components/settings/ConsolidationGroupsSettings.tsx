@@ -374,7 +374,8 @@ export function ConsolidationGroupsSettings() {
       </Card>
 
       {activeGroup && (
-        <Card>
+        <Card id="consolidation-group-members">
+
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
