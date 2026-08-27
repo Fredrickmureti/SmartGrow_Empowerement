@@ -1,127 +1,126 @@
-# Consolidation — verification verdict (2026-08-26 late) and the work to finish Brick 3
+# Consolidation — independent re-verification (2026-08-27) and the work to close Brick 3
 
-Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already
-connected. No connection work is needed.
+Supabase project `AccrualFlowCorporation` (ref `jkszmrroyjfdwokbkzis`) is already connected;
+no connection work is needed.
 
-## Phase 1 — what I verified directly against the live database and files
+The previous plan file in this repo is **materially out of date and wrong in two places**.
+Everything below was checked directly against the live database and the files in this
+session. Nothing is carried over on trust.
 
-Every claim below was checked in this session; none is carried over on trust.
+## Phase 1 — verified current state
 
-Confirmed present and real:
-- Functions: `resolve_consolidation_scope`, `consolidation_scope_member_count`
-  (the one SECURITY DEFINER piece), `get_consolidated_trial_balance`,
-  `get_gl_pnl_totals`, all reading the existing ledger engine
-  (`get_account_movements`, `get_ledger_opening_balances`). No second accounting engine.
-- Brick 3 partials that were applied: `fx_rate_on`, `fx_period_average_rate`,
-  `_consolidation_fy_start`, `consolidation_member_translation_rates`,
-  `_consolidation_cta_account_guard`, plus the columns
-  `consolidation_groups.cta_account_id` and
-  `consolidation_group_members.historical_rate_date`.
-- UI: consolidation group settings, `ConsolidatedTrialBalance`, the comparative
-  `Consolidation` page.
-- Test files on disk: `consolidation_group_foundation_test.sql`,
-  `consolidated_trial_balance_test.sql`,
-  `consolidated_trial_balance_reconciliation_test.sql`.
+### Confirmed correct (previous claims that hold)
 
-Confirmed still missing — the previous notes were accurate that the run was cut off:
-- `consolidation_translate_member`, `get_consolidated_trial_balance_translated`
-  and `consolidation_cta_reconciliation` **do not exist** in the database.
-- `resolve_consolidation_scope` still hard-blocks with `currency_translation_required`,
-  and has no `cta_account_not_configured` blocker.
-- The database is therefore in a half-built state: new rate functions exist and
-  nothing consumes them. Safe for users (untranslated report unchanged), incoherent
-  as architecture.
+- **No second accounting engine.** `get_consolidated_trial_balance`,
+  `get_gl_pnl_totals` and `consolidation_translate_member` all read the authoritative
+  ledger primitives `get_account_movements` and `get_ledger_opening_balances`.
+- **Brick 1 is genuinely done.** `src/services/gl/fetchGLTotals.ts` calls
+  `get_gl_pnl_totals`; the comparative page (`src/pages/reports/Consolidation.tsx`)
+  contains no accounting arithmetic of its own and sums nothing across companies.
+- **Scope security is server-side.** `resolve_consolidation_scope` compares the
+  member rows the caller can see against `consolidation_scope_member_count`
+  (the single SECURITY DEFINER piece) and refuses the whole report when the caller
+  cannot access every company in scope. Blockers exist for equity method, missing
+  base currency, missing ownership, missing CTA account, and thin rate coverage.
+- **Grants are correct.** Every consolidation function is EXECUTE to `authenticated`
+  and `service_role` only — no `anon`.
 
-Corrections to the previous plan's own claims:
-- It said 0 groups / 0 members. There is now **1 group** ("Joshua Holdings Group",
-  presentation currency KES, `cta_account_id` NULL) with **1 member**, method `full`,
-  100% ownership. That is not a validation fixture — a one-member same-currency group
-  proves nothing about consolidation.
-- Both businesses in the tenant are KES, 17 journal entries / 37 lines. There is no
-  foreign-currency subsidiary anywhere, so no translation path has ever run.
-- Repo drift: only one consolidation migration file exists
-  (`20260826200409_consolidation_grant_tightening.sql`). Everything else applied in
-  Bricks 2 and 3 lives in the database with no migration in the repo. This must be
-  corrected or the schema is unreproducible.
-- Brick 2 remains **built but unvalidated** — the invariant suites have still never run.
+### Previous claims that are FALSE
 
-## Phase 2 — what I am adding to the plan
+1. **"`consolidation_translate_member`, `get_consolidated_trial_balance_translated`
+   and `consolidation_cta_reconciliation` do not exist."** All three exist in the
+   database now, with the full closing/average/historical rate classing and a CTA
+   residual line. Step B of the old plan largely landed after that text was written.
+2. **"Repo/database drift: only one consolidation migration file exists."** False.
+   The Brick 2 and Brick 3 objects were applied through the migration tool and are in
+   `supabase/migrations/` under hash-named files (`20260826204139…`, `20260826204315…`,
+   `20260826204737…`, `20260827023602…`, `20260827023959…`). The schema is reproducible.
+   No drift-repair work is needed, and issuing "reconciling" migrations would be
+   busywork.
+3. **"Build a persistent parent+subsidiary fixture in the tenant."** Unnecessary and
+   undesirable: the three SQL suites in `supabase/tests/` already seed their own
+   organizations, companies, accounts and posted entries inside a DO block and roll
+   back. Validation should extend those, not pollute the live tenant.
 
-1. **Repo/database drift is a defect, not paperwork.** Every consolidation object now
-   living only in the database must be reissued through migrations so the schema is
-   reproducible. This is prerequisite work, not cleanup.
-2. **A one-member group is not a fixture.** Validation needs a genuine parent +
-   subsidiary set, and a second set with a non-KES subsidiary, or FX translation can
-   never be verified.
-3. **CTA needs a named equity account before translation may run.** `cta_account_id`
-   is nullable and currently NULL; translation must refuse rather than plug a residual
-   into thin air.
-4. Reuse the existing `fx_is_monetary_account` and `resolve_exchange_rate`; no
-   competing rate resolver.
+### Real remaining gaps (verified)
+
+- **The translated path has no UI at all.** No file outside the generated types
+  references `get_consolidated_trial_balance_translated`, `consolidation_cta_reconciliation`,
+  `cta_account_id` or `rate_class`. `ConsolidatedTrialBalance.tsx` still calls only the
+  untranslated RPC and still tells the user "no FX translation / CTA". Group settings
+  (`src/components/settings/ConsolidationGroupsSettings.tsx`,
+  `src/hooks/finance/useConsolidationGroups.ts`) cannot select a CTA account — the hook
+  does not even fetch the column. So a mixed-currency group can be created that is
+  permanently blocked with no way for the user to fix it.
+- **The invariant suites have still never been executed.** Brick 2 remains
+  "built but unvalidated", and the translated path has no tests whatsoever.
+- **Only one group with one member exists** (presentation currency KES,
+  `cta_account_id` NULL); both companies in the tenant are KES, 17 journal entries.
+  No translation path has ever run against real data.
+- **Accounting defects found by reading `consolidation_translate_member`:**
+  - The CTA residual is summed over **every** account including nominal ones, so the
+    residual mixes the P&L translation difference into a balance-sheet reserve without
+    routing it through retained earnings. Needs an explicit decision and a test.
+  - Equity movements are translated at a single `historical_rate` taken from the
+    member's `historical_rate_date`/`effective_from`, so share capital issued *during*
+    the period is translated at the wrong rate (IAS 21 wants the transaction-date rate).
+  - `consolidation_cta_reconciliation` reports `movement = closing − opening` from the
+    same query that produced both — a tautology that cannot detect an error. It must
+    instead prove the residual equals the independently computed translation difference
+    (opening net assets × rate change + period result × (closing − average)).
+
+## Phase 2 — additions to the plan
+
+- Treat "the database can do it but nothing in the product exposes it" as an unfinished
+  brick, not a finished one. Brick 3 does not close until a user can configure CTA and
+  read a translated statement.
+- Add an architecture test that fails if the translated RPC exists but no hook consumes
+  it, mirroring the existing `consolidated-trial-balance.test.ts` pattern — this class of
+  half-landed work must be caught automatically.
+- Validation runs as self-contained, self-rolling-back SQL suites. The live tenant stays
+  clean.
 
 ## Work order
 
-### Step A — reproducibility and validation of what exists (Brick 2V, blocking)
-- Reissue every consolidation object currently only in the database as proper
-  migrations (tables/columns already applied are reconciled idempotently).
-- Execute all three SQL invariant suites and fix whatever they surface.
-- Build a real same-currency fixture: parent plus a second member, posted journal
-  entries in each. Reconcile the consolidated trial balance against the arithmetic
-  sum of each member's own trial balance; debits must equal credits.
-- Confirm `get_gl_pnl_totals` matches the P&L statement for the same period/scope.
-- Confirm the refusal paths refuse: inaccessible member, mixed currency,
-  equity-method member, inverted date range.
-- Record results here. Brick 3 does not resume until this passes.
+### Step A — validate what exists (blocking, no new features)
+- Execute the three existing suites (`consolidation_group_foundation_test.sql`,
+  `consolidated_trial_balance_test.sql`,
+  `consolidated_trial_balance_reconciliation_test.sql`) and fix whatever they surface.
+- Confirm the refusal paths actually refuse: inaccessible member, mixed currency on the
+  untranslated report, equity-method member, inverted date range, missing ownership.
+- Record results in this file. Nothing else proceeds until this passes.
 
-### Step B — land the rest of Brick 3 as one coherent unit
-- `consolidation_translate_member` (SECURITY INVOKER): closing rate for assets and
-  liabilities, period average for income and expenses, historical/transaction-date
-  rate for equity, CTA as the balancing residual.
-- Revise `resolve_consolidation_scope`: currency difference becomes
-  `requires_translation` instead of a dead end; add `cta_account_not_configured`
-  and `insufficient_rate_coverage` blockers.
-- Keep `get_consolidated_trial_balance` (untranslated) refusing mixed-currency groups;
-  add `get_consolidated_trial_balance_translated` and
-  `consolidation_cta_reconciliation` (opening + movement = closing).
-- EXECUTE grants to `authenticated` only; never `anon`.
+### Step B — correct the translation accounting
+- Decide and implement the nominal-account treatment: P&L translated at average, its
+  translation difference carried to CTA through the period result rather than swept in
+  anonymously; opening retained earnings at prior closing rate.
+- Replace the single historical equity rate with per-movement transaction-date
+  translation for equity, keeping the member's historical date for opening equity.
+- Rewrite `consolidation_cta_reconciliation` as a genuine independent check
+  (opening net assets × rate change + result × rate spread = CTA movement), so a
+  mismatch is an error, not arithmetic identity.
+- Keep reusing `fx_rate_on`, `fx_period_average_rate`, `resolve_exchange_rate` and
+  `fx_is_monetary_account`. No competing rate resolver.
 
-### Step C — configuration and reporting surfaces
-- Group settings UI gains CTA equity account selection (restricted to postable,
-  active equity accounts of the parent company) and translation basis.
-- Consolidated trial balance gains presentation-currency columns, per-member
-  translated figures, the rate used per rate class, and the CTA line.
+### Step C — configuration surface (makes mixed-currency groups usable)
+- `useConsolidationGroups` fetches and writes `cta_account_id` and
+  `historical_rate_date`.
+- Group settings gains CTA equity-account selection, restricted to active, postable
+  equity accounts of the parent company, plus the per-member historical rate date.
+- Saving a mixed-currency group without a CTA account is refused with the reason.
+
+### Step D — reporting surface
+- `ConsolidatedTrialBalance` gains presentation-currency columns, per-member translated
+  figures, the rate class and rate applied per line, and the CTA line; the stale
+  "no FX translation" copy is removed.
+- Add a CTA reconciliation panel driven by the RPC.
 - Zero FX arithmetic in TypeScript: the browser renders what the database computed.
 
-### Step D — translated-path tests
-Same-currency group (translation is a no-op), parent KES / subsidiary USD,
-rate-coverage gap refusal, CTA reconciliation, closed-period behaviour.
+### Step E — translated-path tests
+New self-contained suites: same-currency group (translation is a no-op and totals are
+unchanged), parent KES / subsidiary USD with posted entries in each, rate-coverage gap
+refusal, missing-CTA refusal, CTA reconciliation, closed-period behaviour, and the
+architecture test that the translated RPC is actually consumed by the app.
 
-Explicitly out of scope until Brick 3 closes: intercompany identification,
-eliminations, consolidated cash flow, persisted consolidation runs, minority interest
-measurement beyond the existing disclosure.
-
-## Technical notes
-- All new SQL is SECURITY INVOKER except where a definer function already exists and
-  is documented; RLS on `journal_entry_lines` remains the access boundary, so a caller
-  who cannot see a member's books cannot consolidate them.
-- FX additions go inside the existing rate store (`fx_rate_on`,
-  `fx_period_average_rate` already follow this) — no second resolver.
-- The USD fixture needs exchange-rate coverage for every day of the tested period, or
-  `fx_period_average_rate` correctly returns NULL and translation must refuse.
-
-
-
-==============DEVELOPMENT PROGESS STATUS===================
-Stopping here — the database side of Brick 3 is complete and verified; the UI wiring is not.
-
-Done and validated this session
-
-Corrected a real sign defect in get_consolidated_trial_balance: it applied the debit-normal closing formula (opening + dr − cr) to every account, so liabilities, equity and income closed with the wrong sign. Both consolidation functions now follow the shared accounting kernel (debit-normal = asset, expense).
-Confirmed by probe that get_ledger_opening_balances returns expense openings credit-signed (a 500 debit posted earlier in the same FY comes back as -500), contradicting the kernel's debit-normal treatment. Consolidation now normalizes that sign internally.
-consolidation_translate_member computes the CTA as the debit-equivalent residual in a single pass, and get_consolidated_trial_balance_translated / consolidation_cta_reconciliation build on it.
-Fixture suites all pass (rolled back): mixed-currency KES/USD with a prior-period expense — cash 77,000, expense 50,000, capital 100,000, revenue 22,000, CTA 5,000 credit, translated member and group both summing to exactly zero; same-currency member produces no CTA; missing CTA account, missing rate coverage, and untranslated mixed-currency requests are all refused rather than approximated.
-Remaining
-
-Report the wider defect, don't silently absorb it. The expense-opening sign flaw is not confined to consolidation — useFinancialReport.ts and ReportCalculationEngine.ts feed the same credit-signed opening into calculateBalance with opening + dr − cr, so any expense account with earlier same-FY activity is understated by twice that amount on the single-entity P&L too. That needs its own fix and its own test, decided deliberately rather than folded into consolidation.
-UI (Step C): useConsolidatedTrialBalance.ts still calls only the untranslated RPC and its CONSOLIDATION_BLOCKER_LABELS still tells users FX translation "is not built yet"; it needs the requires_translation flag, the translated hook, and the new cta_account_not_configured / insufficient_rate_coverage blockers. ConsolidatedTrialBalance.tsx needs rate-class and CTA columns plus a corrected limits notice, and ConsolidationGroupsSettings.tsx needs the CTA account picker.
-Repo hygiene: the two migrations written today are in the repo, but the earlier Brick 3 drift (fx_rate_on, fx_period_average_rate, cta_account_id) was reissued rather than reconciled against its original untracked source — worth a confirming diff of DB vs. migrations before Brick 4.
+Explicitly out of scope until Brick 3 closes: intercompany identification, eliminations,
+consolidated cash flow, persisted consolidation runs, minority interest, equity method.
