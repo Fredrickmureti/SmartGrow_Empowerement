@@ -91,12 +91,19 @@ function draftFrom(rule: EliminationRule | undefined): Draft {
   };
 }
 
-export function ConsolidationEliminationRules({ groupId, groupName, canManage }: Props) {
+export function ConsolidationEliminationRules({
+  groupId,
+  groupName,
+  canManage,
+  focusClass = null,
+  focusRemedy = null,
+}: Props) {
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const accountsQuery = useConsolidationGroupAccounts(groupId);
   const { saveRule } = useConsolidationEliminationMutations();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [savingClass, setSavingClass] = useState<string | null>(null);
+
 
   const ruleFor = useMemo(() => {
     const map = new Map<string, EliminationRule>();
