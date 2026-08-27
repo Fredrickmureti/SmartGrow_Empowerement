@@ -58,6 +58,15 @@ been configured for. Two real defects sit behind it:
    this class of run: the residual on intercompany translation is routed to CTA
    / a designated translation-difference account under IAS 21 / ASC 830.
    Refusing forever means a multi-currency group can never eliminate at all.
+3. **Brick 7 does not even typecheck.** Six TypeScript errors are live in the
+   code the previous session declared closed: `ConsolidatedStatements.tsx` reads
+   `aggregated_amount` / `elimination_amount` / `consolidated_amount` off rows
+   that `sectionsOf()` has narrowed back to `ConsolidatedStatementLine` (the
+   local `as unknown as` cast is lost at the helper boundary), and
+   `ConsolidationEliminations.tsx` passes an `isLoading` prop that
+   `ReportTableProps` in `src/design-system/reports/ReportTable.tsx` does not
+   declare. So the three-column statement and the eliminations table were never
+   built successfully — evidence the "green" claim was not re-verified.
 
 ## What this brick does
 
