@@ -215,14 +215,20 @@ async function callConsolidationRpc<T>(
   fn: "consolidation_intercompany_activity" | "consolidation_intercompany_coverage",
   args: { _group_id: string; _date_from: string; _date_to: string },
 ): Promise<T[]> {
-  const rpc = supabase.rpc as unknown as (
-    name: string,
-    params: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>;
-  const { data, error } = await rpc(fn, args);
+  // Call `rpc` as a member of the client. Detaching it into a local variable
+  // loses `this`, and supabase-js dereferences `this.rest` internally — which
+  // fails with "Cannot read properties of undefined (reading 'rest')" instead
+  // of reaching the engine.
+  const { data, error } = await (
+    supabase.rpc as unknown as (
+      name: string,
+      params: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>
+  ).call(supabase, fn, args);
   if (error) throw new Error(error.message);
   return (data ?? []) as T[];
 }
+
 
 /**
  * Intercompany activity per group account. The RPC refuses the run for the same

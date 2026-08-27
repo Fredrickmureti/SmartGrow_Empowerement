@@ -218,3 +218,25 @@ describe("refusals stay visible on both new surfaces", () => {
     expect(hook).not.toMatch(/consolidation_run/i);
   });
 });
+
+describe("the RPC helper keeps its receiver", () => {
+  // `supabase.rpc` dereferences `this.rest` internally. Detaching it into a
+  // local variable and calling it bare threw "Cannot read properties of
+  // undefined (reading 'rest')" on both the activity and coverage sections,
+  // which read to the user as a broken page rather than as a refusal. The call
+  // must stay a member call (or be explicitly bound).
+  it("never assigns supabase.rpc to a variable that is then called bare", () => {
+    const detached = /const\s+(\w+)\s*=\s*supabase\.rpc\b/.exec(hook);
+    if (detached) {
+      const name = detached[1];
+      expect(
+        new RegExp(`(?<![.\\w])${name}\\s*\\(`).test(hook),
+        `${name} holds supabase.rpc detached from the client and is called bare`,
+      ).toBe(false);
+    }
+  });
+
+  it("invokes the engine through the client, preserving `this`", () => {
+    expect(hook).toMatch(/supabase\.rpc[\s\S]{0,200}?\)\s*\.call\(\s*supabase|supabase\.rpc\(/);
+  });
+});
