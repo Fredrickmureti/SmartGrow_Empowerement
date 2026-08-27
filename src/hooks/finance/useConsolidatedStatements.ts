@@ -15,6 +15,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 
 export type ConsolidatedStatement = "income_statement" | "balance_sheet";
 
@@ -78,7 +79,7 @@ export function useConsolidatedStatementLines(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidatedStatementLine[];
     },
   });
@@ -102,7 +103,7 @@ export function useConsolidatedStatementTotals(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       const rows = (data ?? []) as ConsolidatedStatementTotals[];
       return rows[0] ?? null;
     },

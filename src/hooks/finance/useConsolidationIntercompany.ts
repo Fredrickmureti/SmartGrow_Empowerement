@@ -27,6 +27,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 import { useOrganization } from "@/hooks/useOrganization";
 
 export interface ConsolidationIntercompanyPartner {
@@ -86,7 +87,7 @@ export function useConsolidationIntercompanyPartners(groupId: string | null) {
         )
         .eq("group_id", groupId!)
         .order("effective_from");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationIntercompanyPartner[];
     },
   });
@@ -109,7 +110,7 @@ export function useConsolidationMemberContacts(businessIds: string[]) {
         .in("business_id", businessIds)
         .eq("is_active", true)
         .order("name");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as MemberContactOption[];
     },
   });
@@ -134,7 +135,7 @@ export function useConsolidationIntercompanyBalances(
         _date_from: dateFrom!,
         _date_to: dateTo!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as IntercompanyPairRow[];
     },
   });
@@ -297,7 +298,7 @@ export function useConsolidationIntercompanyMutations() {
       const { error } = await supabase
         .from("consolidation_intercompany_partners")
         .insert({ ...input, organization_id: orgId });
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -312,7 +313,7 @@ export function useConsolidationIntercompanyMutations() {
         .from("consolidation_intercompany_partners")
         .update({ effective_to: effectiveTo })
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -324,7 +325,7 @@ export function useConsolidationIntercompanyMutations() {
         .from("consolidation_intercompany_partners")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });

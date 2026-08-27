@@ -19,6 +19,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toAppError } from "@/lib/supabaseError";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -113,7 +114,7 @@ export function useConsolidationAllowedBusinessIds() {
         _user_id: user!.id,
         _org_id: orgId!,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as string[];
     },
   });
@@ -148,7 +149,7 @@ export function useConsolidationCtaAccountOptions(parentBusinessId: string | nul
         .eq("is_active", true)
         .eq("is_header", false)
         .order("code");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as CtaAccountOption[];
     },
   });
@@ -170,7 +171,7 @@ export function useConsolidationGroups() {
         )
         .eq("organization_id", orgId!)
         .order("name");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationGroup[];
     },
   });
@@ -194,7 +195,7 @@ export function useConsolidationGroupMembers(groupId: string | null) {
         .eq("group_id", groupId!)
         .order("effective_from")
         .order("created_at");
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as ConsolidationGroupMember[];
     },
   });
@@ -214,7 +215,7 @@ export function useConsolidationChangeLog(groupId: string | null) {
         .eq("group_id", groupId!)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (error) throw error;
+      if (error) throw toAppError(error);
       return (data ?? []) as unknown as ConsolidationChangeLogEntry[];
     },
   });
@@ -245,7 +246,7 @@ export function useConsolidationGroupMutations() {
         .insert({ ...input, organization_id: orgId })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) throw toAppError(error);
 
       // The parent company is always a member of its own group, at 100%.
       const { error: memberError } = await supabase
@@ -270,7 +271,7 @@ export function useConsolidationGroupMutations() {
         .from("consolidation_groups")
         .delete()
         .eq("id", groupId);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -288,7 +289,7 @@ export function useConsolidationGroupMutations() {
       const { error } = await supabase
         .from("consolidation_group_members")
         .insert({ ...input, organization_id: orgId });
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -310,7 +311,7 @@ export function useConsolidationGroupMutations() {
         .from("consolidation_groups")
         .update({ cta_account_id })
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -334,7 +335,7 @@ export function useConsolidationGroupMutations() {
         .from("consolidation_group_members")
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
@@ -351,7 +352,7 @@ export function useConsolidationGroupMutations() {
         _id: id,
         _effective_to: effectiveTo,
       });
-      if (error) throw error;
+      if (error) throw toAppError(error);
     },
     onSuccess: invalidate,
   });
