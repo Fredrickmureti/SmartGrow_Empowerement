@@ -43,7 +43,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CalendarOff, GitMerge, History, Info, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarOff,
+  Coins,
+  GitMerge,
+  History,
+  Info,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBusinessCurrenciesFor } from "@/hooks/useBusinessCurrencies";
@@ -52,12 +61,14 @@ import {
   useCanManageConsolidation,
   useConsolidationAllowedBusinessIds,
   useConsolidationChangeLog,
+  useConsolidationCtaAccountOptions,
   useConsolidationGroupMembers,
   useConsolidationGroupMutations,
   useConsolidationGroups,
   type ConsolidationMethod,
 } from "@/hooks/finance/useConsolidationGroups";
 import { normalizeError } from "@/services/resilience";
+
 
 const METHODS = Object.keys(CONSOLIDATION_METHOD_LABELS) as ConsolidationMethod[];
 
@@ -69,14 +80,24 @@ export function ConsolidationGroupsSettings() {
   const canManage = useCanManageConsolidation();
   const { data: allowedIds } = useConsolidationAllowedBusinessIds();
   const { data: groups = [], isLoading } = useConsolidationGroups();
-  const { createGroup, deleteGroup, addMember, updateMember, closeMember } =
-    useConsolidationGroupMutations();
+  const {
+    createGroup,
+    deleteGroup,
+    addMember,
+    updateMember,
+    closeMember,
+    updateGroupTranslationSettings,
+  } = useConsolidationGroupMutations();
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const activeGroupId = selectedGroupId ?? groups[0]?.id ?? null;
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
   const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
+  const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
+    activeGroup?.parent_business_id ?? null,
+  );
+
 
   const [newName, setNewName] = useState("");
   const [newParent, setNewParent] = useState("");

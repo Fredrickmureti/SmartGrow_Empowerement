@@ -33,6 +33,13 @@ export interface ConsolidationGroup {
   presentation_currency: string;
   description: string | null;
   is_active: boolean;
+  /**
+   * Equity account of the parent company that carries the cumulative
+   * translation adjustment. Translation is refused outright while this is
+   * unset: a translated statement with nowhere to put the reserve would not
+   * balance, and a silently absorbed difference is a misstatement.
+   */
+  cta_account_id: string | null;
 }
 
 export interface ConsolidationGroupMember {
@@ -46,7 +53,15 @@ export interface ConsolidationGroupMember {
   effective_from: string;
   effective_to: string | null;
   notes: string | null;
+  /**
+   * Date whose rate translates this company's *opening* equity — the rate on
+   * the day the parent acquired it. Movements during a period always translate
+   * at their own transaction-date rate, never at this one. Defaults to
+   * `effective_from` when unset.
+   */
+  historical_rate_date: string | null;
 }
+
 
 export interface ConsolidationChangeLogEntry {
   id: string;
@@ -104,6 +119,42 @@ export function useConsolidationAllowedBusinessIds() {
   });
 }
 
+export interface CtaAccountOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/**
+ * Equity accounts of the group's parent company that may carry the cumulative
+ * translation adjustment. The filter mirrors the database guard exactly —
+ * parent company, equity type, postable, active — so the picker can never
+ * offer an account the database will refuse.
+ */
+export function useConsolidationCtaAccountOptions(parentBusinessId: string | null) {
+  const { currentOrg } = useOrganization();
+  const orgId = currentOrg?.id;
+
+  return useQuery({
+    queryKey: ["consolidation-cta-accounts", orgId, parentBusinessId],
+    enabled: !!orgId && !!parentBusinessId,
+    queryFn: async (): Promise<CtaAccountOption[]> => {
+      const { data, error } = await supabase
+        .from("accounts")
+        .select("id, code, name")
+        .eq("organization_id", orgId!)
+        .eq("business_id", parentBusinessId!)
+        .eq("account_type", "equity")
+        .eq("is_active", true)
+        .eq("is_header", false)
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as CtaAccountOption[];
+    },
+  });
+}
+
+
 export function useConsolidationGroups() {
   const { currentOrg } = useOrganization();
   const orgId = currentOrg?.id;
@@ -115,7 +166,7 @@ export function useConsolidationGroups() {
       const { data, error } = await supabase
         .from("consolidation_groups")
         .select(
-          "id, organization_id, name, code, parent_business_id, presentation_currency, description, is_active",
+          "id, organization_id, name, code, parent_business_id, presentation_currency, description, is_active, cta_account_id",
         )
         .eq("organization_id", orgId!)
         .order("name");
@@ -138,7 +189,7 @@ export function useConsolidationGroupMembers(groupId: string | null) {
       const { data, error } = await supabase
         .from("consolidation_group_members")
         .select(
-          "id, organization_id, group_id, business_id, parent_business_id, ownership_percent, method, effective_from, effective_to, notes",
+          "id, organization_id, group_id, business_id, parent_business_id, ownership_percent, method, effective_from, effective_to, notes, historical_rate_date",
         )
         .eq("group_id", groupId!)
         .order("effective_from")
@@ -242,6 +293,28 @@ export function useConsolidationGroupMutations() {
     onSuccess: invalidate,
   });
 
+  /**
+   * Group-level translation settings. Only the reserve account is editable
+   * here: the parent company and presentation currency are structural and
+   * changing them would silently restate every period already reported.
+   */
+  const updateGroupTranslationSettings = useMutation({
+    mutationFn: async ({
+      id,
+      cta_account_id,
+    }: {
+      id: string;
+      cta_account_id: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("consolidation_groups")
+        .update({ cta_account_id })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
   const updateMember = useMutation({
     mutationFn: async ({
       id,
@@ -250,7 +323,11 @@ export function useConsolidationGroupMutations() {
       Partial<
         Pick<
           ConsolidationGroupMember,
-          "ownership_percent" | "method" | "parent_business_id" | "notes"
+          | "ownership_percent"
+          | "method"
+          | "parent_business_id"
+          | "notes"
+          | "historical_rate_date"
         >
       >) => {
       const { error } = await supabase
@@ -261,6 +338,7 @@ export function useConsolidationGroupMutations() {
     },
     onSuccess: invalidate,
   });
+
 
   /**
    * Ends a membership by stamping `effective_to` server-side. There is no
@@ -278,5 +356,13 @@ export function useConsolidationGroupMutations() {
     onSuccess: invalidate,
   });
 
-  return { createGroup, deleteGroup, addMember, updateMember, closeMember };
+  return {
+    createGroup,
+    deleteGroup,
+    addMember,
+    updateMember,
+    closeMember,
+    updateGroupTranslationSettings,
+  };
+
 }
