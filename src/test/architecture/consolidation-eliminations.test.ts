@@ -25,6 +25,9 @@ const STATEMENTS = "pages/reports/ConsolidatedStatements.tsx";
 function arithmeticOffenders(src: string): string[] {
   return src
     .split("\n")
+    // Strip string and template literals first: a query key such as
+    // "consolidation-elimination-rules" is a name, not a subtraction.
+    .map((line) => line.replace(/"[^"]*"|'[^']*'|`[^`]*`/g, '""'))
     .filter((line) =>
       /(debit|credit|amount|balance|difference|tolerance|aggregated|elimination|consolidated)[a-z_]*\s*[-+*/]\s*[A-Za-z(]/i.test(
         line,
