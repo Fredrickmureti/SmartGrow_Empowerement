@@ -167,6 +167,7 @@ export function SummaryStatCard({
   trend,
   to,
   onClick,
+  title,
   loading = false,
   className,
 }: SummaryStatCardProps) {
@@ -184,6 +185,19 @@ export function SummaryStatCard({
   const card = (
     <Card
       onClick={onClick}
+      title={title}
+      role={onClick && !to ? "button" : undefined}
+      tabIndex={onClick && !to ? 0 : undefined}
+      onKeyDown={
+        onClick && !to
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       className={cn(
         "h-full min-w-0",
         accent && TONE_ACCENT[canonical],
