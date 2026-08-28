@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
@@ -373,32 +374,12 @@ export default function PhysicalCount() {
 
   const renderCount = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{countLines.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Counted</CardTitle>
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold text-primary">{countedLines.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Surplus (+)</CardTitle>
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold text-success">+{totalPositiveVar}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Shortage (−)</CardTitle>
-          </CardHeader>
-          <CardContent><div className="text-2xl font-bold text-destructive">−{totalNegativeVar}</div></CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard label="Total Products" value={countLines.length} />
+        <SummaryStatCard tone="primary" label="Counted" value={countedLines.length} />
+        <SummaryStatCard tone="emerald" label="Surplus (+)" value={`+${totalPositiveVar}`} />
+        <SummaryStatCard tone="destructive" label="Shortage (−)" value={`−${totalNegativeVar}`} />
+      </SummaryStatGrid>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
         <div className="space-y-1">

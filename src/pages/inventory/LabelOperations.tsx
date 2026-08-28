@@ -29,6 +29,7 @@ import {
   type LabelDemandReason, type LabelRun, type LabelRunStatus,
 } from "@/hooks/inventory/useLabelRuns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -144,25 +145,25 @@ export default function LabelOperations() {
         </div>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Open demand" value={demand.length} icon={<Tags className="h-4 w-4" />} />
-        <StatCard
+      <SummaryStatGrid>
+        <SummaryStatCard label="Open demand" value={demand.length} icon={<Tags className="h-4 w-4" />} />
+        <SummaryStatCard
           label="Active runs"
           value={runs.filter((r) => r.status === "running" || r.status === "expanding").length}
           icon={<Printer className="h-4 w-4" />}
         />
-        <StatCard
+        <SummaryStatCard
           label="Labels queued"
           value={runs.reduce((n, r) => n + (r.queued_lines ?? 0), 0)}
           icon={<Loader2 className="h-4 w-4" />}
         />
-        <StatCard
+        <SummaryStatCard
           label="Needs attention"
           value={runs.reduce((n, r) => n + (r.failed_lines ?? 0) + (r.refused_lines ?? 0), 0)}
           icon={<AlertTriangle className="h-4 w-4" />}
-          tone="warning"
+          tone={runs.reduce((n, r) => n + (r.failed_lines ?? 0) + (r.refused_lines ?? 0), 0) > 0 ? "destructive" : "default"}
         />
-      </div>
+      </SummaryStatGrid>
 
       <LabelRunHealthStrip businessId={businessId} />
 
@@ -495,24 +496,6 @@ export default function LabelOperations() {
 
       <RunDetailSheet run={openRun} onClose={() => setOpenRun(null)} />
     </div>
-  );
-}
-
-function StatCard({
-  label, value, icon, tone,
-}: { label: string; value: number; icon: React.ReactNode; tone?: "warning" }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-between p-4">
-        <div>
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className={`text-2xl font-semibold tabular-nums ${tone === "warning" && value > 0 ? "text-destructive" : ""}`}>
-            {value}
-          </div>
-        </div>
-        <div className="text-muted-foreground">{icon}</div>
-      </CardContent>
-    </Card>
   );
 }
 

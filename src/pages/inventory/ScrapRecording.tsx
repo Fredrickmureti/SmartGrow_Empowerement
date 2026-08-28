@@ -33,6 +33,7 @@ import { ProductDetailPanel } from "@/components/products/detail/ProductDetailPa
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { scrapReasonLabel } from "./scrapReasons";
 import { ScrapDetailSheet } from "@/components/inventory/ScrapDetailSheet";
 import { useScrapReasons } from "@/hooks/useScrap";
@@ -203,68 +204,14 @@ export default function ScrapRecording() {
         </div>
       </div>
 
-      <div className="stats-grid grid-cols-2 lg:grid-cols-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
-              Pending approval
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
-              Posted this month
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.postedMTD}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
-              Loss MTD
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{fmt(kpis.lossMTD)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
-              Loss today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{fmt(kpis.lossToday)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
-              Products affected
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.productsAffected}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
-              Top reason
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-semibold truncate">{kpis.topReason}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard label="Pending approval" value={kpis.pending} />
+        <SummaryStatCard label="Posted this month" value={kpis.postedMTD} />
+        <SummaryStatCard tone="destructive" label="Loss MTD" value={fmt(kpis.lossMTD)} />
+        <SummaryStatCard tone="destructive" label="Loss today" value={fmt(kpis.lossToday)} />
+        <SummaryStatCard label="Products affected" value={kpis.productsAffected} />
+        <SummaryStatCard label="Top reason" value={<span className="truncate">{kpis.topReason}</span>} />
+      </SummaryStatGrid>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">

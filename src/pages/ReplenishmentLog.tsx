@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { normalizeError } from "@/services/resilience";
 import { RecommendationDrawer } from "@/components/inventory/RecommendationDrawer";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 const URGENCY_ORDER: Record<RecUrgency, number> = {
   stockout: 0,
@@ -266,71 +267,39 @@ export default function ReplenishmentLog() {
           </div>
         </div>
 
-        <div className="stats-grid grid-cols-2 sm:grid-cols-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Stock-outs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{kpis.stockout}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Critical (&lt;7d)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{kpis.critical}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Low (&lt;14d)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{kpis.low}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Awaiting approval</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <SummaryStatGrid>
+          <SummaryStatCard accent tone="destructive" label="Stock-outs" value={kpis.stockout} />
+          <SummaryStatCard accent tone="destructive" label="Critical (<7d)" value={kpis.critical} />
+          <SummaryStatCard accent tone="amber" label="Low (<14d)" value={kpis.low} />
+          <SummaryStatCard
+            label="Awaiting approval"
+            value={
               <button
                 type="button"
-                className="text-2xl font-bold text-left hover:underline"
+                className="hover:underline"
                 onClick={() => setStatusFilter("in_review")}
                 aria-label="Filter recommendations awaiting approval"
               >
                 {kpis.awaitingApproval}
               </button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Assigned to me</CardTitle>
-            </CardHeader>
-            <CardContent>
+            }
+          />
+          <SummaryStatCard
+            label="Assigned to me"
+            value={
               <button
                 type="button"
-                className="text-2xl font-bold text-left hover:underline"
+                className="hover:underline"
                 onClick={() => setAssignedToMe((v) => !v)}
                 aria-pressed={assignedToMe}
                 aria-label="Toggle assigned-to-me filter"
               >
                 {kpis.assignedToMe}
               </button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Incoming units</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{Math.round(kpis.incoming)}</div>
-            </CardContent>
-          </Card>
-        </div>
+            }
+          />
+          <SummaryStatCard label="Incoming units" value={Math.round(kpis.incoming)} />
+        </SummaryStatGrid>
 
         <Tabs defaultValue="recommendations" className="space-y-4">
           <TabsList>

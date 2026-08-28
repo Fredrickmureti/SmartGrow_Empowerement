@@ -13,6 +13,7 @@ import { useDashboardComposition } from "@/hooks/useDashboardComposition";
 import { ExpiringLotsCard } from "@/components/inventory/ExpiringLotsCard";
 import { useDashboardIntelligence } from "@/hooks/inventory/useDashboardIntelligence";
 import { formatQtyWithPacks } from "@/lib/inventory/formatQty";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 /**
  * Inventory Module Dashboard — Stock overview, low stock alerts, movements, valuation
@@ -120,44 +121,35 @@ export default function InventoryDashboard() {
 
       {/* Stats Cards — role-gated; cashier/sales see only Quick Actions below. */}
       {composition.allowsWidget("inventory.kpis") && (
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+      <SummaryStatGrid>
+        <SummaryStatCard
+          accent
+          tone="purple"
+          label="Total Products"
+          icon={<Package className="h-4 w-4" />}
+          value={inventoryProducts.length}
+          footer="tracked inventory items"
+          onClick={() => navigate("/inventory-app/products")}
+        />
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-purple-500 min-w-0" onClick={() => navigate("/inventory-app/products")}>
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <CardTitle className="text-xs sm:text-sm font-medium truncate">Total Products</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 min-w-0">
-            <div className="text-xl sm:text-2xl font-bold text-primary break-words">{inventoryProducts.length}</div>
-            <p className="text-xs text-muted-foreground mt-1 break-words">tracked inventory items</p>
-          </CardContent>
-        </Card>
+        <SummaryStatCard
+          accent
+          tone="amber"
+          label="Low Stock"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          value={lowStockProducts.length}
+          footer="below reorder level"
+          onClick={() => navigate("/inventory-app/stock")}
+        />
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-amber-500 min-w-0" onClick={() => navigate("/inventory-app/stock")}>
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <CardTitle className="text-xs sm:text-sm font-medium truncate">Low Stock</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 min-w-0">
-            <div className="text-xl sm:text-2xl font-bold text-warning break-words">{lowStockProducts.length}</div>
-            <p className="text-xs text-muted-foreground mt-1 break-words">below reorder level</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-500 min-w-0">
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <CardTitle className="text-xs sm:text-sm font-medium truncate">Movements Today</CardTitle>
-              <History className="h-4 w-4 text-muted-foreground shrink-0" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 min-w-0">
-            <div className="text-xl sm:text-2xl font-bold text-primary break-words">{todayMovementsCount}</div>
-            <div className="flex flex-wrap gap-1.5 mt-1">
+        <SummaryStatCard
+          accent
+          tone="blue"
+          label="Movements Today"
+          icon={<History className="h-4 w-4" />}
+          value={todayMovementsCount}
+          footer={
+            <div className="flex flex-wrap gap-1.5">
               {inboundToday > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   <TrendingUp className="h-3 w-3 mr-1" />{inboundToday} in
@@ -169,22 +161,18 @@ export default function InventoryDashboard() {
                 </Badge>
               )}
             </div>
-          </CardContent>
-        </Card>
+          }
+        />
 
-        <Card className="border-l-4 border-l-orange-500 min-w-0">
-          <CardHeader className="pb-2 px-3 sm:px-6">
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <CardTitle className="text-xs sm:text-sm font-medium truncate">Pending Adjustments</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 min-w-0">
-            <div className="text-xl sm:text-2xl font-bold text-primary break-words">{pendingAdjustmentsCount}</div>
-            <p className="text-xs text-muted-foreground mt-1 break-words">awaiting approval</p>
-          </CardContent>
-        </Card>
-      </div>
+        <SummaryStatCard
+          accent
+          tone="orange"
+          label="Pending Adjustments"
+          icon={<Clock className="h-4 w-4" />}
+          value={pendingAdjustmentsCount}
+          footer="awaiting approval"
+        />
+      </SummaryStatGrid>
       )}
 
       {/* Stock Valuation */}

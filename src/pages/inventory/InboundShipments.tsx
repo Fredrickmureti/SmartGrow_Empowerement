@@ -23,7 +23,8 @@ import type { BatchImportFn, ImportResults } from "@/hooks/useImport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import {
   Table,
   TableBody,
@@ -189,44 +190,20 @@ export default function InboundShipments() {
           </div>
         </div>
 
-        <div className="stats-grid grid-cols-2 sm:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{rows.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">In transit</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {rows.filter((r) => r.status === "in_transit" || r.status === "dispatched").length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Arrived</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{rows.filter((r) => r.status === "arrived").length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Received</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {rows.filter((r) => r.status === "received").length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Total" value={rows.length} />
+          <SummaryStatCard
+            tone="blue"
+            label="In transit"
+            value={rows.filter((r) => r.status === "in_transit" || r.status === "dispatched").length}
+          />
+          <SummaryStatCard label="Arrived" value={rows.filter((r) => r.status === "arrived").length} />
+          <SummaryStatCard
+            tone="emerald"
+            label="Received"
+            value={rows.filter((r) => r.status === "received").length}
+          />
+        </SummaryStatGrid>
 
         <Card>
           <CardContent className="pt-4 space-y-3">

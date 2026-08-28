@@ -107,6 +107,7 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { ExternalLink } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { productBaseLabelOrUnset } from "@/lib/inventory/uom";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 
 export default function Products() {
@@ -596,35 +597,23 @@ export default function Products() {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid grid-cols-1 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Products</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.products}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Services</CardTitle>
-              <Briefcase className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.services}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Items"
+            value={stats.total}
+            icon={<Package className="h-3.5 w-3.5" />}
+          />
+          <SummaryStatCard
+            label="Products"
+            value={stats.products}
+            icon={<Package className="h-3.5 w-3.5" />}
+          />
+          <SummaryStatCard
+            label="Services"
+            value={stats.services}
+            icon={<Briefcase className="h-3.5 w-3.5" />}
+          />
+        </SummaryStatGrid>
 
         {/* Filters */}
         <div className="filter-bar">

@@ -48,6 +48,7 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { productBaseLabelOrUnset, PRODUCT_BASE_UOM_SELECT } from "@/lib/inventory/uom";
 
 const PAGE_SIZE = 50;
@@ -398,38 +399,29 @@ export default function Inventory() {
         )}
 
         {/* Stats */}
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{inventoryProducts.length}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold text-warning">{lowStockProducts.length}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Movements</CardTitle>
-              <History className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{movementsTotalCount}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Adjustments</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stockAdjustments.filter(a => a.status === "draft").length}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Products"
+            value={inventoryProducts.length}
+            icon={<Package className="h-3.5 w-3.5" />}
+          />
+          <SummaryStatCard
+            label="Low Stock Items"
+            value={lowStockProducts.length}
+            tone="amber"
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
+          />
+          <SummaryStatCard
+            label="Total Movements"
+            value={movementsTotalCount}
+            icon={<History className="h-3.5 w-3.5" />}
+          />
+          <SummaryStatCard
+            label="Pending Adjustments"
+            value={stockAdjustments.filter(a => a.status === "draft").length}
+            icon={<Clock className="h-3.5 w-3.5" />}
+          />
+        </SummaryStatGrid>
 
         <Tabs defaultValue="movements" className="space-y-4">
           <TabsList>
