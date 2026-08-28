@@ -13,6 +13,10 @@
  *
  * Replaces the legacy CRUD tree (ADR 0079 Phase 0). See ADR 0104.
  */
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler, Barcode } from "lucide-react";

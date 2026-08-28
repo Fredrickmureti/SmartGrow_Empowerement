@@ -4,7 +4,7 @@
  */
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { Section } from "@/design-system";
+import { Section, FieldGrid, FieldCell } from "@/design-system";
 import {
   SummaryStatCard,
   SummaryStatGrid,

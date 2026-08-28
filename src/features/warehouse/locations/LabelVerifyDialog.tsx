@@ -6,6 +6,10 @@
  * the run into a pass/fail list backed by `resolve_location_identity`.
  * Failures can be sent straight back to the printer.
  */
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { useState } from "react";
 import { Check, Printer, ScanLine, TriangleAlert } from "lucide-react";
 import {
