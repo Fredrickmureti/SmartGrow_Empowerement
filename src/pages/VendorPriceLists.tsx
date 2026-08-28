@@ -261,66 +261,39 @@ export default function VendorPriceLists() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <ListChecks className="h-3.5 w-3.5" />
-                Total Entries
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">{stats.active} active</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Star className="h-3.5 w-3.5" />
-                Preferred
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-amber-600">{stats.preferred}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                Expiring Soon
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-amber-600">{stats.expiringSoon}</div>
-              <p className="text-xs text-muted-foreground">Within 30 days</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Expired
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-destructive">{stats.expired}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Pending approval
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">Not yet pricing POs</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Entries"
+            icon={<ListChecks className="h-3.5 w-3.5" />}
+            value={stats.total}
+            footer={`${stats.active} active`}
+          />
+          <SummaryStatCard
+            label="Preferred"
+            tone="amber"
+            icon={<Star className="h-3.5 w-3.5" />}
+            value={stats.preferred}
+          />
+          <SummaryStatCard
+            label="Expiring Soon"
+            tone="amber"
+            icon={<Clock className="h-3.5 w-3.5" />}
+            value={stats.expiringSoon}
+            footer="Within 30 days"
+          />
+          <SummaryStatCard
+            label="Expired"
+            tone="destructive"
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
+            value={stats.expired}
+          />
+          <SummaryStatCard
+            label="Pending approval"
+            icon={<ShieldCheck className="h-3.5 w-3.5" />}
+            value={stats.pending}
+            footer="Not yet pricing POs"
+          />
+        </SummaryStatGrid>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "conditions" | "coverage")}>
           <TabsList>
