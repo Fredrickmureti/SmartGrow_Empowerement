@@ -168,6 +168,8 @@ export default function ConsolidationEliminations() {
   const eliminations = eliminationsQuery.data ?? [];
   const hasRun = eliminations.length > 0;
   const differences = eliminations.filter((r) => r.is_difference);
+  const history = historyQuery.data ?? [];
+
 
   const columns = useMemo<ReportColumn[]>(
     () => [
