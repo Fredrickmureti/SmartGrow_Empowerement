@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useCurrency } from "@/hooks/useCurrency";
-import { PageHeader, PageBody, StatusBadge } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge, SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
