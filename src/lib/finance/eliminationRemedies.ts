@@ -102,6 +102,10 @@ export function remedyLink(
       }`;
     case "review_group_membership":
       return `/finance/settings?${q.toString()}#${GROUP_MEMBERS_ANCHOR}`;
+    case "run_member_fx_revaluation":
+      // The member named in the message owns the unrecognised difference; the
+      // revaluation screen is scoped by the company switcher.
+      return `/finance/reports/fx-revaluation`;
     case "review_intercompany":
       return `/finance/reports/intercompany`;
     default:
