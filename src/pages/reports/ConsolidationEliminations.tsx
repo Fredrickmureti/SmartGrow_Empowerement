@@ -301,6 +301,34 @@ export default function ConsolidationEliminations() {
     }
   };
 
+  const runReversal = async () => {
+    if (!groupId) return;
+    setRefusal(null);
+    try {
+      const result = await reverse.mutateAsync({
+        group_id: groupId,
+        date_from: dateFrom,
+        date_to: dateTo,
+        reason: reverseReason,
+      });
+      setReverseOpen(false);
+      setReverseReason("");
+      toast.success(
+        `Eliminations withdrawn — ${result?.reversed_leg_count ?? 0} leg${
+          result?.reversed_leg_count === 1 ? "" : "s"
+        } removed and recorded in history`,
+      );
+    } catch (e) {
+      // A closed member period, a missing reason or a set that was never
+      // generated: the engine's own words, unaltered.
+      const message = toAppError(e, "The withdrawal was refused").message;
+      setRefusal(message);
+      toast.error(message);
+    }
+  };
+
+
+
   if (!permLoading && !canViewConsolidated) {
     return (
       <ReportsLayout>
