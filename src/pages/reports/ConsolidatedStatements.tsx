@@ -96,12 +96,59 @@ function formatAmount(value: number, currency: string) {
  * ledgers add up to, what the elimination engine removed, and what remains as
  * the group's figure. Every one of the three comes from the server — the page
  * never subtracts one column from another.
+ *
+ * LINEAGE OF EACH COLUMN
+ * ----------------------
+ * - Aggregated: the sum of the member companies' balances on this group
+ *   account, so it drills to the consolidated trial balance narrowed to that
+ *   account, where each company's contribution opens its own ledger.
+ * - Eliminations: the engine's adjustment, so it drills to the legs behind it.
+ * - Consolidated: aggregated less eliminations. It is a combination of the two
+ *   columns beside it and owns no records of its own, so it is deliberately not
+ *   a drill target — its explanation is the two links on the same row.
  */
-function buildColumns(onOpenEliminations: (accountId: string) => void): ReportColumn[] {
+function buildColumns(
+  onOpenEliminations: (accountId: string) => void,
+  onOpenTrialBalance: (accountId: string) => void,
+): ReportColumn[] {
+  const linked = (
+    value: unknown,
+    accountId: unknown,
+    open: (id: string) => void,
+    title: string,
+  ) => {
+    if (typeof value !== "string" || value === "—" || typeof accountId !== "string") {
+      return <span className="tabular-nums">{(value as string) ?? ""}</span>;
+    }
+    return (
+      <button
+        type="button"
+        title={title}
+        className="tabular-nums underline underline-offset-2 hover:text-primary"
+        onClick={() => open(accountId)}
+      >
+        {value}
+      </button>
+    );
+  };
+
   return [
     { key: "code", header: "Account" },
     { key: "name", header: "Description" },
-    { key: "aggregated", header: "Aggregated", align: "right" },
+    {
+      key: "aggregated",
+      header: "Aggregated",
+      align: "right",
+      // Carries group, period and group account to the consolidated trial
+      // balance, which opens on that account with the member companies shown.
+      render: (row) =>
+        linked(
+          row.values?.aggregated,
+          row.values?.eliminationAccountId,
+          onOpenTrialBalance,
+          "See the companies behind this figure",
+        ),
+    },
     {
       key: "elimination",
       header: "Eliminations",
@@ -109,26 +156,18 @@ function buildColumns(onOpenEliminations: (accountId: string) => void): ReportCo
       // The figure is the server's; the link only carries the group, period
       // and account across to the eliminations report so the accountant can
       // read the legs behind it.
-      render: (row) => {
-        const value = row.values?.elimination;
-        const accountId = row.values?.eliminationAccountId;
-        if (typeof value !== "string" || value === "—" || typeof accountId !== "string") {
-          return <span className="tabular-nums">{(value as string) ?? ""}</span>;
-        }
-        return (
-          <button
-            type="button"
-            className="tabular-nums underline underline-offset-2 hover:text-primary"
-            onClick={() => onOpenEliminations(accountId)}
-          >
-            {value}
-          </button>
-        );
-      },
+      render: (row) =>
+        linked(
+          row.values?.elimination,
+          row.values?.eliminationAccountId,
+          onOpenEliminations,
+          "See the intercompany legs removed",
+        ),
     },
     { key: "consolidated", header: "Consolidated", align: "right" },
   ];
 }
+
 
 export default function ConsolidatedStatements() {
   // Consolidated results are group-wide reads: who opened one, for which

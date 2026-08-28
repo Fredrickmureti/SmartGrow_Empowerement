@@ -56,7 +56,7 @@ import {
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { Layers, ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useConsolidationGroups, CONSOLIDATION_METHOD_LABELS } from "@/hooks/finance/useConsolidationGroups";
 import {
@@ -113,13 +113,32 @@ export default function ConsolidatedTrialBalance() {
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
   const { canOpen: canOpenMemberLedger } = useMemberLedgerAccess();
-
+  // Arriving from a consolidated statement line. The link carries the group,
+  // the period and the GROUP account behind the figure, so the trial balance
+  // opens on the very account that was clicked, expanded to the member
+  // companies that produced it — the level where real books begin.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusAccountId = searchParams.get("group_account_id");
 
   const today = new Date();
-  const [groupId, setGroupId] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
-  const [showMembers, setShowMembers] = useState(false);
+  const [groupId, setGroupId] = useState<string | null>(
+    searchParams.get("consolidationGroup"),
+  );
+  const [dateFrom, setDateFrom] = useState(
+    searchParams.get("date_from") ?? format(startOfMonth(today), "yyyy-MM-dd"),
+  );
+  const [dateTo, setDateTo] = useState(
+    searchParams.get("date_to") ?? format(endOfMonth(today), "yyyy-MM-dd"),
+  );
+  const [showMembers, setShowMembers] = useState(!!focusAccountId);
+
+  /** Drop the account focus and show the whole group again. */
+  const clearFocus = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("group_account_id");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
   const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
@@ -160,16 +179,30 @@ export default function ConsolidatedTrialBalance() {
     [accountLines],
   );
 
+  // When a statement line sent us here, the report narrows to that group
+  // account. The narrowing is explicit and reversible — never a silent filter.
+  const visibleLines = useMemo(
+    () =>
+      focusAccountId
+        ? accountLines.filter((l) => l.account_id === focusAccountId)
+        : accountLines,
+    [accountLines, focusAccountId],
+  );
+  const focusedLine = focusAccountId ? (visibleLines[0] ?? null) : null;
+  const focusMissed = !!focusAccountId && !tbQuery.isLoading && visibleLines.length === 0;
 
+  // Totals follow what the table actually shows, so a narrowed report never
+  // presents a group total beside a single account's rows.
   const totals = useMemo(() => {
     let debit = 0;
     let credit = 0;
-    for (const line of accountLines) {
+    for (const line of visibleLines) {
       debit += line.total_debit;
       credit += line.total_credit;
     }
     return { debit, credit, difference: debit - credit };
-  }, [accountLines]);
+  }, [visibleLines]);
+
 
   const nciDisclosure = useMemo(() => {
     const byMember = new Map<string, { name: string; ownership: number; amount: number }>();
@@ -210,7 +243,7 @@ export default function ConsolidatedTrialBalance() {
     const out: ReportRow[] = [];
     const money = (v: number) => formatAmount(v, currency);
 
-    for (const line of accountLines) {
+    for (const line of visibleLines) {
       out.push({
         id: line.account_id,
         values: {
@@ -277,7 +310,7 @@ export default function ConsolidatedTrialBalance() {
       }
     }
     return out;
-  }, [accountLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+  }, [visibleLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
 
 
   /**
@@ -296,7 +329,7 @@ export default function ConsolidatedTrialBalance() {
         kind: "grandTotal",
         values: {
           code: "",
-          name: "TOTAL",
+          name: focusedLine ? "TOTAL — selected account only" : "TOTAL",
           company: showMembers ? "" : undefined,
           rate: "",
           opening: "",
@@ -309,6 +342,15 @@ export default function ConsolidatedTrialBalance() {
         },
       },
     ];
+    // An exported artifact must never look like the whole group when the
+    // screen was narrowed to one account.
+    if (focusedLine) {
+      exportRows.push({
+        id: "tb-focus-note",
+        kind: "note",
+        label: `Narrowed to group account ${focusedLine.account_code ?? ""} ${focusedLine.account_name} — this is not the complete group trial balance.`,
+      });
+    }
     if (unmappedLineCount > 0) {
       exportRows.push({
         id: "tb-unmapped-note",
@@ -316,9 +358,14 @@ export default function ConsolidatedTrialBalance() {
         label: `* ${unmappedLineCount} account(s) report under a member company's own chart because no group account maps them.`,
       });
     }
+
     return {
       title: "Consolidated Trial Balance",
-      subtitle: `${selectedGroup?.name ?? "Consolidation group"} · combined from the posted ledger · intercompany balances NOT eliminated`,
+      subtitle: `${selectedGroup?.name ?? "Consolidation group"} · combined from the posted ledger · intercompany balances NOT eliminated${
+        focusedLine
+          ? ` · narrowed to group account ${focusedLine.account_code ?? focusedLine.account_name}`
+          : ""
+      }`,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns as ReportColumn<never>[]),
       rows: toExportRows(exportRows, columns as ReportColumn<never>[]),
@@ -332,11 +379,13 @@ export default function ConsolidatedTrialBalance() {
     currency,
     dateFrom,
     dateTo,
+    focusedLine,
     selectedGroup?.name,
     showMembers,
     totals,
     unmappedLineCount,
   ]);
+
 
 
   if (!permLoading && !canViewConsolidated) {
@@ -590,6 +639,37 @@ export default function ConsolidatedTrialBalance() {
                           </AlertDescription>
                         </Alert>
                       )}
+                      {focusAccountId && (
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription className="text-sm flex flex-wrap items-center gap-2">
+                            {focusedLine ? (
+                              <span>
+                                Narrowed to the group account behind the statement line
+                                you opened:{" "}
+                                <strong>
+                                  {focusedLine.account_code
+                                    ? `${focusedLine.account_code} · `
+                                    : ""}
+                                  {focusedLine.account_name}
+                                </strong>
+                                . The totals below cover this account only.
+                              </span>
+                            ) : focusMissed ? (
+                              <span>
+                                That group account has no posted activity in this group
+                                and period, so there is nothing beneath the figure here.
+                              </span>
+                            ) : (
+                              <span>Narrowing to the selected group account…</span>
+                            )}
+                            <Button variant="outline" size="sm" onClick={clearFocus}>
+                              Show the whole group
+                            </Button>
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
                       <ReportSurface
 
                         title={`Consolidated trial balance — ${selectedGroup?.name ?? ""}`}
