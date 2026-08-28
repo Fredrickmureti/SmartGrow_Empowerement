@@ -99877,6 +99877,7 @@ export type Database = {
           is_derived: boolean
           is_residual: boolean
           presentation_currency: string
+          reconciling_amount: number
           section: string
           section_order: number
           statement: string
