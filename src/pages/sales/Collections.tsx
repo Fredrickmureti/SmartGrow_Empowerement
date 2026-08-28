@@ -544,6 +544,7 @@ export default function Collections() {
   );
 }
 
+/** Thin wrapper over the canonical AR/AP stat card. */
 function KpiCard({
   label,
   value,
@@ -554,14 +555,12 @@ function KpiCard({
   accent?: boolean;
 }) {
   return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={`text-2xl font-semibold mt-1 ${accent ? "text-destructive" : ""}`}
-      >
-        {value}
-      </div>
-    </Card>
+    <SummaryStatCard
+      label={label}
+      value={value}
+      accent={accent}
+      tone={accent ? "destructive" : "default"}
+    />
   );
 }
 
