@@ -69,6 +69,7 @@ import {
   useConsolidationGroups,
   type ConsolidationMethod,
 } from "@/hooks/finance/useConsolidationGroups";
+import { useConsolidationGroupAccounts } from "@/hooks/finance/useConsolidationAccountMapping";
 import { normalizeError } from "@/services/resilience";
 import { ConsolidationAccountMapping } from "@/components/settings/ConsolidationAccountMapping";
 import { ConsolidationEliminationRules } from "@/components/settings/ConsolidationEliminationRules";
