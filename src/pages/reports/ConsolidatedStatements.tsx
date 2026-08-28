@@ -412,10 +412,14 @@ export default function ConsolidatedStatements() {
         sheetName: isIncome ? "Income statement" : "Balance sheet",
         currency,
         formatProfile: "financial",
+        // Group artifact: issued by the group's parent company, never scoped
+        // to a branch of whichever member the user is browsing.
+        reportingEntityBusinessId: selectedGroup?.parent_business_id ?? null,
+        branchId: null,
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lines, totals, currency, dateFrom, dateTo, selectedGroup?.name],
+    [lines, totals, currency, dateFrom, dateTo, selectedGroup?.name, selectedGroup?.parent_business_id],
   );
 
 
