@@ -120,32 +120,25 @@ export default function CustomerLedgerIndex() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="p-4">
-          <div className="text-xs uppercase text-muted-foreground">
-            Customers with open items
-          </div>
-          <div className="text-2xl font-semibold tabular-nums">
-            {totals.customers}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs uppercase text-muted-foreground">
-            Net receivable
-          </div>
-          <div className="text-2xl font-semibold tabular-nums">
-            {formatCurrency(totals.net)}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs uppercase text-muted-foreground">
-            Unapplied credit
-          </div>
-          <div className="text-2xl font-semibold tabular-nums">
-            {formatCurrency(totals.credit)}
-          </div>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          label="Customers with open items"
+          tone="primary"
+          value={totals.customers}
+        />
+        <SummaryStatCard
+          accent
+          tone="amber"
+          label="Net receivable"
+          value={formatCurrency(totals.net)}
+        />
+        <SummaryStatCard
+          accent
+          tone="emerald"
+          label="Unapplied credit"
+          value={formatCurrency(totals.credit)}
+        />
+      </SummaryStatGrid>
 
       <Card className="p-4">
         <div className="relative mb-4 max-w-sm">
