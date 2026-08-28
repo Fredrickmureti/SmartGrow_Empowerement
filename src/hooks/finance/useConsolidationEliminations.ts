@@ -419,6 +419,89 @@ export function useEliminatedStatementTotals(
   });
 }
 
+/**
+ * One accountable event in the life of a period's eliminations: a generation,
+ * a regeneration that replaced an earlier set, or a withdrawal.
+ *
+ * The row is written by the engine inside the same transaction as the figures
+ * it describes, so history cannot claim a run that was refused. Nothing here is
+ * recomputed in the browser — the counts and totals are the engine's own.
+ */
+export interface EliminationEventRow {
+  id: string;
+  group_id: string;
+  period_start: string;
+  period_end: string;
+  action: string;
+  actor_id: string | null;
+  actor_name: string;
+  occurred_at: string;
+  presentation_currency: string | null;
+  scope_snapshot: unknown;
+  rule_snapshot: unknown;
+  leg_count: number;
+  difference_leg_count: number;
+  total_debit: number;
+  total_credit: number;
+  replaced_leg_count: number;
+  replaced_total_debit: number;
+  replaced_total_credit: number;
+  reason: string | null;
+}
+
+export const ELIMINATION_EVENT_LABELS: Record<string, string> = {
+  generate: "Generated",
+  regenerate: "Regenerated",
+  reverse: "Withdrawn",
+};
+
+/** The append-only history of elimination runs for a group and period. */
+export function useEliminationHistory(
+  groupId: string | null,
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  return useQuery({
+    queryKey: ["consolidation-elimination-events", groupId, dateFrom, dateTo],
+    enabled: !!groupId && !!dateFrom && !!dateTo,
+    queryFn: async (): Promise<EliminationEventRow[]> => {
+      const { data, error } = await supabase
+        .from("consolidation_elimination_events")
+        .select("*")
+        .eq("group_id", groupId!)
+        .eq("period_start", dateFrom!)
+        .eq("period_end", dateTo!)
+        .order("occurred_at", { ascending: false });
+      if (error) throw toAppError(error);
+
+      const rows = data ?? [];
+      const actorIds = Array.from(
+        new Set(rows.map((r) => r.actor_id).filter((id): id is string => !!id)),
+      );
+      const names = new Map<string, string>();
+      if (actorIds.length > 0) {
+        // profiles are keyed by user_id, never id.
+        const { data: profiles, error: profileError } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", actorIds);
+        if (profileError) throw toAppError(profileError);
+        for (const p of profiles ?? []) {
+          names.set(p.user_id, p.full_name || p.email || "Unknown user");
+        }
+      }
+
+      return rows.map((r) => ({
+        ...r,
+        actor_name: r.actor_id
+          ? (names.get(r.actor_id) ?? "Unknown user")
+          : "System",
+      })) as EliminationEventRow[];
+    },
+  });
+}
+
+
 export function useConsolidationEliminationMutations() {
   const { currentOrg } = useOrganization();
   const queryClient = useQueryClient();
