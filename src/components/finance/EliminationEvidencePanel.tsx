@@ -253,6 +253,15 @@ function LegEvidence({
   row: EliminationRow;
 }) {
   const navigate = useNavigate();
+  /**
+   * Inspection happens in place: the entry opens in the canonical
+   * `TransactionPreviewDrawer` (which offers "View full record" for the exact
+   * source document), and the account opens the entity-scoped
+   * `DrillDownDialog` on the declaring company's own books. Navigating away is
+   * the secondary affordance only.
+   */
+  const [preview, setPreview] = useState<{ type: string; id: string } | null>(null);
+  const [drillConfig, setDrillConfig] = useState<DrillDownConfig | null>(null);
   const { data, isLoading, error } = useEliminationEvidence(
     groupId,
     dateFrom,
