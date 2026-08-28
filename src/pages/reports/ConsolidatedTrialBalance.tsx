@@ -66,6 +66,7 @@ import {
   groupTrialBalanceByAccount,
   describeConsolidationBlocker,
   nonControllingShare,
+  proveTrialBalanceOnClosingBalances,
   type ConsolidatedTrialBalanceRow,
 } from "@/hooks/finance/useConsolidatedTrialBalance";
 
