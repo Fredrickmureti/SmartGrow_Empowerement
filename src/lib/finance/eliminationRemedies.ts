@@ -12,6 +12,7 @@
 export type EliminationCause =
   | "within_tolerance"
   | "translation_residual"
+  | "unrecognised_member_fx"
   | "genuine_disagreement"
   | "missing_cta_account"
   | "missing_difference_account"
@@ -26,12 +27,14 @@ export type EliminationRemedy =
   | "raise_tolerance"
   | "configure_cta_account"
   | "configure_difference_account"
+  | "run_member_fx_revaluation"
   | "review_intercompany"
   | "review_group_membership";
 
 export const ELIMINATION_CAUSE_LABELS: Record<string, string> = {
   within_tolerance: "Within tolerance",
   translation_residual: "Left behind by translation",
+  unrecognised_member_fx: "A member has not retranslated its own books",
   genuine_disagreement: "The two companies disagree",
   missing_cta_account: "No translation reserve account",
   missing_difference_account: "No difference account",
@@ -46,9 +49,11 @@ export const ELIMINATION_REMEDY_LABELS: Record<string, string> = {
   raise_tolerance: "Accept gaps up to this size",
   configure_cta_account: "Choose a translation reserve account",
   configure_difference_account: "Choose a difference account",
+  run_member_fx_revaluation: "Run the member's period-end revaluation",
   review_intercompany: "Review the intercompany declarations",
   review_group_membership: "Review the group's companies",
 };
+
 
 /**
  * A remedy the page can apply itself, by writing a policy row the engine then
