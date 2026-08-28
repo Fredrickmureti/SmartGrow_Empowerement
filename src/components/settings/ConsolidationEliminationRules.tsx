@@ -443,7 +443,7 @@ export function ConsolidationEliminationRules({
                 <div className="flex justify-end">
                   <Button
                     size="sm"
-                    disabled={!dirty || savingClass === cls}
+                    disabled={!dirty || overCap || savingClass === cls}
                     onClick={() => save(cls)}
                   >
                     {savingClass === cls && (
