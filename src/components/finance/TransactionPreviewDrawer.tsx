@@ -34,6 +34,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { format } from "date-fns";
 
 interface TransactionPreviewDrawerProps {
