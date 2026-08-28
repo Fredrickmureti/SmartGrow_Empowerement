@@ -394,9 +394,31 @@ export function ConsolidationAccountMapping({
             <>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1.5">
+                  <Label htmlFor="map-search">Search</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="map-search"
+                      className="w-[260px] pl-8"
+                      placeholder="Code, account or company…"
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPage(0);
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
                   <Label>Company</Label>
-                  <Select value={filterBusiness} onValueChange={setFilterBusiness}>
-                    <SelectTrigger className="w-[240px]">
+                  <Select
+                    value={filterBusiness}
+                    onValueChange={(v) => {
+                      setFilterBusiness(v);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-[220px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -409,7 +431,48 @@ export function ConsolidationAccountMapping({
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <Select
+                    value={filterType}
+                    onValueChange={(v) => {
+                      setFilterType(v);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All types</SelectItem>
+                      {GROUP_ACCOUNT_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {GROUP_ACCOUNT_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select
+                    value={filterStatus}
+                    onValueChange={(v) => {
+                      setFilterStatus(v as typeof filterStatus);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All accounts</SelectItem>
+                      <SelectItem value="unmapped">Not mapped</SelectItem>
+                      <SelectItem value="mapped">Mapped</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="pb-2 text-sm text-muted-foreground">
                   {mappedCount} of {visibleAccounts.length} accounts mapped
                 </p>
               </div>
