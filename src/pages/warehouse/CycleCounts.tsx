@@ -26,6 +26,8 @@ import {
   Section,
   LoadingState,
   StatusBadge,
+  SummaryStatCard,
+  SummaryStatGrid,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
+
 import { useWarehouseQtyFormatter } from "@/features/warehouse/quantity/warehouseQty";
 import { useProductBaseUomLabels } from "@/features/warehouse/quantity/useProductBaseUomLabels";
 import {
@@ -164,43 +166,47 @@ export default function CycleCounts() {
         ) : (
           <>
             <Section>
-              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-3 @5xl/page:grid-cols-6">
-                <MetricTile label="Counting now" value={c?.in_progress ?? 0} icon={Activity} />
-                <MetricTile
+              <SummaryStatGrid>
+                <SummaryStatCard
+                  label="Counting now"
+                  value={c?.in_progress ?? 0}
+                  icon={<Activity className="h-3.5 w-3.5" />}
+                />
+                <SummaryStatCard
                   label="Open recounts"
                   value={c?.open_recounts ?? 0}
                   tone={(c?.open_recounts ?? 0) > 0 ? "bad" : "ok"}
-                  sub="submission blocked"
-                  icon={RefreshCw}
+                  footer="submission blocked"
+                  icon={<RefreshCw className="h-3.5 w-3.5" />}
                 />
-                <MetricTile
+                <SummaryStatCard
                   label="Awaiting approval"
                   value={c?.awaiting_approval ?? 0}
                   tone={(c?.awaiting_approval ?? 0) > 0 ? "warn" : "ok"}
-                  icon={ShieldCheck}
+                  icon={<ShieldCheck className="h-3.5 w-3.5" />}
                 />
-                <MetricTile
+                <SummaryStatCard
                   label="Missing reason codes"
                   value={blockedByReason.length}
                   tone={blockedByReason.length > 0 ? "warn" : "ok"}
-                  sub="variance unexplained"
-                  icon={Target}
+                  footer="variance unexplained"
+                  icon={<Target className="h-3.5 w-3.5" />}
                 />
-                <MetricTile
+                <SummaryStatCard
                   label="Overdue schedules"
                   value={c?.overdue_schedules.length ?? 0}
                   tone={(c?.overdue_schedules.length ?? 0) > 0 ? "warn" : "ok"}
-                  icon={CalendarClock}
+                  icon={<CalendarClock className="h-3.5 w-3.5" />}
                   to="/warehouse-app/counts/automation"
                 />
-                <MetricTile
+                <SummaryStatCard
                   label="Accuracy (30d)"
                   value={accuracy === null ? "—" : `${accuracy}%`}
-                  sub={`${c?.accuracy_counted_lines ?? 0} posted lines`}
+                  footer={`${c?.accuracy_counted_lines ?? 0} posted lines`}
                   tone={accuracy === null ? "neutral" : accuracy >= 98 ? "ok" : accuracy >= 95 ? "warn" : "bad"}
-                  icon={Target}
+                  icon={<Target className="h-3.5 w-3.5" />}
                 />
-              </div>
+              </SummaryStatGrid>
             </Section>
 
             <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-3">

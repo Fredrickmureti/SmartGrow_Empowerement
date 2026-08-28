@@ -140,7 +140,7 @@ export default function ExecutionTelemetry() {
                   value={c.value}
                 />
               ))}
-            </div>
+            </SummaryStatGrid>
 
             <Section
               title="By task type"

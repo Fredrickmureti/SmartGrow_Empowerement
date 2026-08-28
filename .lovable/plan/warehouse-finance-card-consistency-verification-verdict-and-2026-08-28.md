@@ -1,104 +1,101 @@
-# Warehouse ↔ Finance card consistency — verification verdict and completion plan
+# Warehouse ↔ Finance card consistency — verification verdict and completion plan (v2)
 
-## Phase 1 — independent verification (done, in code)
+## Phase 1 — verification of the previous engineer's log (done, against the code)
 
-I re-checked every claim in the previous engineer's log against the files.
+**Confirmed true**
 
-**Confirmed true:**
+- `SummaryStatCard` / `SummaryStatGrid` in `src/components/common/SummaryStatCards.tsx`
+  is the canonical card, and it is genuinely the one Finance uses — `pages/finance/AccountsReceivable.tsx`
+  and `pages/finance/AccountsPayable.tsx` are its call sites. The Finance reference is
+  architecturally sound; nothing needs correcting there before propagating it.
+- Warehouse adoption really did grow: **22** files under `pages/warehouse` /
+  `features/warehouse` now import the canonical card, including the Wave B and Wave C
+  targets (`DockSchedule`, `CrossdockBoard`, `ReturnsLaneBoard`, `Slotting`,
+  `CountReview`, `LicensePlates`, `LicensePlateView`, `LocationOverviewTab`,
+  `LabelVerifyDialog`, `WarehouseLayoutWorkspace`, `WarehousesList`, `LabourBoard`).
+- Only **one** file still renders a `text-2xl/3xl` metric inside hand-rolled chrome:
+  `pages/warehouse/BillingBoard.tsx` (local `KpiCard` at line 1043). The "18 files"
+  from the earlier plan is stale — that wave is largely done.
 
-- `src/components/common/SummaryStatCards.tsx` (245 lines) really is hardened:
-  `SummaryStatGrid` is container-query driven (`@container/stats` with
-  `auto-fit/minmax` steps at `@md` and `@3xl`), `SummaryStatCard` accepts
-  `to` (renders a real router `<Link>`), `trend`, `status`, `loading`
-  (in-shape skeleton), and the operational tones `ok`/`warn`/`bad`/`neutral`
-  are *aliases* mapped onto the existing scale — no second tone system.
-- `MetricTile` in `features/warehouse/dashboards/DashboardPrimitives.tsx` is
-  now an explicitly deprecated wrapper over the canonical card.
-- Nine Warehouse files now import `SummaryStatCard`: `ExceptionsInbox`,
-  `DashboardPrimitives`, `ExceptionAnalytics`, `LabourPerformancePanel`,
-  `LabourPlanningPanel`, `ReplenKpiStrip`, `WaveCapacityPanel`,
-  `WaveStageStrip`, `YardKpiStrip`.
+**Confirmed broken / not done**
 
-**Confirmed still outstanding** — 18 Warehouse files still author their own
-large-numeric stat markup, and 28 files under `pages/warehouse` /
-`features/warehouse` still hand-roll `<Card><CardContent>` blocks that a
-canonical primitive should own. The architecture test that would prevent
-this does not exist (`src/test/architecture/` has warehouse nav, layout,
-container-responsive tests — no stat-card test). No responsive pass was run.
+- `pages/warehouse/ExecutionTelemetry.tsx` is still broken: `<SummaryStatGrid>` is
+  closed with `</div>`. The build log reads "build OK" only because the route is lazy
+  and never compiled — this is a real defect, not a false alarm.
+- `MetricTile` deprecation wrapper still has a live caller (`pages/warehouse/CycleCounts.tsx`).
+- The `warehouse-canonical-cards` architecture test does not exist. `src/test/architecture/`
+  has nav / layout / container-responsive warehouse guards, no card guard.
+- No responsive pass was run at any viewport.
 
-So: Step 1 and Step 2 are genuinely complete. Waves B–G and Step 4 are not.
+**Newly found, not in the previous plan**
 
-## Phase 2 — plan corrections
+- **39 files** still use bespoke metric typography (`text-xl font-semibold`,
+  `text-lg font-bold`, raw `tabular-nums`) — concentrated in the surfaces the earlier
+  plan treated as exempt composites: `control-center/*` (FlowSpine, HealthBanner,
+  BottleneckRail, LiveWorkPanel, LabourPanel), `inbound-tower/*`, `outbound-tower/*`
+  (LoadingLane, DockYardStrip, ShipmentLifecycleBoard, ExceptionRail), `overview/*`
+  (TowerSummaryCard, CapacityPanel, EquipmentPanel, PriorityStack), `labour/*`,
+  `returns/*`, `packaging/*`. This is the actual remaining bulk of the work.
+- **19 files** still hand-roll `<Card><CardContent>` where `Section` belongs.
+- **47 files** render raw `<Badge>` instead of the canonical `StatusBadge`, so warehouse
+  status tone vocabulary diverges from Finance.
 
-Two gaps in the previous plan, added here:
+Verdict: Waves B and C are real. Waves D–G and Step 4 are not, and the true scope is
+composite panels and status/section chrome, not just stat strips.
 
-1. It scoped only "stat cards". Your instruction is broader — no hand-rolled
-   card, icon, or chrome anywhere in Warehouse. So the sweep also covers
-   section/list card chrome (`<Card><CardHeader><CardTitle>` used where
-   `Section` belongs), bespoke status pills (must be `StatusBadge`), and
-   ad-hoc empty/loading/error blocks (must be `EmptyState`/`LoadingState`/
-   `ErrorState`).
-2. `FlowSpine`, `TowerSummaryCard`, `HealthBanner`, `LoadingLane` and
-   `EntityPreview` are composite surfaces, not stat strips. Rather than
-   exempting them, their inner metric treatment adopts the shared
-   `CalloutCard`/`SummaryStatCard` metric block so the typography and icon
-   language are identical to Finance.
+## Phase 2 — remaining execution
 
-## Phase 3 — remaining execution
+### Wave 0 — repair first
+Fix the `ExecutionTelemetry` closing tag, then typecheck the whole warehouse tree so no
+further wave is built on a file that does not compile.
 
-### Wave B — Inbound
-`DockSchedule`, `CrossdockBoard`, `ReturnsLaneBoard`, plus the Inbound
-control tower (`InboundDashboard`, `HealthBanner`, `FlowSpine`): replace
-inline stat blocks with `SummaryStatGrid`/`SummaryStatCard`, wire each
-metric to a filtered destination via `to`, use `loading` instead of
-swapping in a spinner.
-
-### Wave C — Inventory control
-`Slotting`, `CountReview`, `LicensePlates`, `LicensePlateView`,
-`LocationOverviewTab`, `LabelVerifyDialog`.
-
-### Wave D — Outbound
-`OutboundDashboard`, `LoadingLane`, and the dispatch/loading strips.
+### Wave D — Outbound and Wave planning
+`OutboundDashboard`, `outbound-tower/LoadingLane`, `DockYardStrip`,
+`ShipmentLifecycleBoard`, `OutboundBottleneckRail`, `ExceptionRail`, `WavePlanner`,
+`LoadingBay`, `LoadingManifests`. Metric blocks adopt `SummaryStatGrid`/`SummaryStatCard`;
+each metric that represents work gets a `to` drill-down; `loading` replaces bespoke spinners.
 
 ### Wave E — Yard
-Re-verify `YardControlTower`, `GateConsole`, `YardMarshal`,
-`TrailerRegister` after the Wave-A change to `YardKpiStrip`; migrate any
+`YardControlTower`, `GateConsole`, `YardMarshal`, `TrailerRegister`,
+`TrailerVisitWorkspace` — re-verify after the Wave-A `YardKpiStrip` change and migrate
 page-level blocks left behind.
 
-### Wave F — Workforce + Analysis
-`LabourBoard`, `ExecutionTelemetry` (Operations performance),
-`BillingBoard`.
+### Wave F — Control centre, Inbound tower, Overview composites
+`control-center/*`, `inbound-tower/*`, `overview/*`. These stay composite surfaces, but
+their inner metric treatment uses the canonical card's metric block so typography, icon
+sizing and number formatting are identical to Finance. `TowerSummaryCard` and
+`HealthBanner` become configurations of the shared primitive, not parallel designs.
 
-### Wave G — Configuration
-`WarehousesList`, `WarehouseLayoutWorkspace`, `PutawayStrategies`,
-`PackagingCatalogue`.
+### Wave G — Workforce, Analysis, Configuration
+`LabourBoard` (finish + typecheck), `labour/*` panels, `ExecutionTelemetry`,
+`BillingBoard` (delete local `KpiCard`), `PutawayStrategies`, `PackagingCatalogue`,
+`packaging/workspace/*`.
 
-Every migrated metric that represents work gets a drill-down target
-(metric → filtered list → record). Warehouse wording stays Warehouse
-wording — "Pending putaway", "Overdue dwell", "Wave shortfall".
+### Wave H — Status and section chrome (new)
+Replace raw `<Badge>` with `StatusBadge` across the 47 offending files, and hand-rolled
+`<Card><CardContent>` with `Section` across the 19. Ad-hoc empty/loading/error blocks
+become `EmptyState` / `LoadingState` / `ErrorState`.
 
 ### Step 4 — lock it in
-- `src/test/architecture/warehouse-canonical-cards.test.ts`: fails when a
-  file under `pages/warehouse` or `features/warehouse` renders a large
-  numeric value inside a hand-rolled `<Card>`, declares a local
-  `Kpi`/`Tile`/`StatCard` component, or hand-rolls a status pill instead of
-  `StatusBadge`.
-- Delete the `MetricTile` deprecation wrapper once its last caller is gone.
-- Playwright pass over every Warehouse page at 1440 / 1280 / 1024 / 768 /
-  390 px checking for horizontal overflow and truncated values.
+- `src/test/architecture/warehouse-canonical-cards.test.ts`: fails when a warehouse file
+  declares a local `Kpi`/`Tile`/`StatCard` component, renders a large numeric value
+  inside a hand-rolled `<Card>`, or hand-rolls a status pill instead of `StatusBadge`.
+- Delete `MetricTile` once `CycleCounts` is migrated.
+- Playwright pass over every Warehouse page at 1440 / 1280 / 1024 / 768 / 390 px,
+  checking horizontal overflow and truncated values, mirroring the Finance AR/AP baseline
+  captured at the same widths.
 
 ## Technical notes
 
-- Presentation only. No data, derivation, or business-logic changes —
-  `deriveYardKpis`, `useDomainOperations`, replenishment/wave models are
-  untouched.
-- No Warehouse-prefixed card component is created. If a Warehouse need
-  cannot be expressed, the canonical card is extended and Finance inherits
-  the capability.
-- The 55 existing Finance/Sales/Purchases/Inventory call sites must keep
-  rendering identically; changes to the shared card stay additive.
+- Presentation only. `deriveYardKpis`, `useDomainOperations`, replenishment/wave models
+  and all data derivation stay untouched.
+- No Warehouse-prefixed card component is created. If a Warehouse need cannot be
+  expressed, `SummaryStatCard` is extended additively and Finance inherits it; the 55
+  existing Finance/Sales/Purchases/Inventory call sites must render identically.
+- Warehouse wording stays Warehouse wording — "Pending putaway", "Overdue dwell",
+  "Wave shortfall" — only the component architecture is shared.
 
 ## Sequencing
 
-Wave B → C → D → E → F → G → Step 4, each wave finished (migrated,
-drill-downs wired, responsive-verified, typecheck clean) before the next.
+Wave 0 → D → E → F → G → H → Step 4, each wave migrated, drill-downs wired and
+typechecked before the next begins.

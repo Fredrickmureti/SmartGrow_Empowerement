@@ -5,47 +5,9 @@
  * owns its queries (so the realtime key prefixes stay explicit at the call
  * site) and hands rows here purely for rendering.
  *
- * NOTE: `MetricTile` is a **deprecated compatibility wrapper** over the
- * canonical `SummaryStatCard`. New Warehouse code must import
- * `SummaryStatCard` / `SummaryStatGrid` from `@/design-system` directly.
- * This wrapper exists only so already-migrated dashboards keep their prop
- * names during the Warehouse card consolidation, and is deleted at the end.
+ * Metric cards are NOT defined here: Warehouse uses the ERP-wide canonical
+ * `SummaryStatCard` / `SummaryStatGrid` from `@/design-system`.
  */
-import { SummaryStatCard } from "@/design-system";
-import type { LucideIcon } from "lucide-react";
-
-export type Tone = "ok" | "warn" | "bad" | "neutral";
-
-export interface MetricTileProps {
-  label: string;
-  value: number | string;
-  sub?: string;
-  icon?: LucideIcon;
-  tone?: Tone;
-  to?: string;
-}
-
-/** @deprecated Use `SummaryStatCard` from `@/design-system`. */
-export function MetricTile({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  tone = "neutral",
-  to,
-}: MetricTileProps) {
-  return (
-    <SummaryStatCard
-      label={label}
-      value={value}
-      footer={sub}
-      icon={Icon ? <Icon className="h-3.5 w-3.5" /> : undefined}
-      tone={tone}
-      to={to}
-    />
-  );
-}
-
 export interface StateBreakdownProps {
   rows: Array<Record<string, unknown>>;
   /** Column to group by. Defaults to `state`. */

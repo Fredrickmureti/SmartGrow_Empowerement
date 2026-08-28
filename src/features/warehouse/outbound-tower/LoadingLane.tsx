@@ -10,8 +10,14 @@
  * (`wms_outbound_shipments`); the lane only sums the rows it was handed for
  * display, it derives no rules of its own.
  */
+import { PackageCheck, PackageOpen, Truck, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "@/design-system";
+import {
+  EmptyState,
+  SummaryStatCard,
+  SummaryStatGrid,
+  type SummaryStatTone,
+} from "@/design-system";
 import type { OutboundShipment } from "./contract";
 
 interface Stage {
@@ -19,6 +25,10 @@ interface Stage {
   label: string;
   hint: string;
   count: number;
+  tone: SummaryStatTone;
+  icon: typeof PackageOpen;
+  /** Where the supervisor goes to clear this hand-off. */
+  to: string;
 }
 
 function lanes(shipments: OutboundShipment[]): Stage[] {
@@ -35,30 +45,48 @@ function lanes(shipments: OutboundShipment[]): Stage[] {
       label: "Awaiting seal",
       hint: "Packed, not sealed",
       count: Math.max(packed - sealed, 0),
+      tone: "warn",
+      icon: PackageOpen,
+      to: "/warehouse-app/dispatch",
     },
     {
       key: "awaiting_manifest",
       label: "Awaiting manifest",
       hint: "Sealed, not assigned to a load",
       count: Math.max(sealed - manifested, 0),
+      tone: "blue",
+      icon: ClipboardList,
+      to: "/warehouse-app/dispatch",
     },
     {
       key: "awaiting_load",
       label: "Awaiting load",
       hint: "Manifested, not on the trailer",
       count: Math.max(manifested - loaded, 0),
+      tone: "primary",
+      icon: PackageCheck,
+      to: "/warehouse-app/dispatch",
     },
     {
       key: "loaded",
       label: "Loaded",
       hint: "On the trailer",
       count: loaded,
+      tone: "ok",
+      icon: Truck,
+      to: "/warehouse-app/dispatch",
     },
   ];
 }
 
-export function LoadingLane({ shipments }: { shipments: OutboundShipment[] }) {
-  if (shipments.length === 0) {
+export function LoadingLane({
+  shipments,
+  loading = false,
+}: {
+  shipments: OutboundShipment[];
+  loading?: boolean;
+}) {
+  if (!loading && shipments.length === 0) {
     return (
       <EmptyState
         title="No cartons in play"
@@ -86,15 +114,21 @@ export function LoadingLane({ shipments }: { shipments: OutboundShipment[] }) {
           />
         ))}
       </div>
-      <dl className="grid min-w-0 grid-cols-1 gap-3 @[26rem]/page:grid-cols-2 @xl/page:grid-cols-4">
+      <SummaryStatGrid>
         {stages.map((s) => (
-          <div key={s.key} className="min-w-0 rounded-lg border p-3">
-            <dt className="text-xs text-muted-foreground">{s.label}</dt>
-            <dd className="text-xl font-semibold tabular-nums">{s.count}</dd>
-            <dd className="text-[11px] text-muted-foreground">{s.hint}</dd>
-          </div>
+          <SummaryStatCard
+            key={s.key}
+            icon={<s.icon className="h-3.5 w-3.5" />}
+            label={s.label}
+            value={s.count.toLocaleString()}
+            footer={s.hint}
+            tone={s.tone}
+            accent
+            to={s.to}
+            loading={loading}
+          />
         ))}
-      </dl>
+      </SummaryStatGrid>
     </div>
   );
 }
