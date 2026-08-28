@@ -125,22 +125,52 @@ export function ConsolidationAccountMapping({
   const businessName = (id: string) =>
     members.find((m) => m.business_id === id)?.name ?? "—";
 
-  const visibleAccounts = useMemo(
-    () =>
-      memberAccounts
-        .filter((a) => filterBusiness === "all" || a.business_id === filterBusiness)
-        .sort(
-          (a, b) =>
-            businessName(a.business_id).localeCompare(businessName(b.business_id)) ||
-            (a.code ?? "").localeCompare(b.code ?? ""),
-        ),
+  const visibleAccounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return memberAccounts
+      .filter((a) => filterBusiness === "all" || a.business_id === filterBusiness)
+      .filter((a) => filterType === "all" || a.account_type === filterType)
+      .filter((a) => {
+        if (filterStatus === "all") return true;
+        const mapped = openMappingByAccount.has(a.id);
+        return filterStatus === "mapped" ? mapped : !mapped;
+      })
+      .filter((a) => {
+        if (!q) return true;
+        return (
+          (a.code ?? "").toLowerCase().includes(q) ||
+          a.name.toLowerCase().includes(q) ||
+          businessName(a.business_id).toLowerCase().includes(q)
+        );
+      })
+      .sort(
+        (a, b) =>
+          businessName(a.business_id).localeCompare(businessName(b.business_id)) ||
+          (a.code ?? "").localeCompare(b.code ?? ""),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [memberAccounts, filterBusiness, members],
-  );
+  }, [
+    memberAccounts,
+    filterBusiness,
+    filterType,
+    filterStatus,
+    search,
+    members,
+    openMappingByAccount,
+  ]);
 
   const mappedCount = visibleAccounts.filter((a) =>
     openMappingByAccount.has(a.id),
   ).length;
+
+  // A group with a handful of companies easily reaches four figures of member
+  // accounts; rendering them all is unusable and janky. Page the rows.
+  const pageCount = Math.max(1, Math.ceil(visibleAccounts.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const pagedAccounts = visibleAccounts.slice(
+    safePage * pageSize,
+    safePage * pageSize + pageSize,
+  );
 
   const fail = (error: unknown, fallback: string) =>
     toast({
