@@ -753,6 +753,71 @@ REPORT_SPECS["project_full_export"] = {
   ],
 };
 
+// ─── Consolidation reports ───────────────────────────────────────
+// A group artifact is a statutory statement in its own right. Registering
+// these keys is what gives them the financial masthead, the statement
+// typography (10pt, semantic total spacing, "Page i of N") and their own
+// paper policy namespace. Unregistered, they were graded purely on column
+// count and printed at register density.
+const CONSOLIDATED_STATEMENT_COLUMNS: ReportColumn[] = [
+  { key: "code", header: "Code", width: 12, align: "left", format: "text" },
+  { key: "name", header: "Account", width: 44, align: "left", format: "text" },
+  { key: "aggregated", header: "Aggregated", width: 16, align: "right", format: "currency" },
+  { key: "elimination", header: "Eliminations", width: 16, align: "right", format: "currency" },
+  { key: "consolidated", header: "Consolidated", width: 16, align: "right", format: "currency" },
+];
+
+REPORT_SPECS["consolidated_balance_sheet"] = {
+  title: "Consolidated Balance Sheet",
+  orientation: "portrait",
+  formatProfile: "financial",
+  presentationProfile: "statement",
+  columns: CONSOLIDATED_STATEMENT_COLUMNS,
+};
+
+REPORT_SPECS["consolidated_income_statement"] = {
+  title: "Consolidated Income Statement",
+  orientation: "portrait",
+  formatProfile: "financial",
+  presentationProfile: "statement",
+  columns: CONSOLIDATED_STATEMENT_COLUMNS,
+};
+
+// The consolidated trial balance is a working schedule, not a statement:
+// with member contributions it carries eight columns and is read across.
+// It keeps the financial masthead but earns the ledger face, which spends
+// the reclaimed gutter on column width instead of shrinking digits.
+REPORT_SPECS["consolidated_trial_balance"] = {
+  title: "Consolidated Trial Balance",
+  orientation: "landscape",
+  formatProfile: "financial",
+  presentationProfile: "ledger",
+  columns: [
+    { key: "code", header: "Account", width: 12, align: "left", format: "text" },
+    { key: "name", header: "Description", width: 30, align: "left", format: "text" },
+    { key: "company", header: "Company", width: 18, align: "left", format: "text" },
+    { key: "rate", header: "Rate applied", width: 10, align: "right", format: "text" },
+    { key: "opening", header: "Opening", width: 14, align: "right", format: "currency" },
+    { key: "debit", header: "Debit", width: 14, align: "right", format: "currency" },
+    { key: "credit", header: "Credit", width: 14, align: "right", format: "currency" },
+    { key: "closing", header: "Closing", width: 14, align: "right", format: "currency" },
+  ],
+};
+
+REPORT_SPECS["consolidation_eliminations"] = {
+  title: "Intercompany Eliminations",
+  orientation: "landscape",
+  formatProfile: "financial",
+  presentationProfile: "ledger",
+  columns: [
+    { key: "code", header: "Account", width: 14, align: "left", format: "text" },
+    { key: "name", header: "Description", width: 34, align: "left", format: "text" },
+    { key: "debit", header: "Debit", width: 16, align: "right", format: "currency" },
+    { key: "credit", header: "Credit", width: 16, align: "right", format: "currency" },
+  ],
+};
+
+
 /**
  * Look up a spec by report type. Returns null if unknown — callers should
  * fall back to first-row inference for legacy/unregistered reports.

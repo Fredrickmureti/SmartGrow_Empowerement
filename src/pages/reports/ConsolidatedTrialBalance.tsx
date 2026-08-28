@@ -415,7 +415,13 @@ export default function ConsolidatedTrialBalance() {
       rows: toExportRows(exportRows, columns as ReportColumn<never>[]),
       sheetName: "Consolidated TB",
       currency,
+      // Registry key: gives the group schedule the financial masthead, the
+      // ledger typography and its own paper policy instead of being graded
+      // as an unknown wide table.
+      reportType: "consolidated_trial_balance",
+      orientation: "landscape",
       formatProfile: "financial",
+
       // A group artifact is issued by the group's PARENT company, whichever
       // member the user happens to be browsing, and it is never scoped to a
       // branch of one member.

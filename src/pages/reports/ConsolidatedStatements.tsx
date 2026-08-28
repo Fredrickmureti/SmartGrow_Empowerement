@@ -411,7 +411,13 @@ export default function ConsolidatedStatements() {
         rows: toExportRows(exportRows, COLUMNS as ReportColumn<never>[]),
         sheetName: isIncome ? "Income statement" : "Balance sheet",
         currency,
+        // Registry keys: a group statement prints at statutory statement
+        // typography (10pt, semantic total spacing, "Page i of N"), portrait,
+        // exactly like the single-entity statements it summarises.
+        reportType: isIncome ? "consolidated_income_statement" : "consolidated_balance_sheet",
+        orientation: "portrait",
         formatProfile: "financial",
+
         // Group artifact: issued by the group's parent company, never scoped
         // to a branch of whichever member the user is browsing.
         reportingEntityBusinessId: selectedGroup?.parent_business_id ?? null,

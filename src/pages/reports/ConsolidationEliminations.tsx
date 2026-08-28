@@ -247,7 +247,13 @@ export default function ConsolidationEliminations() {
       rows: toExportRows(rws, cols as ReportColumn<never>[]),
       sheetName,
       currency,
+      // Registry key: the elimination schedules are group accounting
+      // evidence, so they print with the financial masthead and the ledger
+      // face rather than as an unregistered wide table.
+      reportType: "consolidation_eliminations",
+      orientation: "landscape",
       formatProfile: "financial",
+
       // Group artifact: issued by the group's parent company, never scoped to
       // a branch of whichever member the user is browsing.
       reportingEntityBusinessId: selectedGroup?.parent_business_id ?? null,
