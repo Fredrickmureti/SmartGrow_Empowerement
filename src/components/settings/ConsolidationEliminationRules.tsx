@@ -78,6 +78,7 @@ interface Props {
 interface Draft {
   is_active: boolean;
   tolerance_amount: string;
+  tolerance_reason: string;
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string;
 }
@@ -91,11 +92,13 @@ function draftFrom(rule: EliminationRule | undefined): Draft {
     tolerance_amount: String(
       rule ? rule.tolerance_amount : ELIMINATION_RULE_DEFAULTS.tolerance_amount,
     ),
+    tolerance_reason: rule?.tolerance_reason ?? "",
     difference_policy:
       rule?.difference_policy ?? ELIMINATION_RULE_DEFAULTS.difference_policy,
     difference_group_account_id: rule?.difference_group_account_id ?? NO_ACCOUNT,
   };
 }
+
 
 export function ConsolidationEliminationRules({
   groupId,
