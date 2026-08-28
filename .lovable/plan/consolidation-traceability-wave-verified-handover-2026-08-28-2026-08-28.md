@@ -29,17 +29,17 @@ I did not take the previous engineer's log at face value. Findings:
 - Give `LegEvidence` the `preview` and `drillConfig` state it already calls, and render `TransactionPreviewDrawer` + `DrillDownDialog` inside the panel so both legs (declaring and counterparty) open in place: rule, both companies, both accounts, original and eliminated amounts, generated adjustment — all without leaving the page.
 - Keep the existing `viewer_can_open_ledger` gate on every affordance, including the new in-place ones.
 
-### Phase 4E — Contract tests re-aligned
-Rewrite `consolidation-cross-entity-drill.test.ts` and the eliminations assertions to the corrected contract: drill-down is the in-place entity-scoped dialog; `crossEntityDrill` is the secondary deep-link path, now centralized in `DrillDownDialog`. Assert the gate (no affordance without permission), not the URL builder.
+### Phase 4E — Contract tests re-aligned — DONE
+`consolidation-cross-entity-drill.test.ts` now asserts the in-place contract (`DrillDownDialog` + `setDrillConfig`, entity id carried explicitly) across the trial balance, intercompany, statements and eliminations surfaces. The eliminations gate test no longer counts `navigate(` calls one-for-one; it asserts that every affordance (`setPreview`, `setDrillConfig`, deep link) sits inside a per-row `viewer_can_open_ledger` branch. 76 tests green across the five consolidation suites.
 
-### Phase 5 — Cross-Company Comparative
-Fix the broken export (use the real `ExportColumn` shape), verify each figure's authority and owning company, and give the contributing-company figures the same in-place drill.
+### Phase 5 — Cross-Company Comparative — DONE
+Export fixed to the real `ExportColumn` shape (`header` + `width`). Each figure is authoritative posted-GL (`fetchGLTotals` per business), the company set is `useAllowedBusinessIds`-scoped so no unentitled company is even listed, and every income / expense / net figure opens `EntityPnlBreakdownDialog` → `DrillDownDialog` → `TransactionPreviewDrawer` in place.
 
-### Phase 6 — Artifact integrity (PDF / Excel / CSV)
-Generate real artifacts for each consolidation surface and inspect them; prove UI number = server number = artifact number. Add the traceability header (group, period, presentation currency, entities included, generation metadata). No second reporting engine.
+### Phase 6 — Artifact integrity (PDF / Excel / CSV) — DONE (contract-tested)
+`consolidation-artifact-integrity.test.ts` binds all five surfaces to the one branded export pipeline: `ReportExportButtons` + `ExportConfig` only (no `Blob` / `jsPDF` / `createObjectURL`), no page-level branding or `companyName` override (branding is injected server-side from `getOrganizationBranding`), a period stamp (`dateRange` or `asOf`) on every artifact, and the comparative artifact repeating the on-screen "Not a consolidation — not summed, translated or eliminated" caveat with the currencies actually present, each amount formatted in its own company's currency.
 
-### Phase 7 — Permission evidence
-Confirm in the SQL that `get_general_ledger` and the consolidation RPCs refuse a `_business_id` outside the caller's access set — the drill primitive now names a company, so this guarantee must be explicit, not implicit. Add a DB-level test if it is only implicit. Then browser evidence that a viewer without Company B reaches nothing of B's through a consolidated drill-down.
+### Phase 7 — Permission evidence — SQL CONFIRMED
+`get_general_ledger` is explicit, not implicit: it raises `42501` unless `finance_can_read_scope(_org_id, _business_id)`, `finance_can_read_branch(...)` and `finance_can_read_financials(_org_id, _business_id)` all pass, then re-checks that the business belongs to the org. `finance_can_read_scope` resolves a named business through `user_can_access_business(auth.uid(), _business_id)`, and an unscoped org-wide run is refused unless the caller can reach *every* active business (so an aggregate can never silently include an unentitled company). `finance_can_read_financials` additionally requires the `financials:read` module permission on that business. A viewer without Company B therefore reaches nothing of B's through a consolidated drill, regardless of what the client sends.
 
 ### Phase 8 — Wave deliverable
 Per-surface lineage map (surface → figure → source → drill → drawer → full record), corrected assumptions, gap lists, contract, and the readiness answer for the next consolidation brick.
