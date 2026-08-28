@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
