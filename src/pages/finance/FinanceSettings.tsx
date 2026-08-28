@@ -110,28 +110,59 @@ export default function FinanceSettings() {
 
         <BranchReadOnlyBanner area="Finance Settings" permissionLabel="finance.manage_settings" />
 
-        {/* Odoo-parity lock-date hierarchy */}
-        <LockDatesCard />
+        {/* Every section is collapsible and only the first is open by default,
+            so reaching Accounting Controls or Consolidation no longer means
+            scrolling past unrelated, fully-expanded panels. */}
+        <SettingsSection
+          id="lock-dates"
+          title="Period lock dates"
+          description="Hard, soft and tax lock dates that decide which periods still accept postings."
+          defaultOpen
+        >
+          <LockDatesCard />
+        </SettingsSection>
 
-        {/* Zero-trust finance integrity audit */}
-        <AccountingIntegrityCard />
+        <SettingsSection
+          id="integrity"
+          title="Accounting integrity"
+          description="Zero-trust audit of the ledger: unbalanced entries, orphaned postings, control-account drift."
+        >
+          <AccountingIntegrityCard />
+        </SettingsSection>
 
-        {/* Inventory subledger ↔ GL reconciliation (drift + opening backfill) */}
-        <InventoryReconciliationCard />
+        <SettingsSection
+          id="inventory-recon"
+          title="Inventory subledger ↔ General Ledger"
+          description="Drift between stock valuation and the GL, plus the opening-balance backfill."
+        >
+          <InventoryReconciliationCard />
+        </SettingsSection>
 
-        {/* Odoo-grade accountant controls */}
-        <FinanceAccountingControls accounts={accounts} />
+        <SettingsSection
+          id="accounting-controls"
+          title="Accounting controls"
+          description="Journal, reconciliation and foreign-exchange policies for this company."
+        >
+          <FinanceAccountingControls accounts={accounts} />
+        </SettingsSection>
 
-        {/* Canonical, eligibility-aware default account mapping UI.
-            Header (group) accounts are filtered out at the dropdown level
-            and detail-type eligibility is enforced per role — same engine
-            used by the `apply-default-mappings` edge function. */}
-        <DefaultAccountsConfig />
+        {/* Canonical, eligibility-aware default account mapping UI. */}
+        <SettingsSection
+          id="default-accounts"
+          title="Default account configuration"
+          description="Which GL account each automated posting role uses. Only postable leaf accounts of the correct detail type are selectable."
+        >
+          <DefaultAccountsConfig />
+        </SettingsSection>
 
-        {/* Consolidation group structure (Brick 1). Configuration only — no
-            consolidated figures are produced here. Write actions are hidden
-            for roles the RLS write policy would refuse. */}
-        <ConsolidationGroupsSettings />
+        {/* Consolidation group structure (Brick 1). Configuration only. */}
+        <SettingsSection
+          id="consolidation"
+          title="Consolidation groups"
+          description="Group structure, group chart of accounts and member account mapping."
+        >
+          <ConsolidationGroupsSettings />
+        </SettingsSection>
 
 
         {/* Only after the company context has settled — a company that is
