@@ -206,7 +206,7 @@ export default function Collections() {
         <KpiCard label="Customers 90+ days" value={String(customers90Plus)} />
         {/* Disputed exposure is reported beside AR, never subtracted from it. */}
         <KpiCard label="Disputed" value={formatCurrency(totalDisputed)} />
-      </div>
+      </SummaryStatGrid>
 
       <Tabs defaultValue="list" className="space-y-4">
         <TabsList>
