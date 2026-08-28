@@ -142,6 +142,14 @@ describe("no consolidation capability is left unreachable", () => {
     expect(settingsSource).toContain("cta_account_id");
     expect(settingsSource).toContain("historical_rate_date");
   });
+
+  it("presents the translation reserve as a GROUP line, not a member's equity account", () => {
+    // The reserve is created by consolidation itself, so a group that keeps its
+    // own chart must carry it on a group account.
+    expect(groupsHookSource).toContain("cta_group_account_id");
+    expect(settingsSource).toContain("cta_group_account_id");
+    expect(settingsSource).toContain("useConsolidationGroupAccounts");
+  });
 });
 
 describe("regrouping is arithmetic-free beyond addition of server rows", () => {

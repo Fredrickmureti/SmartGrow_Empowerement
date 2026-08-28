@@ -69,6 +69,7 @@ import {
   useConsolidationGroups,
   type ConsolidationMethod,
 } from "@/hooks/finance/useConsolidationGroups";
+import { useConsolidationGroupAccounts } from "@/hooks/finance/useConsolidationAccountMapping";
 import { normalizeError } from "@/services/resilience";
 import { ConsolidationAccountMapping } from "@/components/settings/ConsolidationAccountMapping";
 import { ConsolidationEliminationRules } from "@/components/settings/ConsolidationEliminationRules";
@@ -137,6 +138,15 @@ export function ConsolidationGroupsSettings() {
   const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
     activeGroup?.parent_business_id ?? null,
+  );
+  // The reserve is a group construct: where the group keeps its own chart it is
+  // presented on a group equity account, never on a member's.
+  const { data: groupAccounts = [] } = useConsolidationGroupAccounts(
+    activeGroupId,
+  );
+  const groupEquityAccounts = useMemo(
+    () => groupAccounts.filter((a) => a.is_active && a.account_type === "equity"),
+    [groupAccounts],
   );
 
 
@@ -742,6 +752,50 @@ export function ConsolidationGroupsSettings() {
                       </p>
                     )}
                   </div>
+
+                  {groupEquityAccounts.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Group reserve line</Label>
+                      <Select
+                        value={activeGroup.cta_group_account_id ?? ""}
+                        disabled={!canManage}
+                        onValueChange={async (value) => {
+                          try {
+                            await updateGroupTranslationSettings.mutateAsync({
+                              id: activeGroup.id,
+                              cta_group_account_id: value,
+                            });
+                            toast({ title: "Group reserve line saved" });
+                          } catch (error) {
+                            fail(error, "Could not save the group reserve line");
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a group equity account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groupEquityAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.code} — {account.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        The reserve belongs to the group, so consolidated
+                        statements present it on the group's own chart — not on
+                        the parent company's equity account.
+                      </p>
+                      {!activeGroup.cta_group_account_id && (
+                        <p className="text-xs text-destructive">
+                          This group keeps its own chart of accounts, so
+                          consolidated reports stay blocked until a group
+                          reserve line is chosen.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}

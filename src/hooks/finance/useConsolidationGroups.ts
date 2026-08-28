@@ -41,6 +41,12 @@ export interface ConsolidationGroup {
    * balance, and a silently absorbed difference is a misstatement.
    */
   cta_account_id: string | null;
+  /**
+   * Group-chart equity account that PRESENTS the reserve. The reserve is a
+   * group construct, so where the group keeps its own chart it must be shown
+   * on a group account rather than on a member company's equity account.
+   */
+  cta_group_account_id: string | null;
 }
 
 export interface ConsolidationGroupMember {
@@ -167,7 +173,7 @@ export function useConsolidationGroups() {
       const { data, error } = await supabase
         .from("consolidation_groups")
         .select(
-          "id, organization_id, name, code, parent_business_id, presentation_currency, description, is_active, cta_account_id",
+          "id, organization_id, name, code, parent_business_id, presentation_currency, description, is_active, cta_account_id, cta_group_account_id",
         )
         .eq("organization_id", orgId!)
         .order("name");
@@ -302,14 +308,15 @@ export function useConsolidationGroupMutations() {
   const updateGroupTranslationSettings = useMutation({
     mutationFn: async ({
       id,
-      cta_account_id,
+      ...patch
     }: {
       id: string;
-      cta_account_id: string | null;
+      cta_account_id?: string | null;
+      cta_group_account_id?: string | null;
     }) => {
       const { error } = await supabase
         .from("consolidation_groups")
-        .update({ cta_account_id })
+        .update(patch)
         .eq("id", id);
       if (error) throw toAppError(error);
     },
