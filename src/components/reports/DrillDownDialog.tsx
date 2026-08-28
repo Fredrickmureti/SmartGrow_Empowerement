@@ -84,6 +84,8 @@ interface DrillDownDialogProps {
 
 export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogProps) {
   const { currentOrg } = useOrganization();
+  const navigate = useNavigate();
+
   const { currentBusiness } = useBusinesses();
   const { formatCurrency } = useCurrency();
   const [drawerOpen, setDrawerOpen] = useState(false);
