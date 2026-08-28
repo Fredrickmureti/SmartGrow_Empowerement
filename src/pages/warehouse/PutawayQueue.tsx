@@ -26,7 +26,7 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -246,7 +246,7 @@ export default function PutawayQueue() {
         }
       />
       <PageBody>
-        <Section>
+        <Section unstyled className="min-w-0">
           {isLoading ? (
             <LoadingState />
           ) : (rows ?? []).length === 0 ? (
@@ -258,24 +258,39 @@ export default function PutawayQueue() {
             />
           ) : (
             <div className="min-w-0 grid gap-4 @2xl/page:grid-cols-3">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm">Pending ({cols.pending.length})</CardTitle></CardHeader>
-                <CardContent className="p-2 max-h-[70vh] overflow-auto">
-                  {cols.pending.length === 0 ? <div className="text-sm text-muted-foreground p-2">Clear.</div> : cols.pending.map(renderCard)}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm">In progress ({cols.inProgress.length})</CardTitle></CardHeader>
-                <CardContent className="p-2 max-h-[70vh] overflow-auto">
-                  {cols.inProgress.length === 0 ? <div className="text-sm text-muted-foreground p-2">Idle.</div> : cols.inProgress.map(renderCard)}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm">Done today ({cols.doneToday.length})</CardTitle></CardHeader>
-                <CardContent className="p-2 max-h-[70vh] overflow-auto">
-                  {cols.doneToday.length === 0 ? <div className="text-sm text-muted-foreground p-2">—</div> : cols.doneToday.map(renderCard)}
-                </CardContent>
-              </Card>
+              <Section
+                title="Pending"
+                actions={<Badge variant="secondary">{cols.pending.length}</Badge>}
+                contentClassName="max-h-[70vh] overflow-auto"
+              >
+                {cols.pending.length === 0 ? (
+                  <EmptyState icon={PackageOpen} title="Nothing pending" description="Every received handling unit has been picked up." />
+                ) : (
+                  cols.pending.map(renderCard)
+                )}
+              </Section>
+              <Section
+                title="In progress"
+                actions={<Badge variant="secondary">{cols.inProgress.length}</Badge>}
+                contentClassName="max-h-[70vh] overflow-auto"
+              >
+                {cols.inProgress.length === 0 ? (
+                  <EmptyState icon={PackageOpen} title="No task in progress" description="Operators pick tasks up from the pending column." />
+                ) : (
+                  cols.inProgress.map(renderCard)
+                )}
+              </Section>
+              <Section
+                title="Done today"
+                actions={<Badge variant="secondary">{cols.doneToday.length}</Badge>}
+                contentClassName="max-h-[70vh] overflow-auto"
+              >
+                {cols.doneToday.length === 0 ? (
+                  <EmptyState icon={PackageOpen} title="Nothing put away today" description="Completed putaway tasks appear here for the current day." />
+                ) : (
+                  cols.doneToday.map(renderCard)
+                )}
+              </Section>
             </div>
           )}
         </Section>
