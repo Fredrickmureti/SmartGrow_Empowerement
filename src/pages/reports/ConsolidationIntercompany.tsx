@@ -189,10 +189,12 @@ export default function ConsolidationIntercompany() {
 
   // Lineage: an activity row IS one member company's posting into one of its
   // own accounts, so it has a single authoritative destination — that company's
-  // General Ledger, at that account, over this period. The link carries the
-  // company (see `crossEntityDrill`); it is offered only where the viewer may
-  // reach that company's books, and the destination re-checks that on the
-  // server regardless.
+  // ledger lines for that account over this period. They open in place, in the
+  // entity-aware drill dialog, so the reconciliation the reviewer was reading
+  // is not destroyed; the dialog itself offers the General Ledger deep link
+  // (built by `crossEntityDrill`, carrying `businessId: r.declaring_business_id`)
+  // as a secondary escape hatch. Offered only where the viewer may reach that
+  // company's books, and the server re-checks that regardless.
   const activityRows = useMemo<ReportRow[]>(() => {
     const money = (v: number) => formatAmount(Number(v), currency);
     return (activityQuery.data ?? []).map((r) => {
@@ -202,14 +204,14 @@ export default function ConsolidationIntercompany() {
       meta: { accountId: r.account_id, businessId: r.declaring_business_id },
       onClick: openable
         ? () =>
-            navigate(
-              ledgerDrillHref({
-                businessId: r.declaring_business_id,
-                accountId: r.account_id,
-                dateFrom,
-                dateTo,
-              }),
-            )
+            setDrillConfig({
+              title: `${r.account_code} · ${r.account_name} — ${r.declaring_business_name}`,
+              accountId: r.account_id,
+              businessId: r.declaring_business_id,
+              businessName: r.declaring_business_name,
+              startDate: dateFrom,
+              endDate: dateTo,
+            })
         : undefined,
       values: {
         declaring: r.declaring_business_name,
@@ -225,7 +227,8 @@ export default function ConsolidationIntercompany() {
       },
       };
     });
-  }, [activityQuery.data, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+  }, [activityQuery.data, currency, canOpenMemberLedger, dateFrom, dateTo]);
+
 
   /** Rows whose books this viewer may not open — said plainly, not hidden. */
   const activityBlocked = useMemo(
