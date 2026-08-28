@@ -215,9 +215,14 @@ export function TransactionPreviewDrawer({
                     {data.status}
                   </Badge>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{formatCurrency(data.amount, data.currency)}</div>
+                    <div className="text-2xl font-bold">
+                      {formatCurrency(data.amount, data.currency ?? fallbackCurrency ?? undefined)}
+                    </div>
                     {data.subtitle && (
                       <div className="text-sm text-muted-foreground">{data.subtitle}</div>
+                    )}
+                    {foreignBusiness && businessName && (
+                      <div className="text-xs text-muted-foreground">Books of {businessName}</div>
                     )}
                   </div>
                 </div>
