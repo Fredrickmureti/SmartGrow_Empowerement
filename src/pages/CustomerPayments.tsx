@@ -42,6 +42,7 @@ import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton
 import { useViewMode } from "@/hooks/useViewMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";

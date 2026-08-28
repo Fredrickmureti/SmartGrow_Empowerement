@@ -16,6 +16,7 @@ import {
   type CustomerLedgerIndexRow,
 } from "@/services/finance/customerLedgerIndex";
 import { Card } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

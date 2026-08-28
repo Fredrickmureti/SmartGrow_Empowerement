@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import {
   useSalespersonDashboard,
   useSalespersonDocuments,

@@ -28,6 +28,7 @@ import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton
 import { StudioQuickPanelTrigger } from "@/components/studio/StudioQuickPanelTrigger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";

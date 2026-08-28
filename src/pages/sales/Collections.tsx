@@ -14,6 +14,7 @@ import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useAgingReport, type AgingContactDetail } from "@/hooks/useAgingReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
