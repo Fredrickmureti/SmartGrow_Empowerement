@@ -129,6 +129,9 @@ export default function ConsolidationEliminations() {
     searchParams.get("group_account_id"),
   );
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [reverseReason, setReverseReason] = useState("");
+
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
   const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
