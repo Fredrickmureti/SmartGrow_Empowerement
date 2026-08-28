@@ -326,7 +326,36 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
             </Table>
           )}
         </div>
+
+        {/*
+          Secondary affordance, not the drill-down itself. The dialog above is
+          the traceability path (line → preview → source document, in place);
+          this is the stable deep link for someone who wants the full ledger,
+          and it carries the company so it lands in the right books.
+        */}
+        {config?.accountId && !config?.contactId && (
+          <DialogFooter className="sm:justify-start">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigate(
+                  ledgerDrillHref({
+                    businessId: scopedBusinessId,
+                    accountId: config.accountId,
+                    dateFrom: config.startDate,
+                    dateTo: config.endDate,
+                  }),
+                )
+              }
+            >
+              Open in General Ledger
+              <ExternalLink className="h-3.5 w-3.5 ml-2" />
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
+
       <TransactionPreviewDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
