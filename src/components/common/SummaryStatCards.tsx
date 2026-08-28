@@ -1,14 +1,26 @@
 /**
- * Canonical KPI/summary card used by Finance → Receivables / Payables.
+ * Canonical KPI/summary card for the whole ERP.
  *
- * This is the ONE stat card for ledger-style summary strips. Purchases
- * (Overview, Purchase orders, Returns, Statements) render the exact same
- * primitive so the cards, typography, spacing and responsive behaviour are
- * identical to AR/AP. Do not re-author a bespoke `<Card>` stat block.
+ * This is the ONE stat card for summary strips — Finance (Receivables /
+ * Payables), Sales, Purchases, Inventory, Reports and Warehouse all render
+ * this exact primitive so the cards, typography, spacing, drill-down and
+ * responsive behaviour are identical everywhere. Do NOT re-author a bespoke
+ * `<Card>` stat block, and do NOT create a module-prefixed variant
+ * (`WarehouseKpiCard`, `SalesStatCard`, …). If a module need cannot be
+ * expressed here, extend this file so every module inherits the capability.
+ *
+ * Responsive model: `SummaryStatGrid` is **container-query driven**. It sizes
+ * itself against its own width, not the viewport, so a strip inside a narrow
+ * two-column workspace reflows exactly like a strip on a full-width page.
+ *
+ * Also re-exported from `@/design-system`.
  */
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type SummaryStatTone =
   | "default"
@@ -19,9 +31,36 @@ export type SummaryStatTone =
   | "orange"
   | "blue"
   | "purple"
-  | "destructive";
+  | "destructive"
+  /* Operational aliases (WMS/ops semantics) mapped onto the same values —
+     deliberately NOT a second tone scale. */
+  | "ok"
+  | "warn"
+  | "bad"
+  | "neutral";
 
-const TONE_VALUE: Record<SummaryStatTone, string> = {
+/** Operational aliases resolve to the canonical tone before lookup. */
+function resolveTone(tone: SummaryStatTone): Exclude<
+  SummaryStatTone,
+  "ok" | "warn" | "bad" | "neutral"
+> {
+  switch (tone) {
+    case "ok":
+      return "emerald";
+    case "warn":
+      return "amber";
+    case "bad":
+      return "destructive";
+    case "neutral":
+      return "default";
+    default:
+      return tone;
+  }
+}
+
+type CanonicalTone = ReturnType<typeof resolveTone>;
+
+const TONE_VALUE: Record<CanonicalTone, string> = {
   default: "",
   primary: "text-primary",
   emerald: "text-emerald-600",
@@ -33,7 +72,7 @@ const TONE_VALUE: Record<SummaryStatTone, string> = {
   destructive: "text-destructive",
 };
 
-const TONE_ACCENT: Record<SummaryStatTone, string> = {
+const TONE_ACCENT: Record<CanonicalTone, string> = {
   default: "border-l-4 border-l-border",
   primary: "border-l-4 border-l-primary",
   emerald: "border-l-4 border-l-emerald-500",
@@ -45,7 +84,11 @@ const TONE_ACCENT: Record<SummaryStatTone, string> = {
   destructive: "border-l-4 border-l-destructive",
 };
 
-/** Fluid grid used above AR/AP tables: wraps instead of squashing values. */
+/**
+ * Fluid grid used above tables and on dashboards: wraps instead of squashing
+ * values. Container-query driven (`@container/stats`) with an intrinsic
+ * `auto-fit` fallback, so it never depends on the viewport width.
+ */
 export function SummaryStatGrid({
   children,
   className,
@@ -54,15 +97,33 @@ export function SummaryStatGrid({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]",
-        className,
-      )}
-    >
-      {children}
+    <div className="@container/stats min-w-0">
+      <div
+        className={cn(
+          "grid min-w-0 gap-3",
+          "[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]",
+          "@md/stats:gap-4 @md/stats:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]",
+          "@3xl/stats:[grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]",
+          className,
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
+}
+
+export type SummaryStatTrendDirection = "up" | "down" | "flat";
+
+export interface SummaryStatTrend {
+  /** Pre-formatted delta, e.g. "+12%" or "3 more than yesterday". */
+  value: ReactNode;
+  direction?: SummaryStatTrendDirection;
+  /**
+   * Whether the direction is good news. Ops metrics invert constantly
+   * (rising backlog = bad, rising throughput = good), so the caller decides.
+   */
+  good?: boolean;
 }
 
 export interface SummaryStatCardProps {
@@ -75,9 +136,23 @@ export interface SummaryStatCardProps {
   tone?: SummaryStatTone;
   /** Render the coloured left rule (AR/AP aging buckets use it). */
   accent?: boolean;
+  /** Optional badge / status pill rendered on the header's right edge. */
+  status?: ReactNode;
+  /** Optional trend row under the value. */
+  trend?: SummaryStatTrend;
+  /** Drill-down destination. Renders the card as a router link. */
+  to?: string;
   onClick?: () => void;
+  /** Skeleton in the card's own shape — never swap the card for a spinner. */
+  loading?: boolean;
   className?: string;
 }
+
+const TREND_ICON: Record<SummaryStatTrendDirection, typeof ArrowUpRight> = {
+  up: ArrowUpRight,
+  down: ArrowDownRight,
+  flat: ArrowRight,
+};
 
 export function SummaryStatCard({
   label,
@@ -86,37 +161,85 @@ export function SummaryStatCard({
   icon,
   tone = "default",
   accent = false,
+  status,
+  trend,
+  to,
   onClick,
+  loading = false,
   className,
 }: SummaryStatCardProps) {
-  return (
+  const canonical = resolveTone(tone);
+  const interactive = Boolean(to || onClick);
+
+  const TrendIcon = trend?.direction ? TREND_ICON[trend.direction] : null;
+  const trendTone =
+    trend?.good === undefined
+      ? "text-muted-foreground"
+      : trend.good
+        ? "text-emerald-600"
+        : "text-destructive";
+
+  const card = (
     <Card
       onClick={onClick}
       className={cn(
-        accent && TONE_ACCENT[tone],
-        onClick && "cursor-pointer transition-shadow hover:shadow-md",
+        "h-full min-w-0",
+        accent && TONE_ACCENT[canonical],
+        interactive &&
+          "cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className,
       )}
     >
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {icon}
-          {label}
+          <span className="min-w-0 truncate">{label}</span>
+          {status ? <span className="ml-auto shrink-0">{status}</span> : null}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div
-          className={cn(
-            "stat-value whitespace-nowrap tabular-nums",
-            TONE_VALUE[tone],
-          )}
-        >
-          {value}
-        </div>
-        {footer ? (
-          <p className="mt-1 text-xs text-muted-foreground">{footer}</p>
-        ) : null}
+        {loading ? (
+          <>
+            <Skeleton className="h-7 w-24" />
+            {footer ? <Skeleton className="mt-2 h-3 w-32" /> : null}
+          </>
+        ) : (
+          <>
+            <div
+              className={cn(
+                "stat-value whitespace-nowrap tabular-nums",
+                TONE_VALUE[canonical],
+              )}
+            >
+              {value}
+            </div>
+            {trend ? (
+              <p
+                className={cn(
+                  "mt-1 flex items-center gap-1 text-xs tabular-nums",
+                  trendTone,
+                )}
+              >
+                {TrendIcon ? <TrendIcon className="h-3 w-3 shrink-0" /> : null}
+                <span className="min-w-0 truncate">{trend.value}</span>
+              </p>
+            ) : null}
+            {footer ? (
+              <p className="mt-1 text-xs text-muted-foreground">{footer}</p>
+            ) : null}
+          </>
+        )}
       </CardContent>
     </Card>
   );
+
+  if (to && !loading) {
+    return (
+      <Link to={to} className="block min-w-0 no-underline">
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }

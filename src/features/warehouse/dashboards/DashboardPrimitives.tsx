@@ -4,20 +4,17 @@
  * Deliberately dumb: no data fetching, no business rules. Each dashboard
  * owns its queries (so the realtime key prefixes stay explicit at the call
  * site) and hands rows here purely for rendering.
+ *
+ * NOTE: `MetricTile` is a **deprecated compatibility wrapper** over the
+ * canonical `SummaryStatCard`. New Warehouse code must import
+ * `SummaryStatCard` / `SummaryStatGrid` from `@/design-system` directly.
+ * This wrapper exists only so already-migrated dashboards keep their prop
+ * names during the Warehouse card consolidation, and is deleted at the end.
  */
-import { Link } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { SummaryStatCard } from "@/design-system";
 import type { LucideIcon } from "lucide-react";
 
 export type Tone = "ok" | "warn" | "bad" | "neutral";
-
-const TONE_TEXT: Record<Tone, string> = {
-  ok: "text-success",
-  warn: "text-warning",
-  bad: "text-destructive",
-  neutral: "text-foreground",
-};
 
 export interface MetricTileProps {
   label: string;
@@ -28,6 +25,7 @@ export interface MetricTileProps {
   to?: string;
 }
 
+/** @deprecated Use `SummaryStatCard` from `@/design-system`. */
 export function MetricTile({
   label,
   value,
@@ -36,21 +34,16 @@ export function MetricTile({
   tone = "neutral",
   to,
 }: MetricTileProps) {
-  const body = (
-    <Card className={cn(to && "transition-colors hover:border-primary/50")}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          {Icon ? <Icon className="h-4 w-4 text-muted-foreground" /> : null}
-        </div>
-        <p className={cn("mt-2 text-2xl font-semibold tabular-nums", TONE_TEXT[tone])}>
-          {value}
-        </p>
-        {sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
-      </CardContent>
-    </Card>
+  return (
+    <SummaryStatCard
+      label={label}
+      value={value}
+      footer={sub}
+      icon={Icon ? <Icon className="h-3.5 w-3.5" /> : undefined}
+      tone={tone}
+      to={to}
+    />
   );
-  return to ? <Link to={to}>{body}</Link> : body;
 }
 
 export interface StateBreakdownProps {

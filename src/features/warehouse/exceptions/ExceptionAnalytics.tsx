@@ -9,9 +9,10 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LoadingState, EmptyState, StatusBadge } from "@/design-system";
+import {
+  LoadingState, EmptyState, StatusBadge, SummaryStatCard, SummaryStatGrid,
+} from "@/design-system";
 import { BarChart3 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import {
   ExceptionClass, ExceptionState, CLASS_TONE, humanise, shortDuration,
   TERMINAL_STATES,
@@ -107,20 +108,29 @@ export function ExceptionAnalytics({ warehouseId }: { warehouseId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="min-w-0 grid grid-cols-2 gap-3 @2xl/page:grid-cols-5">
-        <Kpi label="Raised (90d)" value={String(stats.total)} />
-        <Kpi label="Still open" value={String(stats.openCount)} />
-        <Kpi label="Mean time to resolve" value={stats.mttr ? shortDuration(stats.mttr) : "—"} />
-        <Kpi
+      <SummaryStatGrid>
+        <SummaryStatCard label="Raised (90d)" value={stats.total} />
+        <SummaryStatCard
+          label="Still open"
+          value={stats.openCount}
+          tone={stats.openCount > 0 ? "warn" : "ok"}
+          to="/warehouse-app/exceptions"
+        />
+        <SummaryStatCard
+          label="Mean time to resolve"
+          value={stats.mttr ? shortDuration(stats.mttr) : "\u2014"}
+        />
+        <SummaryStatCard
           label="SLA compliance"
           value={`${stats.slaCompliance}%`}
-          tone={stats.slaCompliance < 90 ? "danger" : undefined}
+          tone={stats.slaCompliance < 90 ? "bad" : "ok"}
+          accent={stats.slaCompliance < 90}
         />
-        <Kpi
+        <SummaryStatCard
           label="Financial exposure"
-          value={stats.impact ? stats.impact.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}
+          value={stats.impact ? stats.impact.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "\u2014"}
         />
-      </div>
+      </SummaryStatGrid>
 
       <div className="min-w-0 grid gap-6 @4xl/page:grid-cols-2">
         <Panel title="Recurring exception kinds" subtitle="Highest-frequency failures — fix the process, not the row.">
@@ -144,15 +154,6 @@ export function ExceptionAnalytics({ warehouseId }: { warehouseId: string }) {
           <Bars data={stats.buckets.map((b) => [b.label, b.n] as [string, number])} />
         </Panel>
       </div>
-    </div>
-  );
-}
-
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: "danger" }) {
-  return (
-    <div className="rounded-md border border-border bg-card p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-2xl font-semibold", tone === "danger" && "text-destructive")}>{value}</div>
     </div>
   );
 }

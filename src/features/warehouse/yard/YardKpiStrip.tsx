@@ -2,7 +2,7 @@
  * Yard KPI strip — the six numbers a yard supervisor is accountable for.
  * Pure presentation; every value is derived in `deriveYardKpis`.
  */
-import { Card, CardContent } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import { Truck, ParkingSquare, Timer, AlertTriangle, DoorOpen, CheckCircle2 } from "lucide-react";
 import {
   dwellMinutes,
@@ -43,62 +43,62 @@ export function deriveYardKpis(visits: VisitRow[], slots: YardSlotRow[]): YardKp
   };
 }
 
-function Kpi({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Icon className="h-3.5 w-3.5" /> {label}
-        </div>
-        <div className={`text-2xl font-semibold mt-1 ${tone ?? ""}`}>{value}</div>
-        {hint && <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>}
-      </CardContent>
-    </Card>
-  );
-}
-
-export function YardKpiStrip({ kpis }: { kpis: YardKpis }) {
+export function YardKpiStrip({ kpis, loading = false }: { kpis: YardKpis; loading?: boolean }) {
   const occupancy = kpis.slotsTotal
     ? Math.round(((kpis.slotsTotal - kpis.slotsFree) / kpis.slotsTotal) * 100)
     : 0;
   return (
-    <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-3 @5xl/page:grid-cols-6">
-      <Kpi icon={Truck} label="On site" value={String(kpis.onSite)} hint={`${kpis.atGate} at gate`} />
-      <Kpi icon={DoorOpen} label="At dock" value={String(kpis.atDock)} hint={`${kpis.inYard} waiting in yard`} />
-      <Kpi
-        icon={Timer}
+    <SummaryStatGrid>
+      <SummaryStatCard
+        icon={<Truck className="h-3.5 w-3.5" />}
+        label="On site"
+        value={kpis.onSite}
+        footer={`${kpis.atGate} at gate`}
+        loading={loading}
+        to="/warehouse-app/yard"
+      />
+      <SummaryStatCard
+        icon={<DoorOpen className="h-3.5 w-3.5" />}
+        label="At dock"
+        value={kpis.atDock}
+        footer={`${kpis.inYard} waiting in yard`}
+        loading={loading}
+        to="/warehouse-app/yard/marshal"
+      />
+      <SummaryStatCard
+        icon={<Timer className="h-3.5 w-3.5" />}
         label="Average dwell"
         value={formatDwell(kpis.avgDwell)}
-        hint={`worst ${formatDwell(kpis.worstDwell)}`}
-        tone={kpis.avgDwell >= 120 ? "text-orange-600 dark:text-orange-400" : undefined}
+        footer={`worst ${formatDwell(kpis.worstDwell)}`}
+        tone={kpis.avgDwell >= 120 ? "orange" : "neutral"}
+        loading={loading}
       />
-      <Kpi
-        icon={AlertTriangle}
+      <SummaryStatCard
+        icon={<AlertTriangle className="h-3.5 w-3.5" />}
         label="Past window"
-        value={String(kpis.overdue)}
-        hint="appointment window closed"
-        tone={kpis.overdue > 0 ? "text-destructive" : undefined}
+        value={kpis.overdue}
+        footer="appointment window closed"
+        tone={kpis.overdue > 0 ? "bad" : "neutral"}
+        accent={kpis.overdue > 0}
+        loading={loading}
+        to="/warehouse-app/yard?filter=overdue"
       />
-      <Kpi
-        icon={ParkingSquare}
+      <SummaryStatCard
+        icon={<ParkingSquare className="h-3.5 w-3.5" />}
         label="Yard occupancy"
         value={`${occupancy}%`}
-        hint={`${kpis.slotsFree} of ${kpis.slotsTotal} slots free`}
-        tone={occupancy >= 90 ? "text-destructive" : occupancy >= 75 ? "text-amber-600 dark:text-amber-400" : undefined}
+        footer={`${kpis.slotsFree} of ${kpis.slotsTotal} slots free`}
+        tone={occupancy >= 90 ? "bad" : occupancy >= 75 ? "warn" : "neutral"}
+        loading={loading}
       />
-      <Kpi icon={CheckCircle2} label="Cleared to leave" value={String(kpis.clearedToLeave)} hint="awaiting gate exit" />
-    </div>
+      <SummaryStatCard
+        icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+        label="Cleared to leave"
+        value={kpis.clearedToLeave}
+        footer="awaiting gate exit"
+        loading={loading}
+        to="/warehouse-app/yard/gate"
+      />
+    </SummaryStatGrid>
   );
 }

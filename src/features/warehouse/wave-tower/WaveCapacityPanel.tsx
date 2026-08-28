@@ -2,34 +2,26 @@
  * Capacity strip — can the shift absorb what the plan proposes?
  *
  * Every number comes from `wms_wave_capacity`; this component divides
- * nothing and forecasts nothing.
+ * nothing and forecasts nothing. Presentation is the canonical ERP stat
+ * card so the shift-capacity strip matches Finance/AR summary strips.
  */
 import { Users, Clock, Gauge, Layers } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import type { WaveCapacity } from "./contract";
 
-function Tile({
-  icon: Icon, label, value, hint,
-}: { icon: typeof Users; label: string; value: string; hint?: string }) {
-  return (
-    <Card>
-      <CardContent className="flex items-start gap-3 p-3">
-        <Icon className="mt-0.5 h-4 w-4 text-muted-foreground" />
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className="text-lg font-semibold leading-tight">{value}</div>
-          {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-export function WaveCapacityPanel({ capacity }: { capacity: WaveCapacity | null | undefined }) {
+export function WaveCapacityPanel({
+  capacity,
+  loading = false,
+}: {
+  capacity: WaveCapacity | null | undefined;
+  loading?: boolean;
+}) {
   if (!capacity) return null;
   const util = capacity.utilisation_pct;
+  const utilTone =
+    util == null ? "neutral" : util > 100 ? "bad" : util > 85 ? "warn" : "ok";
   const tone =
     util == null ? "text-muted-foreground"
       : util > 100 ? "text-destructive"
@@ -38,32 +30,41 @@ export function WaveCapacityPanel({ capacity }: { capacity: WaveCapacity | null 
 
   return (
     <div className="space-y-3">
-      <div className="min-w-0 grid gap-3 @xl/page:grid-cols-4">
-        <Tile
-          icon={Users}
+      <SummaryStatGrid>
+        <SummaryStatCard
+          icon={<Users className="h-3.5 w-3.5" />}
           label="Operators on shift"
-          value={String(capacity.operators_planned)}
-          hint={`${capacity.capacity_minutes} min available`}
+          value={capacity.operators_planned}
+          footer={`${capacity.capacity_minutes} min available`}
+          loading={loading}
+          to="/warehouse-app/labour"
         />
-        <Tile
-          icon={Clock}
+        <SummaryStatCard
+          icon={<Clock className="h-3.5 w-3.5" />}
           label="Committed work"
           value={`${capacity.committed_minutes} min`}
-          hint="Already assigned on the floor"
+          footer="Already assigned on the floor"
+          loading={loading}
+          to="/warehouse-app/tasks"
         />
-        <Tile
-          icon={Layers}
+        <SummaryStatCard
+          icon={<Layers className="h-3.5 w-3.5" />}
           label="Planned waves"
           value={`${capacity.planned_wave_minutes} min`}
-          hint={`${capacity.released_wave_minutes} min released · ${capacity.open_waves} open`}
+          footer={`${capacity.released_wave_minutes} min released \u00b7 ${capacity.open_waves} open`}
+          loading={loading}
+          to="/warehouse-app/waves"
         />
-        <Tile
-          icon={Gauge}
+        <SummaryStatCard
+          icon={<Gauge className="h-3.5 w-3.5" />}
           label="Shift utilisation"
-          value={util == null ? "—" : `${util}%`}
-          hint={util != null && util > 100 ? "Plan exceeds the shift" : "Committed + planned vs capacity"}
+          value={util == null ? "\u2014" : `${util}%`}
+          footer={util != null && util > 100 ? "Plan exceeds the shift" : "Committed + planned vs capacity"}
+          tone={utilTone}
+          accent={util != null && util > 85}
+          loading={loading}
         />
-      </div>
+      </SummaryStatGrid>
       {util != null ? (
         <div>
           <div className="flex justify-between text-[11px] text-muted-foreground">
