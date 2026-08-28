@@ -26,6 +26,7 @@ import {
   type DockRow,
   type DowntimeRow,
 } from "./dockScheduling";
+import { toneText } from "@/design-system";
 
 const PX_PER_MIN = 2; // 120px per hour
 const SNAP_MIN = 15;
@@ -98,7 +99,7 @@ function AppointmentBlock({
         <Icon className="h-3 w-3 shrink-0" />
         <span className="truncate">{appt.appointment_no ?? appt.reference ?? "Appointment"}</span>
         {(appt.priority === "high" || appt.priority === "critical") && (
-          <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
+          <AlertTriangle className={cn("h-3 w-3 shrink-0", toneText("warning"))} />
         )}
       </div>
       <div className="truncate opacity-80">
@@ -224,8 +225,8 @@ export function DockTimeline({
               <div key={d.id} style={{ height: LANE_H }} className="border-b px-3 flex flex-col justify-center">
                 <div className="text-sm font-medium truncate flex items-center gap-1">
                   {d.code}
-                  {caps.refrigerated ? <Snowflake className="h-3 w-3 text-blue-500" /> : null}
-                  {caps.hazmat ? <Flame className="h-3 w-3 text-amber-600" /> : null}
+                  {caps.refrigerated ? <Snowflake className={cn("h-3 w-3", toneText("info"))} /> : null}
+                  {caps.hazmat ? <Flame className={cn("h-3 w-3", toneText("warning"))} /> : null}
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
                   {d.name ?? d.dock_type}

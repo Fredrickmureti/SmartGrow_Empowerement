@@ -8,7 +8,7 @@
 import { Users, Clock, Gauge, Layers } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
+import { SummaryStatCard, SummaryStatGrid, toneText, toneFromStat } from "@/design-system";
 import type { WaveCapacity } from "./contract";
 
 export function WaveCapacityPanel({
@@ -22,11 +22,7 @@ export function WaveCapacityPanel({
   const util = capacity.utilisation_pct;
   const utilTone =
     util == null ? "neutral" : util > 100 ? "bad" : util > 85 ? "warn" : "ok";
-  const tone =
-    util == null ? "text-muted-foreground"
-      : util > 100 ? "text-destructive"
-      : util > 85 ? "text-amber-600 dark:text-amber-400"
-      : "text-emerald-600 dark:text-emerald-400";
+  const tone = toneText(toneFromStat(utilTone));
 
   return (
     <div className="space-y-3">

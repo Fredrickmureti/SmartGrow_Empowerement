@@ -22,11 +22,12 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { EmptyState, LoadingState } from "@/design-system";
+import { EmptyState, LoadingState, toneText } from "@/design-system";
 import { Waves, Power } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 export interface RuleRow {
   id: string;
@@ -161,7 +162,7 @@ export function RuleWorkbench({ rules, isLoading, createOpen, onCreateOpenChange
                       </td>
                       <td className="p-3 text-center">
                         <Button size="sm" variant="ghost" onClick={() => toggleActive.mutate(r)} aria-label="Toggle rule">
-                          <Power className={`h-4 w-4 ${r.is_active ? "text-emerald-600" : "text-muted-foreground"}`} />
+                          <Power className={cn("h-4 w-4", toneText(r.is_active ? "success" : "neutral"))} />
                         </Button>
                       </td>
                     </tr>

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   CHECK_LABEL, MODE_LABEL, READINESS_LABEL, type ReadinessState, type WaveReadiness,
 } from "./contract";
+import { toneText } from "@/design-system";
 
 const ICON: Record<ReadinessState, typeof CheckCircle2> = {
   ready: CheckCircle2,
@@ -18,10 +19,10 @@ const ICON: Record<ReadinessState, typeof CheckCircle2> = {
 };
 
 const TONE: Record<ReadinessState, string> = {
-  ready: "text-emerald-600 dark:text-emerald-400",
-  at_risk: "text-amber-600 dark:text-amber-400",
-  blocked: "text-destructive",
-  unknown: "text-muted-foreground",
+  ready: toneText("success"),
+  at_risk: toneText("warning"),
+  blocked: toneText("danger"),
+  unknown: toneText("neutral"),
 };
 
 export function WaveReadinessPanel({ readiness }: { readiness: WaveReadiness | null }) {

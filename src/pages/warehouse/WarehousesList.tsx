@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import {
   SummaryStatCard,
   SummaryStatGrid,
@@ -13,7 +13,15 @@ import { useBranches } from "@/hooks/useBranches";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  PageHeader,
+  PageBody,
+  Section,
+  FilterBar,
+  EmptyState,
+  LoadingState,
+  StatusBadge,
+} from "@/design-system";
 import {
   Select,
   SelectContent,
@@ -33,8 +41,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
-  Search,
-  Loader2,
   Warehouse as WarehouseIcon,
   ArrowRightLeft,
   MoreHorizontal,
@@ -58,6 +64,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { normalizeError } from "@/services/resilience";
+
+/** Transfer lifecycle expressed in the ERP-wide tone vocabulary. */
+const TRANSFER_TONE: Record<string, ComponentProps<typeof StatusBadge>["tone"]> = {
+  draft: "neutral",
+  pending: "warning",
+  approved: "info",
+  in_transit: "accent",
+  completed: "success",
+  cancelled: "danger",
+};
 
 export default function Warehouses() {
   const navigate = useNavigate();
@@ -189,29 +205,19 @@ export default function Warehouses() {
     t.transfer_number.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getTransferStatusBadge = (status: StockTransfer["status"]) => {
-    const styles: Record<string, string> = {
-      draft: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-      pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-      approved: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      in_transit: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-      completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-    };
-    return <Badge className={styles[status]}>{status.replace("_", " ")}</Badge>;
-  };
+  const getTransferStatusBadge = (status: StockTransfer["status"]) => (
+    <StatusBadge tone={TRANSFER_TONE[status] ?? "neutral"}>
+      {status.replace("_", " ")}
+    </StatusBadge>
+  );
 
   return (
     <>
-      <div className="space-y-4 sm:space-y-6">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Warehouses & Stock Transfers</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Manage warehouse locations and stock movements
-            </p>
-          </div>
-          <div className="flex flex-col @xl/page:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-center">
+      <PageHeader
+        title="Warehouses & Stock Transfers"
+        description="Every physical site you hold stock in, and the transfers moving inventory between them."
+        actions={
+          <>
             <RefreshButton
               queryKeyPrefixes={[
                 ["warehouses"] as const,
@@ -229,15 +235,15 @@ export default function Warehouses() {
                 <ArrowRightLeft className="mr-2 h-4 w-4" />
                 New Transfer
               </Button>
-              <Button onClick={handleOpenWarehouseCreate} className="w-full sm:w-auto">
+              <Button onClick={handleOpenWarehouseCreate}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Warehouse
               </Button>
             </PermissionGate>
-          </div>
-        </div>
-
-        {/* Stats */}
+          </>
+        }
+      />
+      <PageBody>
         <SummaryStatGrid>
           <SummaryStatCard
             icon={<WarehouseIcon className="h-3.5 w-3.5" />}
@@ -278,36 +284,25 @@ export default function Warehouses() {
           </TabsList>
 
           <TabsContent value="warehouses" className="space-y-4">
-            {/* Search */}
-            <div className="filter-bar">
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search warehouses..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-full"
-                />
-              </div>
-            </div>
+            <FilterBar
+              search={searchQuery}
+              onSearchChange={setSearchQuery}
+              placeholder="Search warehouses…"
+            />
 
-            {/* Warehouses Table */}
-            <Card>
-              <CardContent className="p-0">
+            <Section contentClassName="p-0">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
+                  <LoadingState rows={5} />
                 ) : filteredWarehouses.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <WarehouseIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium">No warehouses found</h3>
-                    <p className="text-muted-foreground">
-                      {warehouses.length === 0
-                        ? "Create your first warehouse."
-                        : "Try adjusting your search."}
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon={WarehouseIcon}
+                    title="No warehouses found"
+                    description={
+                      warehouses.length === 0
+                        ? "Create your first warehouse to start holding stock."
+                        : "No warehouse matches this search."
+                    }
+                  />
                 ) : (
                   <div className="table-container">
                     <Table>
@@ -345,15 +340,9 @@ export default function Warehouses() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                className={
-                                  warehouse.is_active
-                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                                }
-                              >
+                              <StatusBadge tone={warehouse.is_active ? "success" : "neutral"}>
                                 {warehouse.is_active ? "Active" : "Inactive"}
-                              </Badge>
+                              </StatusBadge>
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
@@ -385,41 +374,29 @@ export default function Warehouses() {
                     </Table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </Section>
           </TabsContent>
 
           <TabsContent value="transfers" className="space-y-4">
-            {/* Search */}
-            <div className="filter-bar">
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search transfers..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-full"
-                />
-              </div>
-            </div>
+            <FilterBar
+              search={searchQuery}
+              onSearchChange={setSearchQuery}
+              placeholder="Search transfers…"
+            />
 
-            {/* Transfers Table */}
-            <Card>
-              <CardContent className="p-0">
+            <Section contentClassName="p-0">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
+                  <LoadingState rows={5} />
                 ) : filteredTransfers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <ArrowRightLeft className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium">No transfers found</h3>
-                    <p className="text-muted-foreground">
-                      {transfers.length === 0
-                        ? "Create your first stock transfer."
-                        : "Try adjusting your search."}
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon={ArrowRightLeft}
+                    title="No transfers found"
+                    description={
+                      transfers.length === 0
+                        ? "Create your first stock transfer to move inventory between sites."
+                        : "No transfer matches this search."
+                    }
+                  />
                 ) : (
                   <div className="table-container">
                     <Table>
@@ -485,8 +462,7 @@ export default function Warehouses() {
                     </Table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </Section>
           </TabsContent>
         </Tabs>
 
@@ -505,7 +481,7 @@ export default function Warehouses() {
           onOpenChange={(o) => (o ? undefined : setPeek(null))}
           warehouseId={peekId}
         />
-      </div>
+      </PageBody>
     </>
   );
 }
