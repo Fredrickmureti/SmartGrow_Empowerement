@@ -198,7 +198,27 @@ export default function ConsolidatedStatements() {
     },
     [navigate, groupId, dateFrom, dateTo],
   );
-  const COLUMNS = useMemo(() => buildColumns(openEliminations), [openEliminations]);
+  // Statement line → the member companies behind its Aggregated figure. Same
+  // param contract the consolidated trial balance already reads
+  // (`consolidationGroup`, `date_from`, `date_to`, `group_account_id`), so the
+  // destination opens focused on that group account instead of at the top.
+  const openTrialBalance = useCallback(
+    (accountId: string) => {
+      const params = new URLSearchParams({
+        consolidationGroup: groupId ?? "",
+        date_from: dateFrom,
+        date_to: dateTo,
+        group_account_id: accountId,
+      });
+      navigate(`/finance/reports/consolidated-trial-balance?${params.toString()}`);
+    },
+    [navigate, groupId, dateFrom, dateTo],
+  );
+
+  const COLUMNS = useMemo(
+    () => buildColumns(openEliminations, openTrialBalance),
+    [openEliminations, openTrialBalance],
+  );
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
   const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
