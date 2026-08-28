@@ -60,6 +60,12 @@ import {
 
 const ROW_HEIGHT = 44;
 
+/** Scroll a summary card's drill-down target into view on the same page. */
+function focusQueue(id: string) {
+  const el = typeof document === "undefined" ? null : document.getElementById(id);
+  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function stateTone(state: string) {
   if (state === "posted") return "success" as const;
   if (state === "cancelled") return "neutral" as const;
@@ -178,12 +184,16 @@ export default function CycleCounts() {
                   tone={(c?.open_recounts ?? 0) > 0 ? "bad" : "ok"}
                   footer="submission blocked"
                   icon={<RefreshCw className="h-3.5 w-3.5" />}
+                  onClick={() => focusQueue("recount-queue")}
+                  title="Jump to the recount queue"
                 />
                 <SummaryStatCard
                   label="Awaiting approval"
                   value={c?.awaiting_approval ?? 0}
                   tone={(c?.awaiting_approval ?? 0) > 0 ? "warn" : "ok"}
                   icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                  onClick={() => focusQueue("approval-queue")}
+                  title="Jump to the approval queue"
                 />
                 <SummaryStatCard
                   label="Missing reason codes"
@@ -211,6 +221,7 @@ export default function CycleCounts() {
 
             <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-3">
               <Section
+                id="recount-queue"
                 title="Recount queue"
                 description="Lines outside tolerance with no newer attempt. These sessions cannot be submitted."
                 className="min-w-0 @4xl/page:col-span-1"
@@ -236,6 +247,7 @@ export default function CycleCounts() {
               </Section>
 
               <Section
+                id="approval-queue"
                 title="Approval queue"
                 description="Sessions in review that need a supervisor other than the counter."
                 className="min-w-0 @4xl/page:col-span-1"

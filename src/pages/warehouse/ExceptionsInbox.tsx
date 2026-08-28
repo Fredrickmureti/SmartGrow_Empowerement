@@ -60,6 +60,32 @@ function SlaCell({ dueBy, state }: { dueBy: string | null; state: ExceptionState
   );
 }
 
+type ExceptionFocus =
+  | "none"
+  | "overdue"
+  | "escalated"
+  | "critical"
+  | "unacked"
+  | "unassigned";
+
+/**
+ * One predicate per headline metric. The summary card and the queue filter
+ * share these so a card's number and the rows it drills into can never drift.
+ */
+const FOCUS_PREDICATE: Record<
+  Exclude<ExceptionFocus, "none">,
+  (r: ExceptionRow) => boolean
+> = {
+  overdue: (r) =>
+    !TERMINAL_STATES.includes(r.state) &&
+    !!r.due_by &&
+    new Date(r.due_by).getTime() < Date.now(),
+  escalated: (r) => (r.escalation_level ?? 0) > 0,
+  critical: (r) => r.severity >= 4 && !TERMINAL_STATES.includes(r.state),
+  unacked: (r) => !r.acknowledged_at && !TERMINAL_STATES.includes(r.state),
+  unassigned: (r) => !r.assigned_to,
+};
+
 export default function ExceptionsInbox() {
   const qc = useQueryClient();
   const { warehouses } = useWarehouses();
@@ -71,6 +97,11 @@ export default function ExceptionsInbox() {
   const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
   const [active, setActive] = useState<ExceptionRow | null>(null);
+  /**
+   * Summary-card drill-down. Each headline metric narrows the queue below it
+   * to exactly the rows it counted, so a number is always a path to the work.
+   */
+  const [focus, setFocus] = useState<ExceptionFocus>("none");
 
   /**
    * Deep link support — `?exception=<id>`.
@@ -149,15 +180,16 @@ export default function ExceptionsInbox() {
 
   const visible = useMemo(() => {
     const t = search.trim().toLowerCase();
-    if (!t) return rows;
-    return rows.filter(
+    const focused = focus === "none" ? rows : rows.filter((r) => FOCUS_PREDICATE[focus](r));
+    if (!t) return focused;
+    return focused.filter(
       (r) =>
         r.kind.toLowerCase().includes(t) ||
         (r.reason ?? "").toLowerCase().includes(t) ||
         (r.aggregate_type ?? "").toLowerCase().includes(t) ||
         (r.aggregate_id ?? "").toLowerCase().includes(t),
     );
-  }, [rows, search]);
+  }, [rows, search, focus]);
 
   const summary = useMemo(() => {
     const now = Date.now();
@@ -233,6 +265,9 @@ export default function ExceptionsInbox() {
             tone={summary.overdue ? "bad" : "ok"}
             accent={summary.overdue > 0}
             footer="Past the SLA clock"
+            onClick={() => setFocus((f) => (f === "overdue" ? "none" : "overdue"))}
+            className={cn(focus === "overdue" && "ring-2 ring-primary")}
+            title="Show only these in the queue below"
           />
           <SummaryStatCard
             label="Escalated"
@@ -240,6 +275,9 @@ export default function ExceptionsInbox() {
             tone={summary.escalated ? "bad" : "ok"}
             accent={summary.escalated > 0}
             footer="Raised to a supervisor"
+            onClick={() => setFocus((f) => (f === "escalated" ? "none" : "escalated"))}
+            className={cn(focus === "escalated" && "ring-2 ring-primary")}
+            title="Show only these in the queue below"
           />
           <SummaryStatCard
             label="Critical"
@@ -247,6 +285,9 @@ export default function ExceptionsInbox() {
             tone={summary.critical ? "bad" : "ok"}
             accent={summary.critical > 0}
             footer="Severity 1"
+            onClick={() => setFocus((f) => (f === "critical" ? "none" : "critical"))}
+            className={cn(focus === "critical" && "ring-2 ring-primary")}
+            title="Show only these in the queue below"
           />
           <SummaryStatCard
             label="Unacknowledged"
@@ -254,11 +295,17 @@ export default function ExceptionsInbox() {
             tone={summary.unacked ? "warn" : "ok"}
             accent={summary.unacked > 0}
             footer="Nobody has picked these up"
+            onClick={() => setFocus((f) => (f === "unacked" ? "none" : "unacked"))}
+            className={cn(focus === "unacked" && "ring-2 ring-primary")}
+            title="Show only these in the queue below"
           />
           <SummaryStatCard
             label="Unassigned"
             value={summary.unassigned}
             footer="No owner yet"
+            onClick={() => setFocus((f) => (f === "unassigned" ? "none" : "unassigned"))}
+            className={cn(focus === "unassigned" && "ring-2 ring-primary")}
+            title="Show only these in the queue below"
           />
         </SummaryStatGrid>
 

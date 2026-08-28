@@ -26,9 +26,10 @@ import {
   Section,
   LoadingState,
   EmptyState,
+  SummaryStatCard,
+  SummaryStatGrid,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -47,6 +48,7 @@ import {
 } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrencies } from "@/hooks/useCurrencies";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const ACTIVITIES = [
   "receive_lpn",
@@ -132,6 +134,7 @@ export default function BillingBoard() {
   const qc = useQueryClient();
   const { currentBusiness } = useBusinesses();
   const { currencies } = useCurrencies();
+  const { formatCurrency } = useCurrency();
 
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [tariffOpen, setTariffOpen] = useState(false);
@@ -550,13 +553,41 @@ export default function BillingBoard() {
           </div>
         </div>
 
-        <div className="min-w-0 grid grid-cols-1 @2xl/page:grid-cols-5 gap-4 mb-6">
-          <KpiCard label="Activity entries" value={String(totals.entries)} />
-          <KpiCard label="Billed amount" value={totals.billed.toFixed(2)} />
-          <KpiCard label="Unbilled amount" value={totals.unbilled.toFixed(2)} tone={totals.unbilled > 0 ? "warn" : undefined} />
-          <KpiCard label="Unpriced entries" value={String(totals.unpriced)} tone={totals.unpriced > 0 ? "bad" : undefined} />
-          <KpiCard label="Disputed entries" value={String(totals.disputed)} tone={totals.disputed > 0 ? "warn" : undefined} />
-        </div>
+        <SummaryStatGrid className="mb-6">
+          <SummaryStatCard
+            label="Activity entries"
+            value={totals.entries.toLocaleString()}
+            footer="Billable events captured in range"
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            label="Billed amount"
+            value={formatCurrency(totals.billed)}
+            footer="Already invoiced to clients"
+          />
+          <SummaryStatCard
+            accent
+            tone={totals.unbilled > 0 ? "warn" : "neutral"}
+            label="Unbilled amount"
+            value={formatCurrency(totals.unbilled)}
+            footer={totals.unbilled > 0 ? "Awaiting invoice generation" : "Nothing awaiting invoicing"}
+          />
+          <SummaryStatCard
+            accent
+            tone={totals.unpriced > 0 ? "bad" : "neutral"}
+            label="Unpriced entries"
+            value={totals.unpriced.toLocaleString()}
+            footer={totals.unpriced > 0 ? "No tariff matched — add a rate" : "Every entry priced"}
+          />
+          <SummaryStatCard
+            accent
+            tone={totals.disputed > 0 ? "warn" : "neutral"}
+            label="Disputed entries"
+            value={totals.disputed.toLocaleString()}
+            footer={totals.disputed > 0 ? "Held pending dispute resolution" : "No open disputes"}
+          />
+        </SummaryStatGrid>
 
         <Section
           title="Billing clients"
@@ -1037,22 +1068,5 @@ export default function BillingBoard() {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-function KpiCard({
-  label, value, tone,
-}: { label: string; value: string; tone?: "good" | "warn" | "bad" }) {
-  const toneCls =
-    tone === "good" ? "text-emerald-600" :
-    tone === "warn" ? "text-amber-600" :
-    tone === "bad"  ? "text-rose-600" : "";
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className={`text-3xl font-semibold mt-1 ${toneCls}`}>{value}</div>
-      </CardContent>
-    </Card>
   );
 }
