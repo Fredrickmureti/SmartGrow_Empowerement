@@ -10840,6 +10840,261 @@ export type Database = {
           },
         ]
       }
+      consolidation_run_lines: {
+        Row: {
+          account_code: string | null
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"] | null
+          aggregated_amount: number
+          consolidated_amount: number
+          elimination_amount: number
+          group_account_id: string | null
+          id: string
+          is_derived: boolean
+          is_residual: boolean
+          line_order: number
+          member_contributions: Json
+          presentation_currency: string
+          run_id: string
+          section: string
+          section_order: number
+          statement: string
+        }
+        Insert: {
+          account_code?: string | null
+          account_name: string
+          account_type?: Database["public"]["Enums"]["account_type"] | null
+          aggregated_amount?: number
+          consolidated_amount?: number
+          elimination_amount?: number
+          group_account_id?: string | null
+          id?: string
+          is_derived?: boolean
+          is_residual?: boolean
+          line_order?: number
+          member_contributions?: Json
+          presentation_currency: string
+          run_id: string
+          section: string
+          section_order?: number
+          statement: string
+        }
+        Update: {
+          account_code?: string | null
+          account_name?: string
+          account_type?: Database["public"]["Enums"]["account_type"] | null
+          aggregated_amount?: number
+          consolidated_amount?: number
+          elimination_amount?: number
+          group_account_id?: string | null
+          id?: string
+          is_derived?: boolean
+          is_residual?: boolean
+          line_order?: number
+          member_contributions?: Json
+          presentation_currency?: string
+          run_id?: string
+          section?: string
+          section_order?: number
+          statement?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_run_lines_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consolidation_run_members: {
+        Row: {
+          base_currency: string
+          business_id: string
+          business_name: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          is_parent: boolean
+          method: Database["public"]["Enums"]["consolidation_method"]
+          ownership_percent: number
+          requires_translation: boolean
+          run_id: string
+        }
+        Insert: {
+          base_currency: string
+          business_id: string
+          business_name: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          is_parent?: boolean
+          method: Database["public"]["Enums"]["consolidation_method"]
+          ownership_percent?: number
+          requires_translation?: boolean
+          run_id: string
+        }
+        Update: {
+          base_currency?: string
+          business_id?: string
+          business_name?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          is_parent?: boolean
+          method?: Database["public"]["Enums"]["consolidation_method"]
+          ownership_percent?: number
+          requires_translation?: boolean
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_run_members_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consolidation_run_rates: {
+        Row: {
+          average_rate: number | null
+          business_id: string
+          closing_rate: number | null
+          from_currency: string
+          historical_date: string | null
+          historical_rate: number | null
+          id: string
+          opening_rate: number | null
+          prior_average_rate: number | null
+          run_id: string
+          to_currency: string
+        }
+        Insert: {
+          average_rate?: number | null
+          business_id: string
+          closing_rate?: number | null
+          from_currency: string
+          historical_date?: string | null
+          historical_rate?: number | null
+          id?: string
+          opening_rate?: number | null
+          prior_average_rate?: number | null
+          run_id: string
+          to_currency: string
+        }
+        Update: {
+          average_rate?: number | null
+          business_id?: string
+          closing_rate?: number | null
+          from_currency?: string
+          historical_date?: string | null
+          historical_rate?: number | null
+          id?: string
+          opening_rate?: number | null
+          prior_average_rate?: number | null
+          run_id?: string
+          to_currency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_run_rates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consolidation_runs: {
+        Row: {
+          balance_difference: number
+          created_at: string
+          created_by: string | null
+          eliminations_credit: number
+          eliminations_debit: number
+          finalized_at: string | null
+          finalized_by: string | null
+          group_id: string
+          id: string
+          is_balanced: boolean
+          line_count: number
+          member_count: number
+          notes: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          presentation_currency: string
+          state: string
+          superseded_at: string | null
+          superseded_by_run_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          balance_difference?: number
+          created_at?: string
+          created_by?: string | null
+          eliminations_credit?: number
+          eliminations_debit?: number
+          finalized_at?: string | null
+          finalized_by?: string | null
+          group_id: string
+          id?: string
+          is_balanced?: boolean
+          line_count?: number
+          member_count?: number
+          notes?: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          presentation_currency: string
+          state?: string
+          superseded_at?: string | null
+          superseded_by_run_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          balance_difference?: number
+          created_at?: string
+          created_by?: string | null
+          eliminations_credit?: number
+          eliminations_debit?: number
+          finalized_at?: string | null
+          finalized_by?: string | null
+          group_id?: string
+          id?: string
+          is_balanced?: boolean
+          line_count?: number
+          member_count?: number
+          notes?: string | null
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          presentation_currency?: string
+          state?: string
+          superseded_at?: string | null
+          superseded_by_run_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_runs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_runs_superseded_by_run_id_fkey"
+            columns: ["superseded_by_run_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           address_line1: string | null
