@@ -10,8 +10,7 @@
 import { useMemo, useState } from "react";
 import { Coins, MessageSquarePlus, Plus, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
+import { Section, SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -192,11 +191,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
         />
       </SummaryStatGrid>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Operator scorecard</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <Section title="Operator scorecard" contentClassName="px-0 pb-0 sm:px-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -261,16 +256,16 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+      <Section
+        title={
+          <span className="flex items-center gap-2">
             <Target className="h-4 w-4" /> Targets in force
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+          </span>
+        }
+        contentClassName="px-0 pb-0 sm:px-0"
+      >
           <Table>
             <TableHeader>
               <TableRow>
@@ -323,16 +318,16 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+      <Section
+        title={
+          <span className="flex items-center gap-2">
             <Coins className="h-4 w-4" /> Incentive pay staged for payroll
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+          </span>
+        }
+        contentClassName="px-0 pb-0 sm:px-0"
+      >
           <Table>
             <TableHeader>
               <TableRow>
@@ -371,8 +366,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </Section>
 
       <Dialog open={incentiveOpen} onOpenChange={setIncentiveOpen}>
         <DialogContent>

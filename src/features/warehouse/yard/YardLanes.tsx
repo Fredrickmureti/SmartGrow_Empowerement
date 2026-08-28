@@ -7,7 +7,7 @@
  * `assign_trailer_to_dock`.
  */
 import { useDroppable } from "@dnd-kit/core";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, EmptyState } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
 import { DoorOpen } from "lucide-react";
 import { TrailerChip } from "./TrailerChip";
@@ -25,24 +25,23 @@ function Lane({
   onOpenVisit: (v: VisitRow) => void;
 }) {
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="py-3">
-        <CardTitle className="text-sm flex items-center justify-between">
-          <span>{title}</span>
-          <Badge variant="secondary" className="text-[10px]">
-            {visits.length}
-          </Badge>
-        </CardTitle>
-        {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-      </CardHeader>
-      <CardContent className="pt-0 space-y-2">
-        {visits.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-6 text-center">Empty</p>
-        ) : (
-          visits.map((v) => <TrailerChip key={v.id} visit={v} onOpen={onOpenVisit} />)
-        )}
-      </CardContent>
-    </Card>
+    <Section
+      className="flex flex-col"
+      title={title}
+      description={hint}
+      actions={
+        <Badge variant="secondary" className="text-[10px]">
+          {visits.length}
+        </Badge>
+      }
+      contentClassName="space-y-2"
+    >
+      {visits.length === 0 ? (
+        <EmptyState title="Lane empty" description="No trailer is holding in this lane." />
+      ) : (
+        visits.map((v) => <TrailerChip key={v.id} visit={v} onOpen={onOpenVisit} />)
+      )}
+    </Section>
   );
 }
 
@@ -115,14 +114,12 @@ export function YardLanes({
         />
       </div>
 
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-sm">Dock face</CardTitle>
-          <p className="text-[11px] text-muted-foreground">Drop a trailer on a dock to assign it.</p>
-        </CardHeader>
-        <CardContent className="pt-0">
+      <Section title="Dock face" description="Drop a trailer on a dock to assign it.">
           {docks.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">No active docks for this warehouse.</p>
+            <EmptyState
+              title="No active docks"
+              description="This warehouse has no dock doors configured as active."
+            />
           ) : (
             <div className="min-w-0 grid gap-2 grid-cols-2 @xl/page:grid-cols-3 @4xl/page:grid-cols-4 @5xl/page:grid-cols-6">
               {docks.map((d) => (
@@ -130,8 +127,7 @@ export function YardLanes({
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </Section>
     </div>
   );
 }
