@@ -272,7 +272,7 @@ export default function YardControlTower() {
             onDragCancel={() => setDragging(null)}
             onDragEnd={onDragEnd}
           >
-            <Tabs defaultValue="map">
+            <Tabs defaultValue={overdueOnly ? "log" : "map"}>
               <TabsList>
                 <TabsTrigger value="map">Yard map</TabsTrigger>
                 <TabsTrigger value="flow">Flow board</TabsTrigger>
