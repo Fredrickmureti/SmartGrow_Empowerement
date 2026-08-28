@@ -18,6 +18,10 @@ import {
 } from "@/design-system";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Gauge } from "lucide-react";

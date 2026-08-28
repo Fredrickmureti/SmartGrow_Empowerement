@@ -18,6 +18,10 @@ import {
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
@@ -56,17 +60,6 @@ const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "
   retired: "neutral", voided: "danger", consumed: "neutral",
 };
 
-function Metric({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums">{value}</p>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function LicensePlateView() {
   const { id } = useParams<{ id: string }>();
@@ -257,9 +250,9 @@ export default function LicensePlateView() {
       />
 
       <PageBody>
-        <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
-          <Metric label="SKUs" value={totals.skus} />
-          <Metric
+        <SummaryStatGrid>
+          <SummaryStatCard label="SKUs" value={totals.skus} />
+          <SummaryStatCard
             label="Stock on plate"
             value={
               (contents ?? []).length === 1 ? (
@@ -268,15 +261,15 @@ export default function LicensePlateView() {
                 <AggregateQty qty={totals.units} />
               )
             }
-            hint={`${totals.reserved} reserved`}
+            footer={`${totals.reserved} reserved`}
           />
-          <Metric label="Nested plates" value={Number(lpn.child_count ?? 0)} />
-          <Metric
+          <SummaryStatCard label="Nested plates" value={Number(lpn.child_count ?? 0)} />
+          <SummaryStatCard
             label="Bin"
             value={lpn.location_code ?? "—"}
-            hint={lpn.location_path ?? lpn.location_name ?? "Unlocated"}
+            footer={lpn.location_path ?? lpn.location_name ?? "Unlocated"}
           />
-        </div>
+        </SummaryStatGrid>
 
         <Section title="Contents" description="Stock physically carried by this handling unit.">
           {!contents?.length ? (

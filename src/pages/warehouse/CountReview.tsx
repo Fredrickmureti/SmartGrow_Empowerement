@@ -25,6 +25,10 @@ import {
 } from "@/features/warehouse/counts/useCountGovernancePreview";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
