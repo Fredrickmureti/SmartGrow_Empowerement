@@ -11,6 +11,7 @@
  * This module owns the TypeScript shape of that contract plus pure
  * presentation helpers. No fetching, no aggregation, no classification.
  */
+import { toneBorder, toneSurface, toneText, type Tone } from "@/design-system";
 import type { HealthState } from "@/features/warehouse/control-center/contract";
 
 export type { HealthState } from "@/features/warehouse/control-center/contract";
@@ -239,17 +240,25 @@ export const MODE_LABEL: Record<ReadinessMode, string> = {
 };
 
 
+/** Stage health expressed in the ERP-wide tone vocabulary. */
+export const STAGE_HEALTH_TONE: Record<WaveStageHealth, Tone> = {
+  ok: "neutral",
+  warning: "warning",
+  critical: "danger",
+  idle: "neutral",
+};
+
 export const STAGE_HEALTH_SURFACE: Record<WaveStageHealth, string> = {
   ok: "border-border bg-card",
-  warning: "border-amber-500/40 bg-amber-500/5",
-  critical: "border-destructive/40 bg-destructive/5",
+  warning: `${toneBorder("warning")} ${toneSurface("warning")}`,
+  critical: `${toneBorder("danger")} ${toneSurface("danger")}`,
   idle: "border-dashed border-border bg-muted/30",
 };
 
 export const STAGE_HEALTH_TEXT: Record<WaveStageHealth, string> = {
   ok: "text-foreground",
-  warning: "text-amber-600 dark:text-amber-400",
-  critical: "text-destructive",
+  warning: toneText("warning"),
+  critical: toneText("danger"),
   idle: "text-muted-foreground",
 };
 

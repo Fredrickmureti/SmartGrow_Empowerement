@@ -6,6 +6,7 @@
  * new enum values are added in one place (mirrors ADR 0100's humanize
  * contract for hardware).
  */
+import { toneBorder, toneSurface, toneText, type Tone } from "@/design-system";
 
 export type AppointmentState =
   | "scheduled"
@@ -112,13 +113,26 @@ export const APPOINTMENT_STATE_LABEL: Record<AppointmentState, string> = {
   no_show: "No show",
 };
 
+/** Appointment state expressed in the ERP-wide tone vocabulary. */
+export const APPOINTMENT_STATE_INTENT: Record<AppointmentState, Tone> = {
+  scheduled: "neutral",
+  arrived: "info",
+  in_progress: "warning",
+  completed: "success",
+  cancelled: "danger",
+  no_show: "danger",
+};
+
+const chip = (tone: Tone) =>
+  `${toneSurface(tone)} ${toneText(tone)} ${toneBorder(tone)}`;
+
 export const APPOINTMENT_STATE_TONE: Record<AppointmentState, string> = {
-  scheduled: "bg-muted text-muted-foreground border-border",
-  arrived: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-  in_progress: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
-  completed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-  cancelled: "bg-destructive/10 text-destructive border-destructive/30",
-  no_show: "bg-destructive/15 text-destructive border-destructive/40",
+  scheduled: chip("neutral"),
+  arrived: chip("info"),
+  in_progress: chip("warning"),
+  completed: chip("success"),
+  cancelled: chip("danger"),
+  no_show: chip("danger"),
 };
 
 export const PRIORITY_LABEL: Record<AppointmentPriority, string> = {
@@ -128,11 +142,18 @@ export const PRIORITY_LABEL: Record<AppointmentPriority, string> = {
   critical: "Critical",
 };
 
+export const PRIORITY_INTENT: Record<AppointmentPriority, Tone> = {
+  low: "neutral",
+  normal: "neutral",
+  high: "warning",
+  critical: "danger",
+};
+
 export const PRIORITY_TONE: Record<AppointmentPriority, string> = {
   low: "text-muted-foreground",
   normal: "text-foreground",
-  high: "text-amber-600 dark:text-amber-400",
-  critical: "text-destructive",
+  high: toneText("warning"),
+  critical: toneText("danger"),
 };
 
 export const DOC_TYPE_LABEL: Record<string, string> = {
