@@ -268,18 +268,24 @@ export default function WarehouseLayoutWorkspace() {
           </div>
         )}
 
-        <div className="min-w-0 mb-3 grid grid-cols-2 gap-2 @xl/page:grid-cols-6">
-          <Stat label="Locations" value={stats.total} />
-          <Stat label="Bins" value={stats.bins} />
-          <Stat label="Bins holding stock" value={stats.stocked} />
-          <Stat
+        <SummaryStatGrid className="mb-3">
+          <SummaryStatCard label="Locations" value={stats.total} />
+          <SummaryStatCard label="Bins" value={stats.bins} />
+          <SummaryStatCard label="Bins holding stock" value={stats.stocked} />
+          <SummaryStatCard
             label="Bins without a label"
             value={stats.unlabelled}
-            tone={stats.unlabelled ? "danger" : undefined}
+            tone={stats.unlabelled ? "bad" : "neutral"}
+            accent={stats.unlabelled > 0}
           />
-          <Stat label="Blocked" value={stats.blocked} tone={stats.blocked ? "danger" : undefined} />
-          <Stat label="Open jobs" value={stats.work} />
-        </div>
+          <SummaryStatCard
+            label="Blocked"
+            value={stats.blocked}
+            tone={stats.blocked ? "bad" : "neutral"}
+            accent={stats.blocked > 0}
+          />
+          <SummaryStatCard label="Open jobs" value={stats.work} />
+        </SummaryStatGrid>
 
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -472,25 +478,6 @@ function BinActionButton({
       </TooltipTrigger>
       <TooltipContent>{disabledReason}</TooltipContent>
     </Tooltip>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "danger";
-}) {
-  return (
-    <div className="rounded-md border p-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-xl font-semibold", tone === "danger" && "text-destructive")}>
-        {value.toLocaleString()}
-      </div>
-    </div>
   );
 }
 

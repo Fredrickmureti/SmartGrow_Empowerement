@@ -72,11 +72,20 @@ export function LabelVerifyDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-w-0 grid grid-cols-3 gap-2">
-          <Tile label="Scanned" value={stats.total} />
-          <Tile label="Confirmed" value={stats.verified} />
-          <Tile label="Failed" value={stats.failed} tone={stats.failed ? "danger" : undefined} />
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Scanned" value={stats.total.toLocaleString()} />
+          <SummaryStatCard
+            label="Confirmed"
+            value={stats.verified.toLocaleString()}
+            tone={stats.verified > 0 ? "ok" : "neutral"}
+          />
+          <SummaryStatCard
+            label="Failed"
+            value={stats.failed.toLocaleString()}
+            tone={stats.failed ? "bad" : "neutral"}
+            accent={stats.failed > 0}
+          />
+        </SummaryStatGrid>
 
         <div className="relative">
           <ScanLine className="pointer-events-none absolute left-2 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
@@ -157,13 +166,3 @@ export function LabelVerifyDialog({
   );
 }
 
-function Tile({ label, value, tone }: { label: string; value: number; tone?: "danger" }) {
-  return (
-    <div className="rounded-md border p-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-xl font-semibold", tone === "danger" && "text-destructive")}>
-        {value.toLocaleString()}
-      </div>
-    </div>
-  );
-}
