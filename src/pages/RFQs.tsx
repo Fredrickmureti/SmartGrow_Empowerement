@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -238,55 +239,31 @@ export default function RFQs() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" />
-                Total RFQs
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                Open
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-amber-600">{stats.open}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5" />
-                Est. Value
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold">
-                {formatCurrency(stats.totalEstimatedValue, baseCurrency)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-                Conversion
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-emerald-600">{stats.conversionRate}%</div>
-              <p className="text-xs text-muted-foreground">{stats.closed} converted to PO</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total RFQs"
+            icon={<FileText className="h-3.5 w-3.5" />}
+            value={stats.total}
+          />
+          <SummaryStatCard
+            label="Open"
+            tone="amber"
+            icon={<Clock className="h-3.5 w-3.5" />}
+            value={stats.open}
+          />
+          <SummaryStatCard
+            label="Est. Value"
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            value={formatCurrency(stats.totalEstimatedValue, baseCurrency)}
+          />
+          <SummaryStatCard
+            label="Conversion"
+            tone="emerald"
+            icon={<ArrowRightLeft className="h-3.5 w-3.5" />}
+            value={`${stats.conversionRate}%`}
+            footer={`${stats.closed} converted to PO`}
+          />
+        </SummaryStatGrid>
 
         <div className="filter-bar">
           <div className="relative flex-1 min-w-0">

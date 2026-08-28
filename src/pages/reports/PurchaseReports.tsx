@@ -31,6 +31,7 @@ import {
 } from "@/services/finance/purchaseAnalysis";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ReportSurface,
@@ -293,66 +294,32 @@ function PurchaseReportsInner() {
       )}
 
       <div className="space-y-6">
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Net purchases</CardTitle>
-              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.net_purchases, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {totals.purchase_documents} bills, gross{" "}
-                {formatAccountingNumber(totals.gross, baseCurrency)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Returns</CardTitle>
-              <RotateCcw className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.returns, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {totals.return_documents} vendor credit notes
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Net after returns</CardTitle>
-              <Percent className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.net_after_returns, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {returnsPct === null ? "—" : `${returnsPct.toFixed(1)}%`} returned, discounts{" "}
-                {formatAccountingNumber(totals.discount, baseCurrency)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Input tax</CardTitle>
-              <Receipt className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.tax, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                On posted purchase documents for the period
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Net purchases"
+            icon={<ShoppingBag className="h-4 w-4 text-muted-foreground" />}
+            value={formatAccountingNumber(totals.net_purchases, baseCurrency)}
+            footer={`${totals.purchase_documents} bills, gross ${formatAccountingNumber(totals.gross, baseCurrency)}`}
+          />
+          <SummaryStatCard
+            label="Returns"
+            icon={<RotateCcw className="h-4 w-4 text-muted-foreground" />}
+            value={formatAccountingNumber(totals.returns, baseCurrency)}
+            footer={`${totals.return_documents} vendor credit notes`}
+          />
+          <SummaryStatCard
+            label="Net after returns"
+            icon={<Percent className="h-4 w-4 text-muted-foreground" />}
+            value={formatAccountingNumber(totals.net_after_returns, baseCurrency)}
+            footer={`${returnsPct === null ? "—" : `${returnsPct.toFixed(1)}%`} returned, discounts ${formatAccountingNumber(totals.discount, baseCurrency)}`}
+          />
+          <SummaryStatCard
+            label="Input tax"
+            icon={<Receipt className="h-4 w-4 text-muted-foreground" />}
+            value={formatAccountingNumber(totals.tax, baseCurrency)}
+            footer="On posted purchase documents for the period"
+          />
+        </SummaryStatGrid>
 
         <ReportSurface
           title={`Purchases by ${PURCHASE_DIMENSION_LABELS[dimension].toLowerCase()}`}
