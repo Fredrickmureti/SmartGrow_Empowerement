@@ -224,7 +224,7 @@ export default function QCInspectionDetail() {
 
           <Section title="Disposition">
             <div className="space-y-3">
-                <div className="min-w-0 grid grid-cols-3 gap-2 text-sm">
+                <div className="min-w-0 grid grid-cols-1 gap-2 text-sm @sm/page:grid-cols-3">
                   <div><p className="text-muted-foreground">Total</p><p className="font-medium">{row.quantity}</p></div>
                   <div><p className="text-muted-foreground">Accepted</p><p className="font-medium">{row.accepted_qty}</p></div>
                   <div><p className="text-muted-foreground">Rejected</p><p className="font-medium">{row.rejected_qty}</p></div>

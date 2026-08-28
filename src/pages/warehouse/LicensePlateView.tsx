@@ -497,7 +497,7 @@ export default function LicensePlateView() {
                   value={line.unitKey}
                   onValueChange={(v) => setLine((l) => ({ ...l, unitKey: v }))}
                 >
-                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full @sm/page:w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {unitOptions.map((o) => (
                       <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
@@ -573,7 +573,7 @@ export default function LicensePlateView() {
                     value={opt.key}
                     onValueChange={(v) => setSplitUnits((s) => ({ ...s, [c.id]: v }))}
                   >
-                    <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full @sm/page:w-[140px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {opts.map((o) => (
                         <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
