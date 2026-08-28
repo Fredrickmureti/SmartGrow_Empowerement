@@ -84,7 +84,10 @@ export interface ReportPdfPayload {
   presentationProfile?: PresentationProfile;
   /**
    * Stage 4: standard disclosure line drawn on the last page footer.
-   * Format: `Generated {timestamp} by {user} • {org} • Run {short-hash}`.
+   * Format: `Generated {timestamp} by {user} • {org} • Export ref {short-hash}`.
+   * `runHash` identifies THIS rendition of the document — it is never a
+   * business run (a consolidation run, a payroll run), so it must never be
+   * labelled "Run" on the artifact.
    * If omitted, falls back to the legacy generated-stamp footer.
    */
   disclosure?: {
@@ -92,6 +95,7 @@ export interface ReportPdfPayload {
     org?: string | null;
     runHash?: string | null;
   };
+
 }
 
 // ── Generator ──────────────────────────────────────────────────────────
