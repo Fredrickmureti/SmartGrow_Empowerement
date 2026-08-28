@@ -118,10 +118,17 @@ balances; balance-sheet totals and the balanced verdict read the eliminated
 projection. Scenario assertions that a translated group TB proves on closing
 balances and that totals equal the sum of the printed consolidated lines.
 
-**R2 — Artifact identity and traceability.** Group masthead for group reports;
-member account code and name restored in exported contribution rows; the "Run"
-line on a consolidated artifact carries the consolidation run id or is plainly
-labelled an export reference.
+**R2 — Artifact identity and traceability. DONE (2026-08-28).**
+`ExportConfig.reportingEntityBusinessId` declares the issuing entity; the three
+consolidated pages (TB, statements, eliminations) set it to the group's
+`parent_business_id` and force `branchId: null`, and `enrichExportConfig` now
+lets that declaration and an explicit page currency win over the ambient
+browsing entity — a group artifact can no longer bear a subsidiary's legal
+name, logo, branch scope or base currency. Contribution rows export the
+member's own account code and name instead of blanks. The PDF footer hash is
+labelled `Export ref`, not `Run`, so a per-rendition hash is no longer read as
+a consolidation run id. `render-report` and `process-scheduled-reports`
+redeployed; `pdfCache` bumped to v7.
 
 **R3 — Register consolidation reports.** Add them to the server report registry
 with `presentationProfile: "statement"` pinned, and extend the registry
