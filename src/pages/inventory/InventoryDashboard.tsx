@@ -177,117 +177,102 @@ export default function InventoryDashboard() {
 
       {/* Stock Valuation */}
       {composition.allowsWidget("inventory.valuation") && (
-      <Card>
-
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Stock Valuation</CardTitle>
-          <CardDescription className="break-words">
-            Estimated value of current inventory · <span className="font-medium">{scopeLabel}</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-3xl">
-            <div className="flex flex-col items-center justify-center text-center p-3 sm:p-4 lg:p-6 rounded-lg bg-muted/50 min-w-0">
-              <div className="text-base sm:text-xl lg:text-2xl font-bold break-words leading-tight w-full">
-                {formatCurrency(totalStockValue)}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">Cost Value</div>
-            </div>
-            <div className="flex flex-col items-center justify-center text-center p-3 sm:p-4 lg:p-6 rounded-lg bg-muted/50 min-w-0">
-              <div className="text-base sm:text-xl lg:text-2xl font-bold break-words leading-tight w-full">
-                {formatCurrency(totalRetailValue)}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">Retail Value</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          accent
+          tone="primary"
+          label="Stock Value · Cost"
+          value={formatCurrency(totalStockValue)}
+          footer={scopeLabel}
+        />
+        <SummaryStatCard
+          accent
+          tone="purple"
+          label="Stock Value · Retail"
+          value={formatCurrency(totalRetailValue)}
+          footer={scopeLabel}
+        />
+      </SummaryStatGrid>
       )}
 
       {/* Inventory Intelligence — branch-scoped operational signals */}
       {composition.allowsWidget("inventory.kpis") && intel && (
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-3">
-          <Card
-            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-rose-500 min-w-0"
+        <SummaryStatGrid>
+          <SummaryStatCard
+            accent
+            tone="destructive"
+            label="Expiring soon"
+            icon={<CalendarClock className="h-4 w-4" />}
+            value={intel.expiringSoon.count}
             onClick={() => navigate("/inventory-app/stock?filter=expiring")}
-          >
-            <CardHeader className="pb-2 px-3 sm:px-6">
-              <div className="flex items-center justify-between gap-2 min-w-0">
-                <CardTitle className="text-xs sm:text-sm font-medium truncate">Expiring soon</CardTitle>
-                <CalendarClock className="h-4 w-4 text-rose-500 shrink-0" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6 min-w-0">
-              <div className="text-xl sm:text-2xl font-bold break-words">{intel.expiringSoon.count}</div>
-              {intel.expiringSoon.sample.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            footer={
+              intel.expiringSoon.sample.length > 0 ? (
+                <span className="block space-y-0.5">
                   {intel.expiringSoon.sample.slice(0, 3).map((s) => (
-                    <li key={s.id} className="truncate">
+                    <span key={s.id} className="block truncate">
                       {s.name} <span className="opacity-70">· {s.days ?? "?"}d</span>
-                    </li>
+                    </span>
                   ))}
-                </ul>
+                </span>
               ) : (
-                <p className="text-xs text-muted-foreground mt-1">No lots within alert window</p>
-              )}
-            </CardContent>
-          </Card>
+                "No lots within alert window"
+              )
+            }
+          />
 
-          <Card
-            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-red-600 min-w-0"
+          <SummaryStatCard
+            accent
+            tone="destructive"
+            label="Negative stock"
+            icon={<MinusCircle className="h-4 w-4" />}
+            value={intel.negativeStock.count}
             onClick={() => navigate("/inventory-app/stock?filter=negative")}
-          >
-            <CardHeader className="pb-2 px-3 sm:px-6">
-              <div className="flex items-center justify-between gap-2 min-w-0">
-                <CardTitle className="text-xs sm:text-sm font-medium truncate">Negative stock</CardTitle>
-                <MinusCircle className="h-4 w-4 text-destructive shrink-0" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6 min-w-0">
-              <div className="text-xl sm:text-2xl font-bold text-destructive break-words">{intel.negativeStock.count}</div>
-              {intel.negativeStock.sample.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            footer={
+              intel.negativeStock.sample.length > 0 ? (
+                <span className="block space-y-0.5">
                   {intel.negativeStock.sample.slice(0, 3).map((s) => (
-                    <li key={s.id} className="truncate">
-                      {s.name} <span className="opacity-70">· {s.quantity}{s.warehouse ? ` @ ${s.warehouse}` : ""}</span>
-                    </li>
+                    <span key={s.id} className="block truncate">
+                      {s.name}{" "}
+                      <span className="opacity-70">
+                        · {s.quantity}{s.warehouse ? ` @ ${s.warehouse}` : ""}
+                      </span>
+                    </span>
                   ))}
-                </ul>
+                </span>
               ) : (
-                <p className="text-xs text-muted-foreground mt-1">All positions are non-negative</p>
-              )}
-            </CardContent>
-          </Card>
+                "All positions are non-negative"
+              )
+            }
+          />
 
-          <Card className="border-l-4 border-l-emerald-500 min-w-0">
-            <CardHeader className="pb-2 px-3 sm:px-6">
-              <div className="flex items-center justify-between gap-2 min-w-0">
-                <CardTitle className="text-xs sm:text-sm font-medium truncate">Top movers · 28d</CardTitle>
-                <Flame className="h-4 w-4 text-emerald-500 shrink-0" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6 min-w-0">
-              {intel.topMovers.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No outbound movement in the last 28 days.</p>
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            label="Top movers · 28d"
+            icon={<Flame className="h-4 w-4" />}
+            value={intel.topMovers.length}
+            footer={
+              intel.topMovers.length === 0 ? (
+                "No outbound movement in the last 28 days."
               ) : (
-                <ul className="space-y-1 text-xs">
+                <span className="block space-y-0.5">
                   {intel.topMovers.map((m) => (
-                    <li
+                    <span
                       key={m.productId}
-                      className="flex items-center justify-between gap-2 cursor-pointer hover:bg-muted/40 rounded px-1 py-0.5"
+                      className="flex cursor-pointer items-center justify-between gap-2 truncate rounded px-1 hover:bg-muted/40"
                       onClick={() => navigate(`/inventory-app/stock?product=${m.productId}`)}
                     >
                       <span className="truncate">{m.name}</span>
-                      <span className="whitespace-nowrap text-muted-foreground">
+                      <span className="whitespace-nowrap">
                         {formatQtyWithPacks(m.baseQty, [], m.uom)}
                       </span>
-                    </li>
+                    </span>
                   ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                </span>
+              )
+            }
+          />
+        </SummaryStatGrid>
       )}
 
       {/* Quick Actions */}
