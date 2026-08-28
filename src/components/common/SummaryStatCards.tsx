@@ -143,6 +143,8 @@ export interface SummaryStatCardProps {
   /** Drill-down destination. Renders the card as a router link. */
   to?: string;
   onClick?: () => void;
+  /** Native tooltip (SLA targets, definitions). */
+  title?: string;
   /** Skeleton in the card's own shape — never swap the card for a spinner. */
   loading?: boolean;
   className?: string;
