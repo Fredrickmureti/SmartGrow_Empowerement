@@ -81,64 +81,47 @@ export function ReturnsLaneBoard({
   );
 
   return (
-    <div className="min-w-0 grid grid-cols-2 gap-3 @2xl/page:grid-cols-4 @5xl/page:grid-cols-8">
-      <Card
-        role="button"
-        tabIndex={0}
+    <SummaryStatGrid>
+      <SummaryStatCard
+        label="All open"
+        value={orders.length}
+        tone="primary"
+        accent
         onClick={() => onSelectLane("all")}
-        onKeyDown={(e) => e.key === "Enter" && onSelectLane("all")}
-        className={cn(
-          "cursor-pointer border-l-4 border-l-primary transition-colors hover:bg-muted/40",
-          activeLane === "all" && "bg-muted/60 ring-1 ring-ring",
-        )}
-      >
-        <CardContent className="p-3">
-          <div className="text-2xl font-semibold tabular-nums">{orders.length}</div>
-          <div className="text-xs text-muted-foreground">All open</div>
-          <div
-            className={cn(
-              "mt-1 text-xs tabular-nums",
-              totalBreached > 0 ? "text-destructive" : "text-muted-foreground",
-            )}
-          >
+        className={cn(activeLane === "all" && "bg-muted/60 ring-1 ring-ring")}
+        footer={
+          <span className={cn(totalBreached > 0 && "text-destructive")}>
             {totalBreached > 0 ? `${totalBreached} past SLA` : "All within SLA"}
-          </div>
-        </CardContent>
-      </Card>
+          </span>
+        }
+      />
 
       {LANE_ORDER.map((lane) => {
         const stat = stats.get(lane) ?? EMPTY;
         return (
-          <Card
+          <SummaryStatCard
             key={lane}
-            role="button"
-            tabIndex={0}
+            label={RETURN_LANE_LABEL[lane]}
+            value={stat.count}
+            tone={LANE_TONE[lane]}
+            accent
             onClick={() => onSelectLane(lane)}
-            onKeyDown={(e) => e.key === "Enter" && onSelectLane(lane)}
             title={`SLA ${RETURN_LANE_SLA_HOURS[lane]}h`}
-            className={cn(
-              "cursor-pointer border-l-4 transition-colors hover:bg-muted/40",
-              LANE_ACCENT[lane],
-              activeLane === lane && "bg-muted/60 ring-1 ring-ring",
-            )}
-          >
-            <CardContent className="p-3">
-              <div className="text-2xl font-semibold tabular-nums">{stat.count}</div>
-              <div className="text-xs text-muted-foreground">{RETURN_LANE_LABEL[lane]}</div>
-              <div className="mt-1 flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
-                <span>oldest {ageLabel(stat.oldestHours)}</span>
-                {stat.breached > 0 && (
-                  <span className="ml-auto flex items-center gap-0.5 font-medium text-destructive">
-                    <AlarmClock className="h-3 w-3" />
-                    {stat.breached}
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            className={cn(activeLane === lane && "bg-muted/60 ring-1 ring-ring")}
+            status={
+              stat.breached > 0 ? (
+                <span className="flex items-center gap-0.5 text-xs font-medium tabular-nums text-destructive">
+                  <AlarmClock className="h-3 w-3" />
+                  {stat.breached}
+                </span>
+              ) : undefined
+            }
+            footer={`oldest ${ageLabel(stat.oldestHours)}`}
+          />
         );
       })}
-    </div>
+    </SummaryStatGrid>
   );
 }
+
 
