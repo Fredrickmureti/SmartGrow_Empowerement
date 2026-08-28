@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useCurrency } from "@/hooks/useCurrency";
-import { PageHeader, PageBody, StatusBadge } from "@/design-system";
+import { PageHeader, PageBody, StatusBadge, SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -111,24 +111,12 @@ export default function MyLegalOrders() {
         description="Court orders, garnishments and tax levies applied to your payroll. Upload supporting documents when your HR team requests them."
       />
       <PageBody>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Card>
-            <CardHeader className="pb-2"><CardDescription>Active orders</CardDescription></CardHeader>
-            <CardContent><div className="text-2xl font-semibold">{totals.active}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardDescription>Total owed</CardDescription></CardHeader>
-            <CardContent><div className="text-2xl font-semibold">{formatCurrency(totals.owed)}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardDescription>Total paid</CardDescription></CardHeader>
-            <CardContent><div className="text-2xl font-semibold">{formatCurrency(totals.paid)}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardDescription>Remaining</CardDescription></CardHeader>
-            <CardContent><div className="text-2xl font-semibold">{formatCurrency(totals.remaining)}</div></CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Active orders" value={totals.active} />
+          <SummaryStatCard label="Total owed" value={formatCurrency(totals.owed)} />
+          <SummaryStatCard label="Total paid" value={formatCurrency(totals.paid)} />
+          <SummaryStatCard label="Remaining" value={formatCurrency(totals.remaining)} />
+        </SummaryStatGrid>
 
         <Card className="mt-4">
           <CardHeader>

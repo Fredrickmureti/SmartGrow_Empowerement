@@ -10,6 +10,8 @@
  * value is named in exactly one place.
  */
 
+import { toneBorder, toneText, type Tone } from "@/design-system";
+
 /* ------------------------------------------------------------------ */
 /* Domain types                                                        */
 /* ------------------------------------------------------------------ */
@@ -339,18 +341,26 @@ export function dwellBand(mins: number): DwellBand {
   return "critical";
 }
 
+/** Dwell severity expressed in the ERP-wide tone vocabulary. */
+export const DWELL_BAND_TONE: Record<DwellBand, Tone> = {
+  fresh: "neutral",
+  watch: "warning",
+  late: "alert",
+  critical: "danger",
+};
+
 export const DWELL_BAND_TEXT: Record<DwellBand, string> = {
-  fresh: "text-muted-foreground",
-  watch: "text-amber-600 dark:text-amber-400",
-  late: "text-orange-600 dark:text-orange-400",
-  critical: "text-destructive",
+  fresh: toneText(DWELL_BAND_TONE.fresh),
+  watch: toneText(DWELL_BAND_TONE.watch),
+  late: toneText(DWELL_BAND_TONE.late),
+  critical: toneText(DWELL_BAND_TONE.critical),
 };
 
 export const DWELL_BAND_RING: Record<DwellBand, string> = {
-  fresh: "border-border",
-  watch: "border-amber-500/50",
-  late: "border-orange-500/60",
-  critical: "border-destructive/70",
+  fresh: toneBorder(DWELL_BAND_TONE.fresh),
+  watch: toneBorder(DWELL_BAND_TONE.watch),
+  late: toneBorder(DWELL_BAND_TONE.late),
+  critical: toneBorder(DWELL_BAND_TONE.critical),
 };
 
 /* ------------------------------------------------------------------ */

@@ -87,4 +87,24 @@ describe("Warehouse canonical card architecture", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("uses the Section primitive for titled sections, never CardTitle", () => {
+    // `Section` owns section chrome (title, description, actions, spacing).
+    // A raw Card+CardHeader+CardTitle block is a second, drifting section
+    // system — the canonical Finance AR/AP workspaces do not use one.
+    const offenders = FILES.filter((f) =>
+      /\bCardTitle\b/.test(readFileSync(f, "utf8")),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("resolves status colour through the tone palette, not raw Tailwind", () => {
+    // Raw palette classes make re-tinting the ERP a repo-wide edit and let
+    // each page invent its own severity scale. `@/design-system` tone helpers
+    // (toneText/toneBorder/toneSurface/toneFill/toneRing) are the only source.
+    const PALETTE =
+      /\b(?:text|bg|border|ring|fill|stroke|from|to|via)-(?:red|orange|amber|yellow|lime|green|emerald|teal|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b/;
+    const offenders = FILES.filter((f) => PALETTE.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
 });

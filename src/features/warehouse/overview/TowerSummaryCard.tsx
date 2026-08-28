@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/design-system";
 import {
   HEALTH_FILL, HEALTH_LABEL, HEALTH_TEXT, shortAge,
   type FlowStageHealth, type HealthState,
@@ -41,14 +41,16 @@ export function TowerSummaryCard({
   const peak = Math.max(1, ...stages.map((s) => s.backlog + s.in_progress));
 
   return (
-    <Card className="min-w-0 overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="truncate text-sm font-semibold">{title}</CardTitle>
+    <Section
+      className="min-w-0 overflow-hidden"
+      title={title}
+      actions={
         <span className={cn("shrink-0 text-xs font-medium", HEALTH_TEXT[state])}>
           {HEALTH_LABEL[state]}
         </span>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      }
+      contentClassName="space-y-3"
+    >
         <p className="line-clamp-2 break-words text-sm text-muted-foreground">
           {health?.reason ?? "No open work."}
         </p>
@@ -88,8 +90,7 @@ export function TowerSummaryCard({
             <ArrowRight className="h-4 w-4 shrink-0" />
           </Link>
         </Button>
-      </CardContent>
-    </Card>
+    </Section>
   );
 }
 

@@ -6,7 +6,7 @@
  * A slot that is `blocked` refuses drops and reads as hatched.
  */
 import { useDroppable } from "@dnd-kit/core";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, EmptyState } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Ban, CircleSlash, Pencil, ParkingSquare } from "lucide-react";
@@ -114,18 +114,18 @@ export function YardMap({
 
   if (!slots.length) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center space-y-3">
-          <ParkingSquare className="h-8 w-8 mx-auto text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            No yard slots defined for this warehouse yet. Slots are the parking positions the gate
-            assigns trailers to on check-in.
-          </p>
-          <Button size="sm" onClick={onAddSlot}>
-            Add the first slot
-          </Button>
-        </CardContent>
-      </Card>
+      <Section>
+        <EmptyState
+          icon={ParkingSquare}
+          title="No yard slots defined"
+          description="Slots are the parking positions the gate assigns trailers to on check-in."
+          action={
+            <Button size="sm" onClick={onAddSlot}>
+              Add the first slot
+            </Button>
+          }
+        />
+      </Section>
     );
   }
 
@@ -134,16 +134,15 @@ export function YardMap({
       {zones.map(({ zone, rows }) => {
         const occupied = rows.filter((s) => bySlot.has(s.id)).length;
         return (
-          <Card key={zone}>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span>{zone === "unzoned" ? "Unzoned" : yardZoneLabel(zone)}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {occupied}/{rows.length} occupied
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
+          <Section
+            key={zone}
+            title={zone === "unzoned" ? "Unzoned" : yardZoneLabel(zone)}
+            actions={
+              <span className="text-xs font-normal text-muted-foreground">
+                {occupied}/{rows.length} occupied
+              </span>
+            }
+          >
               <div className="min-w-0 grid gap-2 grid-cols-2 @xl/page:grid-cols-3 @4xl/page:grid-cols-4 @5xl/page:grid-cols-6">
                 {rows.map((s) => (
                   <SlotCell
@@ -156,8 +155,7 @@ export function YardMap({
                   />
                 ))}
               </div>
-            </CardContent>
-          </Card>
+          </Section>
         );
       })}
     </div>

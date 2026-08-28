@@ -21,7 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, ShieldCheck, User as UserIcon, Phone, MapPin, HeartPulse, Landmark, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, DetailSheet, FooterActionBar } from "@/design-system";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -359,15 +356,30 @@ function ChangeRequestDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm"><Send className="h-3.5 w-3.5 mr-1.5" /> {label}</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Request a profile change</DialogTitle>
-          <DialogDescription>Your HR team will review this and apply it if approved.</DialogDescription>
-        </DialogHeader>
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Send className="h-3.5 w-3.5 mr-1.5" /> {label}
+      </Button>
+      <DetailSheet
+        open={open}
+        onOpenChange={setOpen}
+        title="Request a profile change"
+        description="Your HR team will review this and apply it if approved."
+        footer={
+          <FooterActionBar
+            anchor="sheet"
+            trailing={
+              <>
+                <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button onClick={submit} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Submit request
+                </Button>
+              </>
+            }
+          />
+        }
+      >
         <div className="space-y-3">
           <div>
             <Label>Field to change</Label>
@@ -389,15 +401,8 @@ function ChangeRequestDialog({
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Why does this need to change?" />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Submit request
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </DetailSheet>
+    </>
   );
 }
 

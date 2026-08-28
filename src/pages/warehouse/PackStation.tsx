@@ -33,7 +33,6 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -449,9 +448,7 @@ export default function PackStation() {
               }
             >
               <div className="min-w-0 grid gap-3 @4xl/page:grid-cols-2">
-                <Card>
-                  <CardHeader className="p-3 pb-0"><CardTitle className="text-sm">Picked lines</CardTitle></CardHeader>
-                  <CardContent className="p-0">
+                <Section title="Picked lines" contentClassName="px-0 pb-0 sm:px-0">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50">
                         <tr className="text-left">
@@ -502,23 +499,26 @@ export default function PackStation() {
                         })}
                       </tbody>
                     </table>
-                  </CardContent>
-                </Card>
+                </Section>
 
-                <Card>
-                  <CardHeader className="p-3 pb-0 flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm">Cartons</CardTitle>
+                <Section
+                  title="Cartons"
+                  actions={
                     <PackWaveLabelButton
                       businessId={wave.business_id ?? null}
                       waveId={waveId!}
                       warehouseId={wave.warehouse_id}
                       sealedCount={(cartons ?? []).filter((c) => !!c.sealed_at).length}
                     />
-                  </CardHeader>
-
-                  <CardContent className="p-3 space-y-2">
+                  }
+                  contentClassName="space-y-2"
+                >
                     {soCartons.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>
+                      <EmptyState
+                        icon={PackagePlus}
+                        title="No cartons yet"
+                        description="Open a carton to start packing this wave."
+                      />
                     )}
                     {soCartons.map((c) => (
                       <div
@@ -613,8 +613,7 @@ export default function PackStation() {
                         </div>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
+                </Section>
               </div>
             </Section>
           );
