@@ -260,6 +260,10 @@ export function ConsolidationEliminationRules({
           const dirty = !!drafts[cls];
           const typeMatched = accounts.filter((a) => a.is_active);
           const focused = focusClass === cls;
+          const toleranceNumber = Number(draft.tolerance_amount);
+          const overCap =
+            Number.isFinite(toleranceNumber) &&
+            toleranceNumber > ELIMINATION_TOLERANCE_CAP;
           return (
 
               <div
