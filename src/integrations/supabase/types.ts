@@ -10616,6 +10616,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           cta_account_id: string | null
+          cta_group_account_id: string | null
           description: string | null
           id: string
           is_active: boolean
@@ -10630,6 +10631,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cta_account_id?: string | null
+          cta_group_account_id?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
@@ -10644,6 +10646,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cta_account_id?: string | null
+          cta_group_account_id?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
@@ -10673,6 +10676,13 @@ export type Database = {
             columns: ["cta_account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_groups_cta_group_account_id_fkey"
+            columns: ["cta_group_account_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_group_accounts"
             referencedColumns: ["id"]
           },
           {
