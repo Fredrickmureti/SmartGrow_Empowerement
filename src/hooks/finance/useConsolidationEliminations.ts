@@ -513,6 +513,10 @@ export function useConsolidationEliminationMutations() {
     queryClient.invalidateQueries({
       queryKey: ["consolidation-elimination-diagnosis"],
     });
+    queryClient.invalidateQueries({
+      queryKey: ["consolidation-elimination-events"],
+    });
+
 
     queryClient.invalidateQueries({
       queryKey: ["consolidated-statement-lines-eliminated"],
