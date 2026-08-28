@@ -416,6 +416,11 @@ export default function ConsolidatedTrialBalance() {
       sheetName: "Consolidated TB",
       currency,
       formatProfile: "financial",
+      // A group artifact is issued by the group's PARENT company, whichever
+      // member the user happens to be browsing, and it is never scoped to a
+      // branch of one member.
+      reportingEntityBusinessId: selectedGroup?.parent_business_id ?? null,
+      branchId: null,
     };
   }, [
     rows,
@@ -425,6 +430,7 @@ export default function ConsolidatedTrialBalance() {
     dateTo,
     focusedLine,
     selectedGroup?.name,
+    selectedGroup?.parent_business_id,
     showMembers,
     totals,
     unmappedLineCount,
