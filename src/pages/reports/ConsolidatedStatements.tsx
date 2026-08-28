@@ -204,22 +204,25 @@ export default function ConsolidatedStatements() {
     },
     [navigate, groupId, dateFrom, dateTo],
   );
-  // Statement line → the member companies behind its Aggregated figure. Same
-  // param contract the consolidated trial balance already reads
-  // (`consolidationGroup`, `date_from`, `date_to`, `group_account_id`), so the
-  // destination opens focused on that group account instead of at the top.
+  // Statement line → the member companies behind its Aggregated figure, opened
+  // in place. Drill-down is preview → drawer → record without leaving the
+  // report; the trial-balance route survives as a deep link inside the dialog.
+  const [contributionTarget, setContributionTarget] =
+    useState<MemberContributionTarget | null>(null);
   const openTrialBalance = useCallback(
-    (accountId: string) => {
-      const params = new URLSearchParams({
-        consolidationGroup: groupId ?? "",
-        date_from: dateFrom,
-        date_to: dateTo,
-        group_account_id: accountId,
+    (accountId: string, label: string) => {
+      if (!groupId) return;
+      setContributionTarget({
+        groupId,
+        groupAccountId: accountId,
+        label: label || "Group account",
+        dateFrom,
+        dateTo,
       });
-      navigate(`/finance/reports/consolidated-trial-balance?${params.toString()}`);
     },
-    [navigate, groupId, dateFrom, dateTo],
+    [groupId, dateFrom, dateTo],
   );
+
 
   const COLUMNS = useMemo(
     () => buildColumns(openEliminations, openTrialBalance),
