@@ -52,31 +52,6 @@ function shiftDay(day: string, delta: number) {
   return localDay(d);
 }
 
-function Kpi({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Icon className="h-3.5 w-3.5" /> {label}
-        </div>
-        <div className={`text-2xl font-semibold mt-1 ${tone ?? ""}`}>{value}</div>
-        {hint && <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function DockSchedule() {
   const [warehouseId, setWarehouseId] = useState("");
