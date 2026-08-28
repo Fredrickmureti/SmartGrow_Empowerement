@@ -401,9 +401,9 @@ export default function AccountsPayable() {
       {/* Unlinked AP Expenses Warning Banner */}
       {unlinkedExpenses.length > 0 && (
         <Section
-          className={cn(toneBorder("warn"), toneSurface("warn"))}
+          className={cn(toneBorder("warning"), toneSurface("warning"))}
           title={
-            <span className={cn("flex items-center gap-2 text-sm", toneText("warn"))}>
+            <span className={cn("flex items-center gap-2 text-sm", toneText("warning"))}>
               <AlertTriangle className="h-4 w-4" />
               {unlinkedExpenses.length} AP Expense{unlinkedExpenses.length > 1 ? "s" : ""} Without Vendor Bills
             </span>
