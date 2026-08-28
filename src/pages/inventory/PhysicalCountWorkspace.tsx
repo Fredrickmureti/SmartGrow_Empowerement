@@ -29,6 +29,7 @@ import { ClipboardCheck, ArrowRight, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 type CountState =
   | "draft" | "counting" | "counted" | "in_review"
@@ -255,24 +256,12 @@ export default function PhysicalCountWorkspace() {
       </p>
 
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-        <Card>
-          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Active</CardTitle></CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold">{buckets.active.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">In review</CardTitle></CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold text-amber-600">{buckets.in_review.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Posted</CardTitle></CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold text-emerald-600">{buckets.posted.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6"><CardTitle className="text-xs text-muted-foreground">Total</CardTitle></CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6"><div className="text-xl sm:text-2xl font-bold">{counts.length}</div></CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard label="Active" value={buckets.active.length} />
+        <SummaryStatCard tone="amber" label="In review" value={buckets.in_review.length} />
+        <SummaryStatCard tone="emerald" label="Posted" value={buckets.posted.length} />
+        <SummaryStatCard label="Total" value={counts.length} />
+      </SummaryStatGrid>
 
       <Card>
         <CardHeader className="px-4 py-4 sm:px-6 sm:py-6">

@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import {
   ReportSurface,
   ReportTable,
@@ -227,56 +228,35 @@ function StockReportsInner() {
       }
     >
       <div className="space-y-6">
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Total Products</CardTitle>
-              <Package className="h-4 w-4 text-blue-600 flex-shrink-0" />
-            </CardHeader>
-            <CardContent>
-              <div className="stat-value">{stockData.totalProducts}</div>
-              <p className="text-xs text-muted-foreground">
-                {stockData.physicalProducts} products, {stockData.services} services
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Inventory Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
-            </CardHeader>
-            <CardContent>
-              <div className="stat-value text-green-600">
-                {formatCurrency(stockData.totalInventoryValue, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">Based on cost prices</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Avg Margin</CardTitle>
-              <TrendingUp className={`h-4 w-4 flex-shrink-0 ${stockData.avgMargin >= 30 ? "text-green-600" : "text-orange-600"}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`stat-value ${stockData.avgMargin >= 30 ? "text-green-600" : "text-orange-600"}`}>
-                {stockData.avgMargin.toFixed(1)}%
-              </div>
-              <p className="text-xs text-muted-foreground">Average profit margin</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Missing Cost</CardTitle>
-              <AlertTriangle className={`h-4 w-4 flex-shrink-0 ${stockData.noCostPrice.length > 0 ? "text-orange-600" : "text-green-600"}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`stat-value ${stockData.noCostPrice.length > 0 ? "text-orange-600" : "text-green-600"}`}>
-                {stockData.noCostPrice.length}
-              </div>
-              <p className="text-xs text-muted-foreground">Products without cost price</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Products"
+            icon={<Package className="h-4 w-4 text-blue-600" />}
+            value={stockData.totalProducts}
+            footer={`${stockData.physicalProducts} products, ${stockData.services} services`}
+          />
+          <SummaryStatCard
+            label="Inventory Value"
+            icon={<DollarSign className="h-4 w-4 text-green-600" />}
+            tone="emerald"
+            value={formatCurrency(stockData.totalInventoryValue, baseCurrency)}
+            footer="Based on cost prices"
+          />
+          <SummaryStatCard
+            label="Avg Margin"
+            icon={<TrendingUp className={`h-4 w-4 ${stockData.avgMargin >= 30 ? "text-green-600" : "text-orange-600"}`} />}
+            tone={stockData.avgMargin >= 30 ? "emerald" : "orange"}
+            value={`${stockData.avgMargin.toFixed(1)}%`}
+            footer="Average profit margin"
+          />
+          <SummaryStatCard
+            label="Missing Cost"
+            icon={<AlertTriangle className={`h-4 w-4 ${stockData.noCostPrice.length > 0 ? "text-orange-600" : "text-green-600"}`} />}
+            tone={stockData.noCostPrice.length > 0 ? "orange" : "emerald"}
+            value={stockData.noCostPrice.length}
+            footer="Products without cost price"
+          />
+        </SummaryStatGrid>
 
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
           <ReportSurface title="Top Products by Value" subtitle="Highest value items in inventory" profile="operational">

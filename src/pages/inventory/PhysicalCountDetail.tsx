@@ -42,6 +42,7 @@ import {
 import { normalizeError } from "@/services/resilience";
 import { RecordHeader, ActionBar } from "@/design-system";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -593,18 +594,16 @@ export default function PhysicalCountDetail() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Lines</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{lines.length}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Variance lines</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-amber-600">
-            {lines.filter((l) => l.counted_qty !== null && l.variance_qty !== 0).length}
-          </div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Surplus value</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-emerald-600">{formatCurrency(jePreview.surplus)}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Shrinkage value</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-red-600">{formatCurrency(jePreview.shrinkage)}</div></CardContent></Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard label="Lines" value={lines.length} />
+        <SummaryStatCard
+          tone="amber"
+          label="Variance lines"
+          value={lines.filter((l) => l.counted_qty !== null && l.variance_qty !== 0).length}
+        />
+        <SummaryStatCard tone="emerald" label="Surplus value" value={formatCurrency(jePreview.surplus)} />
+        <SummaryStatCard tone="destructive" label="Shrinkage value" value={formatCurrency(jePreview.shrinkage)} />
+      </SummaryStatGrid>
 
       <Tabs defaultValue="lines">
         <TabsList>
