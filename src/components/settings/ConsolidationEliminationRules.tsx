@@ -153,8 +153,23 @@ export function ConsolidationEliminationRules({
   const save = async (cls: EliminationClass) => {
     const draft = draftOf(cls);
     const tolerance = Number(draft.tolerance_amount);
+    const reason = draft.tolerance_reason.trim();
     if (!Number.isFinite(tolerance) || tolerance < 0) {
       toast.error("The tolerance must be zero or a positive amount");
+      return;
+    }
+    // The bound and the reason are the database's rules; checking them here
+    // only spares a round trip, it never decides them.
+    if (tolerance > ELIMINATION_TOLERANCE_CAP) {
+      toast.error(
+        `A tolerance absorbs rounding: it cannot exceed ${ELIMINATION_TOLERANCE_CAP} in the group's presentation currency`,
+      );
+      return;
+    }
+    if (tolerance > 0 && reason.length < 20) {
+      toast.error(
+        "Say why the group accepts a difference of that size without treating it as a disagreement",
+      );
       return;
     }
     if (
@@ -171,6 +186,7 @@ export function ConsolidationEliminationRules({
         elimination_class: cls,
         is_active: draft.is_active,
         tolerance_amount: tolerance,
+        tolerance_reason: reason === "" ? null : reason,
         difference_policy: draft.difference_policy,
         difference_group_account_id:
           draft.difference_group_account_id === NO_ACCOUNT
@@ -178,6 +194,7 @@ export function ConsolidationEliminationRules({
             : draft.difference_group_account_id,
       });
       setDrafts((prev) => {
+
         const next = { ...prev };
         delete next[cls];
         return next;
