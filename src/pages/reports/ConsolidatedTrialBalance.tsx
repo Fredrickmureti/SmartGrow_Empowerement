@@ -723,26 +723,43 @@ export default function ConsolidatedTrialBalance() {
                         />
                       </ReportSurface>
 
-                      <div className="flex flex-wrap gap-6 text-sm">
-                        <span>
-                          Total debits:{" "}
-                          <strong>{formatAmount(totals.debit, currency)}</strong>
-                        </span>
-                        <span>
-                          Total credits:{" "}
-                          <strong>{formatAmount(totals.credit, currency)}</strong>
-                        </span>
-                        <span
-                          className={
-                            Math.abs(totals.difference) < 0.005
-                              ? "text-emerald-600"
-                              : "text-destructive font-semibold"
-                          }
-                        >
-                          {Math.abs(totals.difference) < 0.005
-                            ? "In balance"
-                            : `Out of balance by ${formatAmount(totals.difference, currency)}`}
-                        </span>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex flex-wrap gap-6">
+                          <span>
+                            Movement columns — debits:{" "}
+                            <strong>{formatAmount(totals.debit, currency)}</strong>
+                          </span>
+                          <span>
+                            credits: <strong>{formatAmount(totals.credit, currency)}</strong>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-6">
+                          <span>
+                            Balance proof (closing balances) — debit side:{" "}
+                            <strong>{formatAmount(proof.debitSide, currency)}</strong>
+                          </span>
+                          <span>
+                            credit side:{" "}
+                            <strong>{formatAmount(proof.creditSide, currency)}</strong>
+                          </span>
+                          <span
+                            className={
+                              focusedLine
+                                ? "text-muted-foreground"
+                                : proof.isBalanced
+                                  ? "text-emerald-600"
+                                  : "text-destructive font-semibold"
+                            }
+                          >
+                            {proofLabel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          A translated group proves on closing balances. The movement columns
+                          are translated at average rates while balance-sheet closing balances
+                          translate at the closing rate, so those two columns are not expected
+                          to foot to each other and footing them is not a balance test.
+                        </p>
                       </div>
                     </>
                   )}
