@@ -86,7 +86,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
   const { currentOrg } = useOrganization();
   const navigate = useNavigate();
 
-  const { currentBusiness } = useBusinesses();
+  const { currentBusiness, businesses } = useBusinesses();
   const { formatCurrency } = useCurrency();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
