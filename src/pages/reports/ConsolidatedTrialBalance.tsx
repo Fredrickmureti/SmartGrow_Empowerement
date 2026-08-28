@@ -329,7 +329,7 @@ export default function ConsolidatedTrialBalance() {
         kind: "grandTotal",
         values: {
           code: "",
-          name: "TOTAL",
+          name: focusedLine ? "TOTAL — selected account only" : "TOTAL",
           company: showMembers ? "" : undefined,
           rate: "",
           opening: "",
@@ -342,6 +342,15 @@ export default function ConsolidatedTrialBalance() {
         },
       },
     ];
+    // An exported artifact must never look like the whole group when the
+    // screen was narrowed to one account.
+    if (focusedLine) {
+      exportRows.push({
+        id: "tb-focus-note",
+        kind: "note",
+        label: `Narrowed to group account ${focusedLine.account_code ?? ""} ${focusedLine.account_name} — this is not the complete group trial balance.`,
+      });
+    }
     if (unmappedLineCount > 0) {
       exportRows.push({
         id: "tb-unmapped-note",
@@ -349,6 +358,7 @@ export default function ConsolidatedTrialBalance() {
         label: `* ${unmappedLineCount} account(s) report under a member company's own chart because no group account maps them.`,
       });
     }
+
     return {
       title: "Consolidated Trial Balance",
       subtitle: `${selectedGroup?.name ?? "Consolidation group"} · combined from the posted ledger · intercompany balances NOT eliminated`,
