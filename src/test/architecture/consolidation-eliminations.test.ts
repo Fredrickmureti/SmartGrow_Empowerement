@@ -79,6 +79,15 @@ describe("consolidation eliminations — engine ownership", () => {
     expect(src).not.toMatch(/consolidated_amount\s*[-+]\s*/);
   });
 
+  it("a surviving residual is disclosed by name on the statement line", () => {
+    const src = read(STATEMENTS);
+    // The residual comes from the server's own footing of the difference legs.
+    expect(src).toContain("reconciling_amount");
+    expect(src).toContain("includes an unreconciled intragroup difference of");
+    // It is never reconstructed in the browser from the other columns.
+    expect(src).not.toMatch(/reconciling_amount\s*[-+]\s*[a-z]/);
+  });
+
   it("no other page reads the elimination table directly", () => {
     for (const rel of [
       "pages/reports/ConsolidationIntercompany.tsx",

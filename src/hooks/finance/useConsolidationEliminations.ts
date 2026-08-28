@@ -153,6 +153,13 @@ export interface EliminatedStatementLine {
   aggregated_amount: number;
   elimination_amount: number;
   consolidated_amount: number;
+  /**
+   * The part of `elimination_amount` that is a surviving difference rather
+   * than a matched elimination — the residual the group's difference policy
+   * allowed onto this line. The server foots it off the difference legs; it is
+   * never inferred here. Zero on every line of a group that refuses residuals.
+   */
+  reconciling_amount: number;
 }
 
 export interface EliminatedStatementTotals {
