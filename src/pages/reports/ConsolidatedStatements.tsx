@@ -73,6 +73,7 @@ import {
   useEliminatedStatementTotals,
   type EliminatedStatementLine,
 } from "@/hooks/finance/useConsolidationEliminations";
+import { ConsolidationRunHistory } from "@/components/reports/ConsolidationRunHistory";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
@@ -679,6 +680,16 @@ export default function ConsolidatedStatements() {
                 )}
               </CardContent>
             </Card>
+
+            {/* The reporting record: runs read back from storage, beside the
+                live view above. */}
+            <ConsolidationRunHistory
+              groupId={groupId}
+              groupName={selectedGroup?.name ?? "this group"}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              canCreate={!!readyGroupId}
+            />
           </>
         )}
       </div>

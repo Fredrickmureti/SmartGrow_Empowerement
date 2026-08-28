@@ -115,3 +115,47 @@ describe("consolidated statements — reachable and honest", () => {
     expect(pageSource).toContain("dataError");
   });
 });
+
+describe("consolidation runs (Brick 8) — the run surface reads only run tables", () => {
+  const runsHook = readFileSync(
+    join(root, "src/hooks/finance/useConsolidationRuns.ts"),
+    "utf8",
+  );
+  const runsPanel = readFileSync(
+    join(root, "src/components/reports/ConsolidationRunHistory.tsx"),
+    "utf8",
+  );
+
+  it("reads runs from storage and never from the live engine", () => {
+    for (const source of [runsHook, runsPanel]) {
+      expect(source).not.toContain("get_consolidated_statement_lines");
+      expect(source).not.toContain("get_consolidated_trial_balance");
+      expect(source).not.toContain("consolidation_eliminations_balance");
+      expect(source).not.toContain("journal_entry_lines");
+    }
+    expect(runsHook).toContain('from("consolidation_runs")');
+    expect(runsHook).toContain('from("consolidation_run_lines")');
+    expect(runsHook).toContain('from("consolidation_run_members")');
+    expect(runsHook).toContain('from("consolidation_run_rates")');
+  });
+
+  it("drives the lifecycle only through the server RPCs", () => {
+    expect(runsHook).toContain('rpc("consolidation_create_run"');
+    expect(runsHook).toContain('rpc("consolidation_finalize_run"');
+    expect(runsHook).toContain('rpc("consolidation_supersede_run"');
+    // A run's state is the server's to move; the client never writes it.
+    expect(runsHook).not.toMatch(/update\(\s*\{[^}]*state/);
+  });
+
+  it("does no arithmetic on stored figures", () => {
+    for (const source of [runsHook, runsPanel]) {
+      expect(source).not.toMatch(/reduce\(/);
+      expect(source).not.toMatch(/aggregated_amount\s*[-+]\s*/);
+    }
+  });
+
+  it("labels the live view against the stored runs on the page", () => {
+    expect(pageSource).toContain("ConsolidationRunHistory");
+    expect(runsPanel).toContain("<strong>live</strong>");
+  });
+});
