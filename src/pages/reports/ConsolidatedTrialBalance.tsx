@@ -243,7 +243,7 @@ export default function ConsolidatedTrialBalance() {
     const out: ReportRow[] = [];
     const money = (v: number) => formatAmount(v, currency);
 
-    for (const line of accountLines) {
+    for (const line of visibleLines) {
       out.push({
         id: line.account_id,
         values: {
