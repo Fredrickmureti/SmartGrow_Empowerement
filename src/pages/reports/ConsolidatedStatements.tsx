@@ -47,6 +47,10 @@ import {
   type ReportRow,
 } from "@/design-system/reports";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import {
+  MemberContributionDialog,
+  type MemberContributionTarget,
+} from "@/components/reports/MemberContributionDialog";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { FileBarChart, ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -678,6 +682,15 @@ export default function ConsolidatedStatements() {
           </>
         )}
       </div>
+
+      {/* Lineage in place: the companies behind the clicked Aggregated figure. */}
+      <MemberContributionDialog
+        open={!!contributionTarget}
+        onOpenChange={(next) => {
+          if (!next) setContributionTarget(null);
+        }}
+        target={contributionTarget}
+      />
     </ReportsLayout>
   );
 }
