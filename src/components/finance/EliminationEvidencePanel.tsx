@@ -422,6 +422,19 @@ function LegEvidence({
           </tbody>
         </table>
       </div>
+
+      <TransactionPreviewDrawer
+        open={!!preview}
+        onOpenChange={(open) => !open && setPreview(null)}
+        sourceType={preview?.type ?? null}
+        sourceId={preview?.id ?? null}
+      />
+
+      <DrillDownDialog
+        open={!!drillConfig}
+        onOpenChange={(open) => !open && setDrillConfig(null)}
+        config={drillConfig}
+      />
     </div>
   );
 }
