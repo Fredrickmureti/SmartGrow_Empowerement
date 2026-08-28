@@ -41,6 +41,12 @@ export interface ConsolidationGroup {
    * balance, and a silently absorbed difference is a misstatement.
    */
   cta_account_id: string | null;
+  /**
+   * Group-chart equity account that PRESENTS the reserve. The reserve is a
+   * group construct, so where the group keeps its own chart it must be shown
+   * on a group account rather than on a member company's equity account.
+   */
+  cta_group_account_id: string | null;
 }
 
 export interface ConsolidationGroupMember {
