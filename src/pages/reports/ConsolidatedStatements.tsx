@@ -89,7 +89,10 @@ import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 type ThreeColumnLine = ConsolidatedStatementLine &
   Pick<
     EliminatedStatementLine,
-    "aggregated_amount" | "elimination_amount" | "consolidated_amount"
+    | "aggregated_amount"
+    | "elimination_amount"
+    | "consolidated_amount"
+    | "reconciling_amount"
   >;
 
 function formatAmount(value: number, currency: string) {
@@ -321,10 +324,20 @@ export default function ConsolidatedStatements() {
   const rowsFor = (statement: ConsolidatedStatement): ReportRow[] => {
     const out: ReportRow[] = [];
     const money = (v: number) => formatAmount(Number(v), currency);
-    const describe = (l: ConsolidatedStatementLine) =>
+    /**
+     * A residual the group's policy let through is disclosed by name on the
+     * face of the statement, next to the figure carrying it. The amount is the
+     * server's own `reconciling_amount`; nothing is derived here.
+     */
+    const describe = (l: ThreeColumnLine) =>
       l.account_name +
       (l.is_residual ? " (currency translation reserve)" : "") +
-      (l.is_derived ? " (not yet posted to equity)" : "");
+      (l.is_derived ? " (not yet posted to equity)" : "") +
+      (Number(l.reconciling_amount ?? 0) !== 0
+        ? ` — includes an unreconciled intragroup difference of ${money(
+            Number(l.reconciling_amount),
+          )}`
+        : "");
 
     for (const group of sectionsOf(lines, statement)) {
       out.push({
