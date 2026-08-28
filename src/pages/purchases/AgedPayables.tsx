@@ -47,8 +47,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+  type SummaryStatTone,
+} from "@/components/common/SummaryStatCards";
 import {
   Loader2,
   Search,
@@ -183,14 +187,14 @@ export default function AgedPayables() {
   // ADR 0136: `null` is carried through to the tile, which then says why the
   // figure is missing instead of printing a zero.
   const unconvertible = totals?.unconvertibleCount ?? 0;
-  const summaryCards = [
-    { label: AGING_BUCKET_LABELS.not_due, value: totals?.not_due ?? null, tone: "text-foreground" },
-    { label: `${AGING_BUCKET_LABELS.current} overdue`, value: totals?.current ?? null, tone: "text-accent-foreground" },
-    { label: AGING_BUCKET_LABELS.days30, value: totals?.days30 ?? null, tone: "text-accent-foreground" },
-    { label: AGING_BUCKET_LABELS.days60, value: totals?.days60 ?? null, tone: "text-destructive" },
-    { label: AGING_BUCKET_LABELS.days90, value: totals?.days90 ?? null, tone: "text-destructive" },
-    { label: "Unapplied credit", value: totals?.credit ?? null, tone: "text-muted-foreground" },
-    { label: "Total outstanding", value: totals?.total ?? null, tone: "text-foreground" },
+  const summaryCards: { label: string; value: number | null; tone: SummaryStatTone }[] = [
+    { label: AGING_BUCKET_LABELS.not_due, value: totals?.not_due ?? null, tone: "default" },
+    { label: `${AGING_BUCKET_LABELS.current} overdue`, value: totals?.current ?? null, tone: "yellow" },
+    { label: AGING_BUCKET_LABELS.days30, value: totals?.days30 ?? null, tone: "amber" },
+    { label: AGING_BUCKET_LABELS.days60, value: totals?.days60 ?? null, tone: "orange" },
+    { label: AGING_BUCKET_LABELS.days90, value: totals?.days90 ?? null, tone: "destructive" },
+    { label: "Unapplied credit", value: totals?.credit ?? null, tone: "default" },
+    { label: "Total outstanding", value: totals?.total ?? null, tone: "default" },
   ];
 
   return (
@@ -275,23 +279,24 @@ export default function AgedPayables() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <SummaryStatGrid className="[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
           {summaryCards.map((card) => (
-            <Card key={card.label}>
-              <CardContent className="pt-4 pb-3 px-4">
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-                <p className={`text-lg font-bold ${card.tone}`}>
-                  <BaseCurrencyAmount
-                    value={card.value}
-                    format={formatCurrency}
-                    unconvertibleCount={unconvertible}
-                    label={card.label}
-                  />
-                </p>
-              </CardContent>
-            </Card>
+            <SummaryStatCard
+              key={card.label}
+              label={card.label}
+              tone={card.tone}
+              accent
+              value={
+                <BaseCurrencyAmount
+                  value={card.value}
+                  format={formatCurrency}
+                  unconvertibleCount={unconvertible}
+                  label={card.label}
+                />
+              }
+            />
           ))}
-        </div>
+        </SummaryStatGrid>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
