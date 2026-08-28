@@ -113,9 +113,15 @@ export function TransactionPreviewDrawer({
   onOpenChange,
   sourceType,
   sourceId,
+  businessId,
+  businessName,
+  fallbackCurrency,
 }: TransactionPreviewDrawerProps) {
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const { currentBusiness, switchBusiness } = useBusinesses();
+  const [switching, setSwitching] = useState(false);
+  const foreignBusiness = !!businessId && businessId !== currentBusiness?.id;
   const [data, setData] = useState<TransactionData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
