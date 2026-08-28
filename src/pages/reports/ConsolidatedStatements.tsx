@@ -401,7 +401,8 @@ export default function ConsolidatedStatements() {
           hasEliminations
             ? "aggregated, eliminations and consolidated columns"
             : "no eliminations generated for this period"
-        }`,
+        } · live calculation, not a finalized consolidation run`,
+
         ...(isIncome
           ? {
               dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
