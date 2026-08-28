@@ -79,6 +79,7 @@ import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer
 import { normalizeError } from "@/services/resilience";
 import { downloadVendorStatement } from "@/features/purchases/statements/dispatchVendorStatement";
 import { fetchPayableCounterparties } from "@/services/finance/openItems";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 export default function VendorStatements() {
   const [searchParams, setSearchParams] = useSearchParams();

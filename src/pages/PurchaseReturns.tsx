@@ -65,6 +65,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 /** The lifecycle, drawn as it actually is: raise → govern → ship → settle. */
 const PIPELINE = [

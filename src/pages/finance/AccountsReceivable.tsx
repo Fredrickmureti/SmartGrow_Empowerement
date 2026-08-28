@@ -73,6 +73,7 @@ import { ControlAccountReconciliationCard } from "@/components/finance/ControlAc
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 export default function AccountsReceivable() {
   const queryClient = useQueryClient();

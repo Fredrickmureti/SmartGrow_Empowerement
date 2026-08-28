@@ -18,6 +18,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 /**
  * Purchases Module Dashboard — Bill pipeline, PO pipeline, AP aging, vendor spend

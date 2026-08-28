@@ -79,6 +79,7 @@ import { PurchaseOrderPeekSheet } from "@/features/purchases/orders/PurchaseOrde
 import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 // Workflow pipeline for Purchase Orders
 function POWorkflowPipeline({ status }: { status: string }) {
