@@ -247,79 +247,25 @@ export default function AccountsReceivable() {
       )}
 
       {/* Summary Cards with Aging - Fluid layout that wraps and shows full values */}
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Receivable</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="stat-value text-primary tabular-nums whitespace-nowrap">
-              {formatCurrency(summary.total)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
+      <SummaryStatGrid>
+        <SummaryStatCard
+          label="Total Receivable"
+          tone="primary"
+          value={formatCurrency(summary.total)}
+          footer={
+            <>
               <Users className="h-3 w-3 inline mr-1" />
               {filteredContacts.length} customer{filteredContacts.length !== 1 ? "s" : ""}
-            </p>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
+        <SummaryStatCard accent tone="emerald" label="Not Due" value={formatCurrency(summary.not_due || 0)} footer="Not yet due" />
+        <SummaryStatCard accent tone="yellow" label="1-30 Days" value={formatCurrency(summary.current)} />
+        <SummaryStatCard accent tone="amber" label="31-60 Days" value={formatCurrency(summary.days30)} />
+        <SummaryStatCard accent tone="orange" label="61-90 Days" value={formatCurrency(summary.days60)} />
+        <SummaryStatCard accent tone="destructive" label="90+ Days" value={formatCurrency(summary.days90)} />
+      </SummaryStatGrid>
 
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Not Due</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="stat-value text-emerald-600 tabular-nums whitespace-nowrap">
-              {formatCurrency(summary.not_due || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Not yet due</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-400">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">1-30 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="stat-value text-yellow-600 tabular-nums whitespace-nowrap">
-              {formatCurrency(summary.current)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-400">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">31-60 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="stat-value text-amber-600 tabular-nums whitespace-nowrap">
-              {formatCurrency(summary.days30)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">61-90 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="stat-value text-orange-600 tabular-nums whitespace-nowrap">
-              {formatCurrency(summary.days60)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-destructive">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">90+ Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="stat-value text-destructive tabular-nums whitespace-nowrap">
-              {formatCurrency(summary.days90)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Sub-ledger ↔ GL control account integrity */}
       <ControlAccountReconciliationCard reportType="ar" />
