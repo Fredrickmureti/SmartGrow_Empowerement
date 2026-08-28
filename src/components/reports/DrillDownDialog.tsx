@@ -203,7 +203,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
           id: row.id as string,
           date: (partnerKind === "invoice" ? row.issue_date : row.bill_date) as string,
           reference: (partnerKind === "invoice" ? row.invoice_number : row.bill_number) || "",
-          description: `${row.status ?? ""} · ${formatCurrency(paid)} settled`,
+          description: `${row.status ?? ""} · ${money(paid)} settled`,
           // Presented on the side the document naturally sits on: a sales
           // invoice is a receivable (debit), a purchase bill a payable (credit).
           debit: partnerKind === "invoice" ? total : 0,
@@ -261,7 +261,10 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
               </>
             )}
             {scopedBusinessName && (
-              <span className="ml-4">Entity: {scopedBusinessName}</span>
+              <span className="ml-4">
+                Entity: {scopedBusinessName}
+                {scopedCurrency ? ` · amounts in ${scopedCurrency}` : ""}
+              </span>
             )}
             <span className="ml-4">
               {rowsToShow.length} transaction{rowsToShow.length !== 1 ? "s" : ""}
@@ -301,10 +304,10 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                     <TableCell className="max-w-xs truncate">{txn.description}</TableCell>
                     <TableCell>{getSourceBadge(txn.source_type)}</TableCell>
                     <TableCell className="text-right">
-                      {txn.debit > 0 ? formatCurrency(txn.debit) : "—"}
+                      {txn.debit > 0 ? money(txn.debit) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {txn.credit > 0 ? formatCurrency(txn.credit) : "—"}
+                      {txn.credit > 0 ? money(txn.credit) : "—"}
                     </TableCell>
                     <TableCell>
                       {(() => {
@@ -328,8 +331,8 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                 ))}
                 <TableRow className="font-bold bg-muted/50">
                   <TableCell colSpan={4}>Total</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalDebit)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalCredit)}</TableCell>
+                  <TableCell className="text-right">{money(totalDebit)}</TableCell>
+                  <TableCell className="text-right">{money(totalCredit)}</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableBody>
@@ -371,6 +374,9 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
         onOpenChange={setDrawerOpen}
         sourceType={drawerSource.type}
         sourceId={drawerSource.id}
+        businessId={scopedBusinessId}
+        businessName={scopedBusiness?.name ?? config?.businessName ?? null}
+        fallbackCurrency={scopedCurrency}
       />
     </Dialog>
   );
