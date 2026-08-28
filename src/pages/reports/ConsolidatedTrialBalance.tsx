@@ -361,7 +361,11 @@ export default function ConsolidatedTrialBalance() {
 
     return {
       title: "Consolidated Trial Balance",
-      subtitle: `${selectedGroup?.name ?? "Consolidation group"} · combined from the posted ledger · intercompany balances NOT eliminated`,
+      subtitle: `${selectedGroup?.name ?? "Consolidation group"} · combined from the posted ledger · intercompany balances NOT eliminated${
+        focusedLine
+          ? ` · narrowed to group account ${focusedLine.account_code ?? focusedLine.account_name}`
+          : ""
+      }`,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns as ReportColumn<never>[]),
       rows: toExportRows(exportRows, columns as ReportColumn<never>[]),
@@ -375,11 +379,13 @@ export default function ConsolidatedTrialBalance() {
     currency,
     dateFrom,
     dateTo,
+    focusedLine,
     selectedGroup?.name,
     showMembers,
     totals,
     unmappedLineCount,
   ]);
+
 
 
   if (!permLoading && !canViewConsolidated) {
