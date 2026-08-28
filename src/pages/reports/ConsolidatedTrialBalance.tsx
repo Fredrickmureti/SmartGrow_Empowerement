@@ -71,7 +71,6 @@ import {
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
-import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
@@ -835,6 +834,13 @@ export default function ConsolidatedTrialBalance() {
           </>
         )}
       </div>
+      <DrillDownDialog
+        open={!!drillConfig}
+        onOpenChange={(next) => {
+          if (!next) setDrillConfig(null);
+        }}
+        config={drillConfig}
+      />
     </ReportsLayout>
   );
 }
