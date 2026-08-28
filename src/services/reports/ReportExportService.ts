@@ -119,6 +119,17 @@ export interface ExportConfig {
    */
   businessId?: string;
   /**
+   * The entity whose masthead this artifact must bear, when it is NOT the
+   * entity the user is browsing. The only legitimate use is a CONSOLIDATED
+   * report: a group statement is issued by the group's parent company, so
+   * printing the subsidiary the user happens to be standing in would put the
+   * wrong legal entity, tax ID and logo on a group artifact.
+   *
+   * Set by the page (it knows the group); honoured by
+   * `ReportContext.enrichExportConfig`, which otherwise owns identity.
+   */
+  reportingEntityBusinessId?: string | null;
+  /**
    * INTERNAL ONLY — populated by `ReportContext.enrichExportConfig`.
    * The branch the report was scoped to (null = consolidated). The server
    * derives the masthead scope line from it; pages MUST NOT compose a
