@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -348,41 +349,32 @@ export default function CreditNotes() {
           </div>
         </div>
 
-        <div className="stats-grid grid-cols-1 sm:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Credits</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totals.total, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{activeCreditNotes.length} active credit notes</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">{formatCurrency(totals.available, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Applied</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">{formatCurrency(totals.applied, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Refunded</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{formatCurrency(totals.refunded, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Credits"
+            tone="primary"
+            value={formatCurrency(totals.total, baseCurrency)}
+            footer={`${activeCreditNotes.length} active credit notes`}
+          />
+          <SummaryStatCard
+            accent
+            tone="primary"
+            label="Available"
+            value={formatCurrency(totals.available, baseCurrency)}
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            label="Applied"
+            value={formatCurrency(totals.applied, baseCurrency)}
+          />
+          <SummaryStatCard
+            accent
+            tone="orange"
+            label="Refunded"
+            value={formatCurrency(totals.refunded, baseCurrency)}
+          />
+        </SummaryStatGrid>
 
         <div className="filter-bar">
           <div className="relative flex-1 min-w-0">

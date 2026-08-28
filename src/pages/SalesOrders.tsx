@@ -28,6 +28,7 @@ import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton
 import { StudioQuickPanelTrigger } from "@/components/studio/StudioQuickPanelTrigger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -598,56 +599,39 @@ export default function SalesOrders() {
         )}
 
         {/* Stats */}
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <ShoppingCart className="h-3.5 w-3.5" />
-                Total Orders
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(stats.totalValue)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5" />
-                Confirmed
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.confirmed}</div>
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(stats.confirmedValue)} ready</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5" />
-                In Progress
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{stats.processing}</div>
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(stats.processingValue)} being fulfilled</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5" />
-                Completed
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.fulfilled}</div>
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(stats.fulfilledValue)} fulfilled</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            icon={<ShoppingCart className="h-3.5 w-3.5" />}
+            label="Total Orders"
+            tone="primary"
+            value={stats.total}
+            footer={formatCurrency(stats.totalValue)}
+          />
+          <SummaryStatCard
+            accent
+            tone="blue"
+            icon={<CheckCircle className="h-3.5 w-3.5" />}
+            label="Confirmed"
+            value={stats.confirmed}
+            footer={`${formatCurrency(stats.confirmedValue)} ready`}
+          />
+          <SummaryStatCard
+            accent
+            tone="amber"
+            icon={<Package className="h-3.5 w-3.5" />}
+            label="In Progress"
+            value={stats.processing}
+            footer={`${formatCurrency(stats.processingValue)} being fulfilled`}
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            label="Completed"
+            value={stats.fulfilled}
+            footer={`${formatCurrency(stats.fulfilledValue)} fulfilled`}
+          />
+        </SummaryStatGrid>
 
         {/* Filters Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">

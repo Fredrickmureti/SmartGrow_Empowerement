@@ -60,6 +60,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -412,49 +413,41 @@ export default function RecurringInvoices() {
           </div>
         </div>
 
-        <div className="stats-grid grid-cols-1 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active Templates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-              <p className="text-xs text-muted-foreground">of {stats.total} total</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Invoices Generated</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.generated}</div>
-              <p className="text-xs text-muted-foreground">all time</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                <RefreshCw className="h-4 w-4" /> Next Due
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {filteredRecurring.filter((ri) => lifecycleOf(ri) === "active").length > 0
-                  ? format(
-                      new Date(
-                        Math.min(
-                          ...filteredRecurring
-                            .filter((ri) => lifecycleOf(ri) === "active")
-                            .map((ri) => new Date(ri.next_run_date).getTime())
-                        )
-                      ),
-                      "MMM d"
-                    )
-                  : "—"}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            label="Active Templates"
+            value={stats.active}
+            footer={`of ${stats.total} total`}
+          />
+          <SummaryStatCard
+            label="Invoices Generated"
+            tone="primary"
+            value={stats.generated}
+            footer="all time"
+          />
+          <SummaryStatCard
+            accent
+            tone="blue"
+            icon={<RefreshCw className="h-4 w-4" />}
+            label="Next Due"
+            value={
+              filteredRecurring.filter((ri) => lifecycleOf(ri) === "active").length > 0
+                ? format(
+                    new Date(
+                      Math.min(
+                        ...filteredRecurring
+                          .filter((ri) => lifecycleOf(ri) === "active")
+                          .map((ri) => new Date(ri.next_run_date).getTime())
+                      )
+                    ),
+                    "MMM d"
+                  )
+                : "—"
+            }
+          />
+        </SummaryStatGrid>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

@@ -21,6 +21,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -271,40 +272,12 @@ export default function ProformaInvoices() {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Proformas</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Drafts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">{stats.draft}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Sent</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.sent}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Accepted</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.accepted}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Total Proformas" tone="primary" value={stats.total} />
+          <SummaryStatCard accent label="Drafts" value={stats.draft} />
+          <SummaryStatCard accent tone="blue" label="Sent" value={stats.sent} />
+          <SummaryStatCard accent tone="emerald" label="Accepted" value={stats.accepted} />
+        </SummaryStatGrid>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

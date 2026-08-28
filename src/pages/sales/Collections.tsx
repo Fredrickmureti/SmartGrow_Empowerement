@@ -14,6 +14,7 @@ import { BaseCurrencyAmount } from "@/components/finance/BaseCurrencyAmount";
 import { useAgingReport, type AgingContactDetail } from "@/hooks/useAgingReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -197,7 +198,7 @@ export default function Collections() {
       </header>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <SummaryStatGrid>
         <KpiCard label="Net AR" value={formatCurrency(totalAR)} />
         <KpiCard label="Not yet due" value={formatCurrency(notDueTotal)} />
         <KpiCard label="Overdue" value={formatCurrency(overdueTotal)} accent />
@@ -205,7 +206,7 @@ export default function Collections() {
         <KpiCard label="Customers 90+ days" value={String(customers90Plus)} />
         {/* Disputed exposure is reported beside AR, never subtracted from it. */}
         <KpiCard label="Disputed" value={formatCurrency(totalDisputed)} />
-      </div>
+      </SummaryStatGrid>
 
       <Tabs defaultValue="list" className="space-y-4">
         <TabsList>
@@ -543,6 +544,7 @@ export default function Collections() {
   );
 }
 
+/** Thin wrapper over the canonical AR/AP stat card. */
 function KpiCard({
   label,
   value,
@@ -553,14 +555,12 @@ function KpiCard({
   accent?: boolean;
 }) {
   return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={`text-2xl font-semibold mt-1 ${accent ? "text-destructive" : ""}`}
-      >
-        {value}
-      </div>
-    </Card>
+    <SummaryStatCard
+      label={label}
+      value={value}
+      accent={accent}
+      tone={accent ? "destructive" : "default"}
+    />
   );
 }
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import {
   useSalespersonDashboard,
   useSalespersonDocuments,
@@ -202,86 +203,60 @@ export default function SalespersonPerformance() {
         </Card>
       )}
 
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <DollarSign className="h-4 w-4" /> Net revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.net)}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(totals.gross)} invoiced − {formatCurrency(totals.credit)} credited
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <FileText className="h-4 w-4" /> Invoices
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{totals.invoices}</p>
-            <p className="text-xs text-muted-foreground mt-1">Posted only — drafts excluded</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <ShoppingCart className="h-4 w-4" /> Orders booked
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{totals.orders}</p>
-            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(totals.ordersValue)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <CreditCard className="h-4 w-4" /> Cash collected
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.cash)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Allocated to their invoices</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <FileMinus className="h-4 w-4" /> Credit notes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.credit)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <AlertTriangle className="h-4 w-4" /> Outstanding
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-destructive tabular-nums whitespace-nowrap">{formatCurrency(totals.outstanding)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(totals.overdue)} overdue</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <Wallet className="h-4 w-4" /> POS (uninvoiced)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.pos)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Excluded from revenue to avoid double counting</p>
-          </CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          tone="primary"
+          icon={<DollarSign className="h-4 w-4" />}
+          label="Net revenue"
+          value={formatCurrency(totals.net)}
+          footer={`${formatCurrency(totals.gross)} invoiced − ${formatCurrency(totals.credit)} credited`}
+        />
+        <SummaryStatCard
+          icon={<FileText className="h-4 w-4" />}
+          label="Invoices"
+          value={totals.invoices}
+          footer="Posted only — drafts excluded"
+        />
+        <SummaryStatCard
+          accent
+          tone="blue"
+          icon={<ShoppingCart className="h-4 w-4" />}
+          label="Orders booked"
+          value={totals.orders}
+          footer={formatCurrency(totals.ordersValue)}
+        />
+        <SummaryStatCard
+          accent
+          tone="emerald"
+          icon={<CreditCard className="h-4 w-4" />}
+          label="Cash collected"
+          value={formatCurrency(totals.cash)}
+          footer="Allocated to their invoices"
+        />
+        <SummaryStatCard
+          accent
+          tone="orange"
+          icon={<FileMinus className="h-4 w-4" />}
+          label="Credit notes"
+          value={formatCurrency(totals.credit)}
+        />
+        <SummaryStatCard
+          accent
+          tone="destructive"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Outstanding"
+          value={formatCurrency(totals.outstanding)}
+          footer={`${formatCurrency(totals.overdue)} overdue`}
+        />
+        <SummaryStatCard
+          accent
+          tone="purple"
+          icon={<Wallet className="h-4 w-4" />}
+          label="POS (uninvoiced)"
+          value={formatCurrency(totals.pos)}
+          footer="Excluded from revenue to avoid double counting"
+        />
+      </SummaryStatGrid>
 
       <Card>
         <CardHeader>

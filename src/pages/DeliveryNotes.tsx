@@ -23,6 +23,7 @@ import { usePeekParam } from "@/design-system/records";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -360,55 +361,38 @@ export default function DeliveryNotes() {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5" />
-                Total Deliveries
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Truck className="h-3.5 w-3.5" />
-                Pending
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting dispatch</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Navigation className="h-3.5 w-3.5" />
-                In Transit
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.inTransit}</div>
-              <p className="text-xs text-muted-foreground mt-1">On the way</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5" />
-                Delivered
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.delivered}</div>
-              <p className="text-xs text-muted-foreground mt-1">Completed</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            icon={<Package className="h-3.5 w-3.5" />}
+            label="Total Deliveries"
+            tone="primary"
+            value={stats.total}
+          />
+          <SummaryStatCard
+            accent
+            tone="amber"
+            icon={<Truck className="h-3.5 w-3.5" />}
+            label="Pending"
+            value={stats.pending}
+            footer="Awaiting dispatch"
+          />
+          <SummaryStatCard
+            accent
+            tone="blue"
+            icon={<Navigation className="h-3.5 w-3.5" />}
+            label="In Transit"
+            value={stats.inTransit}
+            footer="On the way"
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            icon={<CheckCircle className="h-3.5 w-3.5" />}
+            label="Delivered"
+            value={stats.delivered}
+            footer="Completed"
+          />
+        </SummaryStatGrid>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
