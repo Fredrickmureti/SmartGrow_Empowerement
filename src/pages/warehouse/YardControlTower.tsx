@@ -11,7 +11,7 @@
  * page never writes `wms_trailer_visits` directly.
  */
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
