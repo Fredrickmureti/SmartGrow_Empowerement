@@ -574,13 +574,68 @@ export function ConsolidationAccountMapping({
                     {!accountsLoading && visibleAccounts.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-muted-foreground">
-                          No postable accounts found for the companies in this group.
+                          {memberAccounts.length === 0
+                            ? "No postable accounts found for the companies in this group."
+                            : "No accounts match these filters."}
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
               </div>
+
+              {visibleAccounts.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>
+                      {safePage * pageSize + 1}–
+                      {Math.min((safePage + 1) * pageSize, visibleAccounts.length)} of{" "}
+                      {visibleAccounts.length}
+                    </span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => {
+                        setPageSize(Number(v));
+                        setPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[110px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[25, 50, 100, 200].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n} / page
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage === 0}
+                      onClick={() => setPage(safePage - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {safePage + 1} of {pageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage >= pageCount - 1}
+                      onClick={() => setPage(safePage + 1)}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>
