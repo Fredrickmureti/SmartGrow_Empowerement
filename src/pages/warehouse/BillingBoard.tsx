@@ -916,7 +916,7 @@ export default function BillingBoard() {
                 />
               </div>
             </div>
-            <div className="min-w-0 grid grid-cols-3 gap-3">
+            <div className="min-w-0 grid grid-cols-1 gap-3 @md/page:grid-cols-3">
               <div>
                 <Label>Rate</Label>
                 <Input

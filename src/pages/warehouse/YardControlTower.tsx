@@ -11,7 +11,7 @@
  * page never writes `wms_trailer_visits` directly.
  */
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ import {
   dwellMinutes,
   formatDwell,
   isOnSite,
+  isOverdue,
   openTaskForVisit,
   yardTaskDestination,
   yardTaskStateLabel,
@@ -71,6 +72,7 @@ export default function YardControlTower() {
   // a jockey executes it. Turning it off applies the move immediately, which
   // is only correct when the supervisor *is* the person moving the trailer.
   const [dispatchMode, setDispatchMode] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const warehouses = useWarehouses();
   const effectiveWarehouse = warehouseId || warehouses.data?.[0]?.id || "";
@@ -93,17 +95,24 @@ export default function YardControlTower() {
   const openMoveTasks = moveTasks.data ?? [];
   const kpis = useMemo(() => deriveYardKpis(allVisits, slots.data ?? []), [allVisits, slots.data]);
 
+  // Drill-down contract: the yard KPI strip links here with ?filter=overdue.
+  // The link is only honest if the page actually narrows to those visits, so
+  // the parameter drives the visit log and selects that tab on arrival.
+  const filterParam = searchParams.get("filter");
+  const overdueOnly = filterParam === "overdue";
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allVisits;
-    return allVisits.filter(
+    const base = overdueOnly ? allVisits.filter((v) => isOnSite(v) && isOverdue(v)) : allVisits;
+    if (!q) return base;
+    return base.filter(
       (v) =>
         v.trailer_ref.toLowerCase().includes(q) ||
         (v.driver_name ?? "").toLowerCase().includes(q) ||
         (v.carrier?.name ?? "").toLowerCase().includes(q) ||
         (v.appointment?.appointment_no ?? "").toLowerCase().includes(q),
     );
-  }, [allVisits, search]);
+  }, [allVisits, search, overdueOnly]);
 
   // Keep the open drawer in sync with realtime updates.
   const selectedLive = selected ? (allVisits.find((v) => v.id === selected.id) ?? selected) : null;
@@ -197,6 +206,20 @@ export default function YardControlTower() {
               {dispatchMode ? "Dispatch move to jockey" : "Apply move immediately"}
             </Label>
           </div>
+          {overdueOnly && (
+            <Badge
+              variant="outline"
+              className="h-9 gap-1.5 px-3 cursor-pointer"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete("filter");
+                setSearchParams(next, { replace: true });
+              }}
+            >
+              Past appointment window only
+              <span aria-hidden className="text-muted-foreground">×</span>
+            </Badge>
+          )}
         </div>
 
         <YardKpiStrip kpis={kpis} />
@@ -263,7 +286,7 @@ export default function YardControlTower() {
             onDragCancel={() => setDragging(null)}
             onDragEnd={onDragEnd}
           >
-            <Tabs defaultValue="map">
+            <Tabs defaultValue={overdueOnly ? "log" : "map"}>
               <TabsList>
                 <TabsTrigger value="map">Yard map</TabsTrigger>
                 <TabsTrigger value="flow">Flow board</TabsTrigger>

@@ -150,7 +150,7 @@ export function OperatorDialog({
             </div>
           </div>
 
-          <div className="min-w-0 grid grid-cols-3 gap-4">
+          <div className="min-w-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label>Operator code</Label>
               <Input value={operatorCode} onChange={(e) => setOperatorCode(e.target.value)} placeholder="OP-014" />

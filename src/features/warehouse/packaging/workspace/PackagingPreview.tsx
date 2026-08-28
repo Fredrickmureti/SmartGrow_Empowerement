@@ -60,7 +60,7 @@ export function PackagingPreview({
             value={record.lifecycle_status}
             onValueChange={(v) => onLifecycleChange(v as PackagingLifecycle)}
           >
-            <SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full @sm/page:w-[150px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PACKAGING_LIFECYCLES.map((l) => (
                 <SelectItem key={l} value={l} className="capitalize">{l}</SelectItem>
