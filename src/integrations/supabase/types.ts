@@ -95242,6 +95242,15 @@ export type Database = {
         Args: { p_so_id: string; p_user_id: string }
         Returns: Json
       }
+      consolidation_create_run: {
+        Args: {
+          _date_from: string
+          _date_to: string
+          _group_id: string
+          _notes?: string
+        }
+        Returns: string
+      }
       consolidation_cta_reconciliation: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -95339,6 +95348,7 @@ export type Database = {
           total_debit: number
         }[]
       }
+      consolidation_finalize_run: { Args: { _run_id: string }; Returns: string }
       consolidation_generate_eliminations: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -95522,6 +95532,10 @@ export type Database = {
       consolidation_seed_default_elimination_rules: {
         Args: { _group_id: string }
         Returns: number
+      }
+      consolidation_supersede_run: {
+        Args: { _run_id: string; _superseded_by_run_id?: string }
+        Returns: string
       }
       consolidation_translate_member: {
         Args: {
