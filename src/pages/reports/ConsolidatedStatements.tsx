@@ -4,14 +4,18 @@
  * SINGLE SOURCE OF TRUTH
  * ----------------------
  * Every figure, including the totals and the "does it balance" verdict, comes
- * from `get_consolidated_statement_lines` / `get_consolidated_statement_totals`,
- * which are projections of the same translated consolidated trial balance this
- * app already reports. This page performs no accounting arithmetic at all, so
- * it cannot drift from the trial balance or from the single-entity statements.
+ * from `get_consolidated_statement_lines_eliminated` /
+ * `get_consolidated_statement_totals_eliminated`, which are projections of the
+ * same translated consolidated trial balance this app already reports. This
+ * page performs no accounting arithmetic at all, so it cannot drift from the
+ * trial balance or from the single-entity statements.
+ *
+ * The lines and the totals MUST come from the same projection. Footing the
+ * aggregated totals under eliminated rows prints a total that does not equal
+ * the lines above it and a balance verdict on a column nobody is reading.
  *
  * HONEST LIMITS (stated, never papered over)
  * ------------------------------------------
- * - No intercompany eliminations yet: intra-group trading still appears twice.
  * - Non-controlling interests are disclosed on the trial balance, not netted.
  * - Any scope or rate gap the engine refuses is surfaced verbatim.
  */
