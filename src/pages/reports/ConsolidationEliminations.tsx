@@ -28,6 +28,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
 import {
   Select,
   SelectContent,
@@ -73,6 +83,9 @@ import {
   useConsolidationIntercompanyFlows,
   useEliminatedStatementTotals,
   useEliminationDiagnosis,
+  useEliminationHistory,
+  ELIMINATION_EVENT_LABELS,
+
 } from "@/hooks/finance/useConsolidationEliminations";
 import { EliminationRefusalPanel } from "@/components/finance/EliminationRefusalPanel";
 import { EliminationEvidencePanel } from "@/components/finance/EliminationEvidencePanel";
@@ -116,6 +129,9 @@ export default function ConsolidationEliminations() {
     searchParams.get("group_account_id"),
   );
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [reverseReason, setReverseReason] = useState("");
+
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
   const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
@@ -141,13 +157,19 @@ export default function ConsolidationEliminations() {
   // Read-only server preflight: why this period would be refused, and which
   // remedies the engine itself would accept.
   const diagnosisQuery = useEliminationDiagnosis(readyGroupId, dateFrom, dateTo);
+  // History is a record of what was done, so it stays readable even when the
+  // current scope would refuse a fresh run.
+  const historyQuery = useEliminationHistory(groupId, dateFrom, dateTo);
   const canManageConsolidation = useCanManageConsolidation();
-  const { generate } = useConsolidationEliminationMutations();
+  const { generate, reverse } = useConsolidationEliminationMutations();
+
 
 
   const eliminations = eliminationsQuery.data ?? [];
   const hasRun = eliminations.length > 0;
   const differences = eliminations.filter((r) => r.is_difference);
+  const history = historyQuery.data ?? [];
+
 
   const columns = useMemo<ReportColumn[]>(
     () => [
@@ -279,6 +301,34 @@ export default function ConsolidationEliminations() {
     }
   };
 
+  const runReversal = async () => {
+    if (!groupId) return;
+    setRefusal(null);
+    try {
+      const result = await reverse.mutateAsync({
+        group_id: groupId,
+        date_from: dateFrom,
+        date_to: dateTo,
+        reason: reverseReason,
+      });
+      setReverseOpen(false);
+      setReverseReason("");
+      toast.success(
+        `Eliminations withdrawn — ${result?.reversed_leg_count ?? 0} leg${
+          result?.reversed_leg_count === 1 ? "" : "s"
+        } removed and recorded in history`,
+      );
+    } catch (e) {
+      // A closed member period, a missing reason or a set that was never
+      // generated: the engine's own words, unaltered.
+      const message = toAppError(e, "The withdrawal was refused").message;
+      setRefusal(message);
+      toast.error(message);
+    }
+  };
+
+
+
   if (!permLoading && !canViewConsolidated) {
     return (
       <ReportsLayout>
@@ -390,13 +440,21 @@ export default function ConsolidationEliminations() {
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </div>
-            <Button
-              onClick={runGeneration}
-              disabled={!groupId || !scopeIsClean || generate.isPending}
-            >
-              {generate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {hasRun ? "Regenerate" : "Generate eliminations"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={runGeneration}
+                disabled={!groupId || !scopeIsClean || generate.isPending}
+              >
+                {generate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {hasRun ? "Regenerate" : "Generate eliminations"}
+              </Button>
+              {hasRun && canManageConsolidation && (
+                <Button variant="outline" onClick={() => setReverseOpen(true)}>
+                  Withdraw
+                </Button>
+              )}
+            </div>
+
           </CardContent>
         </Card>
 
@@ -568,7 +626,127 @@ export default function ConsolidationEliminations() {
             </CardContent>
           </Card>
         )}
+
+        {groupId && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">History of this period's runs</CardTitle>
+              <CardDescription>
+                Every generation, replacement and withdrawal, recorded by the engine in
+                the same transaction as the figures it produced. A refused run leaves no
+                entry here.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {historyQuery.isLoading && (
+                <p className="text-sm text-muted-foreground">Loading history…</p>
+              )}
+              {!historyQuery.isLoading && history.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Eliminations have never been generated for {period}.
+                </p>
+              )}
+              {history.map((event) => (
+                <div key={event.id} className="border rounded-md px-3 py-2 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <Badge variant={event.action === "reverse" ? "outline" : "secondary"}>
+                      {ELIMINATION_EVENT_LABELS[event.action] ?? event.action}
+                    </Badge>
+                    <span className="font-medium">{event.actor_name}</span>
+                    <span className="text-muted-foreground">
+                      {format(new Date(event.occurred_at), "MMM d, yyyy HH:mm")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {event.action === "reverse" ? (
+                      <>
+                        Withdrew {event.replaced_leg_count} leg
+                        {event.replaced_leg_count === 1 ? "" : "s"} totalling{" "}
+                        {formatAmount(
+                          Number(event.replaced_total_debit),
+                          event.presentation_currency ?? currency,
+                        )}{" "}
+                        debit.
+                      </>
+                    ) : (
+                      <>
+                        {event.leg_count} leg{event.leg_count === 1 ? "" : "s"} —{" "}
+                        {formatAmount(
+                          Number(event.total_debit),
+                          event.presentation_currency ?? currency,
+                        )}{" "}
+                        debit against{" "}
+                        {formatAmount(
+                          Number(event.total_credit),
+                          event.presentation_currency ?? currency,
+                        )}{" "}
+                        credit
+                        {event.difference_leg_count > 0
+                          ? `, of which ${event.difference_leg_count} unreconciled residual${event.difference_leg_count === 1 ? "" : "s"}`
+                          : ""}
+                        {event.replaced_leg_count > 0
+                          ? `. Replaced an earlier set of ${event.replaced_leg_count} leg${event.replaced_leg_count === 1 ? "" : "s"}`
+                          : ""}
+                        .
+                      </>
+                    )}
+                  </p>
+                  {event.reason && (
+                    <p className="text-sm">Reason given: {event.reason}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Scope at the time:{" "}
+                    {Array.isArray(event.scope_snapshot) &&
+                    event.scope_snapshot.length > 0
+                      ? (event.scope_snapshot as { business_name?: string; base_currency?: string }[])
+                          .map((m) => `${m.business_name} (${m.base_currency})`)
+                          .join(", ")
+                      : "not recorded for a withdrawal"}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <Dialog open={reverseOpen} onOpenChange={setReverseOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Withdraw this period's eliminations</DialogTitle>
+              <DialogDescription>
+                The generated set for {period} is removed and the group's statements go
+                back to their aggregated figures. The withdrawal itself stays in history
+                with the reason you give.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1">
+              <Label htmlFor="reverse-reason">Why is this set being withdrawn?</Label>
+              <Textarea
+                id="reverse-reason"
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                placeholder="e.g. a member restated its intercompany balances after the run"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReverseOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={reverseReason.trim().length === 0 || reverse.isPending}
+                onClick={runReversal}
+              >
+                {reverse.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Withdraw eliminations
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+
     </ReportsLayout>
   );
 }
