@@ -230,7 +230,7 @@ function buildRenderPayload(
     columns: config.columns,
     rows: config.rows,
     ...(wireFormat === "pdf"
-      ? { orientation: "landscape" as const }
+      ? { orientation: config.orientation ?? ("landscape" as const) }
       : { format: wireFormat }),
   };
 }
