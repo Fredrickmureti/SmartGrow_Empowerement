@@ -654,3 +654,44 @@ consolidated cash flow statement.
   the `viewer_can_open_ledger` guard, difference legs explained by policy, and
   the statement → drill-down parameters asserted on both ends.
 - `tsgo --noEmit` clean.
+
+## Correction — Steps 7.5 and 7.6 were already implemented (recorded 2026-08)
+
+The "Intentionally absent" list above is wrong as it stands. Re-reading the
+database and the application this session, two of the items listed as absent
+are in fact live:
+
+- **Audit trail (Step 7.5).** `consolidation_elimination_events` records every
+  generation and withdrawal with actor, occurrence time, leg count, replaced leg
+  count and reason. `useConsolidationEliminations.ts` reads it and
+  `ConsolidationEliminations.tsx` renders the run history.
+- **Period control and reversal (Step 7.6).** `consolidation_generate_eliminations`
+  refuses to write into a month closed for any member, naming the company, and
+  `consolidation_reverse_eliminations` withdraws a set with a mandatory reason.
+
+Still genuinely absent: persisted consolidation runs (Brick 8), non-controlling
+interests, and the consolidated cash flow statement.
+
+## Step 7.7 — realistic scenario proof (closed)
+
+`supabase/tests/consolidation_scenarios_test.sql` proves the engine on fixtures
+shaped like real groups rather than on single mechanisms. Each block builds its
+own organization, users, companies, charts, posted journals and group, then
+rolls itself back with a final `RAISE`; nothing is committed and the live tenant
+is never seeded. Blocks are run one at a time.
+
+All four blocks were executed against the live database this session and passed:
+
+| Block | What it proves | Result |
+|---|---|---|
+| 1 | Two companies with different charts consolidate additively; an unmapped member chart refuses the group statement and names the offending account codes; a group with no declared intercompany eliminates nothing and its figures are unchanged by the elimination pass | Pass — income 75,000, assets 295,000, equity 295,000 (capital 250,000 + result 45,000), balanced |
+| 2 | A KES parent with a USD subsidiary on a rate moving 0.10/day: assets at the closing rate, income at the period average (explicitly *not* the closing rate), share capital at its historical date, non-zero translation reserve, CTA reconciled per member, balance sheet balances | Pass — assets 230,680, income 21,480, reserve 5,200, CTA reconciled |
+| 3 | A 12,000 intercompany sale with a reciprocal receivable/payable: four balanced legs, group income, expense and liabilities fall to zero while cash of 250,000 stands, a second run replaces rather than doubles the set, both runs are attributed to the actor with their leg counts, and withdrawal with a reason restores the pre-run position exactly | Pass |
+| 4 | A member's closed month refuses the elimination run and names that company, while reading the same period stays allowed; a user of another organization is refused both consolidated reports and, under RLS evaluated as an end user, cannot see the group row at all | Pass |
+
+Two assumptions were corrected while writing this: group `total_equity` carries
+the period result (capital plus net result, not capital alone), and row-level
+security cannot be proven from the migration role — that check now runs under
+`SET LOCAL ROLE authenticated`.
+
+Brick 8 (persisted consolidation runs) may now be started.
