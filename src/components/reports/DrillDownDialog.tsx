@@ -94,10 +94,18 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
   // An explicit entity scope from the caller always wins over the workspace
   // switcher: consolidated surfaces drill into the column's entity.
   const scopedBusinessId = config?.businessId ?? currentBusiness?.id ?? null;
-  const scopedBusinessName =
-    config?.businessId && config.businessId !== currentBusiness?.id
-      ? config.businessName ?? null
-      : null;
+  const scopedBusiness = businesses.find((b) => b.id === scopedBusinessId) ?? null;
+  const isForeignEntity = !!config?.businessId && config.businessId !== currentBusiness?.id;
+  const scopedBusinessName = isForeignEntity
+    ? config?.businessName ?? scopedBusiness?.name ?? null
+    : null;
+  /**
+   * GL lines are posted in the owning company's base currency. The workspace's
+   * own base currency is irrelevant here — labelling a member's KES line as USD
+   * because the viewer happens to sit in a USD company misstates the record.
+   */
+  const scopedCurrency = scopedBusiness?.base_currency ?? undefined;
+  const money = (amount: number) => formatCurrency(amount, scopedCurrency);
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: [
