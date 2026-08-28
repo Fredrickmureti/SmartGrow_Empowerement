@@ -554,52 +554,34 @@ export default function CustomerPayments() {
             document engine via handleDispatchReceipt — no local dialog. */}
 
         {/* Stats */}
-        <div className="stats-grid grid-cols-1 sm:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5" />
-                Total Payments
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5" />
-                Total Received
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(stats.totalAmount, baseCurrency)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>This Month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">
-                {formatCurrency(stats.thisMonth, baseCurrency)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Unreconciled</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">
-                {stats.unreconciled} ({formatCurrency(stats.unreconciledAmount, baseCurrency)})
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            icon={<CreditCard className="h-3.5 w-3.5" />}
+            label="Total Payments"
+            tone="primary"
+            value={stats.total}
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            label="Total Received"
+            value={formatCurrency(stats.totalAmount, baseCurrency)}
+          />
+          <SummaryStatCard
+            accent
+            tone="blue"
+            label="This Month"
+            value={formatCurrency(stats.thisMonth, baseCurrency)}
+          />
+          <SummaryStatCard
+            accent
+            tone="amber"
+            label="Unreconciled"
+            value={stats.unreconciled}
+            footer={formatCurrency(stats.unreconciledAmount, baseCurrency)}
+          />
+        </SummaryStatGrid>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
