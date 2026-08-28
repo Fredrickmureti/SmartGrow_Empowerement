@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface SectionProps {
+  /** DOM id — lets a summary card scroll-link to its drill-down section. */
+  id?: string;
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
@@ -18,6 +20,7 @@ interface SectionProps {
 }
 
 export function Section({
+  id,
   title,
   description,
   actions,
@@ -28,6 +31,7 @@ export function Section({
 }: SectionProps) {
   return (
     <section
+      id={id}
       className={cn(
         "w-full min-w-0 max-w-full",
         !unstyled &&

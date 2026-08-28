@@ -25,6 +25,16 @@ function walk(dir: string): string[] {
 
 const FILES = ROOTS.flatMap(walk);
 
+/**
+ * Composite panels that merely *read* like a card by name. These are not
+ * summary-metric tiles: they combine a health headline, a stage sparkline and
+ * a CTA, which `SummaryStatCard` deliberately does not model. Adding a file
+ * here requires that justification — a plain label+value block never qualifies.
+ */
+const COMPOSITE_PANELS = new Set([
+  "src/features/warehouse/overview/TowerSummaryCard.tsx",
+]);
+
 describe("Warehouse canonical card architecture", () => {
   it("has no MetricTile — the deprecated wrapper is deleted, not re-added", () => {
     const offenders = FILES.filter((f) =>
@@ -34,11 +44,30 @@ describe("Warehouse canonical card architecture", () => {
   });
 
   it("declares no Warehouse-local summary card component", () => {
-    const offenders = FILES.filter((f) =>
-      /export function (Metric|Stat|Kpi|KPI)(Tile|Card)\b/.test(
-        readFileSync(f, "utf8"),
-      ),
-    );
+    // Any local declaration — exported or not, `function` or `const` — whose
+    // name reads like a stat card is a parallel card system in the making.
+    const DECL =
+      /(?:export\s+)?(?:function|const|class)\s+\w*(?:Kpi|KPI|Stat|Metric|Summary)\w*(?:Card|Tile)\w*\b/;
+    const offenders = FILES.filter((f) => {
+      if (COMPOSITE_PANELS.has(f)) return false;
+      return DECL.test(readFileSync(f, "utf8"));
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("renders no bespoke large-metric typography", () => {
+    // The canonical card owns metric typography. A warehouse file that sets
+    // its own text-2xl/3xl + bold is rendering a stat outside the system.
+    const offenders = FILES.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return src
+        .split("\n")
+        .some(
+          (line) =>
+            /\btext-(?:2xl|3xl)\b/.test(line) &&
+            /\bfont-(?:bold|semibold)\b/.test(line),
+        );
+    });
     expect(offenders).toEqual([]);
   });
 
