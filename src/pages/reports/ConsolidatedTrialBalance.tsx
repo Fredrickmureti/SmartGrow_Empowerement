@@ -639,6 +639,37 @@ export default function ConsolidatedTrialBalance() {
                           </AlertDescription>
                         </Alert>
                       )}
+                      {focusAccountId && (
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription className="text-sm flex flex-wrap items-center gap-2">
+                            {focusedLine ? (
+                              <span>
+                                Narrowed to the group account behind the statement line
+                                you opened:{" "}
+                                <strong>
+                                  {focusedLine.account_code
+                                    ? `${focusedLine.account_code} · `
+                                    : ""}
+                                  {focusedLine.account_name}
+                                </strong>
+                                . The totals below cover this account only.
+                              </span>
+                            ) : focusMissed ? (
+                              <span>
+                                That group account has no posted activity in this group
+                                and period, so there is nothing beneath the figure here.
+                              </span>
+                            ) : (
+                              <span>Narrowing to the selected group account…</span>
+                            )}
+                            <Button variant="outline" size="sm" onClick={clearFocus}>
+                              Show the whole group
+                            </Button>
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
                       <ReportSurface
 
                         title={`Consolidated trial balance — ${selectedGroup?.name ?? ""}`}
