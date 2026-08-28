@@ -95358,6 +95358,10 @@ export type Database = {
         }[]
       }
       consolidation_finalize_run: { Args: { _run_id: string }; Returns: string }
+      consolidation_fx_remedy_note: {
+        Args: { _as_of: string; _business_id: string }
+        Returns: string
+      }
       consolidation_generate_eliminations: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -99084,6 +99088,15 @@ export type Database = {
         Args: { _account_type: string; _detail_type: string }
         Returns: boolean
       }
+      fx_open_monetary_positions: {
+        Args: { _as_of: string; _business_id: string }
+        Returns: {
+          account_id: string
+          base_balance_old: number
+          currency: string
+          foreign_balance: number
+        }[]
+      }
       fx_period_average_rate: {
         Args: {
           _business_id: string
@@ -99159,6 +99172,16 @@ export type Database = {
           document_kind: string
           rate_book_rate: number
           stamped_rate: number
+        }[]
+      }
+      fx_unrecognised_exchange_difference: {
+        Args: { _as_of: string; _business_id: string }
+        Returns: {
+          carried_rate: number
+          closing_rate: number
+          currency: string
+          foreign_balance: number
+          unrecognised: number
         }[]
       }
       garnishment_apply_pack_to_org: {
