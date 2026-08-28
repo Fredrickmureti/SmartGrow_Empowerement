@@ -282,6 +282,38 @@ export default function Consolidation() {
     [rows],
   );
 
+  /**
+   * Export the comparison exactly as it reads on screen. Amounts are formatted
+   * per company in that company's own currency, and the export carries the same
+   * "not a consolidation" caveat as the page — an exported artifact must never
+   * imply an addition across currencies that the report itself refuses to make.
+   */
+  const getExportConfig = useCallback((): ExportConfig => {
+    const data = rows ?? [];
+    return {
+      title: "Cross-Company Comparative View",
+      subtitle: mixedCurrency
+        ? `Side-by-side profit & loss — each company in its own currency (${currencies.join(", ")}). Not a consolidation: figures are not summed, translated or eliminated.`
+        : "Side-by-side profit & loss in each company's own books. Not a consolidation: figures are not summed, translated or eliminated.",
+      dateRange: `${dateFrom} to ${dateTo}`,
+      sheetName: "By company",
+      columns: [
+        { key: "company", label: "Company" },
+        { key: "currency", label: "Currency" },
+        { key: "income", label: "Income", align: "right" },
+        { key: "expense", label: "Expenses", align: "right" },
+        { key: "netIncome", label: "Net Income", align: "right" },
+      ],
+      rows: data.map((r) => ({
+        company: r.businessName,
+        currency: r.currency,
+        income: formatMoney(r.income, r.currency),
+        expense: formatMoney(r.expense, r.currency),
+        netIncome: formatMoney(r.netIncome, r.currency),
+      })),
+    };
+  }, [rows, mixedCurrency, currencies, dateFrom, dateTo]);
+
   if (!permLoading && !canViewConsolidation) {
     return (
       <ReportsLayout>
@@ -399,10 +431,17 @@ export default function Consolidation() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Profit &amp; Loss — by company</CardTitle>
-              <CardDescription>
-                Native-currency totals for the selected period.
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Profit &amp; Loss — by company</CardTitle>
+                  <CardDescription>
+                    Native-currency totals for the selected period. Click any figure to
+                    see the accounts and ledger lines behind it.
+                  </CardDescription>
+                </div>
+                {/* Same artifact stack as every other report: preview, print, PDF, Excel, CSV. */}
+                <ReportExportButtons getExportConfig={getExportConfig} />
+              </div>
             </CardHeader>
             <CardContent>
               {error ? (
@@ -461,6 +500,15 @@ export default function Consolidation() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lineage in place: accounts behind a company's figure, then its ledger. */}
+      <EntityPnlBreakdownDialog
+        open={!!pnlTarget}
+        onOpenChange={(next) => {
+          if (!next) setPnlTarget(null);
+        }}
+        target={pnlTarget}
+      />
     </ReportsLayout>
   );
 }
