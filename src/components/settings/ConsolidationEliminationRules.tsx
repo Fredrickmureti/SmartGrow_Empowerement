@@ -42,6 +42,8 @@ import {
   ELIMINATION_CLASS_LABELS,
   ELIMINATION_POLICY_LABELS,
   ELIMINATION_RULE_DEFAULTS,
+  ELIMINATION_TOLERANCE_CAP,
+
   useConsolidationEliminationRules,
   useConsolidationEliminationMutations,
   type EliminationClass,
