@@ -19,7 +19,7 @@
  * a second, independent balance computation would be a second source of
  * accounting truth and could disagree with the formal statements.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
@@ -49,6 +49,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchGLTotals } from "@/services/gl/fetchGLTotals";
+import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
+import {
+  EntityPnlBreakdownDialog,
+  type EntityPnlTarget,
+  type PnlSection,
+} from "@/components/reports/EntityPnlBreakdownDialog";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ShieldAlert } from "lucide-react";
 
@@ -151,6 +159,9 @@ function formatMoney(value: number, currency: string) {
 }
 
 export default function Consolidation() {
+  // A cross-company read is audit evidence in its own right: who compared which
+  // entities, over which period. Logged like every other consolidated surface.
+  useReportViewLogger();
   const navigate = useNavigate();
   // Authorization mirrors the database, not an org-role guess: cross-company
   // figures need the same `finance.view_consolidated` permission the ledger RPCs
@@ -174,6 +185,39 @@ export default function Consolidation() {
   );
   const mixedCurrency = currencies.length > 1;
 
+  // Figure → the accounts behind it → the ledger lines → the source document,
+  // all without leaving this comparison. The entity travels explicitly because
+  // this view deliberately shows companies other than the active workspace one.
+  const [pnlTarget, setPnlTarget] = useState<EntityPnlTarget | null>(null);
+  const openBreakdown = useCallback(
+    (row: ReportRow, section: PnlSection) => {
+      const values = row.values as any;
+      setPnlTarget({
+        businessId: String(row.id),
+        businessName: String(values?.businessName ?? ""),
+        currency: String(values?.currency ?? "—"),
+        section,
+        dateFrom,
+        dateTo,
+      });
+    },
+    [dateFrom, dateTo],
+  );
+
+  const drillCell = useCallback(
+    (row: ReportRow, section: PnlSection, display: React.ReactNode) => (
+      <button
+        type="button"
+        title="See the accounts behind this figure"
+        className="tabular-nums underline underline-offset-2 hover:text-primary"
+        onClick={() => openBreakdown(row, section)}
+      >
+        {display}
+      </button>
+    ),
+    [openBreakdown],
+  );
+
   const comparisonColumns = useMemo<ReportColumn[]>(
     () => [
       { key: "businessName", header: "Company" },
@@ -186,13 +230,23 @@ export default function Consolidation() {
         key: "income",
         header: "Income",
         align: "right",
-        render: (row) => formatMoney((row.values as any)?.income as number, (row.values as any)?.currency as string),
+        render: (row) =>
+          drillCell(
+            row,
+            "income",
+            formatMoney((row.values as any)?.income as number, (row.values as any)?.currency as string),
+          ),
       },
       {
         key: "expense",
         header: "Expenses",
         align: "right",
-        render: (row) => formatMoney((row.values as any)?.expense as number, (row.values as any)?.currency as string),
+        render: (row) =>
+          drillCell(
+            row,
+            "expense",
+            formatMoney((row.values as any)?.expense as number, (row.values as any)?.currency as string),
+          ),
       },
       {
         key: "netIncome",
@@ -200,15 +254,17 @@ export default function Consolidation() {
         align: "right",
         render: (row) => {
           const net = (row.values as any)?.netIncome as number;
-          return (
+          return drillCell(
+            row,
+            "net",
             <span className={`font-semibold ${net >= 0 ? "text-emerald-600" : "text-destructive"}`}>
               {formatMoney(net, (row.values as any)?.currency as string)}
-            </span>
+            </span>,
           );
         },
       },
     ],
-    [],
+    [drillCell],
   );
 
   const comparisonRows = useMemo<ReportRow[]>(
