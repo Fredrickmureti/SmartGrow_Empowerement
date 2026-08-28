@@ -20,6 +20,7 @@ import {
   PageHeader,
 } from "@/design-system";
 import { DocumentStatusBadge } from "@/design-system/records";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
