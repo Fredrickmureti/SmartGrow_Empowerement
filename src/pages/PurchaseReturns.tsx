@@ -258,69 +258,44 @@ export default function PurchaseReturns() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingDown className="h-3.5 w-3.5" />
-                Total return value
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold text-destructive sm:text-2xl">
-                {formatCurrency(stats.totalValue, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">{stats.total} returns</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                Awaiting approval
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold text-amber-600 sm:text-2xl">
-                {stats.awaitingApproval.length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {formatCurrency(
-                  stats.awaitingApproval.reduce((s, r) => s + (r.total ?? 0), 0),
-                  baseCurrency,
-                )}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Truck className="h-3.5 w-3.5" />
-                Awaiting dispatch
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold text-blue-600 sm:text-2xl">
-                {stats.awaitingDispatch.length}
-              </div>
-              <p className="text-xs text-muted-foreground">Approved, stock still on hand</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" />
-                Awaiting debit note
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold text-emerald-600 sm:text-2xl">
-                {stats.awaitingCredit.length}
-              </div>
-              <p className="text-xs text-muted-foreground">Shipped, money not yet recovered</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            accent
+            tone="destructive"
+            icon={<TrendingDown className="h-3.5 w-3.5" />}
+            label="Total return value"
+            value={formatCurrency(stats.totalValue, baseCurrency)}
+            footer={`${stats.total} returns`}
+          />
+          <SummaryStatCard
+            accent
+            tone="amber"
+            icon={<Clock className="h-3.5 w-3.5" />}
+            label="Awaiting approval"
+            value={stats.awaitingApproval.length}
+            footer={formatCurrency(
+              stats.awaitingApproval.reduce((s, r) => s + (r.total ?? 0), 0),
+              baseCurrency,
+            )}
+          />
+          <SummaryStatCard
+            accent
+            tone="blue"
+            icon={<Truck className="h-3.5 w-3.5" />}
+            label="Awaiting dispatch"
+            value={stats.awaitingDispatch.length}
+            footer="Approved, stock still on hand"
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            icon={<FileText className="h-3.5 w-3.5" />}
+            label="Awaiting debit note"
+            value={stats.awaitingCredit.length}
+            footer="Shipped, money not yet recovered"
+          />
+        </SummaryStatGrid>
+
 
         <div className="filter-bar">
           <div className="relative min-w-0 flex-1">
