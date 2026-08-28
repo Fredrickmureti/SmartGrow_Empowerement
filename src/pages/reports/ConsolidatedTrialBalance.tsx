@@ -179,16 +179,30 @@ export default function ConsolidatedTrialBalance() {
     [accountLines],
   );
 
+  // When a statement line sent us here, the report narrows to that group
+  // account. The narrowing is explicit and reversible — never a silent filter.
+  const visibleLines = useMemo(
+    () =>
+      focusAccountId
+        ? accountLines.filter((l) => l.account_id === focusAccountId)
+        : accountLines,
+    [accountLines, focusAccountId],
+  );
+  const focusedLine = focusAccountId ? (visibleLines[0] ?? null) : null;
+  const focusMissed = !!focusAccountId && !tbQuery.isLoading && visibleLines.length === 0;
 
+  // Totals follow what the table actually shows, so a narrowed report never
+  // presents a group total beside a single account's rows.
   const totals = useMemo(() => {
     let debit = 0;
     let credit = 0;
-    for (const line of accountLines) {
+    for (const line of visibleLines) {
       debit += line.total_debit;
       credit += line.total_credit;
     }
     return { debit, credit, difference: debit - credit };
-  }, [accountLines]);
+  }, [visibleLines]);
+
 
   const nciDisclosure = useMemo(() => {
     const byMember = new Map<string, { name: string; ownership: number; amount: number }>();
