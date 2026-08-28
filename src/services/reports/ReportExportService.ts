@@ -153,7 +153,15 @@ export interface ExportConfig {
    * `columnSpecs.ts`, which stays the single source of truth.
    */
   formatProfile?: "financial" | "operational";
+  /**
+   * Paper orientation for the PDF. Omit for the historical default
+   * (landscape) — set "portrait" only where the report is genuinely narrow,
+   * e.g. a consolidated statement with three value columns, which reads as
+   * a statutory statement rather than a wide schedule.
+   */
+  orientation?: "portrait" | "landscape";
 }
+
 
 /**
  * Server-build hints. When a page supplies `reportType` + period +
