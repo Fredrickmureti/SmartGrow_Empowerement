@@ -139,3 +139,6 @@ Done and typechecking clean:
 - Warehouse forks retired: `MetricTile` is now a deprecated wrapper over the canonical card; `YardKpiStrip`, `ReplenKpiStrip`, `WaveStageStrip`, `WaveCapacityPanel`, `ExceptionAnalytics`, `LabourPlanningPanel`, `LabourPerformancePanel` and the Exceptions Inbox strip all compose `SummaryStatCard`/`SummaryStatGrid`, with drill-down targets and tone-driven accents wired.
 
 Remaining (waves B–G page migrations): `DockSchedule`, `Slotting`, `CrossdockBoard`, `ReturnsLaneBoard`, `CountReview`, `LicensePlates`, `LicensePlateView`, `LocationOverviewTab`, `LabourBoard`, `ExecutionTelemetry`, `BillingBoard`, `WarehousesList`, `WarehouseLayoutWorkspace`, `LabelVerifyDialog`, plus the Inbound/Outbound tower pages — each still authors its own `<Card>` stat markup. Also outstanding: the architecture test that fails bespoke warehouse stat markup, and the responsive Playwright pass at 1440/1280/1024/768/390. `FlowSpine` and `TowerSummaryCard` were assessed as legitimately distinct composite patterns rather than stat-card forks, though `TowerSummaryCard`'s inner mini-metrics should still adopt the `CalloutCard` metric treatment.
+
+
+MAKE SURE NOT EVEN A SINGLE HAND HARRD ROLLED COMPONENT is used in warehouse and that every card, every icon including the UI is the evry same used in Finance
