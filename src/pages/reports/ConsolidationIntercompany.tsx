@@ -86,6 +86,9 @@ export default function ConsolidationIntercompany() {
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
   const { canOpen: canOpenMemberLedger } = useMemberLedgerAccess();
+  /** Intercompany activity drills in place, scoped to the posting company. */
+  const [drillConfig, setDrillConfig] = useState<DrillDownConfig | null>(null);
+
 
 
   const today = new Date();
