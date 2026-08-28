@@ -10,4 +10,6 @@ Authoritative project status lives in `.lovable/plan.md` — update it after eve
 - [Contact identity vocabulary](mem://constraints/contact-identity-vocabulary)
 - [Profiles lookup key](mem://constraints/profiles-lookup-key)
 - [CRM lead lifecycle](mem://features/crm-lead-lifecycle) — server-owned state machine, transition RPCs, write guard, terminal/scope invariants
+- [Scope switcher placement](mem://features/scope-switcher-placement) — topbar ScopeSwitcherChip is the one trigger; membership-gated, never in the profile menu
+
 
