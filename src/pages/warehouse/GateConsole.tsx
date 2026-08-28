@@ -10,7 +10,6 @@ import { Link } from "react-router-dom";
 import { PageHeader, PageBody, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DoorOpen, LogIn, LogOut, ShieldCheck, XCircle, Clock } from "lucide-react";
@@ -125,8 +124,7 @@ export default function GateConsole() {
           hunting the expected list, and check-in opens pre-filled from the
           appointment the planner already booked.
         */}
-        <Card>
-          <CardContent className="p-4">
+        <Section>
             <EntityScanField
               label="Gate pass or trailer placard"
               intent="gate.pass"
@@ -134,26 +132,28 @@ export default function GateConsole() {
               disabled={!effectiveWarehouse}
               onResolve={resolveGatePass}
             />
-          </CardContent>
-        </Card>
+        </Section>
 
         {visits.isLoading ? (
           <LoadingState />
         ) : (
           <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-3">
             {/* Expected ------------------------------------------------ */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" /> Expected today
-                  </span>
-                  <Badge variant="secondary">{stillExpected.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <Section
+              title={
+                <span className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" /> Expected today
+                </span>
+              }
+              actions={<Badge variant="secondary">{stillExpected.length}</Badge>}
+              contentClassName="space-y-2"
+            >
                 {stillExpected.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">Nothing outstanding.</p>
+                  <EmptyState
+                    icon={Clock}
+                    title="Nothing outstanding"
+                    description="Every appointment booked for today has already arrived at the gate."
+                  />
                 ) : (
                   stillExpected.map((a) => (
                     <div key={a.id} className="rounded-md border p-3">
@@ -172,22 +172,24 @@ export default function GateConsole() {
                     </div>
                   ))
                 )}
-              </CardContent>
-            </Card>
+            </Section>
 
             {/* At the gate --------------------------------------------- */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4" /> Awaiting clearance
-                  </span>
-                  <Badge variant="secondary">{atGate.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <Section
+              title={
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4" /> Awaiting clearance
+                </span>
+              }
+              actions={<Badge variant="secondary">{atGate.length}</Badge>}
+              contentClassName="space-y-2"
+            >
                 {atGate.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">Gate is clear.</p>
+                  <EmptyState
+                    icon={ShieldCheck}
+                    title="Gate is clear"
+                    description="No driver is waiting for security clearance."
+                  />
                 ) : (
                   atGate.map((v) => (
                     <div key={v.id} className="rounded-md border p-3">
@@ -222,25 +224,24 @@ export default function GateConsole() {
                     </div>
                   ))
                 )}
-              </CardContent>
-            </Card>
+            </Section>
 
             {/* Ready to leave ------------------------------------------ */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <LogOut className="h-4 w-4" /> Cleared to leave
-                  </span>
-                  <Badge variant="secondary">{clearedToLeave.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <Section
+              title={
+                <span className="flex items-center gap-1.5">
+                  <LogOut className="h-4 w-4" /> Cleared to leave
+                </span>
+              }
+              actions={<Badge variant="secondary">{clearedToLeave.length}</Badge>}
+              contentClassName="space-y-2"
+            >
                 {clearedToLeave.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">
-                    No trailer is cleared for departure. Supervisors clear trailers from the control tower once
-                    open work is closed.
-                  </p>
+                  <EmptyState
+                    icon={LogOut}
+                    title="No trailer cleared for departure"
+                    description="Supervisors clear trailers from the control tower once open work is closed."
+                  />
                 ) : (
                   clearedToLeave.map((v) => (
                     <div key={v.id} className="rounded-md border p-3">
@@ -272,8 +273,7 @@ export default function GateConsole() {
                     </div>
                   ))
                 )}
-              </CardContent>
-            </Card>
+            </Section>
           </div>
         )}
       </PageBody>
