@@ -1,4 +1,8 @@
 import { useState } from "react";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WarehousePeekSheet } from "@/components/warehouses/WarehousePeekSheet";
 import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/ConfirmDeleteDialog";
@@ -234,53 +238,38 @@ export default function Warehouses() {
         </div>
 
         {/* Stats */}
-        <div className="min-w-0 stats-grid grid-cols-1 @xl/page:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Warehouses</CardTitle>
-              <WarehouseIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{warehouses.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Transfers</CardTitle>
-              <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {transfers.filter((t) => !["completed", "cancelled"].includes(t.status)).length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {transfers.filter(
-                  (t) =>
-                    t.status === "completed" &&
-                    t.completed_at &&
-                    new Date(t.completed_at).toDateString() === new Date().toDateString()
-                ).length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Transfers</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{transfers.length}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            icon={<WarehouseIcon className="h-3.5 w-3.5" />}
+            label="Warehouses"
+            value={warehouses.length}
+          />
+          <SummaryStatCard
+            icon={<ArrowRightLeft className="h-3.5 w-3.5" />}
+            label="Active transfers"
+            value={
+              transfers.filter((t) => !["completed", "cancelled"].includes(t.status)).length
+            }
+          />
+          <SummaryStatCard
+            icon={<CheckCircle className="h-3.5 w-3.5" />}
+            label="Completed today"
+            value={
+              transfers.filter(
+                (t) =>
+                  t.status === "completed" &&
+                  t.completed_at &&
+                  new Date(t.completed_at).toDateString() === new Date().toDateString(),
+              ).length
+            }
+            tone="ok"
+          />
+          <SummaryStatCard
+            icon={<Package className="h-3.5 w-3.5" />}
+            label="Total transfers"
+            value={transfers.length}
+          />
+        </SummaryStatGrid>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>

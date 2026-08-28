@@ -5,6 +5,10 @@
  * `wms_task_telemetry`. No new counters, no denormalised columns: if the
  * ledger did not record it, it is not shown.
  */
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { useMemo, useState } from "react";
 import { Activity, Gauge, Timer, TriangleAlert } from "lucide-react";
 
@@ -127,19 +131,14 @@ export default function ExecutionTelemetry() {
           />
         ) : (
           <>
-            <div className="min-w-0 grid gap-4 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
+            <SummaryStatGrid>
               {cards.map((c) => (
-                <Card key={c.label}>
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <c.icon className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <div className="text-2xl font-semibold tabular-nums">
-                        {c.value}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{c.label}</div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <SummaryStatCard
+                  key={c.label}
+                  icon={<c.icon className="h-3.5 w-3.5" />}
+                  label={c.label}
+                  value={c.value}
+                />
               ))}
             </div>
 
