@@ -751,74 +751,59 @@ export default function Bills() {
           </div>
         )}
 
-        <div className="stats-grid grid-cols-2 sm:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Bills on this page</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totals.total, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{filteredBills.length} of {pagination.totalCount} bills</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {requireBillApproval ? "In approval" : "Draft"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">
-                {requireBillApproval
-                  ? pendingApprovalCount
-                  : filteredBills.filter(b => b.status === "draft").length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {requireBillApproval
-                  ? "Submitted or approved — not yet posted, no GL impact"
-                  : "Awaiting confirmation — no GL impact"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">
-                <BaseCurrencyAmount
-                  value={totals.outstanding}
-                  format={(v) => formatCurrency(v, baseCurrency)}
-                  unconvertibleCount={apSummary.unconvertibleDocumentCount}
-                  label="Outstanding"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Bills on this page"
+            value={formatCurrency(totals.total, baseCurrency)}
+            footer={`${filteredBills.length} of ${pagination.totalCount} bills`}
+          />
+          <SummaryStatCard
+            label={requireBillApproval ? "In approval" : "Draft"}
+            value={
+              requireBillApproval
+                ? pendingApprovalCount
+                : filteredBills.filter(b => b.status === "draft").length
+            }
+            footer={
+              requireBillApproval
+                ? "Submitted or approved — not yet posted, no GL impact"
+                : "Awaiting confirmation — no GL impact"
+            }
+          />
+          <SummaryStatCard
+            label="Outstanding"
+            tone="amber"
+            value={
+              <BaseCurrencyAmount
+                value={totals.outstanding}
+                format={(v) => formatCurrency(v, baseCurrency)}
+                unconvertibleCount={apSummary.unconvertibleDocumentCount}
+                label="Outstanding"
+              />
+            }
+            footer={
+              <>
                 {apSummary.openDocumentCount} open AP documents
                 {apSummary.unconvertibleDocumentCount > 0 &&
                   ` — ${apSummary.unconvertibleDocumentCount} with no rate on file`}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                <AlertCircle className="h-4 w-4 text-destructive" /> Overdue
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">
-                <BaseCurrencyAmount
-                  value={totals.overdue}
-                  format={(v) => formatCurrency(v, baseCurrency)}
-                  unconvertibleCount={apSummary.unconvertibleDocumentCount}
-                  label="Overdue"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">{apSummary.overdueCount} past due</p>
-            </CardContent>
-          </Card>
-        </div>
+              </>
+            }
+          />
+          <SummaryStatCard
+            label="Overdue"
+            tone="destructive"
+            icon={<AlertCircle className="h-4 w-4 text-destructive" />}
+            value={
+              <BaseCurrencyAmount
+                value={totals.overdue}
+                format={(v) => formatCurrency(v, baseCurrency)}
+                unconvertibleCount={apSummary.unconvertibleDocumentCount}
+                label="Overdue"
+              />
+            }
+            footer={`${apSummary.overdueCount} past due`}
+          />
+        </SummaryStatGrid>
 
         <div className="filter-bar flex-wrap">
           <div className="relative flex-1 min-w-0">
