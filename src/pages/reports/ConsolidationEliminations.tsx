@@ -157,8 +157,12 @@ export default function ConsolidationEliminations() {
   // Read-only server preflight: why this period would be refused, and which
   // remedies the engine itself would accept.
   const diagnosisQuery = useEliminationDiagnosis(readyGroupId, dateFrom, dateTo);
+  // History is a record of what was done, so it stays readable even when the
+  // current scope would refuse a fresh run.
+  const historyQuery = useEliminationHistory(groupId, dateFrom, dateTo);
   const canManageConsolidation = useCanManageConsolidation();
-  const { generate } = useConsolidationEliminationMutations();
+  const { generate, reverse } = useConsolidationEliminationMutations();
+
 
 
   const eliminations = eliminationsQuery.data ?? [];
