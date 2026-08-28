@@ -33,7 +33,6 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -516,7 +515,7 @@ export default function PackStation() {
                 >
                     {soCartons.length === 0 && (
                       <EmptyState
-                        icon={Package}
+                        icon={PackagePlus}
                         title="No cartons yet"
                         description="Open a carton to start packing this wave."
                       />
@@ -614,8 +613,7 @@ export default function PackStation() {
                         </div>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
+                </Section>
               </div>
             </Section>
           );
