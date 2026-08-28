@@ -302,184 +302,154 @@ export default function SalesDashboard() {
 
       {/* Primary KPIs — gated; cashier/operations don't see revenue KPIs. */}
       {composition.allowsWidget("sales.kpis") && (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/invoices?status=paid")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Revenue (GL, posted)</CardTitle>
-            <CardDescription className="text-xs">{periodLabel}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {glError ? (
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-destructive">Unavailable</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); setGlReloadKey((k) => k + 1); }}
-                >
-                  Retry
-                </Button>
-              </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          accent
+          tone="emerald"
+          label="Revenue (GL, posted)"
+          onClick={() => go("/sales/invoices?status=paid")}
+          value={
+            glError ? (
+              <span className="text-sm font-medium text-destructive">Unavailable</span>
             ) : glRevenue === null ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Loading…</span>
-              </div>
+              <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              </span>
             ) : (
-              <>
-                <div className="text-2xl font-bold text-primary">{formatCurrency(periodRevenue)}</div>
-                <p className="text-xs text-muted-foreground mt-1">{kpis.period_paid_count} paid invoices</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              formatCurrency(periodRevenue)
+            )
+          }
+          footer={
+            glError ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); setGlReloadKey((k) => k + 1); }}
+              >
+                Retry
+              </Button>
+            ) : (
+              `${periodLabel} · ${kpis.period_paid_count} paid invoices`
+            )
+          }
+        />
 
-        <Card className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/payments")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Cash Applied</CardTitle>
-            <CardDescription className="text-xs">{periodLabel}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(cashApplied)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {kpis.payments.count} payments
+        <SummaryStatCard
+          accent
+          tone="blue"
+          label="Cash Applied"
+          value={formatCurrency(cashApplied)}
+          onClick={() => go("/sales/payments")}
+          footer={
+            <>
+              {periodLabel} · {kpis.payments.count} payments
               {cashUnapplied > 0 && <> · {formatCurrency(cashUnapplied)} unapplied</>}
-            </p>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
 
-        <Card className="border-l-4 border-l-amber-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/invoices?status=open")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Outstanding Receivable</CardTitle>
-            <CardDescription className="text-xs">as of {asOfLabel}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(kpis.receivable.total)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+        <SummaryStatCard
+          accent
+          tone="amber"
+          label="Outstanding Receivable"
+          value={formatCurrency(kpis.receivable.total)}
+          onClick={() => go("/sales/invoices?status=open")}
+          footer={
+            <>
+              as of {asOfLabel} ·{" "}
               {kpis.receivable.overdue_count > 0 ? (
-                <span className="text-destructive">{kpis.receivable.overdue_count} overdue ({formatCurrency(kpis.receivable.overdue_amount)})</span>
-              ) : "No overdue invoices"}
-            </p>
-            {kpis.receivable.credit_balance > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                net of {formatCurrency(kpis.receivable.credit_balance)} customer credit
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                <span className="text-destructive">
+                  {kpis.receivable.overdue_count} overdue ({formatCurrency(kpis.receivable.overdue_amount)})
+                </span>
+              ) : (
+                "No overdue invoices"
+              )}
+              {kpis.receivable.credit_balance > 0 && (
+                <> · net of {formatCurrency(kpis.receivable.credit_balance)} customer credit</>
+              )}
+            </>
+          }
+        />
 
-        <Card className="border-l-4 border-l-purple-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/estimates")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Quote Conversion</CardTitle>
-            <CardDescription className="text-xs">{periodLabel}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{conversionRate}%</div>
-            <p className="text-xs text-muted-foreground mt-1">{kpis.estimates.accepted} of {kpis.estimates.total} quotes won</p>
-          </CardContent>
-        </Card>
-      </div>
+        <SummaryStatCard
+          accent
+          tone="purple"
+          label="Quote Conversion"
+          value={`${conversionRate}%`}
+          onClick={() => go("/sales/estimates")}
+          footer={`${periodLabel} · ${kpis.estimates.accepted} of ${kpis.estimates.total} quotes won`}
+        />
+      </SummaryStatGrid>
 
       )}
 
       {/* Action-Oriented Task Cards — visible to executive/sales/accountant/operations. */}
       {composition.allowsWidget("sales.pipeline") && (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card
-          className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.pipeline.draft > 0 ? "border-l-4 border-l-amber-400" : ""}`}
-          onClick={() => kpis.pipeline.draft > 0 && go("/sales/invoices?status=draft")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-amber-500" /> Invoices to Confirm
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${kpis.pipeline.draft > 0 ? "text-amber-600" : "text-muted-foreground"}`}>{kpis.pipeline.draft}</div>
-            <p className="text-xs text-muted-foreground">draft invoices pending confirmation</p>
-          </CardContent>
-        </Card>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          accent={kpis.pipeline.draft > 0}
+          tone={kpis.pipeline.draft > 0 ? "amber" : "default"}
+          icon={<Clock className="h-4 w-4 text-amber-500" />}
+          label="Invoices to Confirm"
+          value={kpis.pipeline.draft}
+          onClick={kpis.pipeline.draft > 0 ? () => go("/sales/invoices?status=draft") : undefined}
+          footer="draft invoices pending confirmation"
+        />
 
-        <Card
-          className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.pipeline.overdue > 0 ? "border-l-4 border-l-destructive" : ""}`}
-          onClick={() => kpis.pipeline.overdue > 0 && go("/sales/invoices?status=overdue")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <AlertCircle className="h-4 w-4 text-destructive" /> Overdue Follow-up
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${kpis.pipeline.overdue > 0 ? "text-destructive" : "text-muted-foreground"}`}>{kpis.pipeline.overdue}</div>
-            <p className="text-xs text-muted-foreground">{formatCurrency(kpis.receivable.overdue_amount)} outstanding</p>
-          </CardContent>
-        </Card>
+        <SummaryStatCard
+          accent={kpis.pipeline.overdue > 0}
+          tone={kpis.pipeline.overdue > 0 ? "destructive" : "default"}
+          icon={<AlertCircle className="h-4 w-4 text-destructive" />}
+          label="Overdue Follow-up"
+          value={kpis.pipeline.overdue}
+          onClick={kpis.pipeline.overdue > 0 ? () => go("/sales/invoices?status=overdue") : undefined}
+          footer={`${formatCurrency(kpis.receivable.overdue_amount)} outstanding`}
+        />
 
-        <Card
-          className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.sales_orders_pending > 0 ? "border-l-4 border-l-blue-400" : ""}`}
-          onClick={() => kpis.sales_orders_pending > 0 && go("/sales/orders?fulfillment=open")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <ShoppingCart className="h-4 w-4 text-blue-500" /> Orders to Fulfill
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${kpis.sales_orders_pending > 0 ? "text-blue-600" : "text-muted-foreground"}`}>{kpis.sales_orders_pending}</div>
-            <p className="text-xs text-muted-foreground">
+        <SummaryStatCard
+          accent={kpis.sales_orders_pending > 0}
+          tone={kpis.sales_orders_pending > 0 ? "blue" : "default"}
+          icon={<ShoppingCart className="h-4 w-4 text-blue-500" />}
+          label="Orders to Fulfill"
+          value={kpis.sales_orders_pending}
+          onClick={kpis.sales_orders_pending > 0 ? () => go("/sales/orders?fulfillment=open") : undefined}
+          footer={
+            <>
               with quantities still open to deliver
               {(kpis.sales_orders_partial ?? 0) > 0 && <> · {kpis.sales_orders_partial} partly delivered</>}
-            </p>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
 
-        <Card
-          className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.estimates.open > 0 ? "border-l-4 border-l-indigo-400" : ""}`}
-          onClick={() => kpis.estimates.open > 0 && go("/sales/estimates")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <FileText className="h-4 w-4 text-indigo-500" /> Open Quotes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${kpis.estimates.open > 0 ? "text-indigo-600" : "text-muted-foreground"}`}>{kpis.estimates.open}</div>
-            <p className="text-xs text-muted-foreground">awaiting customer response</p>
-          </CardContent>
-        </Card>
-
-      </div>
+        <SummaryStatCard
+          accent={kpis.estimates.open > 0}
+          tone={kpis.estimates.open > 0 ? "purple" : "default"}
+          icon={<FileText className="h-4 w-4 text-indigo-500" />}
+          label="Open Quotes"
+          value={kpis.estimates.open}
+          onClick={kpis.estimates.open > 0 ? () => go("/sales/estimates") : undefined}
+          footer="awaiting customer response"
+        />
+      </SummaryStatGrid>
       )}
 
       {/* Secondary KPIs */}
       {composition.allowsWidget("sales.kpis") && (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/credit-notes")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <Undo2 className="h-4 w-4" /> Credit Notes
-            </CardTitle>
-            <CardDescription className="text-xs">{periodLabel}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.credit_notes.count}</div>
-            <p className="text-xs text-muted-foreground">{formatCurrency(kpis.credit_notes.total)} total</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-              <FileText className="h-4 w-4" /> Estimate Conversion
-            </CardTitle>
-            <CardDescription className="text-xs">{periodLabel}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.estimates.accepted}</div>
-            <p className="text-xs text-muted-foreground">of {kpis.estimates.total} quotes won ({conversionRate}%)</p>
-          </CardContent>
-        </Card>
-
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          icon={<Undo2 className="h-4 w-4" />}
+          label="Credit Notes"
+          value={kpis.credit_notes.count}
+          onClick={() => go("/sales/credit-notes")}
+          footer={`${periodLabel} · ${formatCurrency(kpis.credit_notes.total)} total`}
+        />
+        <SummaryStatCard
+          icon={<FileText className="h-4 w-4" />}
+          label="Estimate Conversion"
+          value={kpis.estimates.accepted}
+          footer={`${periodLabel} · of ${kpis.estimates.total} quotes won (${conversionRate}%)`}
+        />
+      </SummaryStatGrid>
       )}
 
       {(composition.allowsWidget("sales.pipeline") || composition.allowsWidget("sales.aging")) && (
