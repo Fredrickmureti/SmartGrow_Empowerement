@@ -199,3 +199,130 @@ BEGIN
   RAISE EXCEPTION 'rollback: Block 1 OK — differing charts consolidate additively (income %, assets %), an unmapped chart refuses, and nothing is eliminated without intercompany',
     v_tot.total_income, v_tot.total_assets;
 END $$;
+
+-- ===========================================================================
+-- Block 2 — a KES parent with a USD subsidiary
+--
+-- Verified against the live database: assets 230,680 KES, income 21,480 KES,
+-- translation reserve 5,200 KES on a rate that moves 0.10 KES/day.
+-- ===========================================================================
+DO $$
+DECLARE
+  v_org uuid := gen_random_uuid();
+  v_user uuid := gen_random_uuid();
+  v_p uuid := gen_random_uuid();
+  v_s uuid := gen_random_uuid();
+  v_group uuid := gen_random_uuid();
+  v_cash_p uuid; v_cap_p uuid; v_cta uuid;
+  v_cash_s uuid; v_cap_s uuid; v_rev_s uuid;
+  v_je uuid;
+  v_hist date := DATE '2026-02-10';
+  v_from date := DATE '2026-03-01';
+  v_to   date := DATE '2026-03-31';
+  v_close numeric; v_avg numeric;
+  v_tot record; v_cta_rec record;
+BEGIN
+  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+  VALUES (v_user, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+          'scen2-' || replace(v_user::text,'-','') || '@example.test', now(), now());
+  INSERT INTO public.organizations (id, name, slug)
+  VALUES (v_org, 'Scenario Org 2', 'scen2-' || replace(v_org::text,'-',''));
+  INSERT INTO public.user_roles (user_id, organization_id, role, is_active)
+  VALUES (v_user, v_org, 'owner', true);
+
+  INSERT INTO public.businesses (id, organization_id, name, country, base_currency, fiscal_year_start)
+  VALUES (v_p, v_org, 'Nairobi Holdings Ltd', 'KE', 'KES', 1),
+         (v_s, v_org, 'Delaware Ops Inc',     'US', 'USD', 1);
+
+  -- A rate that moves every day: a static rate would hide every translation bug.
+  INSERT INTO public.exchange_rates
+    (organization_id, business_id, from_currency, to_currency, rate, effective_date, source, published_at)
+  SELECT v_org, v_p, 'USD', 'KES', 100 + (d::date - DATE '2026-01-01') * 0.10, d::date, 'manual', now()
+    FROM generate_series(DATE '2026-01-01', DATE '2026-03-31', INTERVAL '1 day') d;
+
+  INSERT INTO public.accounts (organization_id, business_id, account_type, detail_type, code, name)
+  VALUES (v_org, v_p, 'asset', 'cash_on_hand', '1000', 'Cash P') RETURNING id INTO v_cash_p;
+  INSERT INTO public.accounts (organization_id, business_id, account_type, detail_type, code, name)
+  VALUES (v_org, v_p, 'equity', 'common_stock', '3000', 'Share capital P') RETURNING id INTO v_cap_p;
+  INSERT INTO public.accounts (organization_id, business_id, account_type, detail_type, code, name)
+  VALUES (v_org, v_p, 'equity', 'accumulated_other_comprehensive_income', '3900',
+          'Foreign currency translation reserve') RETURNING id INTO v_cta;
+  INSERT INTO public.accounts (organization_id, business_id, account_type, detail_type, code, name)
+  VALUES (v_org, v_s, 'asset', 'cash_on_hand', '1000', 'Cash S') RETURNING id INTO v_cash_s;
+  INSERT INTO public.accounts (organization_id, business_id, account_type, detail_type, code, name)
+  VALUES (v_org, v_s, 'equity', 'common_stock', '3000', 'Share capital S') RETURNING id INTO v_cap_s;
+  INSERT INTO public.accounts (organization_id, business_id, account_type, detail_type, code, name)
+  VALUES (v_org, v_s, 'income', 'sales_income', '4000', 'Revenue S') RETURNING id INTO v_rev_s;
+
+  INSERT INTO public.journal_entries
+    (organization_id, business_id, entry_number, entry_date, description, status, currency, exchange_rate)
+  VALUES (v_org, v_p, 'SC2-P-1', DATE '2026-01-05', 'Capitalisation', 'draft', 'KES', 1) RETURNING id INTO v_je;
+  INSERT INTO public.journal_entry_lines (organization_id, business_id, journal_entry_id, account_id, debit, credit)
+  VALUES (v_org, v_p, v_je, v_cash_p, 100000, 0), (v_org, v_p, v_je, v_cap_p, 0, 100000);
+  UPDATE public.journal_entries SET status = 'posted', posted_at = now() WHERE id = v_je;
+
+  -- Share capital is translated at the historical rate, not the closing rate.
+  INSERT INTO public.journal_entries
+    (organization_id, business_id, entry_number, entry_date, description, status, currency, exchange_rate)
+  VALUES (v_org, v_s, 'SC2-S-1', v_hist, 'Share issue', 'draft', 'USD', 1) RETURNING id INTO v_je;
+  INSERT INTO public.journal_entry_lines (organization_id, business_id, journal_entry_id, account_id, debit, credit)
+  VALUES (v_org, v_s, v_je, v_cash_s, 1000, 0), (v_org, v_s, v_je, v_cap_s, 0, 1000);
+  UPDATE public.journal_entries SET status = 'posted', posted_at = now() WHERE id = v_je;
+
+  INSERT INTO public.journal_entries
+    (organization_id, business_id, entry_number, entry_date, description, status, currency, exchange_rate)
+  VALUES (v_org, v_s, 'SC2-S-2', DATE '2026-03-20', 'Sale', 'draft', 'USD', 1) RETURNING id INTO v_je;
+  INSERT INTO public.journal_entry_lines (organization_id, business_id, journal_entry_id, account_id, debit, credit)
+  VALUES (v_org, v_s, v_je, v_cash_s, 200, 0), (v_org, v_s, v_je, v_rev_s, 0, 200);
+  UPDATE public.journal_entries SET status = 'posted', posted_at = now() WHERE id = v_je;
+
+  INSERT INTO public.consolidation_groups
+    (id, organization_id, name, parent_business_id, presentation_currency, cta_account_id)
+  VALUES (v_group, v_org, 'Scenario Group 2', v_p, 'KES', v_cta);
+  INSERT INTO public.consolidation_group_members
+    (organization_id, group_id, business_id, ownership_percent, method, effective_from)
+  VALUES (v_org, v_group, v_p, 100, 'full', DATE '2026-01-01');
+  INSERT INTO public.consolidation_group_members
+    (organization_id, group_id, business_id, parent_business_id, ownership_percent, method,
+     effective_from, historical_rate_date)
+  VALUES (v_org, v_group, v_s, v_p, 100, 'full', DATE '2026-01-01', v_hist);
+
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user::text, 'role', 'authenticated')::text, true);
+
+  SELECT r.closing_rate, r.average_rate INTO v_close, v_avg
+    FROM public.consolidation_member_translation_rates(v_group, v_s, v_from, v_to) r;
+
+  SELECT * INTO v_tot FROM public.get_consolidated_statement_totals(v_group, v_from, v_to);
+
+  IF round(v_tot.total_assets, 2) <> round(100000 + 1200 * v_close, 2) THEN
+    RAISE EXCEPTION 'assets % but 100000 KES plus 1200 USD at the closing rate % is %',
+      v_tot.total_assets, v_close, round(100000 + 1200 * v_close, 2);
+  END IF;
+  IF round(v_tot.total_income, 2) <> round(200 * v_avg, 2) THEN
+    RAISE EXCEPTION 'income % but 200 USD at the average rate % is %',
+      v_tot.total_income, v_avg, round(200 * v_avg, 2);
+  END IF;
+  IF round(v_tot.total_income, 2) = round(200 * v_close, 2) THEN
+    RAISE EXCEPTION 'income was translated at the closing rate, not the period average';
+  END IF;
+  IF v_tot.translation_reserve = 0 THEN
+    RAISE EXCEPTION 'a moving rate produced no translation reserve';
+  END IF;
+  IF NOT v_tot.is_balanced THEN
+    RAISE EXCEPTION 'the translated group balance sheet does not balance, difference %', v_tot.balance_difference;
+  END IF;
+
+  SELECT * INTO v_cta_rec FROM public.consolidation_cta_reconciliation(v_group, v_from, v_to) c
+   WHERE c.business_id = v_s;
+  IF v_cta_rec IS NULL THEN
+    RAISE EXCEPTION 'no translation reserve proof for the foreign subsidiary';
+  END IF;
+  IF NOT v_cta_rec.is_reconciled THEN
+    RAISE EXCEPTION 'CTA does not reconcile: movement % vs proof %, difference %',
+      v_cta_rec.cta_movement, v_cta_rec.expected_cta_movement, v_cta_rec.movement_difference;
+  END IF;
+
+  RAISE EXCEPTION 'rollback: Block 2 OK — closing rate on assets (%), average rate on income (%), reserve % proven',
+    v_tot.total_assets, v_tot.total_income, v_tot.translation_reserve;
+END $$;
