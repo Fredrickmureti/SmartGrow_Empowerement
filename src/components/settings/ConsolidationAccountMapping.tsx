@@ -101,6 +101,11 @@ export function ConsolidationAccountMapping({
   const unmappedQuery = useConsolidationUnmappedAccounts(groupId, dateFrom, dateTo);
 
   const [filterBusiness, setFilterBusiness] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "mapped" | "unmapped">("all");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
 
   /** Mappings currently in force, keyed by the member account they cover. */
   const openMappingByAccount = useMemo(() => {
