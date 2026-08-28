@@ -29,16 +29,16 @@ const FINANCE_GLOBS = [
  * Frozen allowlist — genuine confirm-style utilities that fit the
  * ≤6-field `DetailSheet` standard. Anything else is forbidden.
  *
- *   - CopyBudgetDetailSheet — 2 fields (target year, source budget
- *     summary). Not a record editor. Explicitly named `*DetailSheet`
- *     to signal confirm-style intent.
+ * `CopyBudgetDetailSheet` is intentionally absent: `*DetailSheet.tsx` is
+ * the approved confirm-style naming convention, so the scanner no longer
+ * flags it and an allowlist entry would be dead weight.
  */
 const LEGACY_DIALOG_ALLOWLIST = new Set<string>([
-  "src/features/finance/budgets/CopyBudgetDetailSheet.tsx",
   // Confirm-style: pre-flight preview of mapping keep/overwrite (no
   // record fields). Explicitly not a record editor.
   "src/components/finance/ApplyDefaultMappingsDialog.tsx",
 ]);
+
 
 function scanRecordDialogs(): string[] {
   const existing = FINANCE_GLOBS.filter((g) => existsSync(g));
