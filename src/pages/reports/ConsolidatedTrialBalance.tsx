@@ -361,10 +361,24 @@ export default function ConsolidatedTrialBalance() {
           opening: "",
           debit: formatAmount(totals.debit, currency),
           credit: formatAmount(totals.credit, currency),
-          closing:
-            Math.abs(totals.difference) < 0.005
-              ? "In balance"
-              : `Out of balance by ${formatAmount(totals.difference, currency)}`,
+          closing: "",
+        },
+      },
+      {
+        id: "tb-proof",
+        kind: "note",
+        values: {
+          code: "",
+          name: focusedLine
+            ? "Balance proof covers the whole group, not a single account — clear the account filter to prove the trial balance."
+            : `Balance proof on closing balances — debit side ${formatAmount(
+                proof.debitSide,
+                currency,
+              )}, credit side ${formatAmount(proof.creditSide, currency)}. ${
+                proof.isBalanced
+                  ? "In balance."
+                  : `Out of balance by ${formatAmount(proof.difference, currency)}.`
+              } The debit and credit columns above are period movements translated at average rates and are not expected to foot to each other in a translated group.`,
         },
       },
     ];
