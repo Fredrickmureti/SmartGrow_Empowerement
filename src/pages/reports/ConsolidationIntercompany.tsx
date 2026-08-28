@@ -788,6 +788,14 @@ export default function ConsolidationIntercompany() {
         )}
 
       </div>
+      <DrillDownDialog
+        open={!!drillConfig}
+        onOpenChange={(next) => {
+          if (!next) setDrillConfig(null);
+        }}
+        config={drillConfig}
+      />
     </ReportsLayout>
+
   );
 }
