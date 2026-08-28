@@ -275,12 +275,44 @@ export default function ConsolidatedStatements() {
       })) as unknown as ThreeColumnLine[],
     [linesQuery.data],
   );
-  const totals = totalsQuery.data ?? null;
   const eliminatedTotals = eliminatedTotalsQuery.data ?? null;
   const hasEliminations =
     !!eliminatedTotals &&
     (Number(eliminatedTotals.eliminations_debit) !== 0 ||
       Number(eliminatedTotals.eliminations_credit) !== 0);
+
+  /**
+   * The totals block and the balance verdict MUST come from the same
+   * projection as the lines printed above them — the eliminated one.
+   *
+   * They previously came from `get_consolidated_statement_totals`, which foots
+   * the *aggregated* lines. On any group with eliminations that puts a
+   * pre-elimination total under post-elimination rows: the printed "Total
+   * equity" did not equal the sum of the equity lines directly above it, and
+   * "the consolidated balance sheet is in balance" was a verdict on a column
+   * the reader was not looking at.
+   *
+   * The translation reserve is footed from the residual lines of the same
+   * projection for the same reason, so the disclosure moves with the figures.
+   */
+  const totals = useMemo(() => {
+    if (!eliminatedTotals) return null;
+    const translationReserve = lines
+      .filter((l) => l.is_residual)
+      .reduce((sum, l) => sum + Number(l.consolidated_amount), 0);
+    return {
+      presentation_currency: eliminatedTotals.presentation_currency,
+      total_income: Number(eliminatedTotals.total_income),
+      total_expense: Number(eliminatedTotals.total_expense),
+      net_result: Number(eliminatedTotals.net_result),
+      total_assets: Number(eliminatedTotals.total_assets),
+      total_liabilities: Number(eliminatedTotals.total_liabilities),
+      total_equity: Number(eliminatedTotals.total_equity),
+      translation_reserve: translationReserve,
+      balance_difference: Number(eliminatedTotals.balance_sheet_difference),
+      is_balanced: eliminatedTotals.is_balanced,
+    };
+  }, [eliminatedTotals, lines]);
 
   const rowsFor = (statement: ConsolidatedStatement): ReportRow[] => {
     const out: ReportRow[] = [];
