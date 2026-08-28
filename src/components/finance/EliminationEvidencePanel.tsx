@@ -25,6 +25,8 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toAppError } from "@/lib/supabaseError";
 import { ledgerDrillHref, journalEntryDrillHref } from "@/lib/reports/crossEntityDrill";
+import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
+import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 
 import {
   ELIMINATION_CLASS_LABELS,
@@ -251,6 +253,15 @@ function LegEvidence({
   row: EliminationRow;
 }) {
   const navigate = useNavigate();
+  /**
+   * Inspection happens in place: the entry opens in the canonical
+   * `TransactionPreviewDrawer` (which offers "View full record" for the exact
+   * source document), and the account opens the entity-scoped
+   * `DrillDownDialog` on the declaring company's own books. Navigating away is
+   * the secondary affordance only.
+   */
+  const [preview, setPreview] = useState<{ type: string; id: string } | null>(null);
+  const [drillConfig, setDrillConfig] = useState<DrillDownConfig | null>(null);
   const { data, isLoading, error } = useEliminationEvidence(
     groupId,
     dateFrom,
@@ -411,6 +422,19 @@ function LegEvidence({
           </tbody>
         </table>
       </div>
+
+      <TransactionPreviewDrawer
+        open={!!preview}
+        onOpenChange={(open) => !open && setPreview(null)}
+        sourceType={preview?.type ?? null}
+        sourceId={preview?.id ?? null}
+      />
+
+      <DrillDownDialog
+        open={!!drillConfig}
+        onOpenChange={(open) => !open && setDrillConfig(null)}
+        config={drillConfig}
+      />
     </div>
   );
 }

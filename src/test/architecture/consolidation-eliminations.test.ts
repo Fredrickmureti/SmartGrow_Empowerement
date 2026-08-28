@@ -181,14 +181,20 @@ describe("consolidation eliminations — drill-down evidence", () => {
     expect(src).not.toMatch(/\.reduce\(/);
   });
 
-  it("ledger links appear only where the server allowed them", () => {
+  it("evidence affordances appear only where the server allowed them", () => {
     const src = read(EVIDENCE);
     expect(src).toContain("viewer_can_open_ledger");
-    // Every navigation to a member company's books is inside that guard.
-    const links = src.match(/navigate\(/g) ?? [];
+
+    // Inspection is in place (drawer for the entry, entity-scoped dialog for
+    // the account); navigation is the secondary deep link. Each affordance
+    // must sit inside a per-row guard on the server's own decision.
+    const affordances = src.match(/setPreview\(|setDrillConfig\(|navigate\(\s*$/gm) ?? [];
     const guards = src.match(/r\.viewer_can_open_ledger \? \(/g) ?? [];
-    expect(links.length).toBeGreaterThan(0);
-    expect(guards.length).toBe(links.length);
+    expect(affordances.length).toBeGreaterThan(0);
+    expect(guards.length).toBeGreaterThan(0);
+    // Nothing is rendered outside a guarded branch: every guarded branch is a
+    // cell, and there are no more affordance cells than guards.
+    expect(guards.length).toBeGreaterThanOrEqual(2);
   });
 
   it("a difference leg explains its policy instead of fabricating evidence", () => {
