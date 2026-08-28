@@ -47,11 +47,24 @@ translation residuals, not member errors:
 Deciding where those may go is **R4**, not R5: a trading residual is unrecorded
 profit or a cut-off difference and must never reach the translation reserve.
 
+## R4 — COMPLETE (verified against the live database)
+
+- `difference_policy` is consulted inside tolerance too, so a `refuse` group
+  refuses a small gap rather than absorbing it silently.
+- Trading-class residuals can never reach the translation reserve — refused
+  both by the engine and by the rule guard, so the policy cannot even be saved.
+- A gap the members have not recognised is refused from the reserve as well;
+  the diagnosis names the member, amount, carried rate and closing rate.
+- Tolerances are bounded by `consolidation_tolerance_cap()`, require a written
+  reason above zero, and record changed-by/at plus a group change-log row. This
+  tenant's fitted 41,500 / 1,500 are reset to 100 with a recorded reason.
+- Any residual the policy does let through is now disclosed by name on the face
+  of the consolidated statements: `get_consolidated_statement_lines_eliminated`
+  returns `reconciling_amount` footed off the difference legs, and the line
+  reads "includes an unreconciled intragroup difference of X". Guard test added.
+
 ## Remaining order
 
-- **R4** — honour `difference_policy` inside tolerance too; forbid
-  trading-class residuals from the translation reserve; disclose any surviving
-  residual as a named reconciling line; bound tolerances with changed-by/reason.
 - **R2b** — artifacts stop printing a per-render hash under the word "Run".
 - **R6** — opening + movement = closing for the translation reserve; move the
   group reserve off the parent's account 3050 onto a group-chart account.
