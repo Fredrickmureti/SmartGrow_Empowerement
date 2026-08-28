@@ -310,7 +310,7 @@ export default function ConsolidatedTrialBalance() {
       }
     }
     return out;
-  }, [accountLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+  }, [visibleLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
 
 
   /**
