@@ -810,11 +810,12 @@ REPORT_SPECS["consolidated_trial_balance"] = {
   ],
 };
 
+// Same family, same face as the group statements (see above).
 REPORT_SPECS["consolidation_eliminations"] = {
   title: "Intercompany Eliminations",
   orientation: "landscape",
   formatProfile: "financial",
-  presentationProfile: "ledger",
+  presentationProfile: "statement",
   columns: [
     { key: "code", header: "Account", width: 14, align: "left", format: "text" },
     { key: "name", header: "Description", width: 34, align: "left", format: "text" },
