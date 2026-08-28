@@ -72,6 +72,8 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizeError } from "@/services/resilience";
+import { Section, toneBorder, toneSurface, toneText } from "@/design-system";
+import { cn } from "@/lib/utils";
 import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 type BillInsert = Database["public"]["Tables"]["bills"]["Insert"];
