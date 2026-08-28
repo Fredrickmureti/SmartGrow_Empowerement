@@ -70,6 +70,10 @@ import {
 } from "@/hooks/finance/useConsolidatedTrialBalance";
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
+import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
+import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
+
 
 function formatAmount(value: number, currency: string) {
   try {
@@ -101,9 +105,15 @@ function describeRate(row: ConsolidatedTrialBalanceRow): string {
 
 
 export default function ConsolidatedTrialBalance() {
+  // Consolidated results are group-wide reads: who opened one, for which
+  // group and period, is itself audit evidence (`report_views`). These pages
+  // use ReportsLayout rather than ReportPageLayout, so they log explicitly.
+  useReportViewLogger();
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
+  const { canOpen: canOpenMemberLedger } = useMemberLedgerAccess();
+
 
   const today = new Date();
   const [groupId, setGroupId] = useState<string | null>(null);
@@ -231,8 +241,28 @@ export default function ConsolidatedTrialBalance() {
           translated
             ? `${formatAmount(own, source)} → ${money(group)}`
             : money(group);
+        // Lineage rule for a consolidated TB: the GROUP row is an aggregation
+        // of several members' accounts and has no single ledger to open, so it
+        // is not a drill target. The CONTRIBUTION row is one member's own
+        // account — that is where the trail into real books begins. The
+        // translation-reserve residual belongs to the group, not to any
+        // member's chart, so it stays unlinked by construction.
+        const openable =
+          !line.is_residual && !!c.account_id && canOpenMemberLedger(c.business_id);
         out.push({
           id: `${line.account_id}:${c.business_id}`,
+          meta: { accountId: c.account_id, businessId: c.business_id },
+          onClick: openable
+            ? () =>
+                navigate(
+                  ledgerDrillHref({
+                    businessId: c.business_id,
+                    accountId: c.account_id,
+                    dateFrom,
+                    dateTo,
+                  }),
+                )
+            : undefined,
           values: {
             code: "",
             name: "",
@@ -247,7 +277,8 @@ export default function ConsolidatedTrialBalance() {
       }
     }
     return out;
-  }, [accountLines, showMembers, currency]);
+  }, [accountLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+
 
   /**
    * Export config — the exported artifact is built from the SAME row model the
@@ -428,16 +459,24 @@ export default function ConsolidatedTrialBalance() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="members"
-                checked={showMembers}
-                onCheckedChange={setShowMembers}
-              />
-              <Label htmlFor="members" className="text-sm font-normal">
-                Show each company's contribution under every account
-              </Label>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="members"
+                  checked={showMembers}
+                  onCheckedChange={setShowMembers}
+                />
+                <Label htmlFor="members" className="text-sm font-normal">
+                  Show each company's contribution under every account
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A group figure is an aggregation and opens nothing. A company's
+                contribution is that company's own account, so it opens its ledger for
+                this period — where your access permits.
+              </p>
             </div>
+
           </CardContent>
         </Card>
 

@@ -79,6 +79,7 @@ import { EliminationEvidencePanel } from "@/components/finance/EliminationEviden
 
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
 function formatAmount(value: number, currency: string) {
   try {
@@ -89,6 +90,10 @@ function formatAmount(value: number, currency: string) {
 }
 
 export default function ConsolidationEliminations() {
+  // Consolidated results are group-wide reads: who opened one, for which
+  // group and period, is itself audit evidence (`report_views`). These pages
+  // use ReportsLayout rather than ReportPageLayout, so they log explicitly.
+  useReportViewLogger();
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
