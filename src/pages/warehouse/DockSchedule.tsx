@@ -10,7 +10,10 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
