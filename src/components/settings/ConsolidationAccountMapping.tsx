@@ -497,7 +497,7 @@ export function ConsolidationAccountMapping({
                         </TableCell>
                       </TableRow>
                     )}
-                    {visibleAccounts.map((account) => {
+                    {pagedAccounts.map((account) => {
                       const mapping = openMappingByAccount.get(account.id);
                       const options = activeGroupAccounts.filter(
                         (g) => g.account_type === account.account_type,
