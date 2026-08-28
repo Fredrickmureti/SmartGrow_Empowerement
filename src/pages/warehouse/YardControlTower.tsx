@@ -93,17 +93,24 @@ export default function YardControlTower() {
   const openMoveTasks = moveTasks.data ?? [];
   const kpis = useMemo(() => deriveYardKpis(allVisits, slots.data ?? []), [allVisits, slots.data]);
 
+  // Drill-down contract: the yard KPI strip links here with ?filter=overdue.
+  // The link is only honest if the page actually narrows to those visits, so
+  // the parameter drives the visit log and selects that tab on arrival.
+  const filterParam = searchParams.get("filter");
+  const overdueOnly = filterParam === "overdue";
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allVisits;
-    return allVisits.filter(
+    const base = overdueOnly ? allVisits.filter((v) => isOnSite(v) && isOverdue(v)) : allVisits;
+    if (!q) return base;
+    return base.filter(
       (v) =>
         v.trailer_ref.toLowerCase().includes(q) ||
         (v.driver_name ?? "").toLowerCase().includes(q) ||
         (v.carrier?.name ?? "").toLowerCase().includes(q) ||
         (v.appointment?.appointment_no ?? "").toLowerCase().includes(q),
     );
-  }, [allVisits, search]);
+  }, [allVisits, search, overdueOnly]);
 
   // Keep the open drawer in sync with realtime updates.
   const selectedLive = selected ? (allVisits.find((v) => v.id === selected.id) ?? selected) : null;
