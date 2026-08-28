@@ -398,17 +398,16 @@ export default function AccountsPayable() {
 
       {/* Unlinked AP Expenses Warning Banner */}
       {unlinkedExpenses.length > 0 && (
-        <Card className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-800 dark:text-amber-200">
+        <Section
+          className={cn(toneBorder("warn"), toneSurface("warn"))}
+          title={
+            <span className={cn("flex items-center gap-2 text-sm", toneText("warn"))}>
               <AlertTriangle className="h-4 w-4" />
               {unlinkedExpenses.length} AP Expense{unlinkedExpenses.length > 1 ? "s" : ""} Without Vendor Bills
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-              These expenses credit Accounts Payable but have no linked vendor bill. They won't appear in aging reports until a bill is created.
-            </p>
+            </span>
+          }
+          description="These expenses credit Accounts Payable but have no linked vendor bill. They won't appear in aging reports until a bill is created."
+        >
             <div className="space-y-2">
               {unlinkedExpenses.map((expense) => (
                 <div key={expense.id} className="flex items-center justify-between rounded-md border border-amber-200 dark:border-amber-800 bg-background p-2.5">
