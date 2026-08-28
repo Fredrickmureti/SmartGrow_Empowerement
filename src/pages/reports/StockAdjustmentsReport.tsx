@@ -22,7 +22,7 @@ import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -262,12 +262,12 @@ function StockAdjustmentsReportInner() {
       }
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard label="Adjustments" value={String(kpis.total)} />
-          <KpiCard label="Posted" value={String(kpis.posted)} />
-          <KpiCard label="Pending" value={String(kpis.pending)} />
-          <KpiCard label="Σ posted cost impact" value={formatAccountingNumber(kpis.cost, baseCurrency)} />
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Adjustments" value={String(kpis.total)} tone="primary" />
+          <SummaryStatCard label="Posted" value={String(kpis.posted)} tone="emerald" />
+          <SummaryStatCard label="Pending" value={String(kpis.pending)} tone="amber" />
+          <SummaryStatCard label="Σ posted cost impact" value={formatAccountingNumber(kpis.cost, baseCurrency)} />
+        </SummaryStatGrid>
 
         <ReportSurface
           title="Stock Adjustments"
@@ -304,16 +304,6 @@ function StockAdjustmentsReportInner() {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-xl font-semibold tabular-nums">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 

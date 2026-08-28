@@ -15,7 +15,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -184,35 +184,26 @@ function StockLedgerReportInner() {
       }
     >
       <div className="space-y-6">
-        <div className="stats-grid grid-cols-1 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Received (In)</CardTitle>
-              <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totals.in.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Issued (Out)</CardTitle>
-              <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totals.out.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Closing Quantity</CardTitle>
-              <Boxes className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totals.closing.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Received (In)"
+            icon={<ArrowDownToLine className="h-3.5 w-3.5" />}
+            tone="emerald"
+            value={totals.in.toLocaleString()}
+          />
+          <SummaryStatCard
+            label="Issued (Out)"
+            icon={<ArrowUpFromLine className="h-3.5 w-3.5" />}
+            tone="orange"
+            value={totals.out.toLocaleString()}
+          />
+          <SummaryStatCard
+            label="Closing Quantity"
+            icon={<Boxes className="h-3.5 w-3.5" />}
+            tone="primary"
+            value={totals.closing.toLocaleString()}
+          />
+        </SummaryStatGrid>
 
         <ReportSurface
           title="Stock Ledger"

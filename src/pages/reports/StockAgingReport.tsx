@@ -17,7 +17,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useCurrency } from "@/hooks/useCurrency";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -199,41 +199,27 @@ function StockAgingReportInner() {
       }
     >
       <div className="space-y-6">
-        <div className="stats-grid grid-cols-1 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(totals.total_value, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Ties to Inventory Valuation at the same date
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Older than 60 Days</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(oldValue, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{oldShare.toFixed(1)}% of value</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Quantity on Hand</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totals.qty_on_hand.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Inventory Value"
+            icon={<DollarSign className="h-3.5 w-3.5" />}
+            tone="primary"
+            value={formatCurrency(totals.total_value, baseCurrency)}
+            footer="Ties to Inventory Valuation at the same date"
+          />
+          <SummaryStatCard
+            label="Older than 60 Days"
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
+            tone="amber"
+            value={formatCurrency(oldValue, baseCurrency)}
+            footer={`${oldShare.toFixed(1)}% of value`}
+          />
+          <SummaryStatCard
+            label="Quantity on Hand"
+            icon={<Package className="h-3.5 w-3.5" />}
+            value={totals.qty_on_hand.toLocaleString()}
+          />
+        </SummaryStatGrid>
 
         <ReportSurface
           title="Aging Buckets"
