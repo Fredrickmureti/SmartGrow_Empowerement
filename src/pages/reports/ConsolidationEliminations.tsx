@@ -83,6 +83,9 @@ import {
   useConsolidationIntercompanyFlows,
   useEliminatedStatementTotals,
   useEliminationDiagnosis,
+  useEliminationHistory,
+  ELIMINATION_EVENT_LABELS,
+
 } from "@/hooks/finance/useConsolidationEliminations";
 import { EliminationRefusalPanel } from "@/components/finance/EliminationRefusalPanel";
 import { EliminationEvidencePanel } from "@/components/finance/EliminationEvidencePanel";
