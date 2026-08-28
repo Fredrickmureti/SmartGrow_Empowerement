@@ -110,9 +110,13 @@ export function ConsolidationEliminationRules({
   groupId,
   groupName,
   canManage,
+  presentationCurrency = null,
   focusClass = null,
   focusRemedy = null,
 }: Props) {
+  const capLabel = presentationCurrency
+    ? `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} ${presentationCurrency}`
+    : `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} in the group's presentation currency`;
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const accountsQuery = useConsolidationGroupAccounts(groupId);
   const { saveRule } = useConsolidationEliminationMutations();
