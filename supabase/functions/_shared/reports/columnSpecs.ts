@@ -767,9 +767,14 @@ const CONSOLIDATED_STATEMENT_COLUMNS: ReportColumn[] = [
   { key: "consolidated", header: "Consolidated", width: 16, align: "right", format: "currency" },
 ];
 
+// Landscape: unlike a single-entity statement, a group statement carries
+// three money columns (aggregated / eliminations / consolidated) alongside
+// the account name, plus a long group scope line. On portrait A4 the scope
+// line overflowed the sheet. Landscape keeps the 10pt statement face and
+// spends the extra width on the account column instead of shrinking type.
 REPORT_SPECS["consolidated_balance_sheet"] = {
   title: "Consolidated Balance Sheet",
-  orientation: "portrait",
+  orientation: "landscape",
   formatProfile: "financial",
   presentationProfile: "statement",
   columns: CONSOLIDATED_STATEMENT_COLUMNS,
@@ -777,7 +782,7 @@ REPORT_SPECS["consolidated_balance_sheet"] = {
 
 REPORT_SPECS["consolidated_income_statement"] = {
   title: "Consolidated Income Statement",
-  orientation: "portrait",
+  orientation: "landscape",
   formatProfile: "financial",
   presentationProfile: "statement",
   columns: CONSOLIDATED_STATEMENT_COLUMNS,

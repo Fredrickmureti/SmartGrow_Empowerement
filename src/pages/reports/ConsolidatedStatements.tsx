@@ -426,10 +426,11 @@ export default function ConsolidatedStatements() {
         sheetName: isIncome ? "Income statement" : "Balance sheet",
         currency,
         // Registry keys: a group statement prints at statutory statement
-        // typography (10pt, semantic total spacing, "Page i of N"), portrait,
-        // exactly like the single-entity statements it summarises.
+        // typography (10pt, semantic total spacing, "Page i of N"). Landscape,
+        // because a group statement carries three money columns plus the group
+        // scope line — portrait A4 could not hold them without overflow.
         reportType: isIncome ? "consolidated_income_statement" : "consolidated_balance_sheet",
-        orientation: "portrait",
+        orientation: "landscape",
         formatProfile: "financial",
 
         // Group artifact: issued by the group's parent company, never scoped
