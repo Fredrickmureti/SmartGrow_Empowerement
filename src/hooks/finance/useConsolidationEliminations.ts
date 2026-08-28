@@ -566,5 +566,35 @@ export function useConsolidationEliminationMutations() {
     onSuccess: invalidate,
   });
 
-  return { generate, saveRule };
+  /**
+   * Withdraw a period's elimination set. The engine refuses without a reason,
+   * refuses when a member's period is closed, and records the withdrawal in
+   * history — a set is never silently deleted.
+   */
+  const reverse = useMutation({
+    mutationFn: async (input: {
+      group_id: string;
+      date_from: string;
+      date_to: string;
+      reason: string;
+    }) => {
+      const { data, error } = await supabase.rpc("consolidation_reverse_eliminations", {
+        _group_id: input.group_id,
+        _date_from: input.date_from,
+        _date_to: input.date_to,
+        _reason: input.reason,
+      });
+      if (error) throw toAppError(error);
+      const rows = (data ?? []) as unknown as {
+        reversed_leg_count: number;
+        reversed_total_debit: number;
+        reversed_total_credit: number;
+      }[];
+      return rows[0] ?? null;
+    },
+    onSuccess: invalidate,
+  });
+
+  return { generate, saveRule, reverse };
 }
+
