@@ -10,7 +10,11 @@
  * this page never calls a cross-dock RPC directly.
  */
 import { useMemo, useState } from "react";
-import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
+import { PageHeader, PageBody, Section, LoadingState, EmptyState } from "@/design-system";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
