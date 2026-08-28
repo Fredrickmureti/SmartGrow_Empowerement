@@ -99877,6 +99877,7 @@ export type Database = {
           total_expense: number
           total_income: number
           total_liabilities: number
+          translation_reserve: number
         }[]
       }
       get_consolidated_trial_balance: {
