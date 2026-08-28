@@ -409,7 +409,8 @@ export default function ConsolidatedTrialBalance() {
         focusedLine
           ? ` · narrowed to group account ${focusedLine.account_code ?? focusedLine.account_name}`
           : ""
-      }`,
+      } · live calculation, not a finalized consolidation run`,
+
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns as ReportColumn<never>[]),
       rows: toExportRows(exportRows, columns as ReportColumn<never>[]),
