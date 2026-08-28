@@ -607,33 +607,26 @@ export default function Estimates() {
           onComplete={handleImportComplete}
         />
 
-        <div className="stats-grid">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Estimates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="stat-value">{formatCurrency(totals.total, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{filteredEstimates.length} estimates</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="stat-value text-warning">{formatCurrency(totals.pending, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Accepted</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="stat-value text-green-600">{formatCurrency(totals.accepted, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Estimates"
+            tone="primary"
+            value={formatCurrency(totals.total, baseCurrency)}
+            footer={`${filteredEstimates.length} estimates`}
+          />
+          <SummaryStatCard
+            accent
+            tone="amber"
+            label="Pending"
+            value={formatCurrency(totals.pending, baseCurrency)}
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            label="Accepted"
+            value={formatCurrency(totals.accepted, baseCurrency)}
+          />
+        </SummaryStatGrid>
 
         <div className="filter-bar">
           <div className="relative flex-1 min-w-0">
