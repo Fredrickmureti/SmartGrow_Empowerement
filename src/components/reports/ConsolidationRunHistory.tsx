@@ -117,6 +117,19 @@ export function ConsolidationRunHistory({
     }
   };
 
+  // The stored contributions never travel inside a report row (they are not
+  // cell values); the row id keys back into them for the drill-down.
+  const contributionsByLine = useMemo(() => {
+    const map = new Map<string, { label: string; rows: ConsolidationRunContribution[] }>();
+    for (const l of detailQuery.data?.lines ?? []) {
+      map.set(l.id, {
+        label: `${l.account_code ?? ""} ${l.account_name}`.trim(),
+        rows: l.member_contributions ?? [],
+      });
+    }
+    return map;
+  }, [detailQuery.data]);
+
   const detailRows: ReportRow[] = useMemo(() => {
     const lines = detailQuery.data?.lines ?? [];
     const currency = openRun?.presentation_currency ?? "USD";
@@ -129,8 +142,6 @@ export function ConsolidationRunHistory({
         elimination:
           Number(l.elimination_amount) === 0 ? "—" : money(l.elimination_amount, currency),
         consolidated: money(l.consolidated_amount, currency),
-        _contributions: l.member_contributions ?? [],
-        _label: `${l.account_code ?? ""} ${l.account_name}`.trim(),
       },
     }));
   }, [detailQuery.data, openRun?.presentation_currency]);
@@ -142,21 +153,15 @@ export function ConsolidationRunHistory({
           ? {
               ...c,
               render: (row) => {
-                const rows = (row.values?._contributions ??
-                  []) as ConsolidationRunContribution[];
+                const entry = contributionsByLine.get(row.id);
                 const text = String(row.values?.aggregated ?? "");
-                if (!rows.length) return <span className="tabular-nums">{text}</span>;
+                if (!entry?.rows.length) return <span className="tabular-nums">{text}</span>;
                 return (
                   <button
                     type="button"
                     title="See the companies frozen behind this figure"
                     className="tabular-nums underline underline-offset-2 hover:text-primary"
-                    onClick={() =>
-                      setContributions({
-                        label: String(row.values?._label ?? "Group account"),
-                        rows,
-                      })
-                    }
+                    onClick={() => setContributions(entry)}
                   >
                     {text}
                   </button>
@@ -165,7 +170,7 @@ export function ConsolidationRunHistory({
             }
           : c,
       ),
-    [],
+    [contributionsByLine],
   );
 
   if (!groupId) return null;
