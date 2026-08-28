@@ -72,6 +72,7 @@ import {
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
 import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
+import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
 
@@ -221,6 +222,11 @@ export default function ConsolidatedTrialBalance() {
     return Array.from(byMember.values());
   }, [tbQuery.data]);
 
+  // A member's contribution opens in place, scoped to that member's entity, so
+  // the reviewer keeps the consolidated context they were reading. The route
+  // form stays available as an explicit "open full ledger" escape hatch.
+  const [drillConfig, setDrillConfig] = useState<DrillDownConfig | null>(null);
+
   const columns = useMemo<ReportColumn[]>(() => {
     const base: ReportColumn[] = [
       { key: "code", header: "Account" },
@@ -287,14 +293,14 @@ export default function ConsolidatedTrialBalance() {
           meta: { accountId: c.account_id, businessId: c.business_id },
           onClick: openable
             ? () =>
-                navigate(
-                  ledgerDrillHref({
-                    businessId: c.business_id,
-                    accountId: c.account_id,
-                    dateFrom,
-                    dateTo,
-                  }),
-                )
+                setDrillConfig({
+                  title: `${line.account_code ?? ""} ${line.account_name} — ${c.business_name}`.trim(),
+                  accountId: c.account_id as string,
+                  businessId: c.business_id,
+                  businessName: c.business_name,
+                  startDate: dateFrom,
+                  endDate: dateTo,
+                })
             : undefined,
           values: {
             code: "",
@@ -310,7 +316,7 @@ export default function ConsolidatedTrialBalance() {
       }
     }
     return out;
-  }, [visibleLines, showMembers, currency, canOpenMemberLedger, navigate, dateFrom, dateTo]);
+  }, [visibleLines, showMembers, currency, canOpenMemberLedger, dateFrom, dateTo]);
 
 
   /**
