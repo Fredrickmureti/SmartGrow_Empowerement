@@ -159,3 +159,25 @@ describe("consolidation runs (Brick 8) — the run surface reads only run tables
     expect(runsPanel).toContain("<strong>live</strong>");
   });
 });
+
+describe("totals and rows come from the same projection", () => {
+  it("foots the totals block from the eliminated totals, never the aggregated ones", () => {
+    // The rows are the eliminated projection. Reading the totals from
+    // `get_consolidated_statement_totals` printed a pre-elimination total under
+    // post-elimination rows — "Total equity" did not equal the equity lines
+    // above it, off by exactly the eliminations.
+    expect(pageSource).toContain("eliminatedTotals.total_equity");
+    expect(pageSource).toContain("eliminatedTotals.total_assets");
+    expect(pageSource).toContain("eliminatedTotals.total_liabilities");
+    expect(pageSource).not.toMatch(/totals\s*=\s*totalsQuery\.data/);
+  });
+
+  it("takes the balance verdict from the eliminated projection", () => {
+    expect(pageSource).toContain("eliminatedTotals.balance_sheet_difference");
+    expect(pageSource).toContain("eliminatedTotals.is_balanced");
+  });
+
+  it("discloses the translation reserve from the same lines it prints", () => {
+    expect(pageSource).toMatch(/is_residual[\s\S]{0,200}consolidated_amount/);
+  });
+});

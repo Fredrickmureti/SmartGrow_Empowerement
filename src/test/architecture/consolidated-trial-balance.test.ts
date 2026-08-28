@@ -14,6 +14,9 @@ import {
   groupTrialBalanceByAccount,
   nonControllingShare,
   describeConsolidationBlocker,
+  proveTrialBalanceOnClosingBalances,
+  isDebitNormalAccountType,
+  type ConsolidatedAccountLine,
   type ConsolidatedTrialBalanceRow,
 } from "@/hooks/finance/useConsolidatedTrialBalance";
 
@@ -215,5 +218,62 @@ describe("honest limits are stated, not faked", () => {
   it("no longer claims currency translation is unavailable", () => {
     expect(pageSource).not.toMatch(/translation and eliminations arrive in later phases/i);
     expect(hookSource).not.toMatch(/FX translation is Brick 3/i);
+  });
+});
+
+describe("the balance proof is made on closing balances, not on movements", () => {
+  const line = (
+    account_type: string,
+    closing_balance: number,
+  ): Pick<ConsolidatedAccountLine, "account_type" | "closing_balance"> => ({
+    account_type,
+    closing_balance,
+  });
+
+  it("proves a translated group whose movement columns do not foot to each other", () => {
+    // A foreign member: balance-sheet closing balances at the closing rate,
+    // movements at the average rate, and the engine's reserve residual as a
+    // closing-balance figure with no movement of its own. The movement columns
+    // are 2,077,212 debit against 117,212 credit — footing them would report a
+    // 1,960,000 out-of-balance on a group that is perfectly in order.
+    const lines = [
+      line("asset", 77_840_867.6),
+      line("liability", 2_590_249.6),
+      line("equity", 64_878_843.4),
+      line("income", 12_000_000),
+      line("expense", 1_628_225.4),
+    ];
+    const proof = proveTrialBalanceOnClosingBalances(lines);
+    expect(proof.debitSide).toBeCloseTo(79_469_093, 2);
+    expect(proof.creditSide).toBeCloseTo(79_469_093, 2);
+    expect(proof.isBalanced).toBe(true);
+  });
+
+  it("still reports a genuine out-of-balance on closing balances", () => {
+    const proof = proveTrialBalanceOnClosingBalances([
+      line("asset", 1_000),
+      line("liability", 900),
+    ]);
+    expect(proof.isBalanced).toBe(false);
+    expect(proof.difference).toBeCloseTo(100, 2);
+  });
+
+  it("puts assets and expenses on the debit side and everything else on the credit side", () => {
+    expect(isDebitNormalAccountType("asset")).toBe(true);
+    expect(isDebitNormalAccountType("expense")).toBe(true);
+    for (const t of ["liability", "equity", "income"]) {
+      expect(isDebitNormalAccountType(t)).toBe(false);
+    }
+  });
+
+  it("does not declare the trial balance out of balance from the movement columns", () => {
+    // The page may foot the movement columns as column totals, but the verdict
+    // must never be derived from their difference.
+    expect(pageSource).not.toMatch(/totals\.difference/);
+    expect(pageSource).toContain("proveTrialBalanceOnClosingBalances");
+  });
+
+  it("does not call a single focused account out of balance", () => {
+    expect(pageSource).toMatch(/Balance proof covers the whole group/);
   });
 });

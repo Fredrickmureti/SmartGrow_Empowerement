@@ -66,6 +66,7 @@ import {
   groupTrialBalanceByAccount,
   describeConsolidationBlocker,
   nonControllingShare,
+  proveTrialBalanceOnClosingBalances,
   type ConsolidatedTrialBalanceRow,
 } from "@/hooks/finance/useConsolidatedTrialBalance";
 
@@ -193,6 +194,13 @@ export default function ConsolidatedTrialBalance() {
 
   // Totals follow what the table actually shows, so a narrowed report never
   // presents a group total beside a single account's rows.
+  //
+  // Debit and credit are the movement COLUMNS footed — they are column totals,
+  // not the balance proof. The proof is on closing balances (see
+  // `proveTrialBalanceOnClosingBalances`): in a translated group the movement
+  // columns run at the average rate while balance-sheet closing balances run at
+  // the closing rate, so footing the movement columns reports an out-of-balance
+  // on a group whose books are perfectly in order.
   const totals = useMemo(() => {
     let debit = 0;
     let credit = 0;
@@ -200,8 +208,21 @@ export default function ConsolidatedTrialBalance() {
       debit += line.total_debit;
       credit += line.total_credit;
     }
-    return { debit, credit, difference: debit - credit };
+    return { debit, credit };
   }, [visibleLines]);
+
+  const proof = useMemo(
+    () => proveTrialBalanceOnClosingBalances(visibleLines),
+    [visibleLines],
+  );
+
+  // A single account never proves the equation — say so rather than declaring
+  // one account "out of balance" by the size of its own balance.
+  const proofLabel = focusedLine
+    ? "Balance proof covers the whole group, not a single account"
+    : proof.isBalanced
+      ? "In balance on closing balances"
+      : `Out of balance by ${formatAmount(proof.difference, currency)} on closing balances`;
 
 
   const nciDisclosure = useMemo(() => {
@@ -340,10 +361,24 @@ export default function ConsolidatedTrialBalance() {
           opening: "",
           debit: formatAmount(totals.debit, currency),
           credit: formatAmount(totals.credit, currency),
-          closing:
-            Math.abs(totals.difference) < 0.005
-              ? "In balance"
-              : `Out of balance by ${formatAmount(totals.difference, currency)}`,
+          closing: "",
+        },
+      },
+      {
+        id: "tb-proof",
+        kind: "note",
+        values: {
+          code: "",
+          name: focusedLine
+            ? "Balance proof covers the whole group, not a single account — clear the account filter to prove the trial balance."
+            : `Balance proof on closing balances — debit side ${formatAmount(
+                proof.debitSide,
+                currency,
+              )}, credit side ${formatAmount(proof.creditSide, currency)}. ${
+                proof.isBalanced
+                  ? "In balance."
+                  : `Out of balance by ${formatAmount(proof.difference, currency)}.`
+              } The debit and credit columns above are period movements translated at average rates and are not expected to foot to each other in a translated group.`,
         },
       },
     ];
@@ -688,26 +723,43 @@ export default function ConsolidatedTrialBalance() {
                         />
                       </ReportSurface>
 
-                      <div className="flex flex-wrap gap-6 text-sm">
-                        <span>
-                          Total debits:{" "}
-                          <strong>{formatAmount(totals.debit, currency)}</strong>
-                        </span>
-                        <span>
-                          Total credits:{" "}
-                          <strong>{formatAmount(totals.credit, currency)}</strong>
-                        </span>
-                        <span
-                          className={
-                            Math.abs(totals.difference) < 0.005
-                              ? "text-emerald-600"
-                              : "text-destructive font-semibold"
-                          }
-                        >
-                          {Math.abs(totals.difference) < 0.005
-                            ? "In balance"
-                            : `Out of balance by ${formatAmount(totals.difference, currency)}`}
-                        </span>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex flex-wrap gap-6">
+                          <span>
+                            Movement columns — debits:{" "}
+                            <strong>{formatAmount(totals.debit, currency)}</strong>
+                          </span>
+                          <span>
+                            credits: <strong>{formatAmount(totals.credit, currency)}</strong>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-6">
+                          <span>
+                            Balance proof (closing balances) — debit side:{" "}
+                            <strong>{formatAmount(proof.debitSide, currency)}</strong>
+                          </span>
+                          <span>
+                            credit side:{" "}
+                            <strong>{formatAmount(proof.creditSide, currency)}</strong>
+                          </span>
+                          <span
+                            className={
+                              focusedLine
+                                ? "text-muted-foreground"
+                                : proof.isBalanced
+                                  ? "text-emerald-600"
+                                  : "text-destructive font-semibold"
+                            }
+                          >
+                            {proofLabel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          A translated group proves on closing balances. The movement columns
+                          are translated at average rates while balance-sheet closing balances
+                          translate at the closing rate, so those two columns are not expected
+                          to foot to each other and footing them is not a balance test.
+                        </p>
                       </div>
                     </>
                   )}

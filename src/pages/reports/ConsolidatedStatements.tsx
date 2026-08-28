@@ -4,14 +4,18 @@
  * SINGLE SOURCE OF TRUTH
  * ----------------------
  * Every figure, including the totals and the "does it balance" verdict, comes
- * from `get_consolidated_statement_lines` / `get_consolidated_statement_totals`,
- * which are projections of the same translated consolidated trial balance this
- * app already reports. This page performs no accounting arithmetic at all, so
- * it cannot drift from the trial balance or from the single-entity statements.
+ * from `get_consolidated_statement_lines_eliminated` /
+ * `get_consolidated_statement_totals_eliminated`, which are projections of the
+ * same translated consolidated trial balance this app already reports. This
+ * page performs no accounting arithmetic at all, so it cannot drift from the
+ * trial balance or from the single-entity statements.
+ *
+ * The lines and the totals MUST come from the same projection. Footing the
+ * aggregated totals under eliminated rows prints a total that does not equal
+ * the lines above it and a balance verdict on a column nobody is reading.
  *
  * HONEST LIMITS (stated, never papered over)
  * ------------------------------------------
- * - No intercompany eliminations yet: intra-group trading still appears twice.
  * - Non-controlling interests are disclosed on the trial balance, not netted.
  * - Any scope or rate gap the engine refuses is surfaced verbatim.
  */
@@ -275,12 +279,44 @@ export default function ConsolidatedStatements() {
       })) as unknown as ThreeColumnLine[],
     [linesQuery.data],
   );
-  const totals = totalsQuery.data ?? null;
   const eliminatedTotals = eliminatedTotalsQuery.data ?? null;
   const hasEliminations =
     !!eliminatedTotals &&
     (Number(eliminatedTotals.eliminations_debit) !== 0 ||
       Number(eliminatedTotals.eliminations_credit) !== 0);
+
+  /**
+   * The totals block and the balance verdict MUST come from the same
+   * projection as the lines printed above them — the eliminated one.
+   *
+   * They previously came from `get_consolidated_statement_totals`, which foots
+   * the *aggregated* lines. On any group with eliminations that puts a
+   * pre-elimination total under post-elimination rows: the printed "Total
+   * equity" did not equal the sum of the equity lines directly above it, and
+   * "the consolidated balance sheet is in balance" was a verdict on a column
+   * the reader was not looking at.
+   *
+   * The translation reserve is footed from the residual lines of the same
+   * projection for the same reason, so the disclosure moves with the figures.
+   */
+  const totals = useMemo(() => {
+    if (!eliminatedTotals) return null;
+    const translationReserve = lines
+      .filter((l) => l.is_residual)
+      .reduce((sum, l) => sum + Number(l.consolidated_amount), 0);
+    return {
+      presentation_currency: eliminatedTotals.presentation_currency,
+      total_income: Number(eliminatedTotals.total_income),
+      total_expense: Number(eliminatedTotals.total_expense),
+      net_result: Number(eliminatedTotals.net_result),
+      total_assets: Number(eliminatedTotals.total_assets),
+      total_liabilities: Number(eliminatedTotals.total_liabilities),
+      total_equity: Number(eliminatedTotals.total_equity),
+      translation_reserve: translationReserve,
+      balance_difference: Number(eliminatedTotals.balance_sheet_difference),
+      is_balanced: eliminatedTotals.is_balanced,
+    };
+  }, [eliminatedTotals, lines]);
 
   const rowsFor = (statement: ConsolidatedStatement): ReportRow[] => {
     const out: ReportRow[] = [];
