@@ -10085,6 +10085,80 @@ export type Database = {
           },
         ]
       }
+      consolidation_elimination_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          difference_leg_count: number
+          group_id: string
+          id: string
+          leg_count: number
+          occurred_at: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          presentation_currency: string | null
+          reason: string | null
+          replaced_leg_count: number
+          replaced_total_credit: number
+          replaced_total_debit: number
+          rule_snapshot: Json
+          scope_snapshot: Json
+          total_credit: number
+          total_debit: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          difference_leg_count?: number
+          group_id: string
+          id?: string
+          leg_count?: number
+          occurred_at?: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          presentation_currency?: string | null
+          reason?: string | null
+          replaced_leg_count?: number
+          replaced_total_credit?: number
+          replaced_total_debit?: number
+          rule_snapshot?: Json
+          scope_snapshot?: Json
+          total_credit?: number
+          total_debit?: number
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          difference_leg_count?: number
+          group_id?: string
+          id?: string
+          leg_count?: number
+          occurred_at?: string
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          presentation_currency?: string | null
+          reason?: string | null
+          replaced_leg_count?: number
+          replaced_total_credit?: number
+          replaced_total_debit?: number
+          rule_snapshot?: Json
+          scope_snapshot?: Json
+          total_credit?: number
+          total_debit?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_elimination_events_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consolidation_elimination_rules: {
         Row: {
           created_at: string
@@ -95171,6 +95245,19 @@ export type Database = {
           opening_rate: number
           prior_average_rate: number
           to_currency: string
+        }[]
+      }
+      consolidation_reverse_eliminations: {
+        Args: {
+          _date_from: string
+          _date_to: string
+          _group_id: string
+          _reason: string
+        }
+        Returns: {
+          reversed_leg_count: number
+          reversed_total_credit: number
+          reversed_total_debit: number
         }[]
       }
       consolidation_scope_member_count: {
