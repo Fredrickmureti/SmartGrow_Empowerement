@@ -118,8 +118,13 @@ export function ReportContextProvider({ children }: { children: ReactNode }) {
       // nullish fallback used to turn that deliberate consolidated scope back
       // into whichever branch the global switcher happened to hold.
       branchId: config.branchId !== undefined ? config.branchId : ctx.branchId ?? null,
-      companyName: ctx.companyName ?? config.companyName,
-      currency: ctx.currency ?? config.currency,
+      companyName: config.reportingEntityBusinessId
+        ? config.companyName
+        : ctx.companyName ?? config.companyName,
+      // A page that names its own currency means it: a consolidated statement
+      // is presented in the GROUP's presentation currency, which is not the
+      // browsing entity's base currency.
+      currency: config.currency ?? ctx.currency,
     }),
     [ctx],
   );
