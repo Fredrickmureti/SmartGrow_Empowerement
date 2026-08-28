@@ -19,7 +19,7 @@
  * a second, independent balance computation would be a second source of
  * accounting truth and could disagree with the formal statements.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ReportsLayout } from "@/apps/reports";
 import {
   Card,
@@ -49,6 +49,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchGLTotals } from "@/services/gl/fetchGLTotals";
+import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
+import {
+  EntityPnlBreakdownDialog,
+  type EntityPnlTarget,
+  type PnlSection,
+} from "@/components/reports/EntityPnlBreakdownDialog";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ShieldAlert } from "lucide-react";
 
@@ -151,6 +159,9 @@ function formatMoney(value: number, currency: string) {
 }
 
 export default function Consolidation() {
+  // A cross-company read is audit evidence in its own right: who compared which
+  // entities, over which period. Logged like every other consolidated surface.
+  useReportViewLogger();
   const navigate = useNavigate();
   // Authorization mirrors the database, not an org-role guess: cross-company
   // figures need the same `finance.view_consolidated` permission the ledger RPCs
@@ -174,6 +185,39 @@ export default function Consolidation() {
   );
   const mixedCurrency = currencies.length > 1;
 
+  // Figure → the accounts behind it → the ledger lines → the source document,
+  // all without leaving this comparison. The entity travels explicitly because
+  // this view deliberately shows companies other than the active workspace one.
+  const [pnlTarget, setPnlTarget] = useState<EntityPnlTarget | null>(null);
+  const openBreakdown = useCallback(
+    (row: ReportRow, section: PnlSection) => {
+      const values = row.values as any;
+      setPnlTarget({
+        businessId: String(row.id),
+        businessName: String(values?.businessName ?? ""),
+        currency: String(values?.currency ?? "—"),
+        section,
+        dateFrom,
+        dateTo,
+      });
+    },
+    [dateFrom, dateTo],
+  );
+
+  const drillCell = useCallback(
+    (row: ReportRow, section: PnlSection, display: React.ReactNode) => (
+      <button
+        type="button"
+        title="See the accounts behind this figure"
+        className="tabular-nums underline underline-offset-2 hover:text-primary"
+        onClick={() => openBreakdown(row, section)}
+      >
+        {display}
+      </button>
+    ),
+    [openBreakdown],
+  );
+
   const comparisonColumns = useMemo<ReportColumn[]>(
     () => [
       { key: "businessName", header: "Company" },
@@ -186,13 +230,23 @@ export default function Consolidation() {
         key: "income",
         header: "Income",
         align: "right",
-        render: (row) => formatMoney((row.values as any)?.income as number, (row.values as any)?.currency as string),
+        render: (row) =>
+          drillCell(
+            row,
+            "income",
+            formatMoney((row.values as any)?.income as number, (row.values as any)?.currency as string),
+          ),
       },
       {
         key: "expense",
         header: "Expenses",
         align: "right",
-        render: (row) => formatMoney((row.values as any)?.expense as number, (row.values as any)?.currency as string),
+        render: (row) =>
+          drillCell(
+            row,
+            "expense",
+            formatMoney((row.values as any)?.expense as number, (row.values as any)?.currency as string),
+          ),
       },
       {
         key: "netIncome",
@@ -200,15 +254,17 @@ export default function Consolidation() {
         align: "right",
         render: (row) => {
           const net = (row.values as any)?.netIncome as number;
-          return (
+          return drillCell(
+            row,
+            "net",
             <span className={`font-semibold ${net >= 0 ? "text-emerald-600" : "text-destructive"}`}>
               {formatMoney(net, (row.values as any)?.currency as string)}
-            </span>
+            </span>,
           );
         },
       },
     ],
-    [],
+    [drillCell],
   );
 
   const comparisonRows = useMemo<ReportRow[]>(
@@ -225,6 +281,38 @@ export default function Consolidation() {
       })),
     [rows],
   );
+
+  /**
+   * Export the comparison exactly as it reads on screen. Amounts are formatted
+   * per company in that company's own currency, and the export carries the same
+   * "not a consolidation" caveat as the page — an exported artifact must never
+   * imply an addition across currencies that the report itself refuses to make.
+   */
+  const getExportConfig = useCallback((): ExportConfig => {
+    const data = rows ?? [];
+    return {
+      title: "Cross-Company Comparative View",
+      subtitle: mixedCurrency
+        ? `Side-by-side profit & loss — each company in its own currency (${currencies.join(", ")}). Not a consolidation: figures are not summed, translated or eliminated.`
+        : "Side-by-side profit & loss in each company's own books. Not a consolidation: figures are not summed, translated or eliminated.",
+      dateRange: `${dateFrom} to ${dateTo}`,
+      sheetName: "By company",
+      columns: [
+        { key: "company", label: "Company" },
+        { key: "currency", label: "Currency" },
+        { key: "income", label: "Income", align: "right" },
+        { key: "expense", label: "Expenses", align: "right" },
+        { key: "netIncome", label: "Net Income", align: "right" },
+      ],
+      rows: data.map((r) => ({
+        company: r.businessName,
+        currency: r.currency,
+        income: formatMoney(r.income, r.currency),
+        expense: formatMoney(r.expense, r.currency),
+        netIncome: formatMoney(r.netIncome, r.currency),
+      })),
+    };
+  }, [rows, mixedCurrency, currencies, dateFrom, dateTo]);
 
   if (!permLoading && !canViewConsolidation) {
     return (
@@ -343,10 +431,17 @@ export default function Consolidation() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Profit &amp; Loss — by company</CardTitle>
-              <CardDescription>
-                Native-currency totals for the selected period.
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Profit &amp; Loss — by company</CardTitle>
+                  <CardDescription>
+                    Native-currency totals for the selected period. Click any figure to
+                    see the accounts and ledger lines behind it.
+                  </CardDescription>
+                </div>
+                {/* Same artifact stack as every other report: preview, print, PDF, Excel, CSV. */}
+                <ReportExportButtons getExportConfig={getExportConfig} />
+              </div>
             </CardHeader>
             <CardContent>
               {error ? (
@@ -405,6 +500,15 @@ export default function Consolidation() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lineage in place: accounts behind a company's figure, then its ledger. */}
+      <EntityPnlBreakdownDialog
+        open={!!pnlTarget}
+        onOpenChange={(next) => {
+          if (!next) setPnlTarget(null);
+        }}
+        target={pnlTarget}
+      />
     </ReportsLayout>
   );
 }

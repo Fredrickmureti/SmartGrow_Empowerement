@@ -47,6 +47,10 @@ import {
   type ReportRow,
 } from "@/design-system/reports";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
+import {
+  MemberContributionDialog,
+  type MemberContributionTarget,
+} from "@/components/reports/MemberContributionDialog";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { FileBarChart, ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -109,7 +113,7 @@ function formatAmount(value: number, currency: string) {
  */
 function buildColumns(
   onOpenEliminations: (accountId: string) => void,
-  onOpenTrialBalance: (accountId: string) => void,
+  onOpenTrialBalance: (accountId: string, label: string) => void,
 ): ReportColumn[] {
   const linked = (
     value: unknown,
@@ -139,16 +143,22 @@ function buildColumns(
       key: "aggregated",
       header: "Aggregated",
       align: "right",
-      // Carries group, period and group account to the consolidated trial
-      // balance, which opens on that account with the member companies shown.
+      // Opens the member companies behind the figure IN PLACE: the reviewer
+      // keeps this statement, its group and its period. A deep link into the
+      // consolidated trial balance remains inside that dialog.
       render: (row) =>
         linked(
           row.values?.aggregated,
           row.values?.eliminationAccountId,
-          onOpenTrialBalance,
+          (id) =>
+            onOpenTrialBalance(
+              id,
+              `${(row.values?.code as string) ?? ""} ${(row.values?.name as string) ?? ""}`.trim(),
+            ),
           "See the companies behind this figure",
         ),
     },
+
     {
       key: "elimination",
       header: "Eliminations",
@@ -198,22 +208,25 @@ export default function ConsolidatedStatements() {
     },
     [navigate, groupId, dateFrom, dateTo],
   );
-  // Statement line → the member companies behind its Aggregated figure. Same
-  // param contract the consolidated trial balance already reads
-  // (`consolidationGroup`, `date_from`, `date_to`, `group_account_id`), so the
-  // destination opens focused on that group account instead of at the top.
+  // Statement line → the member companies behind its Aggregated figure, opened
+  // in place. Drill-down is preview → drawer → record without leaving the
+  // report; the trial-balance route survives as a deep link inside the dialog.
+  const [contributionTarget, setContributionTarget] =
+    useState<MemberContributionTarget | null>(null);
   const openTrialBalance = useCallback(
-    (accountId: string) => {
-      const params = new URLSearchParams({
-        consolidationGroup: groupId ?? "",
-        date_from: dateFrom,
-        date_to: dateTo,
-        group_account_id: accountId,
+    (accountId: string, label: string) => {
+      if (!groupId) return;
+      setContributionTarget({
+        groupId,
+        groupAccountId: accountId,
+        label: label || "Group account",
+        dateFrom,
+        dateTo,
       });
-      navigate(`/finance/reports/consolidated-trial-balance?${params.toString()}`);
     },
-    [navigate, groupId, dateFrom, dateTo],
+    [groupId, dateFrom, dateTo],
   );
+
 
   const COLUMNS = useMemo(
     () => buildColumns(openEliminations, openTrialBalance),
@@ -669,6 +682,15 @@ export default function ConsolidatedStatements() {
           </>
         )}
       </div>
+
+      {/* Lineage in place: the companies behind the clicked Aggregated figure. */}
+      <MemberContributionDialog
+        open={!!contributionTarget}
+        onOpenChange={(next) => {
+          if (!next) setContributionTarget(null);
+        }}
+        target={contributionTarget}
+      />
     </ReportsLayout>
   );
 }
