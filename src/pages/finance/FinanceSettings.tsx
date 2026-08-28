@@ -30,6 +30,13 @@ import { FinanceAccountingControls } from "@/components/finance/FinanceAccountin
 import { DefaultAccountsConfig } from "@/components/finance/DefaultAccountsConfig";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
 import { ConsolidationGroupsSettings } from "@/components/settings/ConsolidationGroupsSettings";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 
 interface Account {
@@ -37,6 +44,49 @@ interface Account {
   code: string;
   name: string;
   account_type: string;
+}
+
+/**
+ * A collapsed settings group. Finance settings is a long page of independent
+ * panels; large ERPs surface them as a list of headers the accountant expands
+ * one at a time rather than an endless scroll of every panel at once.
+ */
+function SettingsSection({
+  id,
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible
+      id={id}
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-lg border bg-card"
+    >
+      <CollapsibleTrigger className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50">
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold sm:text-base">{title}</span>
+          <span className="block text-xs text-muted-foreground">{description}</span>
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="border-t p-3 sm:p-4">{children}</CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export default function FinanceSettings() {
