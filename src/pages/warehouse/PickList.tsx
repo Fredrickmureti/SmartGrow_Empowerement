@@ -23,14 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useCompletePickTask } from "@/features/warehouse/aggregates/useDomainOperations";
-import {
-  PageHeader,
-  PageBody,
-  Section,
-  LoadingState,
-  EmptyState,
-  StatusBadge,
-} from "@/design-system";
+import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge, toneText, toneBorder, toneSurface, toneRing } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -228,7 +221,7 @@ export default function PickList() {
         <Section
           title="Directed pick"
           description="Scan the bin, then scan the product. The matching task highlights and pre-fills."
-          className={cn(matched && "border-emerald-500/40")}
+          className={cn(matched && toneBorder("success"))}
         >
           <div className="space-y-3">
               <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2">
@@ -271,7 +264,7 @@ export default function PickList() {
                   </span>
                 )}
                 {matched && !scanError && (
-                  <span className="text-xs inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <span className={cn("text-xs inline-flex items-center gap-1", toneText("success"))}>
                     <Check className="h-3 w-3" /> Match: {matched.product?.name} @ {matched.source_loc?.code}
                   </span>
                 )}
@@ -332,7 +325,7 @@ export default function PickList() {
                     ref={(el) => { rowRefs.current[t.id] = el; }}
                     className={cn(
                       "p-3 flex flex-wrap items-center gap-3 transition-colors",
-                      isMatch && "bg-emerald-500/5 ring-1 ring-inset ring-emerald-500/30",
+                      isMatch && cn(toneSurface("success"), "ring-1 ring-inset", toneRing("success")),
                     )}
                   >
                     <StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge>

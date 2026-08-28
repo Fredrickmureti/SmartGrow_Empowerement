@@ -19,6 +19,7 @@ import {
   VISIT_STATUS_LABEL,
   type VisitRow,
 } from "./yardModel";
+import { toneText } from "@/design-system";
 
 export function TrailerChip({
   visit,
@@ -64,9 +65,9 @@ export function TrailerChip({
         <button type="button" className="flex-1 min-w-0 text-left" onClick={() => onOpen(visit)}>
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-sm truncate">{visit.trailer_ref}</span>
-            {visit.departure_approved_at && <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+            {visit.departure_approved_at && <ShieldCheck className={cn("h-3.5 w-3.5 shrink-0", toneText("success"))} />}
             {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
-            {reefer && <Snowflake className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
+            {reefer && <Snowflake className={cn("h-3.5 w-3.5 shrink-0", toneText("info"))} />}
           </div>
           <div className="text-[11px] text-muted-foreground truncate">
             {visit.carrier?.name ?? "Walk-in"}

@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { PageHeader, PageBody, Section } from "@/design-system";
+import { PageHeader, PageBody, Section, toneText, toneBorder } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,7 +180,7 @@ export default function AppointmentPlanner() {
             {dockId && startIso && endIso && feasibility.data && (
               <div className={`text-sm flex items-start gap-2 rounded border p-2 ${
                 feasibility.data.feasible
-                  ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                  ? cn(toneBorder("success"), toneText("success"))
                   : "border-destructive/30 text-destructive"
               }`}>
                 {feasibility.data.feasible

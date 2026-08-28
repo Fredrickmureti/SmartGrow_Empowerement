@@ -28,7 +28,7 @@ import {
 } from "@/features/warehouse/aggregates/useDomainOperations";
 import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofForm";
 import { DispatchDocumentsMenu } from "@/features/warehouse/dispatch/DispatchDocumentsMenu";
-import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
+import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState, toneText, toneFill } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -371,7 +371,7 @@ export default function LoadingBay() {
           >
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm">
-                <ShieldCheck className={proofStatus.satisfied ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-amber-600"} />
+                <ShieldCheck className={cn("h-4 w-4", toneText(proofStatus.satisfied ? "success" : "warning"))} />
                 <StatusBadge tone={proofStatus.satisfied ? "success" : "warning"}>
                   {proofStatus.satisfied ? "Captured" : "Outstanding"}
                 </StatusBadge>
@@ -397,7 +397,7 @@ export default function LoadingBay() {
               : `${shortCount} sealed carton(s) still missing — dispatch is blocked until every one is loaded.`}>
           <div className="h-2 w-full rounded bg-muted overflow-hidden">
             <div
-              className={isComplete ? "h-full bg-emerald-500 transition-all" : "h-full bg-amber-500 transition-all"}
+              className={cn("h-full transition-all", toneFill(isComplete ? "success" : "warning"))}
               style={{ width: `${scannedPct}%` }}
             />
           </div>

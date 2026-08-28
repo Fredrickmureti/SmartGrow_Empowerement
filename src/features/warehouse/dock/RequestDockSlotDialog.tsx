@@ -26,6 +26,7 @@ import {
   useScheduleAppointment,
   useWarehouses,
 } from "./useDockScheduling";
+import { toneText, toneBorder } from "@/design-system";
 
 interface Props {
   open: boolean;
@@ -204,7 +205,7 @@ export function RequestDockSlotDialog({
             <div
               className={`text-sm flex items-start gap-2 rounded border p-2 ${
                 feasibility.data.feasible
-                  ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                  ? cn(toneBorder("success"), toneText("success"))
                   : "border-destructive/30 text-destructive"
               }`}
             >
