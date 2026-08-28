@@ -56,7 +56,7 @@ import {
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { Layers, ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useConsolidationGroups, CONSOLIDATION_METHOD_LABELS } from "@/hooks/finance/useConsolidationGroups";
 import {
@@ -113,13 +113,32 @@ export default function ConsolidatedTrialBalance() {
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
   const { canOpen: canOpenMemberLedger } = useMemberLedgerAccess();
-
+  // Arriving from a consolidated statement line. The link carries the group,
+  // the period and the GROUP account behind the figure, so the trial balance
+  // opens on the very account that was clicked, expanded to the member
+  // companies that produced it — the level where real books begin.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusAccountId = searchParams.get("group_account_id");
 
   const today = new Date();
-  const [groupId, setGroupId] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
-  const [showMembers, setShowMembers] = useState(false);
+  const [groupId, setGroupId] = useState<string | null>(
+    searchParams.get("consolidationGroup"),
+  );
+  const [dateFrom, setDateFrom] = useState(
+    searchParams.get("date_from") ?? format(startOfMonth(today), "yyyy-MM-dd"),
+  );
+  const [dateTo, setDateTo] = useState(
+    searchParams.get("date_to") ?? format(endOfMonth(today), "yyyy-MM-dd"),
+  );
+  const [showMembers, setShowMembers] = useState(!!focusAccountId);
+
+  /** Drop the account focus and show the whole group again. */
+  const clearFocus = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("group_account_id");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
 
   const { data: groups, isLoading: groupsLoading } = useConsolidationGroups();
   const activeGroups = useMemo(() => (groups ?? []).filter((g) => g.is_active), [groups]);
