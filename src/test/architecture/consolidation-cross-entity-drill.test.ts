@@ -33,11 +33,19 @@ describe("consolidation drill-downs name the company they open", () => {
 
   it("the elimination evidence panel uses the shared builders, not string URLs", () => {
     const src = read("components/finance/EliminationEvidencePanel.tsx");
-    expect(src).toContain("ledgerDrillHref");
     expect(src).toContain("journalEntryDrillHref");
     expect(src).toContain("declaring_business_id");
     // No hand-rolled ledger URL that would drop the company.
     expect(src).not.toContain("general-ledger?account_id=");
+  });
+
+  it("the deep link out of a drill-down is centralized in the drill primitive", () => {
+    const src = read("components/reports/DrillDownDialog.tsx");
+    // The dialog itself owns the "leave the workspace" affordance, so no page
+    // has to hand-roll one, and it always carries the entity it drilled.
+    expect(src).toContain("ledgerDrillHref");
+    expect(src).toContain("Open in General Ledger");
+    expect(src).toContain("businessId: scopedBusinessId");
   });
 
   it("the destination honours the company in the link and announces the switch", () => {
