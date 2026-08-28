@@ -240,10 +240,25 @@ export function TransactionPreviewDrawer({
                 {data.navigateTo && (
                   <>
                     <Separator />
-                    <Button variant="outline" className="w-full" onClick={handleViewFull}>
-                      <ExternalLink className="h-4 w-4 mr-2" />
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleViewFull}
+                      disabled={switching}
+                    >
+                      {switching ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                      )}
                       View Full Record
                     </Button>
+                    {foreignBusiness && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        This record is kept in {businessName ?? "another company"}'s books —
+                        opening it switches your workspace to that company.
+                      </p>
+                    )}
                   </>
                 )}
 
