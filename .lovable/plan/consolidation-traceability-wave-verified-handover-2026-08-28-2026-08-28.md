@@ -41,8 +41,8 @@ Export fixed to the real `ExportColumn` shape (`header` + `width`). Each figure 
 ### Phase 7 — Permission evidence — SQL CONFIRMED
 `get_general_ledger` is explicit, not implicit: it raises `42501` unless `finance_can_read_scope(_org_id, _business_id)`, `finance_can_read_branch(...)` and `finance_can_read_financials(_org_id, _business_id)` all pass, then re-checks that the business belongs to the org. `finance_can_read_scope` resolves a named business through `user_can_access_business(auth.uid(), _business_id)`, and an unscoped org-wide run is refused unless the caller can reach *every* active business (so an aggregate can never silently include an unentitled company). `finance_can_read_financials` additionally requires the `financials:read` module permission on that business. A viewer without Company B therefore reaches nothing of B's through a consolidated drill, regardless of what the client sends.
 
-### Phase 8 — Wave deliverable
-Per-surface lineage map (surface → figure → source → drill → drawer → full record), corrected assumptions, gap lists, contract, and the readiness answer for the next consolidation brick.
+### Phase 8 — Wave deliverable — DONE
+`docs/consolidation-traceability-lineage.md`: the single drill chain, a per-surface lineage map for all five consolidation surfaces (figure → authority → drill → what deliberately opens nothing and why), the SQL permission evidence, artifact integrity, the corrected assumptions from earlier in the wave, the contract for the next brick, and the readiness answer. 112 consolidation architecture assertions green; `tsgo -p tsconfig.app.json` clean; build OK.
 
 ## Binding contract (unchanged except where noted)
 - Drill-down = preview → drawer → "View full record" on the exact document, in place. Route links are deep links, not drill-downs.
