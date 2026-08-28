@@ -86,7 +86,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
   const { currentOrg } = useOrganization();
   const navigate = useNavigate();
 
-  const { currentBusiness } = useBusinesses();
+  const { currentBusiness, businesses } = useBusinesses();
   const { formatCurrency } = useCurrency();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
@@ -94,10 +94,18 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
   // An explicit entity scope from the caller always wins over the workspace
   // switcher: consolidated surfaces drill into the column's entity.
   const scopedBusinessId = config?.businessId ?? currentBusiness?.id ?? null;
-  const scopedBusinessName =
-    config?.businessId && config.businessId !== currentBusiness?.id
-      ? config.businessName ?? null
-      : null;
+  const scopedBusiness = businesses.find((b) => b.id === scopedBusinessId) ?? null;
+  const isForeignEntity = !!config?.businessId && config.businessId !== currentBusiness?.id;
+  const scopedBusinessName = isForeignEntity
+    ? config?.businessName ?? scopedBusiness?.name ?? null
+    : null;
+  /**
+   * GL lines are posted in the owning company's base currency. The workspace's
+   * own base currency is irrelevant here — labelling a member's KES line as USD
+   * because the viewer happens to sit in a USD company misstates the record.
+   */
+  const scopedCurrency = scopedBusiness?.base_currency ?? undefined;
+  const money = (amount: number) => formatCurrency(amount, scopedCurrency);
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: [
@@ -195,7 +203,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
           id: row.id as string,
           date: (partnerKind === "invoice" ? row.issue_date : row.bill_date) as string,
           reference: (partnerKind === "invoice" ? row.invoice_number : row.bill_number) || "",
-          description: `${row.status ?? ""} · ${formatCurrency(paid)} settled`,
+          description: `${row.status ?? ""} · ${money(paid)} settled`,
           // Presented on the side the document naturally sits on: a sales
           // invoice is a receivable (debit), a purchase bill a payable (credit).
           debit: partnerKind === "invoice" ? total : 0,
@@ -253,7 +261,10 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
               </>
             )}
             {scopedBusinessName && (
-              <span className="ml-4">Entity: {scopedBusinessName}</span>
+              <span className="ml-4">
+                Entity: {scopedBusinessName}
+                {scopedCurrency ? ` · amounts in ${scopedCurrency}` : ""}
+              </span>
             )}
             <span className="ml-4">
               {rowsToShow.length} transaction{rowsToShow.length !== 1 ? "s" : ""}
@@ -293,10 +304,10 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                     <TableCell className="max-w-xs truncate">{txn.description}</TableCell>
                     <TableCell>{getSourceBadge(txn.source_type)}</TableCell>
                     <TableCell className="text-right">
-                      {txn.debit > 0 ? formatCurrency(txn.debit) : "—"}
+                      {txn.debit > 0 ? money(txn.debit) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {txn.credit > 0 ? formatCurrency(txn.credit) : "—"}
+                      {txn.credit > 0 ? money(txn.credit) : "—"}
                     </TableCell>
                     <TableCell>
                       {(() => {
@@ -320,8 +331,8 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                 ))}
                 <TableRow className="font-bold bg-muted/50">
                   <TableCell colSpan={4}>Total</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalDebit)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalCredit)}</TableCell>
+                  <TableCell className="text-right">{money(totalDebit)}</TableCell>
+                  <TableCell className="text-right">{money(totalCredit)}</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableBody>
@@ -363,6 +374,9 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
         onOpenChange={setDrawerOpen}
         sourceType={drawerSource.type}
         sourceId={drawerSource.id}
+        businessId={scopedBusinessId}
+        businessName={scopedBusiness?.name ?? config?.businessName ?? null}
+        fallbackCurrency={scopedCurrency}
       />
     </Dialog>
   );

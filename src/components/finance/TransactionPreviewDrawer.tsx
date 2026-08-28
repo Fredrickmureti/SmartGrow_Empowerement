@@ -34,6 +34,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { format } from "date-fns";
 
 interface TransactionPreviewDrawerProps {
@@ -41,6 +42,22 @@ interface TransactionPreviewDrawerProps {
   onOpenChange: (open: boolean) => void;
   sourceType: string | null;
   sourceId: string | null;
+  /**
+   * Company that owns this record. Consolidated surfaces preview records that
+   * belong to a member company other than the active workspace: the amount must
+   * be labelled in that company's own currency, and "View full record" must
+   * land the viewer in that company's books rather than dropping them on an
+   * empty page in the currently selected company.
+   */
+  businessId?: string | null;
+  businessName?: string | null;
+  /**
+   * Currency of the books the record was posted in, used when the fetched
+   * record carries no currency of its own (journal entries are recorded in the
+   * owning company's base currency). Without this the ambient workspace
+   * currency would be stamped onto another company's amount.
+   */
+  fallbackCurrency?: string | null;
 }
 
 interface TransactionData {
@@ -97,9 +114,15 @@ export function TransactionPreviewDrawer({
   onOpenChange,
   sourceType,
   sourceId,
+  businessId,
+  businessName,
+  fallbackCurrency,
 }: TransactionPreviewDrawerProps) {
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const { currentBusiness, switchBusiness } = useBusinesses();
+  const [switching, setSwitching] = useState(false);
+  const foreignBusiness = !!businessId && businessId !== currentBusiness?.id;
   const [data, setData] = useState<TransactionData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,10 +151,21 @@ export function TransactionPreviewDrawer({
     fetchTransaction();
   }, [open, sourceType, sourceId]);
 
-  const handleViewFull = () => {
-    if (data?.navigateTo) {
+  // A record belongs to exactly one company. Navigating to it without moving
+  // the workspace to that company lands on a page scoped to the wrong books —
+  // the record is filtered out and the page reads as empty. So the workspace
+  // follows the record: switch first, then navigate.
+  const handleViewFull = async () => {
+    if (!data?.navigateTo) return;
+    try {
+      if (foreignBusiness && businessId) {
+        setSwitching(true);
+        await switchBusiness(businessId);
+      }
       onOpenChange(false);
       navigate(data.navigateTo);
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -182,9 +216,14 @@ export function TransactionPreviewDrawer({
                     {data.status}
                   </Badge>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{formatCurrency(data.amount, data.currency)}</div>
+                    <div className="text-2xl font-bold">
+                      {formatCurrency(data.amount, data.currency ?? fallbackCurrency ?? undefined)}
+                    </div>
                     {data.subtitle && (
                       <div className="text-sm text-muted-foreground">{data.subtitle}</div>
+                    )}
+                    {foreignBusiness && businessName && (
+                      <div className="text-xs text-muted-foreground">Books of {businessName}</div>
                     )}
                   </div>
                 </div>
@@ -202,10 +241,25 @@ export function TransactionPreviewDrawer({
                 {data.navigateTo && (
                   <>
                     <Separator />
-                    <Button variant="outline" className="w-full" onClick={handleViewFull}>
-                      <ExternalLink className="h-4 w-4 mr-2" />
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleViewFull}
+                      disabled={switching}
+                    >
+                      {switching ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                      )}
                       View Full Record
                     </Button>
+                    {foreignBusiness && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        This record is kept in {businessName ?? "another company"}'s books —
+                        opening it switches your workspace to that company.
+                      </p>
+                    )}
                   </>
                 )}
 
