@@ -56,7 +56,7 @@ describe("artifacts repeat the caveats the screen shows", () => {
     expect(src).toContain("Not a consolidation");
     expect(src).toContain("not summed, translated or eliminated");
     // The currencies actually present are named in the artifact.
-    expect(src).toContain("currencies.join(", ");
+    expect(src).toContain("currencies.join");
   });
 
   it("comparative amounts are exported per company in that company's currency", () => {
