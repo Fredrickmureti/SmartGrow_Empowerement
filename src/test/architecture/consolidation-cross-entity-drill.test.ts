@@ -70,21 +70,43 @@ describe("consolidation drill-downs name the company they open", () => {
  * and only that — is the drill target.
  */
 describe("consolidated reports drill at the level that owns records", () => {
-  it("the trial balance links member contributions, not group totals or the CTA residual", () => {
+  it("the trial balance opens member contributions in place, not group totals or the CTA residual", () => {
     const src = read("pages/reports/ConsolidatedTrialBalance.tsx");
-    expect(src).toContain("ledgerDrillHref");
+    // Drill-down is the in-place entity-scoped dialog, not a navigation.
+    expect(src).toContain("DrillDownDialog");
+    expect(src).toContain("setDrillConfig({");
     expect(src).toContain("businessId: c.business_id");
     // The residual belongs to the group, not to a member chart.
     expect(src).toContain("!line.is_residual");
-    // The group row carries no navigation.
+    // The group row carries no drill target.
     expect(src).not.toContain("businessId: line.business_id");
   });
 
-  it("intercompany activity links the posting company's own account", () => {
+  it("intercompany activity opens the posting company's own account in place", () => {
     const src = read("pages/reports/ConsolidationIntercompany.tsx");
-    expect(src).toContain("ledgerDrillHref");
+    expect(src).toContain("DrillDownDialog");
+    expect(src).toContain("setDrillConfig({");
     expect(src).toContain("businessId: r.declaring_business_id");
     expect(src).toContain("activityBlocked");
+  });
+
+  it("consolidated statements reach member evidence without leaving the report", () => {
+    const src = read("pages/reports/ConsolidatedStatements.tsx");
+    expect(src).toContain("MemberContributionDialog");
+    const dialog = read("components/reports/MemberContributionDialog.tsx");
+    // Statement line -> member contribution -> that member's GL lines,
+    // stacked in place on the shared primitive.
+    expect(dialog).toContain("DrillDownDialog");
+    expect(dialog).toContain("businessId");
+  });
+
+  it("elimination evidence is inspected in place: entry drawer and entity-scoped account drill", () => {
+    const src = read("components/finance/EliminationEvidencePanel.tsx");
+    expect(src).toContain("TransactionPreviewDrawer");
+    expect(src).toContain("DrillDownDialog");
+    expect(src).toContain("businessId: r.declaring_business_id");
+    // Every affordance stays behind the server's own decision.
+    expect(src).toContain("r.viewer_can_open_ledger");
   });
 
   it("links are offered only where the viewer may open that company's books", () => {
