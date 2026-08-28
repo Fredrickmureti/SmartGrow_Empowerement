@@ -69,6 +69,8 @@ interface Props {
   groupId: string;
   groupName: string;
   canManage: boolean;
+  /** The group's presentation currency, so the bound is stated in real money. */
+  presentationCurrency?: string | null;
   /**
    * The class an elimination refusal sent the accountant here to settle, and
    * the remedy code it named. Both come from the server's diagnosis by way of
@@ -108,9 +110,13 @@ export function ConsolidationEliminationRules({
   groupId,
   groupName,
   canManage,
+  presentationCurrency = null,
   focusClass = null,
   focusRemedy = null,
 }: Props) {
+  const capLabel = presentationCurrency
+    ? `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} ${presentationCurrency}`
+    : `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} in the group's presentation currency`;
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const accountsQuery = useConsolidationGroupAccounts(groupId);
   const { saveRule } = useConsolidationEliminationMutations();
@@ -254,6 +260,10 @@ export function ConsolidationEliminationRules({
           const dirty = !!drafts[cls];
           const typeMatched = accounts.filter((a) => a.is_active);
           const focused = focusClass === cls;
+          const toleranceNumber = Number(draft.tolerance_amount);
+          const overCap =
+            Number.isFinite(toleranceNumber) &&
+            toleranceNumber > ELIMINATION_TOLERANCE_CAP;
           return (
 
               <div
@@ -337,9 +347,23 @@ export function ConsolidationEliminationRules({
                   <p className="text-xs text-muted-foreground">
                     In the group's presentation currency. Zero means the two sides must
                     agree exactly. A tolerance absorbs rounding, so it cannot exceed{" "}
-                    {ELIMINATION_TOLERANCE_CAP}: a larger gap is a real difference and has
-                    to be explained by the books, not widened away.
+                    {capLabel}: a larger gap is a real difference and has to be explained
+                    by the books, not widened away.
                   </p>
+                  {overCap && (
+                    <Alert variant="destructive" className="mt-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        {Number(draft.tolerance_amount).toLocaleString()}{" "}
+                        {presentationCurrency ?? ""} is not rounding, so it cannot be
+                        saved as a tolerance. To carry a gap of that size, leave the
+                        tolerance at a rounding amount and set “When they disagree by
+                        more” to post the difference to a named group account — the
+                        residual is then disclosed on the face of the statements instead
+                        of being hidden inside the eliminated accounts.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <Textarea
                     className="mt-2 text-xs"
                     rows={2}
@@ -419,7 +443,7 @@ export function ConsolidationEliminationRules({
                 <div className="flex justify-end">
                   <Button
                     size="sm"
-                    disabled={!dirty || savingClass === cls}
+                    disabled={!dirty || overCap || savingClass === cls}
                     onClick={() => save(cls)}
                   >
                     {savingClass === cls && (

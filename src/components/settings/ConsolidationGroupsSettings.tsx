@@ -823,6 +823,7 @@ export function ConsolidationGroupsSettings() {
           groupId={activeGroup.id}
           groupName={activeGroup.name}
           canManage={canManage}
+          presentationCurrency={activeGroup.presentation_currency}
           focusClass={
             requestedGroupId === activeGroup.id ? requestedClass : null
           }
