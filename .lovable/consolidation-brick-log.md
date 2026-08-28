@@ -695,3 +695,57 @@ security cannot be proven from the migration role — that check now runs under
 `SET LOCAL ROLE authenticated`.
 
 Brick 8 (persisted consolidation runs) may now be started.
+
+## R2b — artifact identity truthfulness (closed)
+
+A consolidated PDF printed a per-render hash under the word "Run" while
+`consolidation_runs` was empty: two prints of the same period carried two
+different "run numbers" for a run that had never existed. The footer now says
+`Export ref` — it identifies the rendition, not a business event — and the
+Consolidated Statements and Consolidated Trial Balance both state on their face
+that the figures are a live calculation, not a finalized consolidation run.
+Printing a real run id and version arrives with Brick 8 (R7), when there is a
+run to print.
+
+Guard: `src/test/architecture/consolidation-artifact-identity.test.ts` — the
+footer may never interpolate a hash after the word "Run", both consolidated
+artifacts must declare their basis, and both must issue from the group parent
+with no branch.
+
+## R4 — honest residual policy (closed)
+
+Two things were wrong at once.
+
+**The tolerances were fitted.** This tenant carried 41,500.00 KES on the balance
+class and 1,500.00 on trading — sized to the observed residual, so a genuine
+KES 40,000 disagreement presented as immaterial. `tolerance_amount` is now
+bounded by `public.consolidation_tolerance_cap()` (100 in the group's
+presentation currency: rounding scale, nothing more), any tolerance above zero
+must carry a written `tolerance_reason`, and every change to tolerance, policy
+or difference account is stamped with `tolerance_set_by` / `tolerance_set_at`
+and written to `consolidation_group_change_log`. The two fitted values were
+reset to the bound with the reason recorded.
+
+**The policy was ignored inside tolerance.** The engine used to route any
+within-tolerance cross-currency gap to the translation reserve whatever the
+group had chosen, so a group configured to `refuse` never refused. Difference
+handling is now consulted first and governs every difference: `refuse` refuses
+and says whether the gap was inside the tolerance, `post_to_cta` posts only for
+a genuinely cross-currency pair with a reserve configured, and `post_difference`
+posts to the named group account. Posted differences record
+`within_tolerance` in their evidence so a reader can tell which were accepted
+automatically.
+
+**Trading residuals are barred from the reserve** at both ends — the rule guard
+refuses to save `post_to_cta` on the trading class, and the engine refuses to
+post it. An intragroup trading mismatch is unrecorded revenue, unrealised profit
+or a cut-off difference; it is never a translation effect.
+
+Consequence, deliberately not papered over: with the bound in place and the
+policy set to `refuse`, regenerating Joshua Holdings Group now refuses the KES
+40,000 residual. That residual is real and belongs in the parent's profit or
+loss under IAS 21.45 — R5 recognises it at source, after which the run passes
+legitimately. The eliminations currently stored still carry the old plug; they
+are replaced by the first successful regeneration after R5.
+
+Guard: `src/test/architecture/consolidation-residual-policy.test.ts`.
