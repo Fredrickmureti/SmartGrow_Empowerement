@@ -150,10 +150,21 @@ export function TransactionPreviewDrawer({
     fetchTransaction();
   }, [open, sourceType, sourceId]);
 
-  const handleViewFull = () => {
-    if (data?.navigateTo) {
+  // A record belongs to exactly one company. Navigating to it without moving
+  // the workspace to that company lands on a page scoped to the wrong books —
+  // the record is filtered out and the page reads as empty. So the workspace
+  // follows the record: switch first, then navigate.
+  const handleViewFull = async () => {
+    if (!data?.navigateTo) return;
+    try {
+      if (foreignBusiness && businessId) {
+        setSwitching(true);
+        await switchBusiness(businessId);
+      }
       onOpenChange(false);
       navigate(data.navigateTo);
+    } finally {
+      setSwitching(false);
     }
   };
 
