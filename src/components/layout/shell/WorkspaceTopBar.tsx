@@ -134,8 +134,9 @@ export function WorkspaceTopBar({ app, nav, onOpenMobileNav }: WorkspaceTopBarPr
         })}
       </nav>
 
-      {/* Scope chip — pages fill via useDeclareScope */}
-      <DeclaredScopeChip className="hidden md:inline-flex" />
+      {/* Scope chip + canonical scope switcher trigger. */}
+      <ScopeSwitcherChip className="shrink-0" />
+
 
       {/* Right cluster */}
       <div className="ml-auto flex items-center gap-1">
