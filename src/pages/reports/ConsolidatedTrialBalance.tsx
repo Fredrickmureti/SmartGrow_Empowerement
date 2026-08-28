@@ -193,6 +193,13 @@ export default function ConsolidatedTrialBalance() {
 
   // Totals follow what the table actually shows, so a narrowed report never
   // presents a group total beside a single account's rows.
+  //
+  // Debit and credit are the movement COLUMNS footed — they are column totals,
+  // not the balance proof. The proof is on closing balances (see
+  // `proveTrialBalanceOnClosingBalances`): in a translated group the movement
+  // columns run at the average rate while balance-sheet closing balances run at
+  // the closing rate, so footing the movement columns reports an out-of-balance
+  // on a group whose books are perfectly in order.
   const totals = useMemo(() => {
     let debit = 0;
     let credit = 0;
@@ -200,8 +207,21 @@ export default function ConsolidatedTrialBalance() {
       debit += line.total_debit;
       credit += line.total_credit;
     }
-    return { debit, credit, difference: debit - credit };
+    return { debit, credit };
   }, [visibleLines]);
+
+  const proof = useMemo(
+    () => proveTrialBalanceOnClosingBalances(visibleLines),
+    [visibleLines],
+  );
+
+  // A single account never proves the equation — say so rather than declaring
+  // one account "out of balance" by the size of its own balance.
+  const proofLabel = focusedLine
+    ? "Balance proof covers the whole group, not a single account"
+    : proof.isBalanced
+      ? "In balance on closing balances"
+      : `Out of balance by ${formatAmount(proof.difference, currency)} on closing balances`;
 
 
   const nciDisclosure = useMemo(() => {
