@@ -147,6 +147,8 @@ export interface EliminatedStatementTotals {
   total_assets: number;
   total_liabilities: number;
   total_equity: number;
+  /** Residual (currency translation reserve) inside `total_equity`, post-elimination. */
+  translation_reserve: number;
   eliminations_debit: number;
   eliminations_credit: number;
   balance_sheet_difference: number;
