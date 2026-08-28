@@ -65,6 +65,7 @@ import {
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
 import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
+import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
 
 function formatAmount(value: number, currency: string) {
@@ -76,6 +77,10 @@ function formatAmount(value: number, currency: string) {
 }
 
 export default function ConsolidationIntercompany() {
+  // Consolidated results are group-wide reads: who opened one, for which
+  // group and period, is itself audit evidence (`report_views`). These pages
+  // use ReportsLayout rather than ReportPageLayout, so they log explicitly.
+  useReportViewLogger();
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");

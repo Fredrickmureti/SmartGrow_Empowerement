@@ -70,6 +70,7 @@ import {
   type EliminatedStatementLine,
 } from "@/hooks/finance/useConsolidationEliminations";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
 /**
  * A statement line carrying the three columns. The section/statement unions
@@ -130,6 +131,10 @@ function buildColumns(onOpenEliminations: (accountId: string) => void): ReportCo
 }
 
 export default function ConsolidatedStatements() {
+  // Consolidated results are group-wide reads: who opened one, for which
+  // group and period, is itself audit evidence (`report_views`). These pages
+  // use ReportsLayout rather than ReportPageLayout, so they log explicitly.
+  useReportViewLogger();
   const navigate = useNavigate();
   const { allowed: canViewConsolidated, isLoading: permLoading } =
     useFinancePermission("finance.view_consolidated");
