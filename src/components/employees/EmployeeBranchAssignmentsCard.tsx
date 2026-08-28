@@ -1,3 +1,4 @@
+// SCOPE-TRIGGER-EXEMPT: data-entry field that assigns a branch/company to a record; not the active-scope switcher
 /**
  * EmployeeBranchAssignmentsCard — Phase C, HR Architecture Review.
  *
