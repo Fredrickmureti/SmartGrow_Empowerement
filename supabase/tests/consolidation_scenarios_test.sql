@@ -167,8 +167,13 @@ BEGIN
   IF v_tot.total_assets <> 295000 THEN
     RAISE EXCEPTION 'group assets % but the members hold 235000 + 60000', v_tot.total_assets;
   END IF;
-  IF v_tot.total_equity <> 250000 THEN
-    RAISE EXCEPTION 'group equity % but the members were capitalised 200000 + 50000', v_tot.total_equity;
+  IF v_tot.net_result <> 45000 THEN
+    RAISE EXCEPTION 'group result % but the members earned 75000 less 30000', v_tot.net_result;
+  END IF;
+  -- Equity carries the period result, so the group's closing equity is the
+  -- 250,000 subscribed plus the 45,000 earned.
+  IF v_tot.total_equity <> 295000 THEN
+    RAISE EXCEPTION 'group equity % but capital 250000 plus result 45000 is 295000', v_tot.total_equity;
   END IF;
   IF NOT v_tot.is_balanced THEN
     RAISE EXCEPTION 'the group balance sheet does not balance, difference %', v_tot.balance_difference;
