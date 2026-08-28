@@ -73,6 +73,7 @@ import {
   useEliminatedStatementTotals,
   type EliminatedStatementLine,
 } from "@/hooks/finance/useConsolidationEliminations";
+import { ConsolidationRunHistory } from "@/components/reports/ConsolidationRunHistory";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
