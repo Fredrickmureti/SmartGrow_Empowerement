@@ -41,6 +41,22 @@ interface TransactionPreviewDrawerProps {
   onOpenChange: (open: boolean) => void;
   sourceType: string | null;
   sourceId: string | null;
+  /**
+   * Company that owns this record. Consolidated surfaces preview records that
+   * belong to a member company other than the active workspace: the amount must
+   * be labelled in that company's own currency, and "View full record" must
+   * land the viewer in that company's books rather than dropping them on an
+   * empty page in the currently selected company.
+   */
+  businessId?: string | null;
+  businessName?: string | null;
+  /**
+   * Currency of the books the record was posted in, used when the fetched
+   * record carries no currency of its own (journal entries are recorded in the
+   * owning company's base currency). Without this the ambient workspace
+   * currency would be stamped onto another company's amount.
+   */
+  fallbackCurrency?: string | null;
 }
 
 interface TransactionData {
