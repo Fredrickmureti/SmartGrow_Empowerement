@@ -11,13 +11,22 @@
  * ERP is a one-file change.
  */
 
-export type Tone = "neutral" | "info" | "success" | "warning" | "danger" | "accent";
+export type Tone =
+  | "neutral"
+  | "info"
+  | "success"
+  | "warning"
+  /** Between warning and danger: breached, but not yet unrecoverable. */
+  | "alert"
+  | "danger"
+  | "accent";
 
 const TEXT: Record<Tone, string> = {
   neutral: "text-muted-foreground",
   info: "text-blue-600 dark:text-blue-400",
   success: "text-emerald-600 dark:text-emerald-400",
   warning: "text-amber-600 dark:text-amber-400",
+  alert: "text-orange-600 dark:text-orange-400",
   danger: "text-destructive",
   accent: "text-violet-600 dark:text-violet-400",
 };
@@ -27,6 +36,7 @@ const BORDER: Record<Tone, string> = {
   info: "border-blue-500/30",
   success: "border-emerald-500/30",
   warning: "border-amber-500/30",
+  alert: "border-orange-500/40",
   danger: "border-destructive/40",
   accent: "border-violet-500/30",
 };
@@ -37,6 +47,7 @@ const SURFACE: Record<Tone, string> = {
   info: "bg-blue-500/5",
   success: "bg-emerald-500/5",
   warning: "bg-amber-500/5",
+  alert: "bg-orange-500/5",
   danger: "bg-destructive/5",
   accent: "bg-violet-500/5",
 };
@@ -47,6 +58,7 @@ const FILL: Record<Tone, string> = {
   info: "bg-blue-500",
   success: "bg-emerald-500",
   warning: "bg-amber-500",
+  alert: "bg-orange-500",
   danger: "bg-destructive",
   accent: "bg-violet-500",
 };
@@ -56,6 +68,7 @@ const RING: Record<Tone, string> = {
   info: "ring-blue-500/30",
   success: "ring-emerald-500/30",
   warning: "ring-amber-500/30",
+  alert: "ring-orange-500/30",
   danger: "ring-destructive/40",
   accent: "ring-violet-500/30",
 };
