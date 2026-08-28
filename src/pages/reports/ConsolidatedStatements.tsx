@@ -296,14 +296,14 @@ export default function ConsolidatedStatements() {
    * "the consolidated balance sheet is in balance" was a verdict on a column
    * the reader was not looking at.
    *
-   * The translation reserve is footed from the residual lines of the same
-   * projection for the same reason, so the disclosure moves with the figures.
+   * The translation reserve comes from the same RPC for the same reason: the
+   * disclosure has to move with the equity total it sits inside, so the server
+   * foots it off the residual lines rather than the browser adding them up.
+   *
+   * This renames server fields onto the page's shape; it is not arithmetic.
    */
   const totals = useMemo(() => {
     if (!eliminatedTotals) return null;
-    const translationReserve = lines
-      .filter((l) => l.is_residual)
-      .reduce((sum, l) => sum + Number(l.consolidated_amount), 0);
     return {
       presentation_currency: eliminatedTotals.presentation_currency,
       total_income: Number(eliminatedTotals.total_income),
