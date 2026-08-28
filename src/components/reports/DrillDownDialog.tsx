@@ -4,10 +4,12 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -24,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, ExternalLink } from "lucide-react";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { resolveLedgerDrillTarget } from "@/lib/reports/ledgerDrillTarget";
+import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
 import { format } from "date-fns";
+
 
 export interface DrillDownConfig {
   title: string;
@@ -80,6 +84,8 @@ interface DrillDownDialogProps {
 
 export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogProps) {
   const { currentOrg } = useOrganization();
+  const navigate = useNavigate();
+
   const { currentBusiness } = useBusinesses();
   const { formatCurrency } = useCurrency();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -322,7 +328,36 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
             </Table>
           )}
         </div>
+
+        {/*
+          Secondary affordance, not the drill-down itself. The dialog above is
+          the traceability path (line → preview → source document, in place);
+          this is the stable deep link for someone who wants the full ledger,
+          and it carries the company so it lands in the right books.
+        */}
+        {config?.accountId && !config?.contactId && (
+          <DialogFooter className="sm:justify-start">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigate(
+                  ledgerDrillHref({
+                    businessId: scopedBusinessId,
+                    accountId: config.accountId,
+                    dateFrom: config.startDate,
+                    dateTo: config.endDate,
+                  }),
+                )
+              }
+            >
+              Open in General Ledger
+              <ExternalLink className="h-3.5 w-3.5 ml-2" />
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
+
       <TransactionPreviewDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
