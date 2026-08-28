@@ -10,7 +10,10 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,31 +52,6 @@ function shiftDay(day: string, delta: number) {
   return localDay(d);
 }
 
-function Kpi({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Icon className="h-3.5 w-3.5" /> {label}
-        </div>
-        <div className={`text-2xl font-semibold mt-1 ${tone ?? ""}`}>{value}</div>
-        {hint && <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function DockSchedule() {
   const [warehouseId, setWarehouseId] = useState("");
@@ -216,28 +194,45 @@ export default function DockSchedule() {
         ) : (
           <>
             <Section>
-              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5">
-                <Kpi icon={CalendarClock} label="Appointments today" value={String(kpis.total)} />
-                <Kpi icon={Truck} label="Trailers on site" value={String(kpis.onSite)} />
-                <Kpi
-                  icon={Gauge}
+              <SummaryStatGrid>
+                <SummaryStatCard
+                  icon={<CalendarClock className="h-3.5 w-3.5" />}
+                  label="Appointments today"
+                  value={kpis.total}
+                  loading={isLoading}
+                />
+                <SummaryStatCard
+                  icon={<Truck className="h-3.5 w-3.5" />}
+                  label="Trailers on site"
+                  value={kpis.onSite}
+                  to={`/warehouse-app/yard?warehouse=${warehouseId}`}
+                  loading={isLoading}
+                />
+                <SummaryStatCard
+                  icon={<Gauge className="h-3.5 w-3.5" />}
                   label="Dock utilisation"
                   value={`${kpis.utilisation}%`}
-                  hint={`${(docks ?? []).length} active docks`}
+                  footer={`${(docks ?? []).length} active docks`}
+                  loading={isLoading}
                 />
-                <Kpi
-                  icon={Timer}
+                <SummaryStatCard
+                  icon={<Timer className="h-3.5 w-3.5" />}
                   label="Avg dwell (on site)"
                   value={kpis.avgDwell ? `${kpis.avgDwell}m` : "—"}
+                  loading={isLoading}
                 />
-                <Kpi
-                  icon={AlertTriangle}
+                <SummaryStatCard
+                  icon={<AlertTriangle className="h-3.5 w-3.5" />}
                   label="Overdue arrivals"
-                  value={String(kpis.late)}
-                  tone={kpis.late > 0 ? "text-destructive" : undefined}
-                  hint={kpis.onTimePct !== null ? `${kpis.onTimePct}% on time` : undefined}
+                  value={kpis.late}
+                  tone={kpis.late > 0 ? "bad" : "neutral"}
+                  accent={kpis.late > 0}
+                  footer={
+                    kpis.onTimePct !== null ? `${kpis.onTimePct}% on time` : undefined
+                  }
+                  loading={isLoading}
                 />
-              </div>
+              </SummaryStatGrid>
             </Section>
 
             {view === "timeline" ? (

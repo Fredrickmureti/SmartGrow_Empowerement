@@ -16,6 +16,10 @@ import {
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,18 +56,6 @@ const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "
   voided: "danger",
   consumed: "neutral",
 };
-
-function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums">{value}</p>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function LicensePlates() {
   const qc = useQueryClient();
@@ -210,13 +202,28 @@ export default function LicensePlates() {
         }
       />
       <PageBody>
-        <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5">
-          <Metric label="Plates" value={metrics.total} />
-          <Metric label="Carrying stock" value={metrics.stocked} hint={`${metrics.units.toLocaleString()} units`} />
-          <Metric label="Empty" value={metrics.empty} hint="Available to build" />
-          <Metric label="Sealed" value={metrics.sealed} hint="Ready to ship" />
-          <Metric label="Unlocated" value={metrics.unlocated} hint="No bin assigned" />
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Plates" value={metrics.total} />
+          <SummaryStatCard
+            label="Carrying stock"
+            value={metrics.stocked}
+            footer={`${metrics.units.toLocaleString()} units`}
+          />
+          <SummaryStatCard label="Empty" value={metrics.empty} footer="Available to build" />
+          <SummaryStatCard
+            label="Sealed"
+            value={metrics.sealed}
+            tone="ok"
+            footer="Ready to ship"
+          />
+          <SummaryStatCard
+            label="Unlocated"
+            value={metrics.unlocated}
+            tone={metrics.unlocated > 0 ? "warn" : "neutral"}
+            accent={metrics.unlocated > 0}
+            footer="No bin assigned"
+          />
+        </SummaryStatGrid>
 
         <div className="min-w-0 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
         <Section

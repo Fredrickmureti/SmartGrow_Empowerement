@@ -18,6 +18,10 @@ import {
 } from "@/design-system";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Gauge } from "lucide-react";
@@ -102,19 +106,17 @@ export default function Slotting() {
         }
       />
       <PageBody>
-        <div className="min-w-0 grid grid-cols-1 @2xl/page:grid-cols-3 gap-4">
+        <SummaryStatGrid>
           {(["A", "B", "C"] as const).map((k) => (
-            <Card key={k}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <div className="text-xs uppercase text-muted-foreground">Class {k}</div>
-                  <div className="text-2xl font-semibold">{counts[k]}</div>
-                </div>
-                <StatusBadge tone={CLASS_TONE[k]}>{k}</StatusBadge>
-              </CardContent>
-            </Card>
+            <SummaryStatCard
+              key={k}
+              label={`Class ${k}`}
+              value={counts[k]}
+              loading={isLoading}
+              status={<StatusBadge tone={CLASS_TONE[k]}>{k}</StatusBadge>}
+            />
           ))}
-        </div>
+        </SummaryStatGrid>
 
         <Section title="Products by velocity" description="Ranked by pick count.">
           {isLoading ? (

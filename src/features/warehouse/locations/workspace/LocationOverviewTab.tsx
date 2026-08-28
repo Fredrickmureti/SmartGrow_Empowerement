@@ -5,6 +5,10 @@
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Section, FieldGrid, FieldCell } from "@/design-system";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { OccupancyBar } from "../OccupancyBar";
 import { levelLabel } from "../vocabulary";
 import type { LocationNode } from "../types";
@@ -14,20 +18,12 @@ export default function LocationOverviewTab({ node }: { node: LocationNode }) {
   return (
     <>
       <Section title="What's here now" description="Rolled up from the stock ledger.">
-        <FieldGrid columns={4}>
-          <FieldCell>
-            <Metric label="On hand" value={m.on_hand_units.toLocaleString()} />
-          </FieldCell>
-          <FieldCell>
-            <Metric label="Reserved" value={m.reserved_units.toLocaleString()} />
-          </FieldCell>
-          <FieldCell>
-            <Metric label="Products" value={m.sku_count.toLocaleString()} />
-          </FieldCell>
-          <FieldCell>
-            <Metric label="Lots" value={m.lot_count.toLocaleString()} />
-          </FieldCell>
-        </FieldGrid>
+        <SummaryStatGrid>
+          <SummaryStatCard label="On hand" value={m.on_hand_units.toLocaleString()} />
+          <SummaryStatCard label="Reserved" value={m.reserved_units.toLocaleString()} />
+          <SummaryStatCard label="Products" value={m.sku_count.toLocaleString()} />
+          <SummaryStatCard label="Lots" value={m.lot_count.toLocaleString()} />
+        </SummaryStatGrid>
         <div className="space-y-1 pt-4">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Capacity used</span>
@@ -93,15 +89,6 @@ export default function LocationOverviewTab({ node }: { node: LocationNode }) {
         </p>
       </Section>
     </>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border p-3">
-      <div className="truncate text-xs text-muted-foreground">{label}</div>
-      <div className="truncate text-2xl font-semibold">{value}</div>
-    </div>
   );
 }
 

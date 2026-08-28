@@ -18,6 +18,10 @@
  * indirect AND idle time — because measuring only direct time flatters
  * the number and hides the real labour cost.
  */
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { useMemo, useState } from "react";
 import {
   PageHeader, PageBody, Section, LoadingState,
@@ -155,45 +159,30 @@ export default function LabourBoard() {
           </div>
         </div>
 
-        <div className="min-w-0 grid gap-4 @2xl/page:grid-cols-4 mb-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Users className="h-4 w-4" /> Operators on shift
-              </div>
-              <div className="text-2xl font-semibold mt-1">
-                {onShift}/{(operators ?? []).length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Gauge className="h-4 w-4" /> True utilisation
-              </div>
-              <div className="text-2xl font-semibold mt-1">
-                {pct(totals.paid > 0 ? totals.earned / totals.paid : null)}
-              </div>
-              <p className="text-xs text-muted-foreground">Earned ÷ (direct + indirect + idle)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Timer className="h-4 w-4" /> Idle time
-              </div>
-              <div className="text-2xl font-semibold mt-1">{fmtHours(totals.idle)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <ListChecks className="h-4 w-4" /> Tasks completed
-              </div>
-              <div className="text-2xl font-semibold mt-1">{totals.tasks}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid className="mb-6">
+          <SummaryStatCard
+            icon={<Users className="h-3.5 w-3.5" />}
+            label="Operators on shift"
+            value={`${onShift}/${(operators ?? []).length}`}
+          />
+          <SummaryStatCard
+            icon={<Gauge className="h-3.5 w-3.5" />}
+            label="True utilisation"
+            value={pct(totals.paid > 0 ? totals.earned / totals.paid : null)}
+            footer="Earned ÷ (direct + indirect + idle)"
+          />
+          <SummaryStatCard
+            icon={<Timer className="h-3.5 w-3.5" />}
+            label="Idle time"
+            value={fmtHours(totals.idle)}
+            tone={totals.idle > 0 ? "warn" : "neutral"}
+          />
+          <SummaryStatCard
+            icon={<ListChecks className="h-3.5 w-3.5" />}
+            label="Tasks completed"
+            value={totals.tasks}
+          />
+        </SummaryStatGrid>
 
         <Tabs defaultValue="queue">
           <TabsList>

@@ -10,11 +10,15 @@
  * this page never calls a cross-dock RPC directly.
  */
 import { useMemo, useState } from "react";
-import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
+import { PageHeader, PageBody, Section, LoadingState, EmptyState } from "@/design-system";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -234,25 +238,27 @@ export default function CrossdockBoard() {
         description="Inbound freight that can skip storage entirely — qualify, approve to a dock, direct the move, and ship straight out."
       />
       <PageBody>
-        <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5 mb-4">
+        <SummaryStatGrid className="mb-4">
           {[
-            { label: "Awaiting decision", value: kpis.awaiting },
-            { label: "In execution", value: kpis.executing },
-            { label: "Completed", value: kpis.completed },
-            { label: "Expiring < 4h", value: kpis.expiring },
-            { label: "Expired / broken", value: kpis.failed },
+            { label: "Awaiting decision", value: kpis.awaiting, tone: "warn" as const },
+            { label: "In execution", value: kpis.executing, tone: "blue" as const },
+            { label: "Completed", value: kpis.completed, tone: "ok" as const },
+            { label: "Expiring < 4h", value: kpis.expiring, tone: "warn" as const },
+            { label: "Expired / broken", value: kpis.failed, tone: "bad" as const },
           ].map((k) => (
-            <Card key={k.label}>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">{k.label}</p>
-                <p className="text-2xl font-semibold">{k.value}</p>
-              </CardContent>
-            </Card>
+            <SummaryStatCard
+              key={k.label}
+              label={k.label}
+              value={k.value}
+              tone={k.value > 0 ? k.tone : "neutral"}
+              accent={k.value > 0}
+              loading={isLoading}
+            />
           ))}
-        </div>
+        </SummaryStatGrid>
 
-        <Card className="mb-4">
-          <CardContent className="min-w-0 grid gap-4 pt-6 @xl/page:grid-cols-3 @4xl/page:grid-cols-6">
+        <Section title="Flow-through performance" className="mb-4">
+          <SummaryStatGrid>
             {[
               {
                 label: "Flow-through rate (30d)",
@@ -267,13 +273,16 @@ export default function CrossdockBoard() {
               },
               { label: "Estimated saving", value: perf.savings.toLocaleString() },
             ].map((m) => (
-              <div key={m.label}>
-                <p className="text-xs text-muted-foreground">{m.label}</p>
-                <p className="text-lg font-semibold">{m.value}</p>
-              </div>
+              <SummaryStatCard
+                key={m.label}
+                label={m.label}
+                value={m.value}
+                loading={isLoading}
+              />
             ))}
-          </CardContent>
-        </Card>
+          </SummaryStatGrid>
+        </Section>
+
 
 
         <div className="flex flex-wrap items-end gap-3 mb-4">
