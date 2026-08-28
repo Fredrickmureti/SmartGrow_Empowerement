@@ -138,6 +138,15 @@ export function ConsolidationGroupsSettings() {
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
     activeGroup?.parent_business_id ?? null,
   );
+  // The reserve is a group construct: where the group keeps its own chart it is
+  // presented on a group equity account, never on a member's.
+  const { data: groupAccounts = [] } = useConsolidationGroupAccounts(
+    activeGroupId,
+  );
+  const groupEquityAccounts = useMemo(
+    () => groupAccounts.filter((a) => a.is_active && a.account_type === "equity"),
+    [groupAccounts],
+  );
 
 
   const [newName, setNewName] = useState("");
