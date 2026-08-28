@@ -33,6 +33,17 @@ export { EmptyState } from "./primitives/EmptyState";
 export { LoadingState } from "./primitives/LoadingState";
 export { ErrorState } from "./primitives/ErrorState";
 export { StatusBadge } from "./primitives/StatusBadge";
+// Status colour outside a pill (icon tints, meters, row washes) — never
+// hand-roll `text-emerald-600` in a module; use these.
+export {
+  toneText,
+  toneBorder,
+  toneSurface,
+  toneFill,
+  toneRing,
+  toneFromStat,
+  type Tone,
+} from "./primitives/tone";
 export { FilterBar } from "./primitives/FilterBar";
 export { ActionBar } from "./primitives/ActionBar";
 export { DetailLayout } from "./primitives/DetailLayout";
