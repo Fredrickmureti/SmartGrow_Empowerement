@@ -45,6 +45,12 @@ export {
   SummaryStatCard,
   SummaryStatGrid,
 } from "@/components/common/SummaryStatCards";
+export { CalloutCard } from "@/components/common/CalloutCard";
+export type {
+  CalloutCardProps,
+  CalloutMetric,
+  CalloutTone,
+} from "@/components/common/CalloutCard";
 export type {
   SummaryStatCardProps,
   SummaryStatTone,
