@@ -312,11 +312,11 @@ export default function ConsolidatedStatements() {
       total_assets: Number(eliminatedTotals.total_assets),
       total_liabilities: Number(eliminatedTotals.total_liabilities),
       total_equity: Number(eliminatedTotals.total_equity),
-      translation_reserve: translationReserve,
+      translation_reserve: Number(eliminatedTotals.translation_reserve),
       balance_difference: Number(eliminatedTotals.balance_sheet_difference),
       is_balanced: eliminatedTotals.is_balanced,
     };
-  }, [eliminatedTotals, lines]);
+  }, [eliminatedTotals]);
 
   const rowsFor = (statement: ConsolidatedStatement): ReportRow[] => {
     const out: ReportRow[] = [];

@@ -177,7 +177,7 @@ describe("totals and rows come from the same projection", () => {
     expect(pageSource).toContain("eliminatedTotals.is_balanced");
   });
 
-  it("discloses the translation reserve from the same lines it prints", () => {
-    expect(pageSource).toMatch(/is_residual[\s\S]{0,200}consolidated_amount/);
+  it("discloses the translation reserve from the same projection, not a client sum", () => {
+    expect(pageSource).toContain("eliminatedTotals.translation_reserve");
   });
 });
