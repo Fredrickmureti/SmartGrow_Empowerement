@@ -7,7 +7,7 @@
  * same canonical rows — no second source of truth, no client-side spend
  * arithmetic beyond display of ledger-derived rollups.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 
