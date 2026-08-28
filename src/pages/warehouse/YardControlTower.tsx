@@ -71,6 +71,7 @@ export default function YardControlTower() {
   // a jockey executes it. Turning it off applies the move immediately, which
   // is only correct when the supervisor *is* the person moving the trailer.
   const [dispatchMode, setDispatchMode] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const warehouses = useWarehouses();
   const effectiveWarehouse = warehouseId || warehouses.data?.[0]?.id || "";
