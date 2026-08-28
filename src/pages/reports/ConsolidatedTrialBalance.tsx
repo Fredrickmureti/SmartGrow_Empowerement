@@ -323,8 +323,12 @@ export default function ConsolidatedTrialBalance() {
                 })
             : undefined,
           values: {
-            code: "",
-            name: "",
+            // A contribution row is one member's OWN account. Printing it
+            // blank made every member line in the exported artifact read as a
+            // dash, so nothing tied a figure back to the ledger it came from.
+            // The member's own code and name are what an auditor traces.
+            code: c.account_code ?? "—",
+            name: c.account_name,
             company: c.business_name + (c.is_parent ? " (parent)" : ""),
             rate: describeRate(c),
             opening: show(Number(c.opening_balance), Number(c.translated_opening)),
