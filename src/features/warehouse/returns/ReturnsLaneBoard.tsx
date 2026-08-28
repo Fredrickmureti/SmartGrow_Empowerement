@@ -31,16 +31,16 @@ const LANE_ORDER: ReturnLane[] = [
   "blocked",
 ];
 
-const LANE_ACCENT: Record<ReturnLane, string> = {
-  expected: "border-l-muted-foreground/40",
-  at_dock: "border-l-primary/60",
-  unloading: "border-l-primary/60",
-  awaiting_inspection: "border-l-warning",
-  awaiting_disposition: "border-l-warning",
-  awaiting_posting: "border-l-warning",
-  awaiting_finance: "border-l-accent",
-  blocked: "border-l-destructive",
-  closed: "border-l-muted",
+const LANE_TONE: Record<ReturnLane, SummaryStatTone> = {
+  expected: "neutral",
+  at_dock: "primary",
+  unloading: "primary",
+  awaiting_inspection: "warn",
+  awaiting_disposition: "warn",
+  awaiting_posting: "warn",
+  awaiting_finance: "purple",
+  blocked: "bad",
+  closed: "neutral",
 };
 
 export interface ReturnsLaneBoardProps {
