@@ -69,6 +69,8 @@ interface Props {
   groupId: string;
   groupName: string;
   canManage: boolean;
+  /** The group's presentation currency, so the bound is stated in real money. */
+  presentationCurrency?: string | null;
   /**
    * The class an elimination refusal sent the accountant here to settle, and
    * the remedy code it named. Both come from the server's diagnosis by way of
