@@ -81,7 +81,7 @@ function StageCard({
         </span>
       </div>
 
-      <p className="text-2xl font-semibold tabular-nums leading-none">{s.backlog}</p>
+      <p className="stat-value tabular-nums leading-none">{s.backlog}</p>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className={cn("h-full rounded-full", HEALTH_FILL[s.health])}
