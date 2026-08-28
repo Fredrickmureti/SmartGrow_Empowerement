@@ -215,3 +215,39 @@ describe("consolidation eliminations — drill-down evidence", () => {
     expect(page).toContain("focusAccountId");
   });
 });
+
+/**
+ * R5 guard: an exchange difference a member has not yet recognised is that
+ * member's own profit or loss under IAS 21.45, never something the group
+ * absorbs.
+ *
+ * The failure this prevents is the engine quietly carrying an unrecognised
+ * member exchange difference into the translation reserve — which would make
+ * the group's reserve a dumping ground and leave the member's own statements
+ * misstated.
+ */
+describe("consolidation eliminations — unrecognised member FX", () => {
+  const REMEDIES = "lib/finance/eliminationRemedies.ts";
+
+  it("the cause is a named code with its own wording", () => {
+    const src = read(REMEDIES);
+    expect(src).toContain("unrecognised_member_fx");
+    expect(src).toContain("A member has not retranslated its own books");
+  });
+
+  it("the remedy sends the accountant back to the member's own revaluation", () => {
+    const src = read(REMEDIES);
+    expect(src).toContain("run_member_fx_revaluation");
+    expect(src).toContain("/finance/reports/fx-revaluation");
+  });
+
+  it("that remedy is never applied in place as a group policy change", () => {
+    const src = read(REMEDIES);
+    const applicable = src.slice(
+      src.indexOf("APPLICABLE_REMEDIES"),
+      src.indexOf("isApplicableRemedy"),
+    );
+    expect(applicable).not.toContain("run_member_fx_revaluation");
+  });
+});
+

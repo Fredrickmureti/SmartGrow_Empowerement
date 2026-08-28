@@ -99093,6 +99093,7 @@ export type Database = {
         Returns: {
           account_id: string
           base_balance_old: number
+          contact_id: string
           currency: string
           foreign_balance: number
         }[]
