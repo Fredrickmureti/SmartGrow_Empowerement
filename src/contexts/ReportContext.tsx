@@ -108,7 +108,11 @@ export function ReportContextProvider({ children }: { children: ReactNode }) {
     <T extends Partial<ExportConfig>>(config: T) => ({
       ...config,
       organizationId: ctx.organizationId ?? config.organizationId,
-      businessId: ctx.businessId ?? config.businessId,
+      // A consolidated report is issued by the group's parent company, not by
+      // whichever member entity the user is browsing — that declaration wins
+      // over the ambient entity, and only over it.
+      businessId:
+        config.reportingEntityBusinessId ?? ctx.businessId ?? config.businessId,
       // Branch is scope, not branding: a report-local branch wins over the
       // ambient navigation branch. Preserve explicit null ("All branches") —
       // nullish fallback used to turn that deliberate consolidated scope back
