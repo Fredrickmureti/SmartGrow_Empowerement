@@ -788,15 +788,16 @@ REPORT_SPECS["consolidated_income_statement"] = {
   columns: CONSOLIDATED_STATEMENT_COLUMNS,
 };
 
-// The consolidated trial balance is a working schedule, not a statement:
-// with member contributions it carries eight columns and is read across.
-// It keeps the financial masthead but earns the ledger face, which spends
-// the reclaimed gutter on column width instead of shrinking digits.
+// Every consolidated artifact is read as one family: the group statements
+// set the face (10pt statement profile, bold captions/totals) and the
+// schedules follow it. Landscape A4 already buys the width, so the trial
+// balance is typeset at statement size rather than ledger density —
+// 8.5pt digits looked tiny next to the income statement on the same desk.
 REPORT_SPECS["consolidated_trial_balance"] = {
   title: "Consolidated Trial Balance",
   orientation: "landscape",
   formatProfile: "financial",
-  presentationProfile: "ledger",
+  presentationProfile: "statement",
   columns: [
     { key: "code", header: "Account", width: 12, align: "left", format: "text" },
     { key: "name", header: "Description", width: 30, align: "left", format: "text" },
@@ -809,11 +810,12 @@ REPORT_SPECS["consolidated_trial_balance"] = {
   ],
 };
 
+// Same family, same face as the group statements (see above).
 REPORT_SPECS["consolidation_eliminations"] = {
   title: "Intercompany Eliminations",
   orientation: "landscape",
   formatProfile: "financial",
-  presentationProfile: "ledger",
+  presentationProfile: "statement",
   columns: [
     { key: "code", header: "Account", width: 14, align: "left", format: "text" },
     { key: "name", header: "Description", width: 34, align: "left", format: "text" },
