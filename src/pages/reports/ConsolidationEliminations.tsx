@@ -440,13 +440,21 @@ export default function ConsolidationEliminations() {
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </div>
-            <Button
-              onClick={runGeneration}
-              disabled={!groupId || !scopeIsClean || generate.isPending}
-            >
-              {generate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {hasRun ? "Regenerate" : "Generate eliminations"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={runGeneration}
+                disabled={!groupId || !scopeIsClean || generate.isPending}
+              >
+                {generate.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {hasRun ? "Regenerate" : "Generate eliminations"}
+              </Button>
+              {hasRun && canManageConsolidation && (
+                <Button variant="outline" onClick={() => setReverseOpen(true)}>
+                  Withdraw
+                </Button>
+              )}
+            </div>
+
           </CardContent>
         </Card>
 
