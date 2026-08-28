@@ -306,64 +306,39 @@ export default function SalesReturns() {
         <SalesReturnPeekSheet salesReturnId={detailReturnId} onOpenChange={(o) => { if (!o) setDetailReturnId(null); }} />
 
         {/* Financial Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingDown className="h-3.5 w-3.5" />
-                Total Return Value
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-destructive">
-                {formatCurrency(stats.totalValue)}
-              </div>
-              <p className="text-xs text-muted-foreground">{stats.total} returns</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5" />
-                Credits Generated
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold">
-                {formatCurrency(stats.creditsGenerated)}
-              </div>
-              <p className="text-xs text-muted-foreground">{salesReturns.filter(r => r.credit_note).length} credit notes</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <ArrowRight className="h-3.5 w-3.5" />
-                Credits Used
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-emerald-600">
-                {formatCurrency(stats.creditsApplied)}
-              </div>
-              <p className="text-xs text-muted-foreground">Applied or refunded</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5" />
-                Outstanding Credits
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-primary">
-                {formatCurrency(stats.creditsOutstanding)}
-              </div>
-              <p className="text-xs text-muted-foreground">{stats.pending} pending approval</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            accent
+            tone="destructive"
+            icon={<TrendingDown className="h-3.5 w-3.5" />}
+            label="Total Return Value"
+            value={formatCurrency(stats.totalValue)}
+            footer={`${stats.total} returns`}
+          />
+          <SummaryStatCard
+            accent
+            icon={<CreditCard className="h-3.5 w-3.5" />}
+            label="Credits Generated"
+            value={formatCurrency(stats.creditsGenerated)}
+            footer={`${salesReturns.filter(r => r.credit_note).length} credit notes`}
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            icon={<ArrowRight className="h-3.5 w-3.5" />}
+            label="Credits Used"
+            value={formatCurrency(stats.creditsApplied)}
+            footer="Applied or refunded"
+          />
+          <SummaryStatCard
+            accent
+            tone="primary"
+            icon={<RotateCcw className="h-3.5 w-3.5" />}
+            label="Outstanding Credits"
+            value={formatCurrency(stats.creditsOutstanding)}
+            footer={`${stats.pending} pending approval`}
+          />
+        </SummaryStatGrid>
 
         {/* Filters */}
         <div className="filter-bar">
