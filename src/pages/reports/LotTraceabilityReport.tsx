@@ -308,46 +308,29 @@ function LotTraceabilityReportInner() {
       }
     >
       <div className="space-y-6">
-        <div className="stats-grid grid-cols-1 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Lot Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.totalValue, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Same cost-layer basis as Inventory Valuation
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Expiry Risk</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.expiringValue, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">Expired or expiring within 30 days</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Blocked Value</CardTitle>
-              <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatAccountingNumber(totals.blockedValue, baseCurrency)}
-              </div>
-              <p className="text-xs text-muted-foreground">Quarantined or recalled lots</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Lot Value"
+            icon={<DollarSign className="h-3.5 w-3.5" />}
+            tone="primary"
+            value={formatAccountingNumber(totals.totalValue, baseCurrency)}
+            footer="Same cost-layer basis as Inventory Valuation"
+          />
+          <SummaryStatCard
+            label="Expiry Risk"
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
+            tone="amber"
+            value={formatAccountingNumber(totals.expiringValue, baseCurrency)}
+            footer="Expired or expiring within 30 days"
+          />
+          <SummaryStatCard
+            label="Blocked Value"
+            icon={<ShieldAlert className="h-3.5 w-3.5" />}
+            tone="destructive"
+            value={formatAccountingNumber(totals.blockedValue, baseCurrency)}
+            footer="Quarantined or recalled lots"
+          />
+        </SummaryStatGrid>
 
         <ReportSurface
           title="Lot Traceability"
