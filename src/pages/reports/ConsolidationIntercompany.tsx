@@ -64,7 +64,8 @@ import {
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
-import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
+import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
+
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 
 
