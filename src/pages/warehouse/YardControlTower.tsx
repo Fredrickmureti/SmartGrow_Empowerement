@@ -206,6 +206,20 @@ export default function YardControlTower() {
               {dispatchMode ? "Dispatch move to jockey" : "Apply move immediately"}
             </Label>
           </div>
+          {overdueOnly && (
+            <Badge
+              variant="outline"
+              className="h-9 gap-1.5 px-3 cursor-pointer"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete("filter");
+                setSearchParams(next, { replace: true });
+              }}
+            >
+              Past appointment window only
+              <span aria-hidden className="text-muted-foreground">×</span>
+            </Badge>
+          )}
         </div>
 
         <YardKpiStrip kpis={kpis} />
