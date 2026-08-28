@@ -680,6 +680,16 @@ export default function ConsolidatedStatements() {
                 )}
               </CardContent>
             </Card>
+
+            {/* The reporting record: runs read back from storage, beside the
+                live view above. */}
+            <ConsolidationRunHistory
+              groupId={groupId}
+              groupName={selectedGroup?.name ?? "this group"}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              canCreate={!!readyGroupId}
+            />
           </>
         )}
       </div>
