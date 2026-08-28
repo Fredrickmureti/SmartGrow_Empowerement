@@ -25,6 +25,8 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toAppError } from "@/lib/supabaseError";
 import { ledgerDrillHref, journalEntryDrillHref } from "@/lib/reports/crossEntityDrill";
+import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
+import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 
 import {
   ELIMINATION_CLASS_LABELS,
