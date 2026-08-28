@@ -318,20 +318,38 @@ function LegEvidence({
               <tr key={`${r.journal_entry_id}:${r.account_id}`} className="border-t">
                 <td className="py-1 pr-3">
                   {r.viewer_can_open_ledger ? (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0"
-                      onClick={() =>
-                        navigate(
-                          journalEntryDrillHref(r.journal_entry_id, r.declaring_business_id),
-                        )
-                      }
-
-                    >
-                      {r.entry_number ?? "Journal entry"}
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </Button>
+                    <span className="inline-flex items-center gap-1">
+                      {/* Opens the entry in place; the drawer offers "View full
+                          record" for the source document itself. */}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0"
+                        onClick={() =>
+                          setPreview({ type: "journal_entry", id: r.journal_entry_id })
+                        }
+                      >
+                        {r.entry_number ?? "Journal entry"}
+                      </Button>
+                      {/* Secondary: the stable deep link to the entry in that
+                          company's books, built by `crossEntityDrill`. */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        aria-label="Open journal entry in its own company"
+                        onClick={() =>
+                          navigate(
+                            journalEntryDrillHref(
+                              r.journal_entry_id,
+                              r.declaring_business_id,
+                            ),
+                          )
+                        }
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </span>
                   ) : (
                     <span className="text-muted-foreground">
                       {r.entry_number ?? "Journal entry"}
@@ -353,16 +371,16 @@ function LegEvidence({
                       size="sm"
                       className="h-auto p-0 text-left"
                       onClick={() =>
-                        navigate(
-                          ledgerDrillHref({
-                            businessId: r.declaring_business_id,
-                            accountId: r.account_id,
-                            dateFrom,
-                            dateTo,
-                          }),
-                        )
+                        setDrillConfig({
+                          title: `${r.account_code} · ${r.account_name} — ${r.declaring_business_name ?? row.declaring_business_name}`,
+                          accountId: r.account_id,
+                          businessId: r.declaring_business_id,
+                          businessName:
+                            r.declaring_business_name ?? row.declaring_business_name,
+                          startDate: dateFrom,
+                          endDate: dateTo,
+                        })
                       }
-
                     >
                       {r.account_code} · {r.account_name}
                     </Button>
@@ -372,6 +390,7 @@ function LegEvidence({
                     </span>
                   )}
                 </td>
+
                 <td className="py-1 pr-3 text-right tabular-nums">
                   {Number(r.debit_base).toFixed(2)}
                 </td>
