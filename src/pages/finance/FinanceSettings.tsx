@@ -30,6 +30,13 @@ import { FinanceAccountingControls } from "@/components/finance/FinanceAccountin
 import { DefaultAccountsConfig } from "@/components/finance/DefaultAccountsConfig";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
 import { ConsolidationGroupsSettings } from "@/components/settings/ConsolidationGroupsSettings";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 
 interface Account {
@@ -37,6 +44,49 @@ interface Account {
   code: string;
   name: string;
   account_type: string;
+}
+
+/**
+ * A collapsed settings group. Finance settings is a long page of independent
+ * panels; large ERPs surface them as a list of headers the accountant expands
+ * one at a time rather than an endless scroll of every panel at once.
+ */
+function SettingsSection({
+  id,
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible
+      id={id}
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-lg border bg-card"
+    >
+      <CollapsibleTrigger className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50">
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold sm:text-base">{title}</span>
+          <span className="block text-xs text-muted-foreground">{description}</span>
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="border-t p-3 sm:p-4">{children}</CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export default function FinanceSettings() {
@@ -110,28 +160,59 @@ export default function FinanceSettings() {
 
         <BranchReadOnlyBanner area="Finance Settings" permissionLabel="finance.manage_settings" />
 
-        {/* Odoo-parity lock-date hierarchy */}
-        <LockDatesCard />
+        {/* Every section is collapsible and only the first is open by default,
+            so reaching Accounting Controls or Consolidation no longer means
+            scrolling past unrelated, fully-expanded panels. */}
+        <SettingsSection
+          id="lock-dates"
+          title="Period lock dates"
+          description="Hard, soft and tax lock dates that decide which periods still accept postings."
+          defaultOpen
+        >
+          <LockDatesCard />
+        </SettingsSection>
 
-        {/* Zero-trust finance integrity audit */}
-        <AccountingIntegrityCard />
+        <SettingsSection
+          id="integrity"
+          title="Accounting integrity"
+          description="Zero-trust audit of the ledger: unbalanced entries, orphaned postings, control-account drift."
+        >
+          <AccountingIntegrityCard />
+        </SettingsSection>
 
-        {/* Inventory subledger ↔ GL reconciliation (drift + opening backfill) */}
-        <InventoryReconciliationCard />
+        <SettingsSection
+          id="inventory-recon"
+          title="Inventory subledger ↔ General Ledger"
+          description="Drift between stock valuation and the GL, plus the opening-balance backfill."
+        >
+          <InventoryReconciliationCard />
+        </SettingsSection>
 
-        {/* Odoo-grade accountant controls */}
-        <FinanceAccountingControls accounts={accounts} />
+        <SettingsSection
+          id="accounting-controls"
+          title="Accounting controls"
+          description="Journal, reconciliation and foreign-exchange policies for this company."
+        >
+          <FinanceAccountingControls accounts={accounts} />
+        </SettingsSection>
 
-        {/* Canonical, eligibility-aware default account mapping UI.
-            Header (group) accounts are filtered out at the dropdown level
-            and detail-type eligibility is enforced per role — same engine
-            used by the `apply-default-mappings` edge function. */}
-        <DefaultAccountsConfig />
+        {/* Canonical, eligibility-aware default account mapping UI. */}
+        <SettingsSection
+          id="default-accounts"
+          title="Default account configuration"
+          description="Which GL account each automated posting role uses. Only postable leaf accounts of the correct detail type are selectable."
+        >
+          <DefaultAccountsConfig />
+        </SettingsSection>
 
-        {/* Consolidation group structure (Brick 1). Configuration only — no
-            consolidated figures are produced here. Write actions are hidden
-            for roles the RLS write policy would refuse. */}
-        <ConsolidationGroupsSettings />
+        {/* Consolidation group structure (Brick 1). Configuration only. */}
+        <SettingsSection
+          id="consolidation"
+          title="Consolidation groups"
+          description="Group structure, group chart of accounts and member account mapping."
+        >
+          <ConsolidationGroupsSettings />
+        </SettingsSection>
 
 
         {/* Only after the company context has settled — a company that is

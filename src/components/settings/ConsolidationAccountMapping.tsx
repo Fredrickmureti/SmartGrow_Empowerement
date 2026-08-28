@@ -45,7 +45,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Info, Link2, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Link2,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 import {
@@ -101,6 +111,11 @@ export function ConsolidationAccountMapping({
   const unmappedQuery = useConsolidationUnmappedAccounts(groupId, dateFrom, dateTo);
 
   const [filterBusiness, setFilterBusiness] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "mapped" | "unmapped">("all");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
 
   /** Mappings currently in force, keyed by the member account they cover. */
   const openMappingByAccount = useMemo(() => {
@@ -120,22 +135,52 @@ export function ConsolidationAccountMapping({
   const businessName = (id: string) =>
     members.find((m) => m.business_id === id)?.name ?? "—";
 
-  const visibleAccounts = useMemo(
-    () =>
-      memberAccounts
-        .filter((a) => filterBusiness === "all" || a.business_id === filterBusiness)
-        .sort(
-          (a, b) =>
-            businessName(a.business_id).localeCompare(businessName(b.business_id)) ||
-            (a.code ?? "").localeCompare(b.code ?? ""),
-        ),
+  const visibleAccounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return memberAccounts
+      .filter((a) => filterBusiness === "all" || a.business_id === filterBusiness)
+      .filter((a) => filterType === "all" || a.account_type === filterType)
+      .filter((a) => {
+        if (filterStatus === "all") return true;
+        const mapped = openMappingByAccount.has(a.id);
+        return filterStatus === "mapped" ? mapped : !mapped;
+      })
+      .filter((a) => {
+        if (!q) return true;
+        return (
+          (a.code ?? "").toLowerCase().includes(q) ||
+          a.name.toLowerCase().includes(q) ||
+          businessName(a.business_id).toLowerCase().includes(q)
+        );
+      })
+      .sort(
+        (a, b) =>
+          businessName(a.business_id).localeCompare(businessName(b.business_id)) ||
+          (a.code ?? "").localeCompare(b.code ?? ""),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [memberAccounts, filterBusiness, members],
-  );
+  }, [
+    memberAccounts,
+    filterBusiness,
+    filterType,
+    filterStatus,
+    search,
+    members,
+    openMappingByAccount,
+  ]);
 
   const mappedCount = visibleAccounts.filter((a) =>
     openMappingByAccount.has(a.id),
   ).length;
+
+  // A group with a handful of companies easily reaches four figures of member
+  // accounts; rendering them all is unusable and janky. Page the rows.
+  const pageCount = Math.max(1, Math.ceil(visibleAccounts.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const pagedAccounts = visibleAccounts.slice(
+    safePage * pageSize,
+    safePage * pageSize + pageSize,
+  );
 
   const fail = (error: unknown, fallback: string) =>
     toast({
@@ -359,9 +404,31 @@ export function ConsolidationAccountMapping({
             <>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1.5">
+                  <Label htmlFor="map-search">Search</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="map-search"
+                      className="w-[260px] pl-8"
+                      placeholder="Code, account or company…"
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPage(0);
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
                   <Label>Company</Label>
-                  <Select value={filterBusiness} onValueChange={setFilterBusiness}>
-                    <SelectTrigger className="w-[240px]">
+                  <Select
+                    value={filterBusiness}
+                    onValueChange={(v) => {
+                      setFilterBusiness(v);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-[220px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -374,7 +441,48 @@ export function ConsolidationAccountMapping({
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <Select
+                    value={filterType}
+                    onValueChange={(v) => {
+                      setFilterType(v);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All types</SelectItem>
+                      {GROUP_ACCOUNT_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {GROUP_ACCOUNT_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select
+                    value={filterStatus}
+                    onValueChange={(v) => {
+                      setFilterStatus(v as typeof filterStatus);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All accounts</SelectItem>
+                      <SelectItem value="unmapped">Not mapped</SelectItem>
+                      <SelectItem value="mapped">Mapped</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="pb-2 text-sm text-muted-foreground">
                   {mappedCount} of {visibleAccounts.length} accounts mapped
                 </p>
               </div>
@@ -399,7 +507,7 @@ export function ConsolidationAccountMapping({
                         </TableCell>
                       </TableRow>
                     )}
-                    {visibleAccounts.map((account) => {
+                    {pagedAccounts.map((account) => {
                       const mapping = openMappingByAccount.get(account.id);
                       const options = activeGroupAccounts.filter(
                         (g) => g.account_type === account.account_type,
@@ -476,13 +584,68 @@ export function ConsolidationAccountMapping({
                     {!accountsLoading && visibleAccounts.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-muted-foreground">
-                          No postable accounts found for the companies in this group.
+                          {memberAccounts.length === 0
+                            ? "No postable accounts found for the companies in this group."
+                            : "No accounts match these filters."}
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
               </div>
+
+              {visibleAccounts.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>
+                      {safePage * pageSize + 1}–
+                      {Math.min((safePage + 1) * pageSize, visibleAccounts.length)} of{" "}
+                      {visibleAccounts.length}
+                    </span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => {
+                        setPageSize(Number(v));
+                        setPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[110px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[25, 50, 100, 200].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n} / page
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage === 0}
+                      onClick={() => setPage(safePage - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {safePage + 1} of {pageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage >= pageCount - 1}
+                      onClick={() => setPage(safePage + 1)}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>
