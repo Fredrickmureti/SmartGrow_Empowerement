@@ -109,7 +109,7 @@ function formatAmount(value: number, currency: string) {
  */
 function buildColumns(
   onOpenEliminations: (accountId: string) => void,
-  onOpenTrialBalance: (accountId: string) => void,
+  onOpenTrialBalance: (accountId: string, label: string) => void,
 ): ReportColumn[] {
   const linked = (
     value: unknown,
@@ -139,16 +139,22 @@ function buildColumns(
       key: "aggregated",
       header: "Aggregated",
       align: "right",
-      // Carries group, period and group account to the consolidated trial
-      // balance, which opens on that account with the member companies shown.
+      // Opens the member companies behind the figure IN PLACE: the reviewer
+      // keeps this statement, its group and its period. A deep link into the
+      // consolidated trial balance remains inside that dialog.
       render: (row) =>
         linked(
           row.values?.aggregated,
           row.values?.eliminationAccountId,
-          onOpenTrialBalance,
+          (id) =>
+            onOpenTrialBalance(
+              id,
+              `${(row.values?.code as string) ?? ""} ${(row.values?.name as string) ?? ""}`.trim(),
+            ),
           "See the companies behind this figure",
         ),
     },
+
     {
       key: "elimination",
       header: "Eliminations",
