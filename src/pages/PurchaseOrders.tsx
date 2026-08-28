@@ -79,6 +79,7 @@ import { PurchaseOrderPeekSheet } from "@/features/purchases/orders/PurchaseOrde
 import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 // Workflow pipeline for Purchase Orders
 function POWorkflowPipeline({ status }: { status: string }) {
@@ -485,43 +486,35 @@ export default function PurchaseOrders() {
           onComplete={handleImportComplete}
         />
 
-        <div className="stats-grid grid-cols-2 sm:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totals.total, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{filteredPOs.length} purchase orders</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{formatCurrency(totals.pending, baseCurrency)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Partially Received</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{totals.partialReceived}</div>
-              <p className="text-xs text-muted-foreground">Awaiting remaining</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Received & Billed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">{totals.received}</div>
-              <p className="text-xs text-muted-foreground">{totals.convertedToBill} converted to bill</p>
-            </CardContent>
-          </Card>
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard
+            label="Total Orders"
+            tone="primary"
+            value={formatCurrency(totals.total, baseCurrency)}
+            footer={`${filteredPOs.length} purchase orders`}
+          />
+          <SummaryStatCard
+            accent
+            tone="orange"
+            label="Pending"
+            value={formatCurrency(totals.pending, baseCurrency)}
+          />
+          <SummaryStatCard
+            accent
+            tone="blue"
+            label="Partially Received"
+            value={totals.partialReceived}
+            footer="Awaiting remaining"
+          />
+          <SummaryStatCard
+            accent
+            tone="emerald"
+            label="Received & Billed"
+            value={totals.received}
+            footer={`${totals.convertedToBill} converted to bill`}
+          />
+        </SummaryStatGrid>
+
 
         <div className="filter-bar flex-wrap">
           <div className="relative flex-1 min-w-0">

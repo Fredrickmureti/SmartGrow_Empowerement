@@ -18,6 +18,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 /**
  * Purchases Module Dashboard — Bill pipeline, PO pipeline, AP aging, vendor spend
@@ -192,55 +193,46 @@ export default function PurchasesDashboard() {
 
       {/* KPI Cards — gated by purchases.kpis (cashier/sales hidden) */}
       {composition.allowsWidget("purchases.kpis") && (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Expenses This Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(thisMonthExpenses)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{thisMonthPaid.length} paid bills</p>
-          </CardContent>
-        </Card>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          accent
+          tone="emerald"
+          label="Expenses This Month"
+          value={formatCurrency(thisMonthExpenses)}
+          footer={`${thisMonthPaid.length} paid bills`}
+        />
+        <SummaryStatCard
+          accent
+          tone="amber"
+          label="Outstanding Payable"
+          value={formatCurrency(totalPayable)}
+          onClick={() => navigate("/purchases/bills")}
+          footer={
+            overdueBills.length > 0 ? (
+              <span className="text-destructive">{overdueBills.length} overdue</span>
+            ) : (
+              "No overdue bills"
+            )
+          }
+        />
+        <SummaryStatCard
+          accent
+          tone="blue"
+          label="To Bill"
+          value={formatCurrency(toBillValue)}
+          onClick={() => navigate("/purchases/orders")}
+          footer={`Awaiting receipt: ${formatCurrency(awaitingReceiptValue)}`}
+        />
+        <SummaryStatCard
+          accent
+          tone="purple"
+          label="Pending RFQs"
+          value={pendingRFQs.length}
+          onClick={() => navigate("/purchases/rfqs")}
+          footer="awaiting response"
+        />
+      </SummaryStatGrid>
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-amber-500" onClick={() => navigate("/purchases/bills")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Outstanding Payable</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(totalPayable)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {overdueBills.length > 0 ? (
-                <span className="text-destructive">{overdueBills.length} overdue</span>
-              ) : (
-                "No overdue bills"
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500" onClick={() => navigate("/purchases/orders")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">To Bill</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(toBillValue)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Awaiting receipt: {formatCurrency(awaitingReceiptValue)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-purple-500" onClick={() => navigate("/purchases/rfqs")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pending RFQs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{pendingRFQs.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">awaiting response</p>
-          </CardContent>
-        </Card>
-      </div>
       )}
 
       {/* AP Aging + PO Pipeline side by side — AP aging gated by purchases.aging */}

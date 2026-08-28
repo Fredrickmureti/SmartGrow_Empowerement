@@ -79,6 +79,7 @@ import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer
 import { normalizeError } from "@/services/resilience";
 import { downloadVendorStatement } from "@/features/purchases/statements/dispatchVendorStatement";
 import { fetchPayableCounterparties } from "@/services/finance/openItems";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 
 export default function VendorStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -484,33 +485,38 @@ export default function VendorStatements() {
       )}
 
       {/* Stats */}
-      <div className="stats-grid grid-cols-1 sm:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardDescription className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Total Statements</CardDescription></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{statements.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription className="flex items-center gap-1.5"><DollarSign className="h-3.5 w-3.5" />Total Outstanding</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{formatCurrency(metrics.totalOutstanding)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Across all statements</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription className="flex items-center gap-1.5"><Send className="h-3.5 w-3.5" />Sent</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.sent}</div>
-            <p className="text-xs text-muted-foreground mt-1">of {statements.length} total</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardDescription className="flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" />With Balance</CardDescription></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{metrics.withBalance}</div>
-            <p className="text-xs text-muted-foreground mt-1">Outstanding</p>
-          </CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          icon={<FileText className="h-3.5 w-3.5" />}
+          label="Total Statements"
+          value={statements.length}
+        />
+        <SummaryStatCard
+          accent
+          tone="destructive"
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+          label="Total Outstanding"
+          value={formatCurrency(metrics.totalOutstanding)}
+          footer="Across all statements"
+        />
+        <SummaryStatCard
+          accent
+          tone="emerald"
+          icon={<Send className="h-3.5 w-3.5" />}
+          label="Sent"
+          value={metrics.sent}
+          footer={`of ${statements.length} total`}
+        />
+        <SummaryStatCard
+          accent
+          tone="amber"
+          icon={<AlertTriangle className="h-3.5 w-3.5" />}
+          label="With Balance"
+          value={metrics.withBalance}
+          footer="Outstanding"
+        />
+      </SummaryStatGrid>
+
 
       {/* Search */}
       <div className="flex items-center gap-4">
