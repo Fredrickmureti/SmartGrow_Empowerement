@@ -138,7 +138,10 @@ export default function OutboundDashboard() {
                   title="Carton flow"
                   description="Where cartons are stalling between pack, seal, manifest and trailer."
                 >
-                  <LoadingLane shipments={shipments.data ?? []} />
+                  <LoadingLane
+                    shipments={shipments.data ?? []}
+                    loading={shipments.isLoading}
+                  />
                 </Section>
 
                 <Section
