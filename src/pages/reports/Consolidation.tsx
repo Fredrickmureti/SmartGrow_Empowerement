@@ -298,11 +298,11 @@ export default function Consolidation() {
       dateRange: `${dateFrom} to ${dateTo}`,
       sheetName: "By company",
       columns: [
-        { key: "company", label: "Company" },
-        { key: "currency", label: "Currency" },
-        { key: "income", label: "Income", align: "right" },
-        { key: "expense", label: "Expenses", align: "right" },
-        { key: "netIncome", label: "Net Income", align: "right" },
+        { key: "company", header: "Company", width: 28 },
+        { key: "currency", header: "Currency", width: 10 },
+        { key: "income", header: "Income", width: 16, align: "right" },
+        { key: "expense", header: "Expenses", width: 16, align: "right" },
+        { key: "netIncome", header: "Net Income", width: 16, align: "right" },
       ],
       rows: data.map((r) => ({
         company: r.businessName,
