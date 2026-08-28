@@ -47,7 +47,18 @@ export interface DrillDownConfig {
    * showed all-branch movement behind a branch figure.
    */
   branchId?: string | null;
+  /**
+   * Entity scope of the figure that was clicked. Consolidated reports show
+   * columns for entities other than the one selected in the workspace switcher,
+   * so the drill-down must query the entity behind the column rather than the
+   * ambient `currentBusiness` — otherwise a subsidiary column would drill into
+   * the parent's ledger. When omitted the ambient business is used.
+   */
+  businessId?: string | null;
+  /** Display label for `businessId`, rendered in the dialog header. */
+  businessName?: string | null;
 }
+
 
 interface DrillDownTransaction {
   id: string;
