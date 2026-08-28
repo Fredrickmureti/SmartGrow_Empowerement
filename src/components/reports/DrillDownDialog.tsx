@@ -85,11 +85,19 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
 
+  // An explicit entity scope from the caller always wins over the workspace
+  // switcher: consolidated surfaces drill into the column's entity.
+  const scopedBusinessId = config?.businessId ?? currentBusiness?.id ?? null;
+  const scopedBusinessName =
+    config?.businessId && config.businessId !== currentBusiness?.id
+      ? config.businessName ?? null
+      : null;
+
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: [
       "drilldown-gl",
       currentOrg?.id,
-      currentBusiness?.id,
+      scopedBusinessId,
       config?.accountId,
       config?.branchId ?? null,
       config?.startDate,
@@ -102,7 +110,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
         _org_id: currentOrg.id,
         _date_from: config.startDate,
         _date_to: config.endDate,
-        _business_id: currentBusiness?.id || null,
+        _business_id: scopedBusinessId,
         _account_ids: [config.accountId],
         _include_zero_activity: false,
         _branch_id: config.branchId || null,
@@ -145,7 +153,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
     queryKey: [
       "drilldown-partner",
       currentOrg?.id,
-      currentBusiness?.id,
+      scopedBusinessId,
       config?.contactId,
       partnerKind,
       config?.startDate,
@@ -169,7 +177,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
         .eq(partnerKind === "invoice" ? "contact_id" : "vendor_id", config.contactId)
         .gte(dateColumn, config.startDate)
         .lte(dateColumn, config.endDate);
-      if (currentBusiness?.id) query = query.eq("business_id", currentBusiness.id);
+      if (scopedBusinessId) query = query.eq("business_id", scopedBusinessId);
 
       const { data: rows, error } = await query;
       if (error) throw error;
@@ -237,6 +245,9 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                 {format(new Date(config.startDate), "MMM d, yyyy")} -{" "}
                 {format(new Date(config.endDate), "MMM d, yyyy")}
               </>
+            )}
+            {scopedBusinessName && (
+              <span className="ml-4">Entity: {scopedBusinessName}</span>
             )}
             <span className="ml-4">
               {rowsToShow.length} transaction{rowsToShow.length !== 1 ? "s" : ""}
