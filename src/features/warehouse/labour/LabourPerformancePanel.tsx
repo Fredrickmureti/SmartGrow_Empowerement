@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { Coins, MessageSquarePlus, Plus, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,50 +165,32 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
         </div>
       </div>
 
-      <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              {totals.performance === null ? "—" : `${totals.performance}%`}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {hours(totals.earned)}h earned / {hours(totals.direct)}h direct
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Utilisation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              {totals.utilisation === null ? "—" : `${totals.utilisation}%`}
-            </div>
-            <p className="text-xs text-muted-foreground">{hours(totals.paid)}h on the clock</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">At or above target</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{totals.eligible}</div>
-            <p className="text-xs text-muted-foreground">of {rows.length} operators</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Below target</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{totals.belowTarget}</div>
-            <p className="text-xs text-muted-foreground">need coaching</p>
-          </CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          label="Performance"
+          value={totals.performance === null ? "\u2014" : `${totals.performance}%`}
+          footer={`${hours(totals.earned)}h earned / ${hours(totals.direct)}h direct`}
+          tone={totals.performance === null ? "neutral" : totals.performance >= 100 ? "ok" : "warn"}
+        />
+        <SummaryStatCard
+          label="Utilisation"
+          value={totals.utilisation === null ? "\u2014" : `${totals.utilisation}%`}
+          footer={`${hours(totals.paid)}h on the clock`}
+        />
+        <SummaryStatCard
+          label="At or above target"
+          value={totals.eligible}
+          footer={`of ${rows.length} operators`}
+          tone="ok"
+        />
+        <SummaryStatCard
+          label="Below target"
+          value={totals.belowTarget}
+          footer="need coaching"
+          tone={totals.belowTarget > 0 ? "warn" : "ok"}
+          accent={totals.belowTarget > 0}
+        />
+      </SummaryStatGrid>
 
       <Card>
         <CardHeader>

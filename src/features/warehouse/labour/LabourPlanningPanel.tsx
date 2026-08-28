@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { LabourRosterButton } from "./LabourRosterButton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -186,36 +187,33 @@ export function LabourPlanningPanel({ warehouseId, warehouses }: Props) {
         </div>
       </div>
 
-      <div className="min-w-0 grid gap-4 @2xl/page:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">Required</div>
-            <div className="text-2xl font-semibold mt-1">{hrs(totals.required)}</div>
-            <p className="text-xs text-muted-foreground">Standard hours for open work</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">Planned</div>
-            <div className="text-2xl font-semibold mt-1">{hrs(totals.planned)}</div>
-            <p className="text-xs text-muted-foreground">Rostered operator hours</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">Short days</div>
-            <div className="text-2xl font-semibold mt-1">{totals.gapDays}</div>
-            <p className="text-xs text-muted-foreground">Days demand exceeds roster</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">Overdue tasks</div>
-            <div className="text-2xl font-semibold mt-1">{totals.overdue}</div>
-            <p className="text-xs text-muted-foreground">Already past SLA</p>
-          </CardContent>
-        </Card>
-      </div>
+      <SummaryStatGrid>
+        <SummaryStatCard
+          label="Required"
+          value={hrs(totals.required)}
+          footer="Standard hours for open work"
+        />
+        <SummaryStatCard
+          label="Planned"
+          value={hrs(totals.planned)}
+          footer="Rostered operator hours"
+        />
+        <SummaryStatCard
+          label="Short days"
+          value={totals.gapDays}
+          footer="Days demand exceeds roster"
+          tone={totals.gapDays > 0 ? "warn" : "ok"}
+          accent={totals.gapDays > 0}
+        />
+        <SummaryStatCard
+          label="Overdue tasks"
+          value={totals.overdue}
+          footer="Already past SLA"
+          tone={totals.overdue > 0 ? "bad" : "ok"}
+          accent={totals.overdue > 0}
+          to="/warehouse-app/tasks?sla=breached"
+        />
+      </SummaryStatGrid>
 
       {unstandardised > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">

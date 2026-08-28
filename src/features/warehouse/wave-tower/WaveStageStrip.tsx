@@ -3,26 +3,42 @@
  *
  * Renders `wms_wave_health.stages` verbatim. Nothing here counts, ranks or
  * classifies; the SQL contract already did.
+ *
+ * Presentation is the canonical ERP stat card (`SummaryStatCard`) — stage
+ * health maps onto the shared tone scale and drives the accent rule, so an
+ * outbound stage reads exactly like an AR aging bucket.
  */
-import { cn } from "@/lib/utils";
-import {
-  STAGE_HEALTH_SURFACE, STAGE_HEALTH_TEXT, type WaveHealth,
-} from "./contract";
+import { SummaryStatCard, SummaryStatGrid } from "@/design-system";
+import type { SummaryStatTone } from "@/design-system";
+import type { WaveHealth, WaveStageHealth } from "./contract";
 
-export function WaveStageStrip({ health }: { health: WaveHealth }) {
+const STAGE_TONE: Record<WaveStageHealth, SummaryStatTone> = {
+  ok: "neutral",
+  warning: "warn",
+  critical: "bad",
+  idle: "neutral",
+};
+
+export function WaveStageStrip({
+  health,
+  loading = false,
+}: {
+  health: WaveHealth;
+  loading?: boolean;
+}) {
   return (
-    <div className="min-w-0 grid grid-cols-2 gap-2 @3xl/page:grid-cols-5">
+    <SummaryStatGrid>
       {health.stages.map((s) => (
-        <div
+        <SummaryStatCard
           key={s.stage}
-          className={cn("rounded-lg border p-3", STAGE_HEALTH_SURFACE[s.health])}
-        >
-          <div className="text-xs text-muted-foreground">{s.label}</div>
-          <div className={cn("text-2xl font-semibold tabular-nums", STAGE_HEALTH_TEXT[s.health])}>
-            {s.count}
-          </div>
-        </div>
+          label={s.label}
+          value={s.count}
+          tone={STAGE_TONE[s.health]}
+          accent={s.health === "warning" || s.health === "critical"}
+          loading={loading}
+          to={`/warehouse-app/waves?stage=${encodeURIComponent(s.stage)}`}
+        />
       ))}
-    </div>
+    </SummaryStatGrid>
   );
 }

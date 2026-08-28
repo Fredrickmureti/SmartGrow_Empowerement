@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge,
+  SummaryStatCard, SummaryStatGrid,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,14 +225,42 @@ export default function ExceptionsInbox() {
         description="Every abnormal warehouse event — receiving variances, QC fails, count discrepancies, stalled tasks, negative stock, yard and device faults — is detected at source, routed by policy, and closed here against an SLA."
       />
       <PageBody>
-        <div className="min-w-0 mb-4 grid grid-cols-2 gap-3 @2xl/page:grid-cols-6">
-          <Tile label="In view" value={summary.total} />
-          <Tile label="Overdue" value={summary.overdue} tone={summary.overdue ? "danger" : undefined} />
-          <Tile label="Escalated" value={summary.escalated} tone={summary.escalated ? "danger" : undefined} />
-          <Tile label="Critical" value={summary.critical} tone={summary.critical ? "danger" : undefined} />
-          <Tile label="Unacknowledged" value={summary.unacked} tone={summary.unacked ? "warning" : undefined} />
-          <Tile label="Unassigned" value={summary.unassigned} />
-        </div>
+        <SummaryStatGrid className="mb-4">
+          <SummaryStatCard label="In view" value={summary.total} />
+          <SummaryStatCard
+            label="Overdue"
+            value={summary.overdue}
+            tone={summary.overdue ? "bad" : "ok"}
+            accent={summary.overdue > 0}
+            footer="Past the SLA clock"
+          />
+          <SummaryStatCard
+            label="Escalated"
+            value={summary.escalated}
+            tone={summary.escalated ? "bad" : "ok"}
+            accent={summary.escalated > 0}
+            footer="Raised to a supervisor"
+          />
+          <SummaryStatCard
+            label="Critical"
+            value={summary.critical}
+            tone={summary.critical ? "bad" : "ok"}
+            accent={summary.critical > 0}
+            footer="Severity 1"
+          />
+          <SummaryStatCard
+            label="Unacknowledged"
+            value={summary.unacked}
+            tone={summary.unacked ? "warn" : "ok"}
+            accent={summary.unacked > 0}
+            footer="Nobody has picked these up"
+          />
+          <SummaryStatCard
+            label="Unassigned"
+            value={summary.unassigned}
+            footer="No owner yet"
+          />
+        </SummaryStatGrid>
 
         <Tabs defaultValue="queue">
           <TabsList className="mb-4">
@@ -401,19 +430,3 @@ export default function ExceptionsInbox() {
   );
 }
 
-function Tile({ label, value, tone }: { label: string; value: number; tone?: "danger" | "warning" }) {
-  return (
-    <div className="rounded-md border border-border bg-card p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "text-2xl font-semibold",
-          tone === "danger" && "text-destructive",
-          tone === "warning" && "text-warning",
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}

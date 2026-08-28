@@ -36,6 +36,27 @@ export { StatusBadge } from "./primitives/StatusBadge";
 export { FilterBar } from "./primitives/FilterBar";
 export { ActionBar } from "./primitives/ActionBar";
 export { DetailLayout } from "./primitives/DetailLayout";
+
+// Canonical KPI/summary card — one stat card for the whole ERP (Finance,
+// Sales, Purchases, Inventory, Warehouse). Implementation still lives in
+// `@/components/common/SummaryStatCards` so the 45 existing call sites keep
+// working; new code should import it from here.
+export {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
+export { CalloutCard } from "@/components/common/CalloutCard";
+export type {
+  CalloutCardProps,
+  CalloutMetric,
+  CalloutTone,
+} from "@/components/common/CalloutCard";
+export type {
+  SummaryStatCardProps,
+  SummaryStatTone,
+  SummaryStatTrend,
+  SummaryStatTrendDirection,
+} from "@/components/common/SummaryStatCards";
 export { AuthoringWorkspace } from "./primitives/AuthoringWorkspace";
 export type { WorkspaceLayoutMode, WorkspaceNavDirection } from "./primitives/AuthoringWorkspace";
 
