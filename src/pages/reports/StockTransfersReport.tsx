@@ -22,7 +22,7 @@ import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { SummaryStatCard, SummaryStatGrid } from "@/components/common/SummaryStatCards";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -229,12 +229,12 @@ function StockTransfersReportInner() {
       }
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard label="Transfers" value={String(kpis.total)} />
-          <KpiCard label="In transit" value={String(kpis.inTransit)} />
-          <KpiCard label="Completed" value={String(kpis.completed)} />
-          <KpiCard label="Σ |variance| qty" value={kpis.variance.toFixed(2)} />
-        </div>
+        <SummaryStatGrid>
+          <SummaryStatCard label="Transfers" value={String(kpis.total)} tone="primary" />
+          <SummaryStatCard label="In transit" value={String(kpis.inTransit)} tone="blue" />
+          <SummaryStatCard label="Completed" value={String(kpis.completed)} tone="emerald" />
+          <SummaryStatCard label="Σ |variance| qty" value={kpis.variance.toFixed(2)} tone="amber" />
+        </SummaryStatGrid>
 
         <ReportSurface title="Stock Transfers" profile="operational">
           <ReportTable
@@ -249,16 +249,6 @@ function StockTransfersReportInner() {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-xl font-semibold tabular-nums">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 
