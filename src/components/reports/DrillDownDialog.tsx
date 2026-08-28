@@ -4,10 +4,12 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -24,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, ExternalLink } from "lucide-react";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { resolveLedgerDrillTarget } from "@/lib/reports/ledgerDrillTarget";
+import { ledgerDrillHref } from "@/lib/reports/crossEntityDrill";
 import { format } from "date-fns";
+
 
 export interface DrillDownConfig {
   title: string;
