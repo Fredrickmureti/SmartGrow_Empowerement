@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notifications";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { DeclaredScopeChip } from "@/components/common/DeclaredScopeChip";
+import { ScopeSwitcherChip } from "@/components/common/ScopeSwitcherChip";
 import { UserProfileSheet } from "@/components/profile/UserProfileSheet";
 import { ResourceCenterLauncher } from "@/features/resources/ResourceCenterLauncher";
 import { useAIAssistantContext } from "@/contexts/AIAssistantContext";
@@ -134,8 +134,9 @@ export function WorkspaceTopBar({ app, nav, onOpenMobileNav }: WorkspaceTopBarPr
         })}
       </nav>
 
-      {/* Scope chip — pages fill via useDeclareScope */}
-      <DeclaredScopeChip className="hidden md:inline-flex" />
+      {/* Scope chip + canonical scope switcher trigger. */}
+      <ScopeSwitcherChip className="shrink-0" />
+
 
       {/* Right cluster */}
       <div className="ml-auto flex items-center gap-1">
