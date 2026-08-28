@@ -134,7 +134,7 @@ export default function LandedCostListPage() {
         }
       />
       <PageBody>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryStatGrid>
           {[
             { label: "Capturing charges", value: summary ? String(summary.captureCount) : "—" },
             { label: "Awaiting posting", value: summary ? String(summary.allocatedCount) : "—" },
@@ -147,12 +147,9 @@ export default function LandedCostListPage() {
               value: summary ? formatCurrency(summary.capitalizedAmount) : "—",
             },
           ].map((k) => (
-            <div key={k.label} className="rounded-lg border bg-card p-4">
-              <p className="text-sm text-muted-foreground">{k.label}</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{k.value}</p>
-            </div>
+            <SummaryStatCard key={k.label} label={k.label} value={k.value} />
           ))}
-        </div>
+        </SummaryStatGrid>
 
         {exposure && (exposure.clearing_balance !== 0 || exposure.unposted_count > 0) && (
           <div className="rounded-lg border bg-card p-4">
