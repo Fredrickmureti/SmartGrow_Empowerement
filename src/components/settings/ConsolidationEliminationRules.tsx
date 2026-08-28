@@ -343,9 +343,23 @@ export function ConsolidationEliminationRules({
                   <p className="text-xs text-muted-foreground">
                     In the group's presentation currency. Zero means the two sides must
                     agree exactly. A tolerance absorbs rounding, so it cannot exceed{" "}
-                    {ELIMINATION_TOLERANCE_CAP}: a larger gap is a real difference and has
-                    to be explained by the books, not widened away.
+                    {capLabel}: a larger gap is a real difference and has to be explained
+                    by the books, not widened away.
                   </p>
+                  {overCap && (
+                    <Alert variant="destructive" className="mt-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        {Number(draft.tolerance_amount).toLocaleString()}{" "}
+                        {presentationCurrency ?? ""} is not rounding, so it cannot be
+                        saved as a tolerance. To carry a gap of that size, leave the
+                        tolerance at a rounding amount and set “When they disagree by
+                        more” to post the difference to a named group account — the
+                        residual is then disclosed on the face of the statements instead
+                        of being hidden inside the eliminated accounts.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <Textarea
                     className="mt-2 text-xs"
                     rows={2}
