@@ -26,7 +26,10 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+} from "@/components/common/SummaryStatCards";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -149,29 +152,28 @@ export default function ApReconciliation() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <SummaryStatGrid>
         {headerCards.map((card) => (
-          <Card key={card.label}>
-            <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">{card.label}</p>
-              <p
-                className={`text-lg font-bold tabular-nums ${
-                  card.emphasise && !reconciliation?.inBalance
-                    ? "text-destructive"
-                    : "text-foreground"
-                }`}
-              >
-                <BaseCurrencyAmount
-                  value={card.value}
-                  format={formatCurrency}
-                  unconvertibleCount={unconvertible}
-                  label={card.label}
-                />
-              </p>
-            </CardContent>
-          </Card>
+          <SummaryStatCard
+            key={card.label}
+            label={card.label}
+            tone={
+              card.emphasise && reconciliation && !reconciliation.inBalance
+                ? "destructive"
+                : "default"
+            }
+            accent={Boolean(card.emphasise)}
+            value={
+              <BaseCurrencyAmount
+                value={card.value}
+                format={formatCurrency}
+                unconvertibleCount={unconvertible}
+                label={card.label}
+              />
+            }
+          />
         ))}
-      </div>
+      </SummaryStatGrid>
 
       {reconciliation?.inBalance && (
         <Alert>

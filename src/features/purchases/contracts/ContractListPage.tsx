@@ -7,7 +7,7 @@
  * same canonical rows — no second source of truth, no client-side spend
  * arithmetic beyond display of ledger-derived rollups.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 
@@ -20,8 +20,12 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
-  KpiRibbon,
 } from "@/design-system";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+  type SummaryStatTone,
+} from "@/components/common/SummaryStatCards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -173,50 +177,52 @@ export default function ContractListPage() {
         }
       />
       <PageBody>
-        <KpiRibbon
-          label="Contract portfolio"
-          items={[
-            {
-              label: "Active",
-              value: kpis.active,
-              hint: kpis.ceilingValue
-                ? `${compactMoney(kpis.committedValue)} committed of ${compactMoney(kpis.ceilingValue)} ${currency}`
-                : "No value ceilings set",
-              tone: kpis.active ? "success" : "neutral",
-              loading,
-            },
-            {
-              label: "Awaiting approval",
-              value: kpis.pendingApproval,
-              hint: "Routed to the approval engine",
-              tone: kpis.pendingApproval ? "info" : "neutral",
-              loading,
-            },
-            {
-              label: "Expiring ≤ 30d",
-              value: kpis.expiring30,
-              hint: `${kpis.expiring60} in 60d · ${kpis.expiring90} in 90d`,
-              tone: kpis.expiring30 ? "danger" : kpis.expiring90 ? "warning" : "neutral",
-              loading,
-            },
-            {
-              label: "90%+ exhausted",
-              value: kpis.exhausted,
-              hint: "Committed against the value ceiling",
-              tone: kpis.exhausted ? "danger" : "neutral",
-              loading,
-            },
-            {
-              label: "Off-contract leakage",
-              value: compactMoney(leakage.value),
-              unit: currency || undefined,
-              hint: `${leakage.orderCount} orders on ${leakage.supplierCount} contracted suppliers, last ${leakage.windowDays}d`,
-              tone: leakage.orderCount ? "warning" : "neutral",
-              higherIsBetter: false,
-              loading,
-            },
-          ]}
-        />
+        <SummaryStatGrid aria-label="Contract portfolio">
+          {(
+            [
+              {
+                label: "Active",
+                value: kpis.active,
+                footer: kpis.ceilingValue
+                  ? `${compactMoney(kpis.committedValue)} committed of ${compactMoney(kpis.ceilingValue)} ${currency}`
+                  : "No value ceilings set",
+                tone: kpis.active ? "emerald" : "default",
+              },
+              {
+                label: "Awaiting approval",
+                value: kpis.pendingApproval,
+                footer: "Routed to the approval engine",
+                tone: kpis.pendingApproval ? "blue" : "default",
+              },
+              {
+                label: "Expiring ≤ 30d",
+                value: kpis.expiring30,
+                footer: `${kpis.expiring60} in 60d · ${kpis.expiring90} in 90d`,
+                tone: kpis.expiring30 ? "destructive" : kpis.expiring90 ? "amber" : "default",
+              },
+              {
+                label: "90%+ exhausted",
+                value: kpis.exhausted,
+                footer: "Committed against the value ceiling",
+                tone: kpis.exhausted ? "destructive" : "default",
+              },
+              {
+                label: "Off-contract leakage",
+                value: `${compactMoney(leakage.value)}${currency ? ` ${currency}` : ""}`,
+                footer: `${leakage.orderCount} orders on ${leakage.supplierCount} contracted suppliers, last ${leakage.windowDays}d`,
+                tone: leakage.orderCount ? "amber" : "default",
+              },
+            ] satisfies { label: string; value: React.ReactNode; footer: string; tone: SummaryStatTone }[]
+          ).map((card) => (
+            <SummaryStatCard
+              key={card.label}
+              label={card.label}
+              tone={card.tone}
+              value={loading ? "…" : card.value}
+              footer={card.footer}
+            />
+          ))}
+        </SummaryStatGrid>
 
         <FilterBar>
           <div className="relative flex-1 max-w-sm">
