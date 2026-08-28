@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDeleteDialog } from "@/components/shared/ConfirmDeleteDialog";
-import { DetailSheet, FieldGrid, FieldCell, FooterActionBar } from "@/design-system";
+import { DetailSheet, FieldGrid, FieldCell, FooterActionBar, PageHeader } from "@/design-system";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -242,36 +242,34 @@ export default function CycleCountSchedules() {
   return (
     <TooltipProvider>
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
+        <PageHeader
+          className="border-b-0 px-0 pt-0 sm:px-0"
+          title={
+            <span className="inline-flex items-center gap-2">
               <CalendarClock className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" /> Cycle counting
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-2xl mt-1">
-              Automatically schedule small, recurring stock counts so you never
-              rely on a single year-end count. Each schedule picks a warehouse
-              and a rhythm, and drops a ready-to-count worksheet into Physical
-              Counts on its due date.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:shrink-0">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" onClick={() => runNow.mutate()} disabled={runNow.isPending} className="w-full sm:w-auto">
-                  <Play className="mr-2 h-4 w-4" /> Run now
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                Checks every active schedule and creates today's count
-                worksheets immediately, instead of waiting for the overnight
-                run.
-              </TooltipContent>
-            </Tooltip>
-            <Button onClick={openCreate} className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" /> New schedule
-            </Button>
-          </div>
-        </div>
+            </span>
+          }
+          description="Automatically schedule small, recurring stock counts so you never rely on a single year-end count. Each schedule picks a warehouse and a rhythm, and drops a ready-to-count worksheet into Physical Counts on its due date."
+          actions={
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" onClick={() => runNow.mutate()} disabled={runNow.isPending} className="w-full sm:w-auto">
+                    <Play className="mr-2 h-4 w-4" /> Run now
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Checks every active schedule and creates today's count
+                  worksheets immediately, instead of waiting for the overnight
+                  run.
+                </TooltipContent>
+              </Tooltip>
+              <Button onClick={openCreate} className="w-full sm:w-auto">
+                <Plus className="mr-2 h-4 w-4" /> New schedule
+              </Button>
+            </>
+          }
+        />
 
         <Card>
           <CardHeader>
