@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
 import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import { ArrowLeft, CheckCircle2, FileText, PackageCheck, ShieldCheck, Tag, Truck } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Manifest {
   id: string; code: string; state: string; warehouse_id: string;

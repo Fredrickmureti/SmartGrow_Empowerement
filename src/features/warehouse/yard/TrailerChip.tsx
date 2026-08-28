@@ -20,6 +20,7 @@ import {
   type VisitRow,
 } from "./yardModel";
 import { toneText } from "@/design-system";
+import { cn } from "@/lib/utils";
 
 export function TrailerChip({
   visit,

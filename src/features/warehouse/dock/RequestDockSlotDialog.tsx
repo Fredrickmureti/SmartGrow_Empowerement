@@ -27,6 +27,7 @@ import {
   useWarehouses,
 } from "./useDockScheduling";
 import { toneText, toneBorder } from "@/design-system";
+import { cn } from "@/lib/utils";
 
 interface Props {
   open: boolean;

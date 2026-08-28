@@ -25,6 +25,7 @@ import {
   useScheduleAppointment,
   useWarehouses,
 } from "@/features/warehouse/dock/useDockScheduling";
+import { cn } from "@/lib/utils";
 
 interface DocLink {
   doc_type: string;
