@@ -194,28 +194,45 @@ export default function DockSchedule() {
         ) : (
           <>
             <Section>
-              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5">
-                <Kpi icon={CalendarClock} label="Appointments today" value={String(kpis.total)} />
-                <Kpi icon={Truck} label="Trailers on site" value={String(kpis.onSite)} />
-                <Kpi
-                  icon={Gauge}
+              <SummaryStatGrid>
+                <SummaryStatCard
+                  icon={<CalendarClock className="h-3.5 w-3.5" />}
+                  label="Appointments today"
+                  value={kpis.total}
+                  loading={isLoading}
+                />
+                <SummaryStatCard
+                  icon={<Truck className="h-3.5 w-3.5" />}
+                  label="Trailers on site"
+                  value={kpis.onSite}
+                  to={`/warehouse-app/yard?warehouse=${warehouseId}`}
+                  loading={isLoading}
+                />
+                <SummaryStatCard
+                  icon={<Gauge className="h-3.5 w-3.5" />}
                   label="Dock utilisation"
                   value={`${kpis.utilisation}%`}
-                  hint={`${(docks ?? []).length} active docks`}
+                  footer={`${(docks ?? []).length} active docks`}
+                  loading={isLoading}
                 />
-                <Kpi
-                  icon={Timer}
+                <SummaryStatCard
+                  icon={<Timer className="h-3.5 w-3.5" />}
                   label="Avg dwell (on site)"
                   value={kpis.avgDwell ? `${kpis.avgDwell}m` : "—"}
+                  loading={isLoading}
                 />
-                <Kpi
-                  icon={AlertTriangle}
+                <SummaryStatCard
+                  icon={<AlertTriangle className="h-3.5 w-3.5" />}
                   label="Overdue arrivals"
-                  value={String(kpis.late)}
-                  tone={kpis.late > 0 ? "text-destructive" : undefined}
-                  hint={kpis.onTimePct !== null ? `${kpis.onTimePct}% on time` : undefined}
+                  value={kpis.late}
+                  tone={kpis.late > 0 ? "bad" : "neutral"}
+                  accent={kpis.late > 0}
+                  footer={
+                    kpis.onTimePct !== null ? `${kpis.onTimePct}% on time` : undefined
+                  }
+                  loading={isLoading}
                 />
-              </div>
+              </SummaryStatGrid>
             </Section>
 
             {view === "timeline" ? (
