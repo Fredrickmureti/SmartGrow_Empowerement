@@ -10174,6 +10174,9 @@ export type Database = {
           organization_id: string
           seeded_at: string | null
           tolerance_amount: number
+          tolerance_reason: string | null
+          tolerance_set_at: string | null
+          tolerance_set_by: string | null
           updated_at: string
         }
         Insert: {
@@ -10190,6 +10193,9 @@ export type Database = {
           organization_id: string
           seeded_at?: string | null
           tolerance_amount?: number
+          tolerance_reason?: string | null
+          tolerance_set_at?: string | null
+          tolerance_set_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -10206,6 +10212,9 @@ export type Database = {
           organization_id?: string
           seeded_at?: string | null
           tolerance_amount?: number
+          tolerance_reason?: string | null
+          tolerance_set_at?: string | null
+          tolerance_set_by?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -95537,6 +95546,7 @@ export type Database = {
         Args: { _run_id: string; _superseded_by_run_id?: string }
         Returns: string
       }
+      consolidation_tolerance_cap: { Args: never; Returns: number }
       consolidation_translate_member: {
         Args: {
           _business_id: string

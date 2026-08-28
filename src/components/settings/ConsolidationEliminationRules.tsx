@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -42,6 +44,8 @@ import {
   ELIMINATION_CLASS_LABELS,
   ELIMINATION_POLICY_LABELS,
   ELIMINATION_RULE_DEFAULTS,
+  ELIMINATION_TOLERANCE_CAP,
+
   useConsolidationEliminationRules,
   useConsolidationEliminationMutations,
   type EliminationClass,
@@ -78,6 +82,7 @@ interface Props {
 interface Draft {
   is_active: boolean;
   tolerance_amount: string;
+  tolerance_reason: string;
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string;
 }
@@ -91,11 +96,13 @@ function draftFrom(rule: EliminationRule | undefined): Draft {
     tolerance_amount: String(
       rule ? rule.tolerance_amount : ELIMINATION_RULE_DEFAULTS.tolerance_amount,
     ),
+    tolerance_reason: rule?.tolerance_reason ?? "",
     difference_policy:
       rule?.difference_policy ?? ELIMINATION_RULE_DEFAULTS.difference_policy,
     difference_group_account_id: rule?.difference_group_account_id ?? NO_ACCOUNT,
   };
 }
+
 
 export function ConsolidationEliminationRules({
   groupId,
@@ -150,8 +157,23 @@ export function ConsolidationEliminationRules({
   const save = async (cls: EliminationClass) => {
     const draft = draftOf(cls);
     const tolerance = Number(draft.tolerance_amount);
+    const reason = draft.tolerance_reason.trim();
     if (!Number.isFinite(tolerance) || tolerance < 0) {
       toast.error("The tolerance must be zero or a positive amount");
+      return;
+    }
+    // The bound and the reason are the database's rules; checking them here
+    // only spares a round trip, it never decides them.
+    if (tolerance > ELIMINATION_TOLERANCE_CAP) {
+      toast.error(
+        `A tolerance absorbs rounding: it cannot exceed ${ELIMINATION_TOLERANCE_CAP} in the group's presentation currency`,
+      );
+      return;
+    }
+    if (tolerance > 0 && reason.length < 20) {
+      toast.error(
+        "Say why the group accepts a difference of that size without treating it as a disagreement",
+      );
       return;
     }
     if (
@@ -168,6 +190,7 @@ export function ConsolidationEliminationRules({
         elimination_class: cls,
         is_active: draft.is_active,
         tolerance_amount: tolerance,
+        tolerance_reason: reason === "" ? null : reason,
         difference_policy: draft.difference_policy,
         difference_group_account_id:
           draft.difference_group_account_id === NO_ACCOUNT
@@ -175,6 +198,7 @@ export function ConsolidationEliminationRules({
             : draft.difference_group_account_id,
       });
       setDrafts((prev) => {
+
         const next = { ...prev };
         delete next[cls];
         return next;
@@ -304,6 +328,7 @@ export function ConsolidationEliminationRules({
                     id={`elim-tol-${cls}`}
                     type="number"
                     min="0"
+                    max={ELIMINATION_TOLERANCE_CAP}
                     step="0.01"
                     value={draft.tolerance_amount}
                     disabled={!canManage}
@@ -311,9 +336,24 @@ export function ConsolidationEliminationRules({
                   />
                   <p className="text-xs text-muted-foreground">
                     In the group's presentation currency. Zero means the two sides must
-                    agree exactly.
+                    agree exactly. A tolerance absorbs rounding, so it cannot exceed{" "}
+                    {ELIMINATION_TOLERANCE_CAP}: a larger gap is a real difference and has
+                    to be explained by the books, not widened away.
+                  </p>
+                  <Textarea
+                    className="mt-2 text-xs"
+                    rows={2}
+                    placeholder="Why a difference of this size is not a disagreement"
+                    value={draft.tolerance_reason}
+                    disabled={!canManage || Number(draft.tolerance_amount) <= 0}
+                    onChange={(e) => patch(cls, { tolerance_reason: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Required for any tolerance above zero, and recorded with who changed
+                    it and when.
                   </p>
                 </div>
+
 
                 <div className="space-y-1">
                   <Label>When they disagree by more</Label>

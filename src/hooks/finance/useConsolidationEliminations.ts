@@ -74,10 +74,25 @@ export interface EliminationRule {
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string | null;
   notes: string | null;
+  /**
+   * Why the group accepts a difference of that size without treating it as a
+   * disagreement. The database requires it for any tolerance above zero, so a
+   * tolerance can never be widened without saying what it is absorbing.
+   */
+  tolerance_reason: string | null;
+  tolerance_set_by: string | null;
+  tolerance_set_at: string | null;
   /** True while the row still holds the seeded default policy (Step 7.3). */
   is_system_default: boolean;
   seeded_at: string | null;
 }
+
+/**
+ * A tolerance absorbs rounding, nothing else. The bound is enforced by
+ * `public.consolidation_tolerance_cap()`; the mirror here exists only so the
+ * settings screen can say so before the save is refused.
+ */
+export const ELIMINATION_TOLERANCE_CAP = 100;
 
 /**
  * The template the database seeds for every new group, mirrored here only so
@@ -87,6 +102,7 @@ export interface EliminationRule {
 export const ELIMINATION_RULE_DEFAULTS = {
   is_active: true,
   tolerance_amount: 1,
+
   difference_policy: "post_to_cta" as EliminationDifferencePolicy,
 } as const;
 
@@ -558,7 +574,9 @@ export function useConsolidationEliminationMutations() {
       tolerance_amount: number;
       difference_policy: EliminationDifferencePolicy;
       difference_group_account_id: string | null;
+      tolerance_reason?: string | null;
       notes?: string | null;
+
     }) => {
       if (!orgId) throw new Error("No active workspace");
       const { error } = await supabase
