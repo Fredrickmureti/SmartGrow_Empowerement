@@ -326,6 +326,7 @@ export function ConsolidationEliminationRules({
                     id={`elim-tol-${cls}`}
                     type="number"
                     min="0"
+                    max={ELIMINATION_TOLERANCE_CAP}
                     step="0.01"
                     value={draft.tolerance_amount}
                     disabled={!canManage}
@@ -333,9 +334,24 @@ export function ConsolidationEliminationRules({
                   />
                   <p className="text-xs text-muted-foreground">
                     In the group's presentation currency. Zero means the two sides must
-                    agree exactly.
+                    agree exactly. A tolerance absorbs rounding, so it cannot exceed{" "}
+                    {ELIMINATION_TOLERANCE_CAP}: a larger gap is a real difference and has
+                    to be explained by the books, not widened away.
+                  </p>
+                  <Textarea
+                    className="mt-2 text-xs"
+                    rows={2}
+                    placeholder="Why a difference of this size is not a disagreement"
+                    value={draft.tolerance_reason}
+                    disabled={!canManage || Number(draft.tolerance_amount) <= 0}
+                    onChange={(e) => patch(cls, { tolerance_reason: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Required for any tolerance above zero, and recorded with who changed
+                    it and when.
                   </p>
                 </div>
+
 
                 <div className="space-y-1">
                   <Label>When they disagree by more</Label>
