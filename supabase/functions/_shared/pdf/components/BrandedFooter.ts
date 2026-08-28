@@ -100,7 +100,11 @@ export function drawFinalFooter(builder: PdfBuilder, page: PDFPage, config: Foot
     const parts: string[] = [`Generated ${ts}`];
     if (config.disclosure.user) parts.push(`by ${config.disclosure.user}`);
     if (config.disclosure.org) parts.push(config.disclosure.org);
-    if (config.disclosure.runHash) parts.push(`Run ${config.disclosure.runHash}`);
+    // "Export ref", not "Run": this hash identifies THIS rendition of the
+    // document, not any business run (a consolidation run, a payroll run).
+    // Labelling it "Run" made readers of consolidated artifacts believe two
+    // PDFs of the same consolidation run were two different runs.
+    if (config.disclosure.runHash) parts.push(`Export ref ${config.disclosure.runHash}`);
     leftText = winansiSafe(parts.join(" • "));
   } else if (config.includeGeneratedStamp !== false) {
     leftText = winansiSafe(`Generated: ${ts}`);

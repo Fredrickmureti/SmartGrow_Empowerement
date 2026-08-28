@@ -108,14 +108,23 @@ export function ReportContextProvider({ children }: { children: ReactNode }) {
     <T extends Partial<ExportConfig>>(config: T) => ({
       ...config,
       organizationId: ctx.organizationId ?? config.organizationId,
-      businessId: ctx.businessId ?? config.businessId,
+      // A consolidated report is issued by the group's parent company, not by
+      // whichever member entity the user is browsing — that declaration wins
+      // over the ambient entity, and only over it.
+      businessId:
+        config.reportingEntityBusinessId ?? ctx.businessId ?? config.businessId,
       // Branch is scope, not branding: a report-local branch wins over the
       // ambient navigation branch. Preserve explicit null ("All branches") —
       // nullish fallback used to turn that deliberate consolidated scope back
       // into whichever branch the global switcher happened to hold.
       branchId: config.branchId !== undefined ? config.branchId : ctx.branchId ?? null,
-      companyName: ctx.companyName ?? config.companyName,
-      currency: ctx.currency ?? config.currency,
+      companyName: config.reportingEntityBusinessId
+        ? config.companyName
+        : ctx.companyName ?? config.companyName,
+      // A page that names its own currency means it: a consolidated statement
+      // is presented in the GROUP's presentation currency, which is not the
+      // browsing entity's base currency.
+      currency: config.currency ?? ctx.currency,
     }),
     [ctx],
   );

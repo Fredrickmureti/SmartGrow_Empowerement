@@ -248,8 +248,12 @@ export default function ConsolidationEliminations() {
       sheetName,
       currency,
       formatProfile: "financial",
+      // Group artifact: issued by the group's parent company, never scoped to
+      // a branch of whichever member the user is browsing.
+      reportingEntityBusinessId: selectedGroup?.parent_business_id ?? null,
+      branchId: null,
     }),
-    [period, currency],
+    [period, currency, selectedGroup?.parent_business_id],
   );
 
   const getEliminationsExport = useCallback(
