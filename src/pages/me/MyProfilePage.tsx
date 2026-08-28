@@ -21,7 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, ShieldCheck, User as UserIcon, Phone, MapPin, HeartPulse, Landmark, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { PageHeader, PageBody } from "@/design-system";
+import { PageHeader, PageBody, DetailSheet, FooterActionBar } from "@/design-system";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
