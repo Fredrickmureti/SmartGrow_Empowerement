@@ -275,6 +275,52 @@ export function groupTrialBalanceByAccount(
 }
 
 
+/** Asset and expense balances sit on the debit side; everything else credits. */
+const DEBIT_NORMAL_ACCOUNT_TYPES = new Set(["asset", "expense"]);
+
+export function isDebitNormalAccountType(accountType: string | null): boolean {
+  return DEBIT_NORMAL_ACCOUNT_TYPES.has((accountType ?? "").trim().toLowerCase());
+}
+
+/** The two sides of the accounting equation, proved on closing balances. */
+export interface TrialBalanceProof {
+  /** Assets and expenses, at their translated closing balances. */
+  debitSide: number;
+  /** Liabilities, equity (incl. the translation reserve) and income. */
+  creditSide: number;
+  difference: number;
+  isBalanced: boolean;
+}
+
+/**
+ * Prove a translated group trial balance the only way it *can* be proved: on
+ * closing balances.
+ *
+ * The period movement columns cannot prove a consolidation. Members translate
+ * their movements at the average rate while their balance-sheet closing
+ * balances translate at the closing rate, and the engine's translation-reserve
+ * line is a closing-balance residual with no movement of its own. Summing the
+ * debit and credit *movement* columns therefore reports an out-of-balance in
+ * any group with a foreign member whose books are perfectly in order — which
+ * is a false alarm on an artifact accountants rely on.
+ *
+ * `consolidation_translate_member` emits the reserve as exactly the residual
+ * that makes the debit and credit sides of the closing balances agree, so a
+ * correctly translated group proves to zero here to the cent.
+ */
+export function proveTrialBalanceOnClosingBalances(
+  lines: Pick<ConsolidatedAccountLine, "account_type" | "closing_balance">[],
+): TrialBalanceProof {
+  let debitSide = 0;
+  let creditSide = 0;
+  for (const line of lines) {
+    if (isDebitNormalAccountType(line.account_type)) debitSide += Number(line.closing_balance);
+    else creditSide += Number(line.closing_balance);
+  }
+  const difference = debitSide - creditSide;
+  return { debitSide, creditSide, difference, isBalanced: Math.abs(difference) < 0.005 };
+}
+
 /**
  * Non-controlling interest disclosure: the minority share of each member's
  * period result is reported separately instead of being blended into the group
