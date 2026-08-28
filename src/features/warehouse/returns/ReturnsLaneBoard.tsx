@@ -7,7 +7,11 @@
  * as "Unloading", not as a green header.
  */
 import { useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  SummaryStatCard,
+  SummaryStatGrid,
+  type SummaryStatTone,
+} from "@/components/common/SummaryStatCards";
 import { cn } from "@/lib/utils";
 import { AlarmClock } from "lucide-react";
 import {
