@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useCanSwitchScope } from "@/hooks/useCanSwitchScope";
-import { useDeclareScope } from "@/contexts/AppLayoutContext";
+import { useAppLayout, useDeclareScope } from "@/contexts/AppLayoutContext";
 import { useScopeSwitcherProps } from "@/hooks/useScopeSwitcherProps";
 import { ContextSwitcherSheet } from "@/components/organization/ContextSwitcherSheet";
 
@@ -35,7 +35,11 @@ export interface ScopeBadgeProps {
 export function ScopeBadge({ declareScope = true }: ScopeBadgeProps = {}) {
   const { currentBusiness } = useBusinesses();
   const { currentBranch, hasMultipleBranches } = useBranch();
-  const { shouldShowTrigger } = useCanSwitchScope();
+  const { shouldShowTrigger: canSwitch } = useCanSwitchScope();
+  // Inside a PlatformShell the topbar ScopeSwitcherChip owns the trigger —
+  // rendering a second one here would give the page two switchers.
+  const { isInsideAppLayout } = useAppLayout();
+  const shouldShowTrigger = canSwitch && !isInsideAppLayout;
   const consolidatedProps = useScopeSwitcherProps();
   const [open, setOpen] = useState(false);
 
