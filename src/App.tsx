@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { isElectron } from "@/lib/environment";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { PlatformIdentityProvider } from "@/contexts/PlatformIdentityContext";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { BusinessProvider } from "@/contexts/BusinessContext";
@@ -19,8 +18,6 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { NonVendorRoute } from "@/components/auth/NonVendorRoute";
 import { PortalUserRoute } from "@/components/auth/PortalUserRoute";
-import { AdminLayoutRoute } from "@/components/admin/AdminLayoutRoute";
-import { AdminAuthOnlyRoute } from "@/components/auth/AdminAuthOnlyRoute";
 import { RedirectIfAuthenticated } from "@/components/auth/RedirectIfAuthenticated";
 import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
 import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
@@ -62,9 +59,6 @@ import Settings from "./pages/Settings";
 const WorkspaceSettings = lazy(() => import("./pages/settings/WorkspaceSettings"));
 const CompanySettings = lazy(() => import("./pages/settings/CompanySettings"));
 const GovernanceSoD = lazy(() => import("./pages/settings/GovernanceSoD"));
-import AdminLogin from "./pages/admin/AdminLogin";
-import AdminProfile from "./pages/admin/AdminProfile";
-import AdminAcceptInvitation from "./pages/admin/AdminAcceptInvitation";
 import Demo from "./pages/Demo";
 const ResourcesIndex = lazy(() => import("./pages/resources/ResourcesIndex"));
 const ResourceDetail = lazy(() => import("./pages/resources/ResourceDetail"));
@@ -92,48 +86,6 @@ import SelectOrganization from "./pages/SelectOrganization";
 // LAZY IMPORTS (Only standalone modules that stay standalone)
 // ============================================
 import {
-  // Admin
-  AdminManagement,
-  AdminOrganizations,
-  AdminUsers,
-  AdminInvoices,
-  AdminAnalytics,
-  AdminReports,
-  AdminSettings,
-  AdminEmailCenter,
-  AdminDemoRequests,
-  AdminInfrastructure,
-  AdminOrganizationDetail,
-  AdminOrganizationSubscription,
-  AdminOrganizationDelete,
-
-  AdminPlanBuilder,
-  AdminAppCatalog,
-  AdminAppCatalogEditPage,
-  AdminPayments,
-  AdminAuditLog,
-  HardwareOpsPage,
-  AdminMfaSetup,
-  AdminTeam,
-  AdminGroups,
-  AdminGroupCreatePage,
-  AdminGroupEditPage,
-  AdminTeamInvitePage,
-  AdminTeamMemberEditPage,
-  AdminPlanCreatePage,
-  AdminPlanEditPage,
-  AdminFeatureCreatePage,
-  AdminFeatureEditPage,
-  AdminEmailComposePage,
-  AdminEmailCampaignCreatePage,
-  AdminEmailTemplateCreatePage,
-  AdminEmailTemplateEditPage,
-  AdminEmailAutomationEditPage,
-  AdminDemoRequestReplyPage,
-  AdminOrgEntitlementOverrideCreatePage,
-  AdminOrgEntitlementOverrideEditPage,
-  AdminDemoVideoCreatePage,
-  AdminDemoVideoEditPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -205,7 +157,6 @@ const App = () => (
       <QueryClientProvider client={queryClient}>
         <ConnectivityProvider>
         <AuthProvider>
-          <PlatformIdentityProvider>
           <SessionProvider>
             <InstalledAppsHydration />
             <OrganizationProvider>
@@ -495,66 +446,6 @@ const App = () => (
 
 
                             
-                            {/* ============================================== */}
-                            {/* ADMIN ROUTES                                   */}
-                            {/* ============================================== */}
-                            <Route path="/admin-management/login" element={<RedirectIfAuthenticated><AdminLogin /></RedirectIfAuthenticated>} />
-                            <Route path="/admin-management/accept-invitation" element={<AdminAcceptInvitation />} />
-                            <Route
-                              path="/admin-management/mfa-setup"
-                              element={
-                                <AdminAuthOnlyRoute>
-                                  <LazyRoute module="MFA Setup"><AdminMfaSetup /></LazyRoute>
-                                </AdminAuthOnlyRoute>
-                              }
-                            />
-                            <Route path="/admin-management" element={<AdminLayoutRoute />}>
-                              <Route index element={<LazyRoute module="Admin Dashboard"><AdminManagement /></LazyRoute>} />
-                              <Route path="profile" element={<AdminProfile />} />
-                              <Route path="organizations" element={<LazyRoute module="Organizations"><AdminOrganizations /></LazyRoute>} />
-                              <Route path="organizations/:id" element={<LazyRoute module="Organization Detail"><AdminOrganizationDetail /></LazyRoute>} />
-                              <Route path="organizations/:id/subscription" element={<LazyRoute module="Manage Subscription"><AdminOrganizationSubscription /></LazyRoute>} />
-                              <Route path="organizations/:id/delete" element={<LazyRoute module="Delete Organization"><AdminOrganizationDelete /></LazyRoute>} />
-                              <Route path="organizations/:id/entitlements/new" element={<LazyRoute module="Add Entitlement Override"><AdminOrgEntitlementOverrideCreatePage /></LazyRoute>} />
-                              <Route path="organizations/:id/entitlements/:overrideId/edit" element={<LazyRoute module="Edit Entitlement Override"><AdminOrgEntitlementOverrideEditPage /></LazyRoute>} />
-
-                              <Route path="users" element={<LazyRoute module="Users"><AdminUsers /></LazyRoute>} />
-                              <Route path="invoices" element={<LazyRoute module="Invoices"><AdminInvoices /></LazyRoute>} />
-                              <Route path="analytics" element={<LazyRoute module="Analytics"><AdminAnalytics /></LazyRoute>} />
-                              <Route path="reports" element={<LazyRoute module="Reports"><AdminReports /></LazyRoute>} />
-                              <Route path="settings" element={<LazyRoute module="Settings"><AdminSettings /></LazyRoute>} />
-                              <Route path="settings/demo-videos/new" element={<LazyRoute module="Add Demo Video"><AdminDemoVideoCreatePage /></LazyRoute>} />
-                              <Route path="settings/demo-videos/:id/edit" element={<LazyRoute module="Edit Demo Video"><AdminDemoVideoEditPage /></LazyRoute>} />
-                              <Route path="email-center" element={<LazyRoute module="Email Center"><AdminEmailCenter /></LazyRoute>} />
-                              <Route path="email-center/compose" element={<LazyRoute module="Compose Email"><AdminEmailComposePage /></LazyRoute>} />
-                              <Route path="email-center/campaigns/new" element={<LazyRoute module="Create Campaign"><AdminEmailCampaignCreatePage /></LazyRoute>} />
-                              <Route path="email-center/templates/new" element={<LazyRoute module="Create Email Template"><AdminEmailTemplateCreatePage /></LazyRoute>} />
-                              <Route path="email-center/templates/:id/edit" element={<LazyRoute module="Edit Email Template"><AdminEmailTemplateEditPage /></LazyRoute>} />
-                              <Route path="email-center/automations/:id" element={<LazyRoute module="Edit Automation"><AdminEmailAutomationEditPage /></LazyRoute>} />
-                              <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
-                              <Route path="demo-requests/:id/reply" element={<LazyRoute module="Reply to Demo Request"><AdminDemoRequestReplyPage /></LazyRoute>} />
-                              <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
-                              <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
-                              <Route path="plan-builder/plans/new" element={<LazyRoute module="Create Plan"><AdminPlanCreatePage /></LazyRoute>} />
-                              <Route path="plan-builder/plans/:id/edit" element={<LazyRoute module="Edit Plan"><AdminPlanEditPage /></LazyRoute>} />
-                              <Route path="plan-builder/features/new" element={<LazyRoute module="Create Feature"><AdminFeatureCreatePage /></LazyRoute>} />
-                              <Route path="plan-builder/features/:id/edit" element={<LazyRoute module="Edit Feature"><AdminFeatureEditPage /></LazyRoute>} />
-                              <Route path="app-catalog" element={<LazyRoute module="App Catalog"><AdminAppCatalog /></LazyRoute>} />
-                              <Route path="app-catalog/:id/edit" element={<LazyRoute module="Edit App"><AdminAppCatalogEditPage /></LazyRoute>} />
-                              <Route path="payments" element={<LazyRoute module="Payments"><AdminPayments /></LazyRoute>} />
-                              <Route path="audit-log" element={<LazyRoute module="Audit Log"><AdminAuditLog /></LazyRoute>} />
-                              <Route path="hardware-ops" element={<LazyRoute module="Hardware Ops"><HardwareOpsPage /></LazyRoute>} />
-                              <Route path="print-queue" element={<Navigate to="/platform/hardware/print-queue" replace />} />
-                              <Route path="team" element={<LazyRoute module="Team"><AdminTeam /></LazyRoute>} />
-                              <Route path="team/invite" element={<LazyRoute module="Invite Team Member"><AdminTeamInvitePage /></LazyRoute>} />
-                              <Route path="team/:id/edit" element={<LazyRoute module="Edit Team Member"><AdminTeamMemberEditPage /></LazyRoute>} />
-                              <Route path="groups" element={<LazyRoute module="Groups"><AdminGroups /></LazyRoute>} />
-                              <Route path="groups/new" element={<LazyRoute module="Create Group"><AdminGroupCreatePage /></LazyRoute>} />
-                              <Route path="groups/:id/edit" element={<LazyRoute module="Edit Group"><AdminGroupEditPage /></LazyRoute>} />
-                            </Route>
-
-                            {/* ============================================== */}
-
                             {/* 404 */}
                             <Route path="*" element={<NotFound />} />
                           </Routes>
@@ -578,7 +469,6 @@ const App = () => (
               </BusinessProvider>
             </OrganizationProvider>
           </SessionProvider>
-          </PlatformIdentityProvider>
         </AuthProvider>
         </ConnectivityProvider>
       </QueryClientProvider>
