@@ -102,9 +102,6 @@ import {
   AdminSettings,
   AdminEmailCenter,
   AdminDemoRequests,
-  AdminLocalizationPacks,
-  AdminLocalizationCertificateEdit,
-  AdminLocalizationReturnEdit,
   AdminInfrastructure,
   AdminOrganizationDetail,
   AdminOrganizationSubscription,
@@ -127,8 +124,6 @@ import {
   AdminPlanEditPage,
   AdminFeatureCreatePage,
   AdminFeatureEditPage,
-  AdminLocalizationPackCreatePage,
-  AdminLocalizationPackDetailPage,
   AdminEmailComposePage,
   AdminEmailCampaignCreatePage,
   AdminEmailTemplateCreatePage,
@@ -137,10 +132,8 @@ import {
   AdminDemoRequestReplyPage,
   AdminOrgEntitlementOverrideCreatePage,
   AdminOrgEntitlementOverrideEditPage,
-  AdminOrgLocalizationInstallPage,
   AdminDemoVideoCreatePage,
   AdminDemoVideoEditPage,
-  AdminLocalizationPackPublishPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -531,7 +524,6 @@ const App = () => (
                               <Route path="organizations/:id/delete" element={<LazyRoute module="Delete Organization"><AdminOrganizationDelete /></LazyRoute>} />
                               <Route path="organizations/:id/entitlements/new" element={<LazyRoute module="Add Entitlement Override"><AdminOrgEntitlementOverrideCreatePage /></LazyRoute>} />
                               <Route path="organizations/:id/entitlements/:overrideId/edit" element={<LazyRoute module="Edit Entitlement Override"><AdminOrgEntitlementOverrideEditPage /></LazyRoute>} />
-                              <Route path="organizations/:id/localization/install" element={<LazyRoute module="Install Localization Pack"><AdminOrgLocalizationInstallPage /></LazyRoute>} />
 
                               <Route path="users" element={<LazyRoute module="Users"><AdminUsers /></LazyRoute>} />
                               <Route path="invoices" element={<LazyRoute module="Invoices"><AdminInvoices /></LazyRoute>} />
@@ -548,12 +540,6 @@ const App = () => (
                               <Route path="email-center/automations/:id" element={<LazyRoute module="Edit Automation"><AdminEmailAutomationEditPage /></LazyRoute>} />
                               <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
                               <Route path="demo-requests/:id/reply" element={<LazyRoute module="Reply to Demo Request"><AdminDemoRequestReplyPage /></LazyRoute>} />
-                              <Route path="localization-packs" element={<LazyRoute module="Localization Packs"><AdminLocalizationPacks /></LazyRoute>} />
-                              <Route path="localization-packs/new" element={<LazyRoute module="Create Localization Pack"><AdminLocalizationPackCreatePage /></LazyRoute>} />
-                              <Route path="localization-packs/:id" element={<LazyRoute module="Localization Pack"><AdminLocalizationPackDetailPage /></LazyRoute>} />
-                              <Route path="localization-packs/:id/publish" element={<LazyRoute module="Publish Localization Pack Version"><AdminLocalizationPackPublishPage /></LazyRoute>} />
-                              <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
-                              <Route path="localization-packs/:packId/returns/:templateId/edit" element={<LazyRoute module="Return Template Editor"><AdminLocalizationReturnEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
                               <Route path="plan-builder/plans/new" element={<LazyRoute module="Create Plan"><AdminPlanCreatePage /></LazyRoute>} />
