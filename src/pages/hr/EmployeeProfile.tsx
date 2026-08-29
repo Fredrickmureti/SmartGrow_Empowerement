@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
-  Loader2, User, Briefcase, Lock, Calendar, FileText, DollarSign,
+  Loader2, User, Briefcase, Lock, Calendar, FileText,
   ClipboardList, ScrollText, History, Clock, Timer,
   Package, LogOut,
 } from "lucide-react";

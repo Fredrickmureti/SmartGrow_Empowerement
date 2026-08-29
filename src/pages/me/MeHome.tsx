@@ -127,7 +127,7 @@ export default function MeHome() {
     <>
       <PageHeader
         title={`Hi ${greetingName} 👋`}
-        description="Your workspace — leave, timesheets, payslips and personal details, all in one place."
+        description="Your workspace — leave, timesheets and personal details, all in one place."
       />
       <PageBody>
         <QuickActionsSection />
