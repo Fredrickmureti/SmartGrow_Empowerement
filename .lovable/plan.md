@@ -1,100 +1,70 @@
-# Microfinance Convergence — Verified Status and Reworked Execution Plan
+# Microfinance Convergence — Independent Verification (2026-08-29) and Reworked Plan
 
-## Phase 1 — What I verified myself (2026-08-29)
+## Phase 1 — What I verified myself, directly
 
-I checked the previous engineer's claims directly against the codebase, the dev server and the connected database. Verdict summary:
+I re-checked every claim in the previous plan and in the previous engineer's final message against the codebase, the running dev server and the connected database. Verified findings only:
 
-| Claim | Reality |
+| Claim | Verified reality |
 | --- | --- |
-| Step 0 "project pinning & safety check" | **NOT DONE.** `supabase/config.toml` still reads `project_id = "jkszmrroyjfdwokbkzis"` (the AccrualFlow reference project). |
-| ERP module deletion pass | **PARTIALLY DONE.** `src/apps/{sales,purchases,inventory,pos,warehouse,crm,projects,timesheets,sms}` and their feature folders are gone, but ~30+ retained files still import them (`src/pages/Invoices.tsx`, `Bills.tsx`, `CreditNotes.tsx`, `src/contexts/SalesScanContext.tsx`, `src/hooks/useBillMatch.ts`, document line components, many architecture tests). `electron/`, `packages/desktop/`, `agent/` still present. |
-| Platform baselines 1–6 applied | **MOSTLY TRUE for schema shape.** Live DB has orgs/businesses/branches/profiles/user_roles/audit_logs, accounts/journals/fiscal periods/tax/currencies/bank accounts, and the full document engine (records, templates, AST, artifacts, theme, print policies, dispatch log, media profiles, format registry). |
-| Microfinance workspace scaffold | **NOT STARTED.** No `src/apps/microfinance`, no registry entry, no nav, no mocks. |
-| "Only a build failure remains" | **UNDERSTATED — the app does not run at all.** `http://localhost:8080` returns 500: `Cannot find module '#tanstack-start-entry'`. Root cause: the repo is half-migrated between stacks. `vite.config.ts` is still the legacy SPA config (plain `defineConfig` from `vite`, react-swc, PWA, no `tanstackStart`), while `src/server.ts` calls the removed pre-v1 API `createStartHandler` from `@tanstack/react-start/server`. Both `src/App.tsx`/`src/pages` (SPA) and `src/routes` (file routes) coexist. |
+| M0 stack repair — "app boots" | **FALSE.** `http://localhost:8080` still returns **500**. The old `#tanstack-start-entry` error is gone (`vite.config.ts` now uses the TanStack wrapper, `src/server.ts` is the v1 entry shape), but a new hard failure replaced it: `Missing "#tanstack-start-plugin-adapters" specifier in "@tanstack/start-server-core"`. Cause is a version split in the installed TanStack packages: `start-server-core 1.167.19` vs `start-plugin-core 1.168.0` vs `react-start 1.167.43` vs `router 1.169.1`. Nothing in the app can be verified while SSR 500s. |
+| M1 project pinning | **DONE.** `supabase/config.toml` reads `project_id = "xwxqunklduknceoryrha"` (the connected project), not the AccrualFlow ref. |
+| M2 dangling-import purge | **NOT DONE.** 30 retained files still import deleted ERP modules (`src/services/reports/reportsNav.ts` plus 29 architecture/AI tests referencing sales/purchases/inventory/pos/warehouse/crm). `electron/`, `packages/`, `agent/` are all still present. |
+| M3 RBAC + PIN | **PARTIALLY DONE, as the previous engineer's last message admits.** `permission_groups`, `permission_group_rules`, `member_permission_groups`, `user_security_preferences` exist; `user_pins` policies and the PIN lifecycle functions (`set_user_pin`, `verify_user_pin`, `verify_pin_unauthenticated`, `disable_user_pin`), `get_user_session_data`, `set_last_org_id`, `bootstrap_super_admin`, `is_org_admin_or_owner`, `user_has_module_permission` are all present in the live DB. **Still broken:** `has_user_pin()` and `check_pin_status()` do not exist, yet `src/hooks/security/usePINLogin.ts`, `src/components/auth/EnhancedLoginForm.tsx` and `src/pages/admin/AdminLogin.tsx` call them — PIN login cannot complete. Super-admin seeding never happened (no auth users yet). |
+| M6 microfinance workspace | **NOT STARTED.** `src/apps/` contains contacts, dashboard, finance, hr, me, platform, platform-admin, reports, studio — no `microfinance`. |
 
-Additional problems the previous plan did not record:
+Problems the previous plan never recorded:
 
-- **PIN auth cannot work against the live DB.** `user_pins` exists with zero policies and no grants (SELECT/INSERT/UPDATE/DELETE all denied), so the PIN login/setup components have no reachable data path.
-- **Dangling FK-by-convention.** `organization_invitations.permission_group_ids` is populated by the invitation flow, but no `permission_groups`/permission-assignment tables exist. The RBAC baseline is therefore incomplete, not complete.
-- **ERP tables were rebuilt into the new DB** (`invoices`, `invoice_items`, `bills`, `bill_items`, `products`, `contacts` typed customer/vendor) even though the plan classified Sales/Purchasing as REMOVE. This must be resolved explicitly (adapt `contacts` → client master, drop or park the rest) rather than left ambiguous.
-- No `print_jobs`/dispatch queue, no settings/field-config tables, no microfinance domain tables.
+- **Payroll is still in the app**, in direct conflict with the parent brief's "NO PAYROLL": `src/apps/hr/sub/PayrollRoutes.tsx` plus payroll references in `src/apps/hr/{index.ts,routes.tsx,shared/navs.ts,shared/guards.tsx}` and `HrReportsRoutes.tsx`. HR must be reduced to the user/role/branch-scope surface the brief allows.
+- `user_has_module_permission` still hardcodes ERP/HR module names including `payroll` — the RBAC matrix needs re-basing on microfinance modules.
+- The ERP-table disposition question (rebuilt `invoices`/`bills`/`products`/`contacts` in the new DB) is still unanswered and still blocks M4.
 
-Conclusion: the last **genuinely** completed milestone is "platform + finance + document-engine baseline schema exists in the connected project". Everything else — pinning, clean removal, a booting application, RBAC completeness, PIN auth, the microfinance workspace — is pending.
+**Last genuinely completed milestone: M1 (environment pinning).** M0 is regressed-and-unfinished, M2 not started, M3 incomplete. Everything after that is pending.
 
-## Phase 2 — Reworked plan
+## Phase 2 — Reworked execution order
 
-Nothing below invents microfinance business logic yet. The order is deliberately: make it run → make it safe → make it clean → then domain.
+Order stays: make it run → make it clean → make it safe → then domain. One migration at a time, each ending in a report and a stop for review.
 
-### M0. Stack repair — get the application booting (blocking, no DB work)
-- Decide and commit to one stack. The platform target is TanStack Start: replace `vite.config.ts` with `defineConfig` from `@lovable.dev/vite-tanstack-config`, and rewrite `src/server.ts` to the v1 entry shape.
-- Reconcile the SPA remnants: `src/App.tsx` + `src/pages/*` are reachable only through the legacy router. Keep them compiling as parked code (or route them through `src/routes/-lazyRoutes.tsx`) — no page rewrites in this migration.
-- Gate: `http://localhost:8080` renders, build log clean.
+### M0 (redo). Stack repair — get SSR returning 200
+- Align the TanStack package set to one matching minor (`react-start`, `start-server-core`, `start-plugin-core`, `router-plugin`, `react-router`/`router-core`), reinstall, and confirm no duplicate copies survive under `node_modules`.
+- Keep `vite.config.ts` and `src/server.ts` as they are — they are correct now; the failure is dependency versions, not config.
+- Gate: `curl localhost:8080` returns 200 and the shell renders; dev-server log free of resolution errors.
 
-### M1. Environment pinning & isolation
-- Rewrite `supabase/config.toml` to the connected project ref `xwxqunklduknceoryrha`; confirm `.env` VITE_ vars point at the same project; assert no code path references the AccrualFlow ref.
-- Gate: a written isolation check (URL, ref, keys, storage) in `docs/microfinance/isolation-check.md`.
-
-### M2. Dangling-import purge (finish the deletion pass)
-- Fix or park every retained file importing a deleted module (list above). Delete the ERP-only architecture tests rather than stubbing them. Remove `electron/`, `packages/desktop/`, `agent/` and their eslint/CI hooks.
+### M2. Dangling-import purge and dead-weight removal
+- Fix `src/services/reports/reportsNav.ts` (drop retired report groups) and **delete** the 29 ERP-only architecture/AI tests rather than stubbing them.
+- Remove `electron/`, `packages/`, `agent/` and their eslint/CI hooks.
 - Gate: typecheck + build + test suite green, app still boots.
 
-### M3. RBAC & PIN auth completion (DB + code)
-- Migration: permission groups + role/permission/app-access tables the invitation and app-registry code already expect; grants, RLS, `has_role`-style helpers reused.
-- Migration: `user_pins` grants + owner-scoped RLS policies (self-manage only), lockout fields honoured server-side; PIN verification must be a security-definer RPC, never a client-side hash comparison.
-- Seed `fredrickmureti612@gmail.com` as the development super administrator.
-- Gate: sign in with PIN end-to-end in the preview; unauthorized app hidden in the rail and refused server-side.
+### M2b. Payroll excision (new — required by the parent brief)
+- Delete `PayrollRoutes` and every payroll nav/guard/report reference; reduce HR to accounts, roles, branch assignment, officer assignment, audit.
+- Re-base `user_has_module_permission`'s module list on microfinance modules (clients, lending, collections, payments, finance, reports, settings, team) and drop payroll/ERP entries.
+- Gate: no `payroll` identifier remains in `src/apps`; permission function returns correct answers for the microfinance module set.
 
-### M4. ERP-table disposition & settings baseline
-- Explicit KEEP / ADAPT / DROP decision per rebuilt ERP table (`contacts` → ADAPT to client master; `invoices`/`bills`/`products` → drop or park with rationale recorded).
-- Migration: settings/field-config baseline (`default_account_settings`, `payment_terms`, `saved_views`, `entity_field_configs`/`values`, `form_layouts`, `notifications`) and the print/dispatch queue (`print_jobs` + claim/mark RPCs) that the document engine's output path expects.
-- Gate: company settings screen loads and its values reach a generated document; document print/queue path exercised once.
+### M3 (close out). PIN auth + RBAC completion
+- Migration: add `has_user_pin()` and `check_pin_status()` as security-definer RPCs matching what `usePINLogin.ts` expects (existence, active flag, lockout state, attempts remaining) with execute granted to `authenticated`/`anon` exactly as the login flow needs and nothing more.
+- Sign up `fredrickmureti612@gmail.com`, then run `bootstrap_super_admin` for it; record the institution org/branch seed.
+- Gate: PIN sign-in end-to-end in the preview; an unauthorized module hidden in the rail *and* refused server-side.
 
-### M5. Company / institution settings convergence
-- Single institution identity as the configuration root, injected into report and document data contexts (no hardcoded company data in templates).
-- Gate: one report and one document rendered with configured institution details.
+### M4. ERP-table disposition + settings/print baseline
+- Explicit KEEP / ADAPT / DROP per rebuilt ERP table — `contacts` → ADAPT to client master; `invoices`/`invoice_items`/`bills`/`bill_items`/`products` → decision recorded (see open question).
+- Migration: settings/field-config baseline and the print/dispatch queue (`print_jobs` + claim/mark RPCs) the document engine's output path expects.
+- Gate: company settings screen loads; one generated document flows through the queue.
+
+### M5. Institution settings convergence
+Single institution identity as configuration root, injected into report and document data contexts — no hardcoded company data in templates. Gate: one report and one document render with configured institution details.
 
 ### M6. Microfinance workspace scaffold (mock-driven, no schema)
-- `MICROFINANCE_APP` registry entry + `src/apps/microfinance/{MicrofinanceLayout,nav,routes}` on the existing `PlatformShell`.
-- Nav: Dashboard · Clients (All Clients, Groups) · Lending (Loan Products, Applications, Assessments, Loans, Schedules, Disbursements) · Collections (Due Today, Overdue, Arrears, Activities) · Payments · Reports · Settings.
-- Typed fixtures only, in `src/apps/microfinance/mocks/`. No tables invented for UI convenience.
-- Gate: every nav destination renders through the shared list/detail/panel primitives.
+`MICROFINANCE_APP` registry entry + `src/apps/microfinance/{MicrofinanceLayout,nav,routes}` on the existing `PlatformShell`. Nav: Dashboard · Clients (All Clients, Groups) · Lending (Loan Products, Applications, Assessments, Loans, Schedules, Disbursements) · Collections (Due Today, Overdue, Arrears, Activities) · Payments · Reports · Settings. Typed fixtures only. Gate: every nav destination renders through shared list/detail/panel primitives.
 
-### M7+. Domain migrations (unchanged order from the parent brief)
-Clients → Groups → Loan Products (versioned) → Applications → Assessment/Approval → Loan entity → Schedule engine → Disbursement → Payments & configurable allocation → Arrears & Collections → Accounting integration via configured account mappings → Top-ups/Restructuring → Closure/Write-off → Reporting → Documents → Audit & integrity → Final hardening.
+### M7+. Domain migrations (order unchanged from the parent brief)
+Clients → Groups → Loan Products (versioned) → Applications → Assessment/Approval → Loan entity → Schedule engine → Disbursement → Payments & configurable allocation → Arrears & Collections → Accounting integration via configured mappings → Top-ups/Restructuring → Closure/Write-off → Reporting → Documents → Audit & integrity → Final hardening.
 
-Invariants carried into every domain migration: authoritative money math server-side only; business events are append-only with reversal, never `UPDATE loans SET`; account mappings configurable, never hardcoded UUIDs; loan officer/branch data scope enforced in RLS, not just in the UI.
-
-### Rules of execution
-One migration at a time. Each ends with a report (Objective / Changed / Preserved / Removed / Adapted / Database / Dependencies / Verification / Result / Next) and stops for review.
+Invariants in every domain migration: authoritative money math server-side only; business events append-only with reversal, never `UPDATE loans SET`; account mappings configurable, never hardcoded UUIDs; loan-officer/branch data scope enforced in RLS, not just UI.
 
 ## Technical notes
-- Stack repair (M0) must precede everything: no verification of shell, auth, reports or documents is meaningful while SSR 500s.
-- Reference SQL under `supabase/migrations/` (2,882 files) stays read-only source text; baselines are re-derived, idempotent, and include GRANT + RLS + policy blocks per table.
-- The connected project stays the only SQL target; AccrualFlow's project is never touched.
+- No verification of shell, auth, reports or documents is meaningful until M0 yields a 200; treat any earlier "verified UI" claim as void.
+- Reference SQL under `supabase/migrations/` stays read-only source text; baselines are re-derived, idempotent, and include GRANT + RLS + policy blocks per table.
+- The connected project (`xwxqunklduknceoryrha`) is the only SQL target.
 
-## Open question
-The connected database already contains rebuilt Sales/Purchasing tables. Confirm whether I should drop them in M4 or leave them parked (unregistered, unused) for possible later reuse.
-
-
-================LAST MESSAGE THE AGENT GAVE BEFORE ITS TIME RUN OUT SO IT WAS NOT ABLE TO UPDATE THIS PLAN FILE STATUS HENCE VERIFICATION IS REQUIRED=================
-
-M3 (RBAC + PIN) is partly landed. Two migrations were applied and verified:
-
-- Created `permission_groups`, `permission_group_rules`, `member_permission_groups`, `user_security_preferences` with grants + owner/admin-scoped RLS; added the missing `user_pins` policies (owner-only).
-- Added `is_org_admin_or_owner`, `user_has_module_permission`, `set_user_pin`, `verify_user_pin`, `verify_pin_unauthenticated` (service-role only, 5-attempt/15-min lockout), `disable_user_pin`, `get_user_session_data`, `set_last_org_id`, `bootstrap_super_admin`.
-- Tightened execute privileges so `anon` cannot call any of the new definer functions; the 12 remaining linter warnings are the intentional authenticated-callable RLS/PIN helpers (all self- or membership-scoped).
-
-Remaining for M3:
-1. `bootstrap_super_admin('fredrickmureti612@gmail.com')` returned "No such user" — the account must sign up first, then re-run it (no orgs/users exist yet).
-2. `has_user_pin()` and `check_pin_status()` RPCs are still missing; `src/hooks/security/usePINLogin.ts` calls them, so PIN status checks will fail until they're added.
-3. Update `docs/microfinance/migration-status.md` to record M3, and add the security-memory note about the accepted definer-function warnings.
-
-
-M3 is mostly in place: the access-group tables, `user_pins` policies, PIN lifecycle functions, session RPC, and privilege tightening are all applied and verified against the database.
-
-Still open before M3 can be closed:
-1. `has_user_pin()` and `check_pin_status()` RPCs need to be added — `usePINLogin.ts` calls them today.
-2. `bootstrap_super_admin('fredrickmureti612@gmail.com')` must be re-run after that account signs up (no auth users or organizations exist yet).
-3. `docs/microfinance/migration-status.md` needs the M3 entry, plus a security-memory note recording that the 12 authenticated-callable SECURITY DEFINER warnings are intentional RLS/PIN helpers.
-
-Want me to continue with those three items in a new request?
+## Open questions
+1. The connected database already holds rebuilt Sales/Purchasing tables (`invoices`, `bills`, `products`). Drop them in M4, or leave them parked and unregistered for possible reuse?
+2. You asked to connect a Supabase project named **Smart Grow Empowerment**. This app is connected to project ref `xwxqunklduknceoryrha` — the one all verified schema above lives in. If "Smart Grow Empowerment" is that same project under a different display name, nothing to do. If it is a *different* Supabase project, it must be reconnected from the Cloud panel before any further migration, since that would invalidate M1 and M3.
