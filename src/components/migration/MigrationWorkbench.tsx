@@ -65,7 +65,7 @@ const stepStatusIcon = (status: StepStatus, canProceed: boolean) => {
   }
 };
 
-const STEP_COMPONENTS: Record<StepKey, React.ComponentType<{ onComplete: () => void; onSkip: () => void }>> = {
+const STEP_COMPONENTS: Partial<Record<StepKey, React.ComponentType<{ onComplete: () => void; onSkip: () => void }>>> = {
   config: MigrationStepConfig,
   accounts: MigrationStepAccounts,
   contacts: MigrationStepContacts,
