@@ -14,7 +14,6 @@ import { LayoutGrid } from "lucide-react";
 import { APP_REGISTRY, LEGACY_ROUTE_MAPPINGS } from "@/lib/apps/registry";
 import { REPORT_REGISTRY } from "@/services/reports/ReportRegistry";
 import { ACTION_REGISTRY } from "./actions";
-import { buildPlatformAdminEntries } from "./buildPlatformAdminIndex";
 import type { CommandEntry } from "./types";
 
 /** Reverse map: full route → legacy aliases (e.g. "/sales/invoices" → ["invoices"]). */
@@ -166,9 +165,6 @@ export function getStaticCommandIndex(): readonly CommandEntry[] {
     ...buildAppModuleEntries(),
     ...buildActionEntries(),
     ...buildReportEntries(),
-    // Platform-admin pages are gated by surface in useCommandPalette;
-    // tenant users never see them even though they live in the same index.
-    ...buildPlatformAdminEntries(),
   ];
   _index = Object.freeze(all);
   return _index;

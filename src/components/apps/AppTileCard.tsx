@@ -36,7 +36,7 @@ interface AppTileCardProps {
    * (Install / Start trial / Subscribe / Open / Coming soon). Pass the result
    * of useAppLifecycle().getAction(app) here.
    */
-  lifecycleAction?: import("@/hooks/useAppLifecycle").AppLifecycleAction;
+  lifecycleAction?: import("@/lib/apps/lifecycle").AppLifecycleAction;
 }
 
 export function AppTileCard({

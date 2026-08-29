@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { usePendingBusinessSetup } from "@/hooks/usePendingBusinessSetup";
-import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useEntityCreationLimits } from "@/hooks/useEntityCreationLimits";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ export function CreateOrganizationDialog({
   const { user } = useAuth();
   const { createOrganization } = useOrganization();
   const { getPendingSetup, clearPendingSetup } = usePendingBusinessSetup(user?.user_metadata);
-  const { checkOrganizationLimit } = useSubscriptionLimits();
+  const { checkOrganizationLimit } = useEntityCreationLimits();
   const { toast } = useToast();
   const navigate = useNavigate();
 
