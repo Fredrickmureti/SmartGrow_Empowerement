@@ -1,93 +1,76 @@
-# Microfinance System on the AccrualFlow Platform — Reconstruction Plan
+# Microfinance Convergence — Verified Status and Reworked Execution Plan
 
-## What I verified in this codebase first
+## Phase 1 — What I verified myself (2026-08-29)
 
-- The app shell is already a single reusable primitive: `src/components/layout/shell/` (`PlatformShell`, `AppRail`, `WorkspaceSidebar`, `WorkspaceTopBar`, `WorkspaceShellFrame`). Every workspace (Finance, Sales, HR, Dashboard...) is just `<PlatformShell app={APP} nav={NAV}>`. Adding a Microfinance workspace is a registry + nav + routes exercise, not a new shell.
-- Apps are registry-driven: `src/lib/apps/registry.ts` (app + module definitions, icons, colors), plus `app-features.ts`, `capabilities.ts`, `module-app-map.ts`. Role/app access is driven from this registry.
-- Auth already includes the PIN experience you want: `src/components/auth/PINLoginForm.tsx`, `PINSetupDialog.tsx`, `EnhancedLoginForm.tsx`, `MfaChallengeGate.tsx`, `OnboardingGuard.tsx`.
-- Reporting is registry-driven, not hand-listed: `src/services/reports/reportsNav.ts` + a report registry feed the Finance sidebar. New report families are registry rows.
-- Document generation is a pipeline, not per-page code: `src/services/documents/` (`ensureDocumentRecord`, `submitIntent`, `outputIntent`, `DocumentArtifactStore`, snapshots) with server-side data injection.
-- Finance domain pieces you asked to keep exist as features: `src/features/finance/{accounts, journal-entries, fiscal-periods, fixed-assets, banking, reconciliation, budgets, year-end-close, business-transactions, record}`.
-- Migration history is large: 2,882 SQL files, ~472k lines, 20 MB. Replaying them file-by-file against a fresh database is not a realistic path — many are corrective/iterative edits of earlier files, and several depend on data or storage state that no longer exists.
-- Two facts to settle before any SQL runs: `supabase/config.toml` still points at project ref `jkszmrroyjfdwokbkzis` (the AccrualFlow reference), while the connected project in this workspace is a different, currently empty project. No tables, functions, triggers or buckets exist in the connected project today.
+I checked the previous engineer's claims directly against the codebase, the dev server and the connected database. Verdict summary:
 
-## Safety stance
+| Claim | Reality |
+| --- | --- |
+| Step 0 "project pinning & safety check" | **NOT DONE.** `supabase/config.toml` still reads `project_id = "jkszmrroyjfdwokbkzis"` (the AccrualFlow reference project). |
+| ERP module deletion pass | **PARTIALLY DONE.** `src/apps/{sales,purchases,inventory,pos,warehouse,crm,projects,timesheets,sms}` and their feature folders are gone, but ~30+ retained files still import them (`src/pages/Invoices.tsx`, `Bills.tsx`, `CreditNotes.tsx`, `src/contexts/SalesScanContext.tsx`, `src/hooks/useBillMatch.ts`, document line components, many architecture tests). `electron/`, `packages/desktop/`, `agent/` still present. |
+| Platform baselines 1–6 applied | **MOSTLY TRUE for schema shape.** Live DB has orgs/businesses/branches/profiles/user_roles/audit_logs, accounts/journals/fiscal periods/tax/currencies/bank accounts, and the full document engine (records, templates, AST, artifacts, theme, print policies, dispatch log, media profiles, format registry). |
+| Microfinance workspace scaffold | **NOT STARTED.** No `src/apps/microfinance`, no registry entry, no nav, no mocks. |
+| "Only a build failure remains" | **UNDERSTATED — the app does not run at all.** `http://localhost:8080` returns 500: `Cannot find module '#tanstack-start-entry'`. Root cause: the repo is half-migrated between stacks. `vite.config.ts` is still the legacy SPA config (plain `defineConfig` from `vite`, react-swc, PWA, no `tanstackStart`), while `src/server.ts` calls the removed pre-v1 API `createStartHandler` from `@tanstack/react-start/server`. Both `src/App.tsx`/`src/pages` (SPA) and `src/routes` (file routes) coexist. |
 
-Nothing in this plan touches the AccrualFlow project. All SQL is applied only to the connected empty project, and step 0 makes the codebase point at that project explicitly so there is no ambiguity. Existing files under `supabase/migrations/` are treated as read-only reference source text that we read and re-derive from — never re-run wholesale.
+Additional problems the previous plan did not record:
 
-## Approach: consolidated baseline, executed one domain at a time
+- **PIN auth cannot work against the live DB.** `user_pins` exists with zero policies and no grants (SELECT/INSERT/UPDATE/DELETE all denied), so the PIN login/setup components have no reachable data path.
+- **Dangling FK-by-convention.** `organization_invitations.permission_group_ids` is populated by the invitation flow, but no `permission_groups`/permission-assignment tables exist. The RBAC baseline is therefore incomplete, not complete.
+- **ERP tables were rebuilt into the new DB** (`invoices`, `invoice_items`, `bills`, `bill_items`, `products`, `contacts` typed customer/vendor) even though the plan classified Sales/Purchasing as REMOVE. This must be resolved explicitly (adapt `contacts` → client master, drop or park the rest) rather than left ambiguous.
+- No `print_jobs`/dispatch queue, no settings/field-config tables, no microfinance domain tables.
 
-Instead of replaying 2,882 migrations, we derive a small ordered set of **baseline migrations** from the current live schema shape encoded in that history, applied in dependency order, one migration per approval, so you can verify after each. Each baseline is idempotent and includes GRANTs + RLS + policies.
+Conclusion: the last **genuinely** completed milestone is "platform + finance + document-engine baseline schema exists in the connected project". Everything else — pinning, clean removal, a booting application, RBAC completeness, PIN auth, the microfinance workspace — is pending.
 
-```text
-0  Project pinning & safety check      (no SQL)
-1  Platform core        orgs, branches, profiles, roles/permissions,
-                        app access, invitations, audit log, PIN auth support
-2  Settings & identity  company profile, branding, numbering sequences,
-                        currency/locale, settings source-of-truth tables
-3  Document engine      document types, templates, records, artifacts,
-                        snapshots, storage buckets, print/queue support
-4  Reporting core       report registry support tables, saved filters,
-                        report runs/exports
-5  Finance core         chart of accounts, journals, journal entries,
-                        fiscal periods, tax/GL mapping, finance settings
-6  Finance extended     banking, reconciliation, fixed assets, budgets,
-                        year-end close
-7  Microfinance domain  (LATER — only after the domain model is agreed)
-```
+## Phase 2 — Reworked plan
 
-Steps 1–6 are platform + finance and are lifted from the reference. Step 7 is not part of this phase.
+Nothing below invents microfinance business logic yet. The order is deliberately: make it run → make it safe → make it clean → then domain.
 
-## Codebase restructuring: what stays, what goes
+### M0. Stack repair — get the application booting (blocking, no DB work)
+- Decide and commit to one stack. The platform target is TanStack Start: replace `vite.config.ts` with `defineConfig` from `@lovable.dev/vite-tanstack-config`, and rewrite `src/server.ts` to the v1 entry shape.
+- Reconcile the SPA remnants: `src/App.tsx` + `src/pages/*` are reachable only through the legacy router. Keep them compiling as parked code (or route them through `src/routes/-lazyRoutes.tsx`) — no page rewrites in this migration.
+- Gate: `http://localhost:8080` renders, build log clean.
 
-Keep (platform infrastructure):
-- `src/components/layout/shell/*`, `src/components/ui/*`, `src/design-system/*`, `src/contexts/*` (org/branch/company scope, read-only mode, reporting basis)
-- `src/components/auth/*` including the PIN flow
-- `src/services/documents/*`, `src/services/reports/*`, `src/services/exports/*`, `src/services/gl/*`, `src/services/fx/*`, `src/services/events/*`
-- `src/lib/apps/*` registry machinery
-- `src/apps/{platform, platform-admin, dashboard, reports, finance, me}`
-- `src/features/finance/*`, `src/features/localization/*`, `src/features/resources/*`
+### M1. Environment pinning & isolation
+- Rewrite `supabase/config.toml` to the connected project ref `xwxqunklduknceoryrha`; confirm `.env` VITE_ vars point at the same project; assert no code path references the AccrualFlow ref.
+- Gate: a written isolation check (URL, ref, keys, storage) in `docs/microfinance/isolation-check.md`.
 
-Remove (ERP domain not needed by a microfinance lender):
-- `src/apps/{sales, purchases, inventory, pos, warehouse, warehouse-mobile, crm, projects, timesheets, studio, sms}` and their `src/features/*` counterparts (`sales`, `purchases`, `inventory`, `products`, `pos`, `warehouse`)
-- Hardware/POS peripheral stack: `electron/`, `packages/desktop/`, `agent/`, POS/scanner docs and the eslint rules that only guard those paths
-- ERP-only routes in `src/routes/-lazyRoutes.tsx` / `-LegacyRedirects.tsx`, ERP report registry rows, ERP document types
+### M2. Dangling-import purge (finish the deletion pass)
+- Fix or park every retained file importing a deleted module (list above). Delete the ERP-only architecture tests rather than stubbing them. Remove `electron/`, `packages/desktop/`, `agent/` and their eslint/CI hooks.
+- Gate: typecheck + build + test suite green, app still boots.
 
-Decide case-by-case (reviewed during step 1):
-- `src/apps/hr` and `src/apps/contacts` — HR is likely wanted later for employees/loan officers; Contacts overlaps with the future Client/Member master. Both are parked (kept but unregistered from the app rail) rather than deleted, so nothing is lost.
+### M3. RBAC & PIN auth completion (DB + code)
+- Migration: permission groups + role/permission/app-access tables the invitation and app-registry code already expect; grants, RLS, `has_role`-style helpers reused.
+- Migration: `user_pins` grants + owner-scoped RLS policies (self-manage only), lockout fields honoured server-side; PIN verification must be a security-definer RPC, never a client-side hash comparison.
+- Seed `fredrickmureti612@gmail.com` as the development super administrator.
+- Gate: sign in with PIN end-to-end in the preview; unauthorized app hidden in the rail and refused server-side.
 
-Removal happens **after** step 1 lands, in one dedicated pass, with a typecheck + build gate so we see every dangling import at once.
+### M4. ERP-table disposition & settings baseline
+- Explicit KEEP / ADAPT / DROP decision per rebuilt ERP table (`contacts` → ADAPT to client master; `invoices`/`bills`/`products` → drop or park with rationale recorded).
+- Migration: settings/field-config baseline (`default_account_settings`, `payment_terms`, `saved_views`, `entity_field_configs`/`values`, `form_layouts`, `notifications`) and the print/dispatch queue (`print_jobs` + claim/mark RPCs) that the document engine's output path expects.
+- Gate: company settings screen loads and its values reach a generated document; document print/queue path exercised once.
 
-## Microfinance workspace scaffold (this phase, mock data)
+### M5. Company / institution settings convergence
+- Single institution identity as the configuration root, injected into report and document data contexts (no hardcoded company data in templates).
+- Gate: one report and one document rendered with configured institution details.
 
-- New `MICROFINANCE_APP` in the app registry + `src/apps/microfinance/{MicrofinanceLayout.tsx, nav.ts, routes.tsx}` using `PlatformShell` — identical chrome to Finance.
-- Navigation (matches your draft, using the reference's group conventions):
-  Dashboard · Clients (All Clients, Groups) · Lending (Loan Products, Applications, Assessments, Loans, Schedules, Disbursements) · Collections (Due Today, Overdue, Arrears, Activities) · Payments · Reports · Settings
-- Pages built on the existing reusable list/detail/side-panel primitives, fed by typed mock fixtures in `src/apps/microfinance/mocks/` (Mary Wanjiku, Business Development Loan, MLA-00001, LN-00001, KES 100,000, 12 months). No tables, no RPCs, no schema invented for UI convenience.
-- Dashboard composed with the existing dashboard architecture but microfinance KPIs: active loans, outstanding principal/interest, today's collections, upcoming repayments, overdue amount, clients, awaiting approval, recent disbursements, PAR.
-- Report and document entries registered through the existing registries (so Loan Agreement, Repayment Schedule, Loan Statement, Payment Receipt, Disbursement Confirmation, Client Statement flow through the same engine) with placeholder data providers until the domain layer exists.
+### M6. Microfinance workspace scaffold (mock-driven, no schema)
+- `MICROFINANCE_APP` registry entry + `src/apps/microfinance/{MicrofinanceLayout,nav,routes}` on the existing `PlatformShell`.
+- Nav: Dashboard · Clients (All Clients, Groups) · Lending (Loan Products, Applications, Assessments, Loans, Schedules, Disbursements) · Collections (Due Today, Overdue, Arrears, Activities) · Payments · Reports · Settings.
+- Typed fixtures only, in `src/apps/microfinance/mocks/`. No tables invented for UI convenience.
+- Gate: every nav destination renders through the shared list/detail/panel primitives.
 
-## Deliverable at the end of this phase
+### M7+. Domain migrations (unchanged order from the parent brief)
+Clients → Groups → Loan Products (versioned) → Applications → Assessment/Approval → Loan entity → Schedule engine → Disbursement → Payments & configurable allocation → Arrears & Collections → Accounting integration via configured account mappings → Top-ups/Restructuring → Closure/Write-off → Reporting → Documents → Audit & integrity → Final hardening.
 
-A written reference-architecture map (findings, reuse list, rebuild list, exclude list, backend dependencies, open questions) committed to `docs/microfinance/reference-map.md`, plus a running Microfinance workspace with PIN auth, shell, navigation, dashboard and mock-driven pages on the empty new project with steps 1–6 applied.
+Invariants carried into every domain migration: authoritative money math server-side only; business events are append-only with reversal, never `UPDATE loans SET`; account mappings configurable, never hardcoded UUIDs; loan officer/branch data scope enforced in RLS, not just in the UI.
 
-## Explicitly out of scope until you approve a later phase
+### Rules of execution
+One migration at a time. Each ends with a report (Objective / Changed / Preserved / Removed / Adapted / Database / Dependencies / Verification / Result / Next) and stops for review.
 
-Microfinance schema, interest/allocation/arrears calculation engines, penalties, top-ups, restructuring, write-offs, accounting posting rules. Those follow the SRD-driven domain model, in the order: domain model → ERD → schema → backend logic → business rules → UI integration.
+## Technical notes
+- Stack repair (M0) must precede everything: no verification of shell, auth, reports or documents is meaningful while SSR 500s.
+- Reference SQL under `supabase/migrations/` (2,882 files) stays read-only source text; baselines are re-derived, idempotent, and include GRANT + RLS + policy blocks per table.
+- The connected project stays the only SQL target; AccrualFlow's project is never touched.
 
-## Open questions I need answered before step 1
-
-1. Confirm the connected empty project is the intended Microfinance database (and that I may rewrite `supabase/config.toml` to its ref).
-2. Confirm the consolidated-baseline approach instead of literally replaying 2,882 files.
-3. HR and Contacts: park (my recommendation) or delete now?
-
-
-=================IMPLEMENTATION STATUS======================
-he document/rendering baseline migration applied successfully. I've stopped here since credits ran out.
-
-What remains:
-
-Build failure — an async build from an earlier turn failed; the truncated log doesn't name the module, so the next step is lovable build diagnostics br_4a2b9a11-35b6-42de-9622-47259424c7dd --json to get the failing import and fix it (almost certainly another orphaned ERP import left by the deletion pass).
-Security linter follow-ups from this migration — 1 table with RLS enabled but no policy, and 5 SECURITY DEFINER functions executable by signed-in users. These need review: the new ensure_document_record is intentionally callable by signed-in users (it self-checks org membership), so it should be documented in security memory; the RLS-no-policy table needs identifying and either a policy or an explicit deny rationale.
-Remaining baselines — print/dispatch queue (print_jobs + claim_print_jobs / print_job_mark_* RPCs), then settings/field-config (default_account_settings, payment_terms, saved_views, entity_field_configs/values, form_layouts, notifications), then the microfinance domain model itself (loan types, loans, repayment schedules, repayments, lifecycle events).
-Note: the SaaS marketplace/entitlement tables (platform_apps, plan_app_access, subscription plans, trial status) are deliberately not being rebuilt — per your "not a SaaS" constraint, that plumbing should be de-scoped rather than recreated.
+## Open question
+The connected database already contains rebuilt Sales/Purchasing tables. Confirm whether I should drop them in M4 or leave them parked (unregistered, unused) for possible later reuse.
