@@ -498,14 +498,11 @@ export default function ConsolidationIntercompany() {
             <CardHeader>
               <CardTitle className="text-base">Declared relationships</CardTitle>
               <CardDescription>
-                A declaration may only name a company contact; an individual cannot stand
-                for a group company.
+                One declaration per contact, and only a company contact may stand for a
+                group company. Ending a declaration keeps history intact so periods
+                already reported still resolve the same way.
               </CardDescription>
-              <CardDescription></CardDescription>
-              <CardDescription>
-                One declaration per contact. Ending a declaration keeps history intact so
-                periods already reported still resolve the same way.
-              </CardDescription>
+
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
