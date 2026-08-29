@@ -71,14 +71,12 @@ import Careers from "./pages/Careers";
 import Blog from "./pages/Blog";
 import Features from "./pages/Features";
 import Contact from "./pages/Contact";
-import Upgrade from "./pages/Upgrade";
 import Notifications from "./pages/Notifications";
 import Home from "./pages/Home";
 import Downloads from "./pages/Downloads";
 const PrivacyPolicyPage = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfServicePage = lazy(() => import("./pages/legal/TermsOfService"));
 const CookiePolicyPage = lazy(() => import("./pages/legal/CookiePolicy"));
-import SelectOrganization from "./pages/SelectOrganization";
 
 // Vendor Portal (lazy)
 
@@ -91,8 +89,6 @@ import {
   Compliance,
   FiscalComplianceWorkspace,
   AuditLogs,
-  // Billing
-  BillingHistory,
 } from "./routes/-lazyRoutes";
 
 // ============================================
@@ -103,7 +99,6 @@ const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDi
 const PrintLatencyDiagnostic = lazy(() => import("@/pages/diagnostics/PrintLatency"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
-const AppsAndSubscriptions = lazy(() => import("@/pages/settings/AppsAndSubscriptions"));
 const FinanceApp = lazy(() => import("@/apps/finance/routes"));
 const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
 // Wave 5 (Phase 3): hardware lifted out of POS to platform.
@@ -114,11 +109,6 @@ const MeApp = lazy(() => import("@/apps/me/MeApp"));
 // non-POS modules (Inventory, Sales, Purchases, etc.) can pair a phone
 // without the POS subscription gate redirecting the phone to /dashboard.
 // See .lovable/plan.md "Move scanner pairing route out of POS subscription gate".
-// Apps Marketplace Page
-const Apps = lazy(() => import("@/pages/Apps"));
-const AppActivate = lazy(() => import("@/pages/apps/AppActivate"));
-const AppSetup = lazy(() => import("@/pages/apps/AppSetup"));
-const AppSetupIndex = lazy(() => import("@/pages/apps/AppSetupIndex"));
 
 // Create QueryClient outside of the component to prevent recreation on re-renders
 const queryClient = new QueryClient({
@@ -209,7 +199,6 @@ const App = () => (
                             <Route path="/reset-password" element={<RedirectIfAuthenticated allowRecoveryHash><ResetPassword /></RedirectIfAuthenticated>} />
                             <Route path="/accept-invitation" element={<AcceptInvitation />} />
                             <Route path="/accept-ownership/:token" element={<AcceptOwnership />} />
-                            <Route path="/select-organization" element={<ProtectedRoute><SelectOrganization /></ProtectedRoute>} />
                             <Route path="/help" element={<HelpCenter />} />
                             <Route path="/docs" element={<Documentation />} />
                            <Route path="/about" element={<About />} />
@@ -235,8 +224,6 @@ const App = () => (
 
                             
                             {/* Auth-only routes (no subscription check) */}
-                            <Route path="/upgrade" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Upgrade /></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/billing" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><BillingHistory /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             {/* Legacy mounts — consolidated reports now live inside the
                                 Finance reports shell so the sidebar & reports nav reach them. */}
                             <Route path="/reports/consolidation" element={<Navigate to="/finance/reports/cross-company" replace />} />
@@ -255,7 +242,6 @@ const App = () => (
                             <Route path="/settings/diagnostics/branch-null" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Branch-NULL Diagnostic"><BranchNullDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/diagnostics/print-latency" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Print Latency Diagnostic"><PrintLatencyDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/profile" element={<ProtectedRoute><LazyRoute module="Profile"><UserProfilePage /></LazyRoute></ProtectedRoute>} />
-                            <Route path="/settings/apps" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><AppsAndSubscriptions /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/carriers" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Carriers"><CarriersSettings /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/notifications" element={<ProtectedRoute><NonVendorRoute><Notifications /></NonVendorRoute></ProtectedRoute>} />
 
@@ -267,48 +253,6 @@ const App = () => (
                             <Route
                               path="/home"
                               element={<SubscriptionProtectedRoute><PortalUserRoute><Home /></PortalUserRoute></SubscriptionProtectedRoute>}
-                            />
-                            {/* App marketplace — visible to ALL authenticated tenant users
-                                (Odoo pattern: anyone can browse, only admins can install).
-                                Install/trial/subscribe gestures inside the marketplace check
-                                `manageApps` themselves and surface a "Request from admin" CTA
-                                for non-admins. */}
-                            <Route
-                              path="/apps"
-                              element={
-                                <SubscriptionProtectedRoute>
-                                  <PortalUserRoute><LazyRoute module="Apps"><Apps /></LazyRoute></PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
-                            {/* App activation — also visible to non-admins, who see a
-                                "request access from your admin" surface instead of being
-                                bounced to /home with no explanation. */}
-                            <Route
-                              path="/apps/:appId/activate"
-                              element={
-                                <SubscriptionProtectedRoute>
-                                  <PortalUserRoute><LazyRoute module="App Activation"><AppActivate /></LazyRoute></PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
-                            {/* App setup overview — installed apps + status */}
-                            <Route
-                              path="/apps/setup"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute><LazyRoute module="App Setup"><AppSetupIndex /></LazyRoute></PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
-                            {/* Per-app setup checklist — driven by app_setup_status.blocking_reasons */}
-                            <Route
-                              path="/apps/:appId/setup"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute><LazyRoute module="App Setup"><AppSetup /></LazyRoute></PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
                             />
                             <Route
                               path="/dashboard"
