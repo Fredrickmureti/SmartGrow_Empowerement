@@ -34,7 +34,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Pencil, Trash2, FileCheck2 } from "lucide-react";
-import { EtimsTaxCodeSelect } from "@/components/etims/EtimsTaxCodeSelect";
 import { useEtimsStandardCodes } from "@/hooks/useEtimsStandardCodes";
 import { Separator } from "@/components/ui/separator";
 import { normalizeError } from "@/services/resilience";
@@ -464,21 +463,6 @@ export function TaxSettings() {
             <>
             <Separator className="my-4" />
 
-            {/* eTIMS Mapping Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <FileCheck2 className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-base font-medium">eTIMS Tax Mapping (Kenya)</Label>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Map this tax rate to a KRA eTIMS tax type code for fiscal compliance
-              </p>
-              <EtimsTaxCodeSelect
-                value={formData.etims_tax_code}
-                onChange={(value) => setFormData({ ...formData, etims_tax_code: value })}
-                showLabel={false}
-              />
-            </div>
             </>
             )}
 

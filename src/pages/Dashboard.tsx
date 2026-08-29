@@ -20,7 +20,6 @@ import { CashFlowWidget } from "@/components/dashboard/CashFlowWidget";
 import { ProfitMarginWidget } from "@/components/dashboard/ProfitMarginWidget";
 import { ExpenseCategoriesWidget } from "@/components/dashboard/ExpenseCategoriesWidget";
 import { ReceivablesWidget } from "@/components/dashboard/ReceivablesWidget";
-import { LowStockWidget } from "@/components/dashboard/LowStockWidget";
 import { CreditAlertWidget } from "@/components/dashboard/CreditAlertWidget";
 import { supabase } from "@/integrations/supabase/client";
 import { BackorderWidget } from "@/components/dashboard/BackorderWidget";
@@ -455,7 +454,6 @@ export default function Dashboard() {
                   </Card>
                   ) : null}
                   {showBankBalance && allowsWidget("bankBalance") ? <BankBalanceWidget /> : null}
-                  {showLowStock && allowsWidget("lowStock") ? <LowStockWidget /> : null}
                   {showCreditAlerts && allowsWidget("creditAlerts") ? <CreditAlertWidget /> : null}
                   {showBackorders && allowsWidget("backorders") ? <BackorderWidget /> : null}
                   {showPayrollSummary && allowsWidget("payrollSummary") ? <PayrollSummaryWidget /> : null}
