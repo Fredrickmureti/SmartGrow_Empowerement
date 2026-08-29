@@ -44,14 +44,14 @@ import {
   ELIMINATION_CLASS_LABELS,
   ELIMINATION_POLICY_LABELS,
   ELIMINATION_RULE_DEFAULTS,
-  ELIMINATION_TOLERANCE_CAP,
-
+  useConsolidationToleranceBound,
   useConsolidationEliminationRules,
   useConsolidationEliminationMutations,
   type EliminationClass,
   type EliminationDifferencePolicy,
   type EliminationRule,
 } from "@/hooks/finance/useConsolidationEliminations";
+
 
 const CLASSES: EliminationClass[] = [
   "intercompany_balance" as EliminationClass,
@@ -84,6 +84,7 @@ interface Props {
 interface Draft {
   is_active: boolean;
   tolerance_amount: string;
+  tolerance_percent: string;
   tolerance_reason: string;
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string;
@@ -98,6 +99,10 @@ function draftFrom(rule: EliminationRule | undefined): Draft {
     tolerance_amount: String(
       rule ? rule.tolerance_amount : ELIMINATION_RULE_DEFAULTS.tolerance_amount,
     ),
+    tolerance_percent:
+      rule?.tolerance_percent === null || rule?.tolerance_percent === undefined
+        ? ""
+        : String(rule.tolerance_percent),
     tolerance_reason: rule?.tolerance_reason ?? "",
     difference_policy:
       rule?.difference_policy ?? ELIMINATION_RULE_DEFAULTS.difference_policy,
@@ -114,9 +119,15 @@ export function ConsolidationEliminationRules({
   focusClass = null,
   focusRemedy = null,
 }: Props) {
-  const capLabel = presentationCurrency
-    ? `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} ${presentationCurrency}`
-    : `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} in the group's presentation currency`;
+  // The bound is the database's, scaled to the group's own currency — the
+  // screen only reports it.
+  const boundQuery = useConsolidationToleranceBound(presentationCurrency);
+  const bound = boundQuery.data ?? null;
+  const capLabel =
+    bound === null
+      ? "the rounding bound for the group's presentation currency"
+      : `${bound.toLocaleString()} ${presentationCurrency ?? ""}`.trim();
+
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const accountsQuery = useConsolidationGroupAccounts(groupId);
   const { saveRule } = useConsolidationEliminationMutations();
@@ -163,20 +174,28 @@ export function ConsolidationEliminationRules({
   const save = async (cls: EliminationClass) => {
     const draft = draftOf(cls);
     const tolerance = Number(draft.tolerance_amount);
+    const percent =
+      draft.tolerance_percent.trim() === "" ? null : Number(draft.tolerance_percent);
     const reason = draft.tolerance_reason.trim();
     if (!Number.isFinite(tolerance) || tolerance < 0) {
       toast.error("The tolerance must be zero or a positive amount");
       return;
     }
-    // The bound and the reason are the database's rules; checking them here
-    // only spares a round trip, it never decides them.
-    if (tolerance > ELIMINATION_TOLERANCE_CAP) {
+    if (percent !== null && (!Number.isFinite(percent) || percent < 0 || percent > 100)) {
+      toast.error("A percentage tolerance has to be between 0 and 100 per cent");
+      return;
+    }
+    // The bound, the reason and what a tolerance beyond the bound requires are
+    // the database's rules; checking them here only spares a round trip.
+    const beyondBound =
+      (bound !== null && tolerance > bound) || (percent !== null && percent > 0);
+    if (beyondBound && draft.difference_policy === "refuse") {
       toast.error(
-        `A tolerance absorbs rounding: it cannot exceed ${ELIMINATION_TOLERANCE_CAP} in the group's presentation currency`,
+        `A tolerance beyond ${capLabel} is a materiality judgement, not rounding. Say where a difference of that size goes before accepting one.`,
       );
       return;
     }
-    if (tolerance > 0 && reason.length < 20) {
+    if ((tolerance > 0 || (percent ?? 0) > 0) && reason.length < 20) {
       toast.error(
         "Say why the group accepts a difference of that size without treating it as a disagreement",
       );
@@ -196,7 +215,9 @@ export function ConsolidationEliminationRules({
         elimination_class: cls,
         is_active: draft.is_active,
         tolerance_amount: tolerance,
+        tolerance_percent: percent,
         tolerance_reason: reason === "" ? null : reason,
+
         difference_policy: draft.difference_policy,
         difference_group_account_id:
           draft.difference_group_account_id === NO_ACCOUNT
@@ -261,9 +282,22 @@ export function ConsolidationEliminationRules({
           const typeMatched = accounts.filter((a) => a.is_active);
           const focused = focusClass === cls;
           const toleranceNumber = Number(draft.tolerance_amount);
+          const percentNumber =
+            draft.tolerance_percent.trim() === ""
+              ? null
+              : Number(draft.tolerance_percent);
+          // Beyond the rounding bound a tolerance is a materiality judgement,
+          // which is allowed only where the group has said where the
+          // difference goes.
           const overCap =
-            Number.isFinite(toleranceNumber) &&
-            toleranceNumber > ELIMINATION_TOLERANCE_CAP;
+            ((Number.isFinite(toleranceNumber) &&
+              bound !== null &&
+              toleranceNumber > bound) ||
+              (percentNumber !== null &&
+                Number.isFinite(percentNumber) &&
+                percentNumber > 0)) &&
+            draft.difference_policy === "refuse";
+
           return (
 
               <div
@@ -338,7 +372,6 @@ export function ConsolidationEliminationRules({
                     id={`elim-tol-${cls}`}
                     type="number"
                     min="0"
-                    max={ELIMINATION_TOLERANCE_CAP}
                     step="0.01"
                     value={draft.tolerance_amount}
                     disabled={!canManage}
@@ -346,21 +379,39 @@ export function ConsolidationEliminationRules({
                   />
                   <p className="text-xs text-muted-foreground">
                     In the group's presentation currency. Zero means the two sides must
-                    agree exactly. A tolerance absorbs rounding, so it cannot exceed{" "}
-                    {capLabel}: a larger gap is a real difference and has to be explained
-                    by the books, not widened away.
+                    agree exactly. Up to {capLabel} a tolerance is treated as rounding;
+                    beyond that it is a materiality judgement and the group has to say
+                    where a difference of that size is carried.
+                  </p>
+                  <Label htmlFor={`elim-tolpct-${cls}`} className="pt-2 block">
+                    Or a percentage of the position
+                  </Label>
+                  <Input
+                    id={`elim-tolpct-${cls}`}
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="Not set"
+                    value={draft.tolerance_percent}
+                    disabled={!canManage}
+                    onChange={(e) => patch(cls, { tolerance_percent: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional. Measured against the size of the matched position. Where
+                    both are set the smaller of the two governs, so a percentage never
+                    widens the money amount on a large balance.
                   </p>
                   {overCap && (
                     <Alert variant="destructive" className="mt-2">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
-                        {Number(draft.tolerance_amount).toLocaleString()}{" "}
-                        {presentationCurrency ?? ""} is not rounding, so it cannot be
-                        saved as a tolerance. To carry a gap of that size, leave the
-                        tolerance at a rounding amount and set “When they disagree by
-                        more” to post the difference to a named group account — the
-                        residual is then disclosed on the face of the statements instead
-                        of being hidden inside the eliminated accounts.
+                        A tolerance beyond {capLabel} is not rounding, and this class is
+                        set to refuse any difference — so nothing would carry the gap it
+                        accepts. Either bring the tolerance back to a rounding amount, or
+                        set “When they disagree by more” to post the difference to a named
+                        group account, so the residual is disclosed on the face of the
+                        statements instead of being hidden inside the eliminated accounts.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -369,7 +420,11 @@ export function ConsolidationEliminationRules({
                     rows={2}
                     placeholder="Why a difference of this size is not a disagreement"
                     value={draft.tolerance_reason}
-                    disabled={!canManage || Number(draft.tolerance_amount) <= 0}
+                    disabled={
+                      !canManage ||
+                      (Number(draft.tolerance_amount) <= 0 &&
+                        (percentNumber ?? 0) <= 0)
+                    }
                     onChange={(e) => patch(cls, { tolerance_reason: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -377,6 +432,7 @@ export function ConsolidationEliminationRules({
                     it and when.
                   </p>
                 </div>
+
 
 
                 <div className="space-y-1">

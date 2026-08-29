@@ -71,6 +71,13 @@ export interface EliminationRule {
   elimination_class: EliminationClass;
   is_active: boolean;
   tolerance_amount: number;
+  /**
+   * An optional materiality tolerance expressed against the size of the
+   * position being matched. Where both this and the amount are set, the
+   * smaller of the two governs — the same convention Oracle HFM and SAP
+   * Group Reporting use for intercompany matching.
+   */
+  tolerance_percent: number | null;
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string | null;
   notes: string | null;
@@ -88,11 +95,30 @@ export interface EliminationRule {
 }
 
 /**
- * A tolerance absorbs rounding, nothing else. The bound is enforced by
- * `public.consolidation_tolerance_cap()`; the mirror here exists only so the
- * settings screen can say so before the save is refused.
+ * The rounding bound in the group's own currency, read from
+ * `public.consolidation_tolerance_rounding_bound`. It is not a constant here:
+ * 100 KES and 100 JPY are not the same quantity of rounding, so the bound
+ * scales with the currency's minor unit and only the database decides it.
+ * Above the bound a tolerance stops being rounding and becomes a materiality
+ * judgement, which the database allows only where the group has also said
+ * where a difference of that size is carried.
  */
-export const ELIMINATION_TOLERANCE_CAP = 100;
+export function useConsolidationToleranceBound(currency: string | null | undefined) {
+  return useQuery({
+    queryKey: ["consolidation-tolerance-bound", currency ?? null],
+    enabled: Boolean(currency),
+    staleTime: 60 * 60 * 1000,
+    queryFn: async (): Promise<number> => {
+      const { data, error } = await supabase.rpc(
+        "consolidation_tolerance_rounding_bound",
+        { _currency: currency as string },
+      );
+      if (error) throw toAppError(error);
+      return Number(data);
+    },
+  });
+}
+
 
 /**
  * The template the database seeds for every new group, mirrored here only so
@@ -579,10 +605,12 @@ export function useConsolidationEliminationMutations() {
       elimination_class: EliminationClass;
       is_active: boolean;
       tolerance_amount: number;
+      tolerance_percent?: number | null;
       difference_policy: EliminationDifferencePolicy;
       difference_group_account_id: string | null;
       tolerance_reason?: string | null;
       notes?: string | null;
+
 
     }) => {
       if (!orgId) throw new Error("No active workspace");

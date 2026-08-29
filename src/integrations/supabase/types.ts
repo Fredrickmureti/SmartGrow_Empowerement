@@ -10159,6 +10159,126 @@ export type Database = {
           },
         ]
       }
+      consolidation_elimination_rule_pairs: {
+        Row: {
+          business_a_id: string
+          business_b_id: string
+          created_at: string
+          created_by: string | null
+          difference_group_account_id: string | null
+          difference_policy:
+            | Database["public"]["Enums"]["consolidation_elimination_difference_policy"]
+            | null
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          group_id: string
+          id: string
+          organization_id: string
+          tolerance_amount: number
+          tolerance_percent: number | null
+          tolerance_reason: string | null
+          tolerance_set_at: string | null
+          tolerance_set_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_a_id: string
+          business_b_id: string
+          created_at?: string
+          created_by?: string | null
+          difference_group_account_id?: string | null
+          difference_policy?:
+            | Database["public"]["Enums"]["consolidation_elimination_difference_policy"]
+            | null
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          group_id: string
+          id?: string
+          organization_id: string
+          tolerance_amount?: number
+          tolerance_percent?: number | null
+          tolerance_reason?: string | null
+          tolerance_set_at?: string | null
+          tolerance_set_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_a_id?: string
+          business_b_id?: string
+          created_at?: string
+          created_by?: string | null
+          difference_group_account_id?: string | null
+          difference_policy?:
+            | Database["public"]["Enums"]["consolidation_elimination_difference_policy"]
+            | null
+          elimination_class?: Database["public"]["Enums"]["consolidation_elimination_class"]
+          group_id?: string
+          id?: string
+          organization_id?: string
+          tolerance_amount?: number
+          tolerance_percent?: number | null
+          tolerance_reason?: string | null
+          tolerance_set_at?: string | null
+          tolerance_set_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidation_elimination_rul_difference_group_account_id_fkey1"
+            columns: ["difference_group_account_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_group_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_business_a_id_fkey"
+            columns: ["business_a_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_business_a_id_fkey"
+            columns: ["business_a_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_business_a_id_fkey"
+            columns: ["business_a_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_business_b_id_fkey"
+            columns: ["business_b_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_business_b_id_fkey"
+            columns: ["business_b_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_business_b_id_fkey"
+            columns: ["business_b_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "consolidation_elimination_rule_pairs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "consolidation_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consolidation_elimination_rules: {
         Row: {
           created_at: string
@@ -10174,6 +10294,7 @@ export type Database = {
           organization_id: string
           seeded_at: string | null
           tolerance_amount: number
+          tolerance_percent: number | null
           tolerance_reason: string | null
           tolerance_set_at: string | null
           tolerance_set_by: string | null
@@ -10193,6 +10314,7 @@ export type Database = {
           organization_id: string
           seeded_at?: string | null
           tolerance_amount?: number
+          tolerance_percent?: number | null
           tolerance_reason?: string | null
           tolerance_set_at?: string | null
           tolerance_set_by?: string | null
@@ -10212,6 +10334,7 @@ export type Database = {
           organization_id?: string
           seeded_at?: string | null
           tolerance_amount?: number
+          tolerance_percent?: number | null
           tolerance_reason?: string | null
           tolerance_set_at?: string | null
           tolerance_set_by?: string | null
@@ -89779,6 +89902,17 @@ export type Database = {
         Args: { _group_id: string }
         Returns: number
       }
+      _consolidation_validate_tolerance: {
+        Args: {
+          _difference_group_account_id: string
+          _difference_policy: string
+          _presentation_currency: string
+          _tolerance_amount: number
+          _tolerance_percent: number
+          _tolerance_reason: string
+        }
+        Returns: undefined
+      }
       _crm_assert_lead_access: {
         Args: { p_lead_id: string; p_operation: string }
         Returns: {
@@ -95320,6 +95454,24 @@ export type Database = {
           would_refuse: boolean
         }[]
       }
+      consolidation_effective_tolerance: {
+        Args: {
+          _business_a: string
+          _business_b: string
+          _class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          _gross_position: number
+          _group_id: string
+        }
+        Returns: {
+          difference_group_account_id: string
+          difference_policy: string
+          is_pair_override: boolean
+          tolerance: number
+          tolerance_amount: number
+          tolerance_percent: number
+          tolerance_reason: string
+        }[]
+      }
       consolidation_elimination_evidence: {
         Args: {
           _counterparty_business_id: string
@@ -95560,7 +95712,10 @@ export type Database = {
         Args: { _run_id: string; _superseded_by_run_id?: string }
         Returns: string
       }
-      consolidation_tolerance_cap: { Args: never; Returns: number }
+      consolidation_tolerance_rounding_bound: {
+        Args: { _currency: string }
+        Returns: number
+      }
       consolidation_translate_member: {
         Args: {
           _business_id: string
