@@ -144,25 +144,6 @@ export function SignupForm() {
     normalizedEmail: string,
     opts: { uncertain?: boolean } = {},
   ): Promise<boolean> => {
-    if (branch.kind === "platform_invitation") {
-      toast({
-        title: "You have a platform team invitation",
-        description: "Opening the invitation page so you can accept it.",
-      });
-      setIsLoading(false);
-      navigate(`/admin-management/accept-invitation?token=${encodeURIComponent(branch.token)}`);
-      return true;
-    }
-    if (branch.kind === "is_platform_admin") {
-      toast({
-        title: "This email is a platform admin",
-        description: "Platform admin accounts can't also be tenant workspaces. Please use the admin login.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      navigate(`/admin-management/login?email=${encodeURIComponent(normalizedEmail)}`);
-      return true;
-    }
     if (branch.kind === "verified") {
       toast({
         title: "You already have an account",

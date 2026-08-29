@@ -91,7 +91,6 @@ import { PromoteToInternalDialog } from "@/components/team/PromoteToInternalDial
 import { AssignGroupDialog } from "@/components/team/AssignGroupDialog";
 import { TenantOwnershipTransferDialog } from "@/components/team/TenantOwnershipTransferDialog";
 import { ROLE_LABELS, canManageRole, AppRole } from "@/lib/permissions";
-import { SubscriptionActionButton } from "@/components/subscription/SubscriptionActionButton";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { normalizeError } from "@/services/resilience";
 
@@ -667,14 +666,13 @@ export default function Team() {
                   onComplete={fetchTeamData}
                 />
               )}
-              <SubscriptionActionButton 
-                feature="team_management"
+              <Button
                 className="w-full sm:w-auto"
                 onClick={() => setShowInviteDialog(true)}
               >
                 <UserPlus className="mr-2 h-4 w-4" />
                 Invite Member
-              </SubscriptionActionButton>
+              </Button>
               <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
                 <DialogContent>
                   <DialogHeader>
