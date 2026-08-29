@@ -26,9 +26,13 @@ import { useOrganization } from "@/hooks/useOrganization";
 import type { Database } from "@/integrations/supabase/types";
 
 export type EliminationClass =
-  Database["public"]["Enums"]["consolidation_elimination_class"];
-export type EliminationDifferencePolicy =
-  Database["public"]["Enums"]["consolidation_elimination_difference_policy"];
+  | "intercompany_balance"
+  | "intercompany_trading"
+  | "intercompany_profit"
+  | "investment_equity"
+  | "dividend"
+  | "other";
+export type EliminationDifferencePolicy = "block" | "warn" | "allow";
 
 export const ELIMINATION_CLASS_LABELS: Record<string, string> = {
   intercompany_balance: "Intercompany balances",

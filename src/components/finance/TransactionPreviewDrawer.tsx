@@ -389,7 +389,7 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
         .select("bill_id, amount, bill:bills(id, bill_number, vendor:contacts(id, name))")
         .eq("bill_payment_id", sourceId);
 
-      const allocList = (allocations || []) as Array<{
+      const allocList = (allocations || []) as unknown as Array<{
         bill_id: string;
         amount: number;
         bill: { id: string; bill_number: string; vendor: { id: string; name: string } | null } | null;
@@ -758,7 +758,7 @@ async function fetchJournalEntryBySource(
     .order("created_at", { ascending: true })
     .limit(1);
 
-  return ((data ?? [])[0] as SourcedJournalEntry | undefined) ?? null;
+  return ((data ?? [])[0] as unknown as SourcedJournalEntry | undefined) ?? null;
 }
 
 /** Shared shape for previews whose only record is the journal entry itself. */

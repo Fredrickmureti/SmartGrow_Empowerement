@@ -85,7 +85,7 @@ export interface ConsolidationRunMember {
   business_name: string;
   base_currency: string;
   is_parent: boolean;
-  method: Database["public"]["Enums"]["consolidation_method"];
+  method: "full" | "equity" | "proportionate" | "excluded";
   ownership_percent: number;
   requires_translation: boolean;
   effective_from: string | null;
