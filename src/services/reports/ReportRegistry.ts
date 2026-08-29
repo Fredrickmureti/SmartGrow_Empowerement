@@ -37,7 +37,6 @@ export type ReportCategory =
  */
 export type ReportDomain =
   | "finance"
-  | "payroll"
   | "hr"
   | "sales"
   | "purchases"
@@ -48,7 +47,6 @@ export type ReportDomain =
 
 export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   finance: "Finance",
-  payroll: "Payroll",
   hr: "People",
   sales: "Sales",
   purchases: "Purchases",
@@ -769,12 +767,9 @@ export function getReportsByType(reportType: string): ReportDefinition[] {
 
 /** Path-prefix → domain. Longest prefix wins. */
 const DOMAIN_BY_PATH_PREFIX: Array<[string, ReportDomain]> = [
-  ["/hr/payroll/reports", "payroll"],
-  ["/hr/attendance/reports", "hr"],
   ["/hr/reports", "hr"],
   ["/pos/reports", "pos"],
   ["/projects-app/reports", "projects"],
-  ["/timesheets/reports", "projects"],
   ["/crm/reports", "crm"],
   ["/finance/reports", "finance"],
   ["/reports", "finance"],
@@ -833,9 +828,6 @@ const REPORT_RELATION_PAIRS: Array<[string, string]> = [
   ["stock-transfers-report", "stock-reports"],
   ["control-account-reconciliation", "partner-ledger"],
   ["bank-reconciliation-report", "cash-flow"],
-  ["payroll-reports", "hr-reports"],
-  ["payroll-reports", "attendance-reports"],
-  ["timesheet-reports", "project-reports"],
   ["pos-reports", "sales-reports"],
 ];
 
