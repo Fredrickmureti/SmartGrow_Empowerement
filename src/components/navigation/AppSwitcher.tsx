@@ -54,8 +54,8 @@ export function AppSwitcher({
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const { currentApp, appGroups, canAccessApp, getAppUrl } = useAppNavigation();
-  const { getAvailableAppsToInstall } = useInstalledApps();
-  const { canManageApps } = usePermissions();
+
+
   
 
   const handleAppSelect = (app: AppDefinition) => {
