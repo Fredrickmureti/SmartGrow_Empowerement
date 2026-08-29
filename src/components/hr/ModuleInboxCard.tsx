@@ -1,37 +1,23 @@
 /**
- * ModuleInboxCard — generalized "work waiting" card for HR sub-apps.
+ * ModuleInboxCard — "work waiting" card for the Employees domain.
  *
- * One card pattern, three flavours: attendance, timesheets, leave. Each
- * variant pulls from its own inbox-counts hook so the badges match the
- * sub-nav numbers, and clicking any row deep-links to the corresponding
- * approval surface.
- *
- * Designed for HRDashboard so managers see all three queues in one strip.
+ * Attendance / timesheet / leave inboxes were retired with the HR excision;
+ * the employees queue is the only remaining approval surface.
  */
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  CalendarOff,
   CheckCircle2,
   ClipboardCheck,
-  Clock4,
-  FileSignature,
-  FileWarning,
   Hourglass,
   LogOut,
-  ShieldAlert,
-  ShieldCheck,
-  Timer,
   UserCog,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useAttendanceInboxCounts } from "@/hooks/hr/useAttendanceInboxCounts";
-import { useLeaveInboxCounts } from "@/hooks/leave/useLeaveInboxCounts";
 import { useEmployeesInboxCounts } from "@/hooks/hr/useEmployeesInboxCounts";
 
-
-export type InboxModule = "attendance" | "timesheets" | "leave" | "employees";
+export type InboxModule = "employees";
 
 interface Row {
   to: string;
@@ -42,87 +28,11 @@ interface Row {
 }
 
 interface Props {
-  module: InboxModule;
+  module?: InboxModule;
 }
 
-function useRows(module: InboxModule): { title: string; total: number; isLoading: boolean; rows: Row[] } {
-  const att = useAttendanceInboxCounts();
-  const ts = ({ counts: {} as Record<string, number>, count: 0, isLoading: false });
-  const lv = useLeaveInboxCounts();
+function useRows(): { title: string; total: number; isLoading: boolean; rows: Row[] } {
   const emp = useEmployeesInboxCounts();
-
-  if (module === "attendance") {
-    return {
-      title: "Attendance",
-      total: att.counts.total,
-      isLoading: att.isLoading,
-      rows: [
-        {
-          to: "/hr/attendance/approvals?tab=corrections",
-          icon: ClipboardCheck,
-          label: "Corrections",
-          count: att.counts.corrections,
-          emptyLabel: "No pending corrections",
-        },
-        {
-          to: "/hr/attendance/approvals?tab=overtime",
-          icon: Clock4,
-          label: "Overtime requests",
-          count: att.counts.overtime,
-          emptyLabel: "No pending overtime",
-        },
-        {
-          to: "/hr/attendance/devices",
-          icon: ShieldAlert,
-          label: "Devices to review",
-          count: att.counts.devicesDisabled,
-          emptyLabel: "All devices active",
-        },
-      ],
-    };
-  }
-
-  if (module === "timesheets") {
-    return {
-      title: "Timesheets",
-      total: ts.counts.total,
-      isLoading: ts.isLoading,
-      rows: [
-        {
-          to: "/timesheets/approvals",
-          icon: Timer,
-          label: "Submitted for approval",
-          count: ts.counts.pendingApprovals,
-          emptyLabel: "No pending timesheets",
-        },
-      ],
-    };
-  }
-
-  if (module === "leave") {
-    return {
-      title: "Time-off",
-      total: lv.counts.total,
-      isLoading: lv.isLoading,
-      rows: [
-        {
-          to: "/hr/leave/approvals",
-          icon: CalendarOff,
-          label: "Leave requests",
-          count: lv.counts.pending,
-          emptyLabel: "No pending requests",
-        },
-        {
-          to: "/hr/leave/approvals",
-          icon: CalendarOff,
-          label: "Second-level approval",
-          count: lv.counts.pendingSecondLevel,
-          emptyLabel: "Nothing waiting on you",
-        },
-      ],
-    };
-  }
-
   return {
     title: "Employees",
     total: emp.counts.total,
@@ -136,32 +46,11 @@ function useRows(module: InboxModule): { title: string; total: number; isLoading
         emptyLabel: "Onboarding caught up",
       },
       {
-        to: "/hr/onboarding-issues",
+        to: "/hr/employees?tab=onboarding",
         icon: Hourglass,
         label: "Stalled onboarding (>30d)",
         count: emp.counts.stalledOnboarding,
         emptyLabel: "No stalled onboarding",
-      },
-      {
-        to: "/hr/contracts/expiring",
-        icon: FileSignature,
-        label: "Contracts expiring (90d)",
-        count: emp.counts.expiringContracts,
-        emptyLabel: "No renewals due",
-      },
-      {
-        to: "/hr/contracts/active",
-        icon: ShieldCheck,
-        label: "Probation ending (30d)",
-        count: emp.counts.probationEnding,
-        emptyLabel: "No probations ending",
-      },
-      {
-        to: "/hr/document-compliance/expiring",
-        icon: FileWarning,
-        label: "Documents expiring (90d)",
-        count: emp.counts.expiringDocuments,
-        emptyLabel: "Documents current",
       },
       {
         to: "/hr/employees?tab=exit",
@@ -174,9 +63,8 @@ function useRows(module: InboxModule): { title: string; total: number; isLoading
   };
 }
 
-export function ModuleInboxCard({ module }: Props) {
-  const { title, total, isLoading, rows } = useRows(module);
-
+export function ModuleInboxCard(_props: Props = {}) {
+  const { title, total, isLoading, rows } = useRows();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -232,21 +120,13 @@ export function ModuleInboxCard({ module }: Props) {
 }
 
 /**
- * ModuleInboxStrip — three-card strip that collapses to a single positive
- * "All inboxes clear" row when every module's queue is empty. Keeps the
- * HRDashboard quiet on a normal morning instead of showing three empty
- * cards stacked side-by-side.
+ * ModuleInboxStrip — collapses to a single positive row when the employees
+ * queue is empty, so the dashboard stays quiet on a normal morning.
  */
 export function ModuleInboxStrip() {
-  const att = useAttendanceInboxCounts();
-  const ts = ({ counts: {} as Record<string, number>, count: 0, isLoading: false });
-  const lv = useLeaveInboxCounts();
   const emp = useEmployeesInboxCounts();
-  const isLoading = att.isLoading || ts.isLoading || lv.isLoading || emp.isLoading;
-  const total =
-    att.counts.total + ts.counts.total + lv.counts.total + emp.counts.total;
 
-  if (!isLoading && total === 0) {
+  if (!emp.isLoading && emp.counts.total === 0) {
     return (
       <Card className="border-emerald-500/30 bg-emerald-500/5">
         <CardContent className="p-4 flex items-center gap-3">
@@ -255,9 +135,7 @@ export function ModuleInboxStrip() {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-medium">All inboxes clear</div>
-            <div className="text-xs text-muted-foreground">
-              No attendance, timesheet, time-off, or employee items waiting on you.
-            </div>
+            <div className="text-xs text-muted-foreground">No employee items waiting on you.</div>
           </div>
         </CardContent>
       </Card>
@@ -265,12 +143,8 @@ export function ModuleInboxStrip() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-      <ModuleInboxCard module="attendance" />
-      <ModuleInboxCard module="timesheets" />
-      <ModuleInboxCard module="leave" />
-      <ModuleInboxCard module="employees" />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <ModuleInboxCard />
     </div>
   );
 }
-
