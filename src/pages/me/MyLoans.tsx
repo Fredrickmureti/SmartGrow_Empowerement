@@ -7,7 +7,7 @@
  * the `useMyLoans` hook which relies on RLS to scope rows.
  */
 import { useState } from "react";
-import { useDrillDownAnchor } from "@/hooks/payroll/useDrillDownAnchor";
+import { useDrillDownAnchor } from "@/hooks/useDrillDownAnchor";
 import { format } from "date-fns";
 import { Plus, Wallet, TrendingDown, Clock, History, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
