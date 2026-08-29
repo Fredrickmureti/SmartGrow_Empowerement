@@ -318,7 +318,7 @@ export const PLATFORM_APP: AppDefinition = {
 export const ME_APP: AppDefinition = {
   id: "me",
   name: "My Workspace",
-  description: "Your personal workspace — leave, timesheets, payslips, documents",
+  description: "Your personal workspace — profile, documents and settings",
   icon: LayoutGrid,
   color: "hsl(217, 91%, 60%)",
   basePath: "/me",
@@ -328,17 +328,12 @@ export const ME_APP: AppDefinition = {
   isPlatform: true,
   internalOnly: false,
   hideAppSwitcher: true,
+  // Leave / timesheets / attendance / shifts / payslips / loans / exit were
+  // retired with the HR excision — their routes no longer exist.
   modules: [
     { id: "home",        name: "Home",        path: "",            icon: LayoutGrid },
-    { id: "leave",       name: "Time off",    path: "/leave",       icon: CalendarOff,    permission: "viewLeave" },
-    { id: "timesheets",  name: "Timesheets",  path: "/timesheets",  icon: Clock,          permission: "viewTimesheets" },
-    { id: "attendance",  name: "Attendance",  path: "/attendance",  icon: ClipboardList,  permission: "viewAttendance" },
-    { id: "shifts",      name: "Shifts",      path: "/shifts",      icon: CalendarClock },
-    { id: "payslips",    name: "Payslips",    path: "/payslips",    icon: Wallet },
-    { id: "loans",       name: "Loans",       path: "/loans",       icon: HandCoins },
     { id: "documents",   name: "Documents",   path: "/documents",   icon: FileText },
     { id: "onboarding",  name: "Onboarding",  path: "/onboarding",  icon: ClipboardList },
-    { id: "exit",        name: "Exit",        path: "/exit",        icon: RotateCcw },
     { id: "profile",     name: "Profile",     path: "/profile",     icon: UserCheck },
     { id: "settings",    name: "Settings",    path: "/settings",    icon: Settings },
   ],
