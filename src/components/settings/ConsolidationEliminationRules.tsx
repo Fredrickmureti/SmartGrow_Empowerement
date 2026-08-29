@@ -44,14 +44,14 @@ import {
   ELIMINATION_CLASS_LABELS,
   ELIMINATION_POLICY_LABELS,
   ELIMINATION_RULE_DEFAULTS,
-  ELIMINATION_TOLERANCE_CAP,
-
+  useConsolidationToleranceBound,
   useConsolidationEliminationRules,
   useConsolidationEliminationMutations,
   type EliminationClass,
   type EliminationDifferencePolicy,
   type EliminationRule,
 } from "@/hooks/finance/useConsolidationEliminations";
+
 
 const CLASSES: EliminationClass[] = [
   "intercompany_balance" as EliminationClass,
