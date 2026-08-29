@@ -26,6 +26,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <BrandedLoader message="Authenticating..." />;
   }
 
+  console.log('[PRDBG]', {isLoading, hasUser: !!user, isChecking, isPlatformAdmin, path: location.pathname});
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
