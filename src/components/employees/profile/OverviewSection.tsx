@@ -20,7 +20,6 @@ import {
 import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import type { EmployeeProfile } from "@/hooks/useEmployeeProfile";
-import { EmployeeTrendDrawer } from "@/components/attendance/EmployeeTrendDrawer";
 import { useEffect, useState } from "react";
 import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAllocations";
 import { useEmployeeAttendanceSummary } from "@/hooks/hr/useEmployeeAttendanceSummary";
@@ -228,12 +227,6 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
         </Card>
       </div>
 
-      {/* Inline attendance trend (kept — useful spark chart). */}
-      <EmployeeTrendDrawer
-        mode="inline"
-        employeeId={employee.id}
-        employeeName={`${employee.first_name} ${employee.last_name}`}
-      />
     </div>
   );
 }

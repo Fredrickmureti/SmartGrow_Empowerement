@@ -33,7 +33,6 @@ const EmployeeNewPage = lazy(() => import("@/pages/hr/EmployeeNewPage"));
 const MyDraftsPage = lazy(() => import("@/pages/hr/MyDraftsPage"));
 const EmployeeChangeRequestsPage = lazy(() => import("@/pages/hr/EmployeeChangeRequestsPage"));
 const EmployeesConfiguration = lazy(() => import("@/pages/hr/configuration/ConfigurationLayout"));
-const BenefitEnrollmentWindows = lazy(() => import("@/pages/hr/BenefitEnrollmentWindows"));
 const OnboardingIssues = lazy(() => import("@/pages/hr/OnboardingIssues"));
 const Departments = lazy(() => import("@/pages/Departments"));
 const DepartmentCreatePage = lazy(() => import("@/features/hr/departments/DepartmentCreatePage"));
@@ -243,17 +242,6 @@ export function EmployeesApp() {
 
         {/* `/hr/reports` is owned by the HR Reports workspace (dispatcher mounts
             HrReportsApp at `reports/*`). No in-shell route here. */}
-
-        <Route
-          path="benefit-windows"
-          element={
-            <PermissionProtectedRoute permission="manageEmployees" fallbackPath="/hr/dashboard">
-              <LazyRoute module="Benefit Enrollment Windows">
-                <BenefitEnrollmentWindows />
-              </LazyRoute>
-            </PermissionProtectedRoute>
-          }
-        />
 
         <Route
           path="onboarding-issues"
