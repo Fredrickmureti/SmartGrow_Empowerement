@@ -11,8 +11,14 @@
 /** Cause codes emitted by `consolidation_diagnose_eliminations`. */
 export type EliminationCause =
   | "within_tolerance"
+  | "rounding_posted_to_cta"
+  | "rounding_posted_to_difference"
+  | "missing_rounding_destination"
   | "translation_residual"
   | "unrecognised_member_fx"
+  | "one_sided_flow"
+  | "unverified_partner"
+  | "non_company_partner"
   | "genuine_disagreement"
   | "missing_cta_account"
   | "missing_difference_account"
@@ -29,12 +35,19 @@ export type EliminationRemedy =
   | "configure_difference_account"
   | "run_member_fx_revaluation"
   | "review_intercompany"
+  | "review_intercompany_partners"
   | "review_group_membership";
 
 export const ELIMINATION_CAUSE_LABELS: Record<string, string> = {
   within_tolerance: "Within tolerance",
+  rounding_posted_to_cta: "Rounding carried to the translation reserve",
+  rounding_posted_to_difference: "Rounding posted to the difference account",
+  missing_rounding_destination: "Nowhere to carry the rounding",
   translation_residual: "Left behind by translation",
   unrecognised_member_fx: "A member has not retranslated its own books",
+  one_sided_flow: "Only one company has booked it",
+  unverified_partner: "The two companies have not declared each other",
+  non_company_partner: "The declaration points at an individual",
   genuine_disagreement: "The two companies disagree",
   missing_cta_account: "No translation reserve account",
   missing_difference_account: "No difference account",
@@ -51,8 +64,10 @@ export const ELIMINATION_REMEDY_LABELS: Record<string, string> = {
   configure_difference_account: "Choose a difference account",
   run_member_fx_revaluation: "Run the member's period-end revaluation",
   review_intercompany: "Review the intercompany declarations",
+  review_intercompany_partners: "Check who each company has declared",
   review_group_membership: "Review the group's companies",
 };
+
 
 
 /**
