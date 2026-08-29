@@ -723,7 +723,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["hr", "people", "headcount", "turnover", "employees"],
   },
   {
-
     id: "project-reports",
     name: "Project Reports",
     description: "Portfolio reports — profitability, milestones, burndown",
@@ -734,18 +733,8 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "projects",
     keywords: ["project", "portfolio", "burndown", "profitability"],
   },
-  {
-    id: "timesheet-reports",
-    name: "Timesheet Reports",
-    description: "Hours by employee / project / billable status",
-    category: "management",
-    path: "/timesheets/reports",
-    icon: Clock,
-    permission: "viewReports",
-    reportType: "timesheets",
-    keywords: ["timesheet", "hours", "billable", "utilization"],
-  },
 ];
+
 
 /** Search reports by keyword (name, description, or aliases). */
 export function searchReports(query: string): ReportDefinition[] {
