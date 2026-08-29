@@ -17,8 +17,8 @@ export type ReversalModule =
   | "sales"
   | "purchases"
   | "receiving"
-  | "pos"
-  | "payroll";
+  | "pos";
+
 
 export interface ReversibleDocument {
   /** Matches `reversal_register.document_type`. */
@@ -35,7 +35,6 @@ export const REVERSAL_MODULE_LABELS: Record<ReversalModule, string> = {
   purchases: "Purchases",
   receiving: "Receiving",
   pos: "Point of sale",
-  payroll: "Payroll",
 };
 
 export const REVERSIBLE_DOCUMENTS: ReversibleDocument[] = [
@@ -73,7 +72,6 @@ export const REVERSIBLE_DOCUMENTS: ReversibleDocument[] = [
     label: "POS transaction",
     table: "pos_transactions",
   },
-  { documentType: "payroll_run", module: "payroll", label: "Payroll run", table: "payroll_runs" },
 ];
 
 export const documentLabel = (documentType: string): string =>

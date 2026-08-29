@@ -72,6 +72,7 @@
     "hyperformula": "^3.2.0",
     "idb": "^8.0.3",
     "input-otp": "^1.4.2",
+    "jiti": "^2",
     "jsdom": "^27.4.0",
     "lucide-react": "^0.462.0",
     "msw": "^2.12.7",
