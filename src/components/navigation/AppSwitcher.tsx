@@ -29,8 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useAppNavigation } from "@/hooks/useAppNavigation";
-import { usePermissions } from "@/hooks/usePermissions";
-import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { APP_REGISTRY } from "@/lib/apps/registry";
 import type { AppDefinition } from "@/lib/apps/types";
 

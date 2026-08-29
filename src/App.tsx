@@ -22,7 +22,6 @@ import { RedirectIfAuthenticated } from "@/components/auth/RedirectIfAuthenticat
 import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
 import { AppInstalledGate } from "@/components/apps/AppInstalledGate";
-import { InstalledAppsHydration } from "@/components/apps/InstalledAppsHydration";
 import { SentryErrorBoundary } from "@/components/error/SentryErrorBoundary";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { RealtimeSyncProvider } from "./providers/RealtimeSyncProvider";
@@ -148,7 +147,6 @@ const App = () => (
         <ConnectivityProvider>
         <AuthProvider>
           <SessionProvider>
-            <InstalledAppsHydration />
             <OrganizationProvider>
               <BusinessProvider>
                 <BranchProvider>
