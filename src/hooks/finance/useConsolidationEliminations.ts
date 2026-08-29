@@ -605,9 +605,10 @@ export function useConsolidationEliminationMutations() {
       elimination_class: EliminationClass;
       is_active: boolean;
       tolerance_amount: number;
+      tolerance_percent?: number | null;
       difference_policy: EliminationDifferencePolicy;
       difference_group_account_id: string | null;
-      tolerance_reason?: string | null;
+
       notes?: string | null;
 
     }) => {
