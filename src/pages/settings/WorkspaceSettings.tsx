@@ -251,11 +251,7 @@ export default function WorkspaceSettings() {
                 </TabsTrigger>
               )}
               {!isPortalUser && permissions.canManageOrganization && (
-                <TabsTrigger value="localization" className="gap-1.5 text-xs sm:text-sm">
-                  <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Localization</span>
-                </TabsTrigger>
-              )}
+
               {!isPortalUser && permissions.canManageOrganization && (
                 <TabsTrigger value="governance" className="gap-1.5 text-xs sm:text-sm">
                   <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
