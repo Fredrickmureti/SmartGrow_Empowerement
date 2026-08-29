@@ -5,8 +5,9 @@ import { resolvePostLoginDestination } from "@/lib/auth/postLoginRedirect";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
-import { PricingSection } from "@/components/landing/PricingSection";
+import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { CTASection, FooterSection } from "@/components/landing/CTASection";
+
 import { Loader2 } from "lucide-react";
 
 const Index = () => {
@@ -60,7 +61,7 @@ const Index = () => {
       <LandingHeader />
       <HeroSection />
       <FeaturesSection />
-      <PricingSection />
+      <HowItWorksSection />
       <CTASection />
       <FooterSection />
     </div>
