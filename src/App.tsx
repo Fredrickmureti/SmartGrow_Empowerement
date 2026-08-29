@@ -522,24 +522,8 @@ const App = () => (
 
                             {/* POS App (unified route) */}
 
-                            {/* Wave 5 (Phase 3): platform-owned Hardware surface.
-                                Hardware is not a POS-only concern (Inventory, Warehouse, HR,
-                                Manufacturing all consume devices), so the registry lives at the
-                                platform level. Legacy /pos/hardware-* paths redirect here. */}
-                            <Route
-                              path="/platform/hardware/*"
-                              element={
-                                <ProtectedRoute>
-                                  <NonVendorRoute>
-                                    <LazyRoute module="Hardware">
-                                      <PlatformHardwareApp />
-                                    </LazyRoute>
-                                  </NonVendorRoute>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route path="/pos/hardware-devices" element={<Navigate to="/platform/hardware/devices" replace />} />
-                            <Route path="/pos/hardware-diagnostics" element={<Navigate to="/platform/hardware/diagnostics" replace />} />
+                            {/* Hardware surface removed with the POS/Inventory domains. */}
+
 
 
                             {/* SMS App */}
