@@ -10,10 +10,13 @@ export const Route = createFileRoute("/")({
 function IndexRoute() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
   return (
-    <Suspense fallback={null}>
-      <App />
-    </Suspense>
+    <div id="app-root" suppressHydrationWarning>
+      {mounted ? (
+        <Suspense fallback={null}>
+          <App />
+        </Suspense>
+      ) : null}
+    </div>
   );
 }
