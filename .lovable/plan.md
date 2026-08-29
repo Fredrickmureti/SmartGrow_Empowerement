@@ -36,10 +36,22 @@ platform apps 19, event topics 152, account role entries 70.
 Result: 101 accounts (18 headers), 41 default account role mappings.
 Temporary `__seed_exec` helper removed.
 
+## M1r runtime verification — DONE (2026-08-29)
+- Fixed a dev-server break: stale Vite dep cache left the SSR graph on a
+  mismatched `@tanstack/router-core`, returning HTTP 500 on every page.
+  Cache cleared, server restarted, `/` now 200.
+- Public landing page renders the Smart Grow Empowerment microfinance content.
+- `/login` renders (still AccrualFlow-branded — rebrand belongs to a later
+  migration). PIN entry is not offered on a fresh unknown device; the email
+  form is the first factor, so PIN login is exercised per-device, not here.
+- Signed in with a minted session: `/dashboard` loads the full app shell with
+  correct scope — "Smart Grow Empowerment · Headquarters (HQ)", currency KES,
+  Executive view, no blocking runtime errors.
+
 ## Next
-- M1r verification: Playwright PIN login + app shell smoke test.
-- Then M2: dependency analysis before any ERP module removal/adaptation.
+- M2: dependency analysis before any ERP module removal/adaptation.
   No microfinance domain schema yet; no ERP deletions yet.
+- Deferred: rebrand auth/marketing surfaces off AccrualFlow.
 
 ## Standing constraints
 - One migration at a time; no full historical seed replay (4,842 inserts).

@@ -86704,7 +86704,6 @@ export type Database = {
       }
     }
     Functions: {
-      __seed_exec: { Args: { p_sql: string }; Returns: undefined }
       __test_no_dropped_payroll_table_refs: {
         Args: never
         Returns: {
