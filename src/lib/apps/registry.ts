@@ -372,34 +372,21 @@ export const DASHBOARD_APP: AppDefinition = {
 };
 
 /**
- * Complete app registry - all apps in the system
+ * Complete app registry — the apps retained by the microfinance convergence.
+ *
+ * Sales, Purchases, Inventory, Warehouse, POS, CRM, Projects, SMS, Hardware and
+ * the HR sub-apps other than Employees (Time Off, Attendance, Timesheets,
+ * Payroll, Talent, Contracts, Org) were retired: they have no routes, no pages
+ * and no business meaning for a microfinance institution.
  */
 export const APP_REGISTRY: AppDefinition[] = [
   DASHBOARD_APP,
   ME_APP,
   FINANCE_APP,
-  SALES_APP,
   CONTACTS_APP,
-  PURCHASES_APP,
-  INVENTORY_APP,
-  WAREHOUSE_APP,
-  POS_APP,
-  CRM_APP,
-  // HR domain — split into 5 Odoo-aligned apps (Employees is foundational)
   EMPLOYEES_APP,
-  TIME_OFF_APP,
-  ATTENDANCE_APP,
-  TIMESHEETS_APP,
-  PAYROLL_APP,
-  TALENT_APP,
-  // RECRUITMENT_APP retired 2026-05-09
-  PROJECTS_APP,
   REPORTS_APP,
   STUDIO_APP,
-  // DOCUMENTS_APP retired 2026-05-16
-  // SIGN_APP + SPREADSHEETS_APP retired 2026-05-09
-  SMS_APP,
-  HARDWARE_APP,
   PLATFORM_APP,
 ];
 
