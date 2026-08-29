@@ -477,49 +477,13 @@ export const LEGACY_ROUTE_MAPPINGS: Record<string, string> = {
   "/bank-feeds": "/finance/bank-feeds",
   "/bank-reconciliation": "/finance/reconciliation",
   
-  // Sales
-  "/invoices": "/sales/invoices",
-  "/recurring-invoices": "/sales/recurring",
-  "/estimates": "/sales/estimates",
-  "/proforma-invoices": "/sales/proforma",
-  "/sales-orders": "/sales/orders",
-  "/delivery-notes": "/sales/delivery-notes",
-  "/customer-payments": "/sales/payments",
-  "/customer-statements": "/sales/statements",
-  "/sales-returns": "/sales/returns",
-  "/credit-notes": "/sales/credit-notes",
-  
-  // Purchases
-  "/bills": "/purchases/bills",
-  "/purchase-orders": "/purchases/orders",
-  "/expenses": "/purchases/expenses",
-  "/purchase-returns": "/purchases/returns",
-  
-  // Inventory (using inventory-app to avoid conflicts)
-  "/products": "/inventory-app/products",
-  "/inventory": "/inventory-app/stock",
-  "/warehouses": "/warehouse-app/warehouses",
-  
-  // POS (dashboard is the main entry point, terminal requires register selection)
-  "/pos": "/pos",
-  "/pos/reports": "/pos/reports",
-  "/pos/settings": "/pos/settings",
-  
-  // CRM (using crm-app to avoid conflicts with legacy /crm)
-  "/crm": "/crm-app/pipeline",
-  "/crm/activities": "/crm-app/activities",
-  
   // Contacts (using contacts-app for the central hub)
   "/contacts": "/contacts-app",
-  
-  // HR
+
+  // HR (Employees only — the other HR sub-apps were retired)
   "/employees": "/hr/employees",
   "/departments": "/hr/employees/departments",
-  "/leave": "/hr/leave",
-  "/payroll": "/hr/payroll",
   
-  // Projects (using projects-app to avoid conflicts with legacy /projects)
-  "/projects": "/projects-app/list",
   
   // Reports (mounted under the Finance app router)
   "/reports": "/finance/reports",
