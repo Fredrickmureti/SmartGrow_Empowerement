@@ -35,24 +35,66 @@ Done in this pass (code only, no schema change yet):
 Gate: `/`, `/login`, `/dashboard` all return 200 (a stale Vite dep cache had to
 be cleared again — same failure documented for M1r).
 
-### M3 remaining
-- Migrate the ~10 call sites off the deprecated `SubscriptionProtectedRoute`
-  alias to `InstitutionRoute`, then delete `src/components/subscription/`.
-- Retire `useSubscription*`, `useInstalledApps`, `useAppLifecycle`,
-  `lib/admin/registry`, the command-palette "platform" surface and the
-  multi-org selector paths.
-- Collapse organization/business resolution to the single institution.
-- Schema pass (separate, one migration at a time) for SaaS tables.
+### M3 second pass (done, verified)
+- All route guards migrated to `InstitutionRoute` (App.tsx, apps/finance,
+  apps/contacts, apps/hr); `src/components/subscription/**` deleted entirely
+  (gate, protected-route alias, read-only banners).
+- `useInstalledApps` rewritten as a registry-backed constant: every shipped
+  module is available to the institution, no DB reads, install/uninstall are
+  no-ops. All 20 consumers (nav, command palette, dashboard, settings) keep
+  working.
+- Marketplace/lifecycle UI removed: `AppMarketplace`, `InstallAppDialog`,
+  `UninstallAppDialog`, `InstalledAppsHydration`, "Add Apps" affordances in
+  `AppLauncher` and `AppSwitcher`.
+- Hooks deleted: `useSubscription`, `useSubscriptionV2`, `useSubscriptionPlans`,
+  `useSubscriptionLimits`, `useFeatureAccess`, `useAppLifecycle`,
+  `useAppLifecycleState`, `useAppLifecyclePreview`.
+  Replacements: `src/hooks/useEntityCreationLimits.ts` (always unlimited) and
+  `src/lib/apps/lifecycle.ts` (presentational action type only).
+- `SubscriptionAccessContext` is now a constant full-access module
+  (`isReadOnly` always false); provider is a pass-through.
+- Command palette: `buildPlatformAdminIndex` and `lib/admin/registry` deleted
+  and unwired from `buildIndex`.
+- Tenant ownership transfer (SaaS) removed: dialog deleted and unwired from
+  `Team.tsx`.
 
-### Known debt found (not caused by M3)
-`tsgo -p tsconfig.app.json` reports 52 errors, all schema/type drift after the
-regenerated `types.ts` (missing `currency`, `"received"` statuses,
-`business_id` on tables that no longer have it, RPC/table names absent from the
-new project). These need a dedicated typing-reconciliation pass; none of them
-reference removed modules.
+Verification: `tsgo -p tsconfig.app.json` → 46 errors, all pre-existing schema
+drift (was 52; the 6 removed were the deleted tenant-transfer dialog). No new
+error file was introduced by this pass. Dev server: `/`, `/login`, `/dashboard`,
+`/home`, `/settings` all 200.
 
-## Next
-M4 — remove POS/hardware/scanner remnants and HR beyond system actors.
+### M3 remaining (must finish before M4)
+- Collapse organization/business resolution to the single institution
+  (`OrganizationProvider` / `BusinessProvider` / workspace routing still assume
+  multi-tenant membership; `CreateOrganizationDialog` should disappear once the
+  institution is a fixed configuration root).
+- Residual SaaS surfaces still in code: `src/apps/platform/nav.ts`,
+  `lib/pricing/*`, `services/fx/platformUsd.ts`, portal/marketing copy.
+- Schema pass (separate, ONE migration, after dependency analysis) to drop SaaS
+  tables/functions/policies: subscriptions, plans, plan_feature_access,
+  installed apps, platform_admins, tenant_ownership_transfers, billing.
+
+### Known debt (not caused by M3)
+46 `tsgo` errors from regenerated Supabase types (missing `currency`,
+`"received"` statuses, `business_id` on tables that no longer have it, RPC and
+table names absent from the current project). Owed: a dedicated typing
+reconciliation pass — schedule it with M7 (finance retain/adapt) at the latest.
+
+## Currently active phase
+M3 — de-SaaS the application shell. Code-side de-SaaS is ~85% complete; the
+org/business collapse and the SaaS schema migration remain.
+
+## Next agent — start here
+1. VERIFY this pass first: run `npx tsgo --noEmit -p tsconfig.app.json`
+   (expect 46 pre-existing errors, no subscription/app-install references),
+   `rg -n "useSubscription|InstalledApps|marketplace" src`, and smoke the dev
+   server routes above. Confirm no orphaned imports or dead UI branches.
+2. Then finish M3: collapse organization/business resolution to the single
+   institution, remove the residual SaaS surfaces listed above, and only then
+   run the single SaaS schema-drop migration with a dependency check first.
+3. Only after M3 is closed, proceed to M4 (POS/hardware/scanner remnants and HR
+   beyond system actors). Do not jump ahead into loan-domain work.
+
 
 ## Standing constraints
 - One migration at a time; no full historical seed replay.
