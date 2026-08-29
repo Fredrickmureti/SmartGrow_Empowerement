@@ -63,6 +63,8 @@ import {
 } from "@/hooks/finance/useConsolidationIntercompany";
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { INTERCOMPANY_DECLARATIONS_ANCHOR } from "@/lib/finance/eliminationRemedies";
+
 import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 
