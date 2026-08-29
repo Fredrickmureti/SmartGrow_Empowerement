@@ -102,24 +102,6 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     reportIds: ["budget-report", "depreciation-report"],
   },
   {
-    key: "inventory",
-    label: "Inventory",
-    icon: Boxes,
-    // Dual-host family (ADR 0143): the SAME eight reports are listed by the
-    // Finance sidebar and by the Inventory sidebar; only the URL prefix
-    // differs, so a click never throws the user into the other app.
-    reportIds: [
-      "stock-reports",
-      "inventory-valuation",
-      "stock-ledger",
-      "stock-aging",
-      "lot-traceability",
-      "stock-adjustments-report",
-      "stock-transfers-report",
-      "inventory-gl-reconciliation",
-    ],
-  },
-  {
     key: "integrity",
     label: "Audit & integrity",
     icon: ShieldCheck,
@@ -127,10 +109,9 @@ export const REPORT_FAMILIES: ReportFamily[] = [
       "audit-trail",
       "report-run-history",
       "control-account-reconciliation",
-      // inventory-gl-reconciliation now lives in the `inventory` family
-      // (one family per report — see test guard).
     ],
   },
+
   {
     key: "consolidation",
     label: "Consolidation & group",
