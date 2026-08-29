@@ -690,7 +690,7 @@ export function getRelatedReports(id: string): ReportDefinition[] {
 
 /**
  * Resolve the registry entry for a pathname (ignoring query string). Prefers
- * the longest matching registered path so `/finance/reports/stock-transfers`
+ * the longest matching registered path so `/finance/reports/general-ledger`
  * does not resolve to `/finance/reports/stock`.
  */
 export function reportMountPaths(def: ReportDefinition): string[] {
