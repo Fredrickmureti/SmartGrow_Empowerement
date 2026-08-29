@@ -1,0 +1,2 @@
+DROP FUNCTION IF EXISTS public.complete_onboarding(text, text, text, text, text, text, uuid[], jsonb, text, text);
+DROP FUNCTION IF EXISTS public.complete_onboarding(text, text, text, text, text, text, uuid[], jsonb, text, text, text);

@@ -92061,54 +92061,22 @@ export type Database = {
         Args: { p_error?: string; p_id: number; p_success: boolean }
         Returns: undefined
       }
-      complete_onboarding:
-        | {
-            Args: {
-              p_business_type?: string
-              p_company_name: string
-              p_country: string
-              p_currency: string
-              p_founder_first_name?: string
-              p_founder_last_name?: string
-              p_idempotency_key?: string
-              p_invitees?: Json
-              p_legal_name?: string
-              p_selected_app_ids?: string[]
-              p_slug: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_business_type?: string
-              p_company_name: string
-              p_country: string
-              p_currency: string
-              p_founder_first_name?: string
-              p_founder_last_name?: string
-              p_invitees?: Json
-              p_legal_name?: string
-              p_selected_app_ids?: string[]
-              p_slug: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_business_type?: string
-              p_company_name: string
-              p_country: string
-              p_currency: string
-              p_founder_first_name?: string
-              p_founder_last_name?: string
-              p_idempotency_key?: string
-              p_invitees?: Json
-              p_legal_name?: string
-              p_selected_app_ids?: string[]
-              p_slug: string
-            }
-            Returns: Json
-          }
+      complete_onboarding: {
+        Args: {
+          p_business_type?: string
+          p_company_name: string
+          p_country: string
+          p_currency: string
+          p_founder_first_name?: string
+          p_founder_last_name?: string
+          p_idempotency_key?: string
+          p_invitees?: Json
+          p_legal_name?: string
+          p_selected_app_ids?: string[]
+          p_slug: string
+        }
+        Returns: Json
+      }
       complete_ownership_transfer: {
         Args: { _transfer_id: string; _verification_token: string }
         Returns: Json
