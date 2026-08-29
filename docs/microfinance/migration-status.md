@@ -40,3 +40,22 @@ Rebuilt or re-pointed instead of deleted (kept surfaces that depended on removed
 
 M3. RBAC + PIN completion (requires a database migration), then M4–M6 settings baseline, company
 convergence and the microfinance workspace scaffold.
+
+## M2. Inherited SQL history replayed — DONE (2026-08-29)
+
+Root cause of the "hollow database": of the 2,893 files in `supabase/migrations`, only the 11
+authored on 2026-08-29 had ever been applied to `xwxqunklduknceoryrha`. The other 2,882
+(AccrualFlow foundation) existed as files only.
+
+All 2,882 were replayed in chronological order, statement by statement, skipping
+already-existing objects. Three passes plus a column backfill (the Aug-29 baseline had created
+narrower versions of `organizations`, `journal_entries`, `exchange_rates`, `bills`, `contacts`,
+`document_*`, so inherited ALTERs had nothing to attach to; 197 columns restored from the
+original DDL).
+
+Result: **842 tables, 126 views, 3,085 functions, 2,072 policies** — 874 of the 948 objects the
+history defines. The 74 still missing are POS, payroll, spreadsheet, e-signature and RFQ/sourcing
+leftovers, i.e. outside the universal foundation.
+
+Known follow-ups (not blocking): Supabase linter inherits AccrualFlow's posture — 1 table without
+RLS, 29 SECURITY DEFINER views, an auth.users-exposing view. Harden before go-live.
