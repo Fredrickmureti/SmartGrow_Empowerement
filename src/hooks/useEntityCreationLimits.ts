@@ -26,7 +26,7 @@ const UNLIMITED: EntityLimitCheck = {
 };
 
 export function useEntityCreationLimits() {
-  const check = useCallback(async (): Promise<EntityLimitCheck> => UNLIMITED, []);
+  const check = useCallback(async (_scopeId?: string): Promise<EntityLimitCheck> => UNLIMITED, []);
 
   return {
     checkOrganizationLimit: check,
