@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check for existing session first, gracefully handle stale tokens
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error || !session) {
+        console.log('[AUTHDBG] initial getSession EMPTY -> local signOut', error?.message);
         // Session retrieval failed or no session — clear any stale tokens
         try {
           await supabase.auth.signOut({ scope: 'local' });
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
         return;
       }
+      console.log('[AUTHDBG] initial getSession ok', session?.user?.id);
       currentUserIdRef.current = session?.user?.id ?? null;
       setSession(session);
       setUser(session?.user ?? null);
@@ -120,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Handle auth state changes intelligently
+        console.log('[AUTHDBG] event', event, !!session);
         updateAuthState(session, event);
       }
     );
