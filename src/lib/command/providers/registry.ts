@@ -9,15 +9,11 @@
 
 import type { CommandProvider } from "./types";
 import { customersProvider } from "./customers";
-import { invoicesProvider } from "./invoices";
 import { billsProvider } from "./bills";
-import { productsProvider } from "./products";
 import { journalEntriesProvider } from "./journalEntries";
 
 export const COMMAND_PROVIDERS: CommandProvider[] = [
   customersProvider,
-  invoicesProvider,
   billsProvider,
-  productsProvider,
   journalEntriesProvider,
 ];
