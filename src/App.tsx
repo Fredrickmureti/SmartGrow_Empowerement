@@ -30,7 +30,6 @@ import { SentryErrorBoundary } from "@/components/error/SentryErrorBoundary";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { RealtimeSyncProvider } from "./providers/RealtimeSyncProvider";
 import { GlobalAIAssistant } from "./components/ai/GlobalAIAssistant";
-import { MissingMappingsDialog } from "./components/payroll/MissingMappingsDialog";
 import { AIAssistantProvider } from "@/contexts/AIAssistantContext";
 import { SubscriptionAccessProvider } from "@/contexts/SubscriptionAccessContext";
 import { ReadOnlyModeProvider } from "@/contexts/ReadOnlyModeContext";
@@ -170,25 +169,6 @@ const MeApp = lazy(() => import("@/apps/me/MeApp"));
 // non-POS modules (Inventory, Sales, Purchases, etc.) can pair a phone
 // without the POS subscription gate redirecting the phone to /dashboard.
 // See .lovable/plan.md "Move scanner pairing route out of POS subscription gate".
-const LocalizationPreviewWindow = lazy(
-  () => import("@/features/localization/components/LocalizationPreviewWindow"),
-);
-
-// Pop-out preview window for the Localization Editor. Opened via
-// window.open() from AuthoringWorkspace. Runs in the same origin so it
-// inherits localStorage + BroadcastChannel from the opener; no auth
-// gate needed (it only re-renders what the opener already broadcasts).
-const LocalizationPreviewRoute = () => {
-  const { kind, templateCode } = useParams<{ kind: string; templateCode: string }>();
-  return (
-    <Suspense fallback={<div style={{ padding: 24, fontFamily: "system-ui" }}>Loading preview…</div>}>
-      <LocalizationPreviewWindow kind={kind ?? ""} templateCode={templateCode ?? ""} />
-    </Suspense>
-  );
-};
-
-
-
 // Apps Marketplace Page
 const Apps = lazy(() => import("@/pages/Apps"));
 const AppActivate = lazy(() => import("@/pages/apps/AppActivate"));
@@ -275,8 +255,7 @@ const App = () => (
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
                             {/* Localization pop-out preview — public route (same-origin
-                                localStorage/BroadcastChannel from the opener is the auth). */}
-                            <Route path="/localization/preview/:kind/:templateCode" element={<LocalizationPreviewRoute />} />
+                                localStorage/BroadcastChannel from the opener is the auth). */}} />
 
                            {/* Public: the learning library shows videos the platform
                                admin published for a public audience (RLS enforces
@@ -605,7 +584,6 @@ const App = () => (
                           </CommandPaletteProvider>
                           </AuthenticatedShell>
                           <GlobalAIAssistant />
-                          <MissingMappingsDialog />
                         </Router>
                         </AIAssistantProvider>
 
