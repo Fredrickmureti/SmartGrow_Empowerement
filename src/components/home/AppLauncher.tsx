@@ -7,17 +7,15 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, LayoutGrid, List, Sparkles } from "lucide-react";
+import { Search, LayoutGrid, List, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AppTileCard } from "@/components/apps/AppTileCard";
-import { AppMarketplace } from "./AppMarketplace";
 import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { useAppNavigation } from "@/hooks/useAppNavigation";
-import { usePermissions } from "@/hooks/usePermissions";
 import { APP_REGISTRY, getAppGroups } from "@/lib/apps/registry";
 import type { AppDefinition } from "@/lib/apps/types";
 
@@ -36,14 +34,11 @@ export function AppLauncher({
 }: AppLauncherProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   
   // eslint-disable-next-line local/no-raw-installed-apps-loading-gate -- decoration: skeleton inside launcher card, not an install gate
   const { installedApps, isInstalled, isLoading } = useInstalledApps();
   const { canAccessApp, getAppUrl, currentApp } = useAppNavigation();
-  const permissions = usePermissions();
-  const canManageApps = permissions.canManageApps;
   const appGroups = getAppGroups();
 
   // Get installed apps with access info — hide apps the user cannot access (Odoo-aligned)
@@ -93,7 +88,7 @@ export function AppLauncher({
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Your Apps</h1>
           <p className="text-sm text-muted-foreground">
-            {installedApps.length} apps installed
+            {installedAppsWithAccess.length} modules available
           </p>
         </div>
         
@@ -130,13 +125,6 @@ export function AppLauncher({
                 <List className="h-4 w-4" />
               </Button>
             </div>
-            
-            {showMarketplaceButton && canManageApps && (
-              <Button onClick={() => setIsMarketplaceOpen(true)} className="gap-2 flex-1 sm:flex-none">
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Add Apps</span>
-              </Button>
-            )}
           </div>
         </div>
       </div>
@@ -155,16 +143,10 @@ export function AppLauncher({
           ) : (
             <>
               <Sparkles className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-medium">No apps installed</h3>
+              <h3 className="text-lg font-medium">No modules available</h3>
               <p className="text-muted-foreground mt-1 mb-4">
-                {canManageApps ? "Get started by installing some apps" : "Contact your administrator to install apps"}
+                Your role does not grant access to any module yet. Contact a Super Administrator.
               </p>
-              {canManageApps && (
-                <Button onClick={() => setIsMarketplaceOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Browse Apps
-                </Button>
-              )}
             </>
           )}
         </div>
@@ -206,14 +188,6 @@ export function AppLauncher({
             />
           ))}
         </div>
-      )}
-
-      {/* App Marketplace Dialog — admin-only */}
-      {canManageApps && (
-        <AppMarketplace
-          open={isMarketplaceOpen}
-          onOpenChange={setIsMarketplaceOpen}
-        />
       )}
     </div>
   );
