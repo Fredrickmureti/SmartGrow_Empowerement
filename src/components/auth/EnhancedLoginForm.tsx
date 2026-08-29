@@ -11,7 +11,7 @@ import { normalizeError } from "@/services/resilience";
  * 4. PIN login calls the pinLogin server function (no prior session needed)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
