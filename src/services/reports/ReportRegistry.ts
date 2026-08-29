@@ -37,7 +37,6 @@ export type ReportCategory =
  */
 export type ReportDomain =
   | "finance"
-  | "payroll"
   | "hr"
   | "sales"
   | "purchases"
@@ -48,7 +47,6 @@ export type ReportDomain =
 
 export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   finance: "Finance",
-  payroll: "Payroll",
   hr: "People",
   sales: "Sales",
   purchases: "Purchases",
@@ -723,28 +721,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["hr", "people", "headcount", "turnover", "employees"],
   },
   {
-    id: "attendance-reports",
-    name: "Attendance Reports",
-    description: "Clock-in / clock-out, lateness, presence",
-    category: "management",
-    path: "/hr/attendance/reports",
-    icon: Clock,
-    permission: "viewReports",
-    reportType: "attendance",
-    keywords: ["attendance", "clock", "presence", "lateness", "absence"],
-  },
-  {
-    id: "payroll-reports",
-    name: "Payroll Reports",
-    description: "Payroll runs, payslips, statutory summaries",
-    category: "management",
-    path: "/hr/payroll/reports",
-    icon: DollarSign,
-    permission: "viewPayroll",
-    reportType: "payroll",
-    keywords: ["payroll", "payslip", "payslips", "salary", "statutory", "remittance"],
-  },
-  {
     id: "project-reports",
     name: "Project Reports",
     description: "Portfolio reports — profitability, milestones, burndown",
@@ -755,18 +731,8 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "projects",
     keywords: ["project", "portfolio", "burndown", "profitability"],
   },
-  {
-    id: "timesheet-reports",
-    name: "Timesheet Reports",
-    description: "Hours by employee / project / billable status",
-    category: "management",
-    path: "/timesheets/reports",
-    icon: Clock,
-    permission: "viewReports",
-    reportType: "timesheets",
-    keywords: ["timesheet", "hours", "billable", "utilization"],
-  },
 ];
+
 
 /** Search reports by keyword (name, description, or aliases). */
 export function searchReports(query: string): ReportDefinition[] {
@@ -801,12 +767,9 @@ export function getReportsByType(reportType: string): ReportDefinition[] {
 
 /** Path-prefix → domain. Longest prefix wins. */
 const DOMAIN_BY_PATH_PREFIX: Array<[string, ReportDomain]> = [
-  ["/hr/payroll/reports", "payroll"],
-  ["/hr/attendance/reports", "hr"],
   ["/hr/reports", "hr"],
   ["/pos/reports", "pos"],
   ["/projects-app/reports", "projects"],
-  ["/timesheets/reports", "projects"],
   ["/crm/reports", "crm"],
   ["/finance/reports", "finance"],
   ["/reports", "finance"],
@@ -865,9 +828,6 @@ const REPORT_RELATION_PAIRS: Array<[string, string]> = [
   ["stock-transfers-report", "stock-reports"],
   ["control-account-reconciliation", "partner-ledger"],
   ["bank-reconciliation-report", "cash-flow"],
-  ["payroll-reports", "hr-reports"],
-  ["payroll-reports", "attendance-reports"],
-  ["timesheet-reports", "project-reports"],
   ["pos-reports", "sales-reports"],
 ];
 
