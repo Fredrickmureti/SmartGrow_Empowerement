@@ -60,7 +60,6 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 // Apply-credit is a routed wizard at /finance/customer-credits/:id/apply.
-import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 
 // ─── Types ────────────────────────────────────────────────────────
 interface CustomerGroup {
@@ -638,10 +637,6 @@ export default function CustomerCredits() {
       {/* Apply-credit is a dedicated wizard route at
           /finance/customer-credits/:id/apply — no dialog mount here. */}
 
-      <CreditNotePeekSheet
-        creditNoteId={peekId}
-        onOpenChange={(open) => { if (!open) setPeekId(null); }}
-      />
     </div>
   );
 }

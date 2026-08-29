@@ -23,7 +23,6 @@ import { ReceivablesWidget } from "@/components/dashboard/ReceivablesWidget";
 import { LowStockWidget } from "@/components/dashboard/LowStockWidget";
 import { CreditAlertWidget } from "@/components/dashboard/CreditAlertWidget";
 import { supabase } from "@/integrations/supabase/client";
-import { PendingApprovalsWidget } from "@/components/dashboard/PendingApprovalsWidget";
 import { BackorderWidget } from "@/components/dashboard/BackorderWidget";
 import { BranchComparisonWidget } from "@/components/dashboard/BranchComparisonWidget";
 import { ExecutiveDashboard } from "@/components/dashboard/ExecutiveDashboard";
@@ -458,7 +457,6 @@ export default function Dashboard() {
                   {showBankBalance && allowsWidget("bankBalance") ? <BankBalanceWidget /> : null}
                   {showLowStock && allowsWidget("lowStock") ? <LowStockWidget /> : null}
                   {showCreditAlerts && allowsWidget("creditAlerts") ? <CreditAlertWidget /> : null}
-                  {showPendingApprovals && allowsWidget("pendingApprovals") ? <PendingApprovalsWidget /> : null}
                   {showBackorders && allowsWidget("backorders") ? <BackorderWidget /> : null}
                   {showPayrollSummary && allowsWidget("payrollSummary") ? <PayrollSummaryWidget /> : null}
                   {showUpcomingDeadlines && allowsWidget("upcomingDeadlines") ? (

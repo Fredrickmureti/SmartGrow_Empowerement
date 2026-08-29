@@ -56,7 +56,6 @@ import { MpesaC2BProviderCard } from "@/components/settings/MpesaC2BProviderCard
 import { BusinessBranchSettings } from "@/components/settings/BusinessBranchSettings";
 import { PaymentTermsSettings } from "@/components/settings/PaymentTermsSettings";
 import { TaxComplianceSettings } from "@/components/settings/TaxComplianceSettings";
-import { ReceiptSettings } from "@/components/settings/ReceiptSettings";
 import { PaymentsDebugger } from "@/components/settings/PaymentsDebugger";
 import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
 import { DocumentTemplateSettings } from "@/components/settings/DocumentTemplateSettings";
@@ -231,9 +230,6 @@ function CompanySettingsInner() {
             <TaxComplianceSettings />
           </TabsContent>
 
-          <TabsContent value="receipts">
-            <ReceiptSettings />
-          </TabsContent>
 
           <TabsContent value="templates">
             <DocumentTemplateSettings />

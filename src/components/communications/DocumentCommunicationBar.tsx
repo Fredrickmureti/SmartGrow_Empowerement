@@ -4,7 +4,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { MessageSquare, Mail, FlaskConical, Radio } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useSmsAvailability } from "@/hooks/useSmsAvailability";
-import { SendSmsDialog } from "@/components/sms/SendSmsDialog";
 
 export interface DocumentCommunicationContext {
   /** Logical entity type, e.g. "invoice", "sales_order", "estimate". */
@@ -103,16 +102,6 @@ export function DocumentCommunicationBar({
           </Tooltip>
         )}
 
-        {showSmsButton && (
-          <SendSmsDialog
-            open={smsOpen}
-            onOpenChange={setSmsOpen}
-            recipientPhone={sms.recipientPhone ?? recipientPhone ?? ""}
-            recipientName={recipientName ?? undefined}
-            variables={variables}
-            context={{ entityType, entityId, businessId: businessId ?? undefined }}
-          />
-        )}
       </div>
     </TooltipProvider>
   );

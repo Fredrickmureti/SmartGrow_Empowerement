@@ -1,6 +1,5 @@
 import React from "react";
 import { useUnifiedRealtimeSync } from "@/hooks/realtime/useUnifiedRealtimeSync";
-import { useProductRealtimeSync } from "@/hooks/useProductRealtimeSync";
 import { useProductIdentifiersRealtimeSync } from "@/hooks/useProductIdentifiersRealtimeSync";
 
 /**
@@ -17,7 +16,6 @@ import { useProductIdentifiersRealtimeSync } from "@/hooks/useProductIdentifiers
  * useLazyRealtimeSync at the page/hook level for on-demand subscriptions.
  */
 export function RealtimeSyncProvider({ children }: { children: React.ReactNode }) {
-  useProductRealtimeSync();
   useProductIdentifiersRealtimeSync();
   useUnifiedRealtimeSync();
 

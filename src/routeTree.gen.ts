@@ -11,10 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ScanTokenRouteImport } from './routes/scan.$token'
-import { Route as PosScanTokenRouteImport } from './routes/pos.scan.$token'
 import { Route as LocalizationPreviewKindTemplateCodeRouteImport } from './routes/localization.preview.$kind.$templateCode'
-import { Route as ApiPublicAttendanceIngestRouteImport } from './routes/api/public/attendance.ingest'
 
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
@@ -26,87 +23,40 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ScanTokenRoute = ScanTokenRouteImport.update({
-  id: '/scan/$token',
-  path: '/scan/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PosScanTokenRoute = PosScanTokenRouteImport.update({
-  id: '/pos/scan/$token',
-  path: '/pos/scan/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LocalizationPreviewKindTemplateCodeRoute =
   LocalizationPreviewKindTemplateCodeRouteImport.update({
     id: '/localization/preview/$kind/$templateCode',
     path: '/localization/preview/$kind/$templateCode',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicAttendanceIngestRoute =
-  ApiPublicAttendanceIngestRouteImport.update({
-    id: '/api/public/attendance/ingest',
-    path: '/api/public/attendance/ingest',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/scan/$token': typeof ScanTokenRoute
-  '/pos/scan/$token': typeof PosScanTokenRoute
-  '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
   '/localization/preview/$kind/$templateCode': typeof LocalizationPreviewKindTemplateCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/scan/$token': typeof ScanTokenRoute
-  '/pos/scan/$token': typeof PosScanTokenRoute
-  '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
   '/localization/preview/$kind/$templateCode': typeof LocalizationPreviewKindTemplateCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/scan/$token': typeof ScanTokenRoute
-  '/pos/scan/$token': typeof PosScanTokenRoute
-  '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
   '/localization/preview/$kind/$templateCode': typeof LocalizationPreviewKindTemplateCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/$'
-    | '/scan/$token'
-    | '/pos/scan/$token'
-    | '/api/public/attendance/ingest'
-    | '/localization/preview/$kind/$templateCode'
+  fullPaths: '/' | '/$' | '/localization/preview/$kind/$templateCode'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/$'
-    | '/scan/$token'
-    | '/pos/scan/$token'
-    | '/api/public/attendance/ingest'
-    | '/localization/preview/$kind/$templateCode'
-  id:
-    | '__root__'
-    | '/'
-    | '/$'
-    | '/scan/$token'
-    | '/pos/scan/$token'
-    | '/api/public/attendance/ingest'
-    | '/localization/preview/$kind/$templateCode'
+  to: '/' | '/$' | '/localization/preview/$kind/$templateCode'
+  id: '__root__' | '/' | '/$' | '/localization/preview/$kind/$templateCode'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
-  ScanTokenRoute: typeof ScanTokenRoute
-  PosScanTokenRoute: typeof PosScanTokenRoute
-  ApiPublicAttendanceIngestRoute: typeof ApiPublicAttendanceIngestRoute
   LocalizationPreviewKindTemplateCodeRoute: typeof LocalizationPreviewKindTemplateCodeRoute
 }
 
@@ -126,32 +76,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/scan/$token': {
-      id: '/scan/$token'
-      path: '/scan/$token'
-      fullPath: '/scan/$token'
-      preLoaderRoute: typeof ScanTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pos/scan/$token': {
-      id: '/pos/scan/$token'
-      path: '/pos/scan/$token'
-      fullPath: '/pos/scan/$token'
-      preLoaderRoute: typeof PosScanTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/localization/preview/$kind/$templateCode': {
       id: '/localization/preview/$kind/$templateCode'
       path: '/localization/preview/$kind/$templateCode'
       fullPath: '/localization/preview/$kind/$templateCode'
       preLoaderRoute: typeof LocalizationPreviewKindTemplateCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/attendance/ingest': {
-      id: '/api/public/attendance/ingest'
-      path: '/api/public/attendance/ingest'
-      fullPath: '/api/public/attendance/ingest'
-      preLoaderRoute: typeof ApiPublicAttendanceIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -160,9 +89,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
-  ScanTokenRoute: ScanTokenRoute,
-  PosScanTokenRoute: PosScanTokenRoute,
-  ApiPublicAttendanceIngestRoute: ApiPublicAttendanceIngestRoute,
   LocalizationPreviewKindTemplateCodeRoute:
     LocalizationPreviewKindTemplateCodeRoute,
 }

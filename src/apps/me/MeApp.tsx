@@ -31,7 +31,6 @@ const MyProfile = lazy(() => import("@/pages/me/MyProfilePage"));
 const MyAccount = lazy(() => import("@/pages/me/MyAccount"));
 const MyNotifications = lazy(() => import("@/pages/me/MyNotifications"));
 const MyLeave = lazy(() => import("@/pages/me/MyLeave"));
-const Timesheets = lazy(() => import("@/pages/timesheets/MyTimesheets"));
 const MyAttendance = lazy(() => import("@/pages/me/MyAttendance"));
 const MyLoans = lazy(() => import("@/pages/me/MyLoans"));
 const MyLegalOrders = lazy(() => import("@/pages/me/MyLegalOrders"));
@@ -113,15 +112,6 @@ export default function MeApp() {
 
 
 
-        {/* My Timesheets — own time entries */}
-        <Route
-          path="timesheets"
-          element={
-            <Lazy module="My Timesheets">
-              <Timesheets />
-            </Lazy>
-          }
-        />
 
         {/* My Attendance — own clock-in/out history */}
         <Route

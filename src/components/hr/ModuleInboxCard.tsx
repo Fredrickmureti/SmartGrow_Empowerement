@@ -27,7 +27,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAttendanceInboxCounts } from "@/hooks/hr/useAttendanceInboxCounts";
-import { useTimesheetInboxCounts } from "@/hooks/timesheets/useTimesheetInboxCounts";
 import { useLeaveInboxCounts } from "@/hooks/leave/useLeaveInboxCounts";
 import { useEmployeesInboxCounts } from "@/hooks/hr/useEmployeesInboxCounts";
 
@@ -48,7 +47,7 @@ interface Props {
 
 function useRows(module: InboxModule): { title: string; total: number; isLoading: boolean; rows: Row[] } {
   const att = useAttendanceInboxCounts();
-  const ts = useTimesheetInboxCounts();
+  const ts = ({ count: 0, isLoading: false });
   const lv = useLeaveInboxCounts();
   const emp = useEmployeesInboxCounts();
 
@@ -240,7 +239,7 @@ export function ModuleInboxCard({ module }: Props) {
  */
 export function ModuleInboxStrip() {
   const att = useAttendanceInboxCounts();
-  const ts = useTimesheetInboxCounts();
+  const ts = ({ count: 0, isLoading: false });
   const lv = useLeaveInboxCounts();
   const emp = useEmployeesInboxCounts();
   const isLoading = att.isLoading || ts.isLoading || lv.isLoading || emp.isLoading;
