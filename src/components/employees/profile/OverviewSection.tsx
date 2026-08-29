@@ -6,7 +6,7 @@
  *   2. Why are they inactive / what is their employment state?
  *   3. Do they have portal access, and if not, what is the next step?
  *
- * Plus three operational snapshots (Time off · Attendance · Open items),
+ * Plus an operational snapshot of open items,
  * each deep-linking into the relevant profile section via the existing
  * `?section=` contract. Heavy data still lives in the dedicated sections.
  */
@@ -15,14 +15,11 @@ import { Badge } from "@/components/ui/badge";
 import {
   Mail, Phone, MapPin, User, Briefcase, Calendar, ArrowRight,
   CheckCircle2, AlertTriangle, ShieldCheck, ShieldAlert, ShieldOff,
-  Clock, Timer, FileText, ClipboardList, LogOut, Loader2,
+  FileText, ClipboardList, LogOut, Loader2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import type { EmployeeProfile } from "@/hooks/useEmployeeProfile";
-import { useEffect, useState } from "react";
-import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAllocations";
-import { useEmployeeAttendanceSummary } from "@/hooks/hr/useEmployeeAttendanceSummary";
 
 interface Props {
   employee: EmployeeProfile;
@@ -42,29 +39,6 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
     return `${years} yr ${rem} mo`;
   })();
 
-
-  // --- Time-off balances (top 3) -----------------------------------------
-  const { getEmployeeBalances } = useLeaveAllocations();
-  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
-  const [leaveLoading, setLeaveLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    setLeaveLoading(true);
-    getEmployeeBalances(employee.id)
-      .then((rows) => { if (!cancelled) setLeaveBalances(rows ?? []); })
-      .catch(() => { if (!cancelled) setLeaveBalances([]); })
-      .finally(() => { if (!cancelled) setLeaveLoading(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employee.id]);
-  const topLeave = [...leaveBalances]
-    .sort((a, b) => (b.available ?? 0) - (a.available ?? 0))
-    .slice(0, 3);
-
-  // --- Attendance (last 30d) ---------------------------------------------
-  const { summary: att, isLoading: attLoading } = useEmployeeAttendanceSummary(employee.id, 30);
-  const totalAtt = (att?.presentDays ?? 0) + (att?.lateDays ?? 0) + (att?.absentDays ?? 0);
-  const attPct = totalAtt > 0 ? Math.round(((att.presentDays + att.lateDays) / totalAtt) * 100) : null;
 
   // --- Portal access ------------------------------------------------------
   const portalLinked = !!employee.user_id;
@@ -126,59 +100,8 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
         />
       </div>
 
-      {/* Row 2 — Time off, Attendance, Open items ------------------------- */}
+      {/* Row 2 — Open items ---------------------------------------------- */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {/* Time off */}
-        <SnapshotCard
-          icon={Calendar}
-          title="Time off"
-          subtitle="Top balances"
-          ctaLabel="Open time off"
-          onCta={() => onNavigateSection("leave")}
-        >
-          {leaveLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-            </div>
-          ) : topLeave.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No allocations this year.</p>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {topLeave.map((b) => (
-                <li key={b.leave_type_id} className="flex items-center justify-between">
-                  <span className="truncate text-muted-foreground">{b.leave_type_name}</span>
-                  <span className="font-medium tabular-nums">
-                    {(b.available ?? 0).toFixed(1)} <span className="text-xs text-muted-foreground">d</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SnapshotCard>
-
-        {/* Attendance */}
-        <SnapshotCard
-          icon={Clock}
-          title="Attendance"
-          subtitle="Last 30 days"
-          ctaLabel="Open attendance"
-          onCta={() => onNavigateSection("attendance")}
-        >
-          {attLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-            </div>
-          ) : totalAtt === 0 ? (
-            <p className="text-xs text-muted-foreground">No attendance recorded yet.</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <Metric label="Present" value={`${attPct ?? 0}%`} accent="text-emerald-600" />
-              <Metric label="Late" value={String(att.lateDays)} accent="text-amber-600" />
-              <Metric label="Absent" value={String(att.absentDays)} accent="text-rose-600" />
-            </div>
-          )}
-        </SnapshotCard>
-
         {/* Open items */}
         <SnapshotCard
           icon={ClipboardList}
@@ -189,7 +112,6 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
           <ul className="space-y-1.5 text-sm">
             <OpenItem icon={ClipboardList} label="Onboarding" onClick={() => onNavigateSection("onboarding")} />
             <OpenItem icon={FileText} label="Documents" onClick={() => onNavigateSection("documents")} />
-            <OpenItem icon={Timer} label="Timesheets" onClick={() => onNavigateSection("timesheets")} />
             {employee.termination_date || !employee.is_active ? (
               <OpenItem icon={LogOut} label="Exit clearance" onClick={() => onNavigateSection("exit")} />
             ) : null}
