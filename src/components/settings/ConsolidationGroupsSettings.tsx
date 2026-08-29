@@ -80,6 +80,8 @@ const METHODS = Object.keys(CONSOLIDATION_METHOD_LABELS) as ConsolidationMethod[
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const CHANGE_LOG_PAGE_SIZE = 25;
+
 export function ConsolidationGroupsSettings() {
   const { toast } = useToast();
   const { businesses } = useBusinesses();
@@ -135,7 +137,22 @@ export function ConsolidationGroupsSettings() {
 
 
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
-  const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
+  const [changeLogPage, setChangeLogPage] = useState(0);
+  // Reset to the first page when the viewer switches groups.
+  useEffect(() => {
+    setChangeLogPage(0);
+  }, [activeGroupId]);
+  const { data: changeLogData } = useConsolidationChangeLog(
+    activeGroupId,
+    changeLogPage,
+    CHANGE_LOG_PAGE_SIZE,
+  );
+  const changeLog = changeLogData?.entries ?? [];
+  const changeLogTotal = changeLogData?.total ?? 0;
+  const changeLogPageCount = Math.max(
+    1,
+    Math.ceil(changeLogTotal / CHANGE_LOG_PAGE_SIZE),
+  );
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
     activeGroup?.parent_business_id ?? null,
   );
@@ -882,6 +899,36 @@ export function ConsolidationGroupsSettings() {
                 </TableBody>
               </Table>
             </div>
+            {changeLogTotal > 0 && (
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Page {changeLogPage + 1} of {changeLogPageCount} ·{" "}
+                  {changeLogTotal.toLocaleString()} changes
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={changeLogPage === 0}
+                    onClick={() => setChangeLogPage((p) => Math.max(0, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={changeLogPage + 1 >= changeLogPageCount}
+                    onClick={() =>
+                      setChangeLogPage((p) =>
+                        Math.min(changeLogPageCount - 1, p + 1),
+                      )
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

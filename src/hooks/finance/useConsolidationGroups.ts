@@ -207,22 +207,39 @@ export function useConsolidationGroupMembers(groupId: string | null) {
   });
 }
 
-/** Append-only configuration audit trail for one group. */
-export function useConsolidationChangeLog(groupId: string | null) {
+/**
+ * Append-only configuration audit trail for one group, server-side paginated.
+ * The log is unbounded, so the page fetches one window plus a total count
+ * instead of streaming every row into the browser.
+ */
+export function useConsolidationChangeLog(
+  groupId: string | null,
+  page = 0,
+  pageSize = 25,
+) {
   return useQuery({
-    queryKey: ["consolidation-change-log", groupId],
+    queryKey: ["consolidation-change-log", groupId, page, pageSize],
     enabled: !!groupId,
-    queryFn: async (): Promise<ConsolidationChangeLogEntry[]> => {
-      const { data, error } = await supabase
+    placeholderData: (previous) => previous,
+    queryFn: async (): Promise<{
+      entries: ConsolidationChangeLogEntry[];
+      total: number;
+    }> => {
+      const from = page * pageSize;
+      const { data, error, count } = await supabase
         .from("consolidation_group_change_log")
         .select(
           "id, group_id, member_id, business_id, entity, action, actor_id, before_state, after_state, created_at",
+          { count: "exact" },
         )
         .eq("group_id", groupId!)
         .order("created_at", { ascending: false })
-        .limit(100);
+        .range(from, from + pageSize - 1);
       if (error) throw toAppError(error);
-      return (data ?? []) as unknown as ConsolidationChangeLogEntry[];
+      return {
+        entries: (data ?? []) as unknown as ConsolidationChangeLogEntry[],
+        total: count ?? 0,
+      };
     },
   });
 }
