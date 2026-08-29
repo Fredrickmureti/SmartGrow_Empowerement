@@ -63,6 +63,8 @@ import {
 } from "@/hooks/finance/useConsolidationIntercompany";
 
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
+import { INTERCOMPANY_DECLARATIONS_ANCHOR } from "@/lib/finance/eliminationRemedies";
+
 import { useMemberLedgerAccess } from "@/hooks/finance/useMemberLedgerAccess";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 
@@ -494,13 +496,15 @@ export default function ConsolidationIntercompany() {
         )}
 
         {groupId && (
-          <Card>
+          <Card id={INTERCOMPANY_DECLARATIONS_ANCHOR} className="scroll-mt-24">
             <CardHeader>
               <CardTitle className="text-base">Declared relationships</CardTitle>
               <CardDescription>
-                One declaration per contact. Ending a declaration keeps history intact so
-                periods already reported still resolve the same way.
+                One declaration per contact, and only a company contact may stand for a
+                group company. Ending a declaration keeps history intact so periods
+                already reported still resolve the same way.
               </CardDescription>
+
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
