@@ -6,7 +6,7 @@
  * or reject without leaving the page.
  */
 import { useEffect, useState } from "react";
-import { useDrillDownAnchor } from "@/hooks/payroll/useDrillDownAnchor";
+import { useDrillDownAnchor } from "@/hooks/useDrillDownAnchor";
 import { useEmployeeLoans, type EmployeeLoan } from "@/hooks/useEmployeeLoans";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
