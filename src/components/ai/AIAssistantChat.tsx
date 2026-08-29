@@ -13,7 +13,6 @@ import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
 import { getContextualPrompts } from "@/lib/ai/contextualPrompts";
 import { ROUTE_CATALOG } from "@/lib/ai/routeCatalog";
 import type { ActionBlock } from "@/lib/ai/actionBlocks";
-import { dispatchMissingMappings } from "@/hooks/payroll/usePayrollGlReadiness";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AIAssistantChatProps {
@@ -302,49 +301,6 @@ function ActionBlocks({ actions, onClose }: { actions: ActionBlock[]; onClose: (
       const entry = ROUTE_CATALOG[a.path_id];
       if (!entry) return;
       navigate(entry.path);
-      onClose();
-      return;
-    }
-    if (a.type === "fix_gl_mappings") {
-      // If the AI provided a specific blocked run, fetch its run-specific
-      // missing mappings so the dialog opens with exactly those rows
-      // (matching the contract used by post-payroll-gl events).
-      if (a.payroll_run_id) {
-        (async () => {
-          try {
-            const { data } = await supabase.rpc(
-              "payroll_required_gl_mappings_for_run" as any,
-              { p_run_id: a.payroll_run_id },
-            );
-            const missing = ((data as any[]) || [])
-              .filter((r) => !r.is_mapped)
-              .map((r) => ({
-                setting_key: r.setting_key,
-                label: r.label,
-                rule_code: r.rule_code ?? null,
-                kind: r.kind,
-                suggested_account_id: r.suggested_account_id ?? null,
-                suggested_account_label: r.suggested_account_label ?? null,
-              }));
-            dispatchMissingMappings({
-              message: `Resolve missing payroll GL mappings for this run before posting.`,
-              missing,
-            });
-          } catch {
-            dispatchMissingMappings({
-              message: "Resolve missing payroll GL mappings before posting.",
-              missing: [],
-            });
-          } finally {
-            onClose();
-          }
-        })();
-        return;
-      }
-      dispatchMissingMappings({
-        message: "Resolve missing payroll GL mappings before posting.",
-        missing: [],
-      });
       onClose();
       return;
     }

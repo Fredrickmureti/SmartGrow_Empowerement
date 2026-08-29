@@ -67,7 +67,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EnhancedNotificationSettings } from "@/components/notifications/EnhancedNotificationSettings";
 import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import AccessGroups from "@/pages/settings/AccessGroups";
-import { LocalizationPackSettings } from "@/components/settings/LocalizationPackSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { Link } from "react-router-dom";
 
@@ -404,11 +403,6 @@ export default function WorkspaceSettings() {
             </TabsContent>
           )}
 
-          {permissions.canManageOrganization && (
-            <TabsContent value="localization">
-              <LocalizationPackSettings />
-            </TabsContent>
-          )}
 
           {permissions.canManageOrganization && (
             <TabsContent value="governance" className="space-y-6">
