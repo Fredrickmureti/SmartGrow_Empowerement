@@ -1,129 +1,74 @@
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { 
-  Calculator, 
-  BarChart3, 
-  Package, 
-  ShoppingCart, 
-  Users, 
-  Monitor, 
-  Building2,
-  ArrowRight,
-  Zap,
-} from "lucide-react";
+import { Sprout, Users, PiggyBank, GraduationCap, Store, ShieldCheck } from "lucide-react";
 
-const modules = [
+const PROGRAMMES = [
   {
-    icon: Calculator,
-    title: "Finance & Accounting",
-    description: "Double-entry accounting, chart of accounts, journal entries, bank reconciliation, budgets, and fixed assets.",
-    color: "from-purple-500 to-purple-600",
-  },
-  {
-    icon: ShoppingCart,
-    title: "Sales & Invoicing",
-    description: "Professional invoices, recurring billing, estimates, sales orders, delivery notes, and customer payments.",
-    color: "from-cyan-500 to-cyan-600",
-  },
-  {
-    icon: Package,
-    title: "Inventory & Purchases",
-    description: "Stock management, multi-warehouse, purchase orders, vendor bills, expense tracking, and replenishment.",
-    color: "from-amber-500 to-amber-600",
-  },
-  {
-    icon: Monitor,
-    title: "Point of Sale",
-    description: "Multi-register POS with floor plans, kitchen display, reservations, and hardware integration.",
-    color: "from-green-500 to-green-600",
+    icon: Store,
+    title: "Business loans",
+    body: "KES 10,000 to 500,000 for stock, equipment or premises. Weekly or monthly repayment, set against real cash flow.",
   },
   {
     icon: Users,
-    title: "HR & Payroll",
-    description: "Employee management, departments, leave tracking, payroll processing, attendance, and self-service portal.",
-    color: "from-rose-500 to-rose-600",
+    title: "Group lending",
+    body: "Five to fifteen members guarantee one another. No collateral, no title deeds — the group is the security.",
   },
   {
-    icon: BarChart3,
-    title: "Reports & Analytics",
-    description: "16+ report types — financial statements, aging, budgets, tax, audit trail, and business intelligence.",
-    color: "from-indigo-500 to-indigo-600",
+    icon: Sprout,
+    title: "Agriculture credit",
+    body: "Input financing timed to the planting calendar, with repayment falling after harvest instead of during it.",
   },
   {
-    icon: Building2,
-    title: "CRM & Projects",
-    description: "Sales pipeline, activities, contacts, project management, and timesheets — all in one place.",
-    color: "from-teal-500 to-teal-600",
+    icon: PiggyBank,
+    title: "Savings accounts",
+    body: "Voluntary and compulsory savings held safely, earning interest, withdrawable at your branch.",
   },
   {
-    icon: Zap,
-    title: "Studio & Customization",
-    description: "Custom fields, automations, form builders, report designers, and scheduled report delivery.",
-    color: "from-orange-500 to-orange-600",
+    icon: GraduationCap,
+    title: "Business training",
+    body: "Record keeping, pricing and stock control sessions run free for every borrowing member.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Fair terms, written down",
+    body: "One interest rate, disclosed up front. No hidden fees, no penalty stacking, no surprise charges.",
   },
 ];
 
 export function FeaturesSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
   return (
-    <section id="features" ref={ref} className="py-24 bg-background">
+    <section id="programmes" className="border-b border-border bg-secondary/40 py-20">
       <div className="container mx-auto px-4">
-        {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
-          className="text-center max-w-3xl mx-auto mb-16"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Everything You Need to{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-cyan-500">
-              Run Your Business
-            </span>
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            What we offer
           </h2>
-          <p className="text-lg text-muted-foreground">
-            A complete ERP platform — finance, sales, inventory, POS, HR, CRM, and more — all connected in one system.
+          <p className="mt-4 text-lg text-muted-foreground">
+            Six products, built around how small businesses in our catchment
+            actually earn and spend.
           </p>
-        </motion.div>
+        </div>
 
-        {/* Module Cards Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {modules.map((mod, index) => (
-            <motion.div
-              key={mod.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.4, delay: 0.1 + index * 0.07 }}
-              whileHover={{ y: -5 }}
-              className="p-6 rounded-2xl border bg-card hover:shadow-lg transition-shadow"
-            >
-              <div className={`h-12 w-12 rounded-xl bg-gradient-to-r ${mod.color} flex items-center justify-center mb-4`}>
-                <mod.icon className="h-6 w-6 text-white" />
-              </div>
-              <h4 className="text-lg font-semibold mb-2">{mod.title}</h4>
-              <p className="text-sm text-muted-foreground">{mod.description}</p>
-            </motion.div>
+        <div className="mt-12 grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-2 lg:grid-cols-3">
+          {PROGRAMMES.map((item) => (
+            <div key={item.title} className="bg-card p-8">
+              <item.icon className="h-6 w-6 text-accent" strokeWidth={1.75} />
+              <h3 className="mt-5 text-lg font-semibold text-card-foreground">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {item.body}
+              </p>
+            </div>
           ))}
         </div>
 
-        {/* Explore All Features CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          className="mt-12 text-center"
-        >
-          <Button variant="outline" size="lg" asChild>
-            <Link to="/features">
-              Explore All Features
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        </motion.div>
+        <p className="mt-8 text-sm text-muted-foreground">
+          Not sure which fits?{" "}
+          <Link to="/contact" className="font-medium text-primary underline underline-offset-4">
+            Speak to a loan officer
+          </Link>
+          .
+        </p>
       </div>
     </section>
   );
