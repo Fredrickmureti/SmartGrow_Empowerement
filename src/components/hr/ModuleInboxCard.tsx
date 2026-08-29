@@ -47,7 +47,7 @@ interface Props {
 
 function useRows(module: InboxModule): { title: string; total: number; isLoading: boolean; rows: Row[] } {
   const att = useAttendanceInboxCounts();
-  const ts = ({ count: 0, isLoading: false });
+  const ts = ({ counts: {} as Record<string, number>, count: 0, isLoading: false });
   const lv = useLeaveInboxCounts();
   const emp = useEmployeesInboxCounts();
 
@@ -239,7 +239,7 @@ export function ModuleInboxCard({ module }: Props) {
  */
 export function ModuleInboxStrip() {
   const att = useAttendanceInboxCounts();
-  const ts = ({ count: 0, isLoading: false });
+  const ts = ({ counts: {} as Record<string, number>, count: 0, isLoading: false });
   const lv = useLeaveInboxCounts();
   const emp = useEmployeesInboxCounts();
   const isLoading = att.isLoading || ts.isLoading || lv.isLoading || emp.isLoading;

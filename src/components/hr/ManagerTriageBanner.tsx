@@ -36,7 +36,7 @@ const CONFIG: Record<TriageModule, Config> = {
 
 function useTotal(module: TriageModule): number {
   const att = useAttendanceInboxCounts();
-  const ts = ({ count: 0, isLoading: false });
+  const ts = ({ counts: {} as Record<string, number>, count: 0, isLoading: false });
   const lv = useLeaveInboxCounts();
   if (module === "attendance") return att.counts.total;
   if (module === "timesheets") return ts.counts.total;
