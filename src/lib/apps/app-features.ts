@@ -80,251 +80,42 @@ export const APP_CONTENT: Record<string, AppContent> = {
     ctaText: "Start Now — It's Free",
     secondaryCtaText: "Meet an Advisor",
   },
-  sales: {
-    tagline: "Streamline Your Sales Process",
-    headline: "Convert quotes to cash faster",
-    description: "Create professional invoices, manage orders, track payments, and keep customers happy with automated reminders and statements.",
-    features: [
-      {
-        icon: Zap,
-        title: "Quick Invoicing",
-        description: "Create and send professional invoices in seconds with customizable templates.",
-      },
-      {
-        icon: CreditCard,
-        title: "Payment Tracking",
-        description: "Track payments, send reminders, and manage receivables effortlessly.",
-      },
-      {
-        icon: Users,
-        title: "Customer Portal",
-        description: "Let customers view invoices and pay online through a branded portal.",
-      },
-      {
-        icon: BarChart3,
-        title: "Sales Analytics",
-        description: "Track performance, identify trends, and forecast revenue accurately.",
-      },
-    ],
-    benefits: [
-      { text: "Get paid 2x faster with online payments" },
-      { text: "Reduce invoice disputes by 80%" },
-      { text: "Automate payment reminders" },
-      { text: "Build stronger customer relationships" },
-    ],
-    ctaText: "Start Now — It's Free",
-    secondaryCtaText: "See Demo",
-  },
-  purchases: {
-    tagline: "Smart Expense Management",
-    headline: "Control spending, maximize savings",
-    description: "Manage vendor bills, track expenses, create purchase orders, and maintain complete visibility over your spending.",
-    features: [
-      {
-        icon: Package,
-        title: "Purchase Orders",
-        description: "Create and track purchase orders with approval workflows.",
-      },
-      {
-        icon: Shield,
-        title: "Bill Management",
-        description: "Capture, approve, and pay vendor bills with complete audit trails.",
-      },
-      {
-        icon: BarChart3,
-        title: "Expense Analytics",
-        description: "Understand spending patterns and identify cost-saving opportunities.",
-      },
-      {
-        icon: Clock,
-        title: "Payment Scheduling",
-        description: "Schedule payments to optimize cash flow and avoid late fees.",
-      },
-    ],
-    benefits: [
-      { text: "Never miss a payment deadline" },
-      { text: "Reduce processing costs by 60%" },
-      { text: "Capture early payment discounts" },
-      { text: "Complete spending visibility" },
-    ],
-    ctaText: "Start Now — It's Free",
-    secondaryCtaText: "Learn More",
-  },
-  inventory: {
-    tagline: "Inventory Made Simple",
-    headline: "Know your stock, optimize your supply",
-    description: "Track products across warehouses, manage stock levels, set reorder points, and never run out of what you need.",
-    features: [
-      {
-        icon: Package,
-        title: "Real-time Stock",
-        description: "Know exactly what you have, where it is, and when to reorder.",
-      },
-      {
-        icon: Truck,
-        title: "Multi-Warehouse",
-        description: "Manage inventory across multiple locations with transfer tracking.",
-      },
-      {
-        icon: BarChart3,
-        title: "Stock Valuation",
-        description: "Track inventory value using FIFO, LIFO, or average costing.",
-      },
-      {
-        icon: Zap,
-        title: "Smart Alerts",
-        description: "Get notified when stock levels hit reorder points.",
-      },
-    ],
-    benefits: [
-      { text: "Reduce stockouts by 90%" },
-      { text: "Optimize inventory carrying costs" },
-      { text: "Accurate cost of goods sold" },
-      { text: "Streamline order fulfillment" },
-    ],
-    ctaText: "Start Now — It's Free",
-    secondaryCtaText: "See Demo",
-  },
-  pos: {
-    tagline: "Modern Point of Sale",
-    headline: "Sell anywhere, manage everywhere",
-    description: "A powerful POS system that works online and offline, with inventory sync, customer management, and real-time reporting.",
-    features: [
-      {
-        icon: Zap,
-        title: "Lightning Fast",
-        description: "Process sales in seconds with an intuitive touch interface.",
-      },
-      {
-        icon: Globe,
-        title: "Works Offline",
-        description: "Keep selling even without internet - syncs when back online.",
-      },
-      {
-        icon: Users,
-        title: "Customer Loyalty",
-        description: "Build loyalty programs and track customer purchase history.",
-      },
-      {
-        icon: BarChart3,
-        title: "Live Reporting",
-        description: "Monitor sales performance in real-time from anywhere.",
-      },
-    ],
-    benefits: [
-      { text: "Increase checkout speed by 40%" },
-      { text: "Unified inventory across channels" },
-      { text: "Better customer insights" },
-      { text: "Reduce cash discrepancies" },
-    ],
-    ctaText: "Start Now — It's Free",
-    secondaryCtaText: "Request Demo",
-  },
-  crm: {
-    tagline: "Relationship Intelligence",
-    headline: "Turn contacts into customers",
-    description: "Manage your sales pipeline, track activities, nurture leads, and close more deals with a 360° view of every relationship.",
-    features: [
-      {
-        icon: Users,
-        title: "Pipeline Management",
-        description: "Visualize and manage deals through customizable sales stages.",
-      },
-      {
-        icon: Clock,
-        title: "Activity Tracking",
-        description: "Log calls, meetings, and emails with automatic reminders.",
-      },
-      {
-        icon: BarChart3,
-        title: "Sales Forecasting",
-        description: "Predict revenue with AI-powered deal scoring.",
-      },
-      {
-        icon: Zap,
-        title: "Automation",
-        description: "Automate follow-ups and never let a lead go cold.",
-      },
-    ],
-    benefits: [
-      { text: "Close deals 30% faster" },
-      { text: "Never lose track of a lead" },
-      { text: "Improve team collaboration" },
-      { text: "Data-driven sales decisions" },
-    ],
-    ctaText: "Start Now — It's Free",
-    secondaryCtaText: "See Demo",
-  },
   hr: {
     tagline: "People Operations",
-    headline: "Empower your team, simplify HR",
-    description: "Manage employees, track time off, process payroll, and build a great workplace with modern HR tools.",
+    headline: "One directory for your whole institution",
+    description: "Maintain staff records, reporting lines, branches and org structure — the people foundation the rest of the platform authorises against.",
     features: [
       {
         icon: Users,
         title: "Employee Directory",
-        description: "Centralized employee profiles with org charts and reporting.",
+        description: "Centralized staff profiles with org charts and reporting lines.",
       },
       {
-        icon: Clock,
-        title: "Leave Management",
-        description: "Track PTO, sick leave, and holidays with approval workflows.",
-      },
-      {
-        icon: CreditCard,
-        title: "Payroll Processing",
-        description: "Run payroll accurately with tax calculations and direct deposit.",
+        icon: Shield,
+        title: "Role & Branch Assignment",
+        description: "Tie every officer to a branch and a role so access follows the org chart.",
       },
       {
         icon: BarChart3,
-        title: "HR Analytics",
-        description: "Track headcount, turnover, and other key HR metrics.",
+        title: "Org Structure",
+        description: "Departments, positions and locations kept in one authoritative place.",
+      },
+      {
+        icon: CheckCircle,
+        title: "Audit Ready",
+        description: "Every change to a staff record is recorded with who and when.",
       },
     ],
     benefits: [
-      { text: "Reduce payroll errors to zero" },
-      { text: "Streamline leave approvals" },
-      { text: "Improve employee satisfaction" },
-      { text: "Stay compliant with regulations" },
+      { text: "One authoritative staff register" },
+      { text: "Access that follows the org chart" },
+      { text: "Clean branch and officer assignment" },
+      { text: "Complete change history" },
     ],
     ctaText: "Start Now — It's Free",
     secondaryCtaText: "Learn More",
   },
-  projects: {
-    tagline: "Project Excellence",
-    headline: "Deliver projects on time, every time",
-    description: "Plan projects, assign tasks, track time, and collaborate with your team to deliver exceptional results.",
-    features: [
-      {
-        icon: CheckCircle,
-        title: "Task Management",
-        description: "Break projects into tasks with assignments and deadlines.",
-      },
-      {
-        icon: Clock,
-        title: "Time Tracking",
-        description: "Track billable hours and generate timesheets automatically.",
-      },
-      {
-        icon: Users,
-        title: "Team Collaboration",
-        description: "Comment, share files, and keep everyone aligned.",
-      },
-      {
-        icon: BarChart3,
-        title: "Project Analytics",
-        description: "Monitor progress, budgets, and profitability in real-time.",
-      },
-    ],
-    benefits: [
-      { text: "Improve project profitability by 25%" },
-      { text: "Accurate time and billing" },
-      { text: "Better resource utilization" },
-      { text: "Happy clients, repeat business" },
-    ],
-    ctaText: "Start Now — It's Free",
-    secondaryCtaText: "See Demo",
-  },
+
   reports: {
     tagline: "Business Intelligence",
     headline: "Data-driven decisions, faster growth",
@@ -361,40 +152,6 @@ export const APP_CONTENT: Record<string, AppContent> = {
     secondaryCtaText: "Explore Reports",
   },
   // documents + sign + spreadsheets retired 2026-05-09 — entries removed.
-  sms: {
-    tagline: "SMS Notifications",
-    headline: "Keep customers informed via SMS",
-    description: "Send transactional SMS notifications for invoices, payments, and more using your own Twilio account. You control the billing.",
-    features: [
-      {
-        icon: MessageSquare,
-        title: "Transactional SMS",
-        description: "Automatically notify customers when invoices are posted or payments received.",
-      },
-      {
-        icon: Zap,
-        title: "Event-Driven",
-        description: "Configure which business events trigger SMS — fully customizable per event.",
-      },
-      {
-        icon: ScrollText,
-        title: "Message Templates",
-        description: "Create reusable templates with dynamic variables like customer name and amount.",
-      },
-      {
-        icon: Shield,
-        title: "BYO Provider",
-        description: "Bring your own Twilio account. Credentials stored securely, billed directly by Twilio.",
-      },
-    ],
-    benefits: [
-      { text: "Improve payment collection rates" },
-      { text: "Keep customers in the loop automatically" },
-      { text: "Full audit log of every message sent" },
-      { text: "No platform markup — pay Twilio directly" },
-    ],
-    ctaText: "Configure SMS",
-  },
 };
 
 /**

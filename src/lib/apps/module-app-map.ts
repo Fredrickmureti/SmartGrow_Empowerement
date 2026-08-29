@@ -15,28 +15,24 @@ import type { PermissionModule, PermissionGroupRule } from "@/lib/permissions";
  * A user needs `can_read` on at least one module mapped to an app to see that app.
  */
 export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
-  contacts:    ["contacts", "crm"],
-  products:    ["inventory"],
-  sales:       ["sales"],
-  purchases:   ["purchases"],
+  contacts:    ["contacts"],
   financials:  ["finance", "reports"],
-  // HR domain — one module per Odoo-aligned sub-app
   employees:   ["employees"],
-  leave:       ["time-off"],
-  attendance:  ["attendance"],
-  recruitment: [], // retired 2026-05-09
-  payroll:     ["payroll"],
-  // Deprecated aliases — kept as keys to satisfy the PermissionModule enum
-  // but no longer grant lateral visibility to other apps. Legacy `hr` is fully
-  // split into 5 sub-apps (employees/time-off/attendance/payroll/recruitment);
-  // legacy `timesheets` only grants visibility to its own app.
-  hr:          [],
-  timesheets:  ["timesheets"],
-  projects:    ["projects"],
-  pos:         ["pos"],
-  // sign: retired 2026-05-09
   settings:    ["platform", "studio"],
   team:        ["platform"],
+  // Retired domains — the keys remain to satisfy the PermissionModule enum,
+  // but they grant visibility to no app because no such app is registered.
+  products:    [],
+  sales:       [],
+  purchases:   [],
+  leave:       [],
+  attendance:  [],
+  recruitment: [],
+  payroll:     [],
+  hr:          [],
+  timesheets:  [],
+  projects:    [],
+  pos:         [],
 };
 
 /**
@@ -67,18 +63,14 @@ export function getAccessibleAppIdsFromGroupRules(groupRules: PermissionGroupRul
 
 /**
  * Core / always-on permission modules that exist independently of any
- * installable app surface. Settings + Team + the financial backbone
- * (financials/sales/purchases/contacts/products) ship with every workspace
- * and must always be configurable in Access Groups regardless of which
- * apps are installed.
+ * installable app surface. Settings, Team, Contacts and the financial
+ * backbone ship with every workspace and must always be configurable in
+ * Access Groups regardless of which apps are installed.
  */
 export const ALWAYS_ON_PERMISSION_MODULES: ReadonlySet<PermissionModule> = new Set([
   "settings",
   "team",
   "contacts",
-  "products",
-  "sales",
-  "purchases",
   "financials",
 ]);
 

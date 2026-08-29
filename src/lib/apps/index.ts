@@ -1,7 +1,10 @@
 /**
  * App Registry Module
- * 
+ *
  * Centralized exports for the Odoo-style app system.
+ * Retired apps (Sales, Purchases, Inventory, Warehouse, POS, CRM, Projects,
+ * SMS, Hardware, and the HR sub-apps other than Employees) are no longer
+ * exported — they are not part of the microfinance platform.
  */
 
 // Types
@@ -11,24 +14,14 @@ export * from "./types";
 export {
   APP_REGISTRY,
   FINANCE_APP,
-  SALES_APP,
   CONTACTS_APP,
-  PURCHASES_APP,
-  INVENTORY_APP,
-  POS_APP,
-  CRM_APP,
   HR_APP,
   EMPLOYEES_APP,
-  TIME_OFF_APP,
-  ATTENDANCE_APP,
-  TIMESHEETS_APP,
-  PAYROLL_APP,
-  // RECRUITMENT_APP retired 2026-05-09
-  PROJECTS_APP,
+  REPORTS_APP,
   STUDIO_APP,
   PLATFORM_APP,
-  SMS_APP,
-  HARDWARE_APP,
+  DASHBOARD_APP,
+  ME_APP,
   getAppById,
   getAppByPath,
   getModuleByPath,
