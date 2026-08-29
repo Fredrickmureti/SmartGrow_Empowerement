@@ -692,6 +692,676 @@ export type Database = {
           },
         ]
       }
+      document_artifacts: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          byte_size: number | null
+          content_sha256: string | null
+          copies: number | null
+          created_at: string
+          document_id: string | null
+          document_number: string | null
+          document_record_id: string | null
+          document_type: string
+          id: string
+          intent: string | null
+          metadata: Json
+          mime_type: string | null
+          organization_id: string
+          paper_format: string | null
+          policy_id: string | null
+          render_mode: string | null
+          rendered_by: string | null
+          rendered_via: string | null
+          storage_bucket: string
+          storage_path: string
+          superseded_by: string | null
+          supersedes_id: string | null
+          template_id: string | null
+          template_version: number | null
+          version: number
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          byte_size?: number | null
+          content_sha256?: string | null
+          copies?: number | null
+          created_at?: string
+          document_id?: string | null
+          document_number?: string | null
+          document_record_id?: string | null
+          document_type: string
+          id?: string
+          intent?: string | null
+          metadata?: Json
+          mime_type?: string | null
+          organization_id: string
+          paper_format?: string | null
+          policy_id?: string | null
+          render_mode?: string | null
+          rendered_by?: string | null
+          rendered_via?: string | null
+          storage_bucket: string
+          storage_path: string
+          superseded_by?: string | null
+          supersedes_id?: string | null
+          template_id?: string | null
+          template_version?: number | null
+          version?: number
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          byte_size?: number | null
+          content_sha256?: string | null
+          copies?: number | null
+          created_at?: string
+          document_id?: string | null
+          document_number?: string | null
+          document_record_id?: string | null
+          document_type?: string
+          id?: string
+          intent?: string | null
+          metadata?: Json
+          mime_type?: string | null
+          organization_id?: string
+          paper_format?: string | null
+          policy_id?: string | null
+          render_mode?: string | null
+          rendered_by?: string | null
+          rendered_via?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          superseded_by?: string | null
+          supersedes_id?: string | null
+          template_id?: string | null
+          template_version?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_artifacts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_artifacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_artifacts_document_record_id_fkey"
+            columns: ["document_record_id"]
+            isOneToOne: false
+            referencedRelation: "document_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_artifacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_artifacts_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "document_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_artifacts_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "document_artifacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_emails: {
+        Row: {
+          body: string | null
+          business_id: string | null
+          cc_emails: string[] | null
+          created_at: string
+          document_id: string
+          document_record_id: string | null
+          document_type: string
+          error_message: string | null
+          id: string
+          organization_id: string
+          provider_message_id: string | null
+          recipient_email: string
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          body?: string | null
+          business_id?: string | null
+          cc_emails?: string[] | null
+          created_at?: string
+          document_id: string
+          document_record_id?: string | null
+          document_type: string
+          error_message?: string | null
+          id?: string
+          organization_id: string
+          provider_message_id?: string | null
+          recipient_email: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          body?: string | null
+          business_id?: string | null
+          cc_emails?: string[] | null
+          created_at?: string
+          document_id?: string
+          document_record_id?: string | null
+          document_type?: string
+          error_message?: string | null
+          id?: string
+          organization_id?: string
+          provider_message_id?: string | null
+          recipient_email?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_emails_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_emails_document_record_id_fkey"
+            columns: ["document_record_id"]
+            isOneToOne: false
+            referencedRelation: "document_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_emails_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_header_footer: {
+        Row: {
+          ast: Json
+          business_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          ast?: Json
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          ast?: Json
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_header_footer_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_header_footer_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_print_policies: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          copies: number
+          created_at: string
+          document_type: string
+          id: string
+          organization_id: string
+          paper_format: string | null
+          render_mode: string | null
+          role_code: string | null
+          trigger: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          copies?: number
+          created_at?: string
+          document_type: string
+          id?: string
+          organization_id: string
+          paper_format?: string | null
+          render_mode?: string | null
+          role_code?: string | null
+          trigger?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          copies?: number
+          created_at?: string
+          document_type?: string
+          id?: string
+          organization_id?: string
+          paper_format?: string | null
+          render_mode?: string | null
+          role_code?: string | null
+          trigger?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_print_policies_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_print_policies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_print_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_records: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          document_date: string | null
+          document_number: string | null
+          id: string
+          kind_code: string
+          locale: string | null
+          metadata: Json
+          organization_id: string
+          party_id: string | null
+          party_kind: string | null
+          snapshot: Json | null
+          source_doc_id: string
+          source_doc_type: string
+          source_module: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          document_date?: string | null
+          document_number?: string | null
+          id?: string
+          kind_code: string
+          locale?: string | null
+          metadata?: Json
+          organization_id: string
+          party_id?: string | null
+          party_kind?: string | null
+          snapshot?: Json | null
+          source_doc_id: string
+          source_doc_type: string
+          source_module: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          document_date?: string | null
+          document_number?: string | null
+          id?: string
+          kind_code?: string
+          locale?: string | null
+          metadata?: Json
+          organization_id?: string
+          party_id?: string | null
+          party_kind?: string | null
+          snapshot?: Json | null
+          source_doc_id?: string
+          source_doc_type?: string
+          source_module?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_records_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_records_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_template_ast: {
+        Row: {
+          ast: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          published_at: string | null
+          template_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ast?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          published_at?: string | null
+          template_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ast?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          published_at?: string | null
+          template_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_template_ast_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_templates: {
+        Row: {
+          ast: Json
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          footer_id: string | null
+          header_id: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          organization_id: string
+          paper_format: string | null
+          settings: Json
+          template_type: string
+          theme_id: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ast?: Json
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          footer_id?: string | null
+          header_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          organization_id: string
+          paper_format?: string | null
+          settings?: Json
+          template_type: string
+          theme_id?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ast?: Json
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          footer_id?: string | null
+          header_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          paper_format?: string | null
+          settings?: Json
+          template_type?: string
+          theme_id?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_templates_footer_id_fkey"
+            columns: ["footer_id"]
+            isOneToOne: false
+            referencedRelation: "document_header_footer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_templates_header_id_fkey"
+            columns: ["header_id"]
+            isOneToOne: false
+            referencedRelation: "document_header_footer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_templates_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "document_theme"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_theme: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          organization_id: string
+          tokens: Json
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          organization_id: string
+          tokens?: Json
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          tokens?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_theme_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_theme_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body: string
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          subject: string
+          template_key: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          subject: string
+          template_key: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          subject?: string
+          template_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exchange_rates: {
         Row: {
           created_at: string
@@ -779,6 +1449,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      format_registry: {
+        Row: {
+          created_at: string
+          ext: string
+          format: string
+          label: string
+          mime: string
+          role_hint: string | null
+          writer: string | null
+        }
+        Insert: {
+          created_at?: string
+          ext: string
+          format: string
+          label: string
+          mime: string
+          role_hint?: string | null
+          writer?: string | null
+        }
+        Update: {
+          created_at?: string
+          ext?: string
+          format?: string
+          label?: string
+          mime?: string
+          role_hint?: string | null
+          writer?: string | null
+        }
+        Relationships: []
       }
       invoice_items: {
         Row: {
@@ -1048,6 +1748,63 @@ export type Database = {
           },
         ]
       }
+      media_profiles: {
+        Row: {
+          active: boolean
+          business_id: string | null
+          created_at: string
+          dpi: number | null
+          height_mm: number
+          id: string
+          is_default: boolean
+          name: string
+          org_id: string
+          updated_at: string
+          width_mm: number
+        }
+        Insert: {
+          active?: boolean
+          business_id?: string | null
+          created_at?: string
+          dpi?: number | null
+          height_mm: number
+          id?: string
+          is_default?: boolean
+          name: string
+          org_id: string
+          updated_at?: string
+          width_mm: number
+        }
+        Update: {
+          active?: boolean
+          business_id?: string | null
+          created_at?: string
+          dpi?: number | null
+          height_mm?: number
+          id?: string
+          is_default?: boolean
+          name?: string
+          org_id?: string
+          updated_at?: string
+          width_mm?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_invitations: {
         Row: {
           accepted_at: string | null
@@ -1205,6 +1962,96 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      output_dispatch_log: {
+        Row: {
+          artifact_id: string | null
+          branch_id: string | null
+          business_id: string | null
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          destination: string | null
+          detail: Json
+          disposition: string | null
+          document_record_id: string | null
+          id: string
+          intent: string | null
+          medium: string | null
+          organization_id: string | null
+          status: string | null
+        }
+        Insert: {
+          artifact_id?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          destination?: string | null
+          detail?: Json
+          disposition?: string | null
+          document_record_id?: string | null
+          id?: string
+          intent?: string | null
+          medium?: string | null
+          organization_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          artifact_id?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          destination?: string | null
+          detail?: Json
+          disposition?: string | null
+          document_record_id?: string | null
+          id?: string
+          intent?: string | null
+          medium?: string | null
+          organization_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "output_dispatch_log_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "document_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "output_dispatch_log_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "output_dispatch_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "output_dispatch_log_document_record_id_fkey"
+            columns: ["document_record_id"]
+            isOneToOne: false
+            referencedRelation: "document_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "output_dispatch_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -1653,6 +2500,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ensure_document_record: {
+        Args: {
+          p_branch_id?: string
+          p_business_id?: string
+          p_currency?: string
+          p_document_date?: string
+          p_document_number?: string
+          p_kind_code: string
+          p_locale?: string
+          p_metadata?: Json
+          p_organization_id: string
+          p_party_id?: string
+          p_party_kind?: string
+          p_snapshot?: Json
+          p_source_doc_id: string
+          p_source_doc_type: string
+          p_source_module: string
+        }
+        Returns: string
+      }
       get_user_organizations: { Args: { _user_id: string }; Returns: string[] }
       has_role: {
         Args: {
