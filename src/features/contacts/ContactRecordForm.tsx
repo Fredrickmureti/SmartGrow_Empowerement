@@ -28,7 +28,7 @@ import { CountryCombobox } from "@/components/contacts/CountryCombobox";
 import { ParentCompanyCombobox } from "@/components/contacts/ParentCompanyCombobox";
 import { CreditManagementSection } from "@/components/contacts/CreditManagementSection";
 import { ContactAddressBook } from "./ContactAddressBook";
-import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
+import { AccountSelectField } from "@/components/finance/AccountSelectField";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { useContactsPaginated, type Contact } from "@/hooks/useContactsPaginated";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -519,7 +519,7 @@ export function ContactRecordForm({
               customer.
             </p>
             <div className="space-y-4">
-              <ProductAccountSelector
+              <AccountSelectField
                 label="Default Receivable Account"
                 value={formData.default_receivable_account_id}
                 onChange={(v) =>
@@ -546,7 +546,7 @@ export function ContactRecordForm({
               vendor.
             </p>
             <div className="space-y-4">
-              <ProductAccountSelector
+              <AccountSelectField
                 label="Default Expense Account"
                 value={formData.default_expense_account_id}
                 onChange={(v) =>
@@ -556,7 +556,7 @@ export function ContactRecordForm({
                 defaultKey="operating_expenses_id"
                 helpText="Debited by default on bills from this vendor"
               />
-              <ProductAccountSelector
+              <AccountSelectField
                 label="Default Payable Account"
                 value={formData.default_payable_account_id}
                 onChange={(v) =>
