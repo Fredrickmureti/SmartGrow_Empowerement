@@ -103,37 +103,6 @@ export const FINANCE_APP: AppDefinition = {
   ],
 };
 
-/**
- * Sales App - Customer invoicing, orders, and payments
- */
-export const SALES_APP: AppDefinition = {
-  id: "sales",
-  name: "Sales",
-  description: "Invoicing, quotes, orders, and customer payments",
-  icon: Receipt,
-  color: "hsl(217, 91%, 60%)", // Blue
-  basePath: "/sales",
-  requiredPlan: "starter",
-  requiredPermissions: ["viewSales"],
-  sortOrder: 2,
-  defaultModule: "dashboard",
-  internalOnly: true,
-  modules: [
-    { id: "dashboard", name: "Dashboard", path: "/dashboard", icon: Receipt, permission: "viewSales" },
-    { id: "invoices", name: "Invoices", path: "/invoices", icon: FileText, permission: "viewSales" },
-    { id: "recurring", name: "Recurring Invoices", path: "/recurring", icon: Receipt, permission: "viewSales" },
-    { id: "estimates", name: "Estimates", path: "/estimates", icon: FileText, permission: "viewSales" },
-    { id: "proforma", name: "Proforma Invoices", path: "/proforma", icon: FileCheck, permission: "viewSales" },
-    { id: "orders", name: "Sales Orders", path: "/orders", icon: ClipboardList, permission: "viewSales" },
-    { id: "delivery-notes", name: "Delivery Notes", path: "/delivery-notes", icon: Truck, permission: "viewSales" },
-    { id: "payments", name: "Customer Payments", path: "/payments", icon: Wallet, permission: "viewSales" },
-    { id: "statements", name: "Customer Statements", path: "/statements", icon: FileText, permission: "viewSales" },
-    { id: "collections", name: "Collections", path: "/collections", icon: HandCoins, permission: "viewSales" },
-    { id: "returns", name: "Sales Returns", path: "/returns", icon: RotateCcw, permission: "viewSales" },
-    { id: "credit-notes", name: "Credit Notes", path: "/credit-notes", icon: CreditCard, permission: "viewSales" },
-    { id: "contacts", name: "Customers", path: "/customers", icon: Users, permission: "viewContacts" },
-  ],
-};
 
 /**
  * Contacts App - Central hub for all contacts (Odoo-style)
@@ -158,147 +127,10 @@ export const CONTACTS_APP: AppDefinition = {
   ],
 };
 
-/**
- * Purchases App - Vendor bills, expenses, and purchase orders
- */
-export const PURCHASES_APP: AppDefinition = {
-  id: "purchases",
-  name: "Purchases",
-  description: "Bills, expenses, and supplier management",
-  icon: ShoppingCart,
-  color: "hsl(25, 95%, 53%)", // Orange
-  basePath: "/purchases",
-  requiredPlan: "starter",
-  requiredPermissions: ["viewPurchases"],
-  sortOrder: 4,
-  defaultModule: "bills",
-  internalOnly: true,
-  modules: [
-    { id: "bills", name: "Bills", path: "/bills", icon: Receipt, permission: "viewPurchases" },
-    { id: "rfqs", name: "RFQs", path: "/rfqs", icon: FileText, permission: "viewPurchases", description: "Request for Quotation - compare vendor quotes" },
-    { id: "purchase-orders", name: "Purchase Orders", path: "/orders", icon: ShoppingCart, permission: "viewPurchases" },
-    { id: "expenses", name: "Expenses", path: "/expenses", icon: Receipt, permission: "viewPurchases" },
-    { id: "returns", name: "Purchase Returns", path: "/returns", icon: RotateCcw, permission: "viewPurchases" },
-    { id: "credit-notes", name: "Vendor Credits", path: "/credit-notes", icon: FileText, permission: "viewPurchases", description: "Vendor credit notes and debit notes" },
-    { id: "price-lists", name: "Supplier Conditions", path: "/supplier-conditions", icon: Tags, permission: "viewPurchases", description: "Supplier prices, price breaks, purchase unit, minimum order quantity and lead times" },
-    { id: "statements", name: "Vendor Statements", path: "/statements", icon: FileText, permission: "viewPurchases", description: "Generate and send AP statements to vendors" },
-    { id: "aged-payables", name: "Aged Payables", path: "/aged-payables", icon: BarChart3, permission: "viewPurchases", description: "Outstanding payables aging report by vendor" },
-    { id: "vendors", name: "Suppliers", path: "/vendors", icon: Users, permission: "viewContacts" },
-  ],
-};
 
-/**
- * Inventory App - Products, stock, and warehouses
- */
-export const INVENTORY_APP: AppDefinition = {
-  id: "inventory",
-  name: "Inventory",
-  description: "Products, stock levels, and warehouse management",
-  icon: Package,
-  color: "hsl(262, 83%, 58%)", // Purple
-  basePath: "/inventory-app",
-  requiredPlan: "starter",
-  requiredPermissions: ["viewProducts"],
-  sortOrder: 5,
-  defaultModule: "dashboard",
-  internalOnly: true,
-  modules: [
-    { id: "dashboard", name: "Dashboard", path: "/dashboard", icon: Package, permission: "viewProducts" },
-    { id: "products", name: "Products", path: "/products", icon: Package, permission: "viewProducts" },
-    { id: "stock", name: "Stock Levels", path: "/stock", icon: Package, permission: "viewProducts" },
-    { id: "warehouses", name: "Warehouses", path: "/warehouses", icon: Warehouse, permission: "viewProducts" },
-    { id: "replenishment", name: "Replenishment", path: "/replenishment", icon: RefreshCw, permission: "viewProducts", description: "Auto-generated purchase orders from reorder rules" },
-    { id: "scrap", name: "Scrap / Waste", path: "/scrap", icon: Package, permission: "manageProducts" },
-    { id: "count", name: "Physical Count", path: "/count", icon: Package, permission: "manageProducts" },
-    { id: "uom", name: "Units of Measure", path: "/uom", icon: Package, permission: "manageProducts", description: "Define UoM categories and conversions" },
-    { id: "reports", name: "Stock Reports", path: "/reports", icon: BarChart3, permission: "viewReports" },
-  ],
-};
 
-/**
- * Warehouse App — physical-execution layer above Inventory (ADR 0079).
- *
- * Owns location, task, dock, appointment, wave, pick, pack, load. Never
- * owns stock quantity/value — Inventory stays canonical. Mounted at
- * `/warehouse-app/*` in src/App.tsx.
- */
-export const WAREHOUSE_APP: AppDefinition = {
-  id: "warehouse",
-  name: "Warehouse",
-  description: "Operator tasks, receiving, put-away, picking, packing, dispatch",
-  icon: Warehouse,
-  color: "hsl(24, 95%, 53%)", // Orange — distinct from Inventory purple
-  basePath: "/warehouse-app",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewProducts"],
-  sortOrder: 5.5,
-  defaultModule: "dashboard",
-  internalOnly: true,
-  modules: [
-    { id: "dashboard", name: "Overview", path: "/dashboard", icon: LayoutGrid, permission: "viewProducts" },
-    { id: "warehouses", name: "Warehouses", path: "/warehouses", icon: Warehouse, permission: "viewProducts" },
-    { id: "layout", name: "Layout", path: "/layout", icon: Warehouse, permission: "manageProducts", description: "Zones, aisles, racks, shelves, bins" },
-    { id: "receiving", name: "Receiving", path: "/receiving", icon: Truck, permission: "viewProducts" },
-    { id: "putaway", name: "Put-away", path: "/putaway", icon: Package, permission: "viewProducts" },
-    { id: "tasks", name: "Operator tasks", path: "/tasks", icon: ClipboardList, permission: "viewProducts" },
-    { id: "picking", name: "Picking", path: "/picking", icon: Package, permission: "viewProducts" },
-    { id: "packing", name: "Packing", path: "/packing", icon: Package, permission: "viewProducts" },
-    { id: "dispatch", name: "Dispatch", path: "/dispatch", icon: Truck, permission: "viewProducts" },
-    { id: "qc", name: "Quality control", path: "/qc", icon: Shield, permission: "viewProducts" },
-  ],
-};
 
-/**
- * POS App - Point of Sale operations
- * Note: Terminal requires a register ID parameter, so we link to the POS dashboard
- * which allows selecting a register before launching the terminal
- */
-export const POS_APP: AppDefinition = {
-  id: "pos",
-  name: "Point of Sale",
-  description: "Retail sales, terminal operations, and cash management",
-  icon: Monitor,
-  color: "hsl(346, 77%, 49%)", // Rose
-  basePath: "/pos",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewPOS"],
-  sortOrder: 6,
-  defaultModule: "dashboard",
-  internalOnly: true,
-  modules: [
-    { id: "dashboard", name: "POS Dashboard", path: "", icon: Monitor, permission: "viewPOS" },
-    // Restaurant mode modules - conditionally visible based on settings
-    { id: "floor-plan", name: "Floor Plan", path: "/floor-plan", icon: LayoutGrid, permission: "viewPOS", featureFlag: "restaurant_mode", hidden: true },
-    { id: "kitchen", name: "Kitchen Display", path: "/kitchen", icon: ChefHat, permission: "viewPOS", featureFlag: "kitchen_display", hidden: true },
-    { id: "bookings", name: "Reservations", path: "/bookings", icon: Calendar, permission: "viewPOS", featureFlag: "table_bookings", hidden: true },
-    { id: "reports", name: "POS Reports", path: "/reports", icon: BarChart3, permission: "viewPOSReports" },
-    { id: "payment-terminals", name: "Payment Terminals", path: "/payment-terminals", icon: CreditCard, permission: "managePOS", description: "Configure Stripe Terminal, Adyen, Verifone, or Square credentials" },
-    { id: "settings", name: "POS Settings", path: "/settings", icon: Settings, permission: "managePOS" },
-  ],
-};
 
-/**
- * CRM App - Customer relationship management
- */
-export const CRM_APP: AppDefinition = {
-  id: "crm",
-  name: "CRM",
-  description: "Pipeline, leads, and customer activities",
-  icon: Briefcase,
-  color: "hsl(173, 80%, 40%)", // Teal
-  basePath: "/crm-app",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewContacts"],
-  sortOrder: 7,
-  defaultModule: "dashboard",
-  internalOnly: true,
-  modules: [
-    { id: "dashboard", name: "Dashboard", path: "/dashboard", icon: Briefcase, permission: "viewContacts" },
-    { id: "pipeline", name: "Pipeline", path: "/pipeline", icon: Briefcase, permission: "viewContacts" },
-    { id: "activities", name: "Activities", path: "/activities", icon: CalendarCheck, permission: "viewContacts" },
-    { id: "contacts", name: "All Contacts", path: "/contacts", icon: Users, permission: "viewContacts" },
-  ],
-};
 
 /**
  * Employees App — Foundational HR app (Odoo `hr` equivalent).
@@ -335,228 +167,17 @@ export const EMPLOYEES_APP: AppDefinition = {
   ],
 };
 
-/**
- * Time Off App — Odoo `hr_holidays` equivalent.
- * Admin surface for leave types, allocations, public holidays, and approvals.
- * Self-service leave requests live under `/me/leave`.
- */
-export const TIME_OFF_APP: AppDefinition = {
-  id: "time-off",
-  name: "Time Off",
-  description: "Leave types, allocations, public holidays, and approvals",
-  icon: CalendarOff,
-  color: "hsl(199, 89%, 48%)", // Sky blue
-  basePath: "/hr",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewLeave", "approveLeave", "manageLeaveTypes"],
-  sortOrder: 8.1,
-  defaultModule: "leave",
-  internalOnly: true,
-  dependsOn: ["employees"],
-  modules: [
-    { id: "leave", name: "Leave Requests", path: "/leave", icon: CalendarOff, permission: "viewLeave" },
-    { id: "leave-allocations", name: "Allocations", path: "/leave/allocations", icon: CalendarCheck, permission: "manageLeaveTypes" },
-  ],
-};
 
-/**
- * Attendance App — Odoo `hr_attendance` equivalent.
- * Admin clock-in oversight, work schedules, and timesheet approvals.
- * Drives work-entries that feed Payroll. Personal attendance/timesheet
- * entry lives under `/me/attendance` and `/me/timesheets`.
- */
-export const ATTENDANCE_APP: AppDefinition = {
-  id: "attendance",
-  name: "Attendances",
-  description: "Attendance oversight, work schedules, and timesheet approvals",
-  icon: Clock,
-  color: "hsl(173, 80%, 40%)", // Teal
-  basePath: "/hr",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewAttendance", "manageAttendance", "approveTimesheets"],
-  sortOrder: 8.2,
-  defaultModule: "attendance",
-  internalOnly: true,
-  dependsOn: ["employees"],
-  modules: [
-    { id: "attendance", name: "Attendance", path: "/attendance", icon: Clock, permission: "viewAttendance" },
-    { id: "corrections", name: "Corrections", path: "/attendance/corrections", icon: FileEdit, permission: "manageAttendance" },
-    { id: "reports", name: "Reports", path: "/attendance/reports", icon: FileText, permission: "viewAttendance" },
-    { id: "settings", name: "Attendance Settings", path: "/attendance/settings", icon: Settings, permission: "manageAttendance" },
-    { id: "kiosk", name: "Kiosk Mode", path: "/kiosk/attendance", icon: ShieldCheck, permission: "viewAttendance" },
-    { id: "work-schedules", name: "Work Schedules", path: "/work-schedules", icon: Calendar, permission: "manageWorkSchedule" },
-    { id: "timesheets", name: "Timesheets", path: "/timesheets", icon: Clock, permission: "approveTimesheets" },
-  ],
-};
 
-/**
- * Payroll App — Odoo `hr_payroll` equivalent.
- * Sensitive money-touching app. Strictly gated by payroll permissions.
- * Requires Employees + Contracts + Statutory rules to be configured before use.
- */
-export const PAYROLL_APP: AppDefinition = {
-  id: "payroll",
-  name: "Payroll",
-  description: "Salary structures, payroll runs, payslips, loans, and remittances",
-  icon: Calculator,
-  color: "hsl(142, 76%, 36%)", // Emerald green
-  basePath: "/hr",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewPayroll", "runPayroll", "managePayroll"],
-  sortOrder: 8.3,
-  defaultModule: "payroll",
-  internalOnly: true,
-  dependsOn: ["employees", "finance"],
-  modules: [
-    { id: "payroll", name: "Payroll Runs", path: "/payroll", icon: Calculator, permission: "viewPayroll" },
-    { id: "loans", name: "Loans & Advances", path: "/payroll/loans", icon: Wallet, permission: "manageEmployeeLoans" },
-    { id: "statutory-rules", name: "Statutory Rules", path: "/payroll/statutory-rules", icon: Shield, permission: "manageStatutoryRules" },
-    { id: "remittances", name: "Remittances", path: "/remittances", icon: Landmark, permission: "viewRemittances" },
-    { id: "settings", name: "Payroll Settings", path: "/payroll/configuration", icon: Settings, permission: "managePayroll" },
-  ],
-};
 
-/**
- * Timesheets App — Odoo `hr_timesheet` equivalent.
- * Admin-side timesheet review/approval surface. Self-service entry lives
- * under `/me/timesheets`. Depends on Employees; optionally integrates with
- * Projects and Payroll if those apps are also installed.
- */
-export const TIMESHEETS_APP: AppDefinition = {
-  id: "timesheets",
-  name: "Timesheets",
-  description: "Team time approvals, reports, and project time billing (admin surface; employees enter time under My Workspace)",
-  icon: Clock,
-  color: "hsl(199, 89%, 48%)", // Sky blue
-  basePath: "/timesheets",
-  requiredPlan: "professional",
-  requiredPermissions: ["approveTimesheets"],
-  sortOrder: 8.25,
-  defaultModule: "approvals",
-  internalOnly: true,
-  dependsOn: ["employees"],
-  modules: [
-    { id: "approvals", name: "Approvals", path: "", icon: ClipboardList, permission: "approveTimesheets" },
-    { id: "team", name: "Team", path: "/team", icon: Users, permission: "viewTeamTimesheets" },
-    { id: "by-project", name: "By Project", path: "/by-project", icon: BarChart3, permission: "viewTimesheets" },
-    { id: "reports", name: "Reports", path: "/reports", icon: BarChart3, permission: "viewTimesheets" },
-    { id: "settings", name: "Settings", path: "/settings", icon: Settings, permission: "approveTimesheets" },
-  ],
-};
 
 /**
  * RECRUITMENT_APP retired 2026-05-09 — out of accounting scope.
  */
 
-/**
- * Talent App — Performance, Goals, Competencies, Learning, Development.
- *
- * The "Talent Management" surface for HR and managers. Connects cycles →
- * goals → reviews → competency assessments → development plans → training.
- * Employee-facing surfaces for the same data live under `/me/talent/*`.
- */
-export const TALENT_APP: AppDefinition = {
-  id: "talent",
-  name: "Talent",
-  description: "Performance cycles, goals, competencies, reviews, development plans, and learning",
-  icon: Target,
-  color: "hsl(262, 83%, 58%)",
-  basePath: "/hr/talent",
-  requiredPlan: "professional",
-  requiredPermissions: ["manageEmployees"],
-  sortOrder: 8.4,
-  defaultModule: "dashboard",
-  internalOnly: true,
-  dependsOn: ["employees"],
-  modules: [
-    { id: "dashboard",    name: "Dashboard",         path: "/dashboard",    icon: LayoutGrid,    permission: "manageEmployees" },
-    { id: "cycles",       name: "Performance Cycles",path: "/cycles",       icon: CalendarCheck, permission: "manageEmployees" },
-    { id: "goals",        name: "Goals",             path: "/goals",        icon: Target,        permission: "manageEmployees" },
-    { id: "reviews",      name: "Reviews",           path: "/reviews",      icon: ClipboardList, permission: "manageEmployees" },
-    { id: "competencies", name: "Competencies",      path: "/competencies", icon: Briefcase,     permission: "manageEmployees" },
-    { id: "development",  name: "Development Plans", path: "/development",  icon: PenTool,       permission: "manageEmployees" },
-    { id: "learning",     name: "Learning",          path: "/learning",     icon: BookOpen,      permission: "manageEmployees" },
-    { id: "nine-box",     name: "9-Box Grid",        path: "/nine-box",     icon: LayoutGrid,    permission: "manageEmployees" },
-    { id: "succession",   name: "Succession",        path: "/succession",   icon: Shield,        permission: "manageEmployees" },
-    { id: "merit",        name: "Merit & Comp",      path: "/merit",        icon: DollarSign,    permission: "manageEmployees" },
-    { id: "learning-paths", name: "Learning Paths",  path: "/learning/paths", icon: GraduationCap, permission: "manageEmployees" },
-    { id: "analytics",    name: "Analytics",         path: "/analytics",    icon: BarChart3,     permission: "manageEmployees" },
-  ],
-};
 
 
-/**
- * Organization App — structural surface for the HR domain.
- *
- * Departments, job positions, work locations, branches, org chart, and
- * structural change history. Distinct from Employees (people lifecycle) and
- * from Talent (performance). PlatformShell consumes this directly via the
- * `app` prop on `OrgRoutes`; it shares the `/hr` URL space so it is not
- * resolvable via `getAppByPath`, which is intentional — the dispatcher owns
- * `/hr` routing and hands off to this app's shell.
- */
-export const ORG_APP: AppDefinition = {
-  id: "org",
-  name: "Organization",
-  description: "Departments, positions, locations, hierarchy, and structural change history",
-  icon: Building,
-  color: "hsl(220, 70%, 50%)",
-  basePath: "/hr/org",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewEmployees"],
-  sortOrder: 8.05,
-  defaultModule: "overview",
-  internalOnly: true,
-  dependsOn: ["employees"],
-  modules: [
-    { id: "overview",    name: "Overview",     path: "/",            icon: LayoutDashboard, permission: "viewEmployees" },
-    { id: "departments", name: "Departments",  path: "/departments", icon: Building,        permission: "manageDepartments" },
-    { id: "positions",   name: "Positions",    path: "/positions",   icon: Briefcase,       permission: "viewEmployees" },
-    { id: "locations",   name: "Locations",    path: "/locations",   icon: MapPin,          permission: "viewEmployees" },
-    { id: "chart",       name: "Org Chart",    path: "/chart",       icon: Users,           permission: "viewEmployees" },
-    { id: "history",     name: "Change Log",   path: "/history",     icon: History,         permission: "viewEmployees" },
-  ],
-};
 
-/**
- * Contracts — employment agreement lifecycle (drafts → pending → active →
- * expiring → renewed / amended / terminated).
- *
- * NOT an independently installable app. Contracts is a workspace *inside*
- * the Employees app (like Lifecycle, Document Compliance and HR Reports):
- * it shares the `employees` entitlement, install state and app rail entry,
- * and is never listed in APP_REGISTRY or the marketplace.
- *
- * @deprecated Do not pass this to `<PlatformShell app=...>` or any install /
- * entitlement check — use `EMPLOYEES_APP`. Kept only as a module manifest
- * for nav/command-palette metadata.
- */
-export const CONTRACTS_APP: AppDefinition = {
-
-  id: "contracts",
-  name: "Contracts",
-  description: "Employment contracts, renewals, amendments, and templates",
-  icon: FileText,
-  color: "hsl(280, 60%, 50%)",
-  basePath: "/hr/contracts",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewEmployees"],
-  sortOrder: 8.06,
-  defaultModule: "overview",
-  internalOnly: true,
-  dependsOn: ["employees"],
-  modules: [
-    { id: "overview",   name: "Overview",          path: "/",           icon: LayoutDashboard, permission: "viewEmployees" },
-    { id: "all",        name: "All contracts",     path: "/all",        icon: FileText,        permission: "viewEmployees" },
-    { id: "drafts",     name: "Drafts",            path: "/drafts",     icon: FileEdit,        permission: "viewEmployees" },
-    { id: "pending",    name: "Pending approval",  path: "/pending",    icon: Inbox,           permission: "viewEmployees" },
-    { id: "active",     name: "Active",            path: "/active",     icon: ShieldCheck,     permission: "viewEmployees" },
-    { id: "expiring",   name: "Expiring",          path: "/expiring",   icon: Bell,            permission: "viewEmployees" },
-    { id: "renewals",   name: "Renewals",          path: "/renewals",   icon: RefreshCw,       permission: "viewEmployees" },
-    { id: "amendments", name: "Amendments",        path: "/amendments", icon: PenTool,         permission: "viewEmployees" },
-    { id: "templates",  name: "Templates",         path: "/templates",  icon: FileBox,         permission: "viewEmployees" },
-  ],
-};
 
 
 
@@ -569,33 +190,6 @@ export const CONTRACTS_APP: AppDefinition = {
  */
 export const HR_APP: AppDefinition = EMPLOYEES_APP;
 
-/**
- * Projects App - Project management and timesheets
- */
-export const PROJECTS_APP: AppDefinition = {
-  id: "projects",
-  name: "Projects",
-  description: "Projects, tasks, milestones, profitability and reporting",
-  icon: FolderKanban,
-  color: "hsl(199, 89%, 48%)", // Sky blue
-  basePath: "/projects-app",
-  requiredPlan: "professional",
-  requiredPermissions: ["viewProjects"],
-  sortOrder: 9,
-  defaultModule: "overview",
-  provides: ["projects.analytic-tagging", "projects.task-linking"],
-  modules: [
-    { id: "overview",      name: "Overview",      path: "/overview",      icon: LayoutGrid,    permission: "viewProjects" },
-    { id: "my-tasks",      name: "My Tasks",      path: "/my-tasks",      icon: ListFilter,    permission: "viewProjects" },
-    { id: "tasks",         name: "All Tasks",     path: "/tasks",         icon: ClipboardList, permission: "viewProjects" },
-    { id: "list",          name: "Projects",      path: "/list",          icon: FolderKanban,  permission: "viewProjects" },
-    { id: "milestones",    name: "Milestones",    path: "/milestones",    icon: Target,        permission: "viewProjects" },
-    { id: "documents",     name: "Documents",     path: "/documents",     icon: FileBox,       permission: "viewProjects" },
-    { id: "workload",      name: "Workload",      path: "/workload",      icon: Users,         permission: "viewProjects" },
-    { id: "reports",       name: "Reports",       path: "/reports",       icon: BarChart3,     permission: "viewProjects" },
-    { id: "configuration", name: "Configuration", path: "/configuration", icon: Settings,      permission: "manageProjects" },
-  ],
-};
 
 /**
  * Reports App - Business intelligence and analytics
@@ -707,57 +301,8 @@ export const PLATFORM_APP: AppDefinition = {
   ],
 };
 
-/**
- * Hardware App — workspace-wide device & peripheral registry.
- *
- * Hardware is a PLATFORM concern (Inventory, Warehouse, POS, HR, Mfg all
- * consume printers/scanners/scales), so it lives at /platform/hardware and
- * is reachable from the main app launcher — not buried under POS.
- */
-export const HARDWARE_APP: AppDefinition = {
-  id: "hardware",
-  name: "Hardware",
-  description: "Printers, scanners, scales, displays, cash drawers — shared across all modules",
-  icon: Cpu,
-  color: "hsl(217, 91%, 60%)",
-  basePath: "/platform/hardware",
-  requiredPlan: "starter",
-  requiredPermissions: ["editSettings"],
-  sortOrder: 95,
-  isPlatform: true,
-  defaultModule: "devices",
-  modules: [
-    { id: "devices", name: "Devices", path: "/devices", icon: Cpu, permission: "editSettings", description: "Register, assign, and manage hardware devices per company / branch" },
-    { id: "diagnostics", name: "Diagnostics", path: "/diagnostics", icon: Activity, permission: "editSettings", description: "Live status, ping, and test dispatches for connected devices" },
-  ],
-};
 
 
-/**
- * SMS App - Third-party SMS integration (BYO Twilio)
- */
-export const SMS_APP: AppDefinition = {
-  id: "sms",
-  name: "Twilio SMS",
-  description: "SMS notifications via Twilio (Bring Your Own Account)",
-  icon: MessageSquare,
-  color: "hsl(199, 89%, 48%)",
-  basePath: "/sms",
-  requiredPlan: "starter",
-  requiredPermissions: ["editSettings"],
-  sortOrder: 20,
-  defaultModule: "settings",
-  internalOnly: true,
-  isConfigurationApp: true,
-  modules: [
-    { id: "settings", name: "Configuration", path: "/settings", icon: Settings, permission: "editSettings" },
-    { id: "templates", name: "Templates", path: "/templates", icon: FileText, permission: "editSettings" },
-    { id: "rules", name: "Event Rules", path: "/rules", icon: Zap, permission: "editSettings" },
-    { id: "recipient-groups", name: "Recipient Groups", path: "/recipient-groups", icon: Users, permission: "editSettings" },
-    { id: "opt-outs", name: "Opt-Outs", path: "/opt-outs", icon: Ban, permission: "editSettings" },
-    { id: "log", name: "SMS Log", path: "/log", icon: ScrollText, permission: "editSettings" },
-  ],
-};
 
 /**
  * My Workspace App — personal employee self-service shell.
