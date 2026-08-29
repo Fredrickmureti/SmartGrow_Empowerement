@@ -608,8 +608,9 @@ export function useConsolidationEliminationMutations() {
       tolerance_percent?: number | null;
       difference_policy: EliminationDifferencePolicy;
       difference_group_account_id: string | null;
-
+      tolerance_reason?: string | null;
       notes?: string | null;
+
 
     }) => {
       if (!orgId) throw new Error("No active workspace");
