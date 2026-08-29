@@ -33,7 +33,6 @@ import { AppInstalledGate } from "@/components/apps/AppInstalledGate";
 const EmployeesApp = lazy(() => import("./sub/EmployeesRoutes"));
 const TimeOffApp = lazy(() => import("./sub/TimeOffRoutes"));
 const AttendanceApp = lazy(() => import("./sub/AttendanceRoutes"));
-const PayrollApp = lazy(() => import("./sub/PayrollRoutes"));
 const RecruitmentApp = lazy(() => import("./sub/RecruitmentRoutes"));
 const TalentApp = lazy(() => import("./sub/TalentRoutes"));
 // Wave-1 sub-apps (Contracts, Lifecycle, HR Reports). The standalone Org

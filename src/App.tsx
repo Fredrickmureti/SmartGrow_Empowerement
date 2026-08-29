@@ -247,8 +247,6 @@ const App = () => (
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
-                            {/* Localization pop-out preview — public route (same-origin
-                                localStorage/BroadcastChannel from the opener is the auth). */}} />
 
                            {/* Public: the learning library shows videos the platform
                                admin published for a public audience (RLS enforces
