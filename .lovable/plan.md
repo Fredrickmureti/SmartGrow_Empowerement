@@ -35,7 +35,7 @@ Drive PIN sign-in end to end as the seeded super admin (probe → PIN → sessio
 Gate: signed-in shell with an authoritative role; one module hidden in the rail **and** refused server-side.
 
 ### M2b. Residue closure outside `src/apps`
-Remove the timesheet/attendance/kiosk/statutory-payroll modules still живущие in `src/lib`, `src/hooks/hr`, `src/services/reversal`, `src/test`, plus their registry and SMS-variable references — after tracing each dependency so shared infrastructure is not cut.
+Remove the timesheet/attendance/kiosk/statutory-payroll modules still living in `src/lib`, `src/hooks/hr`, `src/services/reversal`, `src/test`, plus their registry and SMS-variable references — after tracing each dependency so shared infrastructure is not cut.
 Gate: no timesheet/attendance/payroll identifier reachable from any live route; build and tests green.
 
 ### M3. ERP table and module disposition
