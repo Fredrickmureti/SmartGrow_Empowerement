@@ -18,8 +18,7 @@ export type ReversalDocumentType =
   | "goods_receipt"
   | "expense"
   | "vendor_credit_note"
-  | "pos_transaction"
-  | "payroll_run";
+  | "pos_transaction";
 
 export interface ReversalReasonCode {
   code: string;

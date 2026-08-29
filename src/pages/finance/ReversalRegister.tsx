@@ -3,7 +3,7 @@
  *
  * One period-scoped finance surface answering "what was reversed, why, by whom,
  * for how much, and was it approved?" across sales, purchases, receiving, POS
- * and payroll. It reads the canonical `public.reversal_register` view — it never
+ * and point of sale. It reads the canonical `public.reversal_register` view — it never
  * re-derives reversal state per module, because a screen-local union would drift
  * from the writers.
  */
