@@ -100,22 +100,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Check for existing session, gracefully handling stale tokens.
+    // Check for existing session. NOTE: never call signOut() here. This
+    // promise can resolve *after* a sign-in that happened while it was in
+    // flight (PIN login calls setSession from the login form), and signing
+    // out at that point destroys the brand-new session — the user lands on
+    // /home for a frame and is bounced straight back to /login.
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error || !session) {
-        // A session may have been established (PIN login / password login)
-        // while this promise was pending. Tearing it down here is what sent a
-        // freshly signed-in user straight back to /login.
-        console.log('[AUTHDBG] getSession empty, ref=', currentUserIdRef.current);
         if (currentUserIdRef.current) {
           setIsLoading(false);
           return;
         }
-        // Session retrieval failed or no session — clear any stale tokens
-        try {
-          await supabase.auth.signOut({ scope: 'local' });
-        } catch (_) {
-          // Ignore signOut errors
+        // Re-read once: a sign-in may have completed between the two reads.
+        const { data: retry } = await supabase.auth.getSession();
+        if (retry.session) {
+          currentUserIdRef.current = retry.session.user?.id ?? null;
+          setSession(retry.session);
+          setUser(retry.session.user ?? null);
+          setIsLoading(false);
+          return;
         }
         currentUserIdRef.current = null;
         setSession(null);
@@ -132,17 +135,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
-    }).catch(async () => {
+    }).catch(() => {
       // Failed to get session - might be offline or stale refresh token
-      if (!currentUserIdRef.current) {
-        try {
-          await supabase.auth.signOut({ scope: 'local' });
-        } catch (_) {
-          // Ignore
-        }
-      }
       setIsLoading(false);
     });
+
 
     return () => subscription.unsubscribe();
   }, [updateAuthState]);
