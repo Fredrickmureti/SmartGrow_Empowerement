@@ -1,96 +1,78 @@
-# Microfinance Convergence — Verified Handover (29 Aug 2026, 17:3x UTC) and Reworked Plan
+# Microfinance Convergence — Independent Verification (29 Aug 2026, 18:3x UTC) and Reworked Plan
 
-## Phase 1 — What I verified myself this session
+## On "connect Smart Grow Empowerment"
 
-Every line below comes from a direct check (files, dev-server log, database query) made now. Prior claims were treated as unverified.
+Already connected. The attached Supabase project holds exactly one organization, **Smart Grow Empowerment**, one business and one branch, with the PIN/RBAC/finance schema in place. No code change is needed; project connection is switched from the Cloud panel, not from code.
 
-| Item | Verified reality |
+## Phase 1 — What I verified myself, right now
+
+Every row is a direct check made this session (dev-server log, HTTP probe, file search, database query). Previous claims were treated as unverified.
+
+| Claim from the handover | Verified reality |
 | --- | --- |
-| App boots | **FALSE.** `http://localhost:8080/` returns **500**. Cause today is *not* the jiti/Tailwind break the previous note blamed: the SSR log shows `The requested module '@tanstack/router-core' does not provide an export named '_getRenderedMatches'`. |
-| TanStack versions aligned | **FALSE.** Installed: `react-start 1.168.49`, `start-server-core 1.169.31`, `start-plugin-core 1.171.39`, `react-router 1.170.32`. This skew is exactly what produces the missing-export crash. |
-| Database is the Microfinance one | **TRUE.** Connected project `xwxqunklduknceoryrha` holds exactly one organization: **Smart Grow Empowerment**. Nothing AccrualFlow-operational is in it. |
-| Initial user seeded | **TRUE (new since the last note).** `fredrickmureti612@gmail.com` exists in auth, has a profile, and holds an **active `super_admin`** role on Smart Grow Empowerment. |
-| PIN auth backend | **TRUE.** `has_user_pin`, `check_pin_status`, `verify_pin_full`, `set_user_pin`, `verify_pin_unauthenticated`, `disable_user_pin` all present; `src/lib/pinLogin.functions.ts` is the server-function path used by the login forms. Still **never observed end to end**, because the app 500s. |
-| Payroll / attendance / leave excision | **SUBSTANTIALLY TRUE.** `src/apps/hr` is now only `EmployeesRoutes`; no payroll/leave/attendance/timesheet routes, pages, hooks or services remain; `module-app-map` entries are emptied. Residue: explanatory comments across ~20 files, and two live edge functions `reverse-payroll`, `reverse-payroll-payment`. |
-| Chart of accounts / finance data | **EMPTY.** `accounts` = 0 rows. Finance schema exists; no institutional CoA has been established. |
+| "M0 runtime repair" / "GET / → 200" | **FALSE today.** `GET http://localhost:8080/` returns **500**, from *two* distinct breaks: (a) Tailwind's Vite plugin dies with `Cannot find module '../dist/babel.cjs'` out of `jiti`; (b) SSR dies with `'@tanstack/router-core' does not provide an export named '_getRenderedMatches'`. |
+| TanStack versions aligned | **FALSE.** `react-start 1.168.49`, `react-router 1.170.32`, `router-plugin 1.168.35` — the skew that produces the missing-export crash. |
+| Database is the Microfinance one | **TRUE.** One organization: Smart Grow Empowerment. No AccrualFlow operational data (`contacts` = 0). |
+| Super admin seeded | **TRUE.** One active role row exists on the institution. |
+| Payroll edge functions deleted | **TRUE.** No payroll/attendance/timesheet function remains in `supabase/functions` (81 remain overall). |
+| `user_has_module_permission` rebased on microfinance modules | **TRUE.** The function body now carries the `lending` module set. |
+| Excision residue closed | **PARTIALLY TRUE.** Clean inside `src/apps`, but live residue remains elsewhere: `src/lib/timesheets/timesheetWriter.ts`, `src/hooks/hr/useKioskClock.ts`, `useStatutoryFieldConfig.ts`, `src/test/timesheets/*`, plus reversal/registry/SMS references. |
+| Chart of accounts | **EMPTY.** `accounts` = 0 rows. |
 | Microfinance workspace | **NOT STARTED.** `src/apps` = contacts, dashboard, finance, hr, me, platform, platform-admin, reports, studio. |
 
-**Last genuinely completed milestone: the HR/payroll excision (M2b/M3b) plus the seed of the super-admin and institution.** The blocker is the runtime: nothing that renders has been verified.
+**Last genuinely completed milestone: M2 (payroll/attendance excision in `src/apps` + permission rebase) — but M0 has regressed and the app does not render.** Nothing in the UI, PIN login included, has ever been observed working end to end.
 
 ## Phase 2 — Reworked execution order
 
-One migration at a time. Each ends with a migration report (Objective / Changed / Preserved / Removed / Adapted / Database / Dependencies / Verification / Result / Next) and a stop for review.
+One migration at a time, each ending with a report (Objective / Changed / Preserved / Removed / Adapted / Database / Dependencies / Verification / Result / Next) and a stop for review.
 
-### M0 (blocking). Runtime repair — SSR must return 200
-Align the whole TanStack set (`react-start`, `router-core`, `react-router`, `start-server-core`, `start-plugin-core`, `router-plugin`) to one compatible release and remove duplicate copies. Re-check `jiti`/Tailwind only if a new resolution error appears after the alignment.
-Gate: `curl localhost:8080` → 200, shell renders in the preview, dev-server log clean, typecheck clean.
+### M0 (blocking, redo). Runtime repair
+Fix both breaks: reinstall/repair the `jiti` dependency the Tailwind plugin loads, and align the whole TanStack set (`react-start`, `react-router`, `router-core`, `start-server-core`, `start-plugin-core`, `router-plugin`) to one compatible release with no duplicate copies.
+Gate: `GET /` → 200, shell renders in the preview, dev-server log clean, typecheck clean. **This gate is checked from a live browser, not from a build log.**
 
 ### M1. Runtime re-verification of what already exists
-PIN sign-in driven end to end in a real browser (probe → PIN → session → shell) as the seeded super admin. Confirm the app shell, navigation, permissions and one report/document surface actually render. Fix only what that exercise breaks.
+Drive PIN sign-in end to end as the seeded super admin (probe → PIN → session → shell). Confirm navigation, permission gating and one report and one document surface actually render. Fix only what that exercise breaks.
 Gate: signed-in shell with an authoritative role; one module hidden in the rail **and** refused server-side.
 
-### M2. Excision residue closure
-Delete `reverse-payroll` / `reverse-payroll-payment` edge functions, purge stale payroll/attendance/leave prose from registry and app comments, and re-base `user_has_module_permission` on the microfinance module set (clients, lending, collections, payments, finance, reports, settings, team) instead of ERP/HR module names.
-Gate: no payroll/attendance/timesheet identifier reachable from `src/apps` or the functions directory; permission function returns correct answers for the new module set; build + tests green.
+### M2b. Residue closure outside `src/apps`
+Remove the timesheet/attendance/kiosk/statutory-payroll modules still living in `src/lib`, `src/hooks/hr`, `src/services/reversal`, `src/test`, plus their registry and SMS-variable references — after tracing each dependency so shared infrastructure is not cut.
+Gate: no timesheet/attendance/payroll identifier reachable from any live route; build and tests green.
 
-### M3. ERP table disposition + settings/print baseline
-Explicit KEEP / ADAPT / DROP per existing table, business-reasoned:
-- KEEP (platform/finance infrastructure): `accounts`, `journal_entries`, `journal_entry_lines`, `fiscal_periods`, `bank_accounts`, `currencies`, `exchange_rates`, `tax_*`, `audit_logs`, `document_*`, `permission_*`, `user_*`, `organizations`, `businesses`, `branches`.
+### M3. ERP table and module disposition
+Explicit, business-reasoned KEEP / ADAPT / DROP:
+- KEEP (platform + finance infrastructure): `accounts`, `journal_entries`, `journal_entry_lines`, `fiscal_periods`, `bank_accounts`, `currencies`, `exchange_rates`, `tax_*`, `audit_logs`, `document_*`, `permission_*`, `user_*`, `organizations`, `businesses`, `branches`.
+- KEEP as institutional AP/expense (an MFI genuinely buys things and pays suppliers): `bills`, `bill_items`, `payments`.
 - ADAPT: `contacts` → client/member master.
-- KEEP as institutional AP/expense (a microfinance institution genuinely buys things and pays suppliers): `bills`, `bill_items`, `payments`.
-- DROP: `invoices`, `invoice_items`, `products` (sales invoicing and stock products have no microfinance business event; loan products get a purpose-built versioned table in M8).
-Plus the settings/field-config baseline and the print/dispatch queue the document engine expects.
-Gate: company settings screen loads; one document renders through the queue.
+- DROP: `invoices`, `invoice_items`, `products`, and the POS/inventory/warehouse registry rows whose routes were already removed (they currently fail the routing-parity test).
+Gate: routing-parity test green; company settings screen loads; one document renders through the print/dispatch queue.
 
 ### M4. Institution settings convergence
-Single institution identity as the configuration root, injected into report and document data contexts; no hardcoded company data in templates.
+Single institution identity as the configuration root, injected into report and document data contexts. No hardcoded company data in any template.
 Gate: one report and one document render with configured institution details.
 
-### M5. Chart of accounts baseline
-Seed a microfinance CoA (loan principal receivable, interest receivable, interest income, fee income, penalty income, cash/bank/mobile money, write-off expense, loan loss provision) and the **configurable account-mapping** table that later business events resolve against. No account UUID ever appears in domain code.
+### M5. Chart of accounts + configurable account mapping
+Seed the microfinance CoA (loan principal receivable, interest receivable, interest income, fee income, penalty income, cash / bank / mobile money, write-off expense, loan-loss provision) and the mapping table every later business event resolves against. No account UUID ever appears in domain code.
 Gate: mappings editable in settings; a dry-run event resolves to real accounts.
 
 ### M6. Microfinance workspace scaffold (fixtures only, no schema)
 `MICROFINANCE_APP` registry entry + `src/apps/microfinance/{MicrofinanceLayout,nav,routes}` on the existing shell. Nav: Dashboard · Clients (All Clients, Groups) · Lending (Loan Products, Applications, Assessments, Loans, Schedules, Disbursements) · Collections (Due Today, Overdue, Arrears, Activities) · Payments · Reports · Settings.
-Gate: every destination renders through shared list/detail/panel primitives.
+Gate: every destination renders through the shared list/detail/panel primitives.
 
-### M7+. Domain migrations (order from the brief)
-Clients → Groups → Loan Products (versioned) → Applications → Assessment/Approval → Loan entity → Schedule engine → Disbursement → Payments & configurable allocation → Arrears & Collections → Accounting integration via the M5 mappings → Top-ups/Restructuring → Closure/Write-off → Reporting → Documents → Audit & integrity → Final hardening.
+### M7+. Domain migrations
+Clients → Groups → Loan Products (versioned) → Applications → Assessment/Approval → Loan entity → Schedule engine → Disbursement → Payments & configurable allocation → Arrears & Collections → Accounting integration via the M5 mappings → Top-ups / Restructuring → Closure / Write-off → Reporting → Documents → Audit & integrity → Final hardening.
 
-### Additions I am appending to the plan (not in the previous version)
-- **Branch + loan-officer data scope in RLS**, introduced with the client domain rather than retrofitted — an officer must not read another portfolio's clients even via the API.
-- **Chart of accounts + mapping table as their own migration (M5)**, ahead of any domain module, so no loan code is ever written against a hardcoded account.
-- **Maker/checker separation** on approval and disbursement: the approving user cannot be the disbursing user; enforced server-side.
-- **Idempotency keys** on disbursement and payment events to prevent double posting under retry.
-- **Backdating and period-lock policy**: financial events must respect `fiscal_periods` / lock dates rather than silently posting into closed periods.
-- **Reversal-only correction model** for every posted financial event, with an explicit reversal reason and audit link.
-- **Day-close / cashier till reconciliation** for cash collections, which a startup MFI needs from day one.
+### Carried-forward architectural additions
+- Branch + loan-officer data scope enforced **in RLS**, introduced with the client domain, not retrofitted.
+- Maker/checker separation on approval and disbursement, enforced server-side.
+- Idempotency keys on disbursement and payment events.
+- Backdating and period-lock policy honouring `fiscal_periods` and the organization lock dates.
+- Reversal-only correction model for every posted financial event, with reason and audit link.
+- Day-close / cashier till reconciliation for cash collections.
+
+### New items I am appending after this audit
+- **A runtime smoke test in CI-equivalent form** (route renders, PIN probe answers) so an M0-class regression is caught immediately instead of being discovered three migrations later.
+- **Dependency-hygiene pass**: the current break is a dependency-tree problem, so version alignment gets pinned and verified as part of M0's report rather than assumed.
+- **Security-hardening migration before the domain waves**: 16 open linter findings (anon-executable `check_pin_status`, 14 signed-in definer functions, leaked-password protection disabled) triaged — each either justified in security memory or fixed.
 
 ## Invariants in every migration
-Authoritative money math server-side only; business events append-only with reversal, never `UPDATE loans SET`; account mappings configurable; loan-officer/branch scope enforced in RLS, not only in the UI; every new public table ships GRANT + RLS + policies in the same migration.
-
-## On "connect Smart Grow Empowerment"
-No action needed. The connected project `xwxqunklduknceoryrha` already contains the single organization **Smart Grow Empowerment** with the seeded super admin, and holds all the schema verified above. Project connection is switched from the Cloud panel, not from code — if a *different* Supabase project is meant, say so, because that would invalidate the PIN/RBAC/finance schema and force M1–M5 to be re-run there.
-
-
-================LAST MESSAGE THE AGENT GAVE BEFORE ITS TIME RUN OUT SO IT WAS NOT ABLE TO UPDATE THIS PLAN FILE STATUS HENCE VERIFICATION IS REQUIRED=================
-
-
-MIGRATION 02 — Excision residue closure & permission rebase
-
-Objective — Remove the remaining payroll/attendance/timesheet residue and re-base module authorisation on the microfinance module set.
-
-Changed
-- Deleted edge functions `reverse-payroll`, `reverse-payroll-payment` and their Deno tests (`payrollEndToEnd`, `payrollReverseCanonical`, `platformDeleteOrgPayroll`).
-- `ReportRegistry.ts`: removed the `attendance-reports`, `payroll-reports` and `timesheet-reports` entries, the `payroll` reporting domain + label, the dead `/hr/payroll/reports`, `/hr/attendance/reports`, `/timesheets/reports` domain prefixes and the three relation pairs pointing at them.
-- Purged stale payroll/attendance/leave prose from `src/apps/hr/index.ts`, `src/apps/hr/shared/guards.tsx`, `src/apps/reports/ReportsLayout.tsx` (the notes in `hr/routes.tsx`, `hr/shared/navs.ts`, `me/MeApp.tsx` are deliberate exclusion statements and were kept).
-
-Database — `user_has_module_permission` rewritten: modules are now `clients` (alias `contacts`), `lending`, `collections`, `payments`, `finance` (alias `financials`), `reports`, `employees`, `settings`, `team`, with per-operation role matrices covering approve/post/pay/reverse/close/export. `payroll`, `leave`, `attendance` branches are gone; portal identities now receive no institutional module access at all (no borrower portal in scope). EXECUTE revoked from `PUBLIC`/`anon`, granted to `authenticated` and `service_role`.
-
-Preserved — Employees module, permission-group rule grants, admin/owner/super-admin short circuit.
-
-Verification — Function definition re-read from `pg_proc` (contains the new module set; ACL = `authenticated,service_role` only). `tsgo --noEmit` clean. `GET /` → 200. Registry-driven report tests: `reporting-workspace`, `reports-nav-registry-driven`, `reporting-isolation-matrix` pass; `reports-routing-parity` still fails on 5 pre-existing entries (`lot-traceability`, `inventory-valuation`, `stock-aging`, `stock-ledger`, `pos-reports`) — inventory/POS registry rows whose routes were removed in an earlier wave. That is M3 ERP-disposition work, not a regression from this migration.
-
-Open (unchanged, pre-existing) — 16 security-linter warnings: 1 anon-executable `SECURITY DEFINER` (`check_pin_status`, intentional for the PIN probe), 14 signed-in definer functions, leaked-password protection disabled. These get a dedicated hardening migration before the domain waves.
-
-Result — M2 complete. Next: M3 — ERP table disposition (KEEP/ADAPT/DROP) plus the settings/print baseline. Stopping here for your review.
+Authoritative money math server-side only; business events append-only with reversal, never `UPDATE loans SET`; account mappings configurable; loan-officer/branch scope in RLS, not only in the UI; every new public table ships GRANT + RLS + policies in the same migration.
