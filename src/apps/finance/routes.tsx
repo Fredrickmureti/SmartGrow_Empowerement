@@ -41,7 +41,6 @@ const ConsolidationEliminationsReport = lazy(() => import("@/pages/reports/Conso
 const AccountsReceivable = lazy(() => import("@/pages/finance/AccountsReceivable"));
 const AccountsPayable = lazy(() => import("@/pages/finance/AccountsPayable"));
 const CustomerCredits = lazy(() => import("@/pages/finance/CustomerCredits"));
-const CustomerStatements = lazy(() => import("@/pages/CustomerStatements"));
 
 // Lazy imports for less frequently accessed pages
 const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
@@ -85,7 +84,6 @@ const PurchaseReports = lazy(() => import("@/pages/reports/PurchaseReports"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
 const CrossCompanyComparative = lazy(() => import("@/pages/reports/Consolidation"));
 const TaxReports = lazy(() => import("@/pages/reports/TaxReports"));
-const StockReports = lazy(() => import("@/pages/reports/StockReports"));
 const BusinessIntelligence = lazy(() => import("@/pages/BusinessIntelligence"));
 const Reports = lazy(() => import("@/pages/Reports"));
 const PartnerLedger = lazy(() => import("@/pages/reports/PartnerLedger"));
@@ -100,18 +98,11 @@ const DepreciationReport = lazy(() => import("@/pages/reports/DepreciationReport
 const CashFlowReport = lazy(() => import("@/pages/reports/CashFlowReport"));
 const AuditTrailReport = lazy(() => import("@/pages/reports/AuditTrail"));
 const ReportRunHistory = lazy(() => import("@/pages/reports/ReportRunHistory"));
-const InventoryGLReconciliation = lazy(() => import("@/pages/reports/InventoryGLReconciliation"));
 const ControlAccountReconciliation = lazy(() => import("@/pages/reports/ControlAccountReconciliation"));
 const BankReconciliationReport = lazy(() => import("@/pages/reports/BankReconciliationReport"));
 
-const StockAdjustmentsReport = lazy(() => import("@/pages/reports/StockAdjustmentsReport"));
 // ADR 0143 — inventory reports are dual-hosted: same page components, mounted
 // under both /finance/reports/* and /inventory-app/reports/*.
-const InventoryValuationReport = lazy(() => import("@/pages/reports/InventoryValuationReport"));
-const StockLedgerReport = lazy(() => import("@/pages/reports/StockLedgerReport"));
-const StockAgingReport = lazy(() => import("@/pages/reports/StockAgingReport"));
-const LotTraceabilityReport = lazy(() => import("@/pages/reports/LotTraceabilityReport"));
-const StockTransfersReport = lazy(() => import("@/pages/reports/StockTransfersReport"));
 const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationReport"));
 const FxExposureReport = lazy(() => import("@/pages/reports/FxExposureReport"));
 const FxRealizedReport = lazy(() => import("@/pages/reports/FxRealizedReport"));
@@ -225,16 +216,6 @@ export function FinanceApp() {
         />
 
         {/* Customer Statements */}
-        <Route
-          path="statements"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Customer Statements">
-                <CustomerStatements />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
 
         {/* Chart of Accounts */}
         <Route
@@ -754,58 +735,8 @@ export function FinanceApp() {
           }
         />
         
-        <Route
-          path="reports/stock"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Stock Reports">
-                <StockReports />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
 
         {/* Inventory reports — Finance mount (ADR 0143 dual host) */}
-        <Route
-          path="reports/inventory-valuation"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Inventory Valuation">
-                <InventoryValuationReport />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-        <Route
-          path="reports/stock-ledger"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Stock Ledger">
-                <StockLedgerReport />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-        <Route
-          path="reports/stock-aging"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Stock Aging">
-                <StockAgingReport />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
-        <Route
-          path="reports/lot-traceability"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Lot Traceability">
-                <LotTraceabilityReport />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
         
         {/* Business Intelligence — premium cross-cutting feature */}
         <Route
@@ -938,16 +869,6 @@ export function FinanceApp() {
         />
 
         {/* Inventory ⇄ GL Reconciliation (Phase B1) */}
-        <Route
-          path="reports/inventory-gl-reconciliation"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Inventory ⇄ GL Reconciliation">
-                <InventoryGLReconciliation />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
 
         {/* Control Account Reconciliation (Phase B2) */}
         <Route
@@ -980,28 +901,8 @@ export function FinanceApp() {
 
 
         {/* Stock Adjustments Report (Phase B5) */}
-        <Route
-          path="reports/stock-adjustments"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Stock Adjustments Report">
-                <StockAdjustmentsReport />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
 
         {/* Stock Transfers Report (Phase B5) */}
-        <Route
-          path="reports/stock-transfers"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Stock Transfers Report">
-                <StockTransfersReport />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
 
         {/* FX Revaluation Report (Phase B6) */}
         <Route

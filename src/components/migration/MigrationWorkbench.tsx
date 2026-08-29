@@ -37,7 +37,6 @@ import { MigrationStrategySelector } from "./MigrationStrategySelector";
 import { MigrationStepConfig } from "./steps/MigrationStepConfig";
 import { MigrationStepAccounts } from "./steps/MigrationStepAccounts";
 import { MigrationStepContacts } from "./steps/MigrationStepContacts";
-import { MigrationStepProducts } from "./steps/MigrationStepProducts";
 import { MigrationStepTrialBalance } from "./steps/MigrationStepTrialBalance";
 import { MigrationStepOpenAR } from "./steps/MigrationStepOpenAR";
 import { MigrationStepOpenAP } from "./steps/MigrationStepOpenAP";
@@ -66,11 +65,10 @@ const stepStatusIcon = (status: StepStatus, canProceed: boolean) => {
   }
 };
 
-const STEP_COMPONENTS: Record<StepKey, React.ComponentType<{ onComplete: () => void; onSkip: () => void }>> = {
+const STEP_COMPONENTS: Partial<Record<StepKey, React.ComponentType<{ onComplete: () => void; onSkip: () => void }>>> = {
   config: MigrationStepConfig,
   accounts: MigrationStepAccounts,
   contacts: MigrationStepContacts,
-  products: MigrationStepProducts,
   trial_balance: MigrationStepTrialBalance,
   open_ar: MigrationStepOpenAR,
   open_ap: MigrationStepOpenAP,

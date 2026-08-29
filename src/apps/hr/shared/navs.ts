@@ -102,13 +102,11 @@ export const ATTENDANCE_NAV: WorkspaceNav = {
 };
 
 /**
- * @deprecated Import `TIMESHEETS_NAV` from `@/apps/timesheets/nav` instead.
  * Re-exported here for one wave so unconverted callers keep building; the
  * Timesheets workspace is its own app and must not own a nav inside the HR
  * domain. See ADR 0005 (HR/payroll split) — Timesheets is independently
  * installable.
  */
-export { TIMESHEETS_NAV } from "@/apps/timesheets/nav";
 
 /**
  * Payroll workspace nav — folds the old internal `PayrollSidebar` into

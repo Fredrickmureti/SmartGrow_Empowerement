@@ -46,10 +46,6 @@ import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snaps
 import { fetchAndBuildFinanceJournalEntrySnapshot } from "@/services/documents/snapshots/financeJournalEntry";
 import { fetchAndBuildLandedCostVoucherSnapshot } from "@/services/documents/snapshots/purchasesLandedCostVoucher";
 import {
-  fetchFrozenPosReceipt,
-} from "@/features/pos/receipts/dispatchPosReceipt";
-import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
-import {
   fetchAndBuildHrLetterSnapshot,
   HR_LETTER_KIND_CODES,
 } from "@/services/documents/snapshots/hrLetter";
@@ -318,24 +314,6 @@ const REGISTRY: Record<string, RegistryEntry> = {
     sourceDocType: "landed_cost_voucher",
     partyKind: null,
     build: wrap(fetchAndBuildLandedCostVoucherSnapshot),
-  },
-  pos_receipt: {
-    kindCode: "pos.receipt_customer",
-    sourceModule: "pos",
-    sourceDocType: "receipt",
-    partyKind: null,
-    // POS always replays the frozen `pos_receipt_snapshots.payload` written
-    // at sale time — never a live re-read of the transaction.
-    build: async (id: string) => {
-      const frozen = await fetchFrozenPosReceipt(id);
-      const built = buildPosReceiptSnapshot({ frozen, copy: "customer" });
-      return {
-        ...normalise(built as unknown as Record<string, unknown>),
-        organizationId:
-          ((frozen as { organization?: { id?: string } }).organization?.id ??
-            null) as string | null,
-      };
-    },
   },
   /**
    * Cycle-count paperwork (ADR 0106). Warehouse artifacts: quantity only,

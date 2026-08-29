@@ -1,4 +1,3 @@
-import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Which journal sources consume a budget.
@@ -31,4 +30,4 @@ export function consumesBudget(sourceType: GLSourceType): boolean {
   return !NON_OPERATIONAL_JOURNAL_SOURCES.has(sourceType);
 }
 
-export type JournalSourceType = Database["public"]["Tables"]["journal_entries"]["Row"]["source_type"];
+export type JournalSourceType = string;

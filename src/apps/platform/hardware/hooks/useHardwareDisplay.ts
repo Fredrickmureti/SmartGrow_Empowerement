@@ -83,7 +83,7 @@ export function useDocumentDisplay(rows: Array<{ doc_type: string; doc_id: strin
             .select(`id, ${source.numberColumn}`)
             .in("id", unique);
           if (error || !data) return;
-          const rowsAny = data as Array<Record<string, unknown>>;
+          const rowsAny = data as unknown as Array<Record<string, unknown>>;
           for (const row of rowsAny) {
             const id = row.id as string;
             const num = row[source.numberColumn] as string | null;

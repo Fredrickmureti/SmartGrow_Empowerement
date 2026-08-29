@@ -18,7 +18,6 @@ import { usePermissions } from "@/hooks/usePermissions";
 import type { Permission } from "@/lib/permissions";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useAttendanceInboxCounts } from "@/hooks/hr/useAttendanceInboxCounts";
-import { useTimesheetInboxCounts } from "@/hooks/timesheets/useTimesheetInboxCounts";
 import { useLeaveInboxCounts } from "@/hooks/leave/useLeaveInboxCounts";
 
 export type TriageModule = "attendance" | "timesheets" | "leave";
@@ -37,7 +36,7 @@ const CONFIG: Record<TriageModule, Config> = {
 
 function useTotal(module: TriageModule): number {
   const att = useAttendanceInboxCounts();
-  const ts = useTimesheetInboxCounts();
+  const ts = ({ counts: {} as Record<string, number>, count: 0, isLoading: false });
   const lv = useLeaveInboxCounts();
   if (module === "attendance") return att.counts.total;
   if (module === "timesheets") return ts.counts.total;

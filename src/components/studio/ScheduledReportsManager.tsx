@@ -1,4 +1,3 @@
-// SCOPE-TRIGGER-EXEMPT: data-entry field that assigns a branch/company to a record; not the active-scope switcher
 import { useState, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

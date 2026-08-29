@@ -52,7 +52,7 @@ export function useBudgetRevisions(budgetId?: string) {
       if (error) throw error;
 
       return (data ?? []).map((r) => {
-        const row = r as typeof r & { budget_revision_lines?: BudgetRevisionLine[] };
+        const row = r as any;
         return {
           id: row.id,
           budget_id: row.budget_id,

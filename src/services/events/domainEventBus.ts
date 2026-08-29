@@ -14,7 +14,7 @@
  * to fire — that path is durable, retried, and audited.
  */
 
-import type { WmsTopic } from '@/features/warehouse/events/topics';
+type WmsTopic = string;
 
 export type DomainEventType =
   | 'sale.committed'

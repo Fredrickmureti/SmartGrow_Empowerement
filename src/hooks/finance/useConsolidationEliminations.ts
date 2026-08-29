@@ -23,12 +23,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toAppError } from "@/lib/supabaseError";
 import { useOrganization } from "@/hooks/useOrganization";
-import type { Database } from "@/integrations/supabase/types";
 
 export type EliminationClass =
-  Database["public"]["Enums"]["consolidation_elimination_class"];
+  | "intercompany_balance"
+  | "intercompany_trading"
+  | "intercompany_profit"
+  | "investment_equity"
+  | "dividend"
+  | "other";
 export type EliminationDifferencePolicy =
-  Database["public"]["Enums"]["consolidation_elimination_difference_policy"];
+  | "refuse"
+  | "post_difference"
+  | "post_to_cta"
+  | "warn"
+  | "allow";
 
 export const ELIMINATION_CLASS_LABELS: Record<string, string> = {
   intercompany_balance: "Intercompany balances",

@@ -230,7 +230,7 @@ export default function AccountsPayable() {
         notes: `Created from unlinked AP expense: ${expense.description}`,
         vendor_invoice_number: expense.reference,
         source_expense_id: expense.id,
-      } as BillInsert;
+      } as unknown as BillInsert;
 
       const { error: billError } = await supabase
         .from("bills")

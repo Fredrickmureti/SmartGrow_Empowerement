@@ -25,7 +25,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Settings, AlertTriangle } from "lucide-react";
 import { LockDatesCard } from "@/components/finance/LockDatesCard";
 import { AccountingIntegrityCard } from "@/components/finance/AccountingIntegrityCard";
-import { InventoryReconciliationCard } from "@/components/finance/InventoryReconciliationCard";
 import { FinanceAccountingControls } from "@/components/finance/FinanceAccountingControls";
 import { DefaultAccountsConfig } from "@/components/finance/DefaultAccountsConfig";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
@@ -180,13 +179,6 @@ export default function FinanceSettings() {
           <AccountingIntegrityCard />
         </SettingsSection>
 
-        <SettingsSection
-          id="inventory-recon"
-          title="Inventory subledger ↔ General Ledger"
-          description="Drift between stock valuation and the GL, plus the opening-balance backfill."
-        >
-          <InventoryReconciliationCard />
-        </SettingsSection>
 
         <SettingsSection
           id="accounting-controls"

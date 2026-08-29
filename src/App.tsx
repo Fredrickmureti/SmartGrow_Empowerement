@@ -42,7 +42,6 @@ import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
 import { ElectronHydratorMount } from "@/components/hardware/ElectronHydratorMount";
 import { EdgeRelayMount } from "@/components/hardware/EdgeRelayMount";
 import { HardwareExecContextMount } from "@/components/hardware/HardwareExecContextMount";
-import { BusinessSagaContextMount } from "@/components/events/BusinessSagaContextMount";
 import { ConnectivityBanner } from "@/components/system/ConnectivityBanner";
 import { AuthExpiryBridge } from "@/components/system/AuthExpiryBridge";
 
@@ -65,7 +64,6 @@ import Dashboard from "./pages/Dashboard";
 import Team from "./pages/Team";
 import Settings from "./pages/Settings";
 const WorkspaceSettings = lazy(() => import("./pages/settings/WorkspaceSettings"));
-const ScannerSettings = lazy(() => import("./pages/settings/ScannerSettings"));
 const CompanySettings = lazy(() => import("./pages/settings/CompanySettings"));
 const GovernanceSoD = lazy(() => import("./pages/settings/GovernanceSoD"));
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -93,13 +91,6 @@ const CookiePolicyPage = lazy(() => import("./pages/legal/CookiePolicy"));
 import SelectOrganization from "./pages/SelectOrganization";
 
 // Vendor Portal (lazy)
-const VendorDashboard = lazy(() => import("@/pages/vendor-portal/VendorDashboard"));
-const VendorPurchaseOrders = lazy(() => import("@/pages/vendor-portal/VendorPurchaseOrders"));
-const VendorRFQs = lazy(() => import("@/pages/vendor-portal/VendorRFQs"));
-const VendorProfile = lazy(() => import("@/pages/vendor-portal/VendorProfile"));
-const VendorPortalAccept = lazy(() => import("@/pages/vendor-portal/VendorPortalAccept"));
-const VendorPODetail = lazy(() => import("@/pages/vendor-portal/VendorPODetail"));
-const VendorRFQDetail = lazy(() => import("@/pages/vendor-portal/VendorRFQDetail"));
 
 // ============================================
 // LAZY IMPORTS (Only standalone modules that stay standalone)
@@ -173,28 +164,16 @@ const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
 const AppsAndSubscriptions = lazy(() => import("@/pages/settings/AppsAndSubscriptions"));
 const FinanceApp = lazy(() => import("@/apps/finance/routes"));
-const SalesApp = lazy(() => import("@/apps/sales/routes"));
 const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
-const PurchasesApp = lazy(() => import("@/apps/purchases/routes"));
-const InventoryApp = lazy(() => import("@/apps/inventory/routes"));
-const WarehouseApp = lazy(() => import("@/apps/warehouse/routes"));
-const WarehouseMobileApp = lazy(() => import("@/apps/warehouse-mobile/routes"));
-const POSApp = lazy(() => import("@/apps/pos/routes"));
 // Wave 5 (Phase 3): hardware lifted out of POS to platform.
 const PlatformHardwareApp = lazy(() => import("@/apps/platform/hardware/routes"));
 const HRApp = lazy(() => import("@/apps/hr/routes"));
 // My Workspace — employee self-service shell (not an installable app, gated by employment)
 const MeApp = lazy(() => import("@/apps/me/MeApp"));
-const CRMApp = lazy(() => import("@/apps/crm/routes"));
-const ProjectsApp = lazy(() => import("@/apps/projects/routes"));
-const SmsAppRoutes = lazy(() => import("@/apps/sms/SmsApp").then(m => ({ default: m.SmsApp })));
-const TimesheetsApp = lazy(() => import("@/apps/timesheets/routes"));
-const AttendanceKioskStandalone = lazy(() => import("@/pages/kiosk/AttendanceKioskStandalone"));
 // Scanner pairing page — mounted at top level (NOT under /pos/*) so that
 // non-POS modules (Inventory, Sales, Purchases, etc.) can pair a phone
 // without the POS subscription gate redirecting the phone to /dashboard.
 // See .lovable/plan.md "Move scanner pairing route out of POS subscription gate".
-const MobileScannerPage = lazy(() => import("@/pages/pos/MobileScannerPage"));
 const LocalizationPreviewWindow = lazy(
   () => import("@/features/localization/components/LocalizationPreviewWindow"),
 );
@@ -213,7 +192,6 @@ const LocalizationPreviewRoute = () => {
 };
 
 
-import { VendorPortalLayout } from "@/components/vendor-portal/VendorPortalLayout";
 
 // Apps Marketplace Page
 const Apps = lazy(() => import("@/pages/Apps"));
@@ -251,10 +229,6 @@ const LazyRoute = ({
 
 // Legacy /pos/scan/:token QRs (pre-2026-06 audit) redirect to /scan/:token
 // so they bypass the POS subscription gate. Token is preserved verbatim.
-const LegacyScanRedirect = () => {
-  const { token } = useParams<{ token: string }>();
-  return <Navigate to={`/scan/${token ?? ""}`} replace />;
-};
 
 const App = () => (
   <SentryErrorBoundary>
@@ -286,7 +260,6 @@ const App = () => (
                               {/* Phase 3 hardware platform: feed active org/business into the exec-log writer. */}
                               <HardwareExecContextMount />
                               {/* Track 1 event fabric: drain business_event_outbox → BusinessSaga handlers (labels, GRN, transfers, shipping). */}
-                              <BusinessSagaContextMount />
                               <AIAssistantProvider>
                               <Router>
                             <AuthExpiryBridge />
@@ -337,24 +310,10 @@ const App = () => (
                                 Must live outside /pos/* so SubscriptionProtectedRoute
                                 doesn't bounce non-POS pairings (Inventory, Sales, …)
                                 to /dashboard. Only needs ProtectedRoute (auth). */}
-                            <Route
-                              path="/scan/:token"
-                              element={
-                                <ProtectedRoute>
-                                  <Suspense fallback={<RouteLoadingFallback module="Scanner" />}>
-                                    <MobileScannerPage />
-                                  </Suspense>
-                                </ProtectedRoute>
-                              }
-                            />
                             {/* Back-compat: legacy QRs in the wild still use /pos/scan/:token.
                                 Declared at top level so it wins over the /pos/* subtree
                                 (react-router v6 picks the more-specific match) and dodges
                                 the POS subscription gate. */}
-                            <Route
-                              path="/pos/scan/:token"
-                              element={<LegacyScanRedirect />}
-                            />
 
 
                             
@@ -381,22 +340,11 @@ const App = () => (
                             <Route path="/settings/profile" element={<ProtectedRoute><LazyRoute module="Profile"><UserProfilePage /></LazyRoute></ProtectedRoute>} />
                             <Route path="/settings/apps" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><AppsAndSubscriptions /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/carriers" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Carriers"><CarriersSettings /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/settings/scanner" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><ScannerSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/notifications" element={<ProtectedRoute><NonVendorRoute><Notifications /></NonVendorRoute></ProtectedRoute>} />
                             {/* Chrome-less attendance kiosk for shared devices.
                                 Mounted at top level so the global app sidebar / topbar
                                 are NOT rendered. Branch is resolved from a localStorage
                                 "device pin" set inside the page. */}
-                            <Route
-                              path="/kiosk/attendance"
-                              element={
-                                <ProtectedRoute>
-                                  <LazyRoute module="Attendance Kiosk">
-                                    <AttendanceKioskStandalone />
-                                  </LazyRoute>
-                                </ProtectedRoute>
-                              }
-                            />
                             {/* Legacy redirect — printed QR codes pointed at the old
                                 /hr/attendance/kiosk path. Keep them working. */}
                             <Route path="/hr/attendance/kiosk" element={<Navigate to="/kiosk/attendance" replace />} />
@@ -524,20 +472,6 @@ const App = () => (
                             />
                             
                             {/* Sales App */}
-                            <Route
-                              path="/sales/*"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="sales">
-                                      <LazyRoute module="Sales">
-                                        <SalesApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
                             
                             {/* Contacts App */}
                             <Route
@@ -554,68 +488,12 @@ const App = () => (
                             />
                             
                             {/* Purchases App */}
-                            <Route
-                              path="/purchases/*"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="purchases">
-                                      <LazyRoute module="Purchases">
-                                        <PurchasesApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
                             
                             {/* Inventory App */}
-                            <Route
-                              path="/inventory-app/*"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="inventory">
-                                      <LazyRoute module="Inventory">
-                                        <InventoryApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
 
                             {/* Warehouse App (WMS execution layer — ADR 0079) */}
-                            <Route
-                              path="/warehouse-app/*"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="warehouse">
-                                      <LazyRoute module="Warehouse">
-                                        <WarehouseApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
 
                             {/* Warehouse mobile / RF shell (Phase 13) */}
-                            <Route
-                              path="/wm/*"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="warehouse">
-                                      <LazyRoute module="WarehouseMobile">
-                                        <WarehouseMobileApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
                             
                             
                             {/* HR App */}
@@ -643,50 +521,10 @@ const App = () => (
                             />
                             
                             {/* CRM App */}
-                            <Route
-                              path="/crm-app/*"
-                              element={
-                                <SubscriptionProtectedRoute requiredFeature="crm" allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="crm">
-                                      <LazyRoute module="CRM">
-                                        <CRMApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
                             
                             {/* Projects App */}
-                            <Route
-                              path="/projects-app/*"
-                              element={
-                                <SubscriptionProtectedRoute requiredFeature="projects" allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="projects">
-                                      <LazyRoute module="Projects">
-                                        <ProjectsApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
 
                             {/* POS App (unified route) */}
-                            <Route
-                              path="/pos/*"
-                              element={
-                                <SubscriptionProtectedRoute requiredFeature="pos" allowReadOnly>
-                                  <AppInstalledGate appId="pos">
-                                    <LazyRoute module="POS">
-                                      <POSApp />
-                                    </LazyRoute>
-                                  </AppInstalledGate>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
 
                             {/* Wave 5 (Phase 3): platform-owned Hardware surface.
                                 Hardware is not a POS-only concern (Inventory, Warehouse, HR,
@@ -709,36 +547,8 @@ const App = () => (
 
 
                             {/* SMS App */}
-                            <Route
-                              path="/sms/*"
-                              element={
-                                <SubscriptionProtectedRoute requiredFeature="sms" allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="sms">
-                                      <LazyRoute module="SMS">
-                                        <SmsAppRoutes />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
 
                             {/* Timesheets App */}
-                            <Route
-                              path="/timesheets/*"
-                              element={
-                                <SubscriptionProtectedRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <AppInstalledGate appId="timesheets">
-                                      <LazyRoute module="Timesheets">
-                                        <TimesheetsApp />
-                                      </LazyRoute>
-                                    </AppInstalledGate>
-                                  </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
-                              }
-                            />
                             
                             {/* ============================================== */}
                             {/* ADMIN ROUTES                                   */}
@@ -806,86 +616,6 @@ const App = () => (
                             </Route>
 
                             {/* ============================================== */}
-                            <Route
-                              path="/vendor-portal/accept"
-                              element={
-                                <LazyRoute module="Vendor Portal">
-                                  <VendorPortalAccept />
-                                </LazyRoute>
-                              }
-                            />
-                            <Route
-                              path="/vendor-portal"
-                              element={
-                                <ProtectedRoute>
-                                  <VendorPortalLayout>
-                                    <LazyRoute module="Vendor Portal">
-                                      <VendorDashboard />
-                                    </LazyRoute>
-                                  </VendorPortalLayout>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/vendor-portal/purchase-orders"
-                              element={
-                                <ProtectedRoute>
-                                  <VendorPortalLayout>
-                                    <LazyRoute module="Vendor Portal">
-                                      <VendorPurchaseOrders />
-                                    </LazyRoute>
-                                  </VendorPortalLayout>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/vendor-portal/purchase-orders/:id"
-                              element={
-                                <ProtectedRoute>
-                                  <VendorPortalLayout>
-                                    <LazyRoute module="Vendor Portal">
-                                      <VendorPODetail />
-                                    </LazyRoute>
-                                  </VendorPortalLayout>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/vendor-portal/rfqs"
-                              element={
-                                <ProtectedRoute>
-                                  <VendorPortalLayout>
-                                    <LazyRoute module="Vendor Portal">
-                                      <VendorRFQs />
-                                    </LazyRoute>
-                                  </VendorPortalLayout>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/vendor-portal/rfqs/:id"
-                              element={
-                                <ProtectedRoute>
-                                  <VendorPortalLayout>
-                                    <LazyRoute module="Vendor Portal">
-                                      <VendorRFQDetail />
-                                    </LazyRoute>
-                                  </VendorPortalLayout>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route
-                              path="/vendor-portal/profile"
-                              element={
-                                <ProtectedRoute>
-                                  <VendorPortalLayout>
-                                    <LazyRoute module="Vendor Portal">
-                                      <VendorProfile />
-                                    </LazyRoute>
-                                  </VendorPortalLayout>
-                                </ProtectedRoute>
-                              }
-                            />
 
                             {/* 404 */}
                             <Route path="*" element={<NotFound />} />

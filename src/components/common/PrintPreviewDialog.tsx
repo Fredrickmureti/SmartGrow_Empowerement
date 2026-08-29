@@ -18,7 +18,6 @@ import { Printer, Download, Loader2, ZoomIn, ZoomOut, AlertCircle } from "lucide
 // Audit Wave 10: legacy `printService` import removed — destinations come
 // from `useHardwareProxy` (unified registry) and `usePrinterStatus`.
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
-import { useActiveOrDefaultRegister } from "@/hooks/pos/useActiveOrDefaultRegister";
 import { useToast } from "@/hooks/use-toast";
 
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
@@ -92,7 +91,7 @@ export function PrintPreviewDialog({
   // the SAME connected receipt printer the POS terminal is using —
   // instead of always falling back to "Save .bin" because no devices
   // were registered for the unscoped (undefined) registry.
-  const { registerId } = useActiveOrDefaultRegister();
+  const registerId: string | null = null;
   const { availableDestinations, printRawBytes, reconnectRole } =
     useHardwareProxy(registerId ?? undefined);
   const destinations = availableDestinations();
