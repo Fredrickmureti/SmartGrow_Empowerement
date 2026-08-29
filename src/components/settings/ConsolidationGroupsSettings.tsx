@@ -135,7 +135,22 @@ export function ConsolidationGroupsSettings() {
 
 
   const { data: members = [] } = useConsolidationGroupMembers(activeGroupId);
-  const { data: changeLog = [] } = useConsolidationChangeLog(activeGroupId);
+  const [changeLogPage, setChangeLogPage] = useState(0);
+  // Reset to the first page when the viewer switches groups.
+  useEffect(() => {
+    setChangeLogPage(0);
+  }, [activeGroupId]);
+  const { data: changeLogData } = useConsolidationChangeLog(
+    activeGroupId,
+    changeLogPage,
+    CHANGE_LOG_PAGE_SIZE,
+  );
+  const changeLog = changeLogData?.entries ?? [];
+  const changeLogTotal = changeLogData?.total ?? 0;
+  const changeLogPageCount = Math.max(
+    1,
+    Math.ceil(changeLogTotal / CHANGE_LOG_PAGE_SIZE),
+  );
   const { data: ctaAccounts = [] } = useConsolidationCtaAccountOptions(
     activeGroup?.parent_business_id ?? null,
   );
