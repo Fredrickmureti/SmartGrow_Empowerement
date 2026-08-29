@@ -433,14 +433,10 @@ export function getAppGroups(): AppGroup[] {
     (a.sortOrder || 0) - (b.sortOrder || 0);
 
   const CATEGORY_MEMBERSHIP: Array<{ label: string; ids: string[] }> = [
-    { label: "Core", ids: ["finance", "sales", "contacts", "purchases", "inventory"] },
-    { label: "Operations", ids: ["warehouse", "pos", "crm", "projects", "studio"] },
-    // HR Suite — Odoo-aligned grouping. The apps stay independently
-    // installable (Employees is foundational, the others depend on it),
-    // but the switcher shows them under one heading.
-    { label: "Human Resources", ids: ["employees", "time-off", "attendance", "timesheets", "payroll", "talent"] },
+    { label: "Core", ids: ["finance", "contacts"] },
+    { label: "Operations", ids: ["studio"] },
+    { label: "Human Resources", ids: ["employees"] },
     { label: "Analytics", ids: ["reports"] },
-    { label: "Integrations", ids: ["sms"] },
   ];
 
   const switchable = APP_REGISTRY.filter(
