@@ -27,9 +27,6 @@ export type SignOutFn = () => Promise<void> | void;
 /** Pure helper — exported so unit tests can assert without DOM. */
 export function resolveSignOutDestination(currentPathname: string): string {
   const path = (currentPathname || "").toLowerCase();
-  if (path.startsWith("/admin-management")) {
-    return "/admin-management/login";
-  }
   if (path.startsWith("/vendor-portal")) {
     return "/vendor-portal";
   }
