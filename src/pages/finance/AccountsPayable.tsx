@@ -63,8 +63,6 @@ import {
   History,
   Eye,
 } from "lucide-react";
-import { RecordBillPaymentDialog } from "@/components/bills/RecordBillPaymentDialog";
-import { BillPaymentHistoryDialog } from "@/components/bills/BillPaymentHistoryDialog";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { ControlAccountReconciliationCard } from "@/components/finance/ControlAccountReconciliationCard";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
@@ -651,23 +649,7 @@ export default function AccountsPayable() {
         </div>
       )}
 
-      {/* Record Bill Payment Dialog */}
-      <RecordBillPaymentDialog
-        bill={selectedBill}
-        open={showPaymentDialog}
-        onOpenChange={setShowPaymentDialog}
-        onSuccess={() => {
-          refreshBills();
-          queryClient.invalidateQueries({ queryKey: ["aging-report"] });
-        }}
-      />
-
-      {/* Bill Payment History Dialog */}
-      <BillPaymentHistoryDialog
-        bill={selectedBill}
-        open={showBillPaymentHistory}
-        onOpenChange={setShowBillPaymentHistory}
-      />
+      {/* Bill payment dialogs removed with the Purchasing domain. */}
 
       {/* Transaction Preview Drawer (replaces ad-hoc JE dialog) */}
       <TransactionPreviewDrawer

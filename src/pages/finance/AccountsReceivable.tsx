@@ -66,7 +66,6 @@ import {
 } from "@/components/payments/RecordCustomerPaymentDialog";
 
 import { AdvancePaymentDialog } from "@/components/payments/AdvancePaymentDialog";
-import { PaymentHistoryDialog } from "@/components/invoices/PaymentHistoryDialog";
 import { useQuery } from "@tanstack/react-query";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { ControlAccountReconciliationCard } from "@/components/finance/ControlAccountReconciliationCard";
@@ -533,13 +532,6 @@ export default function AccountsReceivable() {
           })}
         </div>
       )}
-
-      {/* Payment History Dialog */}
-      <PaymentHistoryDialog
-        invoice={selectedInvoice}
-        open={showPaymentHistory}
-        onOpenChange={setShowPaymentHistory}
-      />
 
       {/* Record Payment Dialog (per-invoice) */}
       <RecordPaymentDialog
