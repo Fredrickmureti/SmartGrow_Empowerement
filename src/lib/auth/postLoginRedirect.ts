@@ -5,16 +5,12 @@
  *
  * Account model (do not collapse these):
  *   - auth.users         → identity (email/password)
- *   - platform_admins    → SaaS-level operator/owner (runs the platform)
- *   - user_roles         → tenant/customer workspace membership (uses the product)
+ *   - user_roles         → institution membership and role
  *
- * A single email may have BOTH (e.g. the SaaS owner who also runs a real
- * business inside the product), or only one. We must never force a platform
- * admin through the customer onboarding wizard just because they have no
- * tenant workspace — that would conflate the SaaS operator with a customer.
+ * The platform-admin (SaaS operator) persona was removed by the microfinance
+ * convergence: this is a single-institution deployment.
  */
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 
 export interface PostLoginContext {
   user: User | null;
@@ -30,9 +26,8 @@ export interface PostLoginContext {
  *
  * Priority:
  *   1. Vendor portal users  → /vendor-portal
- *   2. Platform admins      → /admin-management  (NEVER forced into onboarding)
- *   3. Onboarded tenant     → intendedPath || /dashboard
- *   4. Not onboarded tenant → /onboarding-setup
+ *   2. Onboarded user       → intendedPath || /home
+ *   3. Not onboarded user   → /onboarding-setup
  */
 export async function resolvePostLoginDestination(
   ctx: PostLoginContext,
@@ -43,25 +38,6 @@ export async function resolvePostLoginDestination(
   // 1. Vendor portal short-circuit (already supported elsewhere).
   if (user.user_metadata?.is_vendor_portal === true) {
     return "/vendor-portal";
-  }
-
-  // 2. Platform admin short-circuit. This is the key fix: a SaaS operator
-  // signing in must reach /admin-management directly, regardless of whether
-  // they ever created a customer workspace.
-  try {
-    const { data, error } = await supabase
-      .from("platform_admins")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!error && data) {
-      return "/admin-management";
-    }
-  } catch {
-    // If the lookup fails we fall through to the tenant flow rather than
-    // blocking the user; AdminProtectedRoute still gates /admin-management.
   }
 
   // 3. Tenant user with completed onboarding.
