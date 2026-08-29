@@ -66,20 +66,44 @@ describe("elimination engine — difference handling", () => {
 });
 
 describe("tolerance configuration", () => {
-  it("is bounded to rounding scale", () => {
-    expect(guard).toContain("public.consolidation_tolerance_cap()");
-    expect(guard).toContain("is larger than the rounding bound");
+  const validator = latestDefinitionOf(
+    "FUNCTION public._consolidation_validate_tolerance",
+  );
+
+  it("measures the rounding bound in the group's own currency", () => {
+    expect(validator).toContain(
+      "public.consolidation_tolerance_rounding_bound(_presentation_currency)",
+    );
+    // A flat, currency-blind literal is exactly what this replaced.
+    expect(guard).not.toContain("public.consolidation_tolerance_cap()");
+  });
+
+  it("lets a tolerance pass the bound only when the group says where the gap goes", () => {
+    expect(validator).toContain("is a materiality judgement, not rounding");
+    expect(validator).toContain("COALESCE(_difference_policy, 'refuse') = 'refuse'");
+    expect(validator).toContain(
+      "has to name the group account that carries the difference",
+    );
+  });
+
+  it("bounds a percentage tolerance and applies the smaller of the two", () => {
+    const effective = latestDefinitionOf(
+      "FUNCTION public.consolidation_effective_tolerance",
+    );
+    expect(validator).toContain("_tolerance_percent < 0 OR _tolerance_percent > 100");
+    expect(effective).toContain("least(v_amount, v_from_percent)");
   });
 
   it("requires a written reason above zero and attributes the change", () => {
-    expect(guard).toContain("NEW.tolerance_amount > 0");
+    expect(validator).toContain("_tolerance_amount, 0) > 0");
     expect(guard).toContain("NEW.tolerance_set_by");
     expect(guard).toContain("consolidation_group_change_log");
   });
 
-  it("refuses a trading rule that names the translation reserve", () => {
+  it("refuses to name a translation reserve the group does not have", () => {
     expect(guard).toContain(
-      "NEW.elimination_class = 'intercompany_trading' AND NEW.difference_policy = 'post_to_cta'",
+      "NEW.difference_policy = 'post_to_cta' AND v_group.cta_account_id IS NULL",
     );
   });
 });
+
