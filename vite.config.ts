@@ -1,53 +1,18 @@
-import { defineConfig, type PluginOption } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
-import { VitePWA } from "vite-plugin-pwa";
+// The @lovable.dev/vite-tanstack-config wrapper already provides: TanStack
+// devtools (dev-only), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
+// nitro (cloudflare target), VITE_* env injection, the "@" alias, React/TanStack
+// dedupe, error-logger plugins and sandbox host/port detection. Do NOT re-add
+// any of those here — duplicating them breaks the dev server on startup.
+//
+// M0 (stack repair) note: this file previously held the legacy SPA config
+// (plain vite defineConfig + react-swc + vite-plugin-pwa). With that config the
+// TanStack Start server entry was never registered, so every request 500'd with
+// "Cannot find module '#tanstack-start-entry'".
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: process.env.ELECTRON_BUILD ? './' : '/',
-  server: {
-    host: "::",
-    port: 8080,
+export default defineConfig({
+  tanstackStart: {
+    // Route the bundled server entry through src/server.ts (SSR error wrapper).
+    server: { entry: "server" },
   },
-  plugins: [
-    react(),
-    mode === "development" ? (componentTagger() as unknown as PluginOption) : null,
-    process.env.ELECTRON_BUILD ? VitePWA({ disable: true }) : VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],
-      manifest: {
-        name: 'AccrualFlow - Business Management Platform',
-        short_name: 'AccrualFlow',
-        description: 'Professional invoicing, expense tracking, and financial management for modern businesses',
-        theme_color: '#3b82f6',
-        background_color: '#000000',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: '/',
-        start_url: '/home',
-        categories: ['business', 'finance', 'productivity'],
-        icons: [
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
-        // Authenticated Supabase requests must always reach PostgREST. Caching
-        // them can preserve an obsolete RPC request shape across deployments.
-        runtimeCaching: [],
-      },
-      devOptions: { enabled: false },
-    }) as unknown as PluginOption,
-  ].filter(Boolean) as PluginOption[],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-}));
+});
