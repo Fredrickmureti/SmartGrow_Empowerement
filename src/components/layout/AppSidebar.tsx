@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
-import { usePOSSettings } from "@/hooks/pos/usePOSSettings";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -226,7 +225,6 @@ export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }:
   const { user, signOut } = useAuth();
   const { organizations, currentOrg, userRole, switchOrganization } = useOrganization();
   const { isPlatformAdmin } = usePlatformAdmin();
-  const { restaurantSettings } = usePOSSettings();
   const permissions = usePermissions();
   const navRef = useRef<HTMLElement>(null);
 
@@ -260,17 +258,6 @@ export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }:
       { title: "POS Dashboard", href: "/pos", icon: MonitorSmartphone, permission: "viewPOS" },
     ];
     
-    // Add restaurant mode items based on settings
-    if (restaurantSettings.restaurant_mode_enabled) {
-      items.push({ title: "Floor Plan", href: "/pos/floor-plan", icon: LayoutGrid, permission: "viewPOS" });
-    }
-    if (restaurantSettings.kitchen_display_enabled) {
-      items.push({ title: "Kitchen Display", href: "/pos/kitchen", icon: ChefHat, permission: "viewPOS" });
-    }
-    if (restaurantSettings.table_bookings_enabled) {
-      items.push({ title: "Reservations", href: "/pos/bookings", icon: Calendar, permission: "viewPOS" });
-    }
-    
     // Always add Reports and Settings at the end
     items.push(
       { title: "POS Reports", href: "/pos/reports", icon: BarChart3, permission: "viewPOS" },
@@ -278,7 +265,7 @@ export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }:
     );
     
     return items;
-  }, [restaurantSettings]);
+  }, []);
 
   // Collapsible section state
   const [openSections, setOpenSections] = useState<SectionState>(getDefaultSectionState);

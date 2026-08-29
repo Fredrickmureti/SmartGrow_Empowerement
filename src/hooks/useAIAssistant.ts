@@ -225,7 +225,7 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
 
     try {
       const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) ||
-        "https://jkszmrroyjfdwokbkzis.supabase.co";
+        "https://xwxqunklduknceoryrha.supabase.co";
       const supabaseKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) || "";
 
       // Forward the user's session bearer token when present so the edge

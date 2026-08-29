@@ -1,190 +1,112 @@
-import { useState } from "react";
+/**
+ * PaymentMethodSelector — subscription checkout payment picker.
+ *
+ * Platform-owned (subscription billing), independent of the removed ERP/POS
+ * domains. Purely presentational: the caller owns provider state and the
+ * authoritative charge is created server-side.
+ */
+import { Loader2, Smartphone, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, CreditCard, Smartphone, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { PaymentProvider } from "@/hooks/usePaymentProviders";
 
-export type PaymentProvider = "stripe" | "paypal" | "pesapal" | "mpesa";
+export type { PaymentProvider };
+
+const PROVIDER_LABELS: Record<PaymentProvider, string> = {
+  mpesa: "M-Pesa (STK Push)",
+  mpesa_c2b: "M-Pesa Paybill",
+  stripe: "Card (Stripe)",
+  flutterwave: "Flutterwave",
+  paystack: "Paystack",
+};
+
+const MOBILE_MONEY: PaymentProvider[] = ["mpesa", "mpesa_c2b"];
 
 interface PaymentMethodSelectorProps {
   enabledProviders: PaymentProvider[];
   selectedProvider: PaymentProvider | null;
   onSelectProvider: (provider: PaymentProvider) => void;
-  phoneNumber?: string;
-  onPhoneNumberChange?: (phone: string) => void;
-  isProcessing?: boolean;
+  phoneNumber: string;
+  onPhoneNumberChange: (value: string) => void;
+  isProcessing: boolean;
   onProceed: () => void;
   amount: string;
   currency: string;
 }
 
-const providerConfig: Record<PaymentProvider, {
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  requiresPhone: boolean;
-  color: string;
-}> = {
-  stripe: {
-    name: "Card Payment",
-    description: "Pay with Visa, Mastercard, or other cards",
-    icon: <CreditCard className="h-6 w-6" />,
-    requiresPhone: false,
-    color: "bg-[#635BFF]/10 border-[#635BFF]/30",
-  },
-  paypal: {
-    name: "PayPal",
-    description: "Pay with your PayPal account",
-    icon: <Globe className="h-6 w-6" />,
-    requiresPhone: false,
-    color: "bg-[#003087]/10 border-[#003087]/30",
-  },
-  pesapal: {
-    name: "PesaPal",
-    description: "Multiple payment options across Africa",
-    icon: <Globe className="h-6 w-6" />,
-    requiresPhone: false,
-    color: "bg-[#00A650]/10 border-[#00A650]/30",
-  },
-  mpesa: {
-    name: "M-Pesa",
-    description: "Pay via M-Pesa mobile money",
-    icon: <Smartphone className="h-6 w-6" />,
-    requiresPhone: true,
-    color: "bg-[#4CAF50]/10 border-[#4CAF50]/30",
-  },
-};
-
 export function PaymentMethodSelector({
   enabledProviders,
   selectedProvider,
   onSelectProvider,
-  phoneNumber = "",
+  phoneNumber,
   onPhoneNumberChange,
-  isProcessing = false,
+  isProcessing,
   onProceed,
   amount,
   currency,
 }: PaymentMethodSelectorProps) {
-  const selectedConfig = selectedProvider ? providerConfig[selectedProvider] : null;
+  const needsPhone = selectedProvider != null && MOBILE_MONEY.includes(selectedProvider);
+  const canProceed =
+    selectedProvider != null && (!needsPhone || phoneNumber.trim().length >= 9) && !isProcessing;
 
   if (enabledProviders.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground">
-            No payment methods are currently available. Please contact support.
-          </p>
-        </CardContent>
-      </Card>
+      <p className="text-sm text-muted-foreground">
+        No payment provider is enabled yet. Ask an administrator to configure one in Settings.
+      </p>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Payment Method Selection */}
-      <div className="space-y-3">
-        <Label className="text-base font-medium">Select Payment Method</Label>
-        <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Payment method</Label>
+        <div className="grid gap-2">
           {enabledProviders.map((provider) => {
-            const config = providerConfig[provider];
-            const isSelected = selectedProvider === provider;
-
+            const isSelected = provider === selectedProvider;
+            const Icon = MOBILE_MONEY.includes(provider) ? Smartphone : CreditCard;
             return (
-              <Card
+              <button
                 key={provider}
-                className={cn(
-                  "cursor-pointer transition-all border-2",
-                  isSelected 
-                    ? "border-primary ring-2 ring-primary/20" 
-                    : "border-border hover:border-primary/50",
-                  config.color
-                )}
+                type="button"
                 onClick={() => onSelectProvider(provider)}
+                className={cn(
+                  "flex items-center gap-3 rounded-md border p-3 text-left text-sm transition-colors",
+                  isSelected
+                    ? "border-primary bg-primary/5"
+                    : "border-input hover:bg-accent",
+                )}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                  <div className={cn(
-                    "p-2 rounded-full",
-                    isSelected ? "text-primary" : "text-muted-foreground"
-                  )}>
-                    {config.icon}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{config.name}</p>
-                    <p className="text-xs text-muted-foreground">{config.description}</p>
-                  </div>
-                  {isSelected && (
-                    <Badge variant="default" className="mt-1">Selected</Badge>
-                  )}
-                </CardContent>
-              </Card>
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{PROVIDER_LABELS[provider] ?? provider}</span>
+              </button>
             );
           })}
         </div>
       </div>
 
-      {/* Phone Number Input for M-Pesa */}
-      {selectedProvider === "mpesa" && (
+      {needsPhone && (
         <div className="space-y-2">
-          <Label htmlFor="phone">M-Pesa Phone Number</Label>
+          <Label htmlFor="checkout-phone">Mobile number</Label>
           <Input
-            id="phone"
-            type="tel"
-            placeholder="e.g., 0712345678 or 254712345678"
+            id="checkout-phone"
+            inputMode="tel"
+            placeholder="07XX XXX XXX"
             value={phoneNumber}
-            onChange={(e) => onPhoneNumberChange?.(e.target.value)}
-            className="font-mono"
+            onChange={(event) => onPhoneNumberChange(event.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Enter the phone number registered with M-Pesa
+            You will receive a payment prompt on this number.
           </p>
         </div>
       )}
 
-      {/* Amount Summary */}
-      <div className="rounded-lg bg-muted/50 p-4">
-        <div className="flex justify-between items-center">
-          <span className="text-muted-foreground">Total Amount</span>
-          <span className="text-xl font-bold">{currency} {amount}</span>
-        </div>
-      </div>
-
-      {/* Proceed Button */}
-      <Button
-        className="w-full"
-        size="lg"
-        onClick={onProceed}
-        disabled={
-          !selectedProvider || 
-          isProcessing || 
-          (selectedProvider === "mpesa" && !phoneNumber.trim())
-        }
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : selectedProvider === "mpesa" ? (
-          "Send M-Pesa Prompt"
-        ) : selectedProvider === "stripe" ? (
-          "Proceed to Card Payment"
-        ) : selectedProvider === "paypal" ? (
-          "Pay with PayPal"
-        ) : selectedProvider === "pesapal" ? (
-          "Pay with PesaPal"
-        ) : (
-          "Select a Payment Method"
-        )}
+      <Button className="w-full" disabled={!canProceed} onClick={onProceed}>
+        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Pay {currency} {amount}
       </Button>
-
-      {/* Security Note */}
-      <p className="text-xs text-center text-muted-foreground">
-        🔒 Your payment is secured with industry-standard encryption
-      </p>
     </div>
   );
 }

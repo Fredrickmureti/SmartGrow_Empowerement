@@ -12,7 +12,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import type { ResolvedPrintPolicy } from "@/hooks/pos/useTestPrintReceipt";
+/** Shape of the X-Print-Policy-* headers returned by the test-print endpoint. */
+export interface ResolvedPrintPolicy {
+  paper?: string | null;
+  columns?: number | null;
+  font?: string | null;
+  profileId?: string | null;
+  source?: string | null;
+}
 
 interface Props {
   resolved: ResolvedPrintPolicy | null;

@@ -25,17 +25,12 @@ import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 // Apply-credit is a routed wizard at /finance/customer-credits/:id/apply.
-import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
-import { LeadDetailsDialog } from "@/components/crm/LeadDetailsDialog";
-import { LeadForm } from "@/components/crm/LeadForm";
-import { useLeads } from "@/hooks/crm/useLeads";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { ContactAccountingDefaults } from "@/components/contacts/ContactAccountingDefaults";
 import { ContactAgingBreakdown } from "@/components/contacts/ContactAgingBreakdown";
 import { ContactCreditStatus } from "@/components/contacts/ContactCreditStatus";
 import { ContactActivityTimeline } from "@/components/contacts/ContactActivityTimeline";
-import { SendSmsButton } from "@/components/sms/SendSmsButton";
 import { supabase } from "@/integrations/supabase/client";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { rolesFromContact } from "@/lib/contactRoles";
@@ -47,7 +42,6 @@ export default function ContactProfile() {
   const contactId = searchParams.get("id") || "";
   const fromContext = searchParams.get("from");
   const { formatCurrency } = useCurrency();
-  const { deleteLead } = useLeads();
   const { archiveContact } = useContactsPaginated();
 
   const profile = useContactProfile(contactId);
@@ -223,17 +217,6 @@ export default function ContactProfile() {
             <Star className={cn("mr-1 h-4 w-4", (contact as any).is_pinned && "fill-yellow-400 text-yellow-400")} />
             {(contact as any).is_pinned ? "Unpin" : "Pin"}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setShowLeadForm(true)}>
-            <Briefcase className="mr-1 h-4 w-4" /> New Lead
-          </Button>
-          <SendSmsButton
-            recipientPhone={contact.phone || ""}
-            recipientName={contact.name}
-            context={{
-              entityType: "contact",
-              entityId: contactId,
-            }}
-          />
           <Button size="sm" variant="outline" onClick={() => navigate(`/contacts-app?action=edit&id=${contactId}`)}>
             <Pencil className="mr-1 h-4 w-4" /> Edit
           </Button>
@@ -930,27 +913,6 @@ export default function ContactProfile() {
         </TabsContent>
       </Tabs>
 
-      {/* Lead Details Dialog */}
-      <LeadDetailsDialog
-        lead={selectedLead}
-        open={showLeadDetails}
-        onOpenChange={setShowLeadDetails}
-        onDelete={deleteLead}
-      />
-
-      {/* Lead Form Dialog */}
-      <LeadForm
-        open={showLeadForm}
-        onOpenChange={setShowLeadForm}
-        defaultContactId={contactId}
-        defaultContactName={contact?.name}
-      />
-
-      {/* Apply-credit is a dedicated wizard route — no dialog mount here. */}
-      <CreditNotePeekSheet
-        creditNoteId={peekCreditNoteId}
-        onOpenChange={(open) => { if (!open) setPeekCreditNoteId(null); }}
-      />
     </div>
   );
 }

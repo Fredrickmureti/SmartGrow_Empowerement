@@ -1,6 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+/* Tailwind v4 loads the existing v3-style theme/plugins through the compat
+   directive, so the design tokens in tailwind.config.ts stay authoritative. */
+@config "../tailwind.config.ts";
 
 /* Design system tokens — must be imported AFTER the @tailwind directives so
  * `:root` lands in the cascade above .dark/[data-density] overrides below.

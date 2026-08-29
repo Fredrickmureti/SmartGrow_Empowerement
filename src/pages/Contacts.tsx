@@ -3,7 +3,6 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCountries } from "@/hooks/useCountries";
-import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
 import { ContactDeleteDialog } from "@/components/contacts/ContactDeleteDialog";
 import { CountryCombobox } from "@/components/contacts/CountryCombobox";
 import { ParentCompanyCombobox } from "@/components/contacts/ParentCompanyCombobox";

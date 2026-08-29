@@ -96,7 +96,7 @@ export function usePaymentProviders() {
       const existing = getProviderConfig(args.provider);
       const callbackUrl =
         args.provider === "mpesa"
-          ? `https://jkszmrroyjfdwokbkzis.supabase.co/functions/v1/mpesa-callback`
+          ? `https://xwxqunklduknceoryrha.supabase.co/functions/v1/mpesa-callback`
           : null;
 
       const payload = {

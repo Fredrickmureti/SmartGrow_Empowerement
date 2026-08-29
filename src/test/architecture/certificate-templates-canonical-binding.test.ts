@@ -70,7 +70,7 @@ function unboundColumns(node: DataNode): string[] {
 const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ??
   process.env.SUPABASE_URL ??
-  "https://jkszmrroyjfdwokbkzis.supabase.co";
+  "https://xwxqunklduknceoryrha.supabase.co";
 const SUPABASE_ANON =
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
   process.env.VITE_SUPABASE_ANON_KEY ??

@@ -5,19 +5,13 @@ import {
   mockEmployees 
 } from '../factories/payroll.factory';
 import { 
-  mockProducts, 
-  mockShifts, 
-  mockRegisters 
-} from '../factories/pos.factory';
-import { 
   mockBankTransactions, 
   mockBankAccounts,
   mockInvoices,
   mockBills,
 } from '../factories/bankTransactions.factory';
-import { posHandlers } from './handlers/pos.handlers';
 
-const SUPABASE_URL = 'https://jkszmrroyjfdwokbkzis.supabase.co';
+const SUPABASE_URL = 'https://xwxqunklduknceoryrha.supabase.co';
 
 // Base handlers (will be overridden by more specific handlers)
 const baseHandlers = [
@@ -56,53 +50,6 @@ const baseHandlers = [
 
   http.get(`${SUPABASE_URL}/rest/v1/employees*`, () => {
     return HttpResponse.json(mockEmployees);
-  }),
-
-  // ============ POS HANDLERS ============
-  http.get(`${SUPABASE_URL}/rest/v1/products*`, () => {
-    return HttpResponse.json(mockProducts);
-  }),
-
-  http.get(`${SUPABASE_URL}/rest/v1/pos_shifts*`, () => {
-    return HttpResponse.json(mockShifts);
-  }),
-
-  http.post(`${SUPABASE_URL}/rest/v1/pos_shifts`, async ({ request }) => {
-    const body = await request.json() as Record<string, unknown>;
-    return HttpResponse.json({
-      id: 'new-shift-id',
-      shift_number: 'SHIFT-001',
-      ...body,
-      created_at: new Date().toISOString(),
-    });
-  }),
-
-  http.patch(`${SUPABASE_URL}/rest/v1/pos_shifts*`, async ({ request }) => {
-    const body = await request.json() as Record<string, unknown>;
-    return HttpResponse.json({ ...mockShifts[0], ...body });
-  }),
-
-  http.get(`${SUPABASE_URL}/rest/v1/pos_registers*`, () => {
-    return HttpResponse.json(mockRegisters);
-  }),
-
-  http.post(`${SUPABASE_URL}/rest/v1/pos_transactions`, async ({ request }) => {
-    const body = await request.json() as Record<string, unknown>;
-    return HttpResponse.json({
-      id: 'new-transaction-id',
-      transaction_number: 'TXN-001',
-      ...body,
-    });
-  }),
-
-  http.post(`${SUPABASE_URL}/rest/v1/pos_transaction_items`, async ({ request }) => {
-    const body = await request.json();
-    return HttpResponse.json(body);
-  }),
-
-  http.post(`${SUPABASE_URL}/rest/v1/pos_payments`, async ({ request }) => {
-    const body = await request.json();
-    return HttpResponse.json(body);
   }),
 
   // ============ BANK TRANSACTION HANDLERS ============
@@ -153,10 +100,6 @@ const baseHandlers = [
     return HttpResponse.json('PAY-0002');
   }),
 
-  http.post(`${SUPABASE_URL}/rest/v1/rpc/get_next_shift_number`, () => {
-    return HttpResponse.json('SHIFT-002');
-  }),
-
   // ============ AUTH HANDLERS ============
   http.get(`${SUPABASE_URL}/auth/v1/user`, () => {
     return HttpResponse.json({
@@ -168,6 +111,4 @@ const baseHandlers = [
   }),
 ];
 
-// Combine base handlers with specialized handlers
-// POS handlers take precedence (placed first) for more specific matching
-export const handlers = [...posHandlers, ...baseHandlers];
+export const handlers = [...baseHandlers];

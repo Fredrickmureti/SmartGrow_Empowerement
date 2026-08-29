@@ -39,9 +39,6 @@ import { OnboardingGate } from "@/components/auth/OnboardingGate";
 import { CommandPaletteProvider } from "@/providers/CommandPaletteProvider";
 import { DocumentPreviewProvider } from "@/components/documents/DocumentPreviewProvider";
 import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
-import { ElectronHydratorMount } from "@/components/hardware/ElectronHydratorMount";
-import { EdgeRelayMount } from "@/components/hardware/EdgeRelayMount";
-import { HardwareExecContextMount } from "@/components/hardware/HardwareExecContextMount";
 import { ConnectivityBanner } from "@/components/system/ConnectivityBanner";
 import { AuthExpiryBridge } from "@/components/system/AuthExpiryBridge";
 
@@ -166,7 +163,6 @@ const AppsAndSubscriptions = lazy(() => import("@/pages/settings/AppsAndSubscrip
 const FinanceApp = lazy(() => import("@/apps/finance/routes"));
 const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
 // Wave 5 (Phase 3): hardware lifted out of POS to platform.
-const PlatformHardwareApp = lazy(() => import("@/apps/platform/hardware/routes"));
 const HRApp = lazy(() => import("@/apps/hr/routes"));
 // My Workspace — employee self-service shell (not an installable app, gated by employment)
 const MeApp = lazy(() => import("@/apps/me/MeApp"));
@@ -254,11 +250,11 @@ const App = () => (
                               <Sonner />
                               <ConnectivityBanner />
                               {/* Phase 2 hardware platform: mirror device_assignments → Electron SQLite cache. No-op in browser. */}
-                              <ElectronHydratorMount />
+                              
                               {/* AccrualFlow Edge: hydrate browser runtime from device_assignments (station-scoped rows) and route HTTPS-origin jobs through Supabase. */}
-                              <EdgeRelayMount />
+                              
                               {/* Phase 3 hardware platform: feed active org/business into the exec-log writer. */}
-                              <HardwareExecContextMount />
+                              
                               {/* Track 1 event fabric: drain business_event_outbox → BusinessSaga handlers (labels, GRN, transfers, shipping). */}
                               <AIAssistantProvider>
                               <Router>
@@ -526,24 +522,8 @@ const App = () => (
 
                             {/* POS App (unified route) */}
 
-                            {/* Wave 5 (Phase 3): platform-owned Hardware surface.
-                                Hardware is not a POS-only concern (Inventory, Warehouse, HR,
-                                Manufacturing all consume devices), so the registry lives at the
-                                platform level. Legacy /pos/hardware-* paths redirect here. */}
-                            <Route
-                              path="/platform/hardware/*"
-                              element={
-                                <ProtectedRoute>
-                                  <NonVendorRoute>
-                                    <LazyRoute module="Hardware">
-                                      <PlatformHardwareApp />
-                                    </LazyRoute>
-                                  </NonVendorRoute>
-                                </ProtectedRoute>
-                              }
-                            />
-                            <Route path="/pos/hardware-devices" element={<Navigate to="/platform/hardware/devices" replace />} />
-                            <Route path="/pos/hardware-diagnostics" element={<Navigate to="/platform/hardware/diagnostics" replace />} />
+                            {/* Hardware surface removed with the POS/Inventory domains. */}
+
 
 
                             {/* SMS App */}
