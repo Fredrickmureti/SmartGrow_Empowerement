@@ -1,7 +1,7 @@
 /**
  * PIN Login Form (Legacy - redirects to main login)
  * This component is no longer used directly. PIN login is now integrated
- * into the main EnhancedLoginForm via the pin-login edge function.
+ * into the main EnhancedLoginForm via the pinLogin server function.
  * Kept for backward compatibility with any remaining references.
  */
 
