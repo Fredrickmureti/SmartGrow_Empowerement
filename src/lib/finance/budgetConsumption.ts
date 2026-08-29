@@ -1,4 +1,3 @@
-import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Which journal sources consume a budget.
