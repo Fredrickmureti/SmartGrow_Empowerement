@@ -282,9 +282,22 @@ export function ConsolidationEliminationRules({
           const typeMatched = accounts.filter((a) => a.is_active);
           const focused = focusClass === cls;
           const toleranceNumber = Number(draft.tolerance_amount);
+          const percentNumber =
+            draft.tolerance_percent.trim() === ""
+              ? null
+              : Number(draft.tolerance_percent);
+          // Beyond the rounding bound a tolerance is a materiality judgement,
+          // which is allowed only where the group has said where the
+          // difference goes.
           const overCap =
-            Number.isFinite(toleranceNumber) &&
-            toleranceNumber > ELIMINATION_TOLERANCE_CAP;
+            ((Number.isFinite(toleranceNumber) &&
+              bound !== null &&
+              toleranceNumber > bound) ||
+              (percentNumber !== null &&
+                Number.isFinite(percentNumber) &&
+                percentNumber > 0)) &&
+            draft.difference_policy === "refuse";
+
           return (
 
               <div
