@@ -8,7 +8,7 @@
 import { http, HttpResponse } from 'msw';
 import { createMockTransaction, createMockShift, createMockRegister } from '../../factories/pos.factory';
 
-const SUPABASE_URL = 'https://jkszmrroyjfdwokbkzis.supabase.co';
+const SUPABASE_URL = 'https://xwxqunklduknceoryrha.supabase.co';
 
 // Track state for stateful tests
 let transactionCounter = 0;

@@ -17,7 +17,7 @@ import {
 } from '../factories/bankTransactions.factory';
 import { posHandlers } from './handlers/pos.handlers';
 
-const SUPABASE_URL = 'https://jkszmrroyjfdwokbkzis.supabase.co';
+const SUPABASE_URL = 'https://xwxqunklduknceoryrha.supabase.co';
 
 // Base handlers (will be overridden by more specific handlers)
 const baseHandlers = [

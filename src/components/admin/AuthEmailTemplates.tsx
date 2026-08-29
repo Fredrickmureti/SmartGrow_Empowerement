@@ -92,7 +92,7 @@ export function AuthEmailTemplates() {
 
   const openSupabaseTemplates = () => {
     window.open(
-      "https://supabase.com/dashboard/project/jkszmrroyjfdwokbkzis/auth/templates",
+      "https://supabase.com/dashboard/project/xwxqunklduknceoryrha/auth/templates",
       "_blank"
     );
   };
