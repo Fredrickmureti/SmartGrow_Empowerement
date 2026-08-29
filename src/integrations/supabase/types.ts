@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      __consol_probe_results: {
+        Row: {
+          id: string
+          label: string
+          ran_at: string
+          result: Json
+        }
+        Insert: {
+          id?: string
+          label: string
+          ran_at?: string
+          result: Json
+        }
+        Update: {
+          id?: string
+          label?: string
+          ran_at?: string
+          result?: Json
+        }
+        Relationships: []
+      }
       __ts_wave5_results: {
         Row: {
           id: string
@@ -89627,6 +89648,7 @@ export type Database = {
       }
     }
     Functions: {
+      __consol_probe_rates: { Args: { _label?: string }; Returns: undefined }
       __test_no_dropped_payroll_table_refs: {
         Args: never
         Returns: {
@@ -95668,6 +95690,17 @@ export type Database = {
           rate_class: string
           rate_used: number
         }[]
+      }
+      consolidation_leg_faces_counterparty: {
+        Args: {
+          _account_id: string
+          _business_id: string
+          _contact_id: string
+          _date_from: string
+          _date_to: string
+          _group_id: string
+        }
+        Returns: boolean
       }
       consolidation_member_translation_rates: {
         Args: {
