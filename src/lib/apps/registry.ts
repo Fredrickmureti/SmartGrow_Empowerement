@@ -496,10 +496,8 @@ export const LEGACY_ROUTE_MAPPINGS: Record<string, string> = {
   "/reports/consolidation": "/finance/reports/cross-company",
   "/reports/general-ledger": "/finance/reports/general-ledger",
   "/reports/aging": "/finance/reports/aging",
-  "/reports/sales": "/finance/reports/sales",
   "/reports/management": "/finance/reports/management",
   "/reports/tax": "/finance/reports/tax",
-  "/reports/stock": "/finance/reports/stock",
   "/business-intelligence": "/finance/reports/intelligence",
   
   // Platform/Settings
