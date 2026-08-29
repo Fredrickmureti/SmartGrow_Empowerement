@@ -74,8 +74,8 @@ describe("tolerance configuration", () => {
     expect(validator).toContain(
       "public.consolidation_tolerance_rounding_bound(_presentation_currency)",
     );
-    // A flat, currency-blind literal is exactly what this replaced.
-    expect(guard).not.toContain("public.consolidation_tolerance_cap()");
+    // The flat, currency-blind literal it replaced is gone for good.
+    expect(guard).toContain("DROP FUNCTION IF EXISTS public.consolidation_tolerance_cap");
   });
 
   it("lets a tolerance pass the bound only when the group says where the gap goes", () => {
