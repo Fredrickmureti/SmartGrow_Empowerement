@@ -174,20 +174,28 @@ export function ConsolidationEliminationRules({
   const save = async (cls: EliminationClass) => {
     const draft = draftOf(cls);
     const tolerance = Number(draft.tolerance_amount);
+    const percent =
+      draft.tolerance_percent.trim() === "" ? null : Number(draft.tolerance_percent);
     const reason = draft.tolerance_reason.trim();
     if (!Number.isFinite(tolerance) || tolerance < 0) {
       toast.error("The tolerance must be zero or a positive amount");
       return;
     }
-    // The bound and the reason are the database's rules; checking them here
-    // only spares a round trip, it never decides them.
-    if (tolerance > ELIMINATION_TOLERANCE_CAP) {
+    if (percent !== null && (!Number.isFinite(percent) || percent < 0 || percent > 100)) {
+      toast.error("A percentage tolerance has to be between 0 and 100 per cent");
+      return;
+    }
+    // The bound, the reason and what a tolerance beyond the bound requires are
+    // the database's rules; checking them here only spares a round trip.
+    const beyondBound =
+      (bound !== null && tolerance > bound) || (percent !== null && percent > 0);
+    if (beyondBound && draft.difference_policy === "refuse") {
       toast.error(
-        `A tolerance absorbs rounding: it cannot exceed ${ELIMINATION_TOLERANCE_CAP} in the group's presentation currency`,
+        `A tolerance beyond ${capLabel} is a materiality judgement, not rounding. Say where a difference of that size goes before accepting one.`,
       );
       return;
     }
-    if (tolerance > 0 && reason.length < 20) {
+    if ((tolerance > 0 || (percent ?? 0) > 0) && reason.length < 20) {
       toast.error(
         "Say why the group accepts a difference of that size without treating it as a disagreement",
       );
@@ -207,7 +215,9 @@ export function ConsolidationEliminationRules({
         elimination_class: cls,
         is_active: draft.is_active,
         tolerance_amount: tolerance,
+        tolerance_percent: percent,
         tolerance_reason: reason === "" ? null : reason,
+
         difference_policy: draft.difference_policy,
         difference_group_account_id:
           draft.difference_group_account_id === NO_ACCOUNT
