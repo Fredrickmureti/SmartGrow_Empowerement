@@ -228,12 +228,6 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
         </Card>
       </div>
 
-      {/* Inline attendance trend (kept — useful spark chart). */}
-      <EmployeeTrendDrawer
-        mode="inline"
-        employeeId={employee.id}
-        employeeName={`${employee.first_name} ${employee.last_name}`}
-      />
     </div>
   );
 }
