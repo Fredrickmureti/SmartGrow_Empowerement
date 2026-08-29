@@ -2666,6 +2666,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      __replay_exec: { Args: { p_sql: string }; Returns: undefined }
       bootstrap_super_admin: { Args: { p_email: string }; Returns: Json }
       check_pin_status: { Args: { p_email: string }; Returns: Json }
       disable_user_pin: { Args: never; Returns: Json }
