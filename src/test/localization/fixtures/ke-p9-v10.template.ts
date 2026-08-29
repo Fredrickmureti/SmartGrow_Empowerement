@@ -28,7 +28,7 @@
  * not renderer-hardcoded. Every numeric value is a `binding` into the
  * payload assembled by `generate-tax-certificate`.
  */
-import type { CertificateTemplateV3, Node } from "../../../supabase/functions/_shared/certificate-engine/types";
+import type { CertificateTemplateV3, Node } from "../../../../supabase/functions/_shared/certificate-engine/types";
 
 const lit = (v: string | number) => ({ kind: "literal" as const, value: v });
 const bind = (path: string, fallback = "") =>
