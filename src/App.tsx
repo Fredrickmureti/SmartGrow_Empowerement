@@ -307,13 +307,8 @@ const App = () => (
                             <Route path="/settings/apps" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><AppsAndSubscriptions /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/carriers" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Carriers"><CarriersSettings /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/notifications" element={<ProtectedRoute><NonVendorRoute><Notifications /></NonVendorRoute></ProtectedRoute>} />
-                            {/* Chrome-less attendance kiosk for shared devices.
-                                Mounted at top level so the global app sidebar / topbar
-                                are NOT rendered. Branch is resolved from a localStorage
-                                "device pin" set inside the page. */}
-                            {/* Legacy redirect — printed QR codes pointed at the old
-                                /hr/attendance/kiosk path. Keep them working. */}
-                            <Route path="/hr/attendance/kiosk" element={<Navigate to="/kiosk/attendance" replace />} />
+
+
 
                             {/* ============================================== */}
                             {/* CORE STANDALONE ROUTES (kept as-is)            */}
@@ -498,7 +493,7 @@ const App = () => (
 
                             {/* SMS App */}
 
-                            {/* Timesheets App */}
+
                             
                             {/* ============================================== */}
                             {/* ADMIN ROUTES                                   */}
