@@ -346,19 +346,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["control account", "reconciliation", "ar", "ap", "subledger", "integrity", "drift"],
   },
   {
-    id: "inventory-gl-reconciliation",
-    name: "Inventory ⇄ GL Reconciliation",
-    description: "Stock subledger (cost) vs General Ledger inventory account",
-    category: "audit",
-    path: "/finance/reports/inventory-gl-reconciliation",
-    paths: { finance: "/finance/reports/inventory-gl-reconciliation", inventory: "/inventory-app/reports/inventory-gl-reconciliation" },
-    icon: Boxes,
-    requiredFeature: "reports_financial",
-    permission: "viewReports",
-    reportType: "inventory-gl-reconciliation",
-    keywords: ["inventory", "stock", "reconciliation", "gl", "drift", "valuation", "integrity"],
-  },
-  {
     id: "bank-reconciliation-report",
     name: "Bank Reconciliation",
     description: "Bank-to-book proof at a date, plus the sessions behind it",
@@ -369,32 +356,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     permission: "viewReports",
     reportType: "bank-reconciliation",
     keywords: ["bank", "reconciliation", "statement", "matched", "unmatched", "drift"],
-  },
-  {
-    id: "stock-adjustments-report",
-    name: "Stock Adjustments Report",
-    description: "Operational adjustments with cost impact",
-    category: "inventory",
-    path: "/finance/reports/stock-adjustments",
-    paths: { finance: "/finance/reports/stock-adjustments", inventory: "/inventory-app/reports/stock-adjustments" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "stock-adjustments",
-    keywords: ["stock", "adjustment", "shrinkage", "wastage", "cost impact"],
-  },
-  {
-    id: "stock-transfers-report",
-    name: "Stock Transfers Report",
-    description: "Inter-warehouse / inter-branch transfer activity",
-    category: "inventory",
-    path: "/finance/reports/stock-transfers",
-    paths: { finance: "/finance/reports/stock-transfers", inventory: "/inventory-app/reports/stock-transfers" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "stock-transfers",
-    keywords: ["stock", "transfer", "warehouse", "branch", "in transit", "variance"],
   },
   {
     id: "fx-revaluation",
@@ -518,89 +479,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
   },
 
   // ─── Inventory ───
-  {
-    id: "stock-reports",
-    name: "Stock Reports",
-    description: "Inventory valuation and movement",
-    category: "inventory",
-    path: "/finance/reports/stock",
-    paths: { finance: "/finance/reports/stock", inventory: "/inventory-app/reports" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "stock",
-    keywords: ["stock", "inventory", "valuation", "movement", "warehouse"],
-  },
-  {
-    // Value ledger, as at a date. Reads `report_inventory_valuation_as_of`
-    // (cost-layer reconstruction), never live on-hand × current AVCO.
-    id: "inventory-valuation",
-    name: "Inventory Valuation",
-    description: "Cost-layer inventory value as at a date",
-    category: "inventory",
-    path: "/inventory-app/reports/valuation",
-    paths: { finance: "/finance/reports/inventory-valuation", inventory: "/inventory-app/reports/valuation" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "inventory_valuation",
-    keywords: ["inventory", "valuation", "cost", "avco", "as of", "stock value"],
-  },
-  {
-    // Quantity ledger for a period. Reads `report_stock_ledger`; closing qty
-    // ties to Inventory Valuation's qty on hand at the same date.
-    id: "stock-ledger",
-    name: "Stock Ledger",
-    description: "Opening, movement and closing quantities per product",
-    category: "inventory",
-    path: "/inventory-app/reports/ledger",
-    paths: { finance: "/finance/reports/stock-ledger", inventory: "/inventory-app/reports/ledger" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "stock_ledger",
-    keywords: ["stock", "ledger", "movement", "opening", "closing", "quantity"],
-  },
-  {
-    // Ages remaining cost layers (not products) as at a date; bucket values
-    // tie to Inventory Valuation total value for the same date.
-    id: "stock-aging",
-    name: "Stock Aging",
-    description: "Cost layers bucketed by age as at a date",
-    category: "inventory",
-    path: "/inventory-app/reports/aging",
-    paths: { finance: "/finance/reports/stock-aging", inventory: "/inventory-app/reports/aging" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "inventory_aging",
-    keywords: ["stock", "aging", "slow moving", "obsolete", "old stock", "buckets"],
-  },
-  {
-    // Phase 7 — lot / serial traceability. Value uses the same shared cost-layer
-    // helper as Inventory Valuation (lot grain), so totals tie at the same date.
-    id: "lot-traceability",
-    name: "Lot Traceability",
-    description: "Lot / serial positions, expiry and control status as at a date",
-    category: "inventory",
-    path: "/inventory-app/reports/lot-traceability",
-    paths: { finance: "/finance/reports/lot-traceability", inventory: "/inventory-app/reports/lot-traceability" },
-    icon: Boxes,
-    requiredFeature: "reports_stock",
-    permission: "viewReports",
-    reportType: "lot_traceability",
-    keywords: [
-      "lot",
-      "batch",
-      "serial",
-      "traceability",
-      "expiry",
-      "shelf life",
-      "recall",
-      "quarantine",
-      "genealogy",
-    ],
-  },
 
   // ─── Management & BI ───
   {
@@ -682,33 +560,11 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     reportType: "intelligence",
     keywords: ["intelligence", "analytics", "insights", "dashboard", "bi", "custom", "forecast", "health"],
   },
-  {
-    id: "project-full-export",
-    name: "Project Full Export",
-    description: "Single-project deep export — overview, milestones, tasks, timesheets, profitability, updates",
-    category: "management",
-    path: "/projects-app/reports?key=project_full_export",
-    icon: FileText,
-    permission: "viewReports",
-    reportType: "project_full_export",
-    keywords: ["project", "export", "full", "deep", "profitability", "milestones", "timesheets"],
-  },
 
   // ─── Module-local reports (Phase A: registered so the command palette,
   // favorites, permissions, and access-log apply uniformly across modules).
   // The pages themselves continue to live in their modules; the registry is
   // purely the index. Do NOT create a parallel module-local registry. ───
-  {
-    id: "pos-reports",
-    name: "POS Reports",
-    description: "X / Z / shift reports, payment mix, register performance",
-    category: "management",
-    path: "/pos/reports",
-    icon: BarChart3,
-    permission: "viewPOSReports",
-    reportType: "pos",
-    keywords: ["pos", "shift", "x report", "z report", "register", "till", "drawer"],
-  },
   {
     id: "hr-reports",
     name: "HR Reports",
@@ -719,17 +575,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     permission: "viewReports",
     reportType: "hr",
     keywords: ["hr", "people", "headcount", "turnover", "employees"],
-  },
-  {
-    id: "project-reports",
-    name: "Project Reports",
-    description: "Portfolio reports — profitability, milestones, burndown",
-    category: "management",
-    path: "/projects-app/reports",
-    icon: BarChart3,
-    permission: "viewReports",
-    reportType: "projects",
-    keywords: ["project", "portfolio", "burndown", "profitability"],
   },
 ];
 
@@ -823,12 +668,8 @@ const REPORT_RELATION_PAIRS: Array<[string, string]> = [
   ["purchase-reports", "sales-reports"],
   ["budget-report", "financial-statements"],
   ["depreciation-report", "financial-statements"],
-  ["stock-reports", "inventory-gl-reconciliation"],
-  ["stock-adjustments-report", "stock-reports"],
-  ["stock-transfers-report", "stock-reports"],
   ["control-account-reconciliation", "partner-ledger"],
   ["bank-reconciliation-report", "cash-flow"],
-  ["pos-reports", "sales-reports"],
 ];
 
 /**
@@ -849,7 +690,7 @@ export function getRelatedReports(id: string): ReportDefinition[] {
 
 /**
  * Resolve the registry entry for a pathname (ignoring query string). Prefers
- * the longest matching registered path so `/finance/reports/stock-transfers`
+ * the longest matching registered path so `/finance/reports/general-ledger`
  * does not resolve to `/finance/reports/stock`.
  */
 export function reportMountPaths(def: ReportDefinition): string[] {
