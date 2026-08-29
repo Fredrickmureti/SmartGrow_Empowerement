@@ -1,6 +1,6 @@
 /**
- * Shared guard helpers for the five HR-domain apps
- * (Employees, Time Off, Attendance, Payroll, Recruitment).
+ * Shared guard helpers for the HR domain (Employees only in the
+ * microfinance scope).
  *
  * Centralised so each sub-app's routes file stays focused on its own domain.
  */
@@ -13,8 +13,8 @@ import { useSession } from "@/contexts/SessionContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
 /**
- * Portal users bypass subscription feature-gating for self-service routes.
- * They access leave/timesheets as employee self-service, not as paid modules.
+ * Portal users bypass subscription feature-gating for self-service routes,
+ * which they reach as identity self-service rather than as paid modules.
  */
 export function PortalOrSubscriptionGate({ children }: { children: ReactNode }) {
   const { userType } = useSession();
