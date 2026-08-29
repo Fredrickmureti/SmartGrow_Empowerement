@@ -95669,6 +95669,17 @@ export type Database = {
           rate_used: number
         }[]
       }
+      consolidation_intercompany_scoped_entries: {
+        Args: { _date_to: string; _group_id: string }
+        Returns: {
+          business_id: string
+          counterparty_business_id: string
+          description: string
+          entry_date: string
+          entry_number: string
+          journal_entry_id: string
+        }[]
+      }
       consolidation_leg_faces_counterparty: {
         Args: {
           _account_id: string
