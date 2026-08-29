@@ -84,6 +84,7 @@ interface Props {
 interface Draft {
   is_active: boolean;
   tolerance_amount: string;
+  tolerance_percent: string;
   tolerance_reason: string;
   difference_policy: EliminationDifferencePolicy;
   difference_group_account_id: string;
@@ -98,6 +99,10 @@ function draftFrom(rule: EliminationRule | undefined): Draft {
     tolerance_amount: String(
       rule ? rule.tolerance_amount : ELIMINATION_RULE_DEFAULTS.tolerance_amount,
     ),
+    tolerance_percent:
+      rule?.tolerance_percent === null || rule?.tolerance_percent === undefined
+        ? ""
+        : String(rule.tolerance_percent),
     tolerance_reason: rule?.tolerance_reason ?? "",
     difference_policy:
       rule?.difference_policy ?? ELIMINATION_RULE_DEFAULTS.difference_policy,
@@ -114,9 +119,15 @@ export function ConsolidationEliminationRules({
   focusClass = null,
   focusRemedy = null,
 }: Props) {
-  const capLabel = presentationCurrency
-    ? `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} ${presentationCurrency}`
-    : `${ELIMINATION_TOLERANCE_CAP.toLocaleString()} in the group's presentation currency`;
+  // The bound is the database's, scaled to the group's own currency — the
+  // screen only reports it.
+  const boundQuery = useConsolidationToleranceBound(presentationCurrency);
+  const bound = boundQuery.data ?? null;
+  const capLabel =
+    bound === null
+      ? "the rounding bound for the group's presentation currency"
+      : `${bound.toLocaleString()} ${presentationCurrency ?? ""}`.trim();
+
   const rulesQuery = useConsolidationEliminationRules(groupId);
   const accountsQuery = useConsolidationGroupAccounts(groupId);
   const { saveRule } = useConsolidationEliminationMutations();
