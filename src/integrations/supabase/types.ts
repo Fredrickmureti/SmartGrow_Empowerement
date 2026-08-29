@@ -26292,6 +26292,36 @@ export type Database = {
           },
         ]
       }
+      iso_currencies: {
+        Row: {
+          code: string
+          created_at: string
+          decimal_places: number
+          is_active: boolean
+          name: string
+          symbol: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          decimal_places?: number
+          is_active?: boolean
+          name: string
+          symbol?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          decimal_places?: number
+          is_active?: boolean
+          name?: string
+          symbol?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       je_number_sequences: {
         Row: {
           business_id: string
@@ -31977,7 +32007,7 @@ export type Database = {
           created_by: string | null
           dpi: number | null
           gap_mm: number | null
-          height_mm: number
+          height_mm: number | null
           id: string
           is_default: boolean
           kind: string | null
@@ -31995,7 +32025,7 @@ export type Database = {
           created_by?: string | null
           dpi?: number | null
           gap_mm?: number | null
-          height_mm: number
+          height_mm?: number | null
           id?: string
           is_default?: boolean
           kind?: string | null
@@ -32013,7 +32043,7 @@ export type Database = {
           created_by?: string | null
           dpi?: number | null
           gap_mm?: number | null
-          height_mm?: number
+          height_mm?: number | null
           id?: string
           is_default?: boolean
           kind?: string | null
@@ -86674,6 +86704,7 @@ export type Database = {
       }
     }
     Functions: {
+      __seed_exec: { Args: { p_sql: string }; Returns: undefined }
       __test_no_dropped_payroll_table_refs: {
         Args: never
         Returns: {
@@ -92061,54 +92092,22 @@ export type Database = {
         Args: { p_error?: string; p_id: number; p_success: boolean }
         Returns: undefined
       }
-      complete_onboarding:
-        | {
-            Args: {
-              p_business_type?: string
-              p_company_name: string
-              p_country: string
-              p_currency: string
-              p_founder_first_name?: string
-              p_founder_last_name?: string
-              p_idempotency_key?: string
-              p_invitees?: Json
-              p_legal_name?: string
-              p_selected_app_ids?: string[]
-              p_slug: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_business_type?: string
-              p_company_name: string
-              p_country: string
-              p_currency: string
-              p_founder_first_name?: string
-              p_founder_last_name?: string
-              p_invitees?: Json
-              p_legal_name?: string
-              p_selected_app_ids?: string[]
-              p_slug: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_business_type?: string
-              p_company_name: string
-              p_country: string
-              p_currency: string
-              p_founder_first_name?: string
-              p_founder_last_name?: string
-              p_idempotency_key?: string
-              p_invitees?: Json
-              p_legal_name?: string
-              p_selected_app_ids?: string[]
-              p_slug: string
-            }
-            Returns: Json
-          }
+      complete_onboarding: {
+        Args: {
+          p_business_type?: string
+          p_company_name: string
+          p_country: string
+          p_currency: string
+          p_founder_first_name?: string
+          p_founder_last_name?: string
+          p_idempotency_key?: string
+          p_invitees?: Json
+          p_legal_name?: string
+          p_selected_app_ids?: string[]
+          p_slug: string
+        }
+        Returns: Json
+      }
       complete_ownership_transfer: {
         Args: { _transfer_id: string; _verification_token: string }
         Returns: Json

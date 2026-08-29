@@ -1,0 +1,1 @@
+ALTER TABLE public.media_profiles ALTER COLUMN height_mm DROP NOT NULL;
