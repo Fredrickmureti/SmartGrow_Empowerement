@@ -95674,8 +95674,7 @@ export type Database = {
           _account_id: string
           _business_id: string
           _contact_id: string
-          _date_from: string
-          _date_to: string
+          _entry_date: string
           _group_id: string
         }
         Returns: boolean
@@ -95696,6 +95695,23 @@ export type Database = {
           opening_rate: number
           prior_average_rate: number
           to_currency: string
+        }[]
+      }
+      consolidation_partner_integrity_report: {
+        Args: { _group_id: string }
+        Returns: {
+          business_id: string
+          business_name: string
+          contact_id: string
+          contact_is_company: boolean
+          contact_name: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          effective_from: string
+          effective_to: string
+          issue: string
+          message: string
+          partner_id: string
         }[]
       }
       consolidation_reverse_eliminations: {
