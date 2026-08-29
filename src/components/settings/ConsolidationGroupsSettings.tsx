@@ -897,6 +897,36 @@ export function ConsolidationGroupsSettings() {
                 </TableBody>
               </Table>
             </div>
+            {changeLogTotal > 0 && (
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Page {changeLogPage + 1} of {changeLogPageCount} ·{" "}
+                  {changeLogTotal.toLocaleString()} changes
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={changeLogPage === 0}
+                    onClick={() => setChangeLogPage((p) => Math.max(0, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={changeLogPage + 1 >= changeLogPageCount}
+                    onClick={() =>
+                      setChangeLogPage((p) =>
+                        Math.min(changeLogPageCount - 1, p + 1),
+                      )
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
