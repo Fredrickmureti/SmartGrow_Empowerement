@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBranches, CreateBranchInput } from "@/hooks/useBranches";
-import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useEntityCreationLimits } from "@/hooks/useEntityCreationLimits";
 import { Loader2, MapPin, AlertCircle, ArrowUpCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -19,7 +19,7 @@ interface CreateBranchDialogProps {
 
 export function CreateBranchDialog({ open, onOpenChange, businessId }: CreateBranchDialogProps) {
   const { createBranch } = useBranches();
-  const { checkBranchLimit } = useSubscriptionLimits();
+  const { checkBranchLimit } = useEntityCreationLimits();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingLimit, setIsCheckingLimit] = useState(false);

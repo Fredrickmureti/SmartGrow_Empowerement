@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBusinesses, CreateBusinessInput } from "@/hooks/useBusinesses";
 import { toast } from "sonner";
-import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useEntityCreationLimits } from "@/hooks/useEntityCreationLimits";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, Building2, AlertCircle, ArrowUpCircle, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +23,7 @@ interface CreateBusinessDialogProps {
 
 export function CreateBusinessDialog({ open, onOpenChange }: CreateBusinessDialogProps) {
   const { createBusiness, switchBusiness } = useBusinesses();
-  const { checkBusinessLimit } = useSubscriptionLimits();
+  const { checkBusinessLimit } = useEntityCreationLimits();
   const { canManageBusiness } = usePermissions();
   const navigate = useNavigate();
   const { countries, isLoading: countriesLoading } = useCountries();

@@ -17,7 +17,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { AppDefinition } from "@/lib/apps/types";
 import type { AppEntitlementState } from "@/hooks/useAppAccess";
-import type { AppLifecycleAction } from "@/hooks/useAppLifecycle";
+import type { AppLifecycleAction } from "@/lib/apps/lifecycle";
 
 interface AppCardProps {
   app: AppDefinition;

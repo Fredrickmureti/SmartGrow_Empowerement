@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { AppLayoutProvider } from "@/contexts/AppLayoutContext";
 import { BrandedLoader } from "@/components/common/BrandedLoader";
 import { AppLandingPage } from "@/components/apps/AppLandingPage";
-import { SubscriptionReadOnlyBanner } from "@/components/subscription/SubscriptionReadOnlyBanner";
 import { useAppNavigation } from "@/hooks/useAppNavigation";
 import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { useWorkspaceContextReady } from "@/hooks/useWorkspaceContextReady";
@@ -171,7 +170,6 @@ function PlatformShellBody({
       }
       insideContent={
         <>
-          {!app.internalOnly && <SubscriptionReadOnlyBanner />}
         </>
       }
       fullWidth={fullWidth}

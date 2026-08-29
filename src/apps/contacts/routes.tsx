@@ -10,7 +10,7 @@
 
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
+import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { ContactsLayout } from "./ContactsLayout";
 import Contacts from "@/pages/Contacts";
 
@@ -33,9 +33,9 @@ export function ContactsApp() {
         <Route
           index
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <Contacts />
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -43,9 +43,9 @@ export function ContactsApp() {
         <Route
           path="customers"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <Contacts defaultTypeFilter="customer" />
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -62,9 +62,9 @@ export function ContactsApp() {
         <Route
           path="companies"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <Contacts showCompaniesOnly />
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -72,11 +72,11 @@ export function ContactsApp() {
         <Route
           path="new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
                 <ContactCreatePage />
               </Suspense>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -84,11 +84,11 @@ export function ContactsApp() {
         <Route
           path=":id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
                 <ContactEditPage />
               </Suspense>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -96,11 +96,11 @@ export function ContactsApp() {
         <Route
           path="profile"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
                 <ContactProfile />
               </Suspense>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         

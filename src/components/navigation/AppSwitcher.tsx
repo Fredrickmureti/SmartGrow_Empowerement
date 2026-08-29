@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LayoutGrid, Lock, ChevronDown, Plus, Home } from "lucide-react";
+import { LayoutGrid, Lock, ChevronDown, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,9 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useAppNavigation } from "@/hooks/useAppNavigation";
-import { usePermissions } from "@/hooks/usePermissions";
-import { useInstalledApps } from "@/hooks/useInstalledApps";
-import { AppMarketplace } from "@/components/home/AppMarketplace";
 import { APP_REGISTRY } from "@/lib/apps/registry";
 import type { AppDefinition } from "@/lib/apps/types";
 
@@ -53,13 +50,11 @@ export function AppSwitcher({
   className,
 }: AppSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const navigate = useNavigate();
   const { currentApp, appGroups, canAccessApp, getAppUrl } = useAppNavigation();
-  const { getAvailableAppsToInstall } = useInstalledApps();
-  const { canManageApps } = usePermissions();
+
+
   
-  const availableToInstall = canManageApps ? getAvailableAppsToInstall() : [];
 
   const handleAppSelect = (app: AppDefinition) => {
     const url = getAppUrl(app);
@@ -210,34 +205,8 @@ export function AppSwitcher({
               </div>
             ))}
 
-            {/* Add More Apps */}
-            {availableToInstall.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setIsOpen(false);
-                    setIsMarketplaceOpen(true);
-                  }}
-                  className="flex items-center gap-3 py-2.5 cursor-pointer text-primary"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-md border-2 border-dashed border-primary/30">
-                    <Plus className="h-4 w-4" />
-                  </div>
-                  <span className="flex-1 font-medium">Add More Apps</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {availableToInstall.length}
-                  </Badge>
-                </DropdownMenuItem>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
-        
-        <AppMarketplace
-          open={isMarketplaceOpen}
-          onOpenChange={setIsMarketplaceOpen}
-        />
       </>
     );
   }
@@ -275,31 +244,9 @@ export function AppSwitcher({
                 </div>
               </div>
             ))}
-
-            {/* Add More Apps Button */}
-            {availableToInstall.length > 0 && (
-              <div className="pt-4 border-t">
-                <Button
-                  onClick={() => {
-                    setIsOpen(false);
-                    setIsMarketplaceOpen(true);
-                  }}
-                  variant="outline"
-                  className="w-full gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add More Apps ({availableToInstall.length} available)
-                </Button>
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>
-      
-      <AppMarketplace
-        open={isMarketplaceOpen}
-        onOpenChange={setIsMarketplaceOpen}
-      />
     </>
   );
 }

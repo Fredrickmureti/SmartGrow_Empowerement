@@ -5,11 +5,11 @@
  * route guards. Replaces the per-guard ad-hoc combinations of
  * `authLoading`, `sessionLoading`, `sessionReady`, `organizations.length`,
  * and `currentOrg` that previously lived in `OnboardingGuard`,
- * `SubscriptionProtectedRoute`, and `OnboardingGate`.
+ * `InstitutionRoute`, and `OnboardingGate`.
  *
  * Why a single selector:
  *   Workspace resolution used to be a four-layer client-side state machine
- *   (postLoginRedirect, OnboardingGuard, SubscriptionProtectedRoute,
+ *   (postLoginRedirect, OnboardingGuard, InstitutionRoute,
  *   SelectOrganization). Each layer had its own "loading" rule and its own
  *   redirect, and any one of them firing `<Navigate to="/select-organization">`
  *   on an unhappy frame would flash the picker URL on reload. Collapsing

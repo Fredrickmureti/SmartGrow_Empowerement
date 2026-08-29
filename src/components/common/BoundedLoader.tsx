@@ -6,7 +6,7 @@
  * Contact support" actions) instead of leaving the user staring at an
  * indefinite spinner.
  *
- * Used by SubscriptionProtectedRoute, /select-organization, and the
+ * Used by InstitutionRoute, /select-organization, and the
  * onboarding handoff to /home — the three places where a stuck loader
  * historically translated into "the app is broken" support tickets.
  */

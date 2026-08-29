@@ -8,7 +8,7 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
-import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
+import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { FinanceLayout } from "./FinanceLayout";
 
 // Redirect /finance/contact?id=X → /contacts-app/profile?id=X
@@ -137,11 +137,11 @@ export function FinanceApp() {
         <Route
           path="dashboard"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Finance Dashboard">
                 <FinanceDashboard />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -149,11 +149,11 @@ export function FinanceApp() {
         <Route
           path="receivables"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Accounts Receivable">
                 <AccountsReceivable />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -161,11 +161,11 @@ export function FinanceApp() {
         <Route
           path="payables"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Accounts Payable">
                 <AccountsPayable />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -173,21 +173,21 @@ export function FinanceApp() {
         <Route
           path="customer-credits/:id/apply"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Apply Customer Credit">
                 <ApplyCreditWizardPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="customer-credits/:id/refund"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Process Credit Refund">
                 <ProcessRefundWizardPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -195,11 +195,11 @@ export function FinanceApp() {
         <Route
           path="customer-credits"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Customer Credits">
                 <CustomerCredits />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -207,11 +207,11 @@ export function FinanceApp() {
         <Route
           path="vendor-credits"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Vendor Credits">
                 <VendorCredits />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -221,9 +221,9 @@ export function FinanceApp() {
         <Route
           path="accounts"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <Accounts />
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -232,21 +232,21 @@ export function FinanceApp() {
         <Route
           path="accounts/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Account">
                 <AccountCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="accounts/:id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Edit Account">
                 <AccountEditPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -254,11 +254,11 @@ export function FinanceApp() {
         <Route
           path="accounts/register"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Account Register">
                 <AccountRegister />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -267,11 +267,11 @@ export function FinanceApp() {
         <Route
           path="accounts/:id"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Account Detail">
                 <AccountDetailRedirect />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -286,11 +286,11 @@ export function FinanceApp() {
         <Route
           path="journal-entries"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Journal Entries">
                 <JournalEntries />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -299,21 +299,21 @@ export function FinanceApp() {
         <Route
           path="journal-entries/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Journal Entry">
                 <JournalEntryCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="journal-entries/:id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Edit Journal Entry">
                 <JournalEntryEditPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -321,11 +321,11 @@ export function FinanceApp() {
         <Route
           path="journal-entries/:id"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Journal Entry">
                 <JournalEntryDetailPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -333,11 +333,11 @@ export function FinanceApp() {
         <Route
           path="business-transactions/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Business Transaction">
                 <BusinessTransactionCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -345,11 +345,11 @@ export function FinanceApp() {
         <Route
           path="recurring-journals/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Recurring Journal">
                 <RecurringJournalCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -357,31 +357,31 @@ export function FinanceApp() {
         <Route
           path="fiscal-periods"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Fiscal Periods">
                 <FiscalPeriods />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="fiscal-periods/close"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Year-End Closing">
                 <YearEndClosePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="fiscal-periods/:periodId"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Fiscal Period Detail">
                 <FiscalPeriodDetail />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -391,31 +391,31 @@ export function FinanceApp() {
         <Route
           path="budgets/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Budget">
                 <BudgetCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="budgets/:id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Edit Budget">
                 <BudgetEditPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="budgets"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Budgets">
                 <Budgets />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -423,11 +423,11 @@ export function FinanceApp() {
         <Route
           path="analytic-accounts"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Analytic Accounts">
                 <AnalyticAccounts />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -435,31 +435,31 @@ export function FinanceApp() {
         <Route
           path="fixed-assets/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Fixed Asset">
                 <AssetCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="fixed-assets/:id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Edit Fixed Asset">
                 <AssetEditPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="fixed-assets"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Fixed Assets">
                 <FixedAssets />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -467,11 +467,11 @@ export function FinanceApp() {
         <Route
           path="banking"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Banking">
                 <Banking />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -481,21 +481,21 @@ export function FinanceApp() {
         <Route
           path="banking/accounts/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Add Bank Account">
                 <BankAccountCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="banking/accounts/:id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Edit Bank Account">
                 <BankAccountEditPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -503,31 +503,31 @@ export function FinanceApp() {
         <Route
           path="banking/rules/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="New Transaction Rule">
                 <RuleCreatePage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="banking/rules/:id/edit"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Edit Transaction Rule">
                 <RuleEditPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="banking/rules"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Transaction Rules">
                 <RulesListPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -535,11 +535,11 @@ export function FinanceApp() {
         <Route
           path="banking/import"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Import Bank Statement">
                 <ImportStatementWizardPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -548,21 +548,21 @@ export function FinanceApp() {
         <Route
           path="reconciliation/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Start Reconciliation">
                 <StartReconciliationPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         <Route
           path="reconciliation"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Bank Reconciliation">
                 <BankReconciliation />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -571,11 +571,11 @@ export function FinanceApp() {
         <Route
           path="bank-feeds"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Bank Feeds">
                 <BankFeeds />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -583,121 +583,121 @@ export function FinanceApp() {
         <Route
           path="reports"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Report Center">
                 <ReportCenter />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/financial"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Financial Reports">
                 <FinancialReports />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/trial-balance"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Trial Balance">
                 <TrialBalance />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/consolidated-trial-balance"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Consolidated Trial Balance">
                 <ConsolidatedTrialBalanceReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/consolidated-statements"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Consolidated Statements">
                 <ConsolidatedStatementsReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/intercompany"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Intercompany Identification">
                 <ConsolidationIntercompanyReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/eliminations"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Intercompany Eliminations">
                 <ConsolidationEliminationsReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/general-ledger"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="General Ledger">
                 <GeneralLedger />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/aging"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Aging Reports">
                 <AgingReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/sales"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Sales Reports">
                 <SalesReports />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/purchases"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Purchase Reports">
                 <PurchaseReports />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -705,33 +705,33 @@ export function FinanceApp() {
         <Route
           path="reports/cross-company"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Cross-Company Comparative">
                 <CrossCompanyComparative />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/management"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Management Reports">
                 <ManagementReports />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
         <Route
           path="reports/tax"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Tax Reports">
                 <TaxReports />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -742,11 +742,11 @@ export function FinanceApp() {
         <Route
           path="reports/intelligence"
           element={
-            <SubscriptionProtectedRoute requiredFeature="business_intelligence" allowReadOnly>
+            <InstitutionRoute requiredFeature="business_intelligence" allowReadOnly>
               <LazyRoute module="Business Intelligence">
                 <BusinessIntelligence />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -754,11 +754,11 @@ export function FinanceApp() {
         <Route
           path="reports/partner-ledger"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Partner Ledger">
                 <PartnerLedger />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -766,11 +766,11 @@ export function FinanceApp() {
         <Route
           path="reports/journal-report"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Journal Report">
                 <JournalReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -778,11 +778,11 @@ export function FinanceApp() {
         <Route
           path="reports/budget"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Budget vs Actual">
                 <BudgetReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -790,33 +790,33 @@ export function FinanceApp() {
         <Route
           path="reports/analytic-statement"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Analytic Account Statement">
                 <AnalyticAccountStatement />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/analytic-profit-and-loss"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Analytic Profit & Loss">
                 <AnalyticProfitAndLoss />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="reports/analytic-budget-vs-actual"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Analytic Budget vs Actual">
                 <AnalyticBudgetVsActual />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -824,11 +824,11 @@ export function FinanceApp() {
         <Route
           path="reports/depreciation"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Depreciation Report">
                 <DepreciationReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -836,11 +836,11 @@ export function FinanceApp() {
         <Route
           path="reports/cash-flow"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Cash Flow Report">
                 <CashFlowReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -848,11 +848,11 @@ export function FinanceApp() {
         <Route
           path="reports/audit-trail"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Audit Trail">
                 <AuditTrailReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
         
@@ -860,11 +860,11 @@ export function FinanceApp() {
         <Route
           path="reports/run-history"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Report Run History">
                 <ReportRunHistory />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -874,11 +874,11 @@ export function FinanceApp() {
         <Route
           path="reports/control-account-reconciliation"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Control Account Reconciliation">
                 <ControlAccountReconciliation />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -886,11 +886,11 @@ export function FinanceApp() {
         <Route
           path="reports/bank-reconciliation"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Bank Reconciliation Report">
                 <BankReconciliationReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -908,11 +908,11 @@ export function FinanceApp() {
         <Route
           path="reports/fx-revaluation"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="FX Revaluation Report">
                 <FxRevaluationReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -920,11 +920,11 @@ export function FinanceApp() {
         <Route
           path="reports/fx-exposure"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="FX Exposure Report">
                 <FxExposureReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -932,11 +932,11 @@ export function FinanceApp() {
         <Route
           path="reports/fx-realized"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Realized FX Gain/Loss Report">
                 <FxRealizedReport />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -948,11 +948,11 @@ export function FinanceApp() {
         <Route
           path="settings"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Finance Settings">
                 <FinanceSettingsPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -960,11 +960,11 @@ export function FinanceApp() {
         <Route
           path="integrity"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Finance Integrity">
                 <FinanceIntegrity />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -974,22 +974,22 @@ export function FinanceApp() {
         <Route
           path="reversal-register"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Reversal Register">
                 <ReversalRegister />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
         <Route
           path="operations/accounting-events"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <LazyRoute module="Accounting Events">
                 <AccountingEventsWorkspace />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
