@@ -89,7 +89,6 @@ import {
 import { BusinessAccessDialog } from "@/components/team/BusinessAccessDialog";
 import { PromoteToInternalDialog } from "@/components/team/PromoteToInternalDialog";
 import { AssignGroupDialog } from "@/components/team/AssignGroupDialog";
-import { TenantOwnershipTransferDialog } from "@/components/team/TenantOwnershipTransferDialog";
 import { ROLE_LABELS, canManageRole, AppRole } from "@/lib/permissions";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { normalizeError } from "@/services/resilience";
@@ -655,17 +654,6 @@ export default function Team() {
           </div>
           {canManageTeam && (
             <>
-              {protectedOwnerId === user?.id && (
-                <TenantOwnershipTransferDialog
-                  members={members.map((m) => ({
-                    user_id: m.user_id,
-                    full_name: m.full_name,
-                    email: m.email,
-                    role: m.role,
-                  }))}
-                  onComplete={fetchTeamData}
-                />
-              )}
               <Button
                 className="w-full sm:w-auto"
                 onClick={() => setShowInviteDialog(true)}
