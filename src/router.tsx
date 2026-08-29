@@ -10,7 +10,7 @@
  * is handled by react-router-dom inside it.
  *
  * Do NOT move app routing into this file — the entire ERP (200+ pages,
- * SubscriptionProtectedRoute, AuthenticatedShell, lazy app modules) lives
+ * InstitutionRoute, AuthenticatedShell, lazy app modules) lives
  * in src/App.tsx and src/apps/*. Converting that to file-based routes would
  * be a multi-week migration with high regression risk.
  */

@@ -19,7 +19,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { NonVendorRoute } from "@/components/auth/NonVendorRoute";
 import { PortalUserRoute } from "@/components/auth/PortalUserRoute";
 import { RedirectIfAuthenticated } from "@/components/auth/RedirectIfAuthenticated";
-import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
+import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
 import { AppInstalledGate } from "@/components/apps/AppInstalledGate";
 import { InstalledAppsHydration } from "@/components/apps/InstalledAppsHydration";
@@ -213,7 +213,7 @@ const App = () => (
                             <Route path="/cookies" element={<LazyRoute module="Legal"><CookiePolicyPage /></LazyRoute>} />
 
                             {/* Scanner pairing — universal infrastructure, NOT POS-only.
-                                Must live outside /pos/* so SubscriptionProtectedRoute
+                                Must live outside /pos/* so InstitutionRoute
                                 doesn't bounce non-POS pairings (Inventory, Sales, …)
                                 to /dashboard. Only needs ProtectedRoute (auth). */}
                             {/* Back-compat: legacy QRs in the wild still use /pos/scan/:token.
@@ -233,10 +233,10 @@ const App = () => (
                            <Route path="/settings" element={<ProtectedRoute><NonVendorRoute><Settings /></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/workspace" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><WorkspaceSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/company" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><CompanySettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/settings/team" element={<SubscriptionProtectedRoute requiredFeature="team_management" allowReadOnly><PortalUserRoute><Team /></PortalUserRoute></SubscriptionProtectedRoute>} />
+                            <Route path="/settings/team" element={<InstitutionRoute requiredFeature="team_management" allowReadOnly><PortalUserRoute><Team /></PortalUserRoute></InstitutionRoute>} />
                             <Route path="/settings/studio" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Studio"><Studio /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/settings/audit-logs" element={<SubscriptionProtectedRoute allowReadOnly><PortalUserRoute><LazyRoute module="Audit Logs"><AuditLogs /></LazyRoute></PortalUserRoute></SubscriptionProtectedRoute>} />
-                            <Route path="/settings/compliance" element={<SubscriptionProtectedRoute allowReadOnly><PortalUserRoute><LazyRoute module="Compliance"><Compliance /></LazyRoute></PortalUserRoute></SubscriptionProtectedRoute>} />
+                            <Route path="/settings/audit-logs" element={<InstitutionRoute allowReadOnly><PortalUserRoute><LazyRoute module="Audit Logs"><AuditLogs /></LazyRoute></PortalUserRoute></InstitutionRoute>} />
+                            <Route path="/settings/compliance" element={<InstitutionRoute allowReadOnly><PortalUserRoute><LazyRoute module="Compliance"><Compliance /></LazyRoute></PortalUserRoute></InstitutionRoute>} />
                             <Route path="/settings/governance/sod" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><GovernanceSoD /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/migration" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Migration"><MigrationPage /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/diagnostics/branch-null" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Branch-NULL Diagnostic"><BranchNullDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
@@ -252,15 +252,15 @@ const App = () => (
                             {/* ============================================== */}
                             <Route
                               path="/home"
-                              element={<SubscriptionProtectedRoute><PortalUserRoute><Home /></PortalUserRoute></SubscriptionProtectedRoute>}
+                              element={<InstitutionRoute><PortalUserRoute><Home /></PortalUserRoute></InstitutionRoute>}
                             />
                             <Route
                               path="/dashboard"
-                              element={<SubscriptionProtectedRoute><PortalUserRoute><Dashboard /></PortalUserRoute></SubscriptionProtectedRoute>}
+                              element={<InstitutionRoute><PortalUserRoute><Dashboard /></PortalUserRoute></InstitutionRoute>}
                             />
                             <Route
                               path="/team"
-                              element={<SubscriptionProtectedRoute requiredFeature="team_management" allowReadOnly><Team /></SubscriptionProtectedRoute>}
+                              element={<InstitutionRoute requiredFeature="team_management" allowReadOnly><Team /></InstitutionRoute>}
                             />
 
                             {/* ============================================== */}
@@ -292,19 +292,19 @@ const App = () => (
                             <Route
                               path="/compliance"
                               element={
-                                <SubscriptionProtectedRoute allowReadOnly>
+                                <InstitutionRoute allowReadOnly>
                                   <LazyRoute module="Compliance"><Compliance /></LazyRoute>
-                                </SubscriptionProtectedRoute>
+                                </InstitutionRoute>
                               }
                             />
                             <Route
                               path="/compliance/etims"
                               element={
-                                <SubscriptionProtectedRoute allowReadOnly>
+                                <InstitutionRoute allowReadOnly>
                                   <LazyRoute module="FiscalComplianceWorkspace">
                                     <FiscalComplianceWorkspace />
                                   </LazyRoute>
-                                </SubscriptionProtectedRoute>
+                                </InstitutionRoute>
                               }
                             />
 
@@ -317,13 +317,13 @@ const App = () => (
                             <Route
                               path="/finance/*"
                               element={
-                                <SubscriptionProtectedRoute allowReadOnly>
+                                <InstitutionRoute allowReadOnly>
                                   <PortalUserRoute>
                                     <LazyRoute module="Finance">
                                       <FinanceApp />
                                     </LazyRoute>
                                   </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
+                                </InstitutionRoute>
                               }
                             />
                             
@@ -333,13 +333,13 @@ const App = () => (
                             <Route
                               path="/contacts-app/*"
                               element={
-                                <SubscriptionProtectedRoute allowReadOnly>
+                                <InstitutionRoute allowReadOnly>
                                   <PortalUserRoute>
                                     <LazyRoute module="Contacts">
                                       <ContactsApp />
                                     </LazyRoute>
                                   </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
+                                </InstitutionRoute>
                               }
                             />
                             
@@ -356,13 +356,13 @@ const App = () => (
                             <Route
                               path="/hr/*"
                               element={
-                                <SubscriptionProtectedRoute allowReadOnly>
+                                <InstitutionRoute allowReadOnly>
                                   <PortalUserRoute>
                                     <LazyRoute module="HR">
                                       <HRApp />
                                     </LazyRoute>
                                   </PortalUserRoute>
-                                </SubscriptionProtectedRoute>
+                                </InstitutionRoute>
                               }
                             />
 

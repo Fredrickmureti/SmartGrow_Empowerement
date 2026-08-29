@@ -8,7 +8,7 @@
 import { ReactNode, Suspense } from "react";
 import { Navigate } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
-import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
+import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { useSession } from "@/contexts/SessionContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -19,7 +19,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 export function PortalOrSubscriptionGate({ children }: { children: ReactNode }) {
   const { userType } = useSession();
   if (userType === "portal") return <>{children}</>;
-  return <SubscriptionProtectedRoute allowReadOnly>{children}</SubscriptionProtectedRoute>;
+  return <InstitutionRoute allowReadOnly>{children}</InstitutionRoute>;
 }
 
 /**

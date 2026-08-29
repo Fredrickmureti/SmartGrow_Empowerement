@@ -20,7 +20,7 @@ export function NonVendorRoute({ children }: NonVendorRouteProps) {
     return <BrandedLoader message="Loading..." />;
   }
 
-  // Not logged in — let ProtectedRoute / SubscriptionProtectedRoute handle redirect
+  // Not logged in — let ProtectedRoute / InstitutionRoute handle redirect
   if (!user) {
     return <>{children}</>;
   }

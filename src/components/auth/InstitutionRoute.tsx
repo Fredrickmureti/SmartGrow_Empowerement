@@ -23,7 +23,7 @@ interface InstitutionRouteProps {
  * InstitutionRoute — the authenticated gate for the single-institution
  * microfinance workspace.
  *
- * This replaces the former `SubscriptionProtectedRoute`. Entitlement,
+ * This replaces the former `InstitutionRoute`. Entitlement,
  * trial, suspension and plan-feature gating were SaaS concerns and are
  * gone; what remains is authentication, portal/internal boundary
  * enforcement and workspace readiness.

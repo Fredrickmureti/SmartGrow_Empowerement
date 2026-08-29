@@ -18,7 +18,7 @@
 
 import { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
+import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
 import { OwnProfileOrPermissionRoute } from "@/components/auth/OwnProfileOrPermissionRoute";
 import { EMPLOYEES_APP } from "@/lib/apps/registry";
@@ -63,11 +63,11 @@ export function EmployeesApp() {
         <Route
           path="employees"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="Employees">
                 <Employees />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -76,13 +76,13 @@ export function EmployeesApp() {
         <Route
           path="employees/new"
           element={
-            <SubscriptionProtectedRoute>
+            <InstitutionRoute>
               <PermissionProtectedRoute permission="manageEmployees" fallbackPath="/hr/employees">
                 <LazyRoute module="Add Employee">
                   <EmployeeNewPage />
                 </LazyRoute>
               </PermissionProtectedRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -90,11 +90,11 @@ export function EmployeesApp() {
         <Route
           path="employees/drafts/mine"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <LazyRoute module="My Drafts">
                 <MyDraftsPage />
               </LazyRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 
@@ -114,13 +114,13 @@ export function EmployeesApp() {
         <Route
           path="employees/:id"
           element={
-            <SubscriptionProtectedRoute allowReadOnly>
+            <InstitutionRoute allowReadOnly>
               <OwnProfileOrPermissionRoute permission="viewEmployees" fallbackPath="/me">
                 <LazyRoute module="Employee Profile">
                   <EmployeeProfile />
                 </LazyRoute>
               </OwnProfileOrPermissionRoute>
-            </SubscriptionProtectedRoute>
+            </InstitutionRoute>
           }
         />
 

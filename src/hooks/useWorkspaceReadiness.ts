@@ -8,7 +8,7 @@
  * `get_user_session_data`, RLS hasn't caught up, or Realtime hasn't
  * delivered the membership event. Naively navigating to /home in that
  * window is what produces the "endless spinner with no organization
- * selected" symptom — SubscriptionProtectedRoute renders a loader because
+ * selected" symptom — InstitutionRoute renders a loader because
  * `currentOrg` is null and never recovers.
  *
  * This hook converts that race into a deterministic state machine:
