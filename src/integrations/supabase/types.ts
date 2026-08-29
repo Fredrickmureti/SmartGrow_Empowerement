@@ -32007,7 +32007,7 @@ export type Database = {
           created_by: string | null
           dpi: number | null
           gap_mm: number | null
-          height_mm: number
+          height_mm: number | null
           id: string
           is_default: boolean
           kind: string | null
@@ -32025,7 +32025,7 @@ export type Database = {
           created_by?: string | null
           dpi?: number | null
           gap_mm?: number | null
-          height_mm: number
+          height_mm?: number | null
           id?: string
           is_default?: boolean
           kind?: string | null
@@ -32043,7 +32043,7 @@ export type Database = {
           created_by?: string | null
           dpi?: number | null
           gap_mm?: number | null
-          height_mm?: number
+          height_mm?: number | null
           id?: string
           is_default?: boolean
           kind?: string | null
