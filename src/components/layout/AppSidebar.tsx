@@ -224,7 +224,6 @@ export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }:
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { organizations, currentOrg, userRole, switchOrganization } = useOrganization();
-  const { isPlatformAdmin } = usePlatformAdmin();
   const permissions = usePermissions();
   const navRef = useRef<HTMLElement>(null);
 
@@ -594,7 +593,6 @@ export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }:
               id="system"
               title="System"
               items={[
-                ...(isPlatformAdmin ? [{ title: "Admin Panel", href: "/admin-management", icon: Shield }] : []),
                 ...systemNavItems,
               ]}
             />

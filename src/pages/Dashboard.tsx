@@ -100,7 +100,7 @@ export default function Dashboard() {
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const navigate = useNavigate();
 
-  const isLoading = orgLoading || !currencyReady || adminChecking;
+  const isLoading = orgLoading || !currencyReady;
 
   // NOTE: Dashboard does NOT auto-create organizations from pending signup metadata.
   // Onboarding is the single authoritative provisioning path (see OnboardingSetup +
