@@ -5,17 +5,17 @@
  * to always render the global Finance/Accounting `ReportsSubNav` (Trial
  * Balance, GL, Partner Ledger, Aging, …) whenever it was mounted inside
  * another app shell. That caused real cross-module contamination: opening
- * `/hr/payroll/reports`, `/hr/attendance/reports`, `/timesheets/reports`,
- * etc. injected the Finance reports strip on top, and clicking any of
- * those tabs threw the user out of the current module (or into a 404).
+ * a module-owned reports page (`/hr/reports`, `/projects-app/reports`, …)
+ * injected the Finance reports strip on top, and clicking any of those
+ * tabs threw the user out of the current module (or into a 404).
  *
  * Behaviour now:
  *  - `/reports/*`         → standalone: full Reports app shell + sub-nav.
  *  - `/finance/reports/*` → embedded in Finance shell: render sub-nav so
  *                           the Finance reports family is reachable.
  *  - Anything else        → render the page inside `ReportContextProvider`
- *                           only. The owning module (Payroll, HR,
- *                           Attendance, Timesheets, Projects, …) already
+ *                           only. The owning module (HR, Projects, …)
+ *                           already
  *                           provides its own sidebar / topnav; the global
  *                           Finance reports strip MUST NOT appear there.
  *
@@ -49,7 +49,7 @@ export function ReportsLayout({ children }: ReportsLayoutProps) {
   const { isInsideAppLayout } = useAppLayout();
   const location = useLocation();
 
-  // Nested inside another app shell (HR, Payroll, Attendance, Finance, …)
+  // Nested inside another app shell (HR, Projects, Finance, …)
   if (isInsideAppLayout) {
     const parentBasePath = Object.keys(PARENT_REPORT_PATHS).find((prefix) =>
       location.pathname.startsWith(prefix),
