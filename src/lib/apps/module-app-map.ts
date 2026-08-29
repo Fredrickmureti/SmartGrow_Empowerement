@@ -63,10 +63,9 @@ export function getAccessibleAppIdsFromGroupRules(groupRules: PermissionGroupRul
 
 /**
  * Core / always-on permission modules that exist independently of any
- * installable app surface. Settings + Team + the financial backbone
- * (financials/sales/purchases/contacts/products) ship with every workspace
- * and must always be configurable in Access Groups regardless of which
- * apps are installed.
+ * installable app surface. Settings, Team, Contacts and the financial
+ * backbone ship with every workspace and must always be configurable in
+ * Access Groups regardless of which apps are installed.
  */
 export const ALWAYS_ON_PERMISSION_MODULES: ReadonlySet<PermissionModule> = new Set([
   "settings",
