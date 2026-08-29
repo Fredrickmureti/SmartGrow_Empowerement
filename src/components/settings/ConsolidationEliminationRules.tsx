@@ -372,7 +372,6 @@ export function ConsolidationEliminationRules({
                     id={`elim-tol-${cls}`}
                     type="number"
                     min="0"
-                    max={ELIMINATION_TOLERANCE_CAP}
                     step="0.01"
                     value={draft.tolerance_amount}
                     disabled={!canManage}
@@ -380,21 +379,39 @@ export function ConsolidationEliminationRules({
                   />
                   <p className="text-xs text-muted-foreground">
                     In the group's presentation currency. Zero means the two sides must
-                    agree exactly. A tolerance absorbs rounding, so it cannot exceed{" "}
-                    {capLabel}: a larger gap is a real difference and has to be explained
-                    by the books, not widened away.
+                    agree exactly. Up to {capLabel} a tolerance is treated as rounding;
+                    beyond that it is a materiality judgement and the group has to say
+                    where a difference of that size is carried.
+                  </p>
+                  <Label htmlFor={`elim-tolpct-${cls}`} className="pt-2 block">
+                    Or a percentage of the position
+                  </Label>
+                  <Input
+                    id={`elim-tolpct-${cls}`}
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="Not set"
+                    value={draft.tolerance_percent}
+                    disabled={!canManage}
+                    onChange={(e) => patch(cls, { tolerance_percent: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional. Measured against the size of the matched position. Where
+                    both are set the smaller of the two governs, so a percentage never
+                    widens the money amount on a large balance.
                   </p>
                   {overCap && (
                     <Alert variant="destructive" className="mt-2">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
-                        {Number(draft.tolerance_amount).toLocaleString()}{" "}
-                        {presentationCurrency ?? ""} is not rounding, so it cannot be
-                        saved as a tolerance. To carry a gap of that size, leave the
-                        tolerance at a rounding amount and set “When they disagree by
-                        more” to post the difference to a named group account — the
-                        residual is then disclosed on the face of the statements instead
-                        of being hidden inside the eliminated accounts.
+                        A tolerance beyond {capLabel} is not rounding, and this class is
+                        set to refuse any difference — so nothing would carry the gap it
+                        accepts. Either bring the tolerance back to a rounding amount, or
+                        set “When they disagree by more” to post the difference to a named
+                        group account, so the residual is disclosed on the face of the
+                        statements instead of being hidden inside the eliminated accounts.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -403,7 +420,11 @@ export function ConsolidationEliminationRules({
                     rows={2}
                     placeholder="Why a difference of this size is not a disagreement"
                     value={draft.tolerance_reason}
-                    disabled={!canManage || Number(draft.tolerance_amount) <= 0}
+                    disabled={
+                      !canManage ||
+                      (Number(draft.tolerance_amount) <= 0 &&
+                        (percentNumber ?? 0) <= 0)
+                    }
                     onChange={(e) => patch(cls, { tolerance_reason: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -411,6 +432,7 @@ export function ConsolidationEliminationRules({
                     it and when.
                   </p>
                 </div>
+
 
 
                 <div className="space-y-1">
