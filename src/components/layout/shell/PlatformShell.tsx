@@ -20,9 +20,7 @@ import { Button } from "@/components/ui/button";
 import { AppLayoutProvider } from "@/contexts/AppLayoutContext";
 import { BrandedLoader } from "@/components/common/BrandedLoader";
 import { AppLandingPage } from "@/components/apps/AppLandingPage";
-import { SubscriptionStatusBanner } from "@/components/subscription/SubscriptionStatusBanner";
 import { SubscriptionReadOnlyBanner } from "@/components/subscription/SubscriptionReadOnlyBanner";
-import { AppTrialBanner } from "@/components/subscription/AppTrialBanner";
 import { useAppNavigation } from "@/hooks/useAppNavigation";
 import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { useWorkspaceContextReady } from "@/hooks/useWorkspaceContextReady";
@@ -171,13 +169,9 @@ function PlatformShellBody({
           onOpenMobileNav={() => setMobileNavOpen(true)}
         />
       }
-      aboveContent={<SubscriptionStatusBanner />}
       insideContent={
         <>
           {!app.internalOnly && <SubscriptionReadOnlyBanner />}
-          {!app.internalOnly && !app.isPlatform && (
-            <AppTrialBanner appId={app.id} appName={app.name} />
-          )}
         </>
       }
       fullWidth={fullWidth}
