@@ -92,6 +92,7 @@ export function eliminationClassAnchor(eliminationClass: string): string {
 
 export const TRANSLATION_RESERVE_ANCHOR = "consolidation-translation-reserve";
 export const GROUP_MEMBERS_ANCHOR = "consolidation-group-members";
+export const INTERCOMPANY_DECLARATIONS_ANCHOR = "consolidation-intercompany-declarations";
 
 /**
  * Where a non-applicable remedy sends the accountant. The group and class
@@ -123,6 +124,10 @@ export function remedyLink(
       return `/finance/reports/fx-revaluation`;
     case "review_intercompany":
       return `/finance/reports/intercompany`;
+    case "review_intercompany_partners":
+      // The declarations themselves live on the intercompany report, one row
+      // per contact standing for a sister company.
+      return `/finance/reports/intercompany#${INTERCOMPANY_DECLARATIONS_ANCHOR}`;
     default:
       return null;
   }
