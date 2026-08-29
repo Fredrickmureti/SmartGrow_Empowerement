@@ -17,8 +17,8 @@ export type ReversalModule =
   | "sales"
   | "purchases"
   | "receiving"
-  | "pos"
-  | "payroll";
+  | "pos";
+
 
 export interface ReversibleDocument {
   /** Matches `reversal_register.document_type`. */
