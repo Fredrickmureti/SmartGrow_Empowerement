@@ -16,12 +16,19 @@ Roadmap: `.lovable/plan/microfinance-convergence-independent-verification-29-aug
     `project-full-export`. Inventory nav family removed.
   - Routing-parity, reporting-workspace, reporting-isolation, cash/banking coherence
     and report-format parity suites: green.
-  - **Pending review before execution:** dropping `invoices`, `invoice_items`,
-    `products` in the database. All three are empty (0 rows), but ~46 source files
-    still query them (AR pages, dashboards, statements, command palette, delivery
-    notes). The sales surfaces must be retired in the same wave, one small migration
-    at a time, or those screens will fail at runtime.
+  - Command palette: `providers/invoices.ts`, `providers/products.ts` deleted and
+    unregistered; orphan `useProductCategories`, `useProductTrackingFlags` deleted.
+    Typecheck clean.
+  - **Blocking discovery (29 Aug).** The live database has **51 tables**; the source
+    tree queries **hundreds**. 319 files under `src/` call `.from("<table>")` for a
+    table that does not exist in this project (inventory, WMS, purchasing, POS,
+    platform-billing, CRM, banking-reconciliation, payment-terms, price-lists…).
+    So `invoices` / `invoice_items` / `products` are not the residue — they are three
+    of the few ERP tables that *do* exist. A per-table drop wave is the wrong unit of
+    work; the real decision is whether to (a) mass-excise the unbacked code down to
+    the 51 real tables, or (b) rebuild the microfinance schema first and excise after.
   - Also pending: ADAPT `contacts` → client/member master (M3), and the ~115 stale
     guard tests inherited from the removed ERP domains.
+
 - **M4+** unchanged: institution settings, CoA + account mapping, workspace scaffold,
   domain waves.
