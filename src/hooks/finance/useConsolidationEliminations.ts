@@ -31,7 +31,12 @@ export type EliminationClass =
   | "investment_equity"
   | "dividend"
   | "other";
-export type EliminationDifferencePolicy = "block" | "warn" | "allow";
+export type EliminationDifferencePolicy =
+  | "refuse"
+  | "post_difference"
+  | "post_to_cta"
+  | "warn"
+  | "allow";
 
 export const ELIMINATION_CLASS_LABELS: Record<string, string> = {
   intercompany_balance: "Intercompany balances",
