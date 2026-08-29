@@ -118,37 +118,6 @@ export default function Upgrade() {
           window.location.href = response.data.url;
           return;
         }
-        case "paypal": {
-          const response = await supabase.functions.invoke("paypal-orders", {
-            body: { action: "create", planId: selectedPlan.id, billingCycle, returnUrl: `${baseUrl}/upgrade`, cancelUrl: `${baseUrl}/upgrade` },
-          });
-          if (response.error) throw new Error(response.error.message);
-          if (!response.data?.approvalUrl) throw new Error("No approval URL received");
-          window.location.href = response.data.approvalUrl;
-          return;
-        }
-        case "pesapal": {
-          // pesapal function is path-routed; supabase-js invoke does not support
-          // path segments, so call the create-order action via raw fetch.
-          const { data: { session } } = await supabase.auth.getSession();
-          const res = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pesapal/create-order`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session?.access_token}`,
-                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-              body: JSON.stringify({ planId: selectedPlan.id, billingCycle, callbackUrl: `${baseUrl}/upgrade/success` }),
-            }
-          );
-          const data = await res.json();
-          if (!res.ok) throw new Error(data?.error || "Failed to create PesaPal order");
-          if (!data?.redirectUrl) throw new Error("No redirect URL received");
-          window.location.href = data.redirectUrl;
-          return;
-        }
         case "mpesa": {
           if (!phoneNumber.trim()) throw new Error("Phone number is required for M-Pesa");
           const response = await supabase.functions.invoke("mpesa-outbound", {
