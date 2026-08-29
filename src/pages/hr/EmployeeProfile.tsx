@@ -27,13 +27,10 @@ import { EmployeeProfileHeader } from "@/components/employees/EmployeeProfileHea
 import { EmployeeWorkInfo } from "@/components/employees/EmployeeWorkInfo";
 import { EmployeePrivateInfo } from "@/components/employees/EmployeePrivateInfo";
 import { EmployeeHRSettings } from "@/components/employees/EmployeeHRSettings";
-import { EmployeeLeaveSummary } from "@/components/employees/EmployeeLeaveSummary";
 import { EmployeeDraftBanner } from "@/components/employees/EmployeeDraftBanner";
 import { EmployeeDocumentsTab } from "@/components/employees/EmployeeDocumentsTab";
 import { EmployeeOnboardingTab } from "@/components/employees/EmployeeOnboardingTab";
 import { EmployeeHistoryTimeline } from "@/components/employees/EmployeeHistoryTimeline";
-import { EmployeeAttendanceSummary } from "@/components/employees/EmployeeAttendanceSummary";
-import { EmployeeTimesheetSummary } from "@/components/employees/EmployeeTimesheetSummary";
 import { EmployeeExitClearanceTab } from "@/components/employees/EmployeeExitClearanceTab";
 
 import { ProfileSidebar, type ProfileSection } from "@/components/employees/profile/ProfileSidebar";
@@ -85,10 +82,7 @@ export default function EmployeeProfilePage() {
     { id: "work",        label: "Work Information",    icon: Briefcase,     group: "main",  visible: true },
     { id: "private",     label: "Private Information", icon: Lock,          group: "main",  visible: canViewPrivate },
     { id: "contracts",   label: "Contracts",           icon: ScrollText,    group: "hr",    visible: canManageTeam || isOwnProfile },
-    { id: "leave",       label: "Time Off",            icon: Calendar,      group: "hr",    visible: true },
-    { id: "attendance",  label: "Attendance",          icon: Clock,         group: "hr",    visible: true },
-    { id: "timesheets",  label: "Timesheets",          icon: Timer,         group: "hr",    visible: true },
-    { id: "benefits",    label: "Benefits & assets",   icon: Package,       group: "hr",    visible: canManageTeam || isOwnProfile },
+    { id: "benefits",    label: "Assets",              icon: Package,       group: "hr",    visible: canManageTeam || isOwnProfile },
     { id: "documents",   label: "Documents",           icon: FileText,      group: "hr",    visible: true },
     { id: "onboarding",  label: "Onboarding",          icon: ClipboardList, group: "admin", visible: canManageTeam },
     { id: "exit",        label: "Exit Clearance",      icon: LogOut,        group: "admin", visible: canManageTeam },
@@ -183,9 +177,7 @@ export default function EmployeeProfilePage() {
   });
 
   const contractsTab: ContractsTab = resolved.tab === "history" ? "history" : "info";
-  const benefitsTab: BenefitsTab =
-    resolved.tab === "loans" ? "loans" :
-    resolved.tab === "assets" ? "assets" : "benefits";
+  const benefitsTab: BenefitsTab = "assets";
 
   return (
     <div className="space-y-4">
@@ -226,9 +218,6 @@ export default function EmployeeProfilePage() {
               onTabChange={onSelectTab}
             />
           )}
-          {active === "leave" && <EmployeeLeaveSummary employeeId={employee.id} />}
-          {active === "attendance" && <EmployeeAttendanceSummary employeeId={employee.id} />}
-          {active === "timesheets" && <EmployeeTimesheetSummary employeeId={employee.id} />}
           {active === "benefits" && (
             <BenefitsAndAssetsSection
               employeeId={employee.id}
