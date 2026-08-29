@@ -73,38 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    // Check for existing session first, gracefully handle stale tokens
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (error || !session) {
-        console.log('[AUTHDBG] initial getSession EMPTY -> local signOut', error?.message);
-        // Session retrieval failed or no session — clear any stale tokens
-        try {
-          await supabase.auth.signOut({ scope: 'local' });
-        } catch (_) {
-          // Ignore signOut errors
-        }
-        currentUserIdRef.current = null;
-        setSession(null);
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-      console.log('[AUTHDBG] initial getSession ok', session?.user?.id);
-      currentUserIdRef.current = session?.user?.id ?? null;
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-    }).catch(async () => {
-      // Failed to get session - might be offline or stale refresh token
-      try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch (_) {
-        // Ignore
-      }
-      setIsLoading(false);
-    });
-
-    // Set up auth state listener for subsequent changes
+    // Register the listener FIRST. A sign-in can complete while the initial
+    // getSession() promise is still in flight (PIN login does exactly that:
+    // it calls setSession() from the login form). Subscribing afterwards
+    // would miss that SIGNED_IN event.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         // Skip initial session event - we already handled that above
@@ -122,13 +94,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Handle auth state changes intelligently
-        console.log('[AUTHDBG] event', event, !!session);
         updateAuthState(session, event);
+        setIsLoading(false);
       }
     );
 
+    // Check for existing session, gracefully handling stale tokens.
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error || !session) {
+        // A session may have been established (PIN login / password login)
+        // while this promise was pending. Tearing it down here is what sent a
+        // freshly signed-in user straight back to /login.
+        if (currentUserIdRef.current) {
+          setIsLoading(false);
+          return;
+        }
+        // Session retrieval failed or no session — clear any stale tokens
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (_) {
+          // Ignore signOut errors
+        }
+        currentUserIdRef.current = null;
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      if (currentUserIdRef.current && currentUserIdRef.current !== session.user?.id) {
+        // A newer sign-in already won; do not overwrite it with a stale read.
+        setIsLoading(false);
+        return;
+      }
+      currentUserIdRef.current = session?.user?.id ?? null;
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    }).catch(async () => {
+      // Failed to get session - might be offline or stale refresh token
+      if (!currentUserIdRef.current) {
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (_) {
+          // Ignore
+        }
+      }
+      setIsLoading(false);
+    });
+
     return () => subscription.unsubscribe();
   }, [updateAuthState]);
+
 
   const signIn = async (email: string, password: string) => {
     try {
