@@ -94,3 +94,28 @@ BEGIN
 END $$;
 
 ROLLBACK;
+
+-- Regression: the intercompany flow engine is STABLE, so it may never build a
+-- temporary table — Postgres refuses CREATE TABLE in a non-volatile function
+-- and the elimination run fails at read time.
+BEGIN;
+SELECT plan(2);
+
+SELECT ok(
+  pg_get_functiondef('public.consolidation_intercompany_entry_lines(uuid,date,date)'::regprocedure)
+    !~* 'CREATE\s+TEMP',
+  'consolidation_intercompany_entry_lines must not create a temporary table'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname = 'consolidation_intercompany_scoped_entries'
+       AND p.provolatile = 's'
+  ),
+  'the scoped-entry helper exists and is STABLE'
+);
+
+SELECT * FROM finish();
+ROLLBACK;
