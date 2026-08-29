@@ -73,36 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    // Check for existing session first, gracefully handle stale tokens
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (error || !session) {
-        // Session retrieval failed or no session — clear any stale tokens
-        try {
-          await supabase.auth.signOut({ scope: 'local' });
-        } catch (_) {
-          // Ignore signOut errors
-        }
-        currentUserIdRef.current = null;
-        setSession(null);
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-      currentUserIdRef.current = session?.user?.id ?? null;
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-    }).catch(async () => {
-      // Failed to get session - might be offline or stale refresh token
-      try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch (_) {
-        // Ignore
-      }
-      setIsLoading(false);
-    });
-
-    // Set up auth state listener for subsequent changes
+    // Register the listener FIRST. A sign-in can complete while the initial
+    // getSession() promise is still in flight (PIN login does exactly that:
+    // it calls setSession() from the login form). Subscribing afterwards
+    // would miss that SIGNED_IN event.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         // Skip initial session event - we already handled that above
@@ -121,11 +95,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Handle auth state changes intelligently
         updateAuthState(session, event);
+        setIsLoading(false);
       }
     );
 
+    // Check for existing session. NOTE: never call signOut() here. This
+    // promise can resolve *after* a sign-in that happened while it was in
+    // flight (PIN login calls setSession from the login form), and signing
+    // out at that point destroys the brand-new session — the user lands on
+    // /home for a frame and is bounced straight back to /login.
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error || !session) {
+        if (currentUserIdRef.current) {
+          setIsLoading(false);
+          return;
+        }
+        // Re-read once: a sign-in may have completed between the two reads.
+        const { data: retry } = await supabase.auth.getSession();
+        if (retry.session) {
+          currentUserIdRef.current = retry.session.user?.id ?? null;
+          setSession(retry.session);
+          setUser(retry.session.user ?? null);
+          setIsLoading(false);
+          return;
+        }
+        currentUserIdRef.current = null;
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      if (currentUserIdRef.current && currentUserIdRef.current !== session.user?.id) {
+        // A newer sign-in already won; do not overwrite it with a stale read.
+        setIsLoading(false);
+        return;
+      }
+      currentUserIdRef.current = session?.user?.id ?? null;
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    }).catch(() => {
+      // Failed to get session - might be offline or stale refresh token
+      setIsLoading(false);
+    });
+
+
     return () => subscription.unsubscribe();
   }, [updateAuthState]);
+
 
   const signIn = async (email: string, password: string) => {
     try {

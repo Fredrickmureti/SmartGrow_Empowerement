@@ -11,7 +11,7 @@ import { normalizeError } from "@/services/resilience";
  * 4. PIN login calls the pinLogin server function (no prior session needed)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -123,13 +123,21 @@ export function EnhancedLoginForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
 
-  // Auto-submit PIN when complete
+  // Auto-submit PIN when complete.
+  // Guarded by a ref: `isLoading` flipping back to false after a submit would
+  // otherwise re-run this effect with the same complete PIN and fire a SECOND
+  // pinLogin. That second magic-link exchange rotates the tokens of the session
+  // we just established, which knocked the user straight back to /login.
+  const submittedPinRef = useRef<string | null>(null);
   useEffect(() => {
-    if (authMethod === "pin" && pin.length === pinLength && !isLoading && !pinLocked) {
-      handlePinLogin();
-    }
+    if (authMethod !== "pin" || isLoading || pinLocked) return;
+    if (pin.length !== pinLength) return;
+    if (submittedPinRef.current === pin) return;
+    submittedPinRef.current = pin;
+    handlePinLogin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, pinLength, authMethod, isLoading, pinLocked]);
+
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,7 +259,19 @@ export function EnhancedLoginForm() {
     if (!destination || destination === "/login" || destination === location.pathname) {
       destination = "/home";
     }
+    // Hard navigation on purpose. A client-side navigate() renders the
+    // protected shell with whatever auth state the in-memory context happens
+    // to hold; when the session was installed via setSession() (PIN login)
+    // the SIGNED_IN notification can be swallowed by supabase-js' auth lock,
+    // so the guard sees `user === null` and bounces back to /login. A full
+    // load re-bootstraps AuthContext from the persisted session, which is
+    // always correct.
+    if (typeof window !== "undefined") {
+      window.location.assign(destination);
+      return;
+    }
     navigate(destination, { replace: true });
+
   };
 
   const firstGroupSize = Math.ceil(pinLength / 2);
