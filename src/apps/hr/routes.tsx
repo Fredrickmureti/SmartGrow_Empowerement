@@ -130,23 +130,8 @@ export function HRApp() {
           }
         />
 
-        {/* Payroll subtrees */}
-        <Route
-          path="payroll/*"
-          element={
-            <AppInstalledGate appId="payroll">
-              <PayrollApp surface="payroll" />
-            </AppInstalledGate>
-          }
-        />
-        <Route
-          path="remittances/*"
-          element={
-            <AppInstalledGate appId="payroll">
-              <PayrollApp surface="remittances" />
-            </AppInstalledGate>
-          }
-        />
+
+
 
         {/* Employees foundation — catch-all */}
         <Route
