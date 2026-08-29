@@ -60,3 +60,36 @@ Invariants in every domain migration: authoritative money math server-side only;
 
 ## On "connect Smart Grow Empowerment"
 Project connection is changed from the Cloud panel, not from code. If **Smart Grow Empowerment** is the display name of `xwxqunklduknceoryrha`, nothing to do and this plan proceeds. If it is a *different* Supabase project, reconnect it there first — that would invalidate the PIN/RBAC schema verified above and M1/M3 would need re-running against the new database.
+
+---
+
+## Execution log (agent, this session)
+
+### M1 — Institution baseline: DONE (verified)
+- Migration applied: organization `Smart Grow Empowerment` (slug `smart-grow-empowerment`), 1 business, 1 head-office branch.
+- `fredrickmureti612@gmail.com` granted `super_admin` (unique key is `(user_id, organization_id)` — no role in the conflict target).
+- Profile `last_org_id` points at the institution.
+- Verified by query: 1 org / 1 business / 1 branch / role `super_admin`.
+
+### M1 — Runtime verification: PARTIAL (verified what is reachable)
+- `/login` renders; dev server returns 200.
+- PIN probe verified end-to-end in a real browser: `check_pin_status` RPC returns `{"has_pin": false, "pin_length": 0}` (200) for the seeded email — correct, no PIN enrolled yet.
+- Signed-in verification is NOT possible in this sandbox: `LOVABLE_BROWSER_AUTH_STATUS=external_unmanaged` (external Supabase). Post-login flows must be confirmed by the user in the preview.
+- Remaining console noise: a React `setState during render` warning from `BrowserRouter` inside the legacy SPA shell, plus some 404 asset requests. Non-fatal; tracked, not fixed.
+
+### M2b — Payroll / HR excision: DONE for UI surfaces
+Removed (routes, navs, pages, components, obsolete architecture tests):
+- Time Off / leave, Attendance, work schedules, shifts, roster, devices, attendance audit & reports
+- Talent (goals, reviews, competencies, development, learning, succession, merit, 9-box, quizzes)
+- Recruitment, Contracts, Lifecycle, Document compliance, HR Reports workspace
+- Payroll-adjacent surfaces: employee loans, benefit enrollment windows, `components/hr/payroll`
+- `/me` self-service trimmed to: home, profile, documents, onboarding, account, settings, notifications, team
+
+`/hr/*` is now the Employees foundation only (directory, departments, job positions, work locations, org chart, configuration). Employee attributes are retained on the record so the institution can scale into HR modules later without a data migration.
+
+Verification: `tsgo --noEmit -p tsconfig.app.json` is clean (note: running it against root `tsconfig.json` checks nothing — that file is a solution file with `files: []`). Dev server serves 200 after the change.
+
+### Next (M3) — not started
+- App registry (`src/lib/apps/registry.ts`) still declares retired apps: SALES, INVENTORY, WAREHOUSE, POS, CRM, TIME_OFF, ATTENDANCE, PAYROLL, TIMESHEETS, TALENT, CONTRACTS, ORG. Their routes are gone but the install catalog still offers them — remove from the registry, `module-app-map.ts`, `app-features.ts`, install/onboarding dialogs.
+- Dead hooks/services remain for removed modules (`hooks/hr/useAttendance*`, `hooks/leave/*`, talent/payroll hooks, `services/payroll/*`, attendance edge functions under `supabase/functions`).
+- ERP table disposition + settings baseline, then institution settings, then the microfinance workspace scaffold.
