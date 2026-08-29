@@ -80,6 +80,8 @@ const METHODS = Object.keys(CONSOLIDATION_METHOD_LABELS) as ConsolidationMethod[
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const CHANGE_LOG_PAGE_SIZE = 25;
+
 export function ConsolidationGroupsSettings() {
   const { toast } = useToast();
   const { businesses } = useBusinesses();
