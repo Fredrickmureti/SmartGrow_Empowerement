@@ -93,31 +93,6 @@ export default function OnboardingSetup() {
     }
   }, [authLoading, user, navigate]);
 
-  // Platform admins (SaaS operators) must never be funneled through customer
-  // workspace onboarding. If they land here for any reason (stale metadata,
-  // legacy redirect, bookmarked link), bounce them to /admin-management.
-  useEffect(() => {
-    if (authLoading || !user) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await supabase
-          .from("platform_admins")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (!cancelled && data) {
-          console.log("[OnboardingSetup] Platform admin detected, redirecting to /admin-management");
-          navigate("/admin-management", { replace: true });
-        }
-      } catch {
-        // Non-fatal; AdminProtectedRoute still gates the destination.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [authLoading, user, navigate]);
-
   const { organizations, createOrganization, refreshOrganizations, isLoading: orgLoading } = useOrganization();
   // Pass user metadata to enable server-side data access
   const { getPendingSetup, clearPendingSetup } = usePendingBusinessSetup(user?.user_metadata);

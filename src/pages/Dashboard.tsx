@@ -70,7 +70,6 @@ export default function Dashboard() {
   // Platform-admin probe — used to bounce SaaS operators out of the customer
   // dashboard. They land here only if they clicked a stale link; the empty
   // state below is for tenant customers and would conflate the two roles.
-  const { isPlatformAdmin, isChecking: adminChecking } = usePlatformAdmin();
   // Module + permission awareness — drives which widgets/tabs render so the
   // dashboard stops showing Low Stock to tenants without Inventory installed,
   // Payroll widgets to tenants without HR, etc. (See dashboard audit plan.)
@@ -136,13 +135,6 @@ export default function Dashboard() {
         </div>
       </div>
     );
-  }
-
-  // Platform admin without a tenant: do NOT render the customer "Create
-  // Organization" empty state. SaaS operators belong in /admin-management.
-  // The conflation of these two roles was the original bug we are fixing.
-  if (isPlatformAdmin && organizations.length === 0) {
-    return <Navigate to="/admin-management" replace />;
   }
 
   // No organizations - show onboarding (tenant customers only)
