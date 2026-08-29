@@ -1805,6 +1805,45 @@ export type Database = {
           },
         ]
       }
+      member_permission_groups: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          permission_group_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          permission_group_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          permission_group_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_permission_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_permission_groups_permission_group_id_fkey"
+            columns: ["permission_group_id"]
+            isOneToOne: false
+            referencedRelation: "permission_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_invitations: {
         Row: {
           accepted_at: string | null
@@ -2139,6 +2178,103 @@ export type Database = {
           },
           {
             foreignKeyName: "payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permission_group_rules: {
+        Row: {
+          can_admin_override: boolean
+          can_approve: boolean
+          can_close: boolean
+          can_create: boolean
+          can_delete: boolean
+          can_export: boolean
+          can_pay: boolean
+          can_post: boolean
+          can_read: boolean
+          can_reverse: boolean
+          can_write: boolean
+          id: string
+          module: string
+          permission_group_id: string
+        }
+        Insert: {
+          can_admin_override?: boolean
+          can_approve?: boolean
+          can_close?: boolean
+          can_create?: boolean
+          can_delete?: boolean
+          can_export?: boolean
+          can_pay?: boolean
+          can_post?: boolean
+          can_read?: boolean
+          can_reverse?: boolean
+          can_write?: boolean
+          id?: string
+          module: string
+          permission_group_id: string
+        }
+        Update: {
+          can_admin_override?: boolean
+          can_approve?: boolean
+          can_close?: boolean
+          can_create?: boolean
+          can_delete?: boolean
+          can_export?: boolean
+          can_pay?: boolean
+          can_post?: boolean
+          can_read?: boolean
+          can_reverse?: boolean
+          can_write?: boolean
+          id?: string
+          module?: string
+          permission_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_group_rules_permission_group_id_fkey"
+            columns: ["permission_group_id"]
+            isOneToOne: false
+            referencedRelation: "permission_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permission_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2495,11 +2631,43 @@ export type Database = {
           },
         ]
       }
+      user_security_preferences: {
+        Row: {
+          biometric_enabled: boolean
+          created_at: string
+          id: string
+          pin_enabled: boolean
+          session_timeout_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          biometric_enabled?: boolean
+          created_at?: string
+          id?: string
+          pin_enabled?: boolean
+          session_timeout_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          biometric_enabled?: boolean
+          created_at?: string
+          id?: string
+          pin_enabled?: boolean
+          session_timeout_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      bootstrap_super_admin: { Args: { p_email: string }; Returns: Json }
+      disable_user_pin: { Args: never; Returns: Json }
       ensure_document_record: {
         Args: {
           p_branch_id?: string
@@ -2521,12 +2689,17 @@ export type Database = {
         Returns: string
       }
       get_user_organizations: { Args: { _user_id: string }; Returns: string[] }
+      get_user_session_data: { Args: { p_user_id: string }; Returns: Json }
       has_role: {
         Args: {
           _organization_id: string
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_org_admin_or_owner: {
+        Args: { _organization_id: string; _user_id: string }
         Returns: boolean
       }
       is_org_manager: {
@@ -2537,6 +2710,25 @@ export type Database = {
         Args: { _organization_id: string; _user_id: string }
         Returns: boolean
       }
+      set_last_org_id: { Args: { p_org_id: string }; Returns: undefined }
+      set_user_pin: {
+        Args: { p_device_fingerprint?: string; p_pin: string }
+        Returns: Json
+      }
+      user_has_module_permission: {
+        Args: {
+          _module: string
+          _operation: string
+          _org_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      verify_pin_unauthenticated: {
+        Args: { p_pin: string; p_user_id: string }
+        Returns: Json
+      }
+      verify_user_pin: { Args: { p_pin: string }; Returns: Json }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
