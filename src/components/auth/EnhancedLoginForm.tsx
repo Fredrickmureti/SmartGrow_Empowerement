@@ -123,13 +123,21 @@ export function EnhancedLoginForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
 
-  // Auto-submit PIN when complete
+  // Auto-submit PIN when complete.
+  // Guarded by a ref: `isLoading` flipping back to false after a submit would
+  // otherwise re-run this effect with the same complete PIN and fire a SECOND
+  // pinLogin. That second magic-link exchange rotates the tokens of the session
+  // we just established, which knocked the user straight back to /login.
+  const submittedPinRef = useRef<string | null>(null);
   useEffect(() => {
-    if (authMethod === "pin" && pin.length === pinLength && !isLoading && !pinLocked) {
-      handlePinLogin();
-    }
+    if (authMethod !== "pin" || isLoading || pinLocked) return;
+    if (pin.length !== pinLength) return;
+    if (submittedPinRef.current === pin) return;
+    submittedPinRef.current = pin;
+    handlePinLogin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, pinLength, authMethod, isLoading, pinLocked]);
+
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
