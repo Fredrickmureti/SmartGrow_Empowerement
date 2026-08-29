@@ -248,19 +248,3 @@ export function collectNavReportPaths(items: WorkspaceNavItem[]): string[] {
   walk(items);
   return out;
 }
-
-
-/**
- * The Inventory app's Insights group — the SAME registry family as the Finance
- * sidebar, emitted with `/inventory-app/...` URLs. Never hand-list inventory
- * reports in `src/apps/inventory/nav.ts`; add a registry row instead.
- */
-export function buildInventoryReportsNavChildren(): WorkspaceNavItem[] {
-  const byId = new Map(REPORT_REGISTRY.map((r) => [r.id, r]));
-  const family = REPORT_FAMILIES.find((f) => f.key === "inventory");
-  if (!family) return [];
-  return family.reportIds
-    .map((id) => byId.get(id))
-    .filter((d): d is ReportDefinition => Boolean(d))
-    .flatMap((d) => toNavItems(d, "inventory"));
-}
