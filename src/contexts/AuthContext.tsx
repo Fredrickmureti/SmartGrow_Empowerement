@@ -94,7 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Handle auth state changes intelligently
-        console.log('[AUTHDBG] event', event, !!session);
         updateAuthState(session, event);
         setIsLoading(false);
       }
