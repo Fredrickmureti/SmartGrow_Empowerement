@@ -93,3 +93,40 @@ Verification: `tsgo --noEmit -p tsconfig.app.json` is clean (note: running it ag
 - App registry (`src/lib/apps/registry.ts`) still declares retired apps: SALES, INVENTORY, WAREHOUSE, POS, CRM, TIME_OFF, ATTENDANCE, PAYROLL, TIMESHEETS, TALENT, CONTRACTS, ORG. Their routes are gone but the install catalog still offers them — remove from the registry, `module-app-map.ts`, `app-features.ts`, install/onboarding dialogs.
 - Dead hooks/services remain for removed modules (`hooks/hr/useAttendance*`, `hooks/leave/*`, talent/payroll hooks, `services/payroll/*`, attendance edge functions under `supabase/functions`).
 - ERP table disposition + settings baseline, then institution settings, then the microfinance workspace scaffold.
+
+## M3a — app registry convergence (DONE, 29 Aug 2026)
+
+The install catalog no longer offers modules that do not exist.
+
+- `src/lib/apps/registry.ts`: deleted the definitions for SALES, PURCHASES,
+  INVENTORY, WAREHOUSE, POS, CRM, TIME_OFF, ATTENDANCE, TIMESHEETS, PAYROLL,
+  TALENT, ORG, CONTRACTS, PROJECTS, SMS, HARDWARE. `APP_REGISTRY` is now
+  Dashboard, My Workspace, Finance, Contacts, Employees, Reports, Studio,
+  Settings. `HR_APP` stays as the legacy `hr` → `employees` alias.
+- App-switcher groups rebuilt around the retained set; the "Other apps"
+  catch-all is kept so a future app can never silently disappear.
+- `LEGACY_ROUTE_MAPPINGS`: dropped every redirect that pointed into a retired
+  app (sales/purchases/inventory/POS/CRM/projects, `/reports/sales`,
+  `/reports/stock`, `/leave`, `/payroll`).
+- `ME_APP` modules trimmed to home, documents, onboarding, profile, settings —
+  the leave/timesheet/attendance/shift/payslip/loan tabs pointed at routes
+  deleted in M2b.
+- `module-app-map.ts`: retired permission modules now map to no app (the
+  `PermissionModule` keys remain so the enum and saved Access Group rules stay
+  intact — Odoo's "module not installed" behaviour). `ALWAYS_ON_PERMISSION_MODULES`
+  reduced to settings, team, contacts, financials.
+- `app-features.ts`: landing content removed for the retired apps; the `hr`
+  entry rewritten around the directory/org-structure value proposition instead
+  of payroll and leave.
+- `src/lib/apps/index.ts` re-exports only the retained apps.
+
+Verification: `tsgo --noEmit -p tsconfig.app.json` clean; dev server 200.
+`organization_installed_apps` does not yet exist in the Microfinance database,
+so there are no stale entitlement rows to purge — the app-install baseline will
+be created fresh in M3b.
+
+### Next (M3b)
+- Delete dead hooks/services for removed modules (`hooks/hr/useAttendance*`,
+  `hooks/leave/*`, talent/payroll hooks, `services/payroll/*`) and the
+  attendance/POS edge functions under `supabase/functions`.
+- ERP table disposition + settings/print baseline.
