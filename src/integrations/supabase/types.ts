@@ -2667,6 +2667,7 @@ export type Database = {
     }
     Functions: {
       bootstrap_super_admin: { Args: { p_email: string }; Returns: Json }
+      check_pin_status: { Args: { p_email: string }; Returns: Json }
       disable_user_pin: { Args: never; Returns: Json }
       ensure_document_record: {
         Args: {
@@ -2698,6 +2699,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_user_pin: { Args: never; Returns: boolean }
       is_org_admin_or_owner: {
         Args: { _organization_id: string; _user_id: string }
         Returns: boolean
@@ -2723,6 +2725,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      verify_pin_full: {
+        Args: { p_email: string; p_pin: string }
+        Returns: Json
       }
       verify_pin_unauthenticated: {
         Args: { p_pin: string; p_user_id: string }

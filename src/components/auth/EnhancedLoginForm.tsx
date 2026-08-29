@@ -8,7 +8,7 @@ import { normalizeError } from "@/services/resilience";
  * 1. User enters email
  * 2. System checks if PIN login is available for that email
  * 3. If yes: show tabs for "Password" and "PIN"
- * 4. PIN login calls the pin-login edge function (no prior session needed)
+ * 4. PIN login calls the pinLogin server function (no prior session needed)
  */
 
 import { useState, useEffect } from "react";
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2, KeyRound, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { pinLogin } from "@/lib/pinLogin.functions";
 import {
   InputOTP,
   InputOTPGroup,
@@ -170,22 +171,13 @@ export function EnhancedLoginForm() {
     setPinError(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("pin-login", {
-        body: { email: email.trim(), pin },
-      });
+      const data = await pinLogin({ data: { email: email.trim(), pin } });
 
-      if (error) {
-        setPinError("PIN verification failed");
-        setPin("");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!data.success) {
+      if (!data.success || !data.session) {
         setPinError(data.error || "Invalid PIN");
         if (data.locked) {
           setPinLocked(true);
-          setPinLockedUntil(data.locked_until);
+          setPinLockedUntil(data.locked_until ?? null);
         }
         if (data.attempts_remaining !== undefined) {
           setAttemptsRemaining(data.attempts_remaining);
@@ -195,7 +187,7 @@ export function EnhancedLoginForm() {
         return;
       }
 
-      // Set the session from the edge function response
+      // Set the session returned by the PIN login server function
       const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,

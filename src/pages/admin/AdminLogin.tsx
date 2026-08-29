@@ -17,7 +17,7 @@
  *   We mirror the tenant <EnhancedLoginForm> flow:
  *     - check_pin_status RPC — does this email have a PIN?
  *     - If yes AND the platform-wide `allow_admin_pin_login` toggle is on,
- *       expose a PIN tab that calls the existing `pin-login` edge function
+ *       expose a PIN tab that calls the `pinLogin` server function
  *       (single source of truth for PIN auth).
  *     - Auto-submits when the OTP slots fill, same UX as tenant login.
  */
@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
+import { pinLogin } from "@/lib/pinLogin.functions";
 import {
   InputOTP,
   InputOTPGroup,
@@ -160,19 +161,9 @@ export default function AdminLogin() {
     setPinError(null);
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        "pin-login",
-        { body: { email: email.trim(), pin } },
-      );
+      const data = await pinLogin({ data: { email: email.trim(), pin } });
 
-      if (invokeError) {
-        setPinError("PIN verification failed");
-        setPin("");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!data?.success) {
+      if (!data?.success || !data.session) {
         setPinError(data?.error || "Invalid PIN");
         if (data?.locked) setPinLocked(true);
         if (data?.attempts_remaining !== undefined) {
