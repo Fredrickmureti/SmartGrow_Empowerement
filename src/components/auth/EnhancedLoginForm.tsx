@@ -259,7 +259,19 @@ export function EnhancedLoginForm() {
     if (!destination || destination === "/login" || destination === location.pathname) {
       destination = "/home";
     }
+    // Hard navigation on purpose. A client-side navigate() renders the
+    // protected shell with whatever auth state the in-memory context happens
+    // to hold; when the session was installed via setSession() (PIN login)
+    // the SIGNED_IN notification can be swallowed by supabase-js' auth lock,
+    // so the guard sees `user === null` and bounces back to /login. A full
+    // load re-bootstraps AuthContext from the persisted session, which is
+    // always correct.
+    if (typeof window !== "undefined") {
+      window.location.assign(destination);
+      return;
+    }
     navigate(destination, { replace: true });
+
   };
 
   const firstGroupSize = Math.ceil(pinLength / 2);
