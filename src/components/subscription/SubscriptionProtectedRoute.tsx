@@ -47,6 +47,7 @@ export function SubscriptionProtectedRoute({
 
   // Unauthenticated → login. The selector reports this; we don't sniff
   // `user` ourselves to keep the source-of-truth single.
+  console.log("[SPRDBG]", routing.status, location.pathname);
   if (routing.status === "unauthenticated") {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

@@ -94,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Handle auth state changes intelligently
+        console.log('[AUTHDBG] event', event, !!session);
         updateAuthState(session, event);
         setIsLoading(false);
       }
@@ -105,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // A session may have been established (PIN login / password login)
         // while this promise was pending. Tearing it down here is what sent a
         // freshly signed-in user straight back to /login.
+        console.log('[AUTHDBG] getSession empty, ref=', currentUserIdRef.current);
         if (currentUserIdRef.current) {
           setIsLoading(false);
           return;
