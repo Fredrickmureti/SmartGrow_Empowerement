@@ -246,9 +246,9 @@ export function AppSwitcher({
                 </div>
               </div>
             ))}
-
-            )}
           </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
