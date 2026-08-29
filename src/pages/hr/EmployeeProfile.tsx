@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
-  Loader2, User, Briefcase, Lock, Calendar, FileText, DollarSign,
+  Loader2, User, Briefcase, Lock, Calendar, FileText,
   ClipboardList, ScrollText, History, Clock, Timer,
   Package, LogOut,
 } from "lucide-react";
@@ -28,12 +28,7 @@ import { EmployeeWorkInfo } from "@/components/employees/EmployeeWorkInfo";
 import { EmployeePrivateInfo } from "@/components/employees/EmployeePrivateInfo";
 import { EmployeeHRSettings } from "@/components/employees/EmployeeHRSettings";
 import { EmployeeLeaveSummary } from "@/components/employees/EmployeeLeaveSummary";
-import { EmployeePayslipHistory } from "@/components/employees/EmployeePayslipHistory";
-import { EmployeePayrollInfo } from "@/components/employees/EmployeePayrollInfo";
-import { EmployeeCustomDeductionsSection } from "@/components/payroll/EmployeeCustomDeductionsSection";
-import { PayrollSectionTabs } from "@/components/payroll/PayrollSectionTabs";
 import { EmployeeDraftBanner } from "@/components/employees/EmployeeDraftBanner";
-import { EmployeeReadinessPanel } from "@/components/payroll/EmployeeReadinessPanel";
 import { EmployeeDocumentsTab } from "@/components/employees/EmployeeDocumentsTab";
 import { EmployeeOnboardingTab } from "@/components/employees/EmployeeOnboardingTab";
 import { EmployeeHistoryTimeline } from "@/components/employees/EmployeeHistoryTimeline";
@@ -83,8 +78,6 @@ export default function EmployeeProfilePage() {
   const isOwnProfile = employee?.user_id === user?.id;
   const canEdit = canManageTeam || isOwnProfile;
   const canViewPrivate = isOwnProfile || can("viewEmployeePrivate");
-  const canViewEmpPayroll = can("viewEmployeePayroll") || isOwnProfile;
-  const canViewPayrollRuns = can("viewPayroll");
 
   // 12 canonical sections — see lib/hr/legacyProfileSections.ts
   const sections: ProfileSection[] = useMemo(() => [
@@ -95,13 +88,12 @@ export default function EmployeeProfilePage() {
     { id: "leave",       label: "Time Off",            icon: Calendar,      group: "hr",    visible: true },
     { id: "attendance",  label: "Attendance",          icon: Clock,         group: "hr",    visible: true },
     { id: "timesheets",  label: "Timesheets",          icon: Timer,         group: "hr",    visible: true },
-    { id: "payroll",     label: "Payroll",             icon: DollarSign,    group: "hr",    visible: canViewEmpPayroll || canViewPayrollRuns },
     { id: "benefits",    label: "Benefits & assets",   icon: Package,       group: "hr",    visible: canManageTeam || isOwnProfile },
     { id: "documents",   label: "Documents",           icon: FileText,      group: "hr",    visible: true },
     { id: "onboarding",  label: "Onboarding",          icon: ClipboardList, group: "admin", visible: canManageTeam },
     { id: "exit",        label: "Exit Clearance",      icon: LogOut,        group: "admin", visible: canManageTeam },
     { id: "history",     label: "Activity Log",        icon: History,       group: "admin", visible: canManageTeam },
-  ], [canViewPrivate, canViewEmpPayroll, canViewPayrollRuns, canManageTeam, isOwnProfile]);
+  ], [canViewPrivate, canManageTeam, isOwnProfile]);
 
   const requestedSection = searchParams.get("section") || "overview";
   const requestedTab = searchParams.get("tab") || "";
@@ -237,13 +229,6 @@ export default function EmployeeProfilePage() {
           {active === "leave" && <EmployeeLeaveSummary employeeId={employee.id} />}
           {active === "attendance" && <EmployeeAttendanceSummary employeeId={employee.id} />}
           {active === "timesheets" && <EmployeeTimesheetSummary employeeId={employee.id} />}
-          {active === "payroll" && (
-            <PayrollSectionTabs
-              employee={employee}
-              canViewPayrollRuns={canViewPayrollRuns}
-              canViewEmpPayroll={canViewEmpPayroll}
-            />
-          )}
           {active === "benefits" && (
             <BenefitsAndAssetsSection
               employeeId={employee.id}

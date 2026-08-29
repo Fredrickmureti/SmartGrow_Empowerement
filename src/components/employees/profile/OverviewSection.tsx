@@ -21,7 +21,6 @@ import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import type { EmployeeProfile } from "@/hooks/useEmployeeProfile";
 import { EmployeeTrendDrawer } from "@/components/attendance/EmployeeTrendDrawer";
-import { usePayrollReadiness } from "@/hooks/payroll/usePayrollReadiness";
 import { useEffect, useState } from "react";
 import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAllocations";
 import { useEmployeeAttendanceSummary } from "@/hooks/hr/useEmployeeAttendanceSummary";
@@ -44,10 +43,6 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
     return `${years} yr ${rem} mo`;
   })();
 
-  // --- Payroll readiness (live) -------------------------------------------
-  const readiness = usePayrollReadiness("employee", employee.id);
-  const blockerCount = readiness.blockers?.length ?? 0;
-  const warnCount = (readiness.findings ?? []).filter((f) => f.severity === "warn").length;
 
   // --- Time-off balances (top 3) -----------------------------------------
   const { getEmployeeBalances } = useLeaveAllocations();
@@ -109,29 +104,6 @@ export function OverviewSection({ employee, onNavigateSection }: Props) {
           ]}
           ctaLabel="Open work information"
           onCta={() => onNavigateSection("work")}
-        />
-
-        {/* Payroll readiness */}
-        <StatusCard
-          tone={readiness.isLoading ? "muted" : readiness.isReady ? "ok" : blockerCount > 0 ? "block" : "warn"}
-          icon={readiness.isLoading ? Loader2 : readiness.isReady ? ShieldCheck : blockerCount > 0 ? ShieldOff : ShieldAlert}
-          iconSpin={readiness.isLoading}
-          title="Payroll readiness"
-          headline={
-            readiness.isLoading ? <span className="text-sm text-muted-foreground">Checking…</span>
-              : readiness.isReady ? <Badge variant="default">Ready</Badge>
-              : blockerCount > 0 ? <Badge variant="destructive">{blockerCount} blocker{blockerCount === 1 ? "" : "s"}</Badge>
-              : <Badge variant="secondary">{warnCount} warning{warnCount === 1 ? "" : "s"}</Badge>
-          }
-          lines={
-            readiness.isLoading
-              ? ["Evaluating contract, compensation, statutory IDs…"]
-              : readiness.isReady
-                ? ["Contract, compensation, statutory IDs all present."]
-                : (readiness.blockers ?? []).slice(0, 2).map((b) => b.rule_name || b.reason || "Missing data")
-          }
-          ctaLabel={readiness.isReady ? "View details" : "Resolve in Payroll"}
-          onCta={() => onNavigateSection("payroll")}
         />
 
         {/* Portal access */}

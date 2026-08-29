@@ -30,7 +30,6 @@ import { SentryErrorBoundary } from "@/components/error/SentryErrorBoundary";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { RealtimeSyncProvider } from "./providers/RealtimeSyncProvider";
 import { GlobalAIAssistant } from "./components/ai/GlobalAIAssistant";
-import { MissingMappingsDialog } from "./components/payroll/MissingMappingsDialog";
 import { AIAssistantProvider } from "@/contexts/AIAssistantContext";
 import { SubscriptionAccessProvider } from "@/contexts/SubscriptionAccessContext";
 import { ReadOnlyModeProvider } from "@/contexts/ReadOnlyModeContext";
@@ -103,9 +102,6 @@ import {
   AdminSettings,
   AdminEmailCenter,
   AdminDemoRequests,
-  AdminLocalizationPacks,
-  AdminLocalizationCertificateEdit,
-  AdminLocalizationReturnEdit,
   AdminInfrastructure,
   AdminOrganizationDetail,
   AdminOrganizationSubscription,
@@ -128,8 +124,6 @@ import {
   AdminPlanEditPage,
   AdminFeatureCreatePage,
   AdminFeatureEditPage,
-  AdminLocalizationPackCreatePage,
-  AdminLocalizationPackDetailPage,
   AdminEmailComposePage,
   AdminEmailCampaignCreatePage,
   AdminEmailTemplateCreatePage,
@@ -138,10 +132,8 @@ import {
   AdminDemoRequestReplyPage,
   AdminOrgEntitlementOverrideCreatePage,
   AdminOrgEntitlementOverrideEditPage,
-  AdminOrgLocalizationInstallPage,
   AdminDemoVideoCreatePage,
   AdminDemoVideoEditPage,
-  AdminLocalizationPackPublishPage,
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
   Compliance,
@@ -170,25 +162,6 @@ const MeApp = lazy(() => import("@/apps/me/MeApp"));
 // non-POS modules (Inventory, Sales, Purchases, etc.) can pair a phone
 // without the POS subscription gate redirecting the phone to /dashboard.
 // See .lovable/plan.md "Move scanner pairing route out of POS subscription gate".
-const LocalizationPreviewWindow = lazy(
-  () => import("@/features/localization/components/LocalizationPreviewWindow"),
-);
-
-// Pop-out preview window for the Localization Editor. Opened via
-// window.open() from AuthoringWorkspace. Runs in the same origin so it
-// inherits localStorage + BroadcastChannel from the opener; no auth
-// gate needed (it only re-renders what the opener already broadcasts).
-const LocalizationPreviewRoute = () => {
-  const { kind, templateCode } = useParams<{ kind: string; templateCode: string }>();
-  return (
-    <Suspense fallback={<div style={{ padding: 24, fontFamily: "system-ui" }}>Loading preview…</div>}>
-      <LocalizationPreviewWindow kind={kind ?? ""} templateCode={templateCode ?? ""} />
-    </Suspense>
-  );
-};
-
-
-
 // Apps Marketplace Page
 const Apps = lazy(() => import("@/pages/Apps"));
 const AppActivate = lazy(() => import("@/pages/apps/AppActivate"));
@@ -274,9 +247,6 @@ const App = () => (
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
                             <Route path="/demo" element={<Demo />} />
-                            {/* Localization pop-out preview — public route (same-origin
-                                localStorage/BroadcastChannel from the opener is the auth). */}
-                            <Route path="/localization/preview/:kind/:templateCode" element={<LocalizationPreviewRoute />} />
 
                            {/* Public: the learning library shows videos the platform
                                admin published for a public audience (RLS enforces
@@ -552,7 +522,6 @@ const App = () => (
                               <Route path="organizations/:id/delete" element={<LazyRoute module="Delete Organization"><AdminOrganizationDelete /></LazyRoute>} />
                               <Route path="organizations/:id/entitlements/new" element={<LazyRoute module="Add Entitlement Override"><AdminOrgEntitlementOverrideCreatePage /></LazyRoute>} />
                               <Route path="organizations/:id/entitlements/:overrideId/edit" element={<LazyRoute module="Edit Entitlement Override"><AdminOrgEntitlementOverrideEditPage /></LazyRoute>} />
-                              <Route path="organizations/:id/localization/install" element={<LazyRoute module="Install Localization Pack"><AdminOrgLocalizationInstallPage /></LazyRoute>} />
 
                               <Route path="users" element={<LazyRoute module="Users"><AdminUsers /></LazyRoute>} />
                               <Route path="invoices" element={<LazyRoute module="Invoices"><AdminInvoices /></LazyRoute>} />
@@ -569,12 +538,6 @@ const App = () => (
                               <Route path="email-center/automations/:id" element={<LazyRoute module="Edit Automation"><AdminEmailAutomationEditPage /></LazyRoute>} />
                               <Route path="demo-requests" element={<LazyRoute module="Demo Requests"><AdminDemoRequests /></LazyRoute>} />
                               <Route path="demo-requests/:id/reply" element={<LazyRoute module="Reply to Demo Request"><AdminDemoRequestReplyPage /></LazyRoute>} />
-                              <Route path="localization-packs" element={<LazyRoute module="Localization Packs"><AdminLocalizationPacks /></LazyRoute>} />
-                              <Route path="localization-packs/new" element={<LazyRoute module="Create Localization Pack"><AdminLocalizationPackCreatePage /></LazyRoute>} />
-                              <Route path="localization-packs/:id" element={<LazyRoute module="Localization Pack"><AdminLocalizationPackDetailPage /></LazyRoute>} />
-                              <Route path="localization-packs/:id/publish" element={<LazyRoute module="Publish Localization Pack Version"><AdminLocalizationPackPublishPage /></LazyRoute>} />
-                              <Route path="localization-packs/:packId/certificates/:templateId/edit" element={<LazyRoute module="Certificate Template Editor"><AdminLocalizationCertificateEdit /></LazyRoute>} />
-                              <Route path="localization-packs/:packId/returns/:templateId/edit" element={<LazyRoute module="Return Template Editor"><AdminLocalizationReturnEdit /></LazyRoute>} />
                               <Route path="infrastructure" element={<LazyRoute module="Infrastructure"><AdminInfrastructure /></LazyRoute>} />
                               <Route path="plan-builder" element={<LazyRoute module="Plan Builder"><AdminPlanBuilder /></LazyRoute>} />
                               <Route path="plan-builder/plans/new" element={<LazyRoute module="Create Plan"><AdminPlanCreatePage /></LazyRoute>} />
@@ -605,7 +568,6 @@ const App = () => (
                           </CommandPaletteProvider>
                           </AuthenticatedShell>
                           <GlobalAIAssistant />
-                          <MissingMappingsDialog />
                         </Router>
                         </AIAssistantProvider>
 

@@ -8,7 +8,6 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsAuditLogPanel } from "@/components/settings/SettingsAuditLogPanel";
-import LegalOrdersAudit from "@/pages/hr/payroll/LegalOrdersAudit";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -284,9 +283,6 @@ export default function AuditLogs() {
             <SettingsAuditLogPanel />
           </TabsContent>
 
-          <TabsContent value="legal-orders" className="space-y-4">
-            <LegalOrdersAudit />
-          </TabsContent>
 
           <TabsContent value="activity" className="space-y-4 sm:space-y-6">
 

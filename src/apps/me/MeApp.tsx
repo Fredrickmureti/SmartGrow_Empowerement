@@ -26,18 +26,15 @@ const MeHome = lazy(() => import("@/pages/me/MeHome"));
 // Purpose-built portal payslip page. The legacy EmployeeSelfService is no
 // longer mounted under /me/* — it carried admin-flavoured affordances
 // (e.g. "Add me as an employee") that leaked to regular portal users.
-const MyPayslips = lazy(() => import("@/pages/me/MyPayslips"));
 const MyProfile = lazy(() => import("@/pages/me/MyProfilePage"));
 const MyAccount = lazy(() => import("@/pages/me/MyAccount"));
 const MyNotifications = lazy(() => import("@/pages/me/MyNotifications"));
 const MyLeave = lazy(() => import("@/pages/me/MyLeave"));
 const MyAttendance = lazy(() => import("@/pages/me/MyAttendance"));
 const MyLoans = lazy(() => import("@/pages/me/MyLoans"));
-const MyLegalOrders = lazy(() => import("@/pages/me/MyLegalOrders"));
 const MyOnboarding = lazy(() => import("@/pages/me/MyOnboarding"));
 const MyShifts = lazy(() => import("@/pages/me/MyShifts"));
 const MyDocuments = lazy(() => import("@/pages/me/MyDocuments"));
-const MyTaxCertificates = lazy(() => import("@/pages/me/MyTaxCertificates"));
 const MyAnnualEarnings = lazy(() => import("@/pages/me/MyAnnualEarnings"));
 const MyExitClearance = lazy(() => import("@/pages/me/MyExitClearance"));
 const MySettings = lazy(() => import("@/pages/me/MySettings"));
@@ -134,14 +131,6 @@ export default function MeApp() {
         />
 
         {/* My Payslips — purpose-built portal payslip surface */}
-        <Route
-          path="payslips"
-          element={
-            <Lazy module="My Payslips">
-              <MyPayslips />
-            </Lazy>
-          }
-        />
 
 
         {/* My Documents — purpose-built portal page with acknowledgement */}
@@ -156,16 +145,6 @@ export default function MeApp() {
 
         {/* My Tax Certificates — country-agnostic self-service for year-end
             statutory certificates (P9 / IRP5 / Lohnsteuerbescheinigung / …) */}
-        <Route
-          path="tax-certificates"
-          element={
-            <AppInstalledGate appId="payroll">
-              <Lazy module="My Tax Certificates">
-                <MyTaxCertificates />
-              </Lazy>
-            </AppInstalledGate>
-          }
-        />
 
         {/* My Annual Earnings — country-neutral canonical earnings statement (ADR-0063) */}
         <Route
@@ -194,16 +173,6 @@ export default function MeApp() {
         />
 
         {/* My Legal Orders — read-only garnishments/tax levies + evidence uploads */}
-        <Route
-          path="legal-orders"
-          element={
-            <AppInstalledGate appId="payroll">
-              <Lazy module="My Legal Orders">
-                <MyLegalOrders />
-              </Lazy>
-            </AppInstalledGate>
-          }
-        />
 
         {/* My Onboarding — auto-instantiated checklist for new hires */}
         <Route

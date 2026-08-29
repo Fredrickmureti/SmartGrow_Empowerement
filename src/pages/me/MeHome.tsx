@@ -5,7 +5,6 @@
  *   - Greeting with the employee's name
  *   - Quick-action tiles (Leave, Timesheet, Attendance, Expenses, Payslips, Documents, Profile)
  *   - At-a-glance leave balance summary
- *   - Recent payslips snapshot
  *
  * This is intentionally a *dashboard* — not the legacy `EmployeeSelfService`
  * page (which is still reachable via the action tiles for full detail).
@@ -28,7 +27,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, PageBody } from "@/design-system";
-import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { useLeaveAllocations, type LeaveBalance } from "@/hooks/leave/useLeaveAllocations";
 import { useLeaveRequests } from "@/hooks/leave/useLeaveRequests";
@@ -51,7 +49,6 @@ const QUICK_ACTIONS: QuickActionDef[] = [
   { to: "/me/attendance",  label: "Attendance", description: "Clock in / out history",        icon: ClipboardList },
   { to: "/me/onboarding",  label: "Onboarding", description: "New-hire checklist & tasks",    icon: ClipboardList },
   { to: "/me/loans",       label: "Loans",      description: "Request advances & track loans", icon: Wallet,      gateAppId: "payroll" },
-  { to: "/me/payslips",    label: "Payslips",   description: "Download recent pay statements",icon: Wallet },
   { to: "/me/documents",   label: "Documents",  description: "Contracts, IDs, certifications",icon: FileText },
   { to: "/me/profile",     label: "My profile", description: "Personal & employment details", icon: UserIcon },
 ];
@@ -97,9 +94,7 @@ export default function MeHome() {
   const { getEmployeeBalances } = useLeaveAllocations();
   const { leaveRequests } = useLeaveRequests();
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
-  const [recentPayslips, setRecentPayslips] = useState<Array<{ id: string; period_label: string; net: number; currency: string }>>([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
-  const [detailId, setDetailId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,26 +102,9 @@ export default function MeHome() {
       if (!currentEmployee) { setLoadingExtras(false); return; }
       setLoadingExtras(true);
       try {
-        const [bal, slipsRes] = await Promise.all([
-          getEmployeeBalances(currentEmployee.id),
-          supabase
-            .from("payslips")
-            .select("id, net_pay, currency_code, payroll_run:payroll_runs(payroll_number, pay_period_start, pay_period_end)")
-            .eq("employee_id", currentEmployee.id)
-            .order("created_at", { ascending: false })
-            .limit(3),
-        ]);
+        const bal = await getEmployeeBalances(currentEmployee.id);
         if (cancelled) return;
         setBalances(bal ?? []);
-        const slips = (slipsRes.data ?? []).map((s: any) => ({
-          id: s.id,
-          period_label: s.payroll_run
-            ? `${format(new Date(s.payroll_run.pay_period_start), "MMM d")} – ${format(new Date(s.payroll_run.pay_period_end), "MMM d, yyyy")}`
-            : "Pay period",
-          net: Number(s.net_pay ?? 0),
-          currency: s.currency_code ?? "KES",
-        }));
-        setRecentPayslips(slips);
       } catch {
         // swallow — show empty states rather than blocking the page
       } finally {
@@ -149,7 +127,7 @@ export default function MeHome() {
     <>
       <PageHeader
         title={`Hi ${greetingName} 👋`}
-        description="Your workspace — leave, timesheets, payslips and personal details, all in one place."
+        description="Your workspace — leave, timesheets and personal details, all in one place."
       />
       <PageBody>
         <QuickActionsSection />
@@ -195,59 +173,7 @@ export default function MeHome() {
           </CardContent>
         </Card>
 
-        {/* Recent payslips */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base">Recent payslips</CardTitle>
-              <CardDescription>Latest 3 pay periods</CardDescription>
-            </div>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/me/payslips">View all</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {empLoading || loadingExtras ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-              </div>
-            ) : recentPayslips.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                No payslips have been issued to you yet.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {recentPayslips.map((p) => (
-                  <li key={p.id} className="py-2 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDetailId(p.id)}
-                      className="text-sm text-left hover:underline truncate"
-                      aria-label={`View detail for ${p.period_label}`}
-                    >
-                      {p.period_label}
-                    </button>
-                    <span className="text-sm font-medium tabular-nums whitespace-nowrap">
-                      {p.currency} {p.net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
         </div>
-      <PayslipDetailDialog
-        payslipId={detailId}
-        open={!!detailId}
-        onOpenChange={(v) => !v && setDetailId(null)}
-        canSeeAmounts
-        portalMode
-        variant="sheet"
-        payslip={recentPayslips.find((p) => p.id === detailId) as any}
-        currency={recentPayslips.find((p) => p.id === detailId)?.currency}
-      />
       </PageBody>
     </>
   );

@@ -35,7 +35,6 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardCommandStrip } from "@/components/dashboard/DashboardCommandStrip";
 import { DashboardSetupGuide } from "@/components/dashboard/DashboardSetupGuide";
 import { UpcomingDeadlinesWidget } from "@/components/dashboard/UpcomingDeadlinesWidget";
-import { PayrollSummaryWidget } from "@/components/dashboard/PayrollSummaryWidget";
 import { QuickActions } from "@/components/home/QuickActions";
 import { DashboardCreateBar } from "@/components/dashboard/DashboardCreateBar";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
@@ -456,7 +455,7 @@ export default function Dashboard() {
                   {showBankBalance && allowsWidget("bankBalance") ? <BankBalanceWidget /> : null}
                   {showCreditAlerts && allowsWidget("creditAlerts") ? <CreditAlertWidget /> : null}
                   {showBackorders && allowsWidget("backorders") ? <BackorderWidget /> : null}
-                  {showPayrollSummary && allowsWidget("payrollSummary") ? <PayrollSummaryWidget /> : null}
+                  {null}
                   {showUpcomingDeadlines && allowsWidget("upcomingDeadlines") ? (
                     <UpcomingDeadlinesWidget hasSales={hasSales} hasPurchases={hasPurchases} hasHR={hasHR} />
                   ) : null}

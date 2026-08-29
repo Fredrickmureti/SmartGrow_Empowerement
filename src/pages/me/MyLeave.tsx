@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useDrillDownAnchor } from "@/hooks/payroll/useDrillDownAnchor";
+import { useDrillDownAnchor } from "@/hooks/useDrillDownAnchor";
 import { format } from "date-fns";
 import { CalendarOff, Plus, Inbox, CalendarClock, CheckCircle2, Hourglass, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

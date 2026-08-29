@@ -3,10 +3,6 @@ import { useEmployeeContracts, ContractFormData } from "@/hooks/useEmployeeContr
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useSalaryStructures } from "@/hooks/useSalaryStructures";
-import {
-  CompensationSetupDialog,
-  type CompensationSetupPayload,
-} from "@/components/payroll/CompensationSetupDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,8 +56,6 @@ export function EmployeeContractsTab({ employeeId, canEdit }: EmployeeContractsT
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [compBlockerPayload, setCompBlockerPayload] =
-    useState<CompensationSetupPayload | null>(null);
   const [employeeDates, setEmployeeDates] = useState<{ hire_date: string | null; termination_date: string | null }>({ hire_date: null, termination_date: null });
 
   useEffect(() => {
@@ -125,10 +119,6 @@ export function EmployeeContractsTab({ employeeId, canEdit }: EmployeeContractsT
     try {
       await activateContract(id);
     } catch (err: any) {
-      if (err?.code === "CONTRACT_COMPENSATION_INCOMPLETE") {
-        setCompBlockerPayload(err.payload as CompensationSetupPayload);
-        return;
-      }
       toast.error(err?.message ?? "Failed to activate contract");
     }
   };
@@ -357,11 +347,6 @@ export function EmployeeContractsTab({ employeeId, canEdit }: EmployeeContractsT
       </WorkflowSheet>
 
 
-      <CompensationSetupDialog
-        open={!!compBlockerPayload}
-        onOpenChange={(o) => !o && setCompBlockerPayload(null)}
-        payload={compBlockerPayload}
-      />
 
       <AlertDialog open={!!cancelTargetId} onOpenChange={(o) => !o && setCancelTargetId(null)}>
         <AlertDialogContent>

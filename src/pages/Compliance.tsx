@@ -1,6 +1,5 @@
 import { PlatformAppLayout } from "@/apps/platform";
 import { ComplianceDashboard } from "@/components/reports/ComplianceDashboard";
-import { FilingCalendarPanel } from "@/components/payroll/FilingCalendarPanel";
 
 export default function Compliance() {
   return (
@@ -12,7 +11,6 @@ export default function Compliance() {
             Track regulatory compliance, tax deadlines, and recurring business requirements
           </p>
         </div>
-        <FilingCalendarPanel />
         <ComplianceDashboard />
       </div>
     </PlatformAppLayout>
