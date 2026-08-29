@@ -1,13 +1,10 @@
 /**
  * HR Domain Module
  *
- * The HR domain is split into 5 Odoo-aligned, independently installable apps:
- *   - Employees   (foundation, no dependencies)
- *   - Time Off    (depends on Employees)
- *   - Attendances (depends on Employees)
- *   - Timesheets  (depends on Employees)
- *   - Payroll     (depends on Employees + Finance)
- *   - Recruitment (depends on Employees, coming soon)
+ * Scoped to a single installable app for the microfinance platform:
+ *   - Employees (staff directory, departments, positions, locations)
+ *
+ * No other HR sub-app is part of the product scope.
  *
  * The single export here is the URL-space dispatcher that mounts each
  * sub-app under `/hr/*` with its own AppInstalledGate and AppShell.
