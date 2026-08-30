@@ -244,7 +244,8 @@ function ReportRunHistoryInner() {
     ],
     queryFn: async (): Promise<ReportRunRow[]> => {
       if (!currentOrg?.id) return [];
-      let q = supabase
+      // `report_run_log` is not present in the current database schema.
+      let q = (supabase as any)
         .from("report_run_log")
         .select(
           "id, organization_id, business_id, user_id, report_type, status, run_hash, byte_count, params_jsonb, created_at",

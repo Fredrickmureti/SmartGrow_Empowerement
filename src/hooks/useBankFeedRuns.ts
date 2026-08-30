@@ -33,7 +33,8 @@ export function useBankFeedRuns(bankAccountId: string | null, limit = 20) {
     queryKey: ["bank-feed-runs", bankAccountId, limit],
     enabled: !!bankAccountId,
     queryFn: async (): Promise<BankFeedRun[]> => {
-      const { data, error } = await supabase
+      // `bank_feed_runs` is not present in the current database schema.
+      const { data, error } = await (supabase as any)
         .from("bank_feed_runs")
         .select(
           "id, connection_id, bank_account_id, status, trigger_source, window_from, window_to, fetched_count, inserted_count, duplicate_count, rejected_count, statement_id, error_code, error_message, started_at, finished_at",
