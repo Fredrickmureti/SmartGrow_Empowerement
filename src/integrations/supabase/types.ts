@@ -91485,10 +91485,6 @@ export type Database = {
           warehouse_id: string
         }[]
       }
-      check_storage_limit: {
-        Args: { p_organization_id: string }
-        Returns: Json
-      }
       check_subscription_expired: {
         Args: { _org_id: string }
         Returns: boolean
@@ -92721,10 +92717,6 @@ export type Database = {
           p_source_id: string
           p_source_type: string
         }
-        Returns: number
-      }
-      convert_app_trials_on_plan_change: {
-        Args: { p_org_id?: string }
         Returns: number
       }
       convert_application_to_employee: {
@@ -98174,15 +98166,6 @@ export type Database = {
         Returns: {
           duty_code: string
         }[]
-      }
-      grant_app_override: {
-        Args: {
-          p_app_id: string
-          p_expires_at?: string
-          p_org_id: string
-          p_reason?: string
-        }
-        Returns: Json
       }
       gs1_ai_table: {
         Args: never
@@ -106357,26 +106340,6 @@ export type Database = {
       snooze_procurement_recommendation: {
         Args: { p_note?: string; p_rec_id: string; p_snooze_until: string }
         Returns: undefined
-      }
-      start_app_trial: {
-        Args: { p_app_id: string; p_days?: number; p_org_id: string }
-        Returns: {
-          app_id: string
-          converted_at: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          organization_id: string
-          started_at: string
-          status: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "app_trial_status"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       start_appointment: {
         Args: { p_appointment_id: string }
