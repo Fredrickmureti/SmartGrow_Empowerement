@@ -23,7 +23,6 @@ const ALLOW_LIST = new Set<string>([
   // PII-authoritative reader.
   "src/hooks/useEmployeePii.ts",
   // Server-side admin path (uses supabaseAdmin, not the user client).
-  "src/routes/api/public/attendance.ingest.ts",
   // Natural-key resolver runs `.or(email.eq, work_email.eq)` which the
   // canonical view doesn't expose with the same predicate cost. Keep on
   // base table; PII is not selected.

@@ -14,7 +14,6 @@ import { describe, it, expect } from "vitest";
 
 const ALLOWED_FILES = new Set<string>([
   // The picker page itself.
-  "src/pages/SelectOrganization.tsx",
   // Explicit user-clicked recovery action.
   "src/components/common/WorkspaceRecoveryCard.tsx",
   // Explicit "Switch workspace" CTA in the empty state.

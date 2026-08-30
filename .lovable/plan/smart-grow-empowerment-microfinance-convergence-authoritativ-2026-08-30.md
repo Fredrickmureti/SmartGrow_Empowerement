@@ -160,3 +160,38 @@ Dependencies · Verification · Result (PASS/FAIL/BLOCKED) · Next.
 ## Currently active phase
 M0 — re-baseline the test suite and prune stale manifests. No loan-domain work
 until M3b, M4, and M5 are closed and verified.
+
+## M0 report — test suite re-baselined (complete)
+
+**Objective:** establish a trustworthy baseline; remove manifests describing deleted or permanently out-of-scope code.
+
+**Fixed first (blocker):** the preview was returning HTTP 500 —
+`@tanstack/router-core` export mismatch from a stale Vite module cache after an
+earlier install. Cache cleared, dev server restarted, `/` now returns 200 and
+`runtime.smoke` passes.
+
+**Removed (39 stale manifests):** payroll/payslip/salary/bracket/custom-deduction/
+garnishment/legal-order/statutory-return/certificate manifests, localization-pack
+manifests, POS + inventory + warehouse/WMS manifests, warehouse label/cycle-count/
+wave/dispatch printing manifests, hardware-scope manifests, HR draft-autosave.
+
+**Pruned (6 mixed manifests):** deleted-file entries removed from
+`non-blocking-surfaces`, `payment-reversal-intent-contract`,
+`employees-branch-as-assignment`, `employees-reads-via-canonical`,
+`no-org-identity-reads`, `no-redirect-to-picker`.
+
+**Baseline before → after:** 52 failed / 319 passed (372 files) → **32 failed /
+300 passed / 1 skipped (333 files)**; tests 53 failed / 1899 passed. Typecheck: clean.
+
+**Remaining 32 failures are real work, mapped to later phases (none are stale):**
+- M3b: `admin-signout-destination`, `app-switcher-coverage`, `nav-app-coherence`
+- M5: `employee-*`, `employees-directory-clean`, `hr-configuration-shell`,
+  `no-raw-employees-pii-select`
+- M8/M16: `business-scoped-queries`, `currency-ratchet`, `no-silent-currency-fallback`,
+  `je-description-no-uuid`, `pgcrypto-extension-prefix`, `single-audit-trigger-per-table`,
+  `sql-businesses-currency-column`, banking/bank-feed gating, statement/report
+  manifests, `notification-link-routes`, `pdf-preview-uses-safeviewer`,
+  `no-conditional-radix-overlay`, command-palette providers,
+  `recurring-invoicing-single-engine`, `reconciliation-ai-advisory-boundary`,
+  `no-tanstack-router-in-spa`
+- **Result:** M0 CLOSED. **Next: M3b — finish the SaaS/platform-admin de-scope.**
