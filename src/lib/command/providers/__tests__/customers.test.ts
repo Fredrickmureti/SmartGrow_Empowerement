@@ -21,6 +21,7 @@ const builder = {
   select: vi.fn(() => builder),
   or: vi.fn((...args: unknown[]) => { orMock(...args); return builder; }),
   eq: vi.fn((...args: unknown[]) => { eqMock(...args); return builder; }),
+  is: vi.fn((...args: unknown[]) => { isMock(...args); return builder; }),
   limit: vi.fn((...args: unknown[]) => { limitMock(...args); return builder; }),
   abortSignal: vi.fn((...args: unknown[]) => {
     abortMock(...args);
