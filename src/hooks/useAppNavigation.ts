@@ -61,10 +61,10 @@ interface UseAppNavigationResult {
 export function useAppNavigation(): UseAppNavigationResult {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasEntitlement, subscriptionStatus, userType } = useSession();
+  const { userType } = useSession();
   const permissions = usePermissions();
   const { isInstalled, trackAppAccess, installedAppIds } = useInstalledApps();
-  const { hasAppAccess, isTrialWithAllApps, isReadOnly } = useAppAccess();
+  const { hasAppAccess } = useAppAccess();
 
   // Determine current app from URL
   const currentApp = useMemo(() => {
@@ -106,7 +106,7 @@ export function useAppNavigation(): UseAppNavigationResult {
       if (!isInstalled(app.id)) {
         return {
           hasAccess: false,
-          denialReason: "subscription",
+          denialReason: "disabled",
           isReadOnly: false,
           accessibleModules: [],
         };
@@ -118,39 +118,12 @@ export function useAppNavigation(): UseAppNavigationResult {
       };
     }
 
-    // Check subscription status first (blocked/suspended)
-    if (subscriptionStatus.isSuspended) {
-      return {
-        hasAccess: false,
-        denialReason: "subscription",
-        isReadOnly: false,
-        accessibleModules: [],
-      };
-    }
-
-    // Trial with all apps = full access
-    if (isTrialWithAllApps) {
-      // Still check permissions for modules
-      const accessibleModules = app.modules.filter(module => {
-        if (module.permission && !permissions.can(module.permission)) {
-          return false;
-        }
-        return true;
-      });
-      return {
-        hasAccess: accessibleModules.length > 0,
-        isReadOnly: false,
-        accessibleModules,
-      };
-    }
-
-    // Check app-level access (from plan_app_access table).
-    // Platform utilities (Home/Dashboard, Hardware, Platform settings, My Workspace)
-    // ship with every workspace — they are not gated by plan_app_access entries.
+    // Every app that ships in the registry is available to the institution;
+    // only apps that are not shippable yet (comingSoon) are withheld.
     if (!app.isPlatform && !hasAppAccess(app.id)) {
       return {
         hasAccess: false,
-        denialReason: "subscription",
+        denialReason: "disabled",
         isReadOnly: false,
         accessibleModules: [],
       };
@@ -175,10 +148,6 @@ export function useAppNavigation(): UseAppNavigationResult {
       if (module.permission && !permissions.can(module.permission)) {
         return false;
       }
-      // Check module feature
-      if (module.feature && !hasEntitlement(module.feature)) {
-        return false;
-      }
       return true;
     });
 
@@ -192,15 +161,15 @@ export function useAppNavigation(): UseAppNavigationResult {
       };
     }
 
-    // Check if read-only (viewer role OR expired subscription in read-only mode)
-    const isReadOnlyAccess = permissions.isViewer || isReadOnly;
+    // Read-only is a role property (viewer), nothing else.
+    const isReadOnlyAccess = permissions.isViewer;
 
     return {
       hasAccess: true,
       isReadOnly: isReadOnlyAccess,
       accessibleModules,
     };
-  }, [subscriptionStatus, hasEntitlement, hasAppAccess, permissions, isTrialWithAllApps, isReadOnly]);
+  }, [hasAppAccess, permissions, userType, isInstalled]);
 
   // Get list of apps user can access (must be installed AND have access)
   // Portal users can ONLY see the HR app (self-service modules)
