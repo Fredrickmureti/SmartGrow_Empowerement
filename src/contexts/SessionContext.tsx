@@ -203,18 +203,19 @@ function normalizeOrganizationPayload(org: unknown): SessionOrganization | null 
   const organizationId = String(org.id ?? "");
   if (!organizationId) return null;
 
+  const name = String(org.name ?? "Organization");
 
   return {
     id: organizationId,
     name,
     slug: typeof org.slug === "string" && (org.slug as string).length > 0 ? (org.slug as string) : slugifyFallback(name),
-: Boolean(org.is_suspended ?? false),
+    is_suspended: Boolean(org.is_suspended ?? false),
     suspended_at: (org.suspended_at as string | null) ?? null,
     suspended_reason: (org.suspended_reason as string | null) ?? null,
     role: ((org.role as SessionOrganization["role"]) ?? "internal"),
     role_id: String(org.role_id ?? `${organizationId}-role`),
     user_type: ((org.user_type as SessionOrganization["user_type"]) ?? "internal"),
-: normalizeUsageCounters(org.usage_counters),
+    usage_counters: normalizeUsageCounters(org.usage_counters),
     permission_group_rules: normalizePermissionGroupRules(org.permission_group_rules),
   };
 }
