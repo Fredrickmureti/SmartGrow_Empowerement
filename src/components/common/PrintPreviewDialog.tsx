@@ -355,7 +355,7 @@ export function PrintPreviewDialog({
         try {
           const result = await printRawBytes(bytes);
           if (result.success) {
-            await ledger.markSent(null);
+            await ledger.markSent();
             await ledger.markAcked();
             toast({
               title: "Sent to printer",
@@ -398,7 +398,7 @@ export function PrintPreviewDialog({
         });
         try {
           await printPdfInPage(pdfBlob);
-          await ledger.markSent(null);
+          await ledger.markSent();
           await ledger.markAcked();
           toast({ title: "Print dialog opened" });
         } catch (err) {

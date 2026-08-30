@@ -952,7 +952,7 @@ export async function downloadDocumentRecord(input: {
     if (!artifact.blob) throw new Error('render_returned_no_pdf');
     const outcome = toDownload(artifact.blob, input.filename);
     if (!outcome.success) throw new Error(outcome.error ?? 'download failed');
-    await handle.markSent(null);
+    await handle.markSent();
     await handle.markAcked();
     return { success: true, jobIds, transport: 'download', copies: 1, artifact };
   } catch (err) {
@@ -1143,7 +1143,7 @@ export async function downloadArchivedArtifact(input: {
     const blob = await res.blob();
     const outcome = toDownload(blob, input.filename);
     if (!outcome.success) throw new Error(outcome.error ?? 'download failed');
-    await handle.markSent(null);
+    await handle.markSent();
     await handle.markAcked();
     return { success: true, jobIds, transport: 'download', copies: 1 };
   } catch (err) {
