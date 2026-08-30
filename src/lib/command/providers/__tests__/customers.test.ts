@@ -15,6 +15,7 @@ const orMock = vi.fn();
 const eqMock = vi.fn();
 const limitMock = vi.fn();
 const abortMock = vi.fn();
+const isMock = vi.fn();
 
 const builder = {
   select: vi.fn(() => builder),
