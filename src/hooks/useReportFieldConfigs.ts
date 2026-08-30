@@ -38,7 +38,6 @@ export function useReportFieldConfigs(entityType?: string) {
         .from("report_field_configs")
         .select("*")
         .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
         .order("created_at", { ascending: false });
 
       if (entityType) {
@@ -66,7 +65,6 @@ export function useReportFieldConfigs(entityType?: string) {
       .from("report_field_configs")
       .insert({
         organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
         entity_type: config.entity_type || "",
         report_type: config.report_type || "pdf",
         included_core_fields: config.included_core_fields || [],

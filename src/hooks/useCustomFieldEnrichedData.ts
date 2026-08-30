@@ -50,7 +50,6 @@ export function useCustomFieldEnrichedData<T extends Record<string, unknown>>(
         .from("entity_field_values")
         .select("entity_id, field_key, field_value")
         .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
         .eq("entity_type", entityType)
         .in("entity_id", entityIds);
 

@@ -319,7 +319,6 @@ export function useEntityFieldValues(entityType: EntityType, entityId: string | 
         .from("entity_field_values")
         .select("*")
         .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
         .eq("entity_type", entityType)
         .eq("entity_id", entityId);
 
@@ -348,7 +347,6 @@ export function useEntityFieldValues(entityType: EntityType, entityId: string | 
       .from("entity_field_values")
       .upsert({
         organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
         entity_type: entityType,
         entity_id: entityId,
         field_config_id: fieldConfigId,
@@ -370,7 +368,6 @@ export function useEntityFieldValues(entityType: EntityType, entityId: string | 
 
     const records = values.map(v => ({
       organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
       entity_type: entityType,
       entity_id: entityId,
       field_config_id: v.fieldConfigId,
@@ -406,7 +403,6 @@ export function useEntityFieldValues(entityType: EntityType, entityId: string | 
       .from("entity_field_values")
       .delete()
       .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
       .eq("entity_type", entityType)
       .eq("entity_id", entityId)
       .eq("field_key", fieldKey);

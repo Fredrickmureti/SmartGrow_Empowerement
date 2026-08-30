@@ -196,7 +196,6 @@ export default function Team() {
       .from("permission_groups")
       .select("id, name, description")
       .eq("organization_id", currentOrg.id)
-      .eq("business_id", currentBusiness.id)
       .order("is_system", { ascending: false })
       .order("name");
     setAvailableGroups(data || []);

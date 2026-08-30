@@ -41,8 +41,7 @@ export function useCoreFieldOverrides(entityType?: EntityType) {
       let query = supabase
         .from("core_field_overrides")
         .select("*")
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id);
+        .eq("organization_id", currentOrg.id);
 
       if (entityType) {
         query = query.eq("entity_type", entityType);
@@ -84,7 +83,6 @@ export function useCoreFieldOverrides(entityType?: EntityType) {
         .from("core_field_overrides")
         .insert({
           organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
           entity_type: entityType,
           field_key: fieldKey,
           is_visible: updates.is_visible ?? true,
