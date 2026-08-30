@@ -70,17 +70,22 @@ describe("Portal identity invariants", () => {
   });
 
   describe("Rule 2 — auto-membership trigger on employees", () => {
-    const sql = findMigrationContaining(
+    // The trigger and its function can live in different migrations (the
+    // function gets replaced later), so each is looked up on its own.
+    const triggerSql = findMigrationContaining(
+      "CREATE TRIGGER employees_sync_membership_aiu",
+    );
+    const fnSql = findMigrationContaining(
       "CREATE OR REPLACE FUNCTION public.employees_sync_membership()",
     );
 
     it("defines the trigger", () => {
-      expect(sql).toMatch(/CREATE TRIGGER employees_sync_membership_aiu/);
-      expect(sql).toMatch(/AFTER INSERT OR UPDATE OF user_id ON public\.employees/);
+      expect(triggerSql).toMatch(/CREATE TRIGGER employees_sync_membership_aiu/);
+      expect(triggerSql).toMatch(/AFTER INSERT OR UPDATE OF user_id ON public\.employees/);
     });
 
     it("upserts user_roles with an active row", () => {
-      expect(sql).toMatch(/INSERT INTO public\.user_roles[\s\S]+is_active = true/);
+      expect(fnSql).toMatch(/INSERT INTO public\.user_roles[\s\S]+is_active = true/);
     });
   });
 
