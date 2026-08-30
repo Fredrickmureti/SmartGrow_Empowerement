@@ -9,21 +9,11 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Loader2, Check, Package, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Check, Package } from "lucide-react";
 import { APP_REGISTRY, getAppById } from "@/lib/apps/registry";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
-interface ClosureRow {
-  app_id: string;
-  is_root: boolean;
-  is_already_installed: boolean;
-  is_in_plan: boolean;
-  pricing_monthly: number | null;
-  pricing_currency: string;
-  is_addon_only: boolean;
-  depth: number;
-}
 
 interface PlatformApp {
   id: string;
@@ -170,47 +160,9 @@ export function AppSelectionStep({
     return app ? app.is_available === false : false;
   };
 
-  // Compute the dependency closure for the user's current selection.
-  // This surfaces "we'll also turn on X for free" / "Y is a paid add-on"
-  // BEFORE provisioning so the user is never surprised mid-signup.
-  const [closure, setClosure] = useState<ClosureRow[]>([]);
-  const [closureLoading, setClosureLoading] = useState(false);
-  useEffect(() => {
-    const ids = Array.from(new Set([...selectedApps, ...coreAppIds]));
-    if (ids.length === 0) {
-      setClosure([]);
-      return;
-    }
-    setClosureLoading(true);
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await (supabase as any).rpc("preview_app_set_install", {
-          p_app_ids: ids,
-          p_org_id: null,
-        });
-        if (!cancelled) {
-          if (error) {
-            console.warn("[AppSelectionStep] preview_app_set_install failed:", error);
-            setClosure([]);
-          } else {
-            setClosure((data ?? []) as ClosureRow[]);
-          }
-        }
-      } finally {
-        if (!cancelled) setClosureLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedApps, coreAppIds]);
+  // Single-institution build: every app in the registry is included, so there
+  // is no plan-inclusion / add-on pricing closure to preview here.
 
-  // Apps the user did NOT explicitly choose but will be pulled in.
-  const autoIncludedDeps = useMemo(() => {
-    const selectedSet = new Set([...selectedApps, ...coreAppIds]);
-    return closure.filter(c => !c.is_root && !selectedSet.has(c.app_id));
-  }, [closure, selectedApps, coreAppIds]);
 
   return (
     <div className="space-y-6">
@@ -293,42 +245,8 @@ export function AppSelectionStep({
         </div>
       )}
 
-      {/* Dependency closure preview — what else gets turned on */}
-      {!dbLoading && (autoIncludedDeps.length > 0 || closureLoading) && (
-        <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs">
-          <div className="flex items-start gap-2">
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground">
-                Required dependencies will be enabled
-              </p>
-              {closureLoading ? (
-                <p className="text-muted-foreground mt-1">Calculating…</p>
-              ) : (
-                <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                  {autoIncludedDeps.map(dep => {
-                    const reg = getAppById(dep.app_id);
-                    const label = reg?.name || dep.app_id;
-                    const tag = dep.is_in_plan
-                      ? "included"
-                      : dep.pricing_monthly && dep.pricing_monthly > 0
-                        ? `add-on · $${dep.pricing_monthly}/mo`
-                        : "free";
-                    return (
-                      <li key={dep.app_id} className="flex items-center gap-2">
-                        <span className="truncate">{label}</span>
-                        <span className="text-[10px] uppercase tracking-wide text-primary/80">
-                          {tag}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+
+
 
       {/* Info text */}
       <p className="text-xs text-muted-foreground text-center">

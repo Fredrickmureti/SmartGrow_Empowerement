@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS public.subscription_payments CASCADE;
+DROP TABLE IF EXISTS public.subscription_usage CASCADE;
+DROP TABLE IF EXISTS public.org_entitlement_overrides CASCADE;
+DROP TABLE IF EXISTS public.app_trial_status CASCADE;
+DROP TABLE IF EXISTS public.app_trial_policy CASCADE;
+DROP TABLE IF EXISTS public.app_pricing_rules CASCADE;
+DROP TABLE IF EXISTS public.plan_app_access CASCADE;
+DROP TABLE IF EXISTS public.plan_feature_access CASCADE;
+ALTER TABLE public.organizations DROP COLUMN IF EXISTS subscription_plan_id;
+DROP TABLE IF EXISTS public.platform_subscription_plans CASCADE;
