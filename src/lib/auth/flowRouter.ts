@@ -20,8 +20,6 @@ export interface FlowState {
   sessionResolved: boolean;
   /** Number of organization memberships visible to this user. */
   organizationCount: number;
-  /** @deprecated Retired persona; always false. */
-  isPlatformAdmin?: boolean;
   /** Whether is_vendor_portal flag is set on user_metadata. */
   isVendorPortal: boolean;
   /** Whether onboarding_completed flag is set on user_metadata. */
