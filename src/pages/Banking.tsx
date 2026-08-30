@@ -413,13 +413,7 @@ export default function Banking() {
                 {canManage && (
                   <Card
                     className="flex h-48 cursor-pointer items-center justify-center border-dashed hover:border-primary hover:bg-muted/50 transition-colors"
-                    onClick={() => {
-                      if (isReadOnly) {
-                        openUpgradeModal("banking");
-                      } else {
-                        openConnectSheet();
-                      }
-                    }}
+                    onClick={() => openConnectSheet()}
                   >
                     <div className="text-center">
                       <Plus className="mx-auto h-8 w-8 text-muted-foreground" />
