@@ -376,7 +376,7 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           .eq("organization_id", orgId)
         .eq("business_id", businessId)
           .eq("business_id", currentBusiness.id)
-          .in("status", ["received", "overdue", "partial"])
+          .in("status", ["open", "overdue", "partial"])
           .gte("bill_date", startDate)
           .lte("bill_date", endDate),
         // AP overdue

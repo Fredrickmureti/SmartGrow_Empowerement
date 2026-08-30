@@ -284,7 +284,7 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
     } else {
       const inserts = chunk.map((row, i) => {
         const balanceDue = row.amount - row.amountPaid;
-        const billStatus = (balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "received") as "paid" | "partial" | "received";
+        const billStatus = (balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "open") as "paid" | "partial" | "open";
         return {
           organization_id: currentOrg!.id,
           business_id: currentBusiness?.id || null,
@@ -390,7 +390,7 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
         }
       }
     } else {
-      const billStatus = balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "received";
+      const billStatus = balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "open";
       const { data: bill, error: billError } = await supabase
         .from("bills")
         .insert({

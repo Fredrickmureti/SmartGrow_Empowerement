@@ -94,7 +94,7 @@ export function useDashboardActionItems(opts: {
             const q = supabase
               .from("bills")
               .select("id", { count: "exact", head: true })
-              .in("status", ["received", "partial", "overdue"])
+              .in("status", ["open", "partial", "overdue"])
               .lte("due_date", in7);
             const { count } = await applyScope(q as any);
             return count ?? 0;
