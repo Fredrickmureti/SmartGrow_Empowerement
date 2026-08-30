@@ -1,144 +1,136 @@
 # Smart Grow Empowerment — Microfinance Convergence (living status)
 
+Single-company microfinance system converged from the AccrualFlow platform.
+Not SaaS, no tenants, no payroll, no POS, no client portal.
 Approved roadmap archive:
 `.lovable/plan/smart-grow-empowerment-microfinance-convergence-reworked-pla-2026-08-29.md`
 
-## Verified baseline (Phase 0)
-- 843 tables, 3,083 functions, 2,082 policies; 1 org / 1 business / 1 branch /
-  101 accounts / 1 auth user.
-- No microfinance domain exists in code or schema. "Loan" tables are payroll
-  employee-advance artifacts.
-- Routing is the legacy React Router SPA (`src/App.tsx`) mounted through the
-  TanStack catch-all `src/routes/$.tsx`.
+## Verification of the handover (done this turn, independently checked)
 
-## M3 — De-SaaS the application shell (IN PROGRESS)
+Confirmed true in the codebase:
+- SaaS/platform-admin/subscription surfaces are gone: no `usePlatformAdmin`,
+  `PlatformIdentityContext`, `CreateOrganizationDialog`, `CreateBusinessDialog`,
+  or `publicPricing` remain (the one `useSubscriptionCompat` hit in
+  `SessionContext.tsx` is a naming leftover, not a subscription read).
+- Typecheck baseline holds: `tsgo -p tsconfig.app.json` → exactly 46 errors, all
+  pre-existing Supabase-type drift. No new error class introduced.
+- App modules reduced to: contacts, dashboard, finance, hr, me, platform,
+  reports, studio. 55 page entries; no sales/inventory/POS/warehouse/purchasing
+  page trees.
 
-Done in this pass (code only, no schema change yet):
-- Platform-admin console removed: `src/pages/admin/**`, `src/components/admin/**`,
-  `src/apps/platform-admin/**`, `AdminManagement`, `AdminProtectedRoute`,
-  `AdminAuthOnlyRoute`, all `/admin-management/*` routes and lazy exports.
-- Platform-admin persona collapsed: `PlatformIdentityContext` is now a constant
-  ("never an admin"); admin branches removed from `ProtectedRoute`, `Dashboard`,
-  `OnboardingSetup`, `SignupForm`, `AppSidebar`, `postLoginRedirect`,
-  `flowRouter`, `signOutAndRedirect`.
-- Billing / marketplace removed: `/upgrade`, `/billing`, `/apps`,
-  `/apps/:id/activate`, `/apps/setup`, `/settings/apps`, `/select-organization`
-  routes plus their pages.
-- Entitlement gating collapsed for a single institution:
-  - new `src/components/auth/InstitutionRoute.tsx` (auth + portal boundary +
-    workspace readiness only); `SubscriptionProtectedRoute` is now a deprecated
-    alias of it,
-  - `SubscriptionGate` / `SubscriptionFeatureCheck` / `AppInstalledGate` are
-    pass-throughs,
-  - subscription banners, blocked page, upgrade modal, usage widget removed.
+Corrected — treat as pending, not done:
+- `src/services/pos`, `src/services/hardware`, `src/services/scanner` still
+  exist (M4 work, never started).
+- HR is still far wider than "system actors": org chart, job positions,
+  onboarding issues, change requests, configuration trees under
+  `src/pages/hr` and `src/apps/hr/sub`.
+- Arch test `scope-trigger-visibility` fails on
+  `src/components/studio/ScheduledReportsManager.tsx` (reproduced).
+- No SaaS schema-drop migration was ever run — subscriptions, plans, installed
+  apps, platform_admins, tenant transfers, billing tables all still exist.
+- No microfinance domain exists in code or schema. The `%loan%` tables are
+  payroll employee-advance artifacts.
 
-Gate: `/`, `/login`, `/dashboard` all return 200 (a stale Vite dep cache had to
-be cleared again — same failure documented for M1r).
+Genuinely completed: stack repair, environment isolation, dangling-import
+purge, tenant bootstrap, M3 code-side de-SaaS (four passes).
 
-### M3 second pass (done, verified)
-- All route guards migrated to `InstitutionRoute` (App.tsx, apps/finance,
-  apps/contacts, apps/hr); `src/components/subscription/**` deleted entirely
-  (gate, protected-route alias, read-only banners).
-- `useInstalledApps` rewritten as a registry-backed constant: every shipped
-  module is available to the institution, no DB reads, install/uninstall are
-  no-ops. All 20 consumers (nav, command palette, dashboard, settings) keep
-  working.
-- Marketplace/lifecycle UI removed: `AppMarketplace`, `InstallAppDialog`,
-  `UninstallAppDialog`, `InstalledAppsHydration`, "Add Apps" affordances in
-  `AppLauncher` and `AppSwitcher`.
-- Hooks deleted: `useSubscription`, `useSubscriptionV2`, `useSubscriptionPlans`,
-  `useSubscriptionLimits`, `useFeatureAccess`, `useAppLifecycle`,
-  `useAppLifecycleState`, `useAppLifecyclePreview`.
-  Replacements: `src/hooks/useEntityCreationLimits.ts` (always unlimited) and
-  `src/lib/apps/lifecycle.ts` (presentational action type only).
-- `SubscriptionAccessContext` is now a constant full-access module
-  (`isReadOnly` always false); provider is a pass-through.
-- Command palette: `buildPlatformAdminIndex` and `lib/admin/registry` deleted
-  and unwired from `buildIndex`.
-- Tenant ownership transfer (SaaS) removed: dialog deleted and unwired from
-  `Team.tsx`.
+## M3 — De-scope the SaaS/tenant layer (closing)
 
-Verification: `tsgo -p tsconfig.app.json` → 46 errors, all pre-existing schema
-drift (was 52; the 6 removed were the deleted tenant-transfer dialog). No new
-error file was introduced by this pass. Dev server: `/`, `/login`, `/dashboard`,
-`/home`, `/settings` all 200.
+Remaining, in order:
+1. Fix the failing `scope-trigger-visibility` arch test by gating
+   `ScheduledReportsManager`'s branch/business picker with `useCanSwitchScope()`.
+2. Rename `useSubscriptionCompat` in `SessionContext.tsx` to a
+   domain-neutral name and delete it if unused.
+3. Dependency analysis, then ONE migration dropping the SaaS schema:
+   subscriptions, plans, plan_feature_access, installed apps, platform_admins,
+   tenant_ownership_transfers, billing, platform_subscription_plans,
+   subscription_payments, platform_exchange_rates.
+4. Gate: build + typecheck at the 46-error baseline, full arch-test suite green,
+   `/`, `/login`, `/dashboard`, `/settings`, `/home` all 200.
 
-### M3 third pass (done, verified)
-Residual SaaS surfaces removed:
-- Deleted `src/hooks/usePlatformAdmin.ts`, `src/contexts/PlatformIdentityContext.tsx`,
-  `src/services/fx/platformUsd.ts`, `src/lib/pricing/publicPricing.ts`,
-  `src/hooks/usePricingCurrency.ts`, `src/components/pricing/PricingCurrencyToggle.tsx`,
-  `src/components/landing/PricingSection.tsx`.
-  (`src/lib/pricing/formatAppPrice.ts` is retained — generic currency formatting
-  used by `useCurrencyMap`, not SaaS pricing.)
-- `useWorkspaceRouting`: `platform-admin` status and probe removed from the
-  status union and the guard chain (no consumers existed).
-- `useBankProviders`: admin/non-admin branch collapsed to a single RLS-scoped
-  read; admin-status refetch bookkeeping removed.
-- `Dashboard.tsx` / `AppSidebar.tsx`: dead platform-admin imports removed.
-- `src/apps/platform/nav.ts`: "Apps" (Marketplace/App Setup), "Subscriptions"
-  and the whole "Billing" group (Upgrade, Billing History) removed.
+## Remaining milestones
 
-Verification: `tsgo -p tsconfig.app.json` → 46 errors, identical pre-existing
-schema-drift baseline (no new file, no new error class). Dev server `/`,
-`/login`, `/dashboard`, `/settings`, `/home` all 200.
+### M4 — De-scope remaining ERP/HR excess
+Remove `services/pos`, `services/hardware`, `services/scanner` and their nav,
+settings and route remnants. Reduce HR to system actors: identity, role, branch,
+loan-officer assignment, audit. Remove compensation, contracts, garnishments,
+onboarding templates, competencies, statutory/payroll fields, attendance,
+timesheets, time-off. Code removal first, then one migration per cohesive group
+of database objects.
 
-### M3 remaining (must finish before M4)
-- Collapse organization/business resolution to the single institution
-  (`OrganizationProvider` / `BusinessProvider` / workspace routing still assume
-  multi-tenant membership; `CreateOrganizationDialog` should disappear once the
-  institution is a fixed configuration root).
-- Marketing/portal copy still AccrualFlow-branded (rebrand lands in M6).
-- Schema pass (separate, ONE migration, after dependency analysis) to drop SaaS
-  tables/functions/policies: subscriptions, plans, plan_feature_access,
-  installed apps, platform_admins, tenant_ownership_transfers, billing,
-  platform_subscription_plans, subscription_payments, platform_exchange_rates.
+### M5 — Institution identity & settings
+Company settings as the single configuration root (name, legal name, address,
+contacts, logo, registration/tax, currency, financial settings). Verify the
+values flow into the report and document data contexts, never hardcoded.
 
-### Known debt (not caused by M3)
-46 `tsgo` errors from regenerated Supabase types (missing `currency`,
-`"received"` statuses, `business_id` on tables that no longer have it, RPC and
-table names absent from the current project). Owed: a dedicated typing
-reconciliation pass — schedule it with M7 (finance retain/adapt) at the latest.
+### M6 — RBAC, PIN auth, navigation IA
+Microfinance roles (Super Admin, Branch Manager, Loan Officer, Credit Officer,
+Cashier, Accountant, Collections Officer, Auditor, Reporting User) on the
+existing `user_roles` + `has_role` architecture. Server-side enforcement is
+authoritative; the shell only hides. Keep PIN login, rebrand auth/marketing
+copy, seed the development administrator identity.
+
+### M7 — Finance foundation retained + typing reconciliation
+Keep chart of accounts, hierarchy, journals, GL, periods, fixed assets, FX
+resolver, audit. Add the microfinance account-mapping registry (principal
+receivable, interest income/receivable, fee income, penalty income,
+cash/bank/mobile money, write-off) as configuration — no account UUIDs in
+domain code. Clear the 46 inherited type-drift errors in this milestone.
+
+### M8 — Clients & groups
+Client/member master with KYC, branch, owning loan officer, status, history.
+Optional groups with leader and membership; group membership never implies a
+group loan. Clients survive loan closure.
+
+### M9 — Loan products (versioned)
+Amounts, term, frequency, interest method, fees, penalties, grace, eligibility,
+activation. Product versions immutable so live loans never change.
+
+### M10 — Applications, assessment, approval
+Draft → Submitted → Under review → Approved/Rejected → Ready for disbursement.
+Requested and approved amounts stay distinct. Assessment and approval are
+attributable events with enforced authority; approval ≠ disbursement.
+
+### M11 — Loan, schedule engine, disbursement
+Loan snapshots contractual terms from the approved application. Server-side
+schedule engine per interest method/frequency. Disbursement is a guarded,
+idempotent business event posting through the mapping registry.
+
+### M12 — Payments, allocation, arrears, collections
+Full/partial/over payments, configurable allocation order (never hardcoded),
+reversals and adjustments. Arrears, DPD and PAR derived from schedule vs actual
+payments. Collections activity, visits, promises to pay, outcomes — scoped to
+officer portfolios.
+
+### M13 — Lifecycle exceptions
+Top-up, restructuring, write-off, closure as distinct event-sourced processes.
+No destructive updates to loan history.
+
+### M14 — Reporting & documents on the existing engines
+Portfolio, collections, arrears/PAR, client and lending reports in the existing
+report engine. Loan agreement, repayment schedule, loan statement, payment
+receipt, disbursement confirmation, client statement, collection receipt through
+the existing document engine.
+
+### M15 — Audit, security and hardening
+Inherited security posture (RLS gaps, SECURITY DEFINER views, `auth.users`
+exposure), reversal/duplicate-prevention/approval/traceability testing, final
+dead-code removal.
+
+## Working rules
+
+- One migration at a time; each ends with build + typecheck green, affected
+  screens opened, a written report appended here, then stop.
+- Removal order is always: dependency graph → code removal → build/typecheck →
+  schema drop.
+- All financial state derived server-side; React never owns balances, interest,
+  arrears, allocations or journal amounts.
+- Every domain action is a business event with an accounting hook, not a CRUD
+  update. Account mappings stay configurable.
+- Excluded: POS, payroll, attendance, timesheets, time-off, client portal,
+  SaaS/tenant/subscription/platform-admin.
+- Purchases: keep only bills/expenses for operating-cost accounting; drop
+  procurement, RFQ, supplier lifecycle and receiving.
 
 ## Currently active phase
-M3 — de-SaaS the application shell. Code-side de-SaaS is ~95% complete; the
-org/business collapse and the SaaS schema migration remain.
-
-## Next agent — start here
-1. VERIFY this pass: `npx tsgo --noEmit -p tsconfig.app.json` (expect exactly 46
-   pre-existing errors), `rg -n "usePlatformAdmin|PlatformIdentity|useSubscription|marketplace|lib/pricing/publicPricing" src`
-   (expect no hits), and smoke `/`, `/login`, `/dashboard`, `/settings`, `/home`.
-2. Then close M3: collapse organization/business resolution to the single
-   institution (remove org creation/switching, make `currentOrg`/`currentBusiness`
-   resolve from the one provisioned institution), then run the single SaaS
-   schema-drop migration after a dependency check.
-3. Only after M3 is closed, proceed to M4 (POS/hardware/scanner remnants and HR
-   beyond system actors). Do not jump ahead into loan-domain work.
-
-
-
-## Standing constraints
-- One migration at a time; no full historical seed replay.
-- Exclude POS, payroll, attendance, timesheets, time-off, client portal,
-  SaaS/tenant/subscription. Employees remain system actors only.
-- Backend-authoritative financial design; business-event driven.
-- Security posture inherited from AccrualFlow; dedicated hardening pass owed.
-
-
-===========THIS WAS THE LAST MESSAGE THE AGENT GAVE BEFORE ITS TIME RUN OUT=================
-I've closed most of the remaining M3 org/business collapse work, but the plan file update is still pending.
-
-Done this pass (code, verified by typecheck):
-- Deleted `CreateOrganizationDialog` and `CreateBusinessDialog`; removed all their consumers.
-- `Dashboard`: no-organization branch is now a "No institution access" message (no self-serve org creation), and `createOrganization` is no longer pulled into the page.
-- `ContextSwitcherSheet` rewritten as a branch + consolidated-reporting switcher only — no workspace/company switching or creation.
-- `SidebarContextSwitcher`, `AppSidebar`, `AppAwareSidebar`: `onCreateOrg` plumbing removed.
-- `BusinessBranchSettings`: "Add/Create Business" affordances removed; empty state now points to central provisioning.
-- `useCanSwitchScope` collapsed to branch-count + consolidated authorization; `canCreateAny`/`shouldShowCreateHint` always false, and its test rewritten to the single-institution contract (4/4 passing).
-- `tsgo -p tsconfig.app.json` back at the 46-error pre-existing schema-drift baseline; no new error files.
-
-Still open in M3 (for the next agent, in order):
-1. Update `.lovable/plan.md` with the above (M3 fourth pass) — it currently still lists the org/business collapse as pending.
-2. Pre-existing failing arch test `scope-trigger-visibility` flags `src/components/studio/ScheduledReportsManager.tsx` as an unguarded scope trigger (not caused by this pass) — gate it with `useCanSwitchScope()` or add a `// SCOPE-TRIGGER-EXEMPT:` note.
-3. The single dependency-analyzed SaaS schema-drop migration (subscriptions, plans, installed apps, platform_admins, tenant transfers, billing, platform exchange rates).
-4. Only then M4 (POS/hardware/scanner remnants, HR beyond system actors). No loan-domain work until M3 is closed.
+M3 closure (items 1–4 above). No loan-domain work until M3 is closed.
