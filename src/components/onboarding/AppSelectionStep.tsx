@@ -293,42 +293,8 @@ export function AppSelectionStep({
         </div>
       )}
 
-      {/* Dependency closure preview — what else gets turned on */}
-      {!dbLoading && (autoIncludedDeps.length > 0 || closureLoading) && (
-        <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs">
-          <div className="flex items-start gap-2">
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground">
-                Required dependencies will be enabled
-              </p>
-              {closureLoading ? (
-                <p className="text-muted-foreground mt-1">Calculating…</p>
-              ) : (
-                <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                  {autoIncludedDeps.map(dep => {
-                    const reg = getAppById(dep.app_id);
-                    const label = reg?.name || dep.app_id;
-                    const tag = dep.is_in_plan
-                      ? "included"
-                      : dep.pricing_monthly && dep.pricing_monthly > 0
-                        ? `add-on · $${dep.pricing_monthly}/mo`
-                        : "free";
-                    return (
-                      <li key={dep.app_id} className="flex items-center gap-2">
-                        <span className="truncate">{label}</span>
-                        <span className="text-[10px] uppercase tracking-wide text-primary/80">
-                          {tag}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+
+
 
       {/* Info text */}
       <p className="text-xs text-muted-foreground text-center">
