@@ -123,3 +123,22 @@ org/business collapse and the SaaS schema migration remain.
   SaaS/tenant/subscription. Employees remain system actors only.
 - Backend-authoritative financial design; business-event driven.
 - Security posture inherited from AccrualFlow; dedicated hardening pass owed.
+
+
+===========THIS WAS THE LAST MESSAGE THE AGENT GAVE BEFORE ITS TIME RUN OUT=================
+I've closed most of the remaining M3 org/business collapse work, but the plan file update is still pending.
+
+Done this pass (code, verified by typecheck):
+- Deleted `CreateOrganizationDialog` and `CreateBusinessDialog`; removed all their consumers.
+- `Dashboard`: no-organization branch is now a "No institution access" message (no self-serve org creation), and `createOrganization` is no longer pulled into the page.
+- `ContextSwitcherSheet` rewritten as a branch + consolidated-reporting switcher only — no workspace/company switching or creation.
+- `SidebarContextSwitcher`, `AppSidebar`, `AppAwareSidebar`: `onCreateOrg` plumbing removed.
+- `BusinessBranchSettings`: "Add/Create Business" affordances removed; empty state now points to central provisioning.
+- `useCanSwitchScope` collapsed to branch-count + consolidated authorization; `canCreateAny`/`shouldShowCreateHint` always false, and its test rewritten to the single-institution contract (4/4 passing).
+- `tsgo -p tsconfig.app.json` back at the 46-error pre-existing schema-drift baseline; no new error files.
+
+Still open in M3 (for the next agent, in order):
+1. Update `.lovable/plan.md` with the above (M3 fourth pass) — it currently still lists the org/business collapse as pending.
+2. Pre-existing failing arch test `scope-trigger-visibility` flags `src/components/studio/ScheduledReportsManager.tsx` as an unguarded scope trigger (not caused by this pass) — gate it with `useCanSwitchScope()` or add a `// SCOPE-TRIGGER-EXEMPT:` note.
+3. The single dependency-analyzed SaaS schema-drop migration (subscriptions, plans, installed apps, platform_admins, tenant transfers, billing, platform exchange rates).
+4. Only then M4 (POS/hardware/scanner remnants, HR beyond system actors). No loan-domain work until M3 is closed.
