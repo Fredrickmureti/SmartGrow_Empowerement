@@ -1,8 +1,16 @@
-
+/**
+ * SessionContext - Unified session data loaded once at login
+ *
+ * Single-institution model: there are no subscription plans, entitlements,
+ * trials or platform administrators. The session answers exactly two
+ * questions: which workspace am I in, and what role do I hold there.
+ * Everything else is decided by RBAC and enforced server-side.
+ *
  * ─────────────────────────────────────────────────────────────────────────
  * Phase-3 (Architecture audit): legacy org-identity mirrors REMOVED.
  *
-
+ * `organizations` is the *institution workspace*. It owns role membership
+ * and branding.
  *
  * `businesses` is the *legal entity / accounting boundary*. It owns:
  * base_currency, tax_id, legal_name, email/phone/address (used on documents),
@@ -36,7 +44,7 @@ export interface SessionOrganization {
   id: string;
   name: string;
   slug: string;
-
+  is_suspended: boolean;
   suspended_at: string | null;
   suspended_reason: string | null;
   role: "super_admin" | "owner" | "admin" | "internal" | "accountant" | "staff" | "cashier" | "viewer" | "portal";
