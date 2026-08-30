@@ -21,13 +21,7 @@ import { join, sep, posix } from "node:path";
 const FORBIDDEN = /currentOrg\s*\?\.\s*(logo_url|legal_name|tax_id|registration_number|invoice_prefix|estimate_prefix|bill_prefix|credit_note_prefix|address|city|state|postal_code|country|base_currency|email|phone|website)\b|currentOrg\s*\.\s*(logo_url|legal_name|tax_id|registration_number|invoice_prefix|estimate_prefix|bill_prefix|credit_note_prefix|address|city|state|postal_code|country|base_currency|email|phone|website)\b/;
 
 const SCOPES = [
-  "src/components/invoices",
-  "src/components/bills",
-  "src/components/estimates",
-  "src/components/sales",
-  "src/components/purchases",
   "src/components/payments",
-  "src/components/pos",
   "src/components/reports",
   "src/components/finance",
   "src/components/banking",
@@ -45,10 +39,8 @@ const ALLOWLIST = new Set<string>(
   [
     // Sidebar / shell chrome — org logo for the tenant workspace
     "src/components/layout/AppSidebar.tsx",
-    "src/components/layout/AppAwareSidebar.tsx",
     // Settings page edits the org record itself — must read it directly
     "src/pages/Settings.tsx",
-    "src/pages/UserProfilePage.tsx",
     "src/pages/settings/UserProfilePage.tsx",
     // Tax-compliance fallback when no business is selected — never used in documents
     "src/hooks/useTaxCompliance.ts",

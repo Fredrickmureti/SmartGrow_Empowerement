@@ -146,8 +146,6 @@ describe("ADR 0012 — call-site guards in src/", () => {
   const VOID_RPC_BASELINE = new Set([
     "src/hooks/useTransactionReversal.ts",
     "src/hooks/useVoidJournalEntry.ts",
-    "src/components/payroll/ReversePayrollDialog.tsx",
-    "src/components/pos/ReopenShiftDialog.tsx",
     "src/hooks/useBills.ts",
     "src/hooks/useExpenses.ts",
     "src/hooks/useExpensesPaginated.ts",

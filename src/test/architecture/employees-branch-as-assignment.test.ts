@@ -32,7 +32,6 @@ const READ_ALLOWLIST = new Set<string>([
   // legacy column for back-compat shape during Phase B → E transition.
   "src/hooks/useEmployees.ts",
   "src/hooks/useEmployeePii.ts",
-  "src/hooks/hr/useAttendanceDaySummary.ts",
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {
