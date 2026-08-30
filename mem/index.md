@@ -12,5 +12,6 @@ Authoritative project status lives in `.lovable/plan.md` — update it after eve
 - [Profiles lookup key](mem://constraints/profiles-lookup-key)
 - [CRM lead lifecycle](mem://features/crm-lead-lifecycle) — server-owned state machine, transition RPCs, write guard, terminal/scope invariants
 - [Scope switcher placement](mem://features/scope-switcher-placement) — topbar ScopeSwitcherChip is the one trigger; membership-gated, never in the profile menu
+- [ASA operating model](mem://features/asa-operating-model) — traditional branch microfinance rules: staff-only, group meetings, physical screening, cycle graduation; legacy ERP data is not institution data
 
 
