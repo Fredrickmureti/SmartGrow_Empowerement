@@ -91465,10 +91465,6 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
-      check_org_usage_limit: {
-        Args: { _current_count?: number; _limit_key: string; _org_id: string }
-        Returns: Json
-      }
       check_overdue_invoices: { Args: never; Returns: undefined }
       check_pack_install_allowed: {
         Args: { _acknowledge_skeleton?: boolean; _pack_id: string }
