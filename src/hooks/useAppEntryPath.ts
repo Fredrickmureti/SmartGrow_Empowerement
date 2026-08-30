@@ -38,7 +38,7 @@ export function useAppEntryPath() {
       const app = getAppById(appId);
       if (!app) return "/apps";
       // Platform apps (e.g. Settings) are always "installed" — never gate them.
-      if (app.isPlatform) return resolveWorkspacePath(app);
+      if (app.alwaysAvailable) return resolveWorkspacePath(app);
       if (isInstalled(app.id)) return resolveWorkspacePath(app);
       return `/apps/${app.id}/activate`;
     },

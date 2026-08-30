@@ -47,7 +47,7 @@ export function AppRail({ currentApp }: AppRailProps) {
   const apps = useMemo(
     () =>
       availableApps
-        .filter((a) => !a.isPlatform)
+        .filter((a) => !a.alwaysAvailable)
         .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
     [availableApps],
   );

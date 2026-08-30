@@ -104,7 +104,7 @@ export function AppSelectionStep({
     // out and the five split apps (employees / time-off / attendance / payroll /
     // recruitment) take its place under operations.
     const fallbackApps: PlatformApp[] = APP_REGISTRY
-      .filter(a => !a.isPlatform && a.id !== "hr")
+      .filter(a => !a.alwaysAvailable && a.id !== "hr")
       .map(a => ({
         id: a.id,
         name: a.name,

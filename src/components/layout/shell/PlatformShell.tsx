@@ -65,7 +65,7 @@ export function PlatformShell({
   useRequireActiveBusiness(app.name, { enabled: workspaceReady });
 
   const accessInfo = useMemo(() => canAccessApp(app), [app, canAccessApp]);
-  const isAppInstalled = app.isPlatform || isInstalled(app.id);
+  const isAppInstalled = app.alwaysAvailable || isInstalled(app.id);
 
   // Portal users get the DashboardLayout-driven shell, never this one.
   if (userType === "portal") return <>{children ?? <Outlet />}</>;

@@ -67,7 +67,7 @@ function buildAppModuleEntries(): CommandEntry[] {
       weight: 60,
       to: `${app.basePath}${defaultModulePath}`,
       internalOnly: app.internalOnly,
-      appInstall: app.isPlatform ? undefined : app.id,
+      appInstall: app.alwaysAvailable ? undefined : app.id,
     });
 
     // Each module → a "page" entry.
@@ -92,7 +92,7 @@ function buildAppModuleEntries(): CommandEntry[] {
         to: fullPath,
         permission: mod.permission,
         featureFlag: mod.featureFlag,
-        appInstall: app.isPlatform ? undefined : app.id,
+        appInstall: app.alwaysAvailable ? undefined : app.id,
         internalOnly: app.internalOnly,
       });
     }

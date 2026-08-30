@@ -120,7 +120,7 @@ export function useAppNavigation(): UseAppNavigationResult {
 
     // Every app that ships in the registry is available to the institution;
     // only apps that are not shippable yet (comingSoon) are withheld.
-    if (!app.isPlatform && !hasAppAccess(app.id)) {
+    if (!app.alwaysAvailable && !hasAppAccess(app.id)) {
       return {
         hasAccess: false,
         denialReason: "disabled",
@@ -183,7 +183,7 @@ export function useAppNavigation(): UseAppNavigationResult {
         return false;
       }
       // Must be installed (platform apps are always available)
-      if (!app.isPlatform && !isInstalled(app.id)) {
+      if (!app.alwaysAvailable && !isInstalled(app.id)) {
         return false;
       }
       // Must have access
@@ -201,7 +201,7 @@ export function useAppNavigation(): UseAppNavigationResult {
       ...group,
       apps: group.apps.filter(app => {
         if (userType === "portal" && !PORTAL_HR_APPS.has(app.id)) return false;
-        if (!app.isPlatform && !isInstalled(app.id)) return false;
+        if (!app.alwaysAvailable && !isInstalled(app.id)) return false;
         return canAccessApp(app).hasAccess;
       }),
     })).filter(group => group.apps.length > 0);
@@ -209,7 +209,7 @@ export function useAppNavigation(): UseAppNavigationResult {
 
   // Track app access when navigating
   useEffect(() => {
-    if (currentApp && !currentApp.isPlatform) {
+    if (currentApp && !currentApp.alwaysAvailable) {
       trackAppAccess(currentApp.id);
     }
   }, [currentApp?.id, trackAppAccess]);

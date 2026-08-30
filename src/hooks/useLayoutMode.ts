@@ -45,7 +45,7 @@ export function useLayoutMode(): UseLayoutModeResult {
     const app = getAppByPath(path);
     
     // Platform/settings app uses sidebar mode
-    if (app?.isPlatform) {
+    if (app?.alwaysAvailable) {
       return "sidebar";
     }
 
