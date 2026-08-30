@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { AppDefinition } from "@/lib/apps/types";
-import type { AppEntitlementState } from "@/hooks/useAppAccess";
 
 interface AppTileCardProps {
   app: AppDefinition;
@@ -27,9 +26,6 @@ interface AppTileCardProps {
   onOpen?: () => void;
   size?: "small" | "medium" | "large";
   showDescription?: boolean;
-  entitlementState?: AppEntitlementState;
-  addonPriceLabel?: string;
-  trialDaysLeft?: number;
   /**
    * State-aware lifecycle action (preferred). When provided, replaces the
    * generic Install/Open button so the gesture matches the marketplace
@@ -48,9 +44,6 @@ export function AppTileCard({
   onOpen,
   size = "medium",
   showDescription = true,
-  entitlementState,
-  addonPriceLabel,
-  trialDaysLeft,
   lifecycleAction,
 }: AppTileCardProps) {
   const navigate = useNavigate();
