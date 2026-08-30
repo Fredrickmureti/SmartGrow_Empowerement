@@ -170,47 +170,9 @@ export function AppSelectionStep({
     return app ? app.is_available === false : false;
   };
 
-  // Compute the dependency closure for the user's current selection.
-  // This surfaces "we'll also turn on X for free" / "Y is a paid add-on"
-  // BEFORE provisioning so the user is never surprised mid-signup.
-  const [closure, setClosure] = useState<ClosureRow[]>([]);
-  const [closureLoading, setClosureLoading] = useState(false);
-  useEffect(() => {
-    const ids = Array.from(new Set([...selectedApps, ...coreAppIds]));
-    if (ids.length === 0) {
-      setClosure([]);
-      return;
-    }
-    setClosureLoading(true);
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await (supabase as any).rpc("preview_app_set_install", {
-          p_app_ids: ids,
-          p_org_id: null,
-        });
-        if (!cancelled) {
-          if (error) {
-            console.warn("[AppSelectionStep] preview_app_set_install failed:", error);
-            setClosure([]);
-          } else {
-            setClosure((data ?? []) as ClosureRow[]);
-          }
-        }
-      } finally {
-        if (!cancelled) setClosureLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedApps, coreAppIds]);
+  // Single-institution build: every app in the registry is included, so there
+  // is no plan-inclusion / add-on pricing closure to preview here.
 
-  // Apps the user did NOT explicitly choose but will be pulled in.
-  const autoIncludedDeps = useMemo(() => {
-    const selectedSet = new Set([...selectedApps, ...coreAppIds]);
-    return closure.filter(c => !c.is_root && !selectedSet.has(c.app_id));
-  }, [closure, selectedApps, coreAppIds]);
 
   return (
     <div className="space-y-6">
