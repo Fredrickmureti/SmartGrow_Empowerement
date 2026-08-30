@@ -7,7 +7,6 @@ import { useDashboardAnalytics } from "@/hooks/useDashboardAnalytics";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useViewCurrencyPreference } from "@/hooks/useViewCurrencyPreference";
 import { usePendingBusinessSetup } from "@/hooks/usePendingBusinessSetup";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { Navigate } from "react-router-dom";
 import { DashboardAppLayout as DashboardLayout } from "@/apps/dashboard";
 import { PageHeader, PageBody } from "@/design-system";
