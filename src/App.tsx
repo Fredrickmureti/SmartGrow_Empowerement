@@ -73,6 +73,7 @@ import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
 import Home from "./pages/Home";
 import Downloads from "./pages/Downloads";
+import { PrintRecoveryMount } from "@/components/printing/PrintRecoveryMount";
 const PrivacyPolicyPage = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfServicePage = lazy(() => import("./pages/legal/TermsOfService"));
 const CookiePolicyPage = lazy(() => import("./pages/legal/CookiePolicy"));
@@ -167,7 +168,8 @@ const App = () => (
                               
                               {/* Phase 3 hardware platform: feed active org/business into the exec-log writer. */}
                               
-                              {/* Track 1 event fabric: drain business_event_outbox → BusinessSaga handlers (labels, GRN, transfers, shipping). */}
+                              {/* Print recovery: reclaim print jobs stranded by a crashed session. */}
+                              <PrintRecoveryMount />
                               <AIAssistantProvider>
                               <Router>
                             <AuthExpiryBridge />

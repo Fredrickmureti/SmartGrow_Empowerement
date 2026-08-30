@@ -297,9 +297,9 @@ describe('printing architecture — the spool never becomes the transport', () =
     expect(rec).toMatch(/\.lt\('created_at', cutoff\)/);
   });
 
-  it('the recovery sweeper is started once, by the saga mount', () => {
+  it('the recovery sweeper is started once, by its dedicated mount', () => {
     expect(filesMatching(/startPrintRecoverySweeper\(/, ['services/printing/recovery.ts'])).toEqual([
-      'components/events/BusinessSagaMount.tsx',
+      'components/printing/PrintRecoveryMount.tsx',
     ]);
   });
 });
