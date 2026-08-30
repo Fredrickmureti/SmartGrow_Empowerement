@@ -1569,53 +1569,6 @@ export type Database = {
         }
         Relationships: []
       }
-      app_pricing_rules: {
-        Row: {
-          app_id: string
-          created_at: string
-          currency: string
-          id: string
-          is_active: boolean
-          is_addon_only: boolean
-          is_per_user: boolean
-          monthly_price: number
-          updated_at: string
-          yearly_price: number
-        }
-        Insert: {
-          app_id: string
-          created_at?: string
-          currency?: string
-          id?: string
-          is_active?: boolean
-          is_addon_only?: boolean
-          is_per_user?: boolean
-          monthly_price?: number
-          updated_at?: string
-          yearly_price?: number
-        }
-        Update: {
-          app_id?: string
-          created_at?: string
-          currency?: string
-          id?: string
-          is_active?: boolean
-          is_addon_only?: boolean
-          is_per_user?: boolean
-          monthly_price?: number
-          updated_at?: string
-          yearly_price?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "app_pricing_rules_app_id_fkey"
-            columns: ["app_id"]
-            isOneToOne: false
-            referencedRelation: "platform_apps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       app_regions: {
         Row: {
           app_id: string
@@ -1706,115 +1659,6 @@ export type Database = {
           },
           {
             foreignKeyName: "app_setup_status_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      app_trial_policy: {
-        Row: {
-          allow_retrial: boolean
-          app_id: string
-          auto_trial_on_dep_install: boolean
-          bundled_with_parent_trial: boolean
-          created_at: string
-          default_trial_days: number
-          is_trialable: boolean
-          retrial_cooldown_days: number
-          updated_at: string
-        }
-        Insert: {
-          allow_retrial?: boolean
-          app_id: string
-          auto_trial_on_dep_install?: boolean
-          bundled_with_parent_trial?: boolean
-          created_at?: string
-          default_trial_days?: number
-          is_trialable?: boolean
-          retrial_cooldown_days?: number
-          updated_at?: string
-        }
-        Update: {
-          allow_retrial?: boolean
-          app_id?: string
-          auto_trial_on_dep_install?: boolean
-          bundled_with_parent_trial?: boolean
-          created_at?: string
-          default_trial_days?: number
-          is_trialable?: boolean
-          retrial_cooldown_days?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "app_trial_policy_app_id_fkey"
-            columns: ["app_id"]
-            isOneToOne: true
-            referencedRelation: "platform_apps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      app_trial_status: {
-        Row: {
-          app_id: string
-          converted_at: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          organization_id: string
-          started_at: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          app_id: string
-          converted_at?: string | null
-          created_at?: string
-          expires_at: string
-          id?: string
-          organization_id: string
-          started_at?: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          app_id?: string
-          converted_at?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          organization_id?: string
-          started_at?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "app_trial_status_app_id_fkey"
-            columns: ["app_id"]
-            isOneToOne: false
-            referencedRelation: "platform_apps"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "app_trial_status_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "app_trial_status_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "app_trial_status_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -33844,70 +33688,6 @@ export type Database = {
         }
         Relationships: []
       }
-      org_entitlement_overrides: {
-        Row: {
-          created_at: string
-          expires_at: string | null
-          granted_by: string | null
-          id: string
-          is_active: boolean
-          key: string
-          organization_id: string
-          override_type: string
-          override_value: Json
-          reason: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          expires_at?: string | null
-          granted_by?: string | null
-          id?: string
-          is_active?: boolean
-          key: string
-          organization_id: string
-          override_type: string
-          override_value?: Json
-          reason?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string | null
-          granted_by?: string | null
-          id?: string
-          is_active?: boolean
-          key?: string
-          organization_id?: string
-          override_type?: string
-          override_value?: Json
-          reason?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_entitlement_overrides_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "org_entitlement_overrides_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "org_entitlement_overrides_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       org_usage_counters: {
         Row: {
           created_at: string
@@ -34568,7 +34348,6 @@ export type Database = {
           setup_wizard_step: number | null
           slug: string
           subscription_ends_at: string | null
-          subscription_plan_id: string | null
           subscription_started_at: string | null
           subscription_status: string | null
           suspended_at: string | null
@@ -34609,7 +34388,6 @@ export type Database = {
           setup_wizard_step?: number | null
           slug: string
           subscription_ends_at?: string | null
-          subscription_plan_id?: string | null
           subscription_started_at?: string | null
           subscription_status?: string | null
           suspended_at?: string | null
@@ -34650,7 +34428,6 @@ export type Database = {
           setup_wizard_step?: number | null
           slug?: string
           subscription_ends_at?: string | null
-          subscription_plan_id?: string | null
           subscription_started_at?: string | null
           subscription_status?: string | null
           suspended_at?: string | null
@@ -43729,79 +43506,6 @@ export type Database = {
           },
         ]
       }
-      plan_app_access: {
-        Row: {
-          app_id: string
-          created_at: string
-          id: string
-          is_enabled: boolean
-          plan_id: string
-          updated_at: string
-        }
-        Insert: {
-          app_id: string
-          created_at?: string
-          id?: string
-          is_enabled?: boolean
-          plan_id: string
-          updated_at?: string
-        }
-        Update: {
-          app_id?: string
-          created_at?: string
-          id?: string
-          is_enabled?: boolean
-          plan_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "plan_app_access_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "platform_subscription_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      plan_feature_access: {
-        Row: {
-          created_at: string | null
-          feature_key: string
-          id: string
-          is_enabled: boolean
-          limit_value: number | null
-          plan_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          feature_key: string
-          id?: string
-          is_enabled?: boolean
-          limit_value?: number | null
-          plan_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          feature_key?: string
-          id?: string
-          is_enabled?: boolean
-          limit_value?: number | null
-          plan_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "plan_feature_access_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "platform_subscription_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       platform_admin_alerts: {
         Row: {
           alert_type: string
@@ -44973,90 +44677,6 @@ export type Database = {
           setting_key?: string
           setting_type?: string
           setting_value?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      platform_subscription_plans: {
-        Row: {
-          billing_period: string | null
-          billing_period_days: number | null
-          created_at: string
-          currency: string
-          description: string | null
-          features: Json | null
-          grace_period_days: number | null
-          id: string
-          is_active: boolean | null
-          is_default: boolean | null
-          is_popular: boolean | null
-          max_invoices_per_month: number | null
-          max_organizations: number | null
-          max_storage_mb: number | null
-          max_users: number | null
-          name: string
-          price_monthly: number
-          price_per_user_monthly: number | null
-          price_per_user_yearly: number | null
-          price_yearly: number | null
-          sort_order: number | null
-          stripe_price_id_monthly: string | null
-          stripe_price_id_yearly: string | null
-          trial_period_days: number | null
-          updated_at: string
-        }
-        Insert: {
-          billing_period?: string | null
-          billing_period_days?: number | null
-          created_at?: string
-          currency?: string
-          description?: string | null
-          features?: Json | null
-          grace_period_days?: number | null
-          id?: string
-          is_active?: boolean | null
-          is_default?: boolean | null
-          is_popular?: boolean | null
-          max_invoices_per_month?: number | null
-          max_organizations?: number | null
-          max_storage_mb?: number | null
-          max_users?: number | null
-          name: string
-          price_monthly?: number
-          price_per_user_monthly?: number | null
-          price_per_user_yearly?: number | null
-          price_yearly?: number | null
-          sort_order?: number | null
-          stripe_price_id_monthly?: string | null
-          stripe_price_id_yearly?: string | null
-          trial_period_days?: number | null
-          updated_at?: string
-        }
-        Update: {
-          billing_period?: string | null
-          billing_period_days?: number | null
-          created_at?: string
-          currency?: string
-          description?: string | null
-          features?: Json | null
-          grace_period_days?: number | null
-          id?: string
-          is_active?: boolean | null
-          is_default?: boolean | null
-          is_popular?: boolean | null
-          max_invoices_per_month?: number | null
-          max_organizations?: number | null
-          max_storage_mb?: number | null
-          max_users?: number | null
-          name?: string
-          price_monthly?: number
-          price_per_user_monthly?: number | null
-          price_per_user_yearly?: number | null
-          price_yearly?: number | null
-          sort_order?: number | null
-          stripe_price_id_monthly?: string | null
-          stripe_price_id_yearly?: string | null
-          trial_period_days?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -65888,147 +65508,6 @@ export type Database = {
             columns: ["convention_id"]
             isOneToOne: false
             referencedRelation: "storage_bucket_conventions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      subscription_payments: {
-        Row: {
-          amount: number
-          created_at: string | null
-          currency: string | null
-          id: string
-          notes: string | null
-          organization_id: string
-          payment_method: string | null
-          period_end: string
-          period_start: string
-          plan_id: string | null
-          recorded_by: string | null
-          status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          amount: number
-          created_at?: string | null
-          currency?: string | null
-          id?: string
-          notes?: string | null
-          organization_id: string
-          payment_method?: string | null
-          period_end: string
-          period_start: string
-          plan_id?: string | null
-          recorded_by?: string | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          amount?: number
-          created_at?: string | null
-          currency?: string | null
-          id?: string
-          notes?: string | null
-          organization_id?: string
-          payment_method?: string | null
-          period_end?: string
-          period_start?: string
-          plan_id?: string | null
-          recorded_by?: string | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "subscription_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "subscription_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_payments_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "platform_subscription_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      subscription_usage: {
-        Row: {
-          api_calls_count: number | null
-          created_at: string | null
-          id: string
-          invoices_count: number | null
-          organization_id: string
-          period_end: string
-          period_start: string
-          pos_transactions_count: number | null
-          storage_used_mb: number | null
-          updated_at: string | null
-          users_count: number | null
-        }
-        Insert: {
-          api_calls_count?: number | null
-          created_at?: string | null
-          id?: string
-          invoices_count?: number | null
-          organization_id: string
-          period_end: string
-          period_start: string
-          pos_transactions_count?: number | null
-          storage_used_mb?: number | null
-          updated_at?: string | null
-          users_count?: number | null
-        }
-        Update: {
-          api_calls_count?: number | null
-          created_at?: string | null
-          id?: string
-          invoices_count?: number | null
-          organization_id?: string
-          period_end?: string
-          period_start?: string
-          pos_transactions_count?: number | null
-          storage_used_mb?: number | null
-          updated_at?: string | null
-          users_count?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_usage_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "subscription_usage_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "subscription_usage_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -92996,7 +92475,6 @@ export type Database = {
               setup_wizard_step: number | null
               slug: string
               subscription_ends_at: string | null
-              subscription_plan_id: string | null
               subscription_started_at: string | null
               subscription_status: string | null
               suspended_at: string | null
@@ -93054,7 +92532,6 @@ export type Database = {
               setup_wizard_step: number | null
               slug: string
               subscription_ends_at: string | null
-              subscription_plan_id: string | null
               subscription_started_at: string | null
               subscription_status: string | null
               suspended_at: string | null
