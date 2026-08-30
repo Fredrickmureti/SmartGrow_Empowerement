@@ -65,7 +65,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("payroll_runs")
       .select("id, payroll_number, pay_period_start, pay_period_end, total_net, currency, status, created_by")
       .eq("organization_id", orgId)
-      .in("status", ["draft", "calculated", "submitted", "pending_approval"])
+      .in("status", ["draft", "calculated", "submitted", "pending_approval"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -100,7 +100,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("leave_requests")
       .select("id, employee_id, start_date, end_date, status")
       .eq("organization_id", orgId)
-      .in("status", ["pending", "submitted", "approved_l1"])
+      .in("status", ["pending", "submitted", "approved_l1"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -117,7 +117,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("timesheet_submissions")
       .select("id, employee_id, period_start, period_end, status, total_hours")
       .eq("organization_id", orgId)
-      .in("status", ["submitted", "pending_approval"])
+      .in("status", ["submitted", "pending_approval"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -134,7 +134,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("employee_loans")
       .select("id, employee_id, status, start_date, description, created_by")
       .eq("organization_id", orgId)
-      .in("status", ["draft"])
+      .in("status", ["draft", "submitted", "pending_approval"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -168,7 +168,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("employee_contracts")
       .select("id, employee_id, status, start_date, end_date")
       .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"])
+      .in("status", ["draft", "submitted", "pending_approval"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -231,7 +231,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("journal_entries")
       .select("id, entry_number, entry_date, description, status, created_by, currency")
       .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"])
+      .in("status", ["draft", "submitted", "pending_approval"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -247,7 +247,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("customer_refunds")
       .select("id, reference, amount, currency, status, created_by")
       .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"])
+      .in("status", ["draft", "submitted", "pending_approval"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -375,7 +375,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("stock_transfers")
       .select("id, status, notes")
       .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval", "in_transit"])
+      .in("status", ["draft", "submitted", "pending_approval", "in_transit"] as any)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;

@@ -141,6 +141,12 @@ export function useTaxRates() {
     }
   }, [currentOrg, fetchTaxRates, fetchTaxGroups]);
 
+  /** `tax_rates` has no description/is_inclusive/is_default columns — drop them at the DB boundary. */
+  const stripNonColumns = <T extends Record<string, unknown>>(input: T) => {
+    const { description, is_inclusive, is_default, ...rest } = input as Record<string, unknown>;
+    return rest as Omit<T, "description" | "is_inclusive" | "is_default">;
+  };
+
   const createTaxRate = async (
     data: Omit<TaxRate, "id" | "organization_id" | "business_id" | "created_at" | "updated_at">
   ) => {
@@ -149,7 +155,7 @@ export function useTaxRates() {
     const { data: created, error } = await supabase
       .from("tax_rates")
       .insert({
-        ...data,
+        ...stripNonColumns(data),
         organization_id: currentOrg.id,
         business_id: currentBusiness.id,
       })
@@ -164,7 +170,7 @@ export function useTaxRates() {
   const updateTaxRate = async (id: string, updates: Partial<TaxRate>) => {
     const { error } = await supabase
       .from("tax_rates")
-      .update(updates)
+      .update(stripNonColumns(updates))
       .eq("id", id);
 
     if (error) throw error;

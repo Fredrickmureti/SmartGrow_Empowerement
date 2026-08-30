@@ -97,6 +97,7 @@ export function useEmailTemplates() {
         .from("email_templates")
         .insert({
           ...template,
+          body: template.html_body ?? template.text_body ?? "",
           organization_id: organizationId,
           business_id: currentBusiness?.id || null,
           created_by: userData?.user?.id,
