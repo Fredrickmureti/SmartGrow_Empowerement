@@ -223,41 +223,24 @@ function slugifyFallback(value: string) {
   );
 }
 
+/**
+ * Single-institution model: there is no subscription lifecycle.
+ * The workspace is always active unless an administrator suspends it.
+ * (Kept as a function returning the same shape so downstream consumers,
+ * types and tests are untouched by the de-SaaS migration.)
+ */
 function normalizeComputedStatus(org: Record<string, unknown>) {
-  const now = Date.now();
-  const subscriptionStatus = (org?.subscription_status as string | null) ?? null;
   const isSuspended = Boolean(org?.is_suspended);
-  const trialEndsAtMs = org?.trial_ends_at ? Date.parse(org.trial_ends_at as string) : NaN;
-  const subscriptionEndsAtMs = org?.subscription_ends_at ? Date.parse(org.subscription_ends_at as string) : NaN;
-
-  const isTrialing =
-    subscriptionStatus === "trial" && (!Number.isFinite(trialEndsAtMs) || trialEndsAtMs > now);
-
-  const isActiveSubscription =
-    subscriptionStatus === "active" &&
-    (!Number.isFinite(subscriptionEndsAtMs) || subscriptionEndsAtMs > now);
-
-  const isExpired =
-    !isSuspended &&
-    (subscriptionStatus === "expired" ||
-      subscriptionStatus === "cancelled" ||
-      (subscriptionStatus === "trial" && Number.isFinite(trialEndsAtMs) && trialEndsAtMs <= now) ||
-      (subscriptionStatus === "active" && Number.isFinite(subscriptionEndsAtMs) && subscriptionEndsAtMs <= now));
-
-  let daysRemaining: number | null = null;
-  const activeEndMs = isTrialing ? trialEndsAtMs : subscriptionStatus === "active" ? subscriptionEndsAtMs : NaN;
-  if (Number.isFinite(activeEndMs)) {
-    daysRemaining = Math.max(0, Math.ceil((activeEndMs - now) / (1000 * 60 * 60 * 24)));
-  }
 
   return {
-    is_active: !isSuspended && (isTrialing || isActiveSubscription),
+    is_active: !isSuspended,
     is_suspended: isSuspended,
-    is_trialing: isTrialing,
-    is_expired: isExpired,
-    days_remaining: daysRemaining,
+    is_trialing: false,
+    is_expired: false,
+    days_remaining: null as number | null,
   };
 }
+
 
 function normalizePlan(plan: unknown): SessionOrganization["plan"] {
   if (!isRecord(plan)) return null;
