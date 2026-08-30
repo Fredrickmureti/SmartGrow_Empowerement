@@ -22,8 +22,8 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 
-export type PrintFormat = 'pdf' | 'escpos' | 'zpl' | 'epl';
-export type PrintTransport = 'thermal' | 'pdf-electron' | 'pdf-browser' | 'download' | 'none';
+export type PrintFormat = 'pdf';
+export type PrintTransport = 'pdf-electron' | 'pdf-browser' | 'download' | 'none';
 
 export interface OpenJobInput {
   businessId: string | null | undefined;
@@ -34,8 +34,6 @@ export interface OpenJobInput {
   format: PrintFormat;
   transport: PrintTransport;
   correlationId: string;
-  deviceAssignmentId?: string | null;
-  mediaProfileId?: string | null;
   parentJobId?: string | null;
 }
 
@@ -46,7 +44,7 @@ export interface OpenJobInput {
  */
 export interface JobHandle {
   id: string | null;
-  markSent: (hwCommandId?: number | null) => Promise<void>;
+  markSent: () => Promise<void>;
   markAcked: () => Promise<void>;
   markFailed: (error: string) => Promise<void>;
 }
@@ -73,8 +71,8 @@ export async function openJob(input: OpenJobInput): Promise<JobHandle> {
       p_doc_id: input.documentId || null,
       p_intent: input.intent,
       p_format: input.format,
-      p_device_assignment_id: input.deviceAssignmentId ?? null,
-      p_media_profile_id: input.mediaProfileId ?? null,
+      p_device_assignment_id: null,
+      p_media_profile_id: null,
       p_correlation_id: input.correlationId,
       p_transport: input.transport,
       p_parent_job_id: input.parentJobId ?? null,
@@ -90,15 +88,15 @@ export async function openJob(input: OpenJobInput): Promise<JobHandle> {
 export function handleFor(jobId: string): JobHandle {
   return {
     id: jobId,
-    markSent: (hwCommandId?: number | null) => markSent(jobId, hwCommandId ?? null),
+    markSent: () => markSent(jobId),
     markAcked: () => markAcked(jobId),
     markFailed: (error: string) => markFailed(jobId, error),
   };
 }
 
-async function markSent(jobId: string, hwCommandId: number | null): Promise<void> {
+async function markSent(jobId: string): Promise<void> {
   try {
-    await supabase.rpc('print_job_mark_sent', { p_id: jobId, p_hw_command_id: hwCommandId });
+    await supabase.rpc('print_job_mark_sent', { p_id: jobId, p_hw_command_id: null });
   } catch { /* ledger failures never block printing */ }
 }
 
@@ -159,7 +157,7 @@ export async function loadJobs(jobIds: string[]): Promise<QueuedJob[]> {
 export async function claimForForeground(job: QueuedJob): Promise<JobHandle | null> {
   if (job.status && job.status !== 'queued') return null;
   const handle = handleFor(job.id);
-  await handle.markSent(null);
+  await handle.markSent();
   return handle;
 }
 
@@ -197,14 +195,13 @@ export async function requeueJob(jobId: string): Promise<void> {
  */
 export async function settleJobs(
   jobIds: Array<string | null | undefined>,
-  hwCommandId: number | null = null,
 ): Promise<void> {
   const ids = jobIds.filter((id): id is string => Boolean(id));
   if (ids.length === 0) return;
   try {
     await supabase.rpc('print_jobs_settle', {
       p_ids: ids,
-      p_hw_command_id: hwCommandId,
+      p_hw_command_id: null,
     } as never);
   } catch { /* ledger failures never block printing */ }
 }
