@@ -134,6 +134,7 @@ interface SessionContextType {
 
 
   userRole: SessionOrganization["role"] | null;
+  userType: SessionOrganization["user_type"] | null;
 
   // Actions
   refreshSession: () => Promise<void>;
