@@ -195,3 +195,43 @@ wave/dispatch printing manifests, hardware-scope manifests, HR draft-autosave.
   `recurring-invoicing-single-engine`, `reconciliation-ai-advisory-boundary`,
   `no-tanstack-router-in-spa`
 - **Result:** M0 CLOSED. **Next: M3b — finish the SaaS/platform-admin de-scope.**
+
+## M3b status — COMPLETE (2026-08-30, verified)
+
+Code half (earlier this session): subscription/plan/entitlement/trial state removed from
+SessionContext, app registry/types, navigation, command palette, app access hooks and app
+cards; `useActionGate` replaces `useEntitlementGate`; `isPlatform` → `alwaysAvailable`;
+registry group "Platform" → "System"; stale marketplace/app-switcher tests corrected.
+
+Database half (migration applied 2026-08-30 ~14:15 UTC):
+- Neutralised platform authority helpers to constants (`is_platform_admin`,
+  `_user_is_active_platform_admin`, `has_platform_permission` → false;
+  `get_platform_admin_role` → null; `get_platform_admin_permissions`/`_scopes` → empty).
+  This deliberately leaves the ~103 legacy policies that reference them syntactically valid
+  while making platform authority unreachable — safer than rewriting 103 policies blind.
+- `get_user_session_data` rewritten: no platform-admin read, no plan-shaped keys.
+- Dropped: platform_admin_groups/_group_members/_group_permissions/_country_scopes/
+  _sessions/_alerts/_notifications, platform_ownership_transfers,
+  platform_permission_definitions, platform_automation_rules, platform_email_templates/
+  _campaigns/_logs, platform_feature_catalog, demo_requests, enum platform_admin_role,
+  and the ownership-transfer + prevent_owner_deactivation routines.
+- `public.platform_admins` replaced by a permanently empty `security_invoker` view so
+  legacy functions/policies that still name it resolve to "no platform admin" and it can
+  never be written to.
+- Retained legitimate infrastructure: platform_settings, platform_apps,
+  platform_bank_providers, platform_integration_*, platform_exchange_rates,
+  platform_demo_videos.
+
+Verification: `tsgo` clean; build OK; suite 31 failed / 301 passed files (52 tests) — no new
+failures versus the pre-migration run; customers-provider mock gap fixed (`.is` added), that
+file now passes.
+
+Carry-forward (not M3b):
+- `src/pages/AcceptOwnership.tsx` + route: SaaS ownership-transfer surface, retire in M7.
+- `useDemoVideos` / ResourceCenterLauncher write paths lost their platform-admin policy;
+  decide retire-vs-reown in M6.
+- Legacy `platform_admins`-shaped functions (payroll_supersede_v1_certificates,
+  prevent_privileged_user_demotion, etc.) still name the view; they resolve to false and
+  are removed with their own domains in M5/M7.
+
+Next: **M4 — printing/hardware decoupling**.

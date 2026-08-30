@@ -14845,51 +14845,6 @@ export type Database = {
           },
         ]
       }
-      demo_requests: {
-        Row: {
-          admin_notes: string | null
-          company_name: string | null
-          contacted_at: string | null
-          contacted_by: string | null
-          created_at: string | null
-          email: string
-          full_name: string
-          id: string
-          message: string | null
-          phone: string | null
-          status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          admin_notes?: string | null
-          company_name?: string | null
-          contacted_at?: string | null
-          contacted_by?: string | null
-          created_at?: string | null
-          email: string
-          full_name: string
-          id?: string
-          message?: string | null
-          phone?: string | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          admin_notes?: string | null
-          company_name?: string | null
-          contacted_at?: string | null
-          contacted_by?: string | null
-          created_at?: string | null
-          email?: string
-          full_name?: string
-          id?: string
-          message?: string | null
-          phone?: string | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       departments: {
         Row: {
           archived_at: string | null
@@ -43506,326 +43461,6 @@ export type Database = {
           },
         ]
       }
-      platform_admin_alerts: {
-        Row: {
-          alert_type: string
-          created_at: string | null
-          details: Json | null
-          id: string
-          is_read: boolean | null
-          organization_id: string | null
-          severity: string
-          title: string
-        }
-        Insert: {
-          alert_type: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          is_read?: boolean | null
-          organization_id?: string | null
-          severity?: string
-          title: string
-        }
-        Update: {
-          alert_type?: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          is_read?: boolean | null
-          organization_id?: string | null
-          severity?: string
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_admin_alerts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "platform_admin_alerts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "platform_admin_alerts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_admin_country_scopes: {
-        Row: {
-          admin_id: string
-          assigned_at: string
-          assigned_by: string | null
-          country_code: string
-          id: string
-        }
-        Insert: {
-          admin_id: string
-          assigned_at?: string
-          assigned_by?: string | null
-          country_code: string
-          id?: string
-        }
-        Update: {
-          admin_id?: string
-          assigned_at?: string
-          assigned_by?: string | null
-          country_code?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_admin_country_scopes_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "platform_admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_admin_group_members: {
-        Row: {
-          admin_id: string
-          assigned_at: string
-          assigned_by: string | null
-          group_id: string
-          id: string
-        }
-        Insert: {
-          admin_id: string
-          assigned_at?: string
-          assigned_by?: string | null
-          group_id: string
-          id?: string
-        }
-        Update: {
-          admin_id?: string
-          assigned_at?: string
-          assigned_by?: string | null
-          group_id?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_admin_group_members_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "platform_admins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "platform_admin_group_members_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "platform_admin_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_admin_group_permissions: {
-        Row: {
-          group_id: string
-          id: string
-          permission_key: string
-        }
-        Insert: {
-          group_id: string
-          id?: string
-          permission_key: string
-        }
-        Update: {
-          group_id?: string
-          id?: string
-          permission_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_admin_group_permissions_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "platform_admin_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_admin_groups: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          is_system: boolean
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_system?: boolean
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_system?: boolean
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      platform_admin_notifications: {
-        Row: {
-          admin_user_id: string
-          category: string
-          created_at: string | null
-          id: string
-          is_dismissed: boolean | null
-          is_read: boolean | null
-          link: string | null
-          message: string
-          metadata: Json | null
-          priority: number | null
-          title: string
-          type: string
-          updated_at: string | null
-        }
-        Insert: {
-          admin_user_id: string
-          category?: string
-          created_at?: string | null
-          id?: string
-          is_dismissed?: boolean | null
-          is_read?: boolean | null
-          link?: string | null
-          message: string
-          metadata?: Json | null
-          priority?: number | null
-          title: string
-          type?: string
-          updated_at?: string | null
-        }
-        Update: {
-          admin_user_id?: string
-          category?: string
-          created_at?: string | null
-          id?: string
-          is_dismissed?: boolean | null
-          is_read?: boolean | null
-          link?: string | null
-          message?: string
-          metadata?: Json | null
-          priority?: number | null
-          title?: string
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      platform_admin_sessions: {
-        Row: {
-          admin_user_id: string
-          created_at: string
-          expired_at: string | null
-          forced_logout_by: string | null
-          id: string
-          ip_address: string | null
-          is_active: boolean
-          last_activity_at: string
-          session_started_at: string
-          user_agent: string | null
-        }
-        Insert: {
-          admin_user_id: string
-          created_at?: string
-          expired_at?: string | null
-          forced_logout_by?: string | null
-          id?: string
-          ip_address?: string | null
-          is_active?: boolean
-          last_activity_at?: string
-          session_started_at?: string
-          user_agent?: string | null
-        }
-        Update: {
-          admin_user_id?: string
-          created_at?: string
-          expired_at?: string | null
-          forced_logout_by?: string | null
-          id?: string
-          ip_address?: string | null
-          is_active?: boolean
-          last_activity_at?: string
-          session_started_at?: string
-          user_agent?: string | null
-        }
-        Relationships: []
-      }
-      platform_admins: {
-        Row: {
-          accepted_at: string | null
-          deactivated_at: string | null
-          deactivated_by: string | null
-          granted_at: string
-          granted_by: string | null
-          id: string
-          invitation_status: string | null
-          invitation_token: string | null
-          invited_at: string | null
-          invited_email: string | null
-          is_active: boolean
-          notes: string | null
-          role: Database["public"]["Enums"]["platform_admin_role"]
-          user_id: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          deactivated_at?: string | null
-          deactivated_by?: string | null
-          granted_at?: string
-          granted_by?: string | null
-          id?: string
-          invitation_status?: string | null
-          invitation_token?: string | null
-          invited_at?: string | null
-          invited_email?: string | null
-          is_active?: boolean
-          notes?: string | null
-          role?: Database["public"]["Enums"]["platform_admin_role"]
-          user_id: string
-        }
-        Update: {
-          accepted_at?: string | null
-          deactivated_at?: string | null
-          deactivated_by?: string | null
-          granted_at?: string
-          granted_by?: string | null
-          id?: string
-          invitation_status?: string | null
-          invitation_token?: string | null
-          invited_at?: string | null
-          invited_email?: string | null
-          is_active?: boolean
-          notes?: string | null
-          role?: Database["public"]["Enums"]["platform_admin_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
       platform_apps: {
         Row: {
           category: string
@@ -43876,71 +43511,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      platform_automation_rules: {
-        Row: {
-          action_type: string
-          created_at: string | null
-          created_by: string | null
-          delay_minutes: number | null
-          description: string | null
-          id: string
-          is_active: boolean | null
-          last_run_at: string | null
-          name: string
-          next_run_at: string | null
-          priority: number | null
-          run_count: number | null
-          template_id: string | null
-          trigger_config: Json | null
-          trigger_type: string
-          updated_at: string | null
-        }
-        Insert: {
-          action_type?: string
-          created_at?: string | null
-          created_by?: string | null
-          delay_minutes?: number | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          last_run_at?: string | null
-          name: string
-          next_run_at?: string | null
-          priority?: number | null
-          run_count?: number | null
-          template_id?: string | null
-          trigger_config?: Json | null
-          trigger_type: string
-          updated_at?: string | null
-        }
-        Update: {
-          action_type?: string
-          created_at?: string | null
-          created_by?: string | null
-          delay_minutes?: number | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          last_run_at?: string | null
-          name?: string
-          next_run_at?: string | null
-          priority?: number | null
-          run_count?: number | null
-          template_id?: string | null
-          trigger_config?: Json | null
-          trigger_type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_automation_rules_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "platform_email_templates"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       platform_bank_providers: {
         Row: {
@@ -44059,240 +43629,6 @@ export type Database = {
         }
         Relationships: []
       }
-      platform_email_campaigns: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          custom_html_body: string | null
-          custom_subject: string | null
-          description: string | null
-          failed_count: number | null
-          id: string
-          name: string
-          opened_count: number | null
-          recipient_count: number | null
-          scheduled_at: string | null
-          sent_at: string | null
-          sent_count: number | null
-          stats: Json | null
-          status: string | null
-          target_audience: Json | null
-          template_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          custom_html_body?: string | null
-          custom_subject?: string | null
-          description?: string | null
-          failed_count?: number | null
-          id?: string
-          name: string
-          opened_count?: number | null
-          recipient_count?: number | null
-          scheduled_at?: string | null
-          sent_at?: string | null
-          sent_count?: number | null
-          stats?: Json | null
-          status?: string | null
-          target_audience?: Json | null
-          template_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          custom_html_body?: string | null
-          custom_subject?: string | null
-          description?: string | null
-          failed_count?: number | null
-          id?: string
-          name?: string
-          opened_count?: number | null
-          recipient_count?: number | null
-          scheduled_at?: string | null
-          sent_at?: string | null
-          sent_count?: number | null
-          stats?: Json | null
-          status?: string | null
-          target_audience?: Json | null
-          template_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_email_campaigns_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "platform_email_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_email_logs: {
-        Row: {
-          bounced_at: string | null
-          campaign_id: string | null
-          clicked_at: string | null
-          created_at: string | null
-          error_message: string | null
-          html_body: string | null
-          id: string
-          metadata: Json | null
-          opened_at: string | null
-          recipient_email: string
-          recipient_name: string | null
-          recipient_org_id: string | null
-          recipient_user_id: string | null
-          reply_to: string | null
-          resend_id: string | null
-          rule_id: string | null
-          sent_at: string | null
-          status: string | null
-          subject: string | null
-          template_id: string | null
-          template_key: string | null
-        }
-        Insert: {
-          bounced_at?: string | null
-          campaign_id?: string | null
-          clicked_at?: string | null
-          created_at?: string | null
-          error_message?: string | null
-          html_body?: string | null
-          id?: string
-          metadata?: Json | null
-          opened_at?: string | null
-          recipient_email: string
-          recipient_name?: string | null
-          recipient_org_id?: string | null
-          recipient_user_id?: string | null
-          reply_to?: string | null
-          resend_id?: string | null
-          rule_id?: string | null
-          sent_at?: string | null
-          status?: string | null
-          subject?: string | null
-          template_id?: string | null
-          template_key?: string | null
-        }
-        Update: {
-          bounced_at?: string | null
-          campaign_id?: string | null
-          clicked_at?: string | null
-          created_at?: string | null
-          error_message?: string | null
-          html_body?: string | null
-          id?: string
-          metadata?: Json | null
-          opened_at?: string | null
-          recipient_email?: string
-          recipient_name?: string | null
-          recipient_org_id?: string | null
-          recipient_user_id?: string | null
-          reply_to?: string | null
-          resend_id?: string | null
-          rule_id?: string | null
-          sent_at?: string | null
-          status?: string | null
-          subject?: string | null
-          template_id?: string | null
-          template_key?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_email_logs_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "platform_email_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "platform_email_logs_recipient_org_id_fkey"
-            columns: ["recipient_org_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "platform_email_logs_recipient_org_id_fkey"
-            columns: ["recipient_org_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "platform_email_logs_recipient_org_id_fkey"
-            columns: ["recipient_org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "platform_email_logs_rule_id_fkey"
-            columns: ["rule_id"]
-            isOneToOne: false
-            referencedRelation: "platform_automation_rules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "platform_email_logs_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "platform_email_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_email_templates: {
-        Row: {
-          category: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          html_body: string
-          id: string
-          is_active: boolean | null
-          name: string
-          subject: string
-          template_key: string
-          text_body: string | null
-          updated_at: string | null
-          variables: string[] | null
-        }
-        Insert: {
-          category?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          html_body: string
-          id?: string
-          is_active?: boolean | null
-          name: string
-          subject: string
-          template_key: string
-          text_body?: string | null
-          updated_at?: string | null
-          variables?: string[] | null
-        }
-        Update: {
-          category?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          html_body?: string
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          subject?: string
-          template_key?: string
-          text_body?: string | null
-          updated_at?: string | null
-          variables?: string[] | null
-        }
-        Relationships: []
-      }
       platform_exchange_rates: {
         Row: {
           created_at: string
@@ -44326,39 +43662,6 @@ export type Database = {
           symbol?: string | null
           to_currency?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      platform_feature_catalog: {
-        Row: {
-          category: string
-          created_at: string | null
-          description: string | null
-          feature_key: string
-          id: string
-          label: string
-          sort_order: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          category: string
-          created_at?: string | null
-          description?: string | null
-          feature_key: string
-          id?: string
-          label: string
-          sort_order?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          category?: string
-          created_at?: string | null
-          description?: string | null
-          feature_key?: string
-          id?: string
-          label?: string
-          sort_order?: number | null
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -44578,75 +43881,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      platform_ownership_transfers: {
-        Row: {
-          completed_at: string | null
-          expires_at: string
-          from_user_id: string
-          id: string
-          initiated_at: string
-          initiated_by: string
-          notes: string | null
-          status: string
-          to_user_id: string
-          verification_token: string
-          verified_at: string | null
-        }
-        Insert: {
-          completed_at?: string | null
-          expires_at: string
-          from_user_id: string
-          id?: string
-          initiated_at?: string
-          initiated_by: string
-          notes?: string | null
-          status?: string
-          to_user_id: string
-          verification_token: string
-          verified_at?: string | null
-        }
-        Update: {
-          completed_at?: string | null
-          expires_at?: string
-          from_user_id?: string
-          id?: string
-          initiated_at?: string
-          initiated_by?: string
-          notes?: string | null
-          status?: string
-          to_user_id?: string
-          verification_token?: string
-          verified_at?: string | null
-        }
-        Relationships: []
-      }
-      platform_permission_definitions: {
-        Row: {
-          category: string
-          created_at: string
-          description: string | null
-          key: string
-          label: string
-          sort_order: number
-        }
-        Insert: {
-          category: string
-          created_at?: string
-          description?: string | null
-          key: string
-          label: string
-          sort_order?: number
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          description?: string | null
-          key?: string
-          label?: string
-          sort_order?: number
-        }
-        Relationships: []
       }
       platform_settings: {
         Row: {
@@ -79642,6 +78876,25 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_admins: {
+        Row: {
+          accepted_at: string | null
+          deactivated_at: string | null
+          deactivated_by: string | null
+          granted_at: string | null
+          granted_by: string | null
+          id: string | null
+          invitation_status: string | null
+          invitation_token: string | null
+          invited_at: string | null
+          invited_email: string | null
+          is_active: boolean | null
+          notes: string | null
+          role: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       po_three_way_match: {
         Row: {
           branch_id: string | null
@@ -90503,10 +89756,6 @@ export type Database = {
         Args: { p_reason?: string; p_shipment_id: string }
         Returns: undefined
       }
-      cancel_ownership_transfer: {
-        Args: { _transfer_id: string }
-        Returns: Json
-      }
       cancel_pick_wave: {
         Args: { p_reason?: string; p_wave_id: string }
         Returns: Json
@@ -91547,10 +90796,6 @@ export type Database = {
           p_selected_app_ids?: string[]
           p_slug: string
         }
-        Returns: Json
-      }
-      complete_ownership_transfer: {
-        Args: { _transfer_id: string; _verification_token: string }
         Returns: Json
       }
       complete_pack_task: { Args: { p_task_id: string }; Returns: Json }
@@ -97770,10 +97015,6 @@ export type Database = {
         Returns: Json
       }
       identity_code_candidates: { Args: { p_raw: string }; Returns: string[] }
-      initiate_ownership_transfer: {
-        Args: { _notes?: string; _to_user_id: string }
-        Returns: Json
-      }
       insert_payroll_run_atomic: {
         Args: { p_payroll_run: Json; p_payslips: Json }
         Returns: Json
@@ -110342,7 +109583,6 @@ export type Database = {
         | "in_progress"
         | "submitted"
         | "acknowledged"
-      platform_admin_role: "owner" | "admin" | "operator"
       po_status:
         | "draft"
         | "sent"
@@ -111572,7 +110812,6 @@ export const Constants = {
         "submitted",
         "acknowledged",
       ],
-      platform_admin_role: ["owner", "admin", "operator"],
       po_status: [
         "draft",
         "sent",
