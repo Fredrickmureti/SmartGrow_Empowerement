@@ -145,8 +145,10 @@ domain code. Clear the 46 inherited type-drift errors in this milestone.
 
 ### M8 — Clients & groups
 Client/member master with KYC, branch, owning loan officer, status, history.
-Optional groups with leader and membership; group membership never implies a
-group loan. Clients survive loan closure.
+Groups with leader, membership, and a fixed weekly meeting slot (day, time,
+place) — the meeting is the collection point. Individual lending only: group
+membership never implies a group loan and never creates joint liability.
+Clients survive loan closure and accumulate cycle history.
 
 ### M9 — Loan products (versioned)
 Amounts, term, frequency, interest method, fees, penalties, grace, eligibility,
@@ -154,8 +156,11 @@ activation. Product versions immutable so live loans never change.
 
 ### M10 — Applications, assessment, approval
 Draft → Submitted → Under review → Approved/Rejected → Ready for disbursement.
-Requested and approved amounts stay distinct. Assessment and approval are
-attributable events with enforced authority; approval ≠ disbursement.
+Applications are created BY STAFF for identified clients — never self-submitted.
+Assessment is a recorded physical business visit (officer + branch manager
+verdict). Approval is a branch-level, attributable decision within authority
+limits. Requested and approved amounts stay distinct; approved amount is
+capped by the client's cycle eligibility. Approval ≠ disbursement.
 
 ### M11 — Loan, schedule engine, disbursement
 Loan snapshots contractual terms from the approved application. Server-side
