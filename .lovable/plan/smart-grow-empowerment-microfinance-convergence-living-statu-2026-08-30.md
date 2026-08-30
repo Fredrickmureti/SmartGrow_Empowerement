@@ -48,6 +48,72 @@ Remaining, in order:
 4. Gate: build + typecheck at the 46-error baseline, full arch-test suite green,
    `/`, `/login`, `/dashboard`, `/settings`, `/home` all 200.
 
+## Domain operating model — the institution we are building for
+
+Smart Grow Empowerment is a **small, traditional, branch-based microfinance
+institution operating on the ASA model** (as ASA International Kenya runs it).
+It is NOT an online lending platform. Read this before touching any milestone
+from M8 onward — it defines what the domain must and must not do.
+
+The ASA model, as it actually operates:
+
+1. **Target group & group-based access.** Clients are low-income micro-entrepreneurs
+   (predominantly women running small businesses). Lending is INDIVIDUAL — each
+   member is responsible for her own loan; there is NO joint-liability group
+   lending. But membership of a local client group is required to access loans.
+   Groups exist for discipline, peer knowledge and meeting logistics, not as
+   co-borrowers. (Consequence for M8: group membership ≠ group loan, and the
+   loan always has exactly one client as the obligor.)
+2. **Mandatory group meetings.** Each group meets at a fixed time, day and place.
+   The loan officer attends in person. Repayments are collected AT THE MEETING,
+   recorded publicly, and receipts issued. Clients do not log in anywhere; the
+   officer is the system's hands. (Consequence for M12: repayment entry is a
+   staff-side batch-per-meeting workflow keyed by group/meeting/attendance, not
+   a client self-service payment page.)
+3. **Face-to-face screening before any money moves.** The loan officer and branch
+   manager physically visit the applicant's business, verify it exists, assess
+   cash flow and obligations, and record the assessment. There is no anonymous
+   signup → form → money flow. (Consequence for M10: an application is created
+   BY STAFF on behalf of an identified, KYC'd client; assessment is a physical
+   visit with a recorded verdict; approval happens at the BRANCH, by named
+   officers, within authority limits.)
+4. **Capped first loans, cycle-based graduation.** First-cycle loans are small
+   by policy. Limits rise only after a completed, well-repaid cycle. The client's
+   repayment history across cycles is the credit score. (Consequence for M9/M10:
+   products carry per-cycle ceiling rules; eligibility for cycle N+1 amounts is
+   derived from the client's completed-cycle record, never free-typed.)
+5. **Standardized, low-cost branches.** Every branch runs the same simple,
+   standardized procedures and documents. (Consequence: configuration is
+   institution-level; branches differ in staff and portfolio, not in rules.)
+
+What this model EXCLUDES (do not build, do not leave seams for):
+- No client portal, no client login, no online self-application, no self-service
+  repayment. All client-facing actions are performed by staff.
+- No credit-scoring automation or algorithmic approval. Humans decide, the
+  system records and enforces authority limits.
+- No joint-liability/group-loan product.
+- No mobile-money self-payment integration as the primary flow; repayments are
+  officer-collected (cash or mobile money recorded by the officer).
+
+## Legacy data policy — do NOT carry the ERP's data forward
+
+When the microfinance domain work begins, the inherited AccrualFlow database
+contents are NOT this institution's data. Rules for every agent:
+
+- Do not build microfinance screens over leftover ERP rows (invoices, bills,
+  POS transactions, payroll runs, CRM leads, inventory). The new domain reads
+  only microfinance tables plus the retained finance foundation (chart of
+  accounts, journals, periods) and the provisioned single organization/business/
+  branch/actor set.
+- The 14 `%loan%` tables are payroll employee-advance artifacts, NOT lending
+  tables. Do not reuse or extend them for client loans; they are scheduled for
+  removal with the HR de-scope (M4).
+- Demo/seed data for the microfinance domain must be authored fresh to match
+  the ASA model above (groups, meetings, officer-collected repayments, cycle
+  graduation) — never recycled ERP fixtures.
+- Before M14 reporting goes live, verify no report or document template pulls
+  from dropped or out-of-scope ERP tables.
+
 ## Remaining milestones
 
 ### M4 — De-scope remaining ERP/HR excess
