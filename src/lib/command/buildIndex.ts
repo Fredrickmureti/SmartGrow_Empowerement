@@ -67,7 +67,7 @@ function buildAppModuleEntries(): CommandEntry[] {
       weight: 60,
       to: `${app.basePath}${defaultModulePath}`,
       internalOnly: app.internalOnly,
-      appInstall: app.isPlatform ? undefined : app.id,
+      appInstall: app.alwaysAvailable ? undefined : app.id,
     });
 
     // Each module → a "page" entry.
@@ -91,9 +91,8 @@ function buildAppModuleEntries(): CommandEntry[] {
         weight: 70,
         to: fullPath,
         permission: mod.permission,
-        feature: mod.feature,
         featureFlag: mod.featureFlag,
-        appInstall: app.isPlatform ? undefined : app.id,
+        appInstall: app.alwaysAvailable ? undefined : app.id,
         internalOnly: app.internalOnly,
       });
     }
@@ -115,8 +114,6 @@ function buildReportEntries(): CommandEntry[] {
     keywords: normKeywords([r.name, ...r.keywords, r.description, r.reportType]),
     weight: 55,
     to: r.path,
-    feature: r.requiredFeature,
-    // Permission-first gate (matches sidebar). Feature is secondary.
     permission: r.permission,
     appInstall: "finance",
     internalOnly: true,

@@ -79,7 +79,6 @@ export const FINANCE_APP: AppDefinition = {
   icon: PiggyBank,
   color: "hsl(142, 76%, 36%)", // Emerald green
   basePath: "/finance",
-  requiredPlan: "starter",
   requiredPermissions: ["viewFinancials"],
   sortOrder: 1,
   defaultModule: "dashboard",
@@ -114,7 +113,6 @@ export const CONTACTS_APP: AppDefinition = {
   icon: Users,
   color: "hsl(215, 65%, 50%)", // Slate blue
   basePath: "/contacts-app",
-  requiredPlan: "starter",
   requiredPermissions: ["viewContacts"],
   sortOrder: 3,
   defaultModule: "all",
@@ -150,7 +148,6 @@ export const EMPLOYEES_APP: AppDefinition = {
   icon: Users,
   color: "hsl(45, 93%, 47%)", // Amber
   basePath: "/hr",
-  requiredPlan: "professional",
   requiredPermissions: ["viewEmployees", "viewDirectory"],
   sortOrder: 8,
   defaultModule: "employees",
@@ -203,7 +200,6 @@ export const REPORTS_APP: AppDefinition = {
   // Reports have no standalone router mount — they live under the Finance app
   // routes (/finance/reports/*). Pointing the tile at /reports 404'd.
   basePath: "/finance/reports",
-  requiredPlan: "starter",
   requiredPermissions: ["viewReports"],
   sortOrder: 10,
   internalOnly: true,
@@ -260,7 +256,6 @@ export const STUDIO_APP: AppDefinition = {
   icon: Wand2,
   color: "hsl(270, 70%, 50%)", // Purple
   basePath: "/studio",
-  requiredPlan: "starter",
   requiredPermissions: ["editSettings"],
   sortOrder: 15,
   internalOnly: true,
@@ -286,10 +281,9 @@ export const PLATFORM_APP: AppDefinition = {
   icon: Settings,
   color: "hsl(0, 0%, 45%)", // Gray
   basePath: "/settings",
-  requiredPlan: "starter",
   requiredPermissions: [],
   sortOrder: 100,
-  isPlatform: true,
+  alwaysAvailable: true,
   defaultModule: "general",
   modules: [
     { id: "general", name: "General", path: "", icon: Settings, permission: "editSettings" },
@@ -325,7 +319,7 @@ export const ME_APP: AppDefinition = {
   requiredPermissions: [],
   sortOrder: 0,
   defaultModule: "home",
-  isPlatform: true,
+  alwaysAvailable: true,
   internalOnly: false,
   hideAppSwitcher: true,
   // Leave / timesheets / attendance / shifts / payslips / loans / exit were
@@ -357,7 +351,7 @@ export const DASHBOARD_APP: AppDefinition = {
   requiredPermissions: [],
   sortOrder: 1,
   defaultModule: "overview",
-  isPlatform: true,
+  alwaysAvailable: true,
   modules: [
     { id: "overview",  name: "Overview",  path: "",           icon: LayoutDashboard },
     { id: "activity",  name: "Activity",  path: "/activity",  icon: Bell },
@@ -448,8 +442,8 @@ export function getAppGroups(): AppGroup[] {
     apps: switchable.filter((app) => ids.includes(app.id)).sort(bySortOrder),
   }));
 
-  const platformApps = switchable.filter((app) => app.isPlatform).sort(bySortOrder);
-  groups.push({ label: "Platform", apps: platformApps });
+  const systemApps = switchable.filter((app) => app.alwaysAvailable).sort(bySortOrder);
+  groups.push({ label: "System", apps: systemApps });
 
   // Catch-all: anything registered but not placed above.
   const placed = new Set(groups.flatMap((g) => g.apps.map((a) => a.id)));

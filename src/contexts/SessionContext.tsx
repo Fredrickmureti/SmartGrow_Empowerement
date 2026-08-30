@@ -1,18 +1,16 @@
 /**
- * SessionContext - Unified session data with entitlements loaded at login
+ * SessionContext - Unified session data loaded once at login
  *
- * This eliminates the "flicker" problem by:
- * 1. Loading ALL session data (orgs, subscriptions, entitlements) in ONE RPC call
- * 2. Pre-computing subscription status server-side
- * 3. Providing O(1) entitlement checks via Set lookup
- *
- * Pattern follows Odoo (ir.model.access) and QuickBooks (session token claims).
+ * Single-institution model: there are no subscription plans, entitlements,
+ * trials or platform administrators. The session answers exactly two
+ * questions: which workspace am I in, and what role do I hold there.
+ * Everything else is decided by RBAC and enforced server-side.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * Phase-3 (Architecture audit): legacy org-identity mirrors REMOVED.
  *
- * `organizations` is the *tenant workspace*. It owns: subscription, plan,
- * entitlements, role membership, branding-as-tenant-avatar.
+ * `organizations` is the *institution workspace*. It owns role membership
+ * and branding.
  *
  * `businesses` is the *legal entity / accounting boundary*. It owns:
  * base_currency, tax_id, legal_name, email/phone/address (used on documents),
@@ -46,43 +44,12 @@ export interface SessionOrganization {
   id: string;
   name: string;
   slug: string;
-  subscription_plan_id: string | null;
-  subscription_status: string | null;
-  subscription_started_at: string | null;
-  subscription_ends_at: string | null;
-  trial_ends_at: string | null;
   is_suspended: boolean;
   suspended_at: string | null;
   suspended_reason: string | null;
   role: "super_admin" | "owner" | "admin" | "internal" | "accountant" | "staff" | "cashier" | "viewer" | "portal";
   role_id: string;
   user_type: "internal" | "portal";
-  computed_status: {
-    is_active: boolean;
-    is_suspended: boolean;
-    is_trialing: boolean;
-    is_expired: boolean;
-    days_remaining: number | null;
-  };
-  plan: {
-    id: string;
-    name: string;
-    description: string | null;
-    price_monthly: number;
-    price_yearly: number | null;
-    features: string[];
-    max_users: number | null;
-    max_invoices_per_month: number | null;
-    max_organizations: number;
-    grace_period_days: number | null;
-    max_storage_mb: number | null;
-  } | null;
-  entitlements: string[];
-  feature_limits: Record<string, number>;
-  /** App-level entitlements from plan_app_access table (e.g., ['finance', 'sales', 'hr']) */
-  app_entitlements: string[];
-  /** Per-org limit overrides from org_entitlement_overrides */
-  limit_overrides: Record<string, unknown>;
   /** Real-time usage counters for limit enforcement */
   usage_counters: {
     users_count: number;
@@ -104,7 +71,6 @@ export interface SessionOrganization {
 export interface SessionData {
   organizations: SessionOrganization[];
   user_id: string;
-  is_platform_admin: boolean;
   /**
    * Server-trusted "last active workspace" for this user (profiles.last_org_id).
    * Preferred over localStorage during first-render hydration so that:
@@ -166,26 +132,9 @@ interface SessionContextType {
   currentOrg: SessionOrganization | null;
   switchOrganization: (orgId: string) => void;
 
-  // Entitlement checks (O(1) via Set)
-  hasEntitlement: (featureKey: string) => boolean;
-  getFeatureLimit: (featureKey: string) => number | null;
 
-  // Subscription status (pre-computed server-side)
-  subscriptionStatus: {
-    isActive: boolean;
-    isSuspended: boolean;
-    isTrialing: boolean;
-    isExpired: boolean;
-    daysRemaining: number | null;
-  };
-
-  // Plan info
-  currentPlan: SessionOrganization["plan"];
-
-  // User role
   userRole: SessionOrganization["role"] | null;
   userType: SessionOrganization["user_type"] | null;
-  isPlatformAdmin: boolean;
 
   // Actions
   refreshSession: () => Promise<void>;
@@ -223,83 +172,6 @@ function slugifyFallback(value: string) {
   );
 }
 
-/**
- * Single-institution model: there is no subscription lifecycle.
- * The workspace is always active unless an administrator suspends it.
- * (Kept as a function returning the same shape so downstream consumers,
- * types and tests are untouched by the de-SaaS migration.)
- */
-function normalizeComputedStatus(org: Record<string, unknown>) {
-  const isSuspended = Boolean(org?.is_suspended);
-
-  return {
-    is_active: !isSuspended,
-    is_suspended: isSuspended,
-    is_trialing: false,
-    is_expired: false,
-    days_remaining: null as number | null,
-  };
-}
-
-
-function normalizePlan(plan: unknown): SessionOrganization["plan"] {
-  if (!isRecord(plan)) return null;
-
-  return {
-    id: String(plan.id ?? ""),
-    name: String(plan.name ?? "Current Plan"),
-    description: (plan.description as string | null) ?? null,
-    price_monthly: Number(plan.price_monthly ?? 0),
-    price_yearly: toNumberOrNull(plan.price_yearly),
-    features: asArray<string>(plan.features).filter((feature) => typeof feature === "string"),
-    max_users: toNumberOrNull(plan.max_users),
-    max_invoices_per_month: toNumberOrNull(plan.max_invoices_per_month),
-    max_organizations: Number(plan.max_organizations ?? 1),
-    grace_period_days: toNumberOrNull(plan.grace_period_days),
-    max_storage_mb: toNumberOrNull(plan.max_storage_mb),
-  };
-}
-
-function normalizeFeatureData(source: unknown) {
-  const entitlements = new Set<string>();
-  const featureLimits: Record<string, number> = {};
-
-  asArray<Record<string, unknown>>(source).forEach((feature) => {
-    const key =
-      typeof feature?.key === "string"
-        ? (feature.key as string)
-        : typeof feature?.feature_key === "string"
-          ? (feature.feature_key as string)
-          : null;
-
-    if (!key) return;
-
-    entitlements.add(key);
-    const limit = toNumberOrNull(feature?.value ?? feature?.limit_value);
-    if (limit !== null) {
-      featureLimits[key] = limit;
-    }
-  });
-
-  return {
-    entitlements: Array.from(entitlements),
-    featureLimits,
-  };
-}
-
-function normalizeLimitOverrides(source: unknown) {
-  const limitOverrides: Record<string, unknown> = {};
-
-  asArray<Record<string, unknown>>(source).forEach((override) => {
-    if ((override?.type ?? override?.override_type) !== "limit") return;
-    const key = override?.key;
-    if (typeof key !== "string" || key.length === 0) return;
-    limitOverrides[key] = override?.value ?? override?.override_value ?? null;
-  });
-
-  return limitOverrides;
-}
-
 function normalizeUsageCounters(source: unknown): SessionOrganization["usage_counters"] {
   const usage = isRecord(source) ? source : {};
   const usersCount = Number(usage.user_count ?? usage.users_count ?? 0);
@@ -332,61 +204,18 @@ function normalizeOrganizationPayload(org: unknown): SessionOrganization | null 
   const organizationId = String(org.id ?? "");
   if (!organizationId) return null;
 
-  const normalizedPlan = normalizePlan(org.plan);
-  const normalizedFeatureData = normalizeFeatureData(org.entitled_features);
-
-  const featureLimitEntries = isRecord(org.feature_limits)
-    ? Object.entries(org.feature_limits).reduce<Record<string, number>>((acc, [key, value]) => {
-        const parsedValue = toNumberOrNull(value);
-        if (parsedValue !== null) {
-          acc[key] = parsedValue;
-        }
-        return acc;
-      }, {})
-    : normalizedFeatureData.featureLimits;
-
-  const entitlements = asArray<string>(org.entitlements)
-    .filter((feature) => typeof feature === "string")
-    .filter(Boolean);
-
-  const computedStatus = isRecord(org.computed_status)
-    ? {
-        is_active: Boolean(org.computed_status.is_active),
-        is_suspended: Boolean(org.computed_status.is_suspended),
-        is_trialing: Boolean(org.computed_status.is_trialing),
-        is_expired: Boolean(org.computed_status.is_expired),
-        days_remaining: toNumberOrNull(org.computed_status.days_remaining),
-      }
-    : normalizeComputedStatus(org);
-
   const name = String(org.name ?? "Organization");
-  const appEntitlements = asArray<string>(org.app_entitlements)
-    .filter((appId) => typeof appId === "string")
-    .filter(Boolean);
 
   return {
     id: organizationId,
     name,
     slug: typeof org.slug === "string" && (org.slug as string).length > 0 ? (org.slug as string) : slugifyFallback(name),
-    subscription_plan_id: (org.subscription_plan_id as string | null) ?? normalizedPlan?.id ?? null,
-    subscription_status: (org.subscription_status as string | null) ?? null,
-    subscription_started_at: (org.subscription_started_at as string | null) ?? null,
-    subscription_ends_at: (org.subscription_ends_at as string | null) ?? null,
-    trial_ends_at: (org.trial_ends_at as string | null) ?? null,
     is_suspended: Boolean(org.is_suspended ?? false),
     suspended_at: (org.suspended_at as string | null) ?? null,
     suspended_reason: (org.suspended_reason as string | null) ?? null,
     role: ((org.role as SessionOrganization["role"]) ?? "internal"),
     role_id: String(org.role_id ?? `${organizationId}-role`),
     user_type: ((org.user_type as SessionOrganization["user_type"]) ?? "internal"),
-    computed_status: computedStatus,
-    plan: normalizedPlan,
-    entitlements: entitlements.length > 0 ? entitlements : normalizedFeatureData.entitlements,
-    feature_limits: featureLimitEntries,
-    app_entitlements: appEntitlements,
-    limit_overrides: isRecord(org.limit_overrides)
-      ? (org.limit_overrides as Record<string, unknown>)
-      : normalizeLimitOverrides(org.overrides),
     usage_counters: normalizeUsageCounters(org.usage_counters),
     permission_group_rules: normalizePermissionGroupRules(org.permission_group_rules),
   };
@@ -403,7 +232,6 @@ function normalizeSessionPayload(payload: unknown, userId: string): SessionData 
   return {
     organizations,
     user_id: typeof safePayload.user_id === "string" ? (safePayload.user_id as string) : userId,
-    is_platform_admin: Boolean(safePayload.is_platform_admin),
     last_org_id:
       typeof safePayload.last_org_id === "string" && (safePayload.last_org_id as string).length > 0
         ? (safePayload.last_org_id as string)
@@ -414,14 +242,6 @@ function normalizeSessionPayload(payload: unknown, userId: string): SessionData 
         : new Date().toISOString(),
   };
 }
-
-const defaultSubscriptionStatus: SessionContextType["subscriptionStatus"] = {
-  isActive: false,
-  isSuspended: false,
-  isTrialing: false,
-  isExpired: false,
-  daysRemaining: null,
-};
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
@@ -759,7 +579,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [user, sessionError, sessionRecovery.status, fetchSessionData]);
 
 
-  // Realtime: auto-refresh session when org subscription fields change
+
   useEffect(() => {
     if (!currentOrgId || !user) return;
 
@@ -776,17 +596,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const changed = payload.new;
           const old = payload.old;
-          // Only refresh if subscription-related fields changed
-          if (
-            changed.subscription_status !== old.subscription_status ||
-            changed.subscription_plan_id !== old.subscription_plan_id ||
-            changed.is_suspended !== old.is_suspended ||
-            changed.subscription_ends_at !== old.subscription_ends_at ||
-            changed.trial_ends_at !== old.trial_ends_at
-          ) {
-            console.log("[SessionContext] Subscription change detected, refreshing session");
-            fetchSessionData(true);
-          }
+
         },
       )
       .subscribe();
@@ -801,48 +611,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!sessionData || !currentOrgId) return null;
     return sessionData.organizations.find((o) => o.id === currentOrgId) || null;
   }, [sessionData, currentOrgId]);
-
-  // Entitlements as a Set for O(1) lookup
-  const entitlementsSet = useMemo(() => {
-    if (!currentOrg) return new Set<string>();
-    return new Set(currentOrg.entitlements || []);
-  }, [currentOrg]);
-
-  const appEntitlementsSet = useMemo(() => {
-    if (!currentOrg) return new Set<string>();
-    return new Set(currentOrg.app_entitlements || []);
-  }, [currentOrg]);
-
-  // Check entitlement - O(1) lookup
-  const hasEntitlement = useCallback(
-    (featureKey: string): boolean => {
-      // If subscription is not active, deny all
-      if (!currentOrg?.computed_status.is_active) {
-        return false;
-      }
-      // Check explicit feature-level entitlements first (e.g., ai_assistant, multi_currency)
-      if (entitlementsSet.has(featureKey)) {
-        return true;
-      }
-      // Defensive fallback: if the key matches an app-level entitlement, grant access.
-      // This prevents false "upgrade required" prompts for keys that are app-level
-      // concerns (e.g., "sales", "finance") rather than premium feature keys.
-      if (appEntitlementsSet.has(featureKey)) {
-        return true;
-      }
-      return false;
-    },
-    [currentOrg, entitlementsSet, appEntitlementsSet],
-  );
-
-  // Get feature limit
-  const getFeatureLimit = useCallback(
-    (featureKey: string): number | null => {
-      if (!currentOrg) return null;
-      return currentOrg.feature_limits[featureKey] ?? null;
-    },
-    [currentOrg],
-  );
 
   // Switch organization
   const switchOrganization = useCallback(
@@ -929,18 +697,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [user, fetchSessionData],
   );
 
-  // Subscription status from current org (pre-computed server-side)
-  const subscriptionStatus: SessionContextType["subscriptionStatus"] = useMemo(() => {
-    if (!currentOrg) return defaultSubscriptionStatus;
-    return {
-      isActive: currentOrg.computed_status.is_active ?? false,
-      isSuspended: currentOrg.computed_status.is_suspended ?? false,
-      isTrialing: currentOrg.computed_status.is_trialing ?? false,
-      isExpired: currentOrg.computed_status.is_expired ?? false,
-      daysRemaining: currentOrg.computed_status.days_remaining ?? null,
-    };
-  }, [currentOrg]);
-
   // Derive vendor user flag from auth metadata
   const isVendorUser = user?.user_metadata?.is_vendor_portal === true;
 
@@ -965,13 +721,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       isVendorUser,
       currentOrg,
       switchOrganization,
-      hasEntitlement,
-      getFeatureLimit,
-      subscriptionStatus,
-      currentPlan: currentOrg?.plan || null,
       userRole: currentOrg?.role || null,
       userType: currentOrg?.user_type || null,
-      isPlatformAdmin: sessionData?.is_platform_admin || false,
       refreshSession: async () => {
         postOnboardingRetriedRef.current = false;
         await fetchSessionData(true);
@@ -988,10 +739,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       isVendorUser,
       currentOrg,
       switchOrganization,
-      hasEntitlement,
-      getFeatureLimit,
-      subscriptionStatus,
       fetchSessionData,
+
+
       createOrganization,
     ],
   );

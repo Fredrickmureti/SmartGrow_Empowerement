@@ -90,7 +90,6 @@ import { BusinessAccessDialog } from "@/components/team/BusinessAccessDialog";
 import { PromoteToInternalDialog } from "@/components/team/PromoteToInternalDialog";
 import { AssignGroupDialog } from "@/components/team/AssignGroupDialog";
 import { ROLE_LABELS, canManageRole, AppRole } from "@/lib/permissions";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { normalizeError } from "@/services/resilience";
 
 interface TeamMember {
@@ -131,7 +130,6 @@ export default function Team() {
   const { canManageTeam, role: currentUserRole, canManage } = usePermissions();
   const { toast } = useToast();
   const { assignmentsByUser, refetchAll } = useBranchAssignments();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -826,10 +824,6 @@ export default function Team() {
                             disabled={inlineRoleUpdatingId === member.id}
                             onValueChange={async (newRole) => {
                               if (newRole === member.role) return;
-                              if (isReadOnly) {
-                                openUpgradeModal("team_management");
-                                return;
-                              }
                               if (!canManage(newRole as AppRole)) {
                                 toast({
                                   title: "Not allowed",
@@ -924,10 +918,6 @@ export default function Team() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    if (isReadOnly) {
-                                      openUpgradeModal("team_management");
-                                      return;
-                                    }
                                     setMemberToEdit(member);
                                     setShowEditRoleDialog(true);
                                   }}
@@ -937,10 +927,6 @@ export default function Team() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    if (isReadOnly) {
-                                      openUpgradeModal("team_management");
-                                      return;
-                                    }
                                     setMemberForBranch(member);
                                     setShowBranchDialog(true);
                                   }}
@@ -950,10 +936,6 @@ export default function Team() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    if (isReadOnly) {
-                                      openUpgradeModal("team_management");
-                                      return;
-                                    }
                                     setMemberForBusinessAccess(member);
                                     setShowBusinessAccessDialog(true);
                                   }}
@@ -963,10 +945,6 @@ export default function Team() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    if (isReadOnly) {
-                                      openUpgradeModal("team_management");
-                                      return;
-                                    }
                                     setMemberForGroup(member);
                                     setShowAssignGroupDialog(true);
                                   }}
@@ -978,10 +956,6 @@ export default function Team() {
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
                                   onClick={() => {
-                                    if (isReadOnly) {
-                                      openUpgradeModal("team_management");
-                                      return;
-                                    }
                                     setMemberToRemove(member);
                                     setShowRemoveMemberDialog(true);
                                   }}
@@ -1080,10 +1054,6 @@ export default function Team() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      if (isReadOnly) {
-                                        openUpgradeModal("team_management");
-                                        return;
-                                      }
                                       setMemberToPromote(member);
                                       setShowPromoteDialog(true);
                                     }}
@@ -1095,10 +1065,6 @@ export default function Team() {
                                   <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={() => {
-                                      if (isReadOnly) {
-                                        openUpgradeModal("team_management");
-                                        return;
-                                      }
                                       setMemberToRemove(member);
                                       setShowRemoveMemberDialog(true);
                                     }}
@@ -1173,10 +1139,6 @@ export default function Team() {
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                if (isReadOnly) {
-                                  openUpgradeModal("team_management");
-                                  return;
-                                }
                                 handleResendInvitation(invite.id, invite.email, invite.token);
                               }}
                               disabled={resendingId === invite.id || revokingId === invite.id}
@@ -1194,10 +1156,6 @@ export default function Team() {
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                if (isReadOnly) {
-                                  openUpgradeModal("team_management");
-                                  return;
-                                }
                                 void copyInvitationLink(buildInvitationAcceptUrl(invite.token)).then(
                                   () => toast({ title: "Invitation link copied" }),
                                   () => toast({ title: "Copy failed", variant: "destructive" }),
@@ -1213,10 +1171,6 @@ export default function Team() {
                               size="sm"
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => {
-                                if (isReadOnly) {
-                                  openUpgradeModal("team_management");
-                                  return;
-                                }
                                 setInvitationToRevoke(invite);
                                 setShowRevokeDialog(true);
                               }}

@@ -38,7 +38,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { PageHeader, PageBody } from "@/design-system";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -72,7 +71,6 @@ export default function Employees() {
   } = useEmployees({ enabled: false });
   const { formatCurrency, isReady: currencyReady } = useCurrency();
   const { can } = usePermissions();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { activeDepartments } = useDepartments();
   const { activePositions } = useJobPositions();
   const { activeLocations } = useWorkLocations();
@@ -161,7 +159,6 @@ export default function Employees() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleOpenDialog = (employee?: Employee) => {
-    if (isReadOnly) return openUpgradeModal("employees");
     setEditingEmployee(employee || null);
     setShowDialog(true);
   };
@@ -487,7 +484,6 @@ export default function Employees() {
                   <div className="flex">
                     <Button
                       onClick={() => {
-                        if (isReadOnly) return openUpgradeModal("employees");
                         navigate("/hr/employees/new");
                       }}
                       className="rounded-r-none"
@@ -507,7 +503,6 @@ export default function Employees() {
                         <DropdownMenuLabel>Add an employee</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => {
-                          if (isReadOnly) return openUpgradeModal("employees");
                           navigate("/hr/employees/new");
                         }}>
                           <Plus className="h-4 w-4 mr-2" />

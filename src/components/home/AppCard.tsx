@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { AppDefinition } from "@/lib/apps/types";
-import type { AppEntitlementState } from "@/hooks/useAppAccess";
 import type { AppLifecycleAction } from "@/lib/apps/lifecycle";
 
 interface AppCardProps {
@@ -33,12 +32,6 @@ interface AppCardProps {
   onUninstall?: () => void;
   canUninstall?: boolean;
   className?: string;
-  /** New: 5-state entitlement (in_plan/addon/trial/expired_trial/overridden/coming_soon) */
-  entitlementState?: AppEntitlementState;
-  /** Display price for add-on apps (e.g. "$12/user/mo") */
-  addonPriceLabel?: string;
-  /** Days remaining in trial, when entitlementState === 'trial' */
-  trialDaysLeft?: number;
   /**
    * State-aware lifecycle action (preferred over onInstall). When provided,
    * the install icon-button is replaced by a labeled primary button that
@@ -62,9 +55,6 @@ export function AppCard({
   onUninstall,
   canUninstall = true,
   className,
-  entitlementState,
-  addonPriceLabel,
-  trialDaysLeft,
   lifecycleAction,
   setupRequired,
 }: AppCardProps) {
@@ -175,42 +165,6 @@ export function AppCard({
           )}>
             {app.description}
           </p>
-        )}
-
-        {/* 5-state entitlement badge row (suppressed once installed) */}
-        {!isInstalled && !isComingSoon && entitlementState && entitlementState !== "coming_soon" && (
-          <div className={cn(
-            "mt-1.5 flex items-center gap-1 flex-wrap",
-            (effectiveSize === "large" || effectiveSize === "mobile") && "justify-center"
-          )}>
-            {entitlementState === "in_plan" && (
-              <Badge variant="secondary" className="text-[10px] gap-1">
-                <Check className="h-3 w-3" /> Included in plan
-              </Badge>
-            )}
-            {entitlementState === "trial" && (
-              <Badge className="text-[10px] gap-1 bg-primary/15 text-primary hover:bg-primary/20 border-transparent">
-                <Sparkles className="h-3 w-3" />
-                {trialDaysLeft != null ? `Trial · ${trialDaysLeft}d left` : "On trial"}
-              </Badge>
-            )}
-            {entitlementState === "addon" && (
-              <Badge variant="outline" className="text-[10px] gap-1">
-                <Tag className="h-3 w-3" />
-                {addonPriceLabel ?? "Add-on"}
-              </Badge>
-            )}
-            {entitlementState === "expired_trial" && (
-              <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
-                <Clock className="h-3 w-3" /> Trial ended
-              </Badge>
-            )}
-            {entitlementState === "overridden" && (
-              <Badge variant="secondary" className="text-[10px] gap-1">
-                <Check className="h-3 w-3" /> Granted
-              </Badge>
-            )}
-          </div>
         )}
 
         {/* Setup-required sub-row (installed but configuration incomplete). */}

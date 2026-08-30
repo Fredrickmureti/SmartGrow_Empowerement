@@ -10,19 +10,6 @@ import { LucideIcon } from "lucide-react";
 import { Permission } from "@/lib/permissions";
 
 /**
- * Subscription plan tiers for feature gating
- * NOTE: These must match the plan names in the database:
- * - "starter" maps to "Starter" plan
- * - "professional" maps to "Professional" plan  
- * - "enterprise" maps to "Enterprise" plan
- */
-/**
- * @deprecated PlanTier is no longer used — app access is fully database-driven via plan_app_access.
- * Kept temporarily for type compatibility during migration.
- */
-export type PlanTier = "starter" | "professional" | "enterprise";
-
-/**
  * Module definition - represents a single page/feature within an app
  */
 export interface ModuleDefinition {
@@ -36,8 +23,6 @@ export interface ModuleDefinition {
   icon: LucideIcon;
   /** Permission required to access this module (optional) */
   permission?: Permission;
-  /** Feature key for subscription gating (optional) */
-  feature?: string;
   /** Badge text to show (e.g., "New", "Beta") */
   badge?: string;
   /** Whether this module is hidden from navigation but still accessible */
@@ -64,24 +49,16 @@ export interface AppDefinition {
   color: string;
   /** Base URL path for the app (e.g., "/finance") */
   basePath: string;
-  /**
-   * @deprecated No longer used for access control. App gating is fully
-   * database-driven via plan_app_access table. Kept for backward compat
-   * but ignored at runtime. Will be removed in a future release.
-   */
-  requiredPlan?: PlanTier;
   /** Permissions required to see/access this app (user needs ANY of these) */
   requiredPermissions: Permission[];
   /** Modules/pages within this app */
   modules: ModuleDefinition[];
   /** Default module to redirect to when accessing app root */
   defaultModule?: string;
-  /** Whether this app is always visible in navigation (e.g., Platform/Settings) */
-  isPlatform?: boolean;
+  /** Whether this app is always available (system apps: Home, My Workspace, Settings) */
+  alwaysAvailable?: boolean;
   /** Sort order for display in app switcher */
   sortOrder?: number;
-  /** Feature key for subscription gating (if app itself is gated) */
-  feature?: string;
   /**
    * Whether this app is restricted to internal users only.
    * Portal users are automatically blocked from apps with internalOnly: true.

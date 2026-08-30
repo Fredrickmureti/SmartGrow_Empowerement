@@ -70,7 +70,7 @@ export function AppTopNavbar({ app, className }: AppTopNavbarProps) {
   const { displayName, initials } = getDisplayName(currentEmployee, profile, user);
 
   // Filter out current app and platform apps from switcher
-  const otherApps = availableApps.filter(a => a.id !== app.id && !a.isPlatform);
+  const otherApps = availableApps.filter(a => a.id !== app.id && !a.alwaysAvailable);
   const showAppSwitcher = !app.hideAppSwitcher;
 
   return (

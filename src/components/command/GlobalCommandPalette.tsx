@@ -109,7 +109,7 @@ export function GlobalCommandPalette() {
     open, setOpen, query, setQuery,
     results, providerGroups, providersLoading,
     empty, marketplace, run, isPinned, togglePin,
-    parsed, currentAppId, activeSurface,
+    parsed, currentAppId,
   } = useCommandPaletteContext();
 
   // ── App-name lookup for "switch to app" hints ─────────────────────
@@ -183,25 +183,12 @@ export function GlobalCommandPalette() {
       onOpenChange={(v) => { setOpen(v); if (!v) setQuery(""); }}
     >
       <CommandInput
-        placeholder={
-          activeSurface === "platform"
-            ? "Search admin pages…"
-            : "Search pages, actions, reports, customers…"
-        }
+        placeholder="Search pages, actions, reports, clients…"
         value={query}
         onValueChange={setQuery}
       />
-      {(scopeChip || activeSurface === "platform") && (
+      {scopeChip && (
         <div className="flex items-center gap-2 border-b px-3 py-1.5">
-          {activeSurface === "platform" && (
-            <Badge
-              variant="outline"
-              className="gap-1 px-2 py-0.5 text-[11px] font-normal border-amber-500/40 text-amber-700 dark:text-amber-400"
-              title="You're in the Platform Admin console — tenant pages are hidden"
-            >
-              Platform Admin
-            </Badge>
-          )}
           {scopeChip && (
             <>
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Scope</span>

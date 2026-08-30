@@ -25,7 +25,6 @@ import { getStaticCommandIndex } from "@/lib/command/buildIndex";
 import { APP_REGISTRY } from "@/lib/apps/registry";
 import { rankEntries, buildEmptyStateBuckets } from "@/lib/command/rank";
 import { parseQuery } from "@/lib/command/parseQuery";
-import { detectSurface, type ActiveSurface } from "@/lib/command/surface";
 import { logCommandEvent } from "@/lib/command/telemetry";
 import type {
   CommandEntry, CommandRunContext, RankedEntry,
@@ -69,8 +68,6 @@ interface UseCommandPaletteResult {
   parsed: ReturnType<typeof parseQuery>;
   /** Current app id (e.g. "sales") — used to show "switch app" hints. */
   currentAppId: string | null;
-  /** Active workspace surface — drives which entries the index returns. */
-  activeSurface: ActiveSurface;
 }
 
 /** Type-tagged accessor for the optional `__permissionsAny` extension. */
@@ -84,7 +81,7 @@ export function useCommandPalette(): UseCommandPaletteResult {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasEntitlement, userType, currentOrg, isPlatformAdmin } = useSession();
+  const { userType, currentOrg } = useSession();
   const permissions = usePermissions();
   const { isInstalled, installedAppIds } = useInstalledApps();
   const { currentApp } = useAppNavigation();
@@ -93,33 +90,6 @@ export function useCommandPalette(): UseCommandPaletteResult {
   // Static index — built once, frozen.
   const allEntries = useMemo(() => getStaticCommandIndex(), []);
 
-  // Active workspace surface — drives which entries the index returns.
-  // Route-driven (NOT role-driven) so a platform admin operating inside
-  // a tenant workspace sees the tenant palette there, and the tenant
-  // palette never leaks into the admin console. See `surface.ts`.
-  const activeSurface = useMemo(
-    () => detectSurface(location.pathname, isPlatformAdmin),
-    [location.pathname, isPlatformAdmin],
-  );
-
-  /**
-   * Surface gate. Applied to every accessibility filter so empty-state
-   * buckets, ranked results, AND marketplace candidates all share the
-   * same "what makes sense on this surface" rule.
-   */
-  const passesSurface = useCallback(
-    (e: CommandEntry): boolean => {
-      const entrySurface = e.surface ?? "tenant";
-      if (entrySurface === "any") return true;
-      if (entrySurface !== activeSurface) return false;
-      // Defense in depth: even if a tenant user somehow lands on /admin,
-      // platform-only entries stay invisible without the platform-admin role.
-      if (entrySurface === "platform" && !isPlatformAdmin) return false;
-      return true;
-    },
-    [activeSurface, isPlatformAdmin],
-  );
-
   // Permission/entitlement/install filter. Memoised by stable signals
   // so a keystroke does NOT re-walk the full index.
   const permFingerprint = `${permissions.role ?? ""}`;
@@ -127,12 +97,8 @@ export function useCommandPalette(): UseCommandPaletteResult {
   const accessible = useMemo(() => {
     const isPortal = userType === "portal";
     return allEntries.filter((e) => {
-      // Surface gate first — cheapest check, biggest cull.
-      if (!passesSurface(e)) return false;
-
       if (e.internalOnly && isPortal) return false;
       if (e.appInstall && !isInstalled(e.appInstall)) return false;
-      if (e.feature && !hasEntitlement(e.feature)) return false;
 
       // Permission: support a single perm OR an "any-of" list.
       const anyPerms = getPermissionsAny(e);
@@ -146,7 +112,7 @@ export function useCommandPalette(): UseCommandPaletteResult {
     });
     // intentionally stable deps — fingerprints capture the rest
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allEntries, userType, permFingerprint, installFingerprint, currentOrg?.id, activeSurface, isPlatformAdmin]);
+  }, [allEntries, userType, permFingerprint, installFingerprint, currentOrg?.id]);
 
   /**
    * Marketplace candidates: entries the user *would* be allowed to use
@@ -161,9 +127,7 @@ export function useCommandPalette(): UseCommandPaletteResult {
     return allEntries.filter((e) => {
       if (!e.appInstall) return false;
       if (isInstalled(e.appInstall)) return false;
-      if (!passesSurface(e)) return false;
       if (e.internalOnly && isPortal) return false;
-      if (e.feature && !hasEntitlement(e.feature)) return false;
       const anyPerms = getPermissionsAny(e);
       if (anyPerms && anyPerms.length > 0) {
         if (!anyPerms.some(p => permissions.can(p))) return false;
@@ -173,7 +137,7 @@ export function useCommandPalette(): UseCommandPaletteResult {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allEntries, userType, permFingerprint, installFingerprint, currentOrg?.id, activeSurface, isPlatformAdmin]);
+  }, [allEntries, userType, permFingerprint, installFingerprint, currentOrg?.id]);
 
   const currentAppId = currentApp?.id ?? null;
 
@@ -317,6 +281,5 @@ export function useCommandPalette(): UseCommandPaletteResult {
     accessibleCount: accessible.length,
     parsed,
     currentAppId,
-    activeSurface,
   };
 }

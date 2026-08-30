@@ -66,7 +66,6 @@ import {
   FileText,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
@@ -102,7 +101,6 @@ export default function JournalEntries() {
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { scopeLabel } = useFinanceScope();
   const { allowed: canManageJE } = useFinancePermission("finance.manage_je");
   const { allowed: canVoidJE } = useFinancePermission("finance.void_je");
@@ -123,13 +121,9 @@ export default function JournalEntries() {
   // Handle ?action=create from global create menu → route to new page.
   useEffect(() => {
     if (searchParams.get("action") === "create") {
-      if (isReadOnly) {
-        openUpgradeModal("journal_entries");
-        return;
-      }
       navigate("/finance/journal-entries/new", { replace: true });
     }
-  }, [searchParams, isReadOnly, navigate, openUpgradeModal]);
+  }, [searchParams, navigate]);
 
   // Back-compat: `?selected=<id>` now opens the peek sheet via `?peek=<id>`.
   // Legacy inbound links from payments / bills / drilldowns keep working.
@@ -215,18 +209,10 @@ export default function JournalEntries() {
   };
 
   const handleOpenCreate = () => {
-    if (isReadOnly) {
-      openUpgradeModal("journal_entries");
-      return;
-    }
     navigate("/finance/journal-entries/new");
   };
 
   const handleOpenEdit = (entry: JournalEntry) => {
-    if (isReadOnly) {
-      openUpgradeModal("journal_entries");
-      return;
-    }
     navigate(`/finance/journal-entries/${entry.id}/edit`);
   };
 
