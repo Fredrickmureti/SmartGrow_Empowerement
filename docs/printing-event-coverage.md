@@ -85,6 +85,8 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Cycle count sheet (blind) | `count_sheet_blind` | PdfBuilder | WIRED (ADR 0106 — `fetchCountSheetBlind`; separate fetcher, never a flag, so expected quantity cannot leak onto a blind sheet) |
 | Cycle count difference report | `count_variance_report` | PdfBuilder | WIRED (ADR 0106 — `fetchCountVarianceReport`; latest attempt per line, reason code + approver) |
 | Cycle count audit report | `count_audit_report` | PdfBuilder | WIRED (ADR 0106 — `fetchCountAuditReport`; every attempt and recount round, counter and approver identity) |
+| Labour worksheet | `labour_worksheet` | PdfBuilder | WIRED (`fetchLabourWorksheet`; operator work sheet, built-in fallback layout when no template is configured) |
+| Labour roster | `labour_roster` | PdfBuilder | WIRED (`fetchLabourRoster`; shift roster for the operator group) |
 | Bill of lading | `bill_of_lading` | PdfBuilder | WIRED (ADR 0110 — `fetchBillOfLading`; dispatched from `LoadingBay` via `DispatchDocumentsMenu` → `printDocument({ intent: 'a4_document' })`) |
 | Dispatch manifest (load sheet) | `dispatch_manifest` | PdfBuilder | WIRED (ADR 0110 — `fetchDispatchManifest`; carton-by-carton internal load sheet) |
 | Packing list | `packing_list` | PdfBuilder | WIRED (ADR 0110 — `fetchPackingList`; per sales order, travels with the goods) |
