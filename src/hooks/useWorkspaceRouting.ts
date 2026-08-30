@@ -30,12 +30,10 @@
  */
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 
 export type WorkspaceRoutingStatus =
   | { status: "loading" }
   | { status: "error"; error: Error }
-  | { status: "platform-admin" }
   | { status: "vendor-portal" }
   | { status: "unauthenticated" }
   | { status: "needs-onboarding" }
@@ -51,7 +49,6 @@ export function useWorkspaceRouting(): WorkspaceRoutingStatus {
     isLoading: sessionLoading,
     currentOrg,
   } = useSession();
-  const { isPlatformAdmin, isChecking: adminChecking } = usePlatformAdmin();
 
   // 1. Auth must be resolved (signed-in OR confirmed signed-out).
   if (authLoading) return { status: "loading" };
@@ -63,10 +60,6 @@ export function useWorkspaceRouting(): WorkspaceRoutingStatus {
   if (user.user_metadata?.is_vendor_portal === true) {
     return { status: "vendor-portal" };
   }
-
-  // 4. Platform-admin probe.
-  if (adminChecking) return { status: "loading" };
-  if (isPlatformAdmin) return { status: "platform-admin" };
 
   // 5. Hard session failure: retries exhausted and we have no usable
   //    payload to fall back to. Surface an explicit error branch so the

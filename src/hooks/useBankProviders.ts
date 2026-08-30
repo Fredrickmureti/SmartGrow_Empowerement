@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
-import { usePlatformAdmin } from "./usePlatformAdmin";
 
 export interface BankProvider {
   id: string;
@@ -54,68 +53,36 @@ export function useBankProviders() {
   const [providers, setProviders] = useState<BankProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const { isPlatformAdmin, isChecking: adminLoading } = usePlatformAdmin();
   
   // Prevent refetching on tab focus
   const hasFetchedRef = useRef(false);
-  const lastAdminStatusRef = useRef<boolean | null>(null);
 
   const fetchProviders = useCallback(async () => {
     try {
       setIsLoading(true);
       
-      if (isPlatformAdmin) {
-        // Platform admins get full access to all providers (including disabled ones)
-        const { data, error } = await supabase
-          .from("platform_bank_providers")
-          .select("*")
-          .order("provider_name");
+      // Single-institution deployment: providers are read through RLS with
+      // the caller's own privileges; there is no platform-admin persona.
+      const { data, error } = await supabase
+        .from("platform_bank_providers")
+        .select("*")
+        .order("provider_name");
 
-        if (error) throw error;
-        setProviders((data as BankProvider[]) || []);
-      } else {
-        // Regular users query enabled providers from the base table
-        // RLS policy restricts them to only see enabled providers
-        const { data, error } = await supabase
-          .from("platform_bank_providers")
-          .select("id, provider_code, provider_name, description, logo_url, is_enabled, is_sandbox, supported_countries, created_at, updated_at")
-          .order("provider_name");
-
-        if (error) throw error;
-        
-        // Map to full provider interface (missing fields will be null)
-        const mappedProviders = ((data as BankProviderPublic[]) || []).map((p) => ({
-          ...p,
-          api_base_url: null,
-          api_key_encrypted: null,
-          api_secret_encrypted: null,
-          merchant_code: null,
-          public_key: null,
-          private_key_encrypted: null,
-          config: null,
-        } as BankProvider));
-        
-        setProviders(mappedProviders);
-      }
+      if (error) throw error;
+      setProviders((data as BankProvider[]) || []);
     } catch (error: unknown) {
       console.error("Error fetching bank providers:", error);
       toast.error("Failed to load bank providers");
     } finally {
       setIsLoading(false);
     }
-  }, [isPlatformAdmin]);
+  }, []);
 
   useEffect(() => {
-    // Wait for admin check to complete before fetching
-    if (adminLoading) return;
-    
-    // Only fetch if admin status changed or we haven't fetched yet
-    if (lastAdminStatusRef.current !== isPlatformAdmin || !hasFetchedRef.current) {
-      lastAdminStatusRef.current = isPlatformAdmin;
-      hasFetchedRef.current = true;
-      fetchProviders();
-    }
-  }, [isPlatformAdmin, adminLoading, fetchProviders]);
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+    fetchProviders();
+  }, [fetchProviders]);
 
   const updateProvider = async (id: string, data: BankProviderUpdateData) => {
     try {
