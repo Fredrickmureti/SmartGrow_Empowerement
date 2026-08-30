@@ -115,14 +115,8 @@ export interface AppDefinition {
    * meaningful.
    */
   hideAppSwitcher?: boolean;
-  /**
-   * Named capabilities this app *provides* to other apps. See
-   * `src/lib/apps/capabilities.ts`. When the app is uninstalled these
-   * capabilities become inactive and any consumer gated via
-   * `useCapability()` / `<CapabilityGate>` degrades to no-render.
-   */
-  provides?: import("./capabilities").Capability[];
 }
+
 
 /**
  * App navigation state - tracks user's current position

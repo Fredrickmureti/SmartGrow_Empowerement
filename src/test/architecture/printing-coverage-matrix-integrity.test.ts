@@ -71,6 +71,14 @@ const MATRIX_ROW_EXEMPT = new Set<string>([
   // and drawn by the `journal_voucher` layout through the rendering engine,
   // so it has no legacy `generate-document` fetcher by design.
   "journal_entry",
+  // Snapshot pipeline rows: these are frozen into `document_records` and
+  // drawn by their own layouts (see `src/services/documents/snapshots/`),
+  // so they have no `generate-document` fetcher by design.
+  "landed_cost_voucher",
+  "count_sheet",
+  "count_sheet_blind",
+  "count_variance_report",
+  "count_audit_report",
 ]);
 
 // Bi-directional aliases: presence of any name on either side satisfies

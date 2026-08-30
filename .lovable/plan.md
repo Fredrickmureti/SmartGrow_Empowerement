@@ -190,3 +190,18 @@ POS/scanner/hardware trees can be deleted.
 - Fixed `report-statement-snapshot` (4): refreshed snapshots for title-cased statement labels and
   made row lookups tolerate both `closing_balance` and `balance` keys.
 - Suite now **42 failing / 32 files** (from 102 / 47).
+
+### Arch-suite triage, round 3
+- `portal-identity-invariants` (3): guards now read the **latest** migration defining each object
+  (`CREATE OR REPLACE` means the first match is stale) and Rule 4 follows the candidate lookup to
+  the `get_linkable_users_for_employee` RPC, which filters `ur.is_active = true` server-side.
+- `capability-gates` (2): deleted the whole capability system (`lib/apps/capabilities.ts`,
+  `CapabilityGate`, `useCapability`, the `provides` field and the guard) — its only provider app
+  (`projects`) was retired in M2 and nothing consumed the gates.
+- `printing-architecture` (3): the hardware operator console and `BusinessSagaMount` are gone, so
+  the ledger-writer and pipeline-leak expectations shrank to their real sets. The print recovery
+  sweeper had been left unstarted by the saga-mount deletion — restored via a dedicated
+  `components/printing/PrintRecoveryMount.tsx` mounted at the app root (real bug, not a test fix).
+- `printing-coverage-matrix-integrity` (2): matrix gained the `labour_worksheet` / `labour_roster`
+  rows, and the WMS count + landed-cost rows moved to the snapshot-pipeline exempt list.
+- Suite now **32 failing / 28 files**. Typecheck clean.

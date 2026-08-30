@@ -163,13 +163,11 @@ describe('printing architecture — one print ledger', () => {
     const importers = filesImporting(
       /from\s+['"](\.\/jobs|@\/services\/printing\/jobs)['"]/,
     );
-    // PrintService owns the ledger lifecycle. HardwarePrintQueue is the
-    // single operator console: it reads rows and asks the ledger module to
-    // requeue or open a child job. Recovery selects rows and delegates
-    // dispatch, so it needs the row type only — never the writers.
-    expect(importers.sort()).toEqual(
-      ['apps/platform/hardware/HardwarePrintQueue.tsx', 'services/printing/PrintService.ts'].sort(),
-    );
+    // PrintService owns the ledger lifecycle and is now the only writer —
+    // the hardware operator console was removed with the platform/hardware
+    // surface. Recovery selects rows and delegates dispatch, so it needs the
+    // row type only — never the writers.
+    expect(importers.sort()).toEqual(['services/printing/PrintService.ts']);
   });
 
   it('only jobs.ts calls the requeue RPC', () => {
@@ -235,16 +233,11 @@ describe('printing architecture — PrintService is the only entry point', () =>
       /from\s+['"]@\/services\/printing\/(dispatch|render|labelDispatch|policy)['"]/,
       PIPELINE_INTERNALS,
     ).filter((f) => !f.startsWith('services/printing/'));
-    // Two sanctioned uses, neither of which is a second print pipeline:
-    //  - BusinessSagaMount opens a cash drawer — a hardware action, not a
-    //    print — through the same dispatch seam.
-    //  - documentExport renders `csv`/`xlsx` mediums of the SAME frozen
-    //    snapshot through the render seam, so an extract cannot disagree
-    //    with the printed copy. It touches no policy, job or device code.
-    expect(leaks).toEqual([
-      'components/events/BusinessSagaMount.tsx',
-      'services/exports/documentExport.ts',
-    ]);
+    // One sanctioned use, which is not a second print pipeline:
+    // documentExport renders `csv`/`xlsx` mediums of the SAME frozen
+    // snapshot through the render seam, so an extract cannot disagree with
+    // the printed copy. It touches no policy, job or device code.
+    expect(leaks).toEqual(['services/exports/documentExport.ts']);
   });
 
   it('document intents are enqueued only by PrintService', () => {
@@ -304,9 +297,9 @@ describe('printing architecture — the spool never becomes the transport', () =
     expect(rec).toMatch(/\.lt\('created_at', cutoff\)/);
   });
 
-  it('the recovery sweeper is started once, by the saga mount', () => {
+  it('the recovery sweeper is started once, by its dedicated mount', () => {
     expect(filesMatching(/startPrintRecoverySweeper\(/, ['services/printing/recovery.ts'])).toEqual([
-      'components/events/BusinessSagaMount.tsx',
+      'components/printing/PrintRecoveryMount.tsx',
     ]);
   });
 });
