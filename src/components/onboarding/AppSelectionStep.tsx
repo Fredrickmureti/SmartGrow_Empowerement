@@ -14,16 +14,6 @@ import { APP_REGISTRY, getAppById } from "@/lib/apps/registry";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
-interface ClosureRow {
-  app_id: string;
-  is_root: boolean;
-  is_already_installed: boolean;
-  is_in_plan: boolean;
-  pricing_monthly: number | null;
-  pricing_currency: string;
-  is_addon_only: boolean;
-  depth: number;
-}
 
 interface PlatformApp {
   id: string;
