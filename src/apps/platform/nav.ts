@@ -20,7 +20,6 @@ import {
   History,
 
   ShieldCheck,
-  FileBarChart2,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
