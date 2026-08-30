@@ -10,8 +10,6 @@ import { LucideIcon } from "lucide-react";
 import { Permission } from "@/lib/permissions";
 
 /**
- * Subscription plan tiers for feature gating
-/**
  * Module definition - represents a single page/feature within an app
  */
 export interface ModuleDefinition {

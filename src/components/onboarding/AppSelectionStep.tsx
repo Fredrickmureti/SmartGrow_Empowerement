@@ -20,7 +20,6 @@ interface PlatformApp {
   name: string;
   description: string | null;
   category: string;
-  required_plan: string;
   is_available: boolean;
   is_core: boolean;
   sort_order: number;
@@ -59,7 +58,7 @@ export function AppSelectionStep({
       try {
         const { data, error } = await supabase
           .from("platform_apps")
-          .select("id, name, description, category, required_plan, is_available, is_core, sort_order, is_visible_in_signup")
+          .select("id, name, description, category, is_available, is_core, sort_order, is_visible_in_signup")
           .eq("is_available", true)
           .eq("is_visible_in_signup", true)
           .order("sort_order", { ascending: true });
@@ -112,7 +111,6 @@ export function AppSelectionStep({
         category: ["finance", "sales", "contacts", "purchases", "inventory"].includes(a.id) ? "core" :
           ["pos", "crm", "employees", "time-off", "attendance", "payroll", "projects", "studio"].includes(a.id) ? "operations" :
           ["reports"].includes(a.id) ? "analytics" : "integrations",
-        required_plan: a.requiredPlan || "starter",
         is_available: true,
         is_core: ["finance", "sales", "purchases"].includes(a.id),
         sort_order: a.sortOrder || 0,
