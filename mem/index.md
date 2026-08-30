@@ -1,6 +1,7 @@
 # Project Memory
 
 ## Core
+Smart Grow Empowerment = traditional ASA-model microfinance: staff-only ops, group meetings, physical screening, individual loans, cycle-capped limits. No client portal/self-service, no group liability.
 Keep Supabase migrations small and single-purpose (one function/object each) — large multi-object migrations have destabilised this database. Never batch.
 FX: one rate book, one resolver (`resolve_exchange_rate`/`require_exchange_rate`), no `COALESCE(rate, 1)` anywhere; a missing rate is an absence, never 1:1.
 Authoritative project status lives in `.lovable/plan.md` — update it after every implementation step.
