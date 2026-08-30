@@ -319,70 +319,9 @@ export function PrintPreviewDialog({
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
-      const wantsThermal = isEscposMode || policyIsEscpos || selectedIsThermal;
-      let bytes = escposBytes;
-      if (wantsThermal && !bytes && selectedIsThermal) {
-        bytes = await fetchEscposBytes();
-      }
-      let canStream = wantsThermal && !!bytes && selectedIsThermal;
-
-      if (wantsThermal && !canStream && !selectedIsThermal) {
-        const offlineThermal = destinations.find((d) => d.kind === "thermal" && !d.connected);
-        if (offlineThermal) {
-          const r = await reconnectRole("receipt_printer");
-          if (r.success) {
-            setSelectedPrinter(offlineThermal.id);
-            if (!bytes) bytes = await fetchEscposBytes();
-            canStream = !!bytes;
-          }
-        }
-      }
-
-      if (canStream && bytes) {
-        // Wave B3 (Plan P2 Step 1) — ledger-cover interactive thermal
-        // prints so the audit view sees every dispatch, not just the
-        // auto_print branch.
-        const ledger = await openInteractiveJob({
-          documentType: documentType ?? "unknown",
-          documentId: documentId ?? null,
-          intent: "receipt",
-          format: "escpos",
-          transport: "thermal",
-          businessId: currentBusiness?.id ?? null,
-          branchId: currentBranch?.id ?? null,
-          correlationId: clickIdempotencyKey,
-        });
-        try {
-          const result = await printRawBytes(bytes);
-          if (result.success) {
-            await ledger.markSent();
-            await ledger.markAcked();
-            toast({
-              title: "Sent to printer",
-              description: `${selectedDestination?.label ?? "Thermal printer"} · ${bytes.length} bytes`,
-            });
-          } else {
-            await ledger.markFailed(result.error || "Printer reported an error");
-            toast({
-              title: "Print failed",
-              description: result.error || "Printer reported an error",
-              variant: "destructive",
-            });
-          }
-        } catch (err) {
-          await ledger.markFailed((err as Error).message);
-          throw err;
-        }
-      } else if (wantsThermal && !selectedIsThermal) {
-        toast({
-          title: "Thermal printer unavailable",
-          description:
-            destinations.some((d) => d.kind === "thermal")
-              ? "The configured thermal printer is offline. Use Reconnect printer above, or pick another destination."
-              : "No thermal printer is registered for this register. Configure one in Settings → Hardware.",
-          variant: "destructive",
-        });
-      } else if (pdfBlob) {
+      // M4 — the institution prints through the host print dialog only.
+      // There is no managed device estate, so every artifact is a PDF.
+      if (pdfBlob) {
         // Wave B3 (Plan P2 Step 1) — ledger-cover interactive PDF
         // prints. `printPdfInPage`'s FIFO queue guarantees the browser
         // print dialog opens for this job before the next one starts,
