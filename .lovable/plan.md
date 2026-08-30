@@ -1,207 +1,135 @@
-# Smart Grow Empowerment — Microfinance Convergence (living status)
+# Smart Grow Empowerment — Microfinance Convergence (living plan)
 
-Single-company microfinance system converged from the AccrualFlow platform.
-Not SaaS, no tenants, no payroll, no POS, no client portal.
-Approved roadmap archive:
-`.lovable/plan/smart-grow-empowerment-microfinance-convergence-reworked-pla-2026-08-29.md`
+One microfinance institution. Internal, employee-operated. Converged from the
+AccrualFlow platform by controlled migrations — not a rewrite.
 
-## Verification of the handover (done this turn, independently checked)
+Excluded permanently: SaaS/tenants/subscriptions/platform admin, payroll,
+attendance, timesheets, time-off, POS, inventory/warehouse, procurement, sales
+order-to-cash, client portal.
 
-Confirmed true in the codebase:
-- SaaS/platform-admin/subscription surfaces are gone: no `usePlatformAdmin`,
-  `PlatformIdentityContext`, `CreateOrganizationDialog`, `CreateBusinessDialog`,
-  or `publicPricing` remain (the one `useSubscriptionCompat` hit in
-  `SessionContext.tsx` is a naming leftover, not a subscription read).
-- Typecheck baseline holds: `tsgo -p tsconfig.app.json` → exactly 46 errors, all
-  pre-existing Supabase-type drift. No new error class introduced.
+## Verified current state (checked this turn)
+
+- Backend is the dedicated project `xwxqunklduknceoryrha`; `.env` server and
+  `VITE_` keys all point at it. No AccrualFlow database is reachable from here.
 - App modules reduced to: contacts, dashboard, finance, hr, me, platform,
-  reports, studio. 55 page entries; no sales/inventory/POS/warehouse/purchasing
-  page trees.
+  reports, studio. No sales / inventory / POS / warehouse / purchasing page
+  trees remain.
+- Still present and therefore pending: `src/services/pos`, `src/services/hardware`,
+  `src/services/scanner`; HR pages far beyond "system actors".
+- No microfinance domain exists yet in code or schema. Existing `%loan%` tables
+  are payroll employee-advance leftovers.
+- Earlier claims that are recorded but NOT re-verified this turn: typecheck at
+  0 errors, arch suite at 32 failing / 28 files. Re-baseline both before acting.
 
-Corrected — treat as pending, not done:
-- `src/services/pos`, `src/services/hardware`, `src/services/scanner` still
-  exist (M4 work, never started).
-- HR is still far wider than "system actors": org chart, job positions,
-  onboarding issues, change requests, configuration trees under
-  `src/pages/hr` and `src/apps/hr/sub`.
-- Arch test `scope-trigger-visibility` fails on
-  `src/components/studio/ScheduledReportsManager.tsx` (reproduced).
-- No SaaS schema-drop migration was ever run — subscriptions, plans, installed
-  apps, platform_admins, tenant transfers, billing tables all still exist.
-- No microfinance domain exists in code or schema. The `%loan%` tables are
-  payroll employee-advance artifacts.
+## Working rules (unchanged, enforced)
 
-Genuinely completed: stack repair, environment isolation, dangling-import
-purge, tenant bootstrap, M3 code-side de-SaaS (four passes).
+1. One migration at a time. Scope → dependency graph → code change → build +
+   typecheck → affected screens opened → written report appended here → stop.
+2. Removal order is always: dependency graph, then code removal, then schema drop.
+3. All financial state derived server-side. React never owns balances, interest,
+   arrears, allocations or journal amounts.
+4. Every domain action is a business event with an accounting hook, never a CRUD
+   update. Account mappings stay configurable — no account UUIDs in domain code.
+5. Reuse proven platform infrastructure (auth/PIN, shell, RBAC, settings, report
+   engine, document engine, GL/COA/journals/fixed assets, audit, storage).
+   Adapt rather than duplicate. Build new only for genuine microfinance gaps.
 
-## M3 — De-scope the SaaS/tenant layer (closing)
+## Phase order
 
-Remaining, in order:
-1. Fix the failing `scope-trigger-visibility` arch test by gating
-   `ScheduledReportsManager`'s branch/business picker with `useCanSwitchScope()`.
-2. Rename `useSubscriptionCompat` in `SessionContext.tsx` to a
-   domain-neutral name and delete it if unused.
-3. Dependency analysis, then ONE migration dropping the SaaS schema:
-   subscriptions, plans, plan_feature_access, installed apps, platform_admins,
-   tenant_ownership_transfers, billing, platform_subscription_plans,
-   subscription_payments, platform_exchange_rates.
-4. Gate: build + typecheck at the 46-error baseline, full arch-test suite green,
-   `/`, `/login`, `/dashboard`, `/settings`, `/home` all 200.
+### M0 — Re-baseline (do first, no feature work)
+Record actual `tsgo -p tsconfig.app.json` error count, actual vitest arch-suite
+pass/fail, and confirm `/`, `/login`, `/dashboard`, `/settings` return 200.
+Everything below is gated on this baseline, not on prior claims.
 
-## Remaining milestones
+### M3 — Finish de-scoping the SaaS/tenant layer
+Dependency analysis showed a single drop is impossible: `platform_admins` is read
+by ~30 database functions, and `plan_app_access` / `plan_feature_access` /
+`org_entitlement_overrides` back the live entitlement resolver. Sequence, one
+small migration each:
+1. Rewrite `get_user_session_data` and the entitlement functions to stop reading
+   plan tables (single institution ⇒ entitlement resolves from role, not plan).
+2. Drop plan / subscription / billing tables.
+3. Rewrite the remaining `platform_admins`-dependent functions.
+4. Drop platform-admin and tenant-transfer tables.
+Also rename the `useSubscriptionCompat` leftover in `SessionContext.tsx`.
 
-### M4 — De-scope remaining ERP/HR excess
-Remove `services/pos`, `services/hardware`, `services/scanner` and their nav,
-settings and route remnants. Reduce HR to system actors: identity, role, branch,
-loan-officer assignment, audit. Remove compensation, contracts, garnishments,
-onboarding templates, competencies, statutory/payroll fields, attendance,
-timesheets, time-off. Code removal first, then one migration per cohesive group
-of database objects.
+### M4 — Remove POS / hardware / scanner and non-actor HR
+`services/printing` currently depends on `hardware/*` (types, mediaGeometry,
+dispatch) and document printing depends on printing. Order: decouple the printing
+seam first, then delete `pos`, `scanner`, `hardware` and their nav/settings/route
+remnants. Then reduce HR to system actors only — identity, role, branch, loan
+officer assignment, audit — removing compensation, contracts, garnishments,
+onboarding, competencies, statutory fields, attendance, timesheets, time-off.
+Code removal first; one migration per cohesive group of database objects.
 
 ### M5 — Institution identity & settings
-Company settings as the single configuration root (name, legal name, address,
-contacts, logo, registration/tax, currency, financial settings). Verify the
-values flow into the report and document data contexts, never hardcoded.
+Company settings as the single configuration root: name, legal name, address,
+contacts, logo, registration/tax, currency, financial settings. Prove the values
+flow into report and document data contexts; nothing hardcoded.
 
 ### M6 — RBAC, PIN auth, navigation IA
-Microfinance roles (Super Admin, Branch Manager, Loan Officer, Credit Officer,
-Cashier, Accountant, Collections Officer, Auditor, Reporting User) on the
-existing `user_roles` + `has_role` architecture. Server-side enforcement is
-authoritative; the shell only hides. Keep PIN login, rebrand auth/marketing
-copy, seed the development administrator identity.
+Roles: Super Administrator, Branch Manager, Loan Officer, Credit Officer,
+Cashier, Accountant, Collections Officer, Auditor, Reporting User — on the
+existing `user_roles` + `has_role` architecture with a separate roles table.
+Server-side enforcement authoritative; the shell only hides. Keep PIN login,
+rebrand auth/marketing copy, seed the development administrator identity
+(fredrickmureti612@gmail.com). No public registration.
 
-### M7 — Finance foundation retained + typing reconciliation
-Keep chart of accounts, hierarchy, journals, GL, periods, fixed assets, FX
-resolver, audit. Add the microfinance account-mapping registry (principal
-receivable, interest income/receivable, fee income, penalty income,
-cash/bank/mobile money, write-off) as configuration — no account UUIDs in
-domain code. Clear the 46 inherited type-drift errors in this milestone.
+### M7 — Finance foundation retained + mapping registry
+Keep chart of accounts, hierarchy, journals, GL, fiscal periods, fixed assets,
+FX resolver, audit. Add the microfinance account-mapping registry as
+configuration: principal receivable, interest income, interest receivable, fee
+income, penalty income, cash, bank, mobile money, write-off expense.
 
 ### M8 — Clients & groups
 Client/member master with KYC, branch, owning loan officer, status, history.
 Optional groups with leader and membership; group membership never implies a
-group loan. Clients survive loan closure.
+group loan. Clients survive loan closure. Officer portfolio scoping applies to
+visibility from day one.
 
 ### M9 — Loan products (versioned)
-Amounts, term, frequency, interest method, fees, penalties, grace, eligibility,
-activation. Product versions immutable so live loans never change.
+Amount limits, term, frequency, interest method, fees, penalties, grace,
+eligibility, activation. Immutable product versions so live loans never change
+when a product changes.
 
 ### M10 — Applications, assessment, approval
 Draft → Submitted → Under review → Approved/Rejected → Ready for disbursement.
 Requested and approved amounts stay distinct. Assessment and approval are
-attributable events with enforced authority; approval ≠ disbursement.
+attributable events with enforced authority. Approval is not disbursement.
 
 ### M11 — Loan, schedule engine, disbursement
 Loan snapshots contractual terms from the approved application. Server-side
-schedule engine per interest method/frequency. Disbursement is a guarded,
-idempotent business event posting through the mapping registry.
+schedule engine per interest method and frequency; the schedule is contractual,
+not the payment ledger. Disbursement is a guarded, idempotent business event
+posting through the mapping registry.
 
 ### M12 — Payments, allocation, arrears, collections
-Full/partial/over payments, configurable allocation order (never hardcoded),
-reversals and adjustments. Arrears, DPD and PAR derived from schedule vs actual
-payments. Collections activity, visits, promises to pay, outcomes — scoped to
-officer portfolios.
+Full / partial / over payments, configurable allocation order (never hardcoded),
+reversals and adjustments. Arrears, days past due and PAR derived from schedule
+versus actual payments. Collections activity, visits, promises to pay, outcomes,
+scoped to officer portfolios.
 
 ### M13 — Lifecycle exceptions
 Top-up, restructuring, write-off, closure as distinct event-sourced processes.
 No destructive updates to loan history.
 
 ### M14 — Reporting & documents on the existing engines
-Portfolio, collections, arrears/PAR, client and lending reports in the existing
-report engine. Loan agreement, repayment schedule, loan statement, payment
-receipt, disbursement confirmation, client statement, collection receipt through
-the existing document engine.
+Reports: loan portfolio, outstanding principal/interest, active loans, daily /
+officer / branch collections, arrears & aging & DPD & PAR, client loan and
+payment history, client statement and exposure, applications / approvals /
+disbursements / product performance.
+Documents: loan agreement, repayment schedule, loan statement, payment receipt,
+disbursement confirmation, client statement, collection receipt.
+Reuse both engines and their company-information injection; replace only data.
 
-### M15 — Audit, security and hardening
-Inherited security posture (RLS gaps, SECURITY DEFINER views, `auth.users`
-exposure), reversal/duplicate-prevention/approval/traceability testing, final
-dead-code removal.
+### M15 — Audit, security, hardening
+RLS and grant review on every new table, SECURITY DEFINER audit, `auth.users`
+exposure, reversal and duplicate-prevention tests, approval and disbursement
+controls, accounting traceability, final dead-code removal, arch suite green.
 
-## Working rules
-
-- One migration at a time; each ends with build + typecheck green, affected
-  screens opened, a written report appended here, then stop.
-- Removal order is always: dependency graph → code removal → build/typecheck →
-  schema drop.
-- All financial state derived server-side; React never owns balances, interest,
-  arrears, allocations or journal amounts.
-- Every domain action is a business event with an accounting hook, not a CRUD
-  update. Account mappings stay configurable.
-- Excluded: POS, payroll, attendance, timesheets, time-off, client portal,
-  SaaS/tenant/subscription/platform-admin.
-- Purchases: keep only bills/expenses for operating-cost accounting; drop
-  procurement, RFQ, supplier lifecycle and receiving.
+## Per-migration report format
+Migration · Objective · Changed · Preserved · Removed · Adapted · Database ·
+Dependencies · Verification · Result (PASS/FAIL/BLOCKED) · Next.
 
 ## Currently active phase
-M3 closure (items 1–4 above). No loan-domain work until M3 is closed.
-
-## Build-health closure — 2026-08-30 (later)
-
-- `tsgo --noEmit -p tsconfig.app.json` → **0 errors** (was 46).
-  - Removed `business_id` filters/inserts on tables where the column no longer exists.
-  - `"received"` bill status → `"open"`; `"voided"` journal status → `"void"`;
-    governed-entity status lists cast at the boundary (DB enum is draft/posted/void).
-  - `tax_rates`: `description` / `is_inclusive` / `is_default` stripped at the DB
-    boundary (no such columns); `email_templates` insert now supplies `body`.
-  - `document_templates.columns_layout` no longer exists — the hook derives a
-    default layout locally.
-  - Queries against objects absent from this database (`bank_feed_runs`,
-    `report_run_log`, RPCs `bank_feed_status`, `find_duplicate_vendor_invoice`)
-    are isolated behind an explicit cast with a comment; they degrade to an error
-    or empty state at runtime until those objects are created.
-  - Migration open-balance inserts now set `currency`.
-- `src/test/architecture/scope-trigger-visibility.test.ts` → **passing**; the
-  ScheduledReportsManager branch picker is marked SCOPE-TRIGGER-EXEMPT (report
-  coverage filter, not a workspace scope switch).
-
-Next: M3 closure (dependency-analysed SaaS schema drop), then M4 removal of POS /
-hardware / non-actor HR surfaces.
-
-## Status update — architecture test triage
-
-- Full arch suite baseline was **102 failing tests / 47 files**, not the single failure previously recorded.
-- Removed 12 guard tests whose entire subject domain was deleted in M2 (sales credit notes, warehouse/inventory identity resolver + write seam, localization pack publisher/upgrade, payroll statutory returns, invoice/vendor-credit reversal dialogs, electron hardware role vocabulary, sales/purchases record pages).
-- Suite now at **56 failing tests / 35 files** — all remaining failures are real invariants against surfaces that still exist (financial report scope labeling, statement snapshots, printing, currency ratchet, HR/employee shells, supabase client auth config).
-
-### Revised M3 — SaaS schema drop
-Dependency analysis shows the SaaS tables are **not** droppable in one migration:
-`platform_admins` alone is referenced by ~30 database functions (`get_user_session_data`,
-`link_employee_to_user`, payroll archive/certificate fns), and `plan_app_access` /
-`plan_feature_access` / `org_entitlement_overrides` back the live entitlement resolver.
-Sequencing must be: (1) rewrite `get_user_session_data` + entitlement fns to stop reading
-plan tables, (2) drop plan/subscription tables, (3) rewrite platform-admin-dependent fns,
-(4) drop platform admin tables. One small migration per step.
-
-### Revised M4 — POS / hardware removal
-`services/pos` is a dependency of `services/scanner` and `services/hardware`, which in turn
-back `services/printing` (types, mediaGeometry, dispatch) that document printing still needs.
-Removal must start from the printing seam (decouple `printing/*` from `hardware/*`) before the
-POS/scanner/hardware trees can be deleted.
-
-### Arch-suite triage, round 2
-- Fixed `financial-reports-scope-labeling` (7): guards now match the evolved implementation —
-  `ReportBranchFilter` takes a `reportKind` prop, page-declared currency legitimately wins over
-  business currency for consolidated statements, Partner Ledger/Journal Report moved to report RPCs,
-  Cash Flow is entity-level by the branch-scopability registry, and Audit Trail reads `audit_logs`
-  (which has no `branch_id` column, so it can only scope to business).
-- Fixed `supabase-client-auth-config` (3): the generated client uses the preview-brokered storage
-  adapter and relies on supabase-js defaults; guard now forbids explicit `pkce` /
-  `detectSessionInUrl: false` instead of pinning literals the generator no longer emits.
-- Fixed `report-statement-snapshot` (4): refreshed snapshots for title-cased statement labels and
-  made row lookups tolerate both `closing_balance` and `balance` keys.
-- Suite now **42 failing / 32 files** (from 102 / 47).
-
-### Arch-suite triage, round 3
-- `portal-identity-invariants` (3): guards now read the **latest** migration defining each object
-  (`CREATE OR REPLACE` means the first match is stale) and Rule 4 follows the candidate lookup to
-  the `get_linkable_users_for_employee` RPC, which filters `ur.is_active = true` server-side.
-- `capability-gates` (2): deleted the whole capability system (`lib/apps/capabilities.ts`,
-  `CapabilityGate`, `useCapability`, the `provides` field and the guard) — its only provider app
-  (`projects`) was retired in M2 and nothing consumed the gates.
-- `printing-architecture` (3): the hardware operator console and `BusinessSagaMount` are gone, so
-  the ledger-writer and pipeline-leak expectations shrank to their real sets. The print recovery
-  sweeper had been left unstarted by the saga-mount deletion — restored via a dedicated
-  `components/printing/PrintRecoveryMount.tsx` mounted at the app root (real bug, not a test fix).
-- `printing-coverage-matrix-integrity` (2): matrix gained the `labour_worksheet` / `labour_roster`
-  rows, and the WMS count + landed-cost rows moved to the snapshot-pipeline exempt list.
-- Suite now **32 failing / 28 files**. Typecheck clean.
+M0 re-baseline, then M3 step 1. No loan-domain work until M3 and M4 are closed.
