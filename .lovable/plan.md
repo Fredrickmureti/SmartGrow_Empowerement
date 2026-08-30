@@ -63,16 +63,36 @@ drift (was 52; the 6 removed were the deleted tenant-transfer dialog). No new
 error file was introduced by this pass. Dev server: `/`, `/login`, `/dashboard`,
 `/home`, `/settings` all 200.
 
+### M3 third pass (done, verified)
+Residual SaaS surfaces removed:
+- Deleted `src/hooks/usePlatformAdmin.ts`, `src/contexts/PlatformIdentityContext.tsx`,
+  `src/services/fx/platformUsd.ts`, `src/lib/pricing/publicPricing.ts`,
+  `src/hooks/usePricingCurrency.ts`, `src/components/pricing/PricingCurrencyToggle.tsx`,
+  `src/components/landing/PricingSection.tsx`.
+  (`src/lib/pricing/formatAppPrice.ts` is retained — generic currency formatting
+  used by `useCurrencyMap`, not SaaS pricing.)
+- `useWorkspaceRouting`: `platform-admin` status and probe removed from the
+  status union and the guard chain (no consumers existed).
+- `useBankProviders`: admin/non-admin branch collapsed to a single RLS-scoped
+  read; admin-status refetch bookkeeping removed.
+- `Dashboard.tsx` / `AppSidebar.tsx`: dead platform-admin imports removed.
+- `src/apps/platform/nav.ts`: "Apps" (Marketplace/App Setup), "Subscriptions"
+  and the whole "Billing" group (Upgrade, Billing History) removed.
+
+Verification: `tsgo -p tsconfig.app.json` → 46 errors, identical pre-existing
+schema-drift baseline (no new file, no new error class). Dev server `/`,
+`/login`, `/dashboard`, `/settings`, `/home` all 200.
+
 ### M3 remaining (must finish before M4)
 - Collapse organization/business resolution to the single institution
   (`OrganizationProvider` / `BusinessProvider` / workspace routing still assume
   multi-tenant membership; `CreateOrganizationDialog` should disappear once the
   institution is a fixed configuration root).
-- Residual SaaS surfaces still in code: `src/apps/platform/nav.ts`,
-  `lib/pricing/*`, `services/fx/platformUsd.ts`, portal/marketing copy.
+- Marketing/portal copy still AccrualFlow-branded (rebrand lands in M6).
 - Schema pass (separate, ONE migration, after dependency analysis) to drop SaaS
   tables/functions/policies: subscriptions, plans, plan_feature_access,
-  installed apps, platform_admins, tenant_ownership_transfers, billing.
+  installed apps, platform_admins, tenant_ownership_transfers, billing,
+  platform_subscription_plans, subscription_payments, platform_exchange_rates.
 
 ### Known debt (not caused by M3)
 46 `tsgo` errors from regenerated Supabase types (missing `currency`,
@@ -81,19 +101,20 @@ table names absent from the current project). Owed: a dedicated typing
 reconciliation pass — schedule it with M7 (finance retain/adapt) at the latest.
 
 ## Currently active phase
-M3 — de-SaaS the application shell. Code-side de-SaaS is ~85% complete; the
+M3 — de-SaaS the application shell. Code-side de-SaaS is ~95% complete; the
 org/business collapse and the SaaS schema migration remain.
 
 ## Next agent — start here
-1. VERIFY this pass first: run `npx tsgo --noEmit -p tsconfig.app.json`
-   (expect 46 pre-existing errors, no subscription/app-install references),
-   `rg -n "useSubscription|InstalledApps|marketplace" src`, and smoke the dev
-   server routes above. Confirm no orphaned imports or dead UI branches.
-2. Then finish M3: collapse organization/business resolution to the single
-   institution, remove the residual SaaS surfaces listed above, and only then
-   run the single SaaS schema-drop migration with a dependency check first.
+1. VERIFY this pass: `npx tsgo --noEmit -p tsconfig.app.json` (expect exactly 46
+   pre-existing errors), `rg -n "usePlatformAdmin|PlatformIdentity|useSubscription|marketplace|lib/pricing/publicPricing" src`
+   (expect no hits), and smoke `/`, `/login`, `/dashboard`, `/settings`, `/home`.
+2. Then close M3: collapse organization/business resolution to the single
+   institution (remove org creation/switching, make `currentOrg`/`currentBusiness`
+   resolve from the one provisioned institution), then run the single SaaS
+   schema-drop migration after a dependency check.
 3. Only after M3 is closed, proceed to M4 (POS/hardware/scanner remnants and HR
    beyond system actors). Do not jump ahead into loan-domain work.
+
 
 
 ## Standing constraints
