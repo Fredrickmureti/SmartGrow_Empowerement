@@ -156,3 +156,24 @@ M3 closure (items 1–4 above). No loan-domain work until M3 is closed.
 
 Next: M3 closure (dependency-analysed SaaS schema drop), then M4 removal of POS /
 hardware / non-actor HR surfaces.
+
+## Status update — architecture test triage
+
+- Full arch suite baseline was **102 failing tests / 47 files**, not the single failure previously recorded.
+- Removed 12 guard tests whose entire subject domain was deleted in M2 (sales credit notes, warehouse/inventory identity resolver + write seam, localization pack publisher/upgrade, payroll statutory returns, invoice/vendor-credit reversal dialogs, electron hardware role vocabulary, sales/purchases record pages).
+- Suite now at **56 failing tests / 35 files** — all remaining failures are real invariants against surfaces that still exist (financial report scope labeling, statement snapshots, printing, currency ratchet, HR/employee shells, supabase client auth config).
+
+### Revised M3 — SaaS schema drop
+Dependency analysis shows the SaaS tables are **not** droppable in one migration:
+`platform_admins` alone is referenced by ~30 database functions (`get_user_session_data`,
+`link_employee_to_user`, payroll archive/certificate fns), and `plan_app_access` /
+`plan_feature_access` / `org_entitlement_overrides` back the live entitlement resolver.
+Sequencing must be: (1) rewrite `get_user_session_data` + entitlement fns to stop reading
+plan tables, (2) drop plan/subscription tables, (3) rewrite platform-admin-dependent fns,
+(4) drop platform admin tables. One small migration per step.
+
+### Revised M4 — POS / hardware removal
+`services/pos` is a dependency of `services/scanner` and `services/hardware`, which in turn
+back `services/printing` (types, mediaGeometry, dispatch) that document printing still needs.
+Removal must start from the printing seam (decouple `printing/*` from `hardware/*`) before the
+POS/scanner/hardware trees can be deleted.
