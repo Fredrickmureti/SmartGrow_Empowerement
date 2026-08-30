@@ -10,8 +10,6 @@ export { SerialScaleDriver } from './SerialScaleDriver';
 export { CustomerDisplayDriver } from './CustomerDisplayDriver';
 export { BrowserPrintDriver } from './BrowserPrintDriver';
 export { PaymentTerminalDriver, type PaymentResult, type PaymentStatusCallback, type PaymentProvider } from './PaymentTerminalDriver';
-export { KeyboardScannerDriver, type BarcodeCallback } from './KeyboardScannerDriver';
-export { HidScannerDriver } from './HidScannerDriver';
 export { LineDisplayDriver } from './LineDisplayDriver';
 
 // Re-export types used by the interface layer

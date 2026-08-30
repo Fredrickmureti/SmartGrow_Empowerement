@@ -21,8 +21,6 @@ import { SerialScaleDriver } from './SerialScaleDriver';
 import { CustomerDisplayDriver } from './CustomerDisplayDriver';
 import { BrowserPrintDriver } from './BrowserPrintDriver';
 import { PaymentTerminalDriver } from './PaymentTerminalDriver';
-import { KeyboardScannerDriver } from './KeyboardScannerDriver';
-import { HidScannerDriver } from './HidScannerDriver';
 import { LineDisplayDriver } from './LineDisplayDriver';
 import { EposPrinterDriver } from './EposPrinterDriver';
 import { ZplLabelDriver, EplLabelDriver, EscPosLabelDriver } from './LabelPrinterDrivers';
@@ -180,8 +178,6 @@ registerDriver('adyen_terminal',     () => new PaymentTerminalDriver('adyen'));
 registerDriver('generic_terminal',   () => new PaymentTerminalDriver('generic'));
 
 // Scanners — renderer-owned by design (HID/keyboard wedge), no main driver.
-registerDriver('keyboard_scanner', () => new KeyboardScannerDriver());
-registerDriver('hid_scanner',      () => new HidScannerDriver());
 
 // Line display — Wave 11 R4: marked browserFallback so Electron mode
 // routes to the main-process CustomerDisplayDriver (the renderer stub
