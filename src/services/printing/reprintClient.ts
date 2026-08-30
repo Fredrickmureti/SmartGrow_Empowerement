@@ -1,23 +1,19 @@
 /**
  * reprintClient — governed reprint entry point (Track 4).
  *
- * Every reprint of a receipt / GRN label / shipping label / payslip /
- * asset tag MUST go through this client. It calls the
+ * Every document reprint MUST go through this client. It calls the
  * `request_reprint` RPC, which (a) requires a non-empty reason,
  * (b) verifies org access, (c) auto-approves for admin/owner and
  * leaves a pending request for everyone else, and (d) writes an
  * immutable audit row in `reprint_requests`.
  *
  * If the request is approved (immediately or later), call
- * `dispatchLabelReprint` / `dispatchReceiptReprint` to send the actual
- * hardware command — they forward through HardwareClient with
- * `isReprint = true` so the exec log row carries the audit flag.
+ * `dispatchDocumentReprint`, which reprints through the normal document
+ * pipeline with `isReprint = true` so the ledger row carries the flag.
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { printLabel, printDocument } from '@/services/printing/PrintService';
-import { toDevice } from '@/services/printing/dispatch';
-import type { LabelDispatchInput } from '@/services/printing/labelDispatch';
+import { printDocument } from '@/services/printing/PrintService';
 
 export interface RequestReprintInput {
   orgId: string;
@@ -47,65 +43,27 @@ export async function requestReprint(input: RequestReprintInput): Promise<
 }
 
 /**
- * Dispatch a label reprint after request approval. Forces the
- * `isReprint` audit flag and uses a fresh idempotency key so the
- * reprint is not coalesced with the original print.
+ * Dispatch a reprint after request approval.
+ *
+ * A reprintable document goes through the same pipeline as its original
+ * print — policy, ledger, render, dispatch — with the audit flag set, so
+ * the reprint shows up in `print_jobs` as a distinct, reasoned event.
  */
-export async function dispatchLabelReprint(
-  reprintRequestId: string,
-  input: Omit<LabelDispatchInput, 'idempotencyKey'>,
-) {
-  return printLabel({
-    ...input,
-    isReprint: true,
-    idempotencyKey: `reprint:${reprintRequestId}`,
-  });
-}
-
-/**
- * Dispatch a receipt reprint via the receipt printer. Used for
- * transactional documents (invoices, payslips, POS receipts) that have
- * a rendered payload independent of the label-template registry.
- */
-export async function dispatchReceiptReprint(
+export async function dispatchDocumentReprint(
   reprintRequestId: string,
   input: {
-    receiptData: unknown;
     sourceDocType: string;
     sourceDocId: string;
-    /** Required — the resolver needs org context to pick the assignment. */
     organizationId: string;
     businessId?: string | null;
   },
 ) {
-  // A reprintable document goes through the same pipeline as its
-  // original print — policy, ledger, render, dispatch — with the audit
-  // flag set, so the reprint lands on exactly the device the original
-  // used and shows up in `print_jobs` as a distinct, reasoned event.
-  if (input.sourceDocType === 'pos_receipt') {
-    return printDocument({
-      documentType: 'pos_receipt',
-      documentId: input.sourceDocId,
-      intent: 'receipt',
-      medium: 'escpos',
-      organizationId: input.organizationId,
-      businessId: input.businessId ?? null,
-      correlationId: `reprint:${reprintRequestId}`,
-      isReprint: true,
-    });
-  }
-
-  // Ad-hoc payload reprints (no document renderer) still leave through
-  // the single hardware seam rather than touching a driver directly.
-  return toDevice({
-    intentOrRole: 'receipt',
-    op: 'print_receipt',
-    payload: { receiptData: input.receiptData },
+  return printDocument({
+    documentType: input.sourceDocType,
+    documentId: input.sourceDocId,
     organizationId: input.organizationId,
     businessId: input.businessId ?? null,
-    idempotencyKey: `reprint:${reprintRequestId}`,
-    sourceDocType: input.sourceDocType,
-    sourceDocId: input.sourceDocId,
+    correlationId: `reprint:${reprintRequestId}`,
     isReprint: true,
   });
 }

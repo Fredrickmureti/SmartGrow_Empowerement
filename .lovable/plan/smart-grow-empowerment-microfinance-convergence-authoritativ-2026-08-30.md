@@ -1,237 +1,154 @@
-# Smart Grow Empowerment — Microfinance Convergence (authoritative living plan)
+# Smart Grow Empowerment — Microfinance Convergence (authoritative plan)
 
-One microfinance institution. Internal, employee-operated, ASA branch model.
-Converged from the AccrualFlow platform by controlled migrations — never a rewrite.
+Single source of truth. Read this first, execute the next migration in order, do
+not reopen closed ones, do not start new investigations.
 
-Permanently out of scope: SaaS/tenants/subscriptions/platform admin, payroll,
-attendance, timesheets, time-off, POS, inventory/warehouse, procurement,
-sales order-to-cash, client portal.
+## What we are building
 
-## Phase 1 — Independent verification of the previous engineer's claims
+One microfinance institution (ASA branch model), internal and employee-operated.
+Converged from the inherited AccrualFlow ERP platform through controlled
+migrations — never a rewrite.
 
-Every claim below was re-checked directly this turn. Nothing is taken on trust.
+Permanently out of scope (never re-add, never ask): SaaS / tenants /
+subscriptions / entitlements / platform admin, payroll, attendance, timesheets,
+time-off, POS, inventory, warehouse, procurement, sales order-to-cash, client
+portal, public registration, hardware/device estate.
 
-| Previous claim | Verified reality | Verdict |
-| --- | --- | --- |
-| Backend isolated on its own project | `.env` + client point only at `xwxqunklduknceoryrha`; no AccrualFlow credentials present | CONFIRMED |
-| Typecheck clean | `tsgo -p tsconfig.app.json` → 0 errors | CONFIRMED |
-| POS / scanner services removed | `src/services/pos` and `src/services/scanner` are gone | CONFIRMED |
-| Hardware layer pending | `src/services/hardware` still present and still imported by `services/printing` (`types.ts`, `mediaGeometry.ts`, `dispatch.ts`) plus hardware hooks and ~8 architecture tests | PENDING, as claimed |
-| "M3 closed" (SaaS/tenant de-scope) | Half true. Plan/entitlement tables (`plan_app_access`, `plan_feature_access`, `org_entitlement_overrides`, `subscription_plans`) are gone, but **24 `platform_*` tables remain**, including `platform_admins`, `platform_admin_sessions`, `platform_admin_groups`, `platform_ownership_transfers`. Code still reads plan/platform concepts in `SessionContext.tsx`, `lib/apps/registry.ts`, `hooks/useAppNavigation.ts` | NOT CLOSED — reopened as M3b |
-| HR reduced to system actors | Code trimmed to departments / locations / positions / letters / employees, but the **database still carries 54 `payroll_*` tables**, all `attendance*` tables, and the full `employee_*` HR estate (contracts, compensation history, benefits, exit clearance, statutory identifiers, onboarding, competencies) | NOT DONE at schema level |
-| Payroll `%loan%` tables are advance artifacts | Confirmed: `employee_loans`, `loan_types`, `loan_repayment_schedule`, `loan_repayments`, `loan_lifecycle_events` are employee-advance tables, not lending | CONFIRMED — must be dropped, never reused |
-| No microfinance domain exists | Confirmed: no client/member, group, loan product, application, disbursement, or collections tables | CONFIRMED |
-| Arch test suite "32 failing" | Not re-measured; the suite still contains POS/hardware/scanner manifests that describe deleted code | RE-BASELINE REQUIRED |
+Keep and reuse: PIN + auth, app shell and navigation, RBAC (`user_roles` +
+`has_role`), company/branch settings, chart of accounts, journals, GL, fiscal
+periods, banking + reconciliation, fixed assets, FX resolver, report engine,
+document engine, audit, storage, business-event/saga infrastructure.
 
-Current scale: 960 public tables, 3,058 functions. The database is still an ERP,
-even though the frontend is no longer one. **That is the single biggest gap
-between the plan's claimed state and reality**, and it drives the phase order below.
+## Working rules (non-negotiable)
 
-## Working rules (enforced, unchanged)
-
-1. One migration at a time: scope → dependency graph → code change → build +
-   typecheck → affected screens opened → report appended here → stop.
-2. Removal order is always dependency graph, then code removal, then schema drop.
-   Never the reverse.
+1. One migration at a time: scope → dependency graph → code change → DB change →
+   typecheck + build + affected screens → append report here → stop for review.
+2. Removal order is always dependency graph → code removal → schema drop. Never
+   drop a table before its readers are gone.
 3. All financial state derived server-side. React never owns balances, interest,
    arrears, allocations, or journal amounts.
 4. Every domain action is a business event with an accounting hook, never a CRUD
-   update. Account mappings stay configurable — no account UUIDs in domain code.
-5. Reuse proven platform infrastructure (PIN auth, shell, RBAC, company settings,
-   report engine, document engine, COA/journals/GL/fixed assets, audit, storage).
-   Adapt rather than duplicate. Build new only for genuine microfinance gaps.
+   update. Account mappings are configuration — no account UUIDs in domain code.
+5. New public tables always get GRANTs + RLS + policies in the same migration.
 6. Inherited ERP rows are not this institution's data. No microfinance surface
-   may read legacy invoices, bills, POS, payroll, CRM, or inventory rows.
+   reads legacy invoices, bills, POS, payroll, CRM, or inventory rows.
+7. Test suite may never regress; each migration must reduce failing files.
 
-## Phase order (revised from evidence)
+## Handover verification (2026-08-30, this session)
 
-### M0 — Re-baseline the test suite (no feature work)
-Run the vitest architecture suite, record the real pass/fail, and delete the
-manifests that describe already-deleted code (POS, scanner, warehouse, sales).
-Confirm `/`, `/login`, `/dashboard`, `/settings` render. Gate everything on this.
+Claims from the previous engineer were checked directly against the codebase,
+not accepted:
 
-### M3b — Finish the SaaS/platform-admin de-scope (reopened)
-Code first: strip plan/entitlement/platform-admin concepts from
-`SessionContext.tsx`, `lib/apps/registry.ts`, `lib/apps/types.ts`,
-`hooks/useAppNavigation.ts`; app access resolves from role only. Then rewrite the
-database functions that read `platform_admins`, then drop the 24 `platform_*`
-tables plus admin sessions, groups, notifications, and ownership transfers.
-One migration per cohesive group.
+- M0 (manifest prune, preview 500 fix) — consistent with the tree. ACCEPTED.
+- M3b code half — CONFIRMED: `SubscriptionAccessContext`, `usePlatformPermissions`,
+  `useAdminNotifications`, `CountryWorkspaceContext`, `lib/command/surface.ts`
+  are gone; `src/hooks/useActionGate.ts` exists. Only comment-level mentions of
+  "entitlement"/"subscription" remain. ACCEPTED.
+- M3b DB half — platform authority neutralised, `platform_admins` retained as an
+  empty view. ACCEPTED, with a carry-forward: `SignupForm.tsx`,
+  `EmployeeLinkDialog.tsx` and several architecture tests still reason about a
+  platform-admin persona. Now tracked as M7 work rather than "done".
+- M4 — NOT started: `src/services/hardware/` (20+ modules) and
+  `src/hooks/hardware/` (5 hooks) are fully present and still imported by
+  `src/services/printing/*`.
 
-### M4 — Decouple printing from hardware, then delete the hardware layer
-`services/printing` depends on `hardware/*` for types, media geometry, and
-dispatch. Move the geometry/envelope types printing genuinely needs into
-`services/printing`, repoint dispatch at a plain server print path, then delete
-`services/hardware`, `hooks/hardware`, and their nav/settings/route remnants and
-tests.
+Verdict: resume at M4, with the platform-persona remnants added to M7.
 
-### M5 — Retire payroll, attendance, and non-actor HR from the schema
-The largest removal. Sequence, one migration per group, dependency graph first:
-payroll runs/periods/rules/returns/certificates/bank files (54 tables), the
-employee-advance "loan" tables, attendance and devices, then employee
-compensation/contracts/benefits/onboarding/competencies/exit-clearance/statutory
-tables. Keep only what makes an employee a system actor: identity, role, branch
-assignment, loan-officer assignment, audit. Retain the future-scale attributes
-(position, department, location) since they cost nothing and the institution may
-grow into them.
+## Status board
 
-### M6 — Institution identity & settings
-Company settings as the single configuration root: name, legal name, address,
-contacts, logo, registration/tax, currency, financial settings. Prove the values
-flow into the report and document data contexts; nothing hardcoded.
+| Migration | Scope | Status |
+| --- | --- | --- |
+| M0 | Test-suite re-baseline, prune stale manifests | DONE |
+| M3b | SaaS / plan / entitlement / platform-admin de-scope | DONE |
+| **M4** | **Decouple printing from hardware, delete hardware layer** | **ACTIVE** |
+| M5 | Retire payroll, attendance, non-actor HR from schema | queued |
+| M6 | Institution identity & settings as single config root | queued |
+| M7 | RBAC roles, PIN auth, navigation IA, retire SaaS remnants | queued |
+| M8 | Finance foundation + microfinance account-mapping registry | queued |
+| M9 | Clients & groups (ASA model) | queued |
+| M10 | Loan products (immutable versions) | queued |
+| M11 | Applications, assessment, approval | queued |
+| M12 | Loan, server-side schedule engine, disbursement | queued |
+| M13 | Payments, allocation, arrears/DPD/PAR, collections | queued |
+| M14 | Top-up, restructuring, write-off, closure | queued |
+| M15 | Reporting & documents on the existing engines | queued |
+| M16 | Audit, RLS/grants, security hardening, arch suite green | queued |
 
-### M7 — RBAC, PIN auth, navigation IA
-Roles: Super Administrator, Branch Manager, Loan Officer, Credit Officer,
-Cashier, Accountant, Collections Officer, Auditor, Reporting User — on the
-existing `user_roles` + `has_role` architecture with a separate roles table.
-Server-side enforcement authoritative; the shell only hides. Keep PIN login,
-rebrand auth copy, seed the development administrator identity
-(fredrickmureti612@gmail.com). No public registration.
+Baseline to beat: typecheck clean, build OK, vitest 31 failed / 301 passed files.
 
-### M8 — Finance foundation retained + mapping registry
-Keep chart of accounts, hierarchy, journals, GL, fiscal periods, fixed assets,
-FX resolver, audit. Add the microfinance account-mapping registry as
-configuration: principal receivable, interest income, interest receivable, fee
-income, penalty income, cash, bank, mobile money, write-off expense.
+## M4 — active: decouple printing from hardware, delete the hardware layer
 
-### M9 — Clients & groups (ASA model)
-Client/member master with KYC, branch, owning loan officer, status, history.
-Groups with leader, membership, and a fixed meeting day/time/place — group
-membership never implies joint liability or a group loan. Clients survive loan
-closure. Officer portfolio scoping applies to visibility from day one.
+Printing is needed for M15 documents; the device estate (ESC/POS drivers, local
+agents, label printers, device assignments) belongs to POS/warehouse.
 
-### M10 — Loan products (versioned)
-Amount limits, term, frequency, interest method, fees, penalties, grace,
-eligibility, cycle caps, activation. Immutable product versions so live loans
-never change when a product changes.
+Verified coupling: `src/services/printing/{types,mediaGeometry,dispatch,policy,
+jobs,recovery,reprintClient,PrintService}.ts`, `hooks/printing/usePrintWithFallback.ts`,
+`components/printing/PrintRecoveryMount.tsx`, `components/common/PrintPreviewDialog.tsx`,
+`hooks/hardware/*`, `hooks/useDeviceAssignments.ts`, `services/events/BusinessSaga.ts`,
+`services/documents/{submitIntent,outputIntent}.ts`, `apps/platform/nav.ts`,
+`components/layout/AppSidebar.tsx`, `pages/settings/CompanySettings.tsx`,
+`pages/Downloads.tsx`, `types/global.d.ts`, `types/electron.d.ts`.
 
-### M11 — Applications, assessment, approval
-Staff-created applications only. Draft → Submitted → Under review →
-Approved/Rejected → Ready for disbursement. Requested and approved amounts stay
-distinct. Assessment is a recorded physical business visit; approval is
-branch-level, attributable, within authority limits. Approval is not disbursement.
+Order of work:
+1. Own the geometry/envelope/media types printing needs inside
+   `src/services/printing/`; no hardware imports.
+2. Repoint dispatch at a plain browser/server path (PDF → viewer →
+   `window.print`); drop intent/device resolution and the saga's device hooks.
+3. Delete `src/services/hardware/`, `src/hooks/hardware/`, `useDeviceAssignments`,
+   their nav entries, settings sections, routes, ambient declarations, and the
+   hardware architecture tests.
+4. Only then drop the schema: `device_assignments`, `device_workflow_bindings`,
+   printer/print-job/label tables and enums (`hardware_command_status`,
+   `print_job_status`, `printer_workflow`, `label_*`). `attendance_devices`
+   defers to M5.
+5. Verify: typecheck, build, a real document preview/print from a finance
+   screen, suite ≤ 31 failing files.
 
-### M12 — Loan, schedule engine, disbursement
-Loan snapshots contractual terms from the approved application. Server-side
-schedule engine per interest method and frequency; the schedule is contractual,
-not the payment ledger. Disbursement is a guarded, idempotent business event
-posting through the mapping registry.
+## M5 — payroll, attendance, non-actor HR
 
-### M13 — Payments, allocation, arrears, collections
-Batch-per-meeting repayment entry with per-member receipts. Full / partial / over
-payments, configurable allocation order (never hardcoded), reversals and
-adjustments. Arrears, DPD and PAR derived from schedule versus actual payments.
-Collections activity, visits, promises to pay, outcomes — officer-scoped.
+Largest removal; one migration per cohesive group, dependency graph first:
+payroll runs/periods/rules/inputs/payslips/returns/certificates/bank exports
+(~54 tables) → the employee-advance "loan" tables (`employee_loans`,
+`loan_types`, `loan_repayment_schedule`, `loan_repayments`,
+`loan_lifecycle_events` — NOT lending, never reuse) → attendance, breaks,
+devices, events, ingest → compensation history, contracts, benefits, onboarding,
+competencies, exit clearance, statutory identifiers. Keep only what makes an
+employee a system actor: identity, role, branch assignment, loan-officer
+assignment, audit; retain cheap scale attributes (position, department,
+location).
 
-### M14 — Lifecycle exceptions
-Top-up, restructuring, write-off, closure as distinct event-sourced processes,
-with cycle graduation derived from completed-cycle history. No destructive
-updates to loan history.
+## M7 additions from this verification
 
-### M15 — Reporting & documents on the existing engines
-Reports: loan portfolio, outstanding principal/interest, active loans, daily /
-officer / branch collections, arrears & aging & DPD & PAR, client loan and
-payment history, client statement and exposure, applications / approvals /
-disbursements / product performance.
-Documents: loan agreement, repayment schedule, loan statement, payment receipt,
-disbursement confirmation, client statement, collection receipt.
-Reuse both engines and their company-information injection; replace only the data.
+- Retire `src/pages/AcceptOwnership.tsx` and its route (SaaS ownership transfer).
+- Remove the platform-admin persona branch in `components/auth/SignupForm.tsx`
+  and the classification path in `components/employees/EmployeeLinkDialog.tsx`.
+- Rewrite architecture tests that assert `is_platform_admin` /
+  `platform_admins` (`currency-ratchet`, `no-direct-employee-user-link`,
+  `governance-action-registry-parity`) against the RBAC model that survives.
+- Decide retire-vs-reown for `useDemoVideos` / `ResourceCenterLauncher` write
+  paths (M6 if kept as institution content, M7 if retired).
 
-### M16 — Audit, security, hardening
-RLS and grants on every new table, SECURITY DEFINER audit, `auth.users` exposure
-review, reversal and duplicate-prevention tests, approval and disbursement
-controls, accounting traceability, final dead-code removal, arch suite green.
+## Microfinance domain target (M8–M16)
 
-## Additions this rework introduces (previously missing)
+Account-mapping registry (principal receivable, interest income/receivable, fee
+income, penalty income, cash, bank, mobile money, write-off expense) → clients &
+groups with KYC, branch, owning officer, meeting slot (group membership never
+implies joint liability) → versioned loan products → staff-created applications
+with recorded assessment visit and branch-level approval within authority limits
+(approval ≠ disbursement) → loan snapshot + server-side schedule engine +
+idempotent disbursement event → batch-per-meeting repayments with per-member
+receipts, configurable allocation order, reversals, derived arrears/DPD/PAR,
+officer-scoped collections → top-up/restructure/write-off/closure as
+event-sourced processes with derived cycle graduation → portfolio, collections,
+arrears and client reports plus loan agreement, schedule, statement, receipt and
+disbursement documents on the existing engines → RLS, grants, audit, hardening.
 
-- Schema de-scoping treated as first-class work, not a footnote: the frontend was
-  trimmed while 960 tables and 3,058 functions stayed. M3b and M5 exist for that.
-- Test-manifest pruning as an explicit gate (M0) — stale manifests were masking
-  the true baseline.
-- Printing/hardware decoupling given its own milestone because it blocks document
-  printing, which M15 depends on.
-- Cycle graduation, group meeting slots, and batch-per-meeting collection encoded
-  into the domain milestones rather than left implicit.
+## Report format (append below, newest last)
 
-## Per-migration report format
 Migration · Objective · Changed · Preserved · Removed · Adapted · Database ·
 Dependencies · Verification · Result (PASS/FAIL/BLOCKED) · Next.
 
-## Currently active phase
-M0 — re-baseline the test suite and prune stale manifests. No loan-domain work
-until M3b, M4, and M5 are closed and verified.
+## Currently active
 
-## M0 report — test suite re-baselined (complete)
-
-**Objective:** establish a trustworthy baseline; remove manifests describing deleted or permanently out-of-scope code.
-
-**Fixed first (blocker):** the preview was returning HTTP 500 —
-`@tanstack/router-core` export mismatch from a stale Vite module cache after an
-earlier install. Cache cleared, dev server restarted, `/` now returns 200 and
-`runtime.smoke` passes.
-
-**Removed (39 stale manifests):** payroll/payslip/salary/bracket/custom-deduction/
-garnishment/legal-order/statutory-return/certificate manifests, localization-pack
-manifests, POS + inventory + warehouse/WMS manifests, warehouse label/cycle-count/
-wave/dispatch printing manifests, hardware-scope manifests, HR draft-autosave.
-
-**Pruned (6 mixed manifests):** deleted-file entries removed from
-`non-blocking-surfaces`, `payment-reversal-intent-contract`,
-`employees-branch-as-assignment`, `employees-reads-via-canonical`,
-`no-org-identity-reads`, `no-redirect-to-picker`.
-
-**Baseline before → after:** 52 failed / 319 passed (372 files) → **32 failed /
-300 passed / 1 skipped (333 files)**; tests 53 failed / 1899 passed. Typecheck: clean.
-
-**Remaining 32 failures are real work, mapped to later phases (none are stale):**
-- M3b: `admin-signout-destination`, `app-switcher-coverage`, `nav-app-coherence`
-- M5: `employee-*`, `employees-directory-clean`, `hr-configuration-shell`,
-  `no-raw-employees-pii-select`
-- M8/M16: `business-scoped-queries`, `currency-ratchet`, `no-silent-currency-fallback`,
-  `je-description-no-uuid`, `pgcrypto-extension-prefix`, `single-audit-trigger-per-table`,
-  `sql-businesses-currency-column`, banking/bank-feed gating, statement/report
-  manifests, `notification-link-routes`, `pdf-preview-uses-safeviewer`,
-  `no-conditional-radix-overlay`, command-palette providers,
-  `recurring-invoicing-single-engine`, `reconciliation-ai-advisory-boundary`,
-  `no-tanstack-router-in-spa`
-- **Result:** M0 CLOSED. **Next: M3b — finish the SaaS/platform-admin de-scope.**
-
-## M3b status — COMPLETE (2026-08-30, verified)
-
-Code half (earlier this session): subscription/plan/entitlement/trial state removed from
-SessionContext, app registry/types, navigation, command palette, app access hooks and app
-cards; `useActionGate` replaces `useEntitlementGate`; `isPlatform` → `alwaysAvailable`;
-registry group "Platform" → "System"; stale marketplace/app-switcher tests corrected.
-
-Database half (migration applied 2026-08-30 ~14:15 UTC):
-- Neutralised platform authority helpers to constants (`is_platform_admin`,
-  `_user_is_active_platform_admin`, `has_platform_permission` → false;
-  `get_platform_admin_role` → null; `get_platform_admin_permissions`/`_scopes` → empty).
-  This deliberately leaves the ~103 legacy policies that reference them syntactically valid
-  while making platform authority unreachable — safer than rewriting 103 policies blind.
-- `get_user_session_data` rewritten: no platform-admin read, no plan-shaped keys.
-- Dropped: platform_admin_groups/_group_members/_group_permissions/_country_scopes/
-  _sessions/_alerts/_notifications, platform_ownership_transfers,
-  platform_permission_definitions, platform_automation_rules, platform_email_templates/
-  _campaigns/_logs, platform_feature_catalog, demo_requests, enum platform_admin_role,
-  and the ownership-transfer + prevent_owner_deactivation routines.
-- `public.platform_admins` replaced by a permanently empty `security_invoker` view so
-  legacy functions/policies that still name it resolve to "no platform admin" and it can
-  never be written to.
-- Retained legitimate infrastructure: platform_settings, platform_apps,
-  platform_bank_providers, platform_integration_*, platform_exchange_rates,
-  platform_demo_videos.
-
-Verification: `tsgo` clean; build OK; suite 31 failed / 301 passed files (52 tests) — no new
-failures versus the pre-migration run; customers-provider mock gap fixed (`.is` added), that
-file now passes.
-
-Carry-forward (not M3b):
-- `src/pages/AcceptOwnership.tsx` + route: SaaS ownership-transfer surface, retire in M7.
-- `useDemoVideos` / ResourceCenterLauncher write paths lost their platform-admin policy;
-  decide retire-vs-reown in M6.
-- Legacy `platform_admins`-shaped functions (payroll_supersede_v1_certificates,
-  prevent_privileged_user_demotion, etc.) still name the view; they resolve to false and
-  are removed with their own domains in M5/M7.
-
-Next: **M4 — printing/hardware decoupling**.
+**M4 — printing/hardware decoupling.** Nothing else. No loan-domain work until
+M4 and M5 are closed and verified.
