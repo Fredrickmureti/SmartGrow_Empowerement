@@ -625,7 +625,8 @@ export function useConsolidationEliminationMutations() {
       const { error } = await supabase
         .from("consolidation_elimination_rules")
         .upsert(
-          { ...input, organization_id: orgId },
+          // `warn`/`allow` are UI-only intents; the DB enum accepts the three posting policies.
+          { ...input, organization_id: orgId } as never,
           { onConflict: "group_id,elimination_class" },
         );
       if (error) throw toAppError(error);
