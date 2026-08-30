@@ -206,7 +206,10 @@ const shape = (result: { data: Record<string, unknown>[] }) =>
   }));
 
 const total = (result: { data: Record<string, unknown>[] }, label: string) =>
-  (result.data.find((r) => r.name === label)?.closing_balance as number) ?? NaN;
+  (result.data.find(
+    (r) => String(r.name ?? "").toUpperCase() === label.toUpperCase(),
+  )?.closing_balance as number) ?? NaN;
+
 
 // deno-lint-ignore no-explicit-any
 const client = (o?: { retainedEarningsAccountId?: string | null }) => fakeSupabase(o) as any;
