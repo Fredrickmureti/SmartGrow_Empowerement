@@ -50636,7 +50636,6 @@ export type Database = {
           failed_at: string | null
           format: string
           hardware_role: string | null
-          hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
@@ -50678,7 +50677,6 @@ export type Database = {
           failed_at?: string | null
           format: string
           hardware_role?: string | null
-          hw_command_id?: number | null
           id?: string
           intent: string
           last_error?: string | null
@@ -50720,7 +50718,6 @@ export type Database = {
           failed_at?: string | null
           format?: string
           hardware_role?: string | null
-          hw_command_id?: number | null
           id?: string
           intent?: string
           last_error?: string | null
@@ -50757,13 +50754,6 @@ export type Database = {
             columns: ["document_record_id"]
             isOneToOne: false
             referencedRelation: "document_records"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "print_jobs_hw_command_id_fkey"
-            columns: ["hw_command_id"]
-            isOneToOne: false
-            referencedRelation: "hardware_command_queue"
             referencedColumns: ["id"]
           },
           {
@@ -90236,7 +90226,6 @@ export type Database = {
           failed_at: string | null
           format: string
           hardware_role: string | null
-          hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
@@ -97686,14 +97675,6 @@ export type Database = {
         Args: { p_bill_id: string; p_po_id: string }
         Returns: Json
       }
-      mark_print_job_dispatched: {
-        Args: {
-          p_artifact_id?: string
-          p_hw_command_id?: number
-          p_job_id: string
-        }
-        Returns: undefined
-      }
       mark_print_job_failed: {
         Args: { p_error: string; p_job_id: string }
         Returns: undefined
@@ -100580,24 +100561,14 @@ export type Database = {
         }
         Returns: string
       }
-      print_job_mark_acked: {
-        Args: { p_hw_command_id: number }
-        Returns: number
-      }
       print_job_mark_acked_by_id: { Args: { p_id: string }; Returns: number }
       print_job_mark_failed: {
         Args: { p_error: string; p_id: string }
         Returns: undefined
       }
-      print_job_mark_sent: {
-        Args: { p_hw_command_id?: number; p_id: string }
-        Returns: undefined
-      }
+      print_job_mark_sent: { Args: { p_id: string }; Returns: undefined }
       print_job_resend: { Args: { p_id: string }; Returns: string }
-      print_jobs_settle: {
-        Args: { p_hw_command_id?: number; p_ids: string[] }
-        Returns: number
-      }
+      print_jobs_settle: { Args: { p_ids: string[] }; Returns: number }
       print_jobs_strand: {
         Args: { p_ids: string[]; p_reason?: string }
         Returns: number
@@ -102940,7 +102911,6 @@ export type Database = {
           failed_at: string | null
           format: string
           hardware_role: string | null
-          hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
