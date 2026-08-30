@@ -33,14 +33,12 @@ import { GlobalCreateMenu } from "./GlobalCreateMenu";
 interface AppAwareSidebarProps {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
-  onCreateOrg?: () => void;
   /** When true, sidebar renders inline (not fixed) for use inside a Sheet/Drawer */
   inline?: boolean;
 }
 export function AppAwareSidebar({
   collapsed = false,
   onToggleCollapse,
-  onCreateOrg,
   inline = false
 }: AppAwareSidebarProps) {
   const location = useLocation();
@@ -240,7 +238,7 @@ export function AppAwareSidebar({
       </div>
 
       {canSwitchScope && (
-        <ContextSwitcherSheet open={contextSheetOpen} onOpenChange={setContextSheetOpen} onCreateOrg={onCreateOrg} />
+        <ContextSwitcherSheet open={contextSheetOpen} onOpenChange={setContextSheetOpen} />
       )}
 
       {/* Collapse Toggle - hidden on mobile (Sheet handles close) */}

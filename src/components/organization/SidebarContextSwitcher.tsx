@@ -19,19 +19,16 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useCanSwitchScope } from "@/hooks/useCanSwitchScope";
 import { ContextSwitcherSheet } from "./ContextSwitcherSheet";
-import { CreateBusinessDialog } from "./CreateBusinessDialog";
 
 interface SidebarContextSwitcherProps {
   collapsed?: boolean;
-  onCreateOrg?: () => void;
 }
 
-export function SidebarContextSwitcher({ collapsed = false, onCreateOrg }: SidebarContextSwitcherProps) {
+export function SidebarContextSwitcher({ collapsed = false }: SidebarContextSwitcherProps) {
   const { currentOrg, isLoading: isOrgLoading } = useOrganization();
   const { currentBusiness, businesses, isLoading: isBusinessLoading } = useBusinesses();
   const { currentBranch, branches } = useBranch();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showCreateBusiness, setShowCreateBusiness] = useState(false);
   const { shouldShowTrigger } = useCanSwitchScope();
 
   // Treat the whole org → business chain as "loading" until both layers
@@ -82,11 +79,8 @@ export function SidebarContextSwitcher({ collapsed = false, onCreateOrg }: Sideb
           <ContextSwitcherSheet
             open={sheetOpen}
             onOpenChange={setSheetOpen}
-            onCreateOrg={onCreateOrg}
-            onCreateBusiness={() => setShowCreateBusiness(true)}
           />
         )}
-        <CreateBusinessDialog open={showCreateBusiness} onOpenChange={setShowCreateBusiness} />
       </>
     );
   }
@@ -124,11 +118,8 @@ export function SidebarContextSwitcher({ collapsed = false, onCreateOrg }: Sideb
         <ContextSwitcherSheet
           open={sheetOpen}
           onOpenChange={setSheetOpen}
-          onCreateOrg={onCreateOrg}
-          onCreateBusiness={() => setShowCreateBusiness(true)}
         />
       )}
-      <CreateBusinessDialog open={showCreateBusiness} onOpenChange={setShowCreateBusiness} />
     </>
   );
 }

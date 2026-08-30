@@ -42,7 +42,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Building2, LogOut, User, TrendingUp, TrendingDown, FileText, Receipt, ArrowUpRight, ArrowDownRight, Coins, LayoutDashboard, ShoppingCart, Wallet, PieChart, Users, Sparkles, Package, GitCompare } from "lucide-react";
-import { CreateOrganizationDialog } from "@/components/organization/CreateOrganizationDialog";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -58,7 +57,7 @@ import {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
-  const { organizations, currentOrg, isLoading: orgLoading, refreshOrganizations, createOrganization } = useOrganization();
+  const { organizations, currentOrg, isLoading: orgLoading, refreshOrganizations } = useOrganization();
   const { currentBusiness, businesses } = useBusinesses();
   const { stats, isLoading: statsLoading } = useDashboardStats();
   const { analytics, isLoading: analyticsLoading } = useDashboardAnalytics();
@@ -94,7 +93,6 @@ export default function Dashboard() {
     allowsWidget,
   } = composition;
   const { toast } = useToast();
-  const [showCreateOrg, setShowCreateOrg] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const navigate = useNavigate();
@@ -136,7 +134,7 @@ export default function Dashboard() {
     );
   }
 
-  // No organizations - show onboarding (tenant customers only)
+  // Single institution: workspaces are provisioned centrally, never self-served.
   if (organizations.length === 0) {
     return (
       <div className="min-h-screen bg-background">
@@ -144,11 +142,9 @@ export default function Dashboard() {
           <div className="container flex h-16 items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <svg className="w-5 h-5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-                </svg>
+                <Building2 className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg">AccrualFlow</span>
+              <span className="font-bold text-lg">Smart Grow Empowerment</span>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -163,33 +159,17 @@ export default function Dashboard() {
           </div>
         </header>
         <main className="container py-16">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8">
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                <Building2 className="w-10 h-10 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold mb-4">Welcome to AccrualFlow!</h1>
-              <p className="text-lg text-muted-foreground">
-                Let's get started by setting up your first organization.
-              </p>
+          <div className="max-w-xl mx-auto text-center">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+              <Building2 className="w-10 h-10 text-primary" />
             </div>
-            <Card className="text-left">
-              <CardHeader>
-                <CardTitle>Create Your Organization</CardTitle>
-                <CardDescription>
-                  An organization represents your business or company.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={() => setShowCreateOrg(true)} className="w-full" size="lg">
-                  <Plus className="mr-2 h-5 w-5" />
-                  Create Organization
-                </Button>
-              </CardContent>
-            </Card>
+            <h1 className="text-3xl font-bold mb-4">No institution access</h1>
+            <p className="text-lg text-muted-foreground">
+              Your account is not yet attached to the institution workspace. Ask a
+              Super Administrator to grant you access, then sign in again.
+            </p>
           </div>
         </main>
-        <CreateOrganizationDialog open={showCreateOrg} onOpenChange={setShowCreateOrg} onSuccess={refreshOrganizations} />
       </div>
     );
   }

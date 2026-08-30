@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/select";
 import { useBusinesses, Business, CreateBusinessInput } from "@/hooks/useBusinesses";
 import { useBranches, Branch } from "@/hooks/useBranches";
-import { CreateBusinessDialog } from "@/components/organization/CreateBusinessDialog";
 import { CreateBranchDialog } from "@/components/organization/CreateBranchDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -65,7 +64,6 @@ export function BusinessBranchSettings() {
   const { businesses, isLoading: isLoadingBusinesses, updateBusiness, deleteBusiness } = useBusinesses();
   const { canManageBusiness } = usePermissions();
   const { countries } = useCountries();
-  const [showCreateBusinessDialog, setShowCreateBusinessDialog] = useState(false);
   const [showCreateBranchDialog, setShowCreateBranchDialog] = useState(false);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [expandedBusinessId, setExpandedBusinessId] = useState<string | null>(null);
@@ -129,33 +127,19 @@ export function BusinessBranchSettings() {
                 Businesses
               </CardTitle>
               <CardDescription>
-                Manage separate business entities within your organization
+                The institution company and its branches
               </CardDescription>
             </div>
-            {canManageBusiness && (
-              <Button onClick={() => setShowCreateBusinessDialog(true)} className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Business
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent>
           {businesses.length === 0 ? (
             <div className="text-center py-12">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No businesses yet</h3>
+              <h3 className="text-lg font-medium mb-2">No company configured</h3>
               <p className="text-muted-foreground mb-4">
-                {canManageBusiness 
-                  ? "Create your first business to manage multiple entities"
-                  : "No businesses have been created yet"}
+The institution company has not been provisioned yet. Complete setup or contact a Super Administrator.
               </p>
-              {canManageBusiness && (
-                <Button onClick={() => setShowCreateBusinessDialog(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Business
-                </Button>
-              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -175,11 +159,6 @@ export function BusinessBranchSettings() {
           )}
         </CardContent>
       </Card>
-
-      <CreateBusinessDialog
-        open={showCreateBusinessDialog}
-        onOpenChange={setShowCreateBusinessDialog}
-      />
 
       {selectedBusinessId && (
         <CreateBranchDialog

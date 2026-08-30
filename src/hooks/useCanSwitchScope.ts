@@ -18,10 +18,7 @@
  * nothing to switch to).
  */
 import { useMemo } from "react";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useBusinesses } from "@/contexts/BusinessContext";
 import { useBranch } from "@/contexts/BranchContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import { useDashboardScope } from "@/hooks/useDashboardScope";
 
 export interface CanSwitchScopeResult {
@@ -54,34 +51,21 @@ export interface CanSwitchScopeResult {
 }
 
 export function useCanSwitchScope(): CanSwitchScopeResult {
-  const { organizations } = useOrganization();
-  const { businesses } = useBusinesses();
   const { branches } = useBranch();
-  const permissions = usePermissions();
   const dashboardScope = useDashboardScope();
 
   return useMemo(() => {
-    const hasAlternatives =
-      organizations.length >= 2 ||
-      businesses.length >= 2 ||
-      branches.length >= 2;
-    const canCreateAny =
-      !!permissions.canManageOrganization || !!permissions.canManageBusiness;
+    // Single institution: workspace and company are fixed, so only branch
+    // count and the consolidated reporting view can create alternatives.
+    const hasAlternatives = branches.length >= 2;
     const canSwitchToConsolidated =
       !!dashboardScope.isConsolidatedAuthorized && branches.length >= 2;
     return {
       hasAlternatives,
-      canCreateAny,
+      canCreateAny: false,
       canSwitchToConsolidated,
       shouldShowTrigger: hasAlternatives || canSwitchToConsolidated,
-      shouldShowCreateHint: !hasAlternatives && canCreateAny,
+      shouldShowCreateHint: false,
     };
-  }, [
-    organizations.length,
-    businesses.length,
-    branches.length,
-    permissions.canManageOrganization,
-    permissions.canManageBusiness,
-    dashboardScope.isConsolidatedAuthorized,
-  ]);
+  }, [branches.length, dashboardScope.isConsolidatedAuthorized]);
 }
