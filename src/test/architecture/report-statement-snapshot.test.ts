@@ -205,10 +205,13 @@ const shape = (result: { data: Record<string, unknown>[] }) =>
     grand: r._isGrandTotal === true,
   }));
 
-const total = (result: { data: Record<string, unknown>[] }, label: string) =>
-  (result.data.find(
+const total = (result: { data: Record<string, unknown>[] }, label: string) => {
+  const row = result.data.find(
     (r) => String(r.name ?? "").toUpperCase() === label.toUpperCase(),
-  )?.closing_balance as number) ?? NaN;
+  );
+  return ((row?.closing_balance ?? row?.balance) as number) ?? NaN;
+};
+
 
 
 // deno-lint-ignore no-explicit-any
