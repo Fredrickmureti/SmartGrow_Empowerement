@@ -102146,23 +102146,6 @@ export type Database = {
           account_name: string
         }[]
       }
-      preview_app_set_install: {
-        Args: { p_app_ids: string[]; p_org_id?: string }
-        Returns: {
-          app_id: string
-          depth: number
-          is_addon_only: boolean
-          is_already_installed: boolean
-          is_in_plan: boolean
-          is_root: boolean
-          pricing_currency: string
-          pricing_monthly: number
-        }[]
-      }
-      preview_install_impact: {
-        Args: { p_app_id: string; p_org_id: string }
-        Returns: Json
-      }
       preview_organization_reset: { Args: { org_id: string }; Returns: Json }
       preview_reversal_consequences: {
         Args: { _document_id: string; _document_type: string }
@@ -104991,10 +104974,6 @@ export type Database = {
       resolve_fx_unrealized_account: {
         Args: { p_business_id: string; p_kind: string }
         Returns: string
-      }
-      resolve_install_plan: {
-        Args: { p_app_id: string; p_org_id: string }
-        Returns: Json
       }
       resolve_label_template: {
         Args: {
