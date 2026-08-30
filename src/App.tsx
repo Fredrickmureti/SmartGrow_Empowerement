@@ -27,7 +27,6 @@ import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { RealtimeSyncProvider } from "./providers/RealtimeSyncProvider";
 import { GlobalAIAssistant } from "./components/ai/GlobalAIAssistant";
 import { AIAssistantProvider } from "@/contexts/AIAssistantContext";
-import { SubscriptionAccessProvider } from "@/contexts/SubscriptionAccessContext";
 import { ReadOnlyModeProvider } from "@/contexts/ReadOnlyModeContext";
 import { AuthenticatedShell } from "@/components/auth/AuthenticatedShell";
 import { OnboardingGate } from "@/components/auth/OnboardingGate";
@@ -155,7 +154,6 @@ const App = () => (
                     <ReportContextProvider>
                     <NavigationModeProvider>
 
-                      <SubscriptionAccessProvider>
                         <ReadOnlyModeProvider>
                           <RealtimeSyncProvider>
                             <TooltipProvider>
@@ -404,7 +402,6 @@ const App = () => (
                             </TooltipProvider>
                           </RealtimeSyncProvider>
                         </ReadOnlyModeProvider>
-                      </SubscriptionAccessProvider>
                     </NavigationModeProvider>
                     </ReportContextProvider>
                   </CurrencyProvider>

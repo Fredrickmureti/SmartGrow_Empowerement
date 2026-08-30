@@ -56,7 +56,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
-import { useEntitlementGate } from "@/hooks/useEntitlementGate";
+import { useActionGate } from "@/hooks/useActionGate";
 import { useOrganization } from "@/hooks/useOrganization";
 import { getDisplayName } from "@/lib/user-display-name";
 
@@ -120,8 +120,8 @@ const NAV_GROUPS: NavGroupDef[] = [
 ];
 
 function useVisibleGroups(): NavGroupDef[] {
-  const payroll = useEntitlementGate("payroll", "read");
-  const timesheets = useEntitlementGate("timesheets", "read");
+  const payroll = useActionGate("payroll", "read");
+  const timesheets = useActionGate("timesheets", "read");
   return useMemo(
     () =>
       NAV_GROUPS.map((g) => ({
