@@ -37,9 +37,11 @@ function read(rel: string): string {
   return readFileSync(p, "utf-8");
 }
 
+// The LATEST migration wins: these objects are `CREATE OR REPLACE`d over time,
+// so only the most recent definition describes live behaviour.
 function findMigrationContaining(needle: string): string {
   const dir = join(process.cwd(), "supabase/migrations");
-  const files = readdirSync(dir).sort();
+  const files = readdirSync(dir).sort().reverse();
   for (const f of files) {
     const body = readFileSync(join(dir, f), "utf-8");
     if (body.includes(needle)) return body;
@@ -54,7 +56,7 @@ describe("Portal identity invariants", () => {
     );
 
     it("queries employees by user_id BEFORE user_roles", () => {
-      const empIdx = sql.indexOf("FROM public.employees e\n     WHERE e.user_id = v_user");
+      const empIdx = sql.search(/FROM public\.employees e\s+WHERE e\.user_id = v_user/);
       const roleIdx = sql.indexOf("FROM public.user_roles");
       expect(empIdx).toBeGreaterThan(-1);
       expect(roleIdx).toBeGreaterThan(-1);
@@ -103,13 +105,19 @@ describe("Portal identity invariants", () => {
   describe("Rule 4 — EmployeeLinkDialog filters inactive members", () => {
     const src = read("src/components/employees/EmployeeLinkDialog.tsx");
 
-    it("filters user_roles by is_active = true", () => {
-      // Find the user_roles select and assert an .eq("is_active", true) follows
-      // before the next .from( / await / ; boundary.
-      const idx = src.indexOf('.from("user_roles")');
-      expect(idx).toBeGreaterThan(-1);
-      const window = src.slice(idx, idx + 400);
-      expect(window).toMatch(/\.eq\(\s*["']is_active["']\s*,\s*true\s*\)/);
+    it("delegates candidate lookup to the server-side RPC", () => {
+      // Wave H F4 moved the candidate query behind a SECURITY DEFINER RPC that
+      // gates on hr.write and masks email; the client must not re-query
+      // user_roles directly.
+      expect(src).toMatch(/get_linkable_users_for_employee/);
+      expect(src).not.toMatch(/\.from\(\s*["']user_roles["']\s*\)/);
+    });
+
+    it("the RPC itself filters user_roles by is_active = true", () => {
+      const rpcSql = findMigrationContaining(
+        "get_linkable_users_for_employee",
+      );
+      expect(rpcSql).toMatch(/ur\.is_active\s*=\s*true/);
     });
   });
 
