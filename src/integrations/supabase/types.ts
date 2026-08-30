@@ -24536,170 +24536,6 @@ export type Database = {
           },
         ]
       }
-      hardware_command_queue: {
-        Row: {
-          attempts: number
-          branch_id: string | null
-          business_event_id: string | null
-          claim_lease_seconds: number
-          claimed_at: string | null
-          claimed_by: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          device_assignment_id: string | null
-          id: number
-          idempotency_key: string
-          last_error: string | null
-          max_attempts: number
-          next_attempt_at: string | null
-          op: string
-          org_id: string
-          payload: Json
-          role: string
-          source_doc_id: string | null
-          source_doc_type: string | null
-          status: Database["public"]["Enums"]["hardware_command_status"]
-          worker_id: string | null
-        }
-        Insert: {
-          attempts?: number
-          branch_id?: string | null
-          business_event_id?: string | null
-          claim_lease_seconds?: number
-          claimed_at?: string | null
-          claimed_by?: string | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          device_assignment_id?: string | null
-          id?: number
-          idempotency_key: string
-          last_error?: string | null
-          max_attempts?: number
-          next_attempt_at?: string | null
-          op: string
-          org_id: string
-          payload?: Json
-          role: string
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["hardware_command_status"]
-          worker_id?: string | null
-        }
-        Update: {
-          attempts?: number
-          branch_id?: string | null
-          business_event_id?: string | null
-          claim_lease_seconds?: number
-          claimed_at?: string | null
-          claimed_by?: string | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          device_assignment_id?: string | null
-          id?: number
-          idempotency_key?: string
-          last_error?: string | null
-          max_attempts?: number
-          next_attempt_at?: string | null
-          op?: string
-          org_id?: string
-          payload?: Json
-          role?: string
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["hardware_command_status"]
-          worker_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "hardware_command_queue_business_event_id_fkey"
-            columns: ["business_event_id"]
-            isOneToOne: false
-            referencedRelation: "business_event_outbox"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hardware_command_queue_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      hardware_exec_log: {
-        Row: {
-          actor_user_id: string | null
-          business_event_id: string | null
-          business_id: string | null
-          created_at: string
-          duration_ms: number | null
-          error_code: string | null
-          error_message: string | null
-          id: string
-          idempotency_key: string | null
-          is_reprint: boolean
-          ok: boolean
-          op: string
-          org_id: string
-          reprint_reason: string | null
-          role: string
-          runtime_reason: string | null
-          source_doc_id: string | null
-          source_doc_type: string | null
-        }
-        Insert: {
-          actor_user_id?: string | null
-          business_event_id?: string | null
-          business_id?: string | null
-          created_at?: string
-          duration_ms?: number | null
-          error_code?: string | null
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string | null
-          is_reprint?: boolean
-          ok: boolean
-          op: string
-          org_id: string
-          reprint_reason?: string | null
-          role: string
-          runtime_reason?: string | null
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-        }
-        Update: {
-          actor_user_id?: string | null
-          business_event_id?: string | null
-          business_id?: string | null
-          created_at?: string
-          duration_ms?: number | null
-          error_code?: string | null
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string | null
-          is_reprint?: boolean
-          ok?: boolean
-          op?: string
-          org_id?: string
-          reprint_reason?: string | null
-          role?: string
-          runtime_reason?: string | null
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "hardware_exec_log_business_event_id_fkey"
-            columns: ["business_event_id"]
-            isOneToOne: false
-            referencedRelation: "business_event_outbox"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       hr_document_categories: {
         Row: {
           business_id: string
@@ -90125,86 +89961,6 @@ export type Database = {
               isSetofReturn: true
             }
           }
-      claim_next_hardware_command:
-        | {
-            Args: {
-              p_branch_id?: string
-              p_claimant: string
-              p_limit?: number
-              p_org_id: string
-            }
-            Returns: {
-              attempts: number
-              branch_id: string | null
-              business_event_id: string | null
-              claim_lease_seconds: number
-              claimed_at: string | null
-              claimed_by: string | null
-              completed_at: string | null
-              created_at: string
-              created_by: string | null
-              device_assignment_id: string | null
-              id: number
-              idempotency_key: string
-              last_error: string | null
-              max_attempts: number
-              next_attempt_at: string | null
-              op: string
-              org_id: string
-              payload: Json
-              role: string
-              source_doc_id: string | null
-              source_doc_type: string | null
-              status: Database["public"]["Enums"]["hardware_command_status"]
-              worker_id: string | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "hardware_command_queue"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
-        | {
-            Args: {
-              p_branch_id: string
-              p_claimant: string
-              p_device_assignment_id: string
-              p_limit: number
-              p_org_id: string
-            }
-            Returns: {
-              attempts: number
-              branch_id: string | null
-              business_event_id: string | null
-              claim_lease_seconds: number
-              claimed_at: string | null
-              claimed_by: string | null
-              completed_at: string | null
-              created_at: string
-              created_by: string | null
-              device_assignment_id: string | null
-              id: number
-              idempotency_key: string
-              last_error: string | null
-              max_attempts: number
-              next_attempt_at: string | null
-              op: string
-              org_id: string
-              payload: Json
-              role: string
-              source_doc_id: string | null
-              source_doc_type: string | null
-              status: Database["public"]["Enums"]["hardware_command_status"]
-              worker_id: string | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "hardware_command_queue"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
       claim_pick_task: { Args: { p_task_id: string }; Returns: Json }
       claim_print_jobs: {
         Args: { p_batch_size?: number }
@@ -90300,7 +90056,6 @@ export type Database = {
         }
       }
       cleanup_automation_tracker: { Args: never; Returns: undefined }
-      cleanup_old_hardware_exec_log: { Args: never; Returns: number }
       cleanup_old_spreadsheet_versions: { Args: never; Returns: number }
       cleanup_orphan_signups: {
         Args: never
@@ -90500,10 +90255,6 @@ export type Database = {
       complete_goods_receipt_atomic: {
         Args: { p_grn_id: string; p_user_id: string }
         Returns: Json
-      }
-      complete_hardware_command: {
-        Args: { p_error?: string; p_id: number; p_success: boolean }
-        Returns: undefined
       }
       complete_onboarding: {
         Args: {
@@ -93931,21 +93682,6 @@ export type Database = {
             Returns: string
           }
         | { Args: { p_transmission_id: string }; Returns: string }
-      enqueue_hardware_command: {
-        Args: {
-          p_branch_id: string
-          p_business_event_id?: string
-          p_device_assignment_id: string
-          p_idempotency_key: string
-          p_op: string
-          p_org_id: string
-          p_payload: Json
-          p_role: string
-          p_source_doc_id?: string
-          p_source_doc_type?: string
-        }
-        Returns: number
-      }
       enqueue_inventory_sms: {
         Args: {
           _business_id: string
@@ -101568,7 +101304,6 @@ export type Database = {
           reclaimed_id: string
         }[]
       }
-      reclaim_stale_hardware_commands: { Args: never; Returns: number }
       recompute_loan_schedule: { Args: { _loan_id: string }; Returns: number }
       recompute_payroll_liability_totals: {
         Args: { _liability_id: string }
@@ -108906,12 +108641,6 @@ export type Database = {
         | "wrong_item"
         | "expired"
         | "quality_hold"
-      hardware_command_status:
-        | "pending"
-        | "running"
-        | "done"
-        | "failed"
-        | "dead"
       inbound_shipment_status:
         | "draft"
         | "dispatched"
@@ -110092,7 +109821,6 @@ export const Constants = {
         "expired",
         "quality_hold",
       ],
-      hardware_command_status: ["pending", "running", "done", "failed", "dead"],
       inbound_shipment_status: [
         "draft",
         "dispatched",
