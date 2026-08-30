@@ -49,7 +49,7 @@ export function AppTileCard({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const AppIcon = app.icon;
-  const isComingSoon = app.comingSoon || entitlementState === "coming_soon";
+  const isComingSoon = Boolean(app.comingSoon);
   // Only "coming soon" or RBAC-locked tiles are visually muted. Paywall/addon
   // tiles stay clickable — clicking opens the landing page where the user can
   // start a trial or subscribe (Odoo pattern: never blur away the marketplace).
@@ -197,31 +197,6 @@ export function AppTileCard({
         )}>
           {app.description}
         </p>
-      )}
-
-      {!isInstalled && !isComingSoon && entitlementState && (
-        <div className="mt-2 flex min-h-5 flex-wrap items-center justify-center gap-1">
-          {entitlementState === "in_plan" && (
-            <Badge variant="secondary" className="text-[10px] gap-1">
-              <Check className="h-3 w-3" /> Included
-            </Badge>
-          )}
-          {entitlementState === "trial" && (
-            <Badge className="text-[10px] gap-1 bg-primary/15 text-primary hover:bg-primary/20 border-transparent">
-              <Sparkles className="h-3 w-3" /> {trialDaysLeft != null ? `${trialDaysLeft}d trial` : "Trial"}
-            </Badge>
-          )}
-          {entitlementState === "addon" && (
-            <Badge variant="outline" className="text-[10px] gap-1">
-              <Tag className="h-3 w-3" /> {addonPriceLabel ?? "Add-on"}
-            </Badge>
-          )}
-          {entitlementState === "expired_trial" && (
-            <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
-              <Clock className="h-3 w-3" /> Trial ended
-            </Badge>
-          )}
-        </div>
       )}
 
       {/* Action button — every state has a clear, distinct CTA */}
