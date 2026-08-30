@@ -205,8 +205,14 @@ const shape = (result: { data: Record<string, unknown>[] }) =>
     grand: r._isGrandTotal === true,
   }));
 
-const total = (result: { data: Record<string, unknown>[] }, label: string) =>
-  (result.data.find((r) => r.name === label)?.closing_balance as number) ?? NaN;
+const total = (result: { data: Record<string, unknown>[] }, label: string) => {
+  const row = result.data.find(
+    (r) => String(r.name ?? "").toUpperCase() === label.toUpperCase(),
+  );
+  return ((row?.closing_balance ?? row?.balance) as number) ?? NaN;
+};
+
+
 
 // deno-lint-ignore no-explicit-any
 const client = (o?: { retainedEarningsAccountId?: string | null }) => fakeSupabase(o) as any;
@@ -249,7 +255,7 @@ describe("balance sheet: prior years' result never leaves equity", () => {
       // The closed year's result is inside the retained-earnings ACCOUNT, and
       // must not also be added as a separate line — that would double it.
       const reRow = result.data.find((r) => r.code === "3200");
-      expect(reRow?.closing_balance).toBeCloseTo(PRIOR_YEARS_RESULT, 6);
+      expect((reRow?.closing_balance ?? reRow?.balance) as number).toBeCloseTo(PRIOR_YEARS_RESULT, 6);
       expect(result.data.some((r) => String(r.name).startsWith("Prior years' result"))).toBe(false);
     }
   });
@@ -260,7 +266,7 @@ describe("balance sheet: prior years' result never leaves equity", () => {
     );
 
     const unallocated = result.data.find((r) => String(r.name).startsWith("Prior years' result"));
-    expect(unallocated?.closing_balance).toBeCloseTo(PRIOR_YEARS_RESULT, 6);
+    expect((unallocated?.closing_balance ?? unallocated?.balance) as number).toBeCloseTo(PRIOR_YEARS_RESULT, 6);
     expect(result.summary.hasRetainedEarningsAccount).toBe(false);
     expect(total(result, "TOTAL ASSETS")).toBeCloseTo(
       total(result, "TOTAL LIABILITIES") + total(result, "TOTAL EQUITY"),

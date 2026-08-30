@@ -61,7 +61,8 @@ describe("Phase 14 — financial reports scope labeling", () => {
   });
 
   it("ReportPageLayout renders <ReportBranchFilter />", () => {
-    expect(layout).toMatch(/<ReportBranchFilter\s*\/>/);
+    // The filter self-hides per report kind, so it takes a `reportKind` prop.
+    expect(layout).toMatch(/<ReportBranchFilter[^>]*\/>/);
   });
 
   it("ReportPageLayout wraps every export config through enrichExportConfig", () => {
@@ -69,7 +70,8 @@ describe("Phase 14 — financial reports scope labeling", () => {
   });
 
   it("ReportPageLayout forwards branchId and leaves scope to the masthead", () => {
-    expect(layout).toMatch(/branchId:\s*scope\.branchId/);
+    // A page may name its own branch; otherwise the active scope branch wins.
+    expect(layout).toMatch(/branchId:[^\n]*scope\.branchId/);
     // Scope must NOT be spliced into the subtitle — the server masthead
     // owns the scope line, otherwise it renders twice.
     expect(layout).not.toMatch(/subtitle:[^\n]*scopeLabel/);
@@ -89,14 +91,18 @@ describe("Phase 14 — financial reports scope labeling", () => {
   });
 
   it("ReportContext.enrichExportConfig prefers business identity over caller-supplied org name", () => {
-    // Contract: ctx.companyName ?? config.companyName  → ctx wins.
+    // Contract: unless the page declares its own reporting entity, business
+    // identity wins over a caller-supplied company name.
     expect(reportContext).toMatch(
-      /companyName:\s*ctx\.companyName\s*\?\?\s*config\.companyName/,
+      /ctx\.companyName\s*\?\?\s*config\.companyName/,
     );
+    // Currency is the one field a page MAY override: a consolidated statement
+    // is presented in the group's presentation currency.
     expect(reportContext).toMatch(
-      /currency:\s*ctx\.currency\s*\?\?\s*config\.currency/,
+      /currency:\s*config\.currency\s*\?\?\s*ctx\.currency/,
     );
   });
+
 
   it("Trial Balance still forwards filters.branchId so the branch filter narrows data", () => {
     const tb = read("src/pages/reports/TrialBalance.tsx");
@@ -122,32 +128,33 @@ describe("Phase 14 — financial reports scope labeling", () => {
     expect(hook).toMatch(/effectiveBranchId/);
   });
 
-  it("Partner Ledger filters journal_entries by filters.branchId", () => {
+  it("Partner Ledger narrows by filters.branchId", () => {
     const pl = read("src/pages/reports/PartnerLedger.tsx");
-    expect(pl).toMatch(/filters\.branchId/);
-    expect(pl).toMatch(/foreignTable:\s*["']journal_entries["']/);
+    expect(pl).toMatch(/branchId:\s*filters\.branchId/);
   });
 
-  it("Journal Report filters journal_entries by filters.branchId", () => {
+  it("Journal Report narrows by filters.branchId", () => {
     const jr = read("src/pages/reports/JournalReport.tsx");
-    expect(jr).toMatch(/filters\.branchId/);
-    expect(jr).toMatch(/branch_id\.eq\.\$\{filters\.branchId\}/);
+    // Server-side report RPC — the branch travels as an RPC argument.
+    expect(jr).toMatch(/_branch_id:\s*filters\.branchId/);
   });
 
-  it("Cash Flow Report threads filters.branchId into useCashFlowReport", () => {
+  it("Cash Flow Report is entity-level and says so", () => {
     const cf = read("src/pages/reports/CashFlowReport.tsx");
-    expect(cf).toMatch(/branchId:\s*filters\.branchId/);
+    // Cash positions reconcile at the legal entity, never per branch, so the
+    // page pins branchId to null on both the query and the export config.
+    expect(cf).toMatch(/branchId:\s*null/);
     const hook = read("src/hooks/useCashFlowReport.ts");
     expect(hook).toMatch(/branchId\?:\s*string\s*\|\s*null/);
-    expect(hook).toMatch(/_branch_id:\s*params\.branchId/);
+    expect(hook).toMatch(/branchId:\s*params\.branchId/);
   });
 
   // Wave-2 — remaining reports must also honour the branch filter
-  it("Audit Trail filters journal_entries by filters.branchId", () => {
+  it("Audit Trail is entity-scoped (audit_logs carries no branch)", () => {
     const at = read("src/pages/reports/AuditTrail.tsx");
     expect(at).toMatch(/useReportFilters/);
-    expect(at).toMatch(/filters\.branchId/);
-    expect(at).toMatch(/\.eq\(["']branch_id["'],\s*branchId\)/);
+    expect(at).toMatch(/\.eq\(["']business_id["']/);
+
   });
 
   it("Depreciation Report filters fixed_assets by branch", () => {

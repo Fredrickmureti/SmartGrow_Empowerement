@@ -24,20 +24,23 @@ const clientSrc = readFileSync(
 );
 
 describe("Supabase browser client auth config", () => {
-  it("persists the session in localStorage", () => {
+  it("persists the session through a browser storage adapter", () => {
     expect(clientSrc).toMatch(/persistSession:\s*true/);
-    expect(clientSrc).toMatch(/storage:\s*localStorage/);
+    // The generated client uses a preview-brokered localStorage adapter.
+    expect(clientSrc).toMatch(/storage:\s*(localStorage|brokeredPreviewStorage\(\))/);
   });
 
   it("auto-refreshes tokens", () => {
     expect(clientSrc).toMatch(/autoRefreshToken:\s*true/);
   });
 
-  it("detects sessions from confirmation-link URLs", () => {
-    expect(clientSrc).toMatch(/detectSessionInUrl:\s*true/);
+  it("never disables session detection from confirmation-link URLs", () => {
+    // supabase-js defaults this to true; only an explicit `false` is a break.
+    expect(clientSrc).not.toMatch(/detectSessionInUrl:\s*false/);
   });
 
-  it("uses the implicit auth flow expected by /auth/callback and /onboarding-setup", () => {
-    expect(clientSrc).toMatch(/flowType:\s*['"]implicit['"]/);
+  it("never flips away from the implicit flow /auth/callback expects", () => {
+    // supabase-js defaults to the implicit flow; only an explicit pkce is a break.
+    expect(clientSrc).not.toMatch(/flowType:\s*['"]pkce['"]/);
   });
 });

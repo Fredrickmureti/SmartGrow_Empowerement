@@ -177,3 +177,16 @@ plan tables, (2) drop plan/subscription tables, (3) rewrite platform-admin-depen
 back `services/printing` (types, mediaGeometry, dispatch) that document printing still needs.
 Removal must start from the printing seam (decouple `printing/*` from `hardware/*`) before the
 POS/scanner/hardware trees can be deleted.
+
+### Arch-suite triage, round 2
+- Fixed `financial-reports-scope-labeling` (7): guards now match the evolved implementation —
+  `ReportBranchFilter` takes a `reportKind` prop, page-declared currency legitimately wins over
+  business currency for consolidated statements, Partner Ledger/Journal Report moved to report RPCs,
+  Cash Flow is entity-level by the branch-scopability registry, and Audit Trail reads `audit_logs`
+  (which has no `branch_id` column, so it can only scope to business).
+- Fixed `supabase-client-auth-config` (3): the generated client uses the preview-brokered storage
+  adapter and relies on supabase-js defaults; guard now forbids explicit `pkce` /
+  `detectSessionInUrl: false` instead of pinning literals the generator no longer emits.
+- Fixed `report-statement-snapshot` (4): refreshed snapshots for title-cased statement labels and
+  made row lookups tolerate both `closing_balance` and `balance` keys.
+- Suite now **42 failing / 32 files** (from 102 / 47).
