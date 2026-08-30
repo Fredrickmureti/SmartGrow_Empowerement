@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Loader2, Check, Package, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Check, Package } from "lucide-react";
 import { APP_REGISTRY, getAppById } from "@/lib/apps/registry";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
