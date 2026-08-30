@@ -61,7 +61,8 @@ describe("Phase 14 — financial reports scope labeling", () => {
   });
 
   it("ReportPageLayout renders <ReportBranchFilter />", () => {
-    expect(layout).toMatch(/<ReportBranchFilter\s*\/>/);
+    // The filter self-hides per report kind, so it takes a `reportKind` prop.
+    expect(layout).toMatch(/<ReportBranchFilter[^>]*\/>/);
   });
 
   it("ReportPageLayout wraps every export config through enrichExportConfig", () => {
@@ -69,7 +70,8 @@ describe("Phase 14 — financial reports scope labeling", () => {
   });
 
   it("ReportPageLayout forwards branchId and leaves scope to the masthead", () => {
-    expect(layout).toMatch(/branchId:\s*scope\.branchId/);
+    // A page may name its own branch; otherwise the active scope branch wins.
+    expect(layout).toMatch(/branchId:[^\n]*scope\.branchId/);
     // Scope must NOT be spliced into the subtitle — the server masthead
     // owns the scope line, otherwise it renders twice.
     expect(layout).not.toMatch(/subtitle:[^\n]*scopeLabel/);
@@ -89,14 +91,18 @@ describe("Phase 14 — financial reports scope labeling", () => {
   });
 
   it("ReportContext.enrichExportConfig prefers business identity over caller-supplied org name", () => {
-    // Contract: ctx.companyName ?? config.companyName  → ctx wins.
+    // Contract: unless the page declares its own reporting entity, business
+    // identity wins over a caller-supplied company name.
     expect(reportContext).toMatch(
-      /companyName:\s*ctx\.companyName\s*\?\?\s*config\.companyName/,
+      /ctx\.companyName\s*\?\?\s*config\.companyName/,
     );
+    // Currency is the one field a page MAY override: a consolidated statement
+    // is presented in the group's presentation currency.
     expect(reportContext).toMatch(
-      /currency:\s*ctx\.currency\s*\?\?\s*config\.currency/,
+      /currency:\s*config\.currency\s*\?\?\s*ctx\.currency/,
     );
   });
+
 
   it("Trial Balance still forwards filters.branchId so the branch filter narrows data", () => {
     const tb = read("src/pages/reports/TrialBalance.tsx");
