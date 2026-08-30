@@ -168,10 +168,12 @@ schedule engine per interest method/frequency. Disbursement is a guarded,
 idempotent business event posting through the mapping registry.
 
 ### M12 — Payments, allocation, arrears, collections
-Full/partial/over payments, configurable allocation order (never hardcoded),
-reversals and adjustments. Arrears, DPD and PAR derived from schedule vs actual
-payments. Collections activity, visits, promises to pay, outcomes — scoped to
-officer portfolios.
+Staff-recorded repayments collected at group meetings (batch entry per meeting,
+with per-member receipts), plus full/partial/over payments, configurable
+allocation order (never hardcoded), reversals and adjustments. Arrears, DPD and
+PAR derived from schedule vs actual payments. Collections activity, visits,
+promises to pay, outcomes — scoped to officer portfolios. No client self-service
+payment surface.
 
 ### M13 — Lifecycle exceptions
 Top-up, restructuring, write-off, closure as distinct event-sourced processes.
@@ -204,4 +206,14 @@ dead-code removal.
   procurement, RFQ, supplier lifecycle and receiving.
 
 ## Currently active phase
-M3 closure (items 1–4 above). No loan-domain work until M3 is closed.
+M3 is CLOSED (entitlement logic rewritten plan-free; plan/trial/billing
+functions and tables dropped; typecheck clean, build OK).
+M4 in progress: `services/pos`, `services/scanner`, scanner drivers and their
+arch tests are removed; typecheck is clean. Remaining in M4: prune the
+file-manifest architecture tests that still reference deleted retail surfaces
+(suite currently at 46 failing files vs the 32-file baseline), decouple
+`services/printing` from `services/hardware` (PDF/document printing stays),
+then reduce HR to system actors and drop the payroll/attendance schema
+(including the payroll `%loan%` tables) one migration per cohesive group.
+No loan-domain work until M4 is closed. When domain work starts, obey the
+"Domain operating model" and "Legacy data policy" sections above.
