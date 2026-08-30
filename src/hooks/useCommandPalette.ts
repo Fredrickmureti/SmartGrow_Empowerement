@@ -281,6 +281,5 @@ export function useCommandPalette(): UseCommandPaletteResult {
     accessibleCount: accessible.length,
     parsed,
     currentAppId,
-    activeSurface,
   };
 }
