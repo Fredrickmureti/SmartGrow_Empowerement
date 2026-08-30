@@ -12,8 +12,6 @@
  *     → render
  *     → resolve device
  *     → dispatch.toDevice
- *     → execForIntent
- *     → hardwareClient.execAssignment
  *     → Agent → Printer
  *     → update job status
  *
@@ -112,40 +110,18 @@ describe('printing architecture — no legacy pipelines survive', () => {
 // 2. One dispatcher. One device resolution. One agent call.
 // ────────────────────────────────────────────────────────────────────
 
-describe('printing architecture — one hardware dispatch implementation', () => {
-  it('only dispatch.ts calls execForIntent', () => {
-    expect(filesMatching(/\bexecForIntent\s*\(/, ['services/hardware/execForIntent.ts'])).toEqual([
-      'services/printing/dispatch.ts',
-    ]);
+describe('printing architecture — one dispatch implementation', () => {
+  it('no module imports a hardware or label subsystem (M4: decoupled)', () => {
+    expect(
+      filesMatching(/from\s+["']@\/(services\/hardware|hooks\/hardware|services\/printing\/(labelDispatch|labelCompiler|mediaGeometry))/),
+    ).toEqual([]);
   });
 
-  it('only execForIntent calls hardwareClient.execAssignment', () => {
-    const callers = filesMatching(/hardwareClient\.execAssignment\s*\(/, [
-      'services/hardware/HardwareClient.ts',
-    ]);
-    // `useHardwareProxy` is the raw hardware console seam (test prints,
-    // drawer kicks, device diagnostics) — it never renders or ledgers a
-    // business document. Document printing has exactly one caller.
-    expect(callers.sort()).toEqual(
-      ['hooks/hardware/useHardwareProxy.ts', 'services/hardware/execForIntent.ts'].sort(),
-    );
-  });
-
-  it('dispatch.ts is the only module that decides pdf/thermal/download transport', () => {
+  it('dispatch.ts is the only module that decides page/download transport', () => {
     const dispatch = read('services/printing/dispatch.ts');
-    expect(dispatch).toMatch(/export async function toDevice/);
+    expect(dispatch).not.toMatch(/export async function toDevice/);
     expect(dispatch).toMatch(/export (async )?function toPage/);
     expect(dispatch).toMatch(/export (async )?function toDownload/);
-  });
-
-  it('device resolution stays inside execForIntent', () => {
-    // A caller that resolves `device_assignments` itself and then talks to
-    // the agent has forked the resolution path.
-    const rogue = filesMatching(/from\(['"]device_assignments['"]\)/, [
-      'services/hardware/execForIntent.ts',
-      'services/hardware/HardwareClient.ts',
-    ]).filter((f) => /execAssignment\s*\(/.test(read(f)));
-    expect(rogue).toEqual([]);
   });
 });
 
@@ -204,11 +180,6 @@ describe('printing architecture — one rendering pipeline', () => {
     expect(callers).toEqual(['services/printing/render.ts']);
   });
 
-  it('label rendering produces a payload and does not dispatch', () => {
-    const label = read('services/printing/labelDispatch.ts');
-    expect(label).toMatch(/export async function renderLabelPayload/);
-    expect(label).not.toMatch(/execForIntent|hardwareClient/);
-  });
 });
 
 // ────────────────────────────────────────────────────────────────────

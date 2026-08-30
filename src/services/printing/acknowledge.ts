@@ -62,7 +62,7 @@ export function acknowledge(
     if (options.silentTerminal || result.success) return;
     toast(
       printOutcomeToast(
-        { success: false, error: result.error, needsDevice: result.needsDevice },
+        { success: false, error: result.error },
         options.label,
       ),
     );

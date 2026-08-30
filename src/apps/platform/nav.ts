@@ -15,7 +15,6 @@ import {
   Truck,
   GitCompare,
   ScanLine,
-  Cpu,
   UserCog,
   History,
 
@@ -40,7 +39,6 @@ export const PLATFORM_NAV: WorkspaceNav = {
         { to: "/settings/carriers",  label: "Carriers",         icon: Truck },
         { to: "/settings/migration", label: "Data Migration",   icon: GitCompare },
         { to: "/settings/scanner",   label: "Scanner",          icon: ScanLine },
-        { to: "/platform/hardware/devices", label: "Hardware Devices", icon: Cpu },
       ],
     },
 

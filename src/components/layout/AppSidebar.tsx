@@ -71,7 +71,6 @@ import {
   LayoutGrid,
   ChefHat,
   Calendar,
-  Cpu,
 } from "lucide-react";
 import { FileEdit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -191,7 +190,6 @@ const mainNavItems: NavItem[] = [
 const systemNavItems: NavItem[] = [
   { title: "Studio", href: "/studio", icon: Wand2, permission: "editSettings" },
   { title: "Team", href: "/team", icon: UserPlus, permission: "manageTeam" },
-  { title: "Hardware", href: "/platform/hardware/devices", icon: Cpu, permission: "editSettings" },
   { title: "Settings", href: "/settings", icon: Settings, permission: "editSettings" },
 ];
 

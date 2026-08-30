@@ -100,7 +100,6 @@ const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
 const FinanceApp = lazy(() => import("@/apps/finance/routes"));
 const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
-// Wave 5 (Phase 3): hardware lifted out of POS to platform.
 const HRApp = lazy(() => import("@/apps/hr/routes"));
 // My Workspace — employee self-service shell (not an installable app, gated by employment)
 const MeApp = lazy(() => import("@/apps/me/MeApp"));
@@ -160,12 +159,6 @@ const App = () => (
                               <Toaster />
                               <Sonner />
                               <ConnectivityBanner />
-                              {/* Phase 2 hardware platform: mirror device_assignments → Electron SQLite cache. No-op in browser. */}
-                              
-                              {/* AccrualFlow Edge: hydrate browser runtime from device_assignments (station-scoped rows) and route HTTPS-origin jobs through Supabase. */}
-                              
-                              {/* Phase 3 hardware platform: feed active org/business into the exec-log writer. */}
-                              
                               {/* Print recovery: reclaim print jobs stranded by a crashed session. */}
                               <PrintRecoveryMount />
                               <AIAssistantProvider>

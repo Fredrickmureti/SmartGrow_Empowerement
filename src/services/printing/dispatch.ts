@@ -1,45 +1,19 @@
 /**
- * printing/dispatch — the ONE hardware seam for printing.
+ * printing/dispatch — the ONE outbound seam for printing.
  *
- * Everything that ends up on physical media leaves the application here,
- * and only here. Two transports exist, chosen by the rendered medium, not
- * by the document type:
+ * Output leaves the application here, and only here. Two dispositions
+ * exist, chosen by what the operator asked for, never by document type:
  *
- *   - device transport (`toDevice`): the platform resolves the winning
- *     `device_assignments` row for the requested intent via the
- *     server-authoritative `resolve_device` RPC, then `hardwareClient`
- *     routes the bytes to the local agent / Electron main process. The
- *     agent keeps a per-endpoint FIFO queue, which is what makes rapid
- *     consecutive prints come out in click order.
- *   - page transport (`toPage`): the platform print dialog, for PDF on a
- *     desktop/office printer.
+ *   - page transport (`toPage`): the platform print dialog, for PDF on
+ *     whichever printer the operator selected in the OS.
+ *   - download (`toDownload`): the artifact is saved as a file.
  *
- * There is deliberately no "try the other one" fallback. A print that
- * silently lands somewhere the operator did not choose is worse than a
- * visible refusal, so an unbound intent returns `no_device_bound` and the
- * UI routes the operator to Platform → Hardware.
+ * There is deliberately no device/driver transport. This institution
+ * prints documents; it does not own a managed printer estate, so the OS
+ * printer selection is the only device binding the system knows about.
  */
-import { execForIntent, NO_DEVICE_BOUND } from '@/services/hardware/execForIntent';
 import { printPdfInPage, downloadPdfBlob } from '@/services/printing/pdfUtils';
 import type { PrintTransport } from './jobs';
-
-export { NO_DEVICE_BOUND };
-
-export interface DeviceDispatchInput {
-  /** Business intent (`receipt`, `label`, `kitchen_ticket`, …) or a bare role. */
-  intentOrRole: string;
-  op: string;
-  payload: unknown;
-  organizationId: string | null | undefined;
-  businessId?: string | null;
-  idempotencyKey?: string;
-  sourceDocType?: string | null;
-  sourceDocId?: string | null;
-  businessEventId?: string | null;
-  isReprint?: boolean;
-  /** Trace key of the originating print, for the diagnostics waterfall. */
-  correlationId?: string;
-}
 
 export interface DispatchOutcome {
   success: boolean;
@@ -58,30 +32,6 @@ export interface PageDispatchOptions {
   onHandedToHost?: () => void;
 }
 
-/** Send bytes/payload to the printer the platform resolves for this intent. */
-export async function toDevice(input: DeviceDispatchInput): Promise<DispatchOutcome> {
-  const res = await execForIntent({
-    intentOrRole: input.intentOrRole,
-    op: input.op,
-    payload: input.payload,
-    organizationId: input.organizationId ?? null,
-    businessId: input.businessId ?? null,
-    idempotencyKey: input.idempotencyKey,
-    sourceDocType: input.sourceDocType ?? null,
-    sourceDocId: input.sourceDocId ?? null,
-    businessEventId: input.businessEventId ?? null,
-    isReprint: input.isReprint,
-    correlationId: input.correlationId,
-  });
-  return {
-    success: res.success,
-    transport: 'thermal',
-    error: res.error,
-    assignmentId: res.assignmentId ?? null,
-  };
-}
-
-/** Print a PDF through the host print dialog (Electron pipe or browser iframe). */
 export async function toPage(
   blob: Blob,
   opts?: PageDispatchOptions,

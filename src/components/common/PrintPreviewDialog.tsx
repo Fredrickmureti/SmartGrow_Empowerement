@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,9 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Printer, Download, Loader2, ZoomIn, ZoomOut, AlertCircle } from "lucide-react";
-// Audit Wave 10: legacy `printService` import removed — destinations come
-// from `useHardwareProxy` (unified registry) and `usePrinterStatus`.
-import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
+// M4: no managed printer estate — output goes to the host print dialog.
 import { useToast } from "@/hooks/use-toast";
 
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
@@ -82,19 +80,36 @@ export function PrintPreviewDialog({
   const isPrinting = pendingPrints > 0;
   const [isSavingPDF, setIsSavingPDF] = useState(false);
   const [selectedPrinter, setSelectedPrinter] = useState<string>("__browser__");
-  // Stage W6 (ADR-0008): destinations come from the unified device
-  // registry (HardwareProxy), not the deleted PrintService singleton's
-  // printer-enumeration path. Browser remains the always-available fallback.
-  //
-  // We bind the proxy to whatever POS register the user currently has
-  // open as a till. That way the Sales / Purchases print preview sees
-  // the SAME connected receipt printer the POS terminal is using —
-  // instead of always falling back to "Save .bin" because no devices
-  // were registered for the unscoped (undefined) registry.
-  const registerId: string | null = null;
-  const { availableDestinations, printRawBytes, reconnectRole } =
-    useHardwareProxy(registerId ?? undefined);
-  const destinations = availableDestinations();
+  // Microfinance convergence (M4): this institution has no managed
+  // printer estate. The only destination is the host print dialog, so the
+  // destination list is a constant and raw-byte streaming is unavailable.
+  const destinations = useMemo<
+    { id: string; label: string; kind: string; connected: boolean }[]
+  >(
+    () => [
+      {
+        id: "__browser__",
+        label: "Browser / system printer",
+        kind: "browser",
+        connected: true,
+      },
+    ],
+    [],
+  );
+  const printRawBytes = useCallback(
+    async (_bytes: Uint8Array) => ({
+      success: false,
+      error: "No thermal printer is configured for this installation",
+    }),
+    [],
+  );
+  const reconnectRole = useCallback(
+    async (_role: string) => ({
+      success: false,
+      error: "No thermal printer is configured for this installation",
+    }),
+    [],
+  );
   const selectedDestination = destinations.find((d) => d.id === selectedPrinter) ?? null;
   const selectedIsThermal =
     !!selectedDestination && selectedDestination.kind === "thermal" && selectedDestination.connected;

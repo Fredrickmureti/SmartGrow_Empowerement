@@ -4,28 +4,23 @@
  *
  * ## Why this is a printing concern, not a hardware one
  *
- * This hook renders and dispatches a *document*. It asks the hardware
- * layer one question — "is a printer reachable?" — via
- * `printerStatusSnapshot()`, and otherwise deals entirely in document
- * identity (`documentType` + `documentId`) and intent. It used to be
- * co-located with `usePrinterStatus` under `hooks/pos/`, which put
- * document dispatch inside a hardware hook inside a POS-scoped folder.
+ * This hook renders and dispatches a *document* and deals entirely in
+ * document identity (`documentType` + `documentId`). There is no managed
+ * printer estate: output goes to the host print dialog, and any failure
+ * opens the fallback dialog so the operator can retry or take a PDF.
  *
  * ## Contract
  *
  * Callers MUST provide `documentType` + `documentId`; the document is
- * rendered server-side. The legacy HTML-string pipeline is gone. Pass an
- * intent so thermal documents route to thermal hardware and A4 documents
- * route to PDF.
+ * rendered server-side. The legacy HTML-string pipeline is gone.
  *
  * Failure is never silent: when dispatch fails the fallback dialog opens
  * and the operator chooses (retry / PDF / cancel / email / preview)
  * rather than the job vanishing.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { printDocument } from "@/services/printing/PrintService";
-import { printerStatusSnapshot } from "@/hooks/hardware/usePrinterStatus";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 
@@ -44,10 +39,9 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
   const orgId = currentOrg?.id ?? null;
   const bizId = currentBusiness?.id ?? null;
   const registerId = options.registerId ?? null;
-  const statusCtx = useMemo(
-    () => ({ organizationId: orgId, businessId: bizId, registerId }),
-    [orgId, bizId, registerId],
-  );
+  void orgId;
+  void bizId;
+  void registerId;
   const [showFallbackDialog, setShowFallbackDialog] = useState(false);
   const [currentPrinterStatus, setCurrentPrinterStatus] =
     useState<PrinterStatus | null>(null);
@@ -66,8 +60,6 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
     }): Promise<PrintResult> => {
       const filename = req.filename ?? `${req.documentType}-${Date.now()}`;
       setPending({ ...req, filename });
-      const status = await printerStatusSnapshot(statusCtx);
-      setCurrentPrinterStatus(status);
       const result = await printDocument({
         documentType: req.documentType,
         documentId: req.documentId,
@@ -79,10 +71,10 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
       }
       return {
         success: true,
-        fallbackUsed: result.transport === "thermal" ? "none" : "browser",
+        fallbackUsed: "browser",
       };
     },
-    [statusCtx],
+    [],
   );
 
   const handleFallbackAction = useCallback(
@@ -99,22 +91,17 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
           await printDocument({
             documentType: pending.documentType,
             documentId: pending.documentId,
-            medium: "pdf",
             disposition: "download",
             filename: pending.filename,
           });
           setShowFallbackDialog(false);
         } else if (action === "retry") {
-          const s = await printerStatusSnapshot(statusCtx);
-          setCurrentPrinterStatus(s);
-          if (s.available) {
-            setShowFallbackDialog(false);
-            await printDocument({
-              documentType: pending.documentType,
-              documentId: pending.documentId,
-              intent: pending.intent,
-            });
-          }
+          setShowFallbackDialog(false);
+          await printDocument({
+            documentType: pending.documentType,
+            documentId: pending.documentId,
+            intent: pending.intent,
+          });
         } else {
           // 'cancel' | 'email' | 'preview' — caller handles UI side effects.
           setShowFallbackDialog(false);
@@ -123,7 +110,7 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
         setIsProcessing(false);
       }
     },
-    [pending, statusCtx],
+    [pending],
   );
 
   const closeFallbackDialog = useCallback(() => {

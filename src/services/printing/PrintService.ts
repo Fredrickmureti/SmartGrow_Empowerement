@@ -43,8 +43,7 @@ import {
   resolveSourceDocumentRecordId,
   type SourceDocumentContext,
 } from '@/services/documents/resolveSourceDocumentRecord';
-import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
-import { renderLabelPayload, type LabelDispatchInput, type LabelRenderResult } from './labelDispatch';
+import { toPage, toDownload, pdfTransport } from './dispatch';
 import {
   enqueueDocumentIntent,
   materializeAndSubmitIntent,
@@ -55,7 +54,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { withTrace, withSpan, annotateTrace } from '@/services/observability/trace';
 import type { PaperFormatOption } from './render';
 
-export { NO_DEVICE_BOUND };
+
 
 export type PrintDisposition = 'print' | 'download';
 
@@ -63,13 +62,11 @@ export interface PrintDocumentRequest {
   /** Business document type, e.g. `sales_invoice`, `pos_receipt`, `payslip`. */
   documentType: string;
   documentId: string;
-  /** Hardware intent the platform resolves a device for. Defaults per medium. */
+  /** Ledger intent label for this print (`a4_document`, `download`, …). */
   intent?: string;
   organizationId?: string | null;
   businessId?: string | null;
   branchId?: string | null;
-  /** Override the policy medium. Omit to let policy decide. */
-  medium?: 'pdf' | 'escpos';
   /** Override the policy paper format for this print only. */
   paperFormat?: PaperFormatOption | null;
   copies?: number;
@@ -92,8 +89,6 @@ export interface PrintDocumentRequest {
 export interface PrintResult {
   success: boolean;
   error?: string;
-  /** True when the failure is "no printer bound" so the UI can show the CTA. */
-  needsDevice?: boolean;
   jobIds: string[];
   transport: PrintTransport;
   copies: number;
@@ -108,11 +103,7 @@ function newCorrelationId(): string {
   }
 }
 
-function defaultIntentFor(documentType: string, medium: 'pdf' | 'escpos'): string {
-  if (medium === 'escpos') {
-    if (documentType.includes('kitchen')) return 'kitchen_ticket';
-    return 'receipt';
-  }
+function defaultIntentFor(): string {
   return 'a4_document';
 }
 
@@ -158,7 +149,7 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
 interface PrintPlan {
   handles: JobHandle[];
   jobIds: string[];
-  medium: 'pdf' | 'escpos';
+  medium: 'pdf';
   copies: number;
   disposition: PrintDisposition;
   intent: string;
@@ -183,18 +174,17 @@ async function planPrint(
     policy = null;
   }
 
-  const medium: 'pdf' | 'escpos' =
-    req.medium ?? (policy?.renderMode === 'escpos' ? 'escpos' : 'pdf');
+  const medium = 'pdf' as const;
   const copies = Math.max(1, req.copies ?? policy?.copies ?? 1);
   const disposition: PrintDisposition = req.disposition ?? 'print';
-  const intent = req.intent ?? defaultIntentFor(req.documentType, medium);
+  const intent = req.intent ?? defaultIntentFor();
   const paperFormat =
     req.paperFormat ??
     (policy?.paperFormat ? (policy.paperFormat as PaperFormatOption) : undefined) ??
     null;
 
   const transport: PrintTransport =
-    disposition === 'download' ? 'download' : medium === 'escpos' ? 'thermal' : pdfTransport();
+    disposition === 'download' ? 'download' : pdfTransport();
 
   annotateTrace({ medium, copies, disposition, intent, transport }, correlationId);
 
@@ -301,7 +291,6 @@ async function executePrint(
       return {
         success: false,
         error: outcome.error,
-        needsDevice: Boolean(outcome.error?.startsWith(NO_DEVICE_BOUND)),
         jobIds,
         transport,
         copies,
@@ -433,133 +422,12 @@ async function emit(
     }
     return toDownload(artifact.blob, req.filename ?? `${req.documentType}-${req.documentId}`);
   }
-  if (artifact.medium === 'pdf') {
-    // A4/office output goes through the host print dialog; the operator's
-    // OS printer selection is the device binding for paper documents.
-    return toPage(artifact.blob!, { onHandedToHost: ctx.onHandedToHost });
+  if (!artifact.blob) {
+    return { success: false, error: 'render produced no printable PDF' };
   }
-  return toDevice({
-    intentOrRole: ctx.intent,
-    op: 'print_raw',
-    payload: { bytes: Array.from(artifact.bytes) },
-    organizationId: req.organizationId ?? null,
-    businessId: req.businessId ?? null,
-    idempotencyKey: `${ctx.correlationId}:${req.documentType}:${req.documentId}`,
-    sourceDocType: req.documentType,
-    sourceDocId: req.documentId,
-    businessEventId: req.businessEventId ?? null,
-    isReprint: req.isReprint,
-  });
-}
-
-// ---------------------------------------------------------------------
-// Labels
-// ---------------------------------------------------------------------
-
-export interface PrintLabelRequest extends LabelDispatchInput {
-  businessId?: string | null;
-  copies?: number;
-}
-
-export interface LabelPrintResult {
-  success: boolean;
-  error?: string;
-  needsDevice?: boolean;
-  jobIds: string[];
-  templateResolved?: { engine: string; version: number; scope: string };
-  mediaResolved?: { profileId: string; widthMm: number; heightMm: number | null; dpi: number };
-}
-
-/**
- * Print a label template. Same five layers as `printDocument`; only the
- * render step differs, because label bytes come from `label_templates`
- * rather than the document renderer.
- */
-export async function printLabel(req: PrintLabelRequest): Promise<LabelPrintResult> {
-  const rendered = await renderLabelPayload(req);
-  if (rendered.ok === false) {
-    return {
-      success: false,
-      error: rendered.error,
-      needsDevice: rendered.error.startsWith(NO_DEVICE_BOUND),
-      jobIds: [],
-    };
-  }
-
-  const correlationId = newCorrelationId();
-  const copies = Math.max(1, req.copies ?? 1);
-  const format: PrintFormat = rendered.templateResolved.engine === 'pdf'
-    ? 'pdf'
-    : (rendered.templateResolved.engine as PrintFormat);
-
-  const jobIds: string[] = [];
-  for (let i = 0; i < copies; i++) {
-    const handle = req.businessId
-      ? await openJob({
-          businessId: req.businessId,
-          branchId: req.branchId ?? null,
-          documentType: req.templateKey,
-          documentId: req.sourceDocId ?? null,
-          intent: 'label',
-          format,
-          transport: 'thermal',
-          correlationId,
-          mediaProfileId: rendered.mediaResolved?.profileId ?? null,
-        })
-      : noopJobHandle();
-    if (handle.id) jobIds.push(handle.id);
-
-    const outcome = await toDevice({
-      intentOrRole: rendered.role,
-      op: 'print_raw',
-      payload: rendered.payload,
-      organizationId: req.orgId,
-      businessId: req.businessId ?? null,
-      idempotencyKey: copies > 1
-        ? `${rendered.idempotencyKey}:${i + 1}`
-        : rendered.idempotencyKey,
-      sourceDocType: req.sourceDocType ?? null,
-      sourceDocId: req.sourceDocId ?? null,
-      businessEventId: req.businessEventId ?? null,
-      isReprint: req.isReprint,
-    });
-
-    if (!outcome.success) {
-      await handle.markFailed(outcome.error ?? 'dispatch failed');
-      return {
-        success: false,
-        error: outcome.error,
-        needsDevice: Boolean(outcome.error?.startsWith(NO_DEVICE_BOUND)),
-        jobIds,
-        templateResolved: rendered.templateResolved,
-        mediaResolved: rendered.mediaResolved,
-      };
-    }
-    await handle.markSent(null);
-    await handle.markAcked();
-  }
-
-  return {
-    success: true,
-    jobIds,
-    templateResolved: rendered.templateResolved,
-    mediaResolved: rendered.mediaResolved,
-  };
-}
-
-/**
- * Compile a label without dispatching it — the sanctioned preview seam.
- *
- * Surfaces that show "what will come out of the printer" (LPN label
- * dialog, template editors) call this instead of reaching into
- * `printing/labelDispatch`, so there is still exactly one module that
- * knows how label bytes are produced. Nothing is printed and no ledger
- * row is opened: a preview is a render, not a print.
- */
-export async function previewLabel(
-  req: LabelDispatchInput,
-): Promise<LabelRenderResult> {
-  return renderLabelPayload(req);
+  // Paper output goes through the host print dialog; the operator's OS
+  // printer selection is the only device binding this system knows about.
+  return toPage(artifact.blob, { onHandedToHost: ctx.onHandedToHost });
 }
 
 // ---------------------------------------------------------------------
@@ -667,7 +535,6 @@ async function drainIntentJobs(
   return {
     success: !lastError,
     error: lastError,
-    needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
     jobIds: jobs.map((j) => j.id),
     transport,
     copies: printed,
@@ -930,22 +797,11 @@ export async function dispatchQueuedJob(
   );
   if (!handle) return null;
 
-  // A server-expanded bulk label line carries no document record: its bytes
-  // come from `label_templates` + the vars frozen into `render_params`. It is
-  // rendered here, by the same compiler a single button-press label uses, so
-  // a run line and a one-off label are byte-identical and — crucially — reach
-  // printers the edge relay cannot address (network / USB devices bound to no
-  // paired workstation).
-  const labelRun = labelRunParams(job);
-  if (labelRun) {
-    return dispatchLabelRunJob(job, labelRun, organizationId, handle, correlationId);
-  }
-
   let transport: PrintTransport = 'none';
   let handedOff = false;
   try {
 
-    const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
+    const medium = 'pdf' as const;
     const renderOptions = renderOptionsForJob(job);
     const artifact = await withSpan(
       'render.document',
@@ -978,23 +834,17 @@ export async function dispatchQueuedJob(
       const outcome = await withSpan(
         'dispatch.job_copy',
         () =>
-          artifact.medium === 'pdf' && artifact.blob
+          artifact.blob
             ? toPage(artifact.blob, {
                 onHandedToHost: () => {
                   handedOff = true;
                   void handle.markAcked();
                 },
               })
-            : toDevice({
-                intentOrRole: job.hardware_role ?? 'receipt',
-                op: 'print_raw',
-                payload: { bytes: Array.from(artifact.bytes) },
-                organizationId,
-                businessId: job.business_id,
-                idempotencyKey: `${job.id}:${i + 1}`,
-                sourceDocType: job.doc_type ?? null,
-                sourceDocId: job.doc_id ?? null,
-                correlationId,
+            : Promise.resolve({
+                success: false as const,
+                transport: 'none' as PrintTransport,
+                error: 'render produced no printable PDF',
               }),
         { copy: i + 1, bytes: artifact.bytes.length },
         correlationId,
@@ -1013,106 +863,6 @@ export async function dispatchQueuedJob(
     return { transport, error };
   }
 }
-
-// ---------------------------------------------------------------------
-// Bulk label lines (Label Operations Engine)
-// ---------------------------------------------------------------------
-
-interface LabelRunJobParams {
-  runId: string;
-  templateKey: string;
-  workflow?: string;
-  vars: Record<string, string | number | null | undefined>;
-  mediaProfileId: string | null;
-}
-
-/**
- * Recognise a job row that `expand_label_run` produced. Such a row has no
- * document record and no artifact — the template key, the workflow and the
- * resolved vars ARE the request.
- */
-function labelRunParams(job: QueuedJob): LabelRunJobParams | null {
-  const params = (job.render_params ?? {}) as Record<string, unknown>;
-  const runId = typeof params.run_id === 'string' ? params.run_id : null;
-  const templateKey = typeof params.template_key === 'string' ? params.template_key : null;
-  if (!runId || !templateKey) return null;
-  if (job.doc_type !== 'label') return null;
-  return {
-    runId,
-    templateKey,
-    workflow: typeof params.workflow === 'string' ? params.workflow : undefined,
-    vars: (params.vars ?? {}) as Record<string, string | number | null | undefined>,
-    mediaProfileId:
-      typeof params.media_profile_id === 'string' ? params.media_profile_id : null,
-  };
-}
-
-/**
- * Render + dispatch one bulk label line. Same compiler, same hardware seam
- * and same ledger transitions as `printLabel`; only the source of the vars
- * differs (a run line rather than a live selection).
- */
-async function dispatchLabelRunJob(
-  job: QueuedJob,
-  params: LabelRunJobParams,
-  organizationId: string | null,
-  handle: JobHandle,
-  correlationId?: string,
-): Promise<{ transport: PrintTransport; error?: string }> {
-  let transport: PrintTransport = 'none';
-  try {
-    const orgId = organizationId ?? (await resolveOrganizationId(job.business_id ?? null));
-    if (!orgId) throw new Error('label_run_missing_organization');
-
-    const rendered = await withSpan(
-      'render.label',
-      () =>
-        renderLabelPayload({
-          orgId,
-          templateKey: params.templateKey,
-          workflow: params.workflow as LabelDispatchInput['workflow'],
-          vars: params.vars,
-          branchId: job.branch_id ?? null,
-          mediaProfileId: params.mediaProfileId,
-          idempotencyKey: job.id,
-        }),
-      { template_key: params.templateKey, run_id: params.runId },
-      correlationId,
-    );
-    if (rendered.ok === false) throw new Error(rendered.error);
-
-    const copies = Math.max(1, job.copies ?? 1);
-    for (let i = 0; i < copies; i++) {
-      const outcome = await withSpan(
-        'dispatch.job_copy',
-        () =>
-          toDevice({
-            intentOrRole: rendered.role,
-            op: 'print_raw',
-            payload: rendered.payload,
-            organizationId: orgId,
-            businessId: job.business_id ?? null,
-            idempotencyKey: `${job.id}:${i + 1}`,
-            sourceDocType: 'label_run',
-            sourceDocId: params.runId,
-            correlationId,
-          }),
-        { copy: i + 1 },
-        correlationId,
-      );
-      transport = outcome.transport;
-      if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
-    }
-
-    void handle.markAcked();
-    return { transport };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    await handle.markFailed(error);
-    return { transport, error };
-  }
-}
-
 
 function renderOptionsForJob(job: QueuedJob): Record<string, unknown> {
   return {
@@ -1225,8 +975,6 @@ export const PrintService = {
   renderDocumentPreview,
   openInteractiveJob,
   printDocument,
-  printLabel,
-  previewLabel,
   printDocumentIntent,
   printSourceDocumentIntent,
   startPrintDocumentIntent,

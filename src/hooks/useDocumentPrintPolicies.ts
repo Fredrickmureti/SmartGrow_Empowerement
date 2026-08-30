@@ -14,8 +14,6 @@ import { normalizeError } from "@/services/resilience";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useDeviceForIntent } from "@/hooks/useDeviceForIntent";
-import type { DeviceAssignment } from "@/hooks/useDeviceAssignments";
 
 export type PaperFormat = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm" | "custom";
 export type RenderMode = "pdf" | "escpos";
@@ -30,8 +28,7 @@ export interface PrintPolicy {
   render_mode: RenderMode;
   /** When this document reaches paper. */
   trigger: OutputTrigger;
-  /** Semantic printer role (see printer_roles.code). Physical device is
-   * chosen through printer_roles.hardware_kind → device_assignments. */
+  /** Semantic printer role kept for policy compatibility. */
   role_code: string | null;
   copies?: number | null;
 }
@@ -261,48 +258,3 @@ export function useResolvedPrintPolicy(
   return { policy, loading };
 }
 
-/**
- * useResolvedPrintPolicyWithDevice — Wave 10 (P3 #17 finish).
- *
- * Same return as `useResolvedPrintPolicy`, plus the matching
- * `device_assignments` row that the
- * print router will actually dispatch to. Callers that want
- * device-aware UI (e.g. "Will print to: Star TSP143 on usb:049f:0001")
- * use this; existing callers stay on the additive base hook above.
- *
- * Why a sibling hook instead of widening the base shape?
- *   - `useResolvedPrintPolicy` is on the POSTerminal hot path; adding
- *     two more Supabase reads on every render of every cashier would
- *     be wasteful when most callers don't need them.
- *   - Sibling hook keeps the device resolver opt-in and the base
- *     hook's return shape strictly backward-compatible.
- */
-// (imports moved to top of file)
-
-export function useResolvedPrintPolicyWithDevice(
-  businessId: string | null | undefined,
-  branchId: string | null | undefined,
-  documentType: string,
-): {
-  policy: ResolvedPrintPolicy;
-  device: DeviceAssignment | null;
-  loading: boolean;
-} {
-  const { policy, loading: policyLoading } = useResolvedPrintPolicy(
-    businessId,
-    branchId,
-    documentType,
-  );
-  const { device, isLoading: deviceLoading } = useDeviceForIntent(
-    policy.role_code ?? policy.document_type,
-    {
-      preferBusinessId: businessId ?? null,
-      enabled: Boolean(policy.role_code),
-    },
-  );
-  return {
-    policy,
-    device,
-    loading: policyLoading || deviceLoading,
-  };
-}
