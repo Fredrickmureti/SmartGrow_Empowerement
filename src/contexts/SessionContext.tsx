@@ -719,7 +719,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       sessionReady,
       isVendorUser,
       currentOrg,
-: currentOrg?.role || null,
+      switchOrganization,
+      userRole: currentOrg?.role || null,
+      userType: currentOrg?.user_type || null,
       refreshSession: async () => {
         postOnboardingRetriedRef.current = false;
         await fetchSessionData(true);
@@ -735,6 +737,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       sessionReady,
       isVendorUser,
       currentOrg,
+      switchOrganization,
+      fetchSessionData,
+
 
       createOrganization,
     ],
