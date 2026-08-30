@@ -83,14 +83,12 @@ import {
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 
 
 export default function BankReconciliation() {
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -224,19 +222,16 @@ export default function BankReconciliation() {
   };
 
   const handleReconcile = (transaction: any) => {
-    if (isReadOnly) { openUpgradeModal("banking"); return; }
     setSelectedTransaction(transaction);
     setReconcileDialogOpen(true);
   };
 
   const handleTransfer = (transaction: any) => {
-    if (isReadOnly) { openUpgradeModal("banking"); return; }
     setTransferTransaction(transaction);
     setTransferDialogOpen(true);
   };
 
   const handleUnreconcileConfirm = async (transaction: any) => {
-    if (isReadOnly) { openUpgradeModal("banking"); return; }
     setTransactionToUnreconcile(transaction);
     setUnmatchPreflight(null);
     setUnreconcileDialogOpen(true);
@@ -270,7 +265,6 @@ export default function BankReconciliation() {
 
 
   const handleAutoMatch = async () => {
-    if (isReadOnly) { openUpgradeModal("banking"); return; }
     const txIds = selectedTransactions.length > 0 
       ? selectedTransactions 
       : filteredTransactions.filter(tx => !tx.is_reconciled).map(tx => tx.id);
@@ -337,7 +331,6 @@ export default function BankReconciliation() {
                   disabled={!canReconcile}
                   title={!canReconcile ? "You don't have permission to reconcile bank transactions in this scope." : undefined}
                   onClick={() => {
-                    if (isReadOnly) { openUpgradeModal("banking"); return; }
                     const q = selectedAccount !== "all" ? `?account=${selectedAccount}` : "";
                     navigate(`/finance/reconciliation/new${q}`);
                   }}>
@@ -349,7 +342,6 @@ export default function BankReconciliation() {
                   disabled={!canReconcile}
                   title={!canReconcile ? "You don't have permission to manage reconciliation rules in this scope." : undefined}
                   onClick={() => {
-                    if (isReadOnly) { openUpgradeModal("banking"); return; }
                     navigate("/finance/banking/rules");
                   }}>
                   <Settings2 className="mr-2 h-4 w-4" />

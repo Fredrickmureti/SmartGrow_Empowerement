@@ -17,7 +17,6 @@ import { BankAccountCard } from "@/components/banking/BankAccountCard";
 // BankAccountSheet removed — create/edit are routed pages at
 // /finance/banking/accounts/new and /finance/banking/accounts/:id/edit.
 import { TransactionsList } from "@/components/banking/TransactionsList";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { Plus, Building2, RefreshCw, ArrowUpDown, AlertCircle, FileUp } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -55,7 +54,6 @@ export default function Banking() {
     navigate(`/finance/banking/accounts/${accountId}/edit`);
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   // Phase 7 — the cash position is stated *as at a date*, never "now".
   // The reconciliation statement is always as of a chosen date; if the
   // dashboard silently asked the server for CURRENT_DATE the two surfaces

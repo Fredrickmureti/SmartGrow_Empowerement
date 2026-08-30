@@ -22,7 +22,6 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
@@ -43,7 +42,6 @@ export default function Budgets() {
   const { formatCurrency } = useCurrency();
   const { periods } = useFiscalPeriods();
   const { toast } = useToast();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageBudgets } = useFinancePermission("finance.manage_budgets");
 
   /**
@@ -152,10 +150,6 @@ export default function Budgets() {
     );
 
   const handleOpenBudget = (budget?: Budget) => {
-    if (isReadOnly) {
-      openUpgradeModal("budgets");
-      return;
-    }
     navigate(
       budget ? `/finance/budgets/${budget.id}/edit` : "/finance/budgets/new",
     );

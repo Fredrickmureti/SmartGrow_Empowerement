@@ -49,7 +49,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
-import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinancePermission } from "@/hooks/finance/useFinancePermission";
 import { useToast } from "@/hooks/use-toast";
@@ -67,7 +66,6 @@ export default function FixedAssets() {
   const { assets, isLoading, deleteAsset } = useFixedAssets();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
-  const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { allowed: canManageAssets } = useFinancePermission("finance.manage_assets");
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -115,31 +113,15 @@ export default function FixedAssets() {
   );
 
   const openAssetCreate = () => {
-    if (isReadOnly) {
-      openUpgradeModal("fixed_assets");
-      return;
-    }
     navigate("/finance/fixed-assets/new");
   };
   const openAssetEdit = (asset: FixedAsset) => {
-    if (isReadOnly) {
-      openUpgradeModal("fixed_assets");
-      return;
-    }
     navigate(`/finance/fixed-assets/${asset.id}/edit`);
   };
   const openCategorySheet = () => {
-    if (isReadOnly) {
-      openUpgradeModal("fixed_assets");
-      return;
-    }
     openSheet("category");
   };
   const openDisposeSheet = (asset: FixedAsset) => {
-    if (isReadOnly) {
-      openUpgradeModal("fixed_assets");
-      return;
-    }
     openSheet("dispose", asset.id);
   };
 
@@ -157,10 +139,6 @@ export default function FixedAssets() {
   };
   const deleteConfirm = useConfirmDelete<FixedAsset>({ onConfirm: executeDeleteAsset });
   const handleDelete = (asset: FixedAsset) => {
-    if (isReadOnly) {
-      openUpgradeModal("fixed_assets");
-      return;
-    }
     deleteConfirm.requestDelete(asset);
   };
 
