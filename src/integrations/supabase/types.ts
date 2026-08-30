@@ -91323,14 +91323,6 @@ export type Database = {
         }
         Returns: Json
       }
-      check_business_branch_limit: {
-        Args: { _business_id: string }
-        Returns: {
-          can_create: boolean
-          current_count: number
-          max_allowed: number
-        }[]
-      }
       check_contact_dependencies: {
         Args: { p_contact_id: string }
         Returns: Json
@@ -91343,10 +91335,6 @@ export type Database = {
           p_window_end: string
           p_window_start: string
         }
-        Returns: Json
-      }
-      check_downgrade_impact: {
-        Args: { p_new_plan_id: string; p_org_id: string }
         Returns: Json
       }
       check_group_assignment_allowed: {
@@ -91445,14 +91433,6 @@ export type Database = {
         Args: { _app_id: string; _org_id: string }
         Returns: boolean
       }
-      check_org_business_limit: {
-        Args: { _org_id: string }
-        Returns: {
-          can_create: boolean
-          current_count: number
-          max_allowed: number
-        }[]
-      }
       check_org_feature_access: {
         Args: { _feature_key: string; _org_id: string }
         Returns: boolean
@@ -91512,15 +91492,6 @@ export type Database = {
       check_subscription_expired: {
         Args: { _org_id: string }
         Returns: boolean
-      }
-      check_user_limit: { Args: { _org_id: string }; Returns: boolean }
-      check_user_org_limit: {
-        Args: { _user_id: string }
-        Returns: {
-          can_create: boolean
-          current_count: number
-          max_allowed: number
-        }[]
       }
       check_valuation_writer_coverage: {
         Args: never
@@ -92186,14 +92157,6 @@ export type Database = {
       compute_employee_user_access_status: {
         Args: { p_employee_id: string }
         Returns: string
-      }
-      compute_org_billing: {
-        Args: { p_billing_cycle?: string; p_org_id: string }
-        Returns: Json
-      }
-      compute_org_billing_for_plan: {
-        Args: { p_billing_cycle?: string; p_org_id: string; p_plan_id: string }
-        Returns: Json
       }
       compute_project_profitability:
         | { Args: { _project_id: string }; Returns: Json }
@@ -94240,13 +94203,6 @@ export type Database = {
           setting_key: string
         }[]
       }
-      disable_expired_app_trials: {
-        Args: never
-        Returns: {
-          disabled_count: number
-          expired_count: number
-        }[]
-      }
       disable_user_pin: { Args: never; Returns: Json }
       disburse_employee_advance: {
         Args: {
@@ -95835,16 +95791,11 @@ export type Database = {
             }
             Returns: Json
           }
-      expire_app_trials: { Args: never; Returns: number }
       expire_overdue_proformas: { Args: never; Returns: number }
       expire_stale_estimates: { Args: never; Returns: number }
       expire_stock_reservations: { Args: never; Returns: number }
       explain_inventory_gl_drift: {
         Args: { p_as_of?: string; p_business?: string; p_org: string }
-        Returns: Json
-      }
-      extend_app_trial: {
-        Args: { p_app_id: string; p_extra_days: number; p_org_id: string }
         Returns: Json
       }
       f_goal_alignment_rollup: {
@@ -97883,11 +97834,6 @@ export type Database = {
         }
         Returns: Json
       }
-      get_public_pricing_snapshot: { Args: never; Returns: Json }
-      get_recent_plan_change_summary: {
-        Args: { p_org_id: string }
-        Returns: Json
-      }
       get_sales_dashboard_kpis: {
         Args: {
           p_branch_id?: string
@@ -98465,11 +98411,6 @@ export type Database = {
         Returns: Json
       }
       is_ap_control_account: { Args: { _account_id: string }; Returns: boolean }
-      is_app_trialable: { Args: { p_app_id: string }; Returns: boolean }
-      is_app_trialable_for: {
-        Args: { p_app_id: string; p_org_id: string }
-        Returns: boolean
-      }
       is_ar_control_account: { Args: { _account_id: string }; Returns: boolean }
       is_finance_manager: {
         Args: { _org_id: string; _user_id: string }
@@ -105811,10 +105752,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      revoke_app_override: {
-        Args: { p_app_id: string; p_org_id: string }
-        Returns: Json
       }
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
