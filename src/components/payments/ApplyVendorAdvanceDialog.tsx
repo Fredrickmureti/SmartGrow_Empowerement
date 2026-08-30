@@ -101,7 +101,7 @@ export function ApplyVendorAdvanceDialog({
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .eq("vendor_id", vendorId)
-        .in("status", ["received", "partial", "overdue"])
+        .in("status", ["open", "partial", "overdue"])
         .order("bill_date", { ascending: true });
       if (error) throw error;
       return (data ?? [])

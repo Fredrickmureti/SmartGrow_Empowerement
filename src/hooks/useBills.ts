@@ -268,7 +268,7 @@ export function useBills() {
     excludeBillId?: string,
   ): Promise<DuplicateVendorInvoice[]> => {
     if (!currentOrg || !vendorId || !vendorInvoiceNumber.trim()) return [];
-    const { data, error } = await supabase.rpc("find_duplicate_vendor_invoice", {
+    const { data, error } = await (supabase as any).rpc("find_duplicate_vendor_invoice", {
       _org_id: currentOrg.id,
       _vendor_id: vendorId,
       _vendor_invoice_number: vendorInvoiceNumber.trim(),

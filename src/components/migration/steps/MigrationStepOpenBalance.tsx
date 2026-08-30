@@ -255,6 +255,7 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
         return {
           organization_id: currentOrg!.id,
           business_id: currentBusiness?.id || null,
+          currency: row.currency || currentBusiness?.base_currency || "KES",
           // Migrated opening balances are historical & not attributable to a
           // current branch — stamped NULL intentionally so the architecture
           // guard knows we considered the dimension.
@@ -284,10 +285,11 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
     } else {
       const inserts = chunk.map((row, i) => {
         const balanceDue = row.amount - row.amountPaid;
-        const billStatus = (balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "received") as "paid" | "partial" | "received";
+        const billStatus = (balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "open") as "paid" | "partial" | "open";
         return {
           organization_id: currentOrg!.id,
           business_id: currentBusiness?.id || null,
+          currency: row.currency || currentBusiness?.base_currency || "KES",
           branch_id: null,
           vendor_id: row.matchedContactId!,
           bill_number: row.documentNumber || `MIG-AP-${Date.now()}-${i}`,
@@ -323,6 +325,7 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
         .insert({
           organization_id: currentOrg!.id,
           business_id: currentBusiness?.id || null,
+          currency: row.currency || currentBusiness?.base_currency || "KES",
           branch_id: null, // historical migration — not attributable to a branch
           contact_id: row.matchedContactId!,
           invoice_number: row.documentNumber || `MIG-AR-${Date.now()}-${i}`,
@@ -390,12 +393,13 @@ export function MigrationStepOpenBalance({ type, onComplete, onSkip }: Props) {
         }
       }
     } else {
-      const billStatus = balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "received";
+      const billStatus = balanceDue <= 0.01 ? "paid" : row.amountPaid > 0 ? "partial" : "open";
       const { data: bill, error: billError } = await supabase
         .from("bills")
         .insert({
           organization_id: currentOrg!.id,
           business_id: currentBusiness?.id || null,
+          currency: row.currency || currentBusiness?.base_currency || "KES",
           branch_id: null, // historical migration — not attributable to a branch
           vendor_id: row.matchedContactId!,
           bill_number: row.documentNumber || `MIG-AP-${Date.now()}-${i}`,

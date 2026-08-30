@@ -79,7 +79,6 @@ export function useFormLayouts(entityType: EntityType | string) {
         .from("form_layouts")
         .select("*")
         .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
         .eq("entity_type", entityType)
         .order("is_default", { ascending: false })
         .order("layout_name");
@@ -120,7 +119,6 @@ export function useFormLayouts(entityType: EntityType | string) {
         .from("form_layouts")
         .update({ is_default: false })
         .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
         .eq("entity_type", entityType);
     }
 
@@ -128,7 +126,6 @@ export function useFormLayouts(entityType: EntityType | string) {
       .from("form_layouts")
       .insert({
         organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
         entity_type: entityType,
         layout_name: layoutName,
         layout_config: layoutConfig as any,
@@ -152,7 +149,6 @@ export function useFormLayouts(entityType: EntityType | string) {
         .from("form_layouts")
         .update({ is_default: false })
         .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
         .eq("entity_type", entityType);
     }
 

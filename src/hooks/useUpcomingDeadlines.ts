@@ -78,7 +78,7 @@ export function useUpcomingDeadlines(opts: UseUpcomingDeadlinesOpts) {
           .select("id, bill_number, due_date, total, status")
           .eq("organization_id", orgId)
           .eq("business_id", businessId)
-          .in("status", ["received", "partial"])
+          .in("status", ["open", "partial"])
           .gte("due_date", today)
           .lte("due_date", until)
           .order("due_date", { ascending: true })

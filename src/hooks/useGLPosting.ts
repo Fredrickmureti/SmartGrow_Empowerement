@@ -189,7 +189,7 @@ export function useGLPosting() {
           .eq("business_id", currentBusiness.id)
           .eq("source_type", options.source_type)
           .eq("source_id", options.source_id)
-          .neq("status", "voided");
+          .neq("status", "void");
 
         const match = (existing || []).find(
           (e: any) => (e.source_subtype || "main") === subtype

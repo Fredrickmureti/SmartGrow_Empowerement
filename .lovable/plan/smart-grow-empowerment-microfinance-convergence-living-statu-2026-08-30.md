@@ -134,25 +134,3 @@ dead-code removal.
 
 ## Currently active phase
 M3 closure (items 1–4 above). No loan-domain work until M3 is closed.
-
-## Build-health closure — 2026-08-30 (later)
-
-- `tsgo --noEmit -p tsconfig.app.json` → **0 errors** (was 46).
-  - Removed `business_id` filters/inserts on tables where the column no longer exists.
-  - `"received"` bill status → `"open"`; `"voided"` journal status → `"void"`;
-    governed-entity status lists cast at the boundary (DB enum is draft/posted/void).
-  - `tax_rates`: `description` / `is_inclusive` / `is_default` stripped at the DB
-    boundary (no such columns); `email_templates` insert now supplies `body`.
-  - `document_templates.columns_layout` no longer exists — the hook derives a
-    default layout locally.
-  - Queries against objects absent from this database (`bank_feed_runs`,
-    `report_run_log`, RPCs `bank_feed_status`, `find_duplicate_vendor_invoice`)
-    are isolated behind an explicit cast with a comment; they degrade to an error
-    or empty state at runtime until those objects are created.
-  - Migration open-balance inserts now set `currency`.
-- `src/test/architecture/scope-trigger-visibility.test.ts` → **passing**; the
-  ScheduledReportsManager branch picker is marked SCOPE-TRIGGER-EXEMPT (report
-  coverage filter, not a workspace scope switch).
-
-Next: M3 closure (dependency-analysed SaaS schema drop), then M4 removal of POS /
-hardware / non-actor HR surfaces.

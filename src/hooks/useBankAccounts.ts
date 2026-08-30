@@ -250,7 +250,7 @@ async function loadBankAccounts(
     ),
     safeQueryRetry<Array<Record<string, unknown>>>(
       () =>
-        supabase.rpc("bank_feed_status", { _business_id: businessId }) as unknown as PromiseLike<{
+        (supabase as any).rpc("bank_feed_status", { _business_id: businessId }) as unknown as PromiseLike<{
           data: Array<Record<string, unknown>> | null;
           error: unknown;
         }>,

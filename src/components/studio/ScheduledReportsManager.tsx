@@ -776,6 +776,10 @@ export function ScheduledReportsManager() {
                 />
               </div>
 
+              {/* SCOPE-TRIGGER-EXEMPT: this picks the branch a scheduled report
+                  covers within the branches the user can already read
+                  (useBranches is membership-filtered) — it does not switch the
+                  active workspace scope. */}
               {branches.length > 0 && branchScopeAvailable && (
                 <FormField
                   control={form.control}

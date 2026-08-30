@@ -106,7 +106,7 @@ export function useGLIntelligence() {
         .select("id, total, amount_paid, status, due_date")
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
-        .in("status", ["received", "partial", "overdue"]);
+        .in("status", ["open", "partial", "overdue"]);
       billsQ = billsQ.eq("business_id", businessId);
       const billsP = billsQ;
 

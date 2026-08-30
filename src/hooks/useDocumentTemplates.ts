@@ -42,13 +42,11 @@ export function useDocumentTemplates(templateType?: DocumentTemplateType) {
       
       const parsedTemplates = (data || []).map(t => ({
         ...t,
-        columns_layout: typeof t.columns_layout === 'object' && t.columns_layout !== null 
-          ? t.columns_layout as Record<string, number>
-          : { description: 40, quantity: 10, unit_price: 15, tax: 10, amount: 15 },
+        columns_layout: { description: 40, quantity: 10, unit_price: 15, tax: 10, amount: 15 } as Record<string, number>,
         bank_details: typeof t.bank_details === 'object' && t.bank_details !== null
           ? t.bank_details as BankDetails
           : {},
-      })) as DocumentTemplate[];
+      })) as unknown as DocumentTemplate[];
       
       setTemplates(parsedTemplates);
     } catch (error: unknown) {
@@ -150,7 +148,7 @@ export function useDocumentTemplates(templateType?: DocumentTemplateType) {
       toast({ title: "Template created", description: `${input.template_name} has been created.` });
       await fetchTemplates();
       
-      return data as DocumentTemplate;
+      return data as unknown as DocumentTemplate;
     } catch (error: unknown) {
       const err = error as Error;
       toast({ title: "Error", description: normalizeError(err).message || "Failed to create template", variant: "destructive" });
