@@ -27194,271 +27194,6 @@ export type Database = {
           },
         ]
       }
-      label_demand: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          created_by: string | null
-          detail: Json
-          entity_id: string
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          id: string
-          organization_id: string
-          qty_hint: number
-          reason: Database["public"]["Enums"]["label_demand_reason"]
-          source_doc_id: string | null
-          source_doc_type: string | null
-          status: Database["public"]["Enums"]["label_demand_status"]
-          suggested_template_key: string | null
-          updated_at: string
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          detail?: Json
-          entity_id: string
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          id?: string
-          organization_id: string
-          qty_hint?: number
-          reason: Database["public"]["Enums"]["label_demand_reason"]
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["label_demand_status"]
-          suggested_template_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          detail?: Json
-          entity_id?: string
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          id?: string
-          organization_id?: string
-          qty_hint?: number
-          reason?: Database["public"]["Enums"]["label_demand_reason"]
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["label_demand_status"]
-          suggested_template_key?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      label_print_run_lines: {
-        Row: {
-          business_id: string
-          copies: number
-          created_at: string
-          entity_id: string
-          entity_label: string | null
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          error: string | null
-          id: string
-          print_job_id: string | null
-          resolved_vars: Json
-          run_id: string
-          status: Database["public"]["Enums"]["label_run_line_status"]
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          copies?: number
-          created_at?: string
-          entity_id: string
-          entity_label?: string | null
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          error?: string | null
-          id?: string
-          print_job_id?: string | null
-          resolved_vars?: Json
-          run_id: string
-          status?: Database["public"]["Enums"]["label_run_line_status"]
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          copies?: number
-          created_at?: string
-          entity_id?: string
-          entity_label?: string | null
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          error?: string | null
-          id?: string
-          print_job_id?: string | null
-          resolved_vars?: Json
-          run_id?: string
-          status?: Database["public"]["Enums"]["label_run_line_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "label_print_run_lines_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "label_print_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      label_print_runs: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          completed_at: string | null
-          copies: number
-          created_at: string
-          created_by: string | null
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          expansion_complete: boolean
-          failed_lines: number
-          id: string
-          last_error: string | null
-          name: string | null
-          organization_id: string
-          printed_lines: number
-          queued_lines: number
-          refused_lines: number
-          selection_spec: Json
-          status: Database["public"]["Enums"]["label_run_status"]
-          template_key: string
-          total_lines: number
-          updated_at: string
-          warehouse_id: string | null
-          workflow: string
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          completed_at?: string | null
-          copies?: number
-          created_at?: string
-          created_by?: string | null
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          expansion_complete?: boolean
-          failed_lines?: number
-          id?: string
-          last_error?: string | null
-          name?: string | null
-          organization_id: string
-          printed_lines?: number
-          queued_lines?: number
-          refused_lines?: number
-          selection_spec?: Json
-          status?: Database["public"]["Enums"]["label_run_status"]
-          template_key: string
-          total_lines?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow?: string
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          completed_at?: string | null
-          copies?: number
-          created_at?: string
-          created_by?: string | null
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          expansion_complete?: boolean
-          failed_lines?: number
-          id?: string
-          last_error?: string | null
-          name?: string | null
-          organization_id?: string
-          printed_lines?: number
-          queued_lines?: number
-          refused_lines?: number
-          selection_spec?: Json
-          status?: Database["public"]["Enums"]["label_run_status"]
-          template_key?: string
-          total_lines?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow?: string
-        }
-        Relationships: []
-      }
-      label_templates: {
-        Row: {
-          active: boolean
-          body: string
-          body_json: Json | null
-          branch_id: string | null
-          created_at: string
-          created_by: string | null
-          engine: Database["public"]["Enums"]["label_engine"]
-          geometry_mode: string
-          height_mm: number | null
-          id: string
-          is_default: boolean
-          kind: string
-          media_profile_id: string | null
-          name: string
-          org_id: string
-          template_key: string
-          updated_at: string
-          version: number
-          width_mm: number | null
-        }
-        Insert: {
-          active?: boolean
-          body: string
-          body_json?: Json | null
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          engine: Database["public"]["Enums"]["label_engine"]
-          geometry_mode?: string
-          height_mm?: number | null
-          id?: string
-          is_default?: boolean
-          kind: string
-          media_profile_id?: string | null
-          name: string
-          org_id: string
-          template_key: string
-          updated_at?: string
-          version?: number
-          width_mm?: number | null
-        }
-        Update: {
-          active?: boolean
-          body?: string
-          body_json?: Json | null
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          engine?: Database["public"]["Enums"]["label_engine"]
-          geometry_mode?: string
-          height_mm?: number | null
-          id?: string
-          is_default?: boolean
-          kind?: string
-          media_profile_id?: string | null
-          name?: string
-          org_id?: string
-          template_key?: string
-          updated_at?: string
-          version?: number
-          width_mm?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "label_templates_media_profile_id_fkey"
-            columns: ["media_profile_id"]
-            isOneToOne: false
-            referencedRelation: "media_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       landed_cost_allocations: {
         Row: {
           allocated_amount: number
@@ -90260,7 +89995,6 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      claim_label_runs: { Args: { p_limit?: number }; Returns: string[] }
       claim_next_business_event:
         | {
             Args: { p_limit?: number; p_org_id: string }
@@ -91653,20 +91387,6 @@ export type Database = {
           _lines: Json
           _org_id: string
           _reference: string
-        }
-        Returns: string
-      }
-      create_label_run: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_copies?: number
-          p_entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          p_name?: string
-          p_selection_spec: Json
-          p_template_key: string
-          p_warehouse_id?: string
-          p_workflow: string
         }
         Returns: string
       }
@@ -94463,10 +94183,6 @@ export type Database = {
         Args: never
         Returns: Json
       }
-      expand_label_run: {
-        Args: { p_batch_size?: number; p_run_id: string }
-        Returns: Json
-      }
       expense_approve: { Args: { p_expense_id: string }; Returns: Json }
       expense_convert_to_bill: { Args: { p_expense_id: string }; Returns: Json }
       expense_is_own_or_report: {
@@ -97198,22 +96914,6 @@ export type Database = {
       }
       issue_vendor_credit_note_atomic: {
         Args: { _vcn_id: string }
-        Returns: Json
-      }
-      label_saved_view_filter: {
-        Args: { p_business_id: string; p_view_id: string }
-        Returns: Json
-      }
-      label_vars_for_carton: {
-        Args: { p_business_id: string; p_carton_id: string }
-        Returns: Json
-      }
-      label_vars_for_location: {
-        Args: { p_business_id: string; p_location_id: string }
-        Returns: Json
-      }
-      label_vars_for_product: {
-        Args: { p_business_id: string; p_product_id: string }
         Returns: Json
       }
       landed_cost_allocate_voucher: {
@@ -101804,18 +101504,6 @@ export type Database = {
         }
         Returns: Json
       }
-      purge_label_run_lines: {
-        Args: { p_max_rows?: number; p_retention_days?: number }
-        Returns: Json
-      }
-      purge_label_runs: {
-        Args: {
-          p_business_id: string
-          p_older_than_days?: number
-          p_run_ids?: string[]
-        }
-        Returns: number
-      }
       purge_scan_events: { Args: never; Returns: undefined }
       raise_ar_dispute: {
         Args: {
@@ -101828,21 +101516,6 @@ export type Database = {
           _dispute_type?: string
           _document_id?: string
           _reason?: string
-        }
-        Returns: string
-      }
-      raise_label_demand: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_detail?: Json
-          p_entity_id: string
-          p_entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          p_qty_hint?: number
-          p_reason: Database["public"]["Enums"]["label_demand_reason"]
-          p_source_doc_id?: string
-          p_source_doc_type?: string
-          p_suggested_template_key?: string
         }
         Returns: string
       }
@@ -102395,7 +102068,6 @@ export type Database = {
           total_delta: number
         }[]
       }
-      recount_label_run: { Args: { p_run_id: string }; Returns: undefined }
       recurring_next_start: {
         Args: {
           _anchor_day?: number
@@ -103676,23 +103348,6 @@ export type Database = {
         Args: { p_business_id: string; p_kind: string }
         Returns: string
       }
-      resolve_label_template: {
-        Args: {
-          p_branch_id?: string
-          p_media_profile_id?: string
-          p_org_id: string
-          p_template_key: string
-        }
-        Returns: {
-          body: string
-          engine: Database["public"]["Enums"]["label_engine"]
-          id: string
-          kind: string
-          media_profile_id: string
-          scope: string
-          version: number
-        }[]
-      }
       resolve_liability_account_for_rule: {
         Args: {
           p_business_id: string
@@ -104307,7 +103962,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      retry_label_run_failures: { Args: { p_run_id: string }; Returns: number }
       revalue_fx_balances: {
         Args: {
           _base_currency?: string
@@ -104665,10 +104319,6 @@ export type Database = {
         Args: { _business_id: string }
         Returns: undefined
       }
-      seed_default_label_templates: {
-        Args: { p_org_id: string }
-        Returns: number
-      }
       seed_default_loan_types: { Args: { _org_id: string }; Returns: undefined }
       seed_default_media_profiles: {
         Args: { p_org_id: string }
@@ -104857,13 +104507,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      set_label_run_status: {
-        Args: {
-          p_run_id: string
-          p_status: Database["public"]["Enums"]["label_run_status"]
-        }
-        Returns: undefined
       }
       set_last_org_id: { Args: { p_org_id: string }; Returns: undefined }
       set_manager_pin: {
@@ -108132,7 +107775,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      wms_packaging_label: { Args: { p_packaging_id: string }; Returns: string }
       wms_packaging_set_availability: {
         Args: {
           p_is_stocked?: boolean
@@ -108564,36 +108206,12 @@ export type Database = {
         Args: { _actor: string; _gr_id: string; _reason?: string }
         Returns: Json
       }
-      wms_seed_base_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_crossdock_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_default_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
       wms_seed_default_wave_strategies: {
         Args: { p_warehouse_id: string }
         Returns: number
       }
-      wms_seed_receiving_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
       wms_seed_returns_document_templates: {
         Args: { _actor?: string; _business_id: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_returns_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_yard_label_templates: {
-        Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
       wms_set_lpn_client: {
@@ -108733,14 +108351,6 @@ export type Database = {
         Returns: string
       }
       wms_sscc_is_valid: { Args: { p_sscc: string }; Returns: boolean }
-      wms_sscc_label_payload: {
-        Args: {
-          p_business_id: string
-          p_mark_printed?: boolean
-          p_sscc: string
-        }
-        Returns: Json
-      }
       wms_sscc_mark_printed: {
         Args: {
           p_business_id: string
@@ -109356,31 +108966,6 @@ export type Database = {
         | "confirmed"
         | "voided"
       journal_status: "draft" | "posted" | "void"
-      label_demand_reason:
-        | "goods_receipt"
-        | "price_change"
-        | "barcode_enrolled"
-        | "product_import"
-        | "promotion"
-        | "recount"
-        | "manual"
-      label_demand_status: "open" | "queued" | "dismissed"
-      label_engine: "zpl" | "epl" | "escpos" | "pdf"
-      label_entity_type: "product" | "location" | "lot" | "carton" | "pallet"
-      label_run_line_status:
-        | "pending"
-        | "queued"
-        | "printed"
-        | "failed"
-        | "refused"
-      label_run_status:
-        | "draft"
-        | "expanding"
-        | "running"
-        | "paused"
-        | "completed"
-        | "failed"
-        | "cancelled"
       landed_cost_allocation_basis:
         | "value"
         | "quantity"
@@ -110565,34 +110150,6 @@ export const Constants = {
         "voided",
       ],
       journal_status: ["draft", "posted", "void"],
-      label_demand_reason: [
-        "goods_receipt",
-        "price_change",
-        "barcode_enrolled",
-        "product_import",
-        "promotion",
-        "recount",
-        "manual",
-      ],
-      label_demand_status: ["open", "queued", "dismissed"],
-      label_engine: ["zpl", "epl", "escpos", "pdf"],
-      label_entity_type: ["product", "location", "lot", "carton", "pallet"],
-      label_run_line_status: [
-        "pending",
-        "queued",
-        "printed",
-        "failed",
-        "refused",
-      ],
-      label_run_status: [
-        "draft",
-        "expanding",
-        "running",
-        "paused",
-        "completed",
-        "failed",
-        "cancelled",
-      ],
       landed_cost_allocation_basis: [
         "value",
         "quantity",
