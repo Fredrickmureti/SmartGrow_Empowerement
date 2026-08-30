@@ -214,12 +214,11 @@ const getDefaultSectionState = (): SectionState => {
 };
 
 interface AppSidebarProps {
-  onCreateOrg?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }
 
-export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }: AppSidebarProps) {
+export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { organizations, currentOrg, userRole, switchOrganization } = useOrganization();
@@ -475,7 +474,7 @@ export function AppSidebar({ onCreateOrg, collapsed = false, onToggleCollapse }:
       {/* Single Odoo-style Company › Branch context switcher (the workspace
           tenant is hidden unless the user belongs to ≥ 2 workspaces). */}
       <div className="flex h-16 items-center border-b px-2">
-        <SidebarContextSwitcher collapsed={collapsed} onCreateOrg={onCreateOrg} />
+        <SidebarContextSwitcher collapsed={collapsed} />
       </div>
 
       {/* Collapse Toggle */}
