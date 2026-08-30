@@ -60,8 +60,8 @@ Verdict: resume at M4, with the platform-persona remnants added to M7.
 | --- | --- | --- |
 | M0 | Test-suite re-baseline, prune stale manifests | DONE |
 | M3b | SaaS / plan / entitlement / platform-admin de-scope | DONE |
-| **M4** | **Decouple printing from hardware, delete hardware layer** | **ACTIVE** |
-| M5 | Retire payroll, attendance, non-actor HR from schema | queued |
+| M4 | Decouple printing from hardware, delete hardware layer | DONE (code + DB retirement) |
+| **M5** | **Retire payroll, attendance, non-actor HR from schema** | **ACTIVE** |
 | M6 | Institution identity & settings as single config root | queued |
 | M7 | RBAC roles, PIN auth, navigation IA, retire SaaS remnants | queued |
 | M8 | Finance foundation + microfinance account-mapping registry | queued |
@@ -76,7 +76,32 @@ Verdict: resume at M4, with the platform-persona remnants added to M7.
 
 Baseline to beat: typecheck clean, build OK, vitest 31 failed / 301 passed files.
 
-## M4 — active: decouple printing from hardware, delete the hardware layer
+## M4 — DONE
+
+Code decoupling completed earlier. Database retirement completed 2026-08-30 in
+four single-purpose migrations:
+1. label subsystem (`label_templates`, `label_demand`, `label_print_runs`,
+   `label_print_run_lines`, all `*label*` functions, 6 label enum types,
+   `purge-label-run-lines-nightly`);
+2. `print_jobs.hw_command_id` dropped; `print_job_mark_sent(uuid)` and
+   `print_jobs_settle(uuid[])` re-created without the hardware argument;
+   `print_job_mark_acked` / `mark_print_job_dispatched` dropped;
+3. hardware relay (`hardware_command_queue`, `hardware_exec_log`, its
+   functions, `hardware_command_status`, `cleanup-hardware-exec-log-daily`);
+4. device registry (`device_assignments`, `device_workflow_bindings`,
+   `printer_roles`, `scanner_device_trust`, `scanner_device_labels`, resolver
+   functions) plus `resolve_output_intent` rewritten PDF-only.
+
+Deferred by design: `attendance_devices`, `attendance_device_trust`,
+`employee_device_identifiers`, `user_devices`, `fiscal_device_credentials`,
+`workstations` — owned by M5 (HR/attendance) and the POS retirement milestone.
+`wms_equipment_health` / `wms_detect_operational_exceptions` still name dropped
+tables; they die with the WMS retirement.
+
+Verification: `tsgo -p tsconfig.app.json` clean; printing + printing-architecture
+suites 9 files / 50 tests green.
+
+## M4 — original scope (historical)
 
 Printing is needed for M15 documents; the device estate (ESC/POS drivers, local
 agents, label printers, device assignments) belongs to POS/warehouse.

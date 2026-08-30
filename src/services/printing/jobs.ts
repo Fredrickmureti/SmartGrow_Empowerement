@@ -96,7 +96,7 @@ export function handleFor(jobId: string): JobHandle {
 
 async function markSent(jobId: string): Promise<void> {
   try {
-    await supabase.rpc('print_job_mark_sent', { p_id: jobId, p_hw_command_id: null });
+    await supabase.rpc('print_job_mark_sent', { p_id: jobId });
   } catch { /* ledger failures never block printing */ }
 }
 
@@ -201,7 +201,6 @@ export async function settleJobs(
   try {
     await supabase.rpc('print_jobs_settle', {
       p_ids: ids,
-      p_hw_command_id: null,
     } as never);
   } catch { /* ledger failures never block printing */ }
 }

@@ -3349,7 +3349,6 @@ export type Database = {
           business_id: string | null
           created_at: string
           created_by: string | null
-          device_assignment_id: string | null
           hmac_secret: string
           id: string
           last_seen_at: string | null
@@ -3366,7 +3365,6 @@ export type Database = {
           business_id?: string | null
           created_at?: string
           created_by?: string | null
-          device_assignment_id?: string | null
           hmac_secret: string
           id?: string
           last_seen_at?: string | null
@@ -3383,7 +3381,6 @@ export type Database = {
           business_id?: string | null
           created_at?: string
           created_by?: string | null
-          device_assignment_id?: string | null
           hmac_secret?: string
           id?: string
           last_seen_at?: string | null
@@ -3395,15 +3392,7 @@ export type Database = {
           updated_at?: string
           vendor?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_devices_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       attendance_events: {
         Row: {
@@ -15501,226 +15490,6 @@ export type Database = {
           },
         ]
       }
-      device_assignments: {
-        Row: {
-          address: string | null
-          business_id: string | null
-          capabilities: Json
-          code128_native: boolean | null
-          columns_override: number | null
-          command_language: string | null
-          config: Json
-          created_at: string
-          created_by: string | null
-          cutter: string | null
-          device_key: string | null
-          display_name: string
-          dpi: number | null
-          driver: string
-          enabled: boolean
-          escpos_codepage: string | null
-          font: string | null
-          id: string
-          is_calibrated: boolean
-          is_default: boolean
-          last_error: string | null
-          last_seen_at: string | null
-          margin_cols: number | null
-          margins_mm: Json
-          notes: string | null
-          organization_id: string
-          paper_format: string | null
-          paper_size: string | null
-          qr_native: boolean | null
-          role: string
-          scope_id: string | null
-          scope_kind: string
-          status: string
-          supported_media_ids: string[]
-          transport: string
-          updated_at: string
-          workstation_id: string | null
-        }
-        Insert: {
-          address?: string | null
-          business_id?: string | null
-          capabilities?: Json
-          code128_native?: boolean | null
-          columns_override?: number | null
-          command_language?: string | null
-          config?: Json
-          created_at?: string
-          created_by?: string | null
-          cutter?: string | null
-          device_key?: string | null
-          display_name?: string
-          dpi?: number | null
-          driver: string
-          enabled?: boolean
-          escpos_codepage?: string | null
-          font?: string | null
-          id?: string
-          is_calibrated?: boolean
-          is_default?: boolean
-          last_error?: string | null
-          last_seen_at?: string | null
-          margin_cols?: number | null
-          margins_mm?: Json
-          notes?: string | null
-          organization_id: string
-          paper_format?: string | null
-          paper_size?: string | null
-          qr_native?: boolean | null
-          role: string
-          scope_id?: string | null
-          scope_kind: string
-          status?: string
-          supported_media_ids?: string[]
-          transport: string
-          updated_at?: string
-          workstation_id?: string | null
-        }
-        Update: {
-          address?: string | null
-          business_id?: string | null
-          capabilities?: Json
-          code128_native?: boolean | null
-          columns_override?: number | null
-          command_language?: string | null
-          config?: Json
-          created_at?: string
-          created_by?: string | null
-          cutter?: string | null
-          device_key?: string | null
-          display_name?: string
-          dpi?: number | null
-          driver?: string
-          enabled?: boolean
-          escpos_codepage?: string | null
-          font?: string | null
-          id?: string
-          is_calibrated?: boolean
-          is_default?: boolean
-          last_error?: string | null
-          last_seen_at?: string | null
-          margin_cols?: number | null
-          margins_mm?: Json
-          notes?: string | null
-          organization_id?: string
-          paper_format?: string | null
-          paper_size?: string | null
-          qr_native?: boolean | null
-          role?: string
-          scope_id?: string | null
-          scope_kind?: string
-          status?: string
-          supported_media_ids?: string[]
-          transport?: string
-          updated_at?: string
-          workstation_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_assignments_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "device_assignments_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "device_assignments_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "device_assignments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "device_assignments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "device_assignments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "device_assignments_workstation_id_fkey"
-            columns: ["workstation_id"]
-            isOneToOne: false
-            referencedRelation: "workstations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      device_workflow_bindings: {
-        Row: {
-          active: boolean
-          branch_id: string | null
-          created_at: string
-          created_by: string | null
-          device_assignment_id: string
-          id: string
-          organization_id: string
-          priority: number
-          updated_at: string
-          warehouse_id: string | null
-          workflow: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Insert: {
-          active?: boolean
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          device_assignment_id: string
-          id?: string
-          organization_id: string
-          priority?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Update: {
-          active?: boolean
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          device_assignment_id?: string
-          id?: string
-          organization_id?: string
-          priority?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow?: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_workflow_bindings_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       document_artifacts: {
         Row: {
           branch_id: string | null
@@ -16173,7 +15942,6 @@ export type Database = {
           copies: number
           created_at: string
           created_by: string | null
-          device_assignment_id: string | null
           document_type: string
           id: string
           intent: string | null
@@ -16192,7 +15960,6 @@ export type Database = {
           copies?: number
           created_at?: string
           created_by?: string | null
-          device_assignment_id?: string | null
           document_type: string
           id?: string
           intent?: string | null
@@ -16211,7 +15978,6 @@ export type Database = {
           copies?: number
           created_at?: string
           created_by?: string | null
-          device_assignment_id?: string | null
           document_type?: string
           id?: string
           intent?: string | null
@@ -16251,13 +16017,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "document_print_policies_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "document_print_policies_organization_id_fkey"
@@ -24536,170 +24295,6 @@ export type Database = {
           },
         ]
       }
-      hardware_command_queue: {
-        Row: {
-          attempts: number
-          branch_id: string | null
-          business_event_id: string | null
-          claim_lease_seconds: number
-          claimed_at: string | null
-          claimed_by: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          device_assignment_id: string | null
-          id: number
-          idempotency_key: string
-          last_error: string | null
-          max_attempts: number
-          next_attempt_at: string | null
-          op: string
-          org_id: string
-          payload: Json
-          role: string
-          source_doc_id: string | null
-          source_doc_type: string | null
-          status: Database["public"]["Enums"]["hardware_command_status"]
-          worker_id: string | null
-        }
-        Insert: {
-          attempts?: number
-          branch_id?: string | null
-          business_event_id?: string | null
-          claim_lease_seconds?: number
-          claimed_at?: string | null
-          claimed_by?: string | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          device_assignment_id?: string | null
-          id?: number
-          idempotency_key: string
-          last_error?: string | null
-          max_attempts?: number
-          next_attempt_at?: string | null
-          op: string
-          org_id: string
-          payload?: Json
-          role: string
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["hardware_command_status"]
-          worker_id?: string | null
-        }
-        Update: {
-          attempts?: number
-          branch_id?: string | null
-          business_event_id?: string | null
-          claim_lease_seconds?: number
-          claimed_at?: string | null
-          claimed_by?: string | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          device_assignment_id?: string | null
-          id?: number
-          idempotency_key?: string
-          last_error?: string | null
-          max_attempts?: number
-          next_attempt_at?: string | null
-          op?: string
-          org_id?: string
-          payload?: Json
-          role?: string
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["hardware_command_status"]
-          worker_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "hardware_command_queue_business_event_id_fkey"
-            columns: ["business_event_id"]
-            isOneToOne: false
-            referencedRelation: "business_event_outbox"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hardware_command_queue_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      hardware_exec_log: {
-        Row: {
-          actor_user_id: string | null
-          business_event_id: string | null
-          business_id: string | null
-          created_at: string
-          duration_ms: number | null
-          error_code: string | null
-          error_message: string | null
-          id: string
-          idempotency_key: string | null
-          is_reprint: boolean
-          ok: boolean
-          op: string
-          org_id: string
-          reprint_reason: string | null
-          role: string
-          runtime_reason: string | null
-          source_doc_id: string | null
-          source_doc_type: string | null
-        }
-        Insert: {
-          actor_user_id?: string | null
-          business_event_id?: string | null
-          business_id?: string | null
-          created_at?: string
-          duration_ms?: number | null
-          error_code?: string | null
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string | null
-          is_reprint?: boolean
-          ok: boolean
-          op: string
-          org_id: string
-          reprint_reason?: string | null
-          role: string
-          runtime_reason?: string | null
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-        }
-        Update: {
-          actor_user_id?: string | null
-          business_event_id?: string | null
-          business_id?: string | null
-          created_at?: string
-          duration_ms?: number | null
-          error_code?: string | null
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string | null
-          is_reprint?: boolean
-          ok?: boolean
-          op?: string
-          org_id?: string
-          reprint_reason?: string | null
-          role?: string
-          runtime_reason?: string | null
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "hardware_exec_log_business_event_id_fkey"
-            columns: ["business_event_id"]
-            isOneToOne: false
-            referencedRelation: "business_event_outbox"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       hr_document_categories: {
         Row: {
           business_id: string
@@ -27190,271 +26785,6 @@ export type Database = {
             columns: ["to_employee_id"]
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      label_demand: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          created_by: string | null
-          detail: Json
-          entity_id: string
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          id: string
-          organization_id: string
-          qty_hint: number
-          reason: Database["public"]["Enums"]["label_demand_reason"]
-          source_doc_id: string | null
-          source_doc_type: string | null
-          status: Database["public"]["Enums"]["label_demand_status"]
-          suggested_template_key: string | null
-          updated_at: string
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          detail?: Json
-          entity_id: string
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          id?: string
-          organization_id: string
-          qty_hint?: number
-          reason: Database["public"]["Enums"]["label_demand_reason"]
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["label_demand_status"]
-          suggested_template_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          detail?: Json
-          entity_id?: string
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          id?: string
-          organization_id?: string
-          qty_hint?: number
-          reason?: Database["public"]["Enums"]["label_demand_reason"]
-          source_doc_id?: string | null
-          source_doc_type?: string | null
-          status?: Database["public"]["Enums"]["label_demand_status"]
-          suggested_template_key?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      label_print_run_lines: {
-        Row: {
-          business_id: string
-          copies: number
-          created_at: string
-          entity_id: string
-          entity_label: string | null
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          error: string | null
-          id: string
-          print_job_id: string | null
-          resolved_vars: Json
-          run_id: string
-          status: Database["public"]["Enums"]["label_run_line_status"]
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          copies?: number
-          created_at?: string
-          entity_id: string
-          entity_label?: string | null
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          error?: string | null
-          id?: string
-          print_job_id?: string | null
-          resolved_vars?: Json
-          run_id: string
-          status?: Database["public"]["Enums"]["label_run_line_status"]
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          copies?: number
-          created_at?: string
-          entity_id?: string
-          entity_label?: string | null
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          error?: string | null
-          id?: string
-          print_job_id?: string | null
-          resolved_vars?: Json
-          run_id?: string
-          status?: Database["public"]["Enums"]["label_run_line_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "label_print_run_lines_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "label_print_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      label_print_runs: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          completed_at: string | null
-          copies: number
-          created_at: string
-          created_by: string | null
-          entity_type: Database["public"]["Enums"]["label_entity_type"]
-          expansion_complete: boolean
-          failed_lines: number
-          id: string
-          last_error: string | null
-          name: string | null
-          organization_id: string
-          printed_lines: number
-          queued_lines: number
-          refused_lines: number
-          selection_spec: Json
-          status: Database["public"]["Enums"]["label_run_status"]
-          template_key: string
-          total_lines: number
-          updated_at: string
-          warehouse_id: string | null
-          workflow: string
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          completed_at?: string | null
-          copies?: number
-          created_at?: string
-          created_by?: string | null
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          expansion_complete?: boolean
-          failed_lines?: number
-          id?: string
-          last_error?: string | null
-          name?: string | null
-          organization_id: string
-          printed_lines?: number
-          queued_lines?: number
-          refused_lines?: number
-          selection_spec?: Json
-          status?: Database["public"]["Enums"]["label_run_status"]
-          template_key: string
-          total_lines?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow?: string
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          completed_at?: string | null
-          copies?: number
-          created_at?: string
-          created_by?: string | null
-          entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          expansion_complete?: boolean
-          failed_lines?: number
-          id?: string
-          last_error?: string | null
-          name?: string | null
-          organization_id?: string
-          printed_lines?: number
-          queued_lines?: number
-          refused_lines?: number
-          selection_spec?: Json
-          status?: Database["public"]["Enums"]["label_run_status"]
-          template_key?: string
-          total_lines?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow?: string
-        }
-        Relationships: []
-      }
-      label_templates: {
-        Row: {
-          active: boolean
-          body: string
-          body_json: Json | null
-          branch_id: string | null
-          created_at: string
-          created_by: string | null
-          engine: Database["public"]["Enums"]["label_engine"]
-          geometry_mode: string
-          height_mm: number | null
-          id: string
-          is_default: boolean
-          kind: string
-          media_profile_id: string | null
-          name: string
-          org_id: string
-          template_key: string
-          updated_at: string
-          version: number
-          width_mm: number | null
-        }
-        Insert: {
-          active?: boolean
-          body: string
-          body_json?: Json | null
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          engine: Database["public"]["Enums"]["label_engine"]
-          geometry_mode?: string
-          height_mm?: number | null
-          id?: string
-          is_default?: boolean
-          kind: string
-          media_profile_id?: string | null
-          name: string
-          org_id: string
-          template_key: string
-          updated_at?: string
-          version?: number
-          width_mm?: number | null
-        }
-        Update: {
-          active?: boolean
-          body?: string
-          body_json?: Json | null
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          engine?: Database["public"]["Enums"]["label_engine"]
-          geometry_mode?: string
-          height_mm?: number | null
-          id?: string
-          is_default?: boolean
-          kind?: string
-          media_profile_id?: string | null
-          name?: string
-          org_id?: string
-          template_key?: string
-          updated_at?: string
-          version?: number
-          width_mm?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "label_templates_media_profile_id_fkey"
-            columns: ["media_profile_id"]
-            isOneToOne: false
-            referencedRelation: "media_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -50901,7 +50231,6 @@ export type Database = {
           failed_at: string | null
           format: string
           hardware_role: string | null
-          hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
@@ -50943,7 +50272,6 @@ export type Database = {
           failed_at?: string | null
           format: string
           hardware_role?: string | null
-          hw_command_id?: number | null
           id?: string
           intent: string
           last_error?: string | null
@@ -50985,7 +50313,6 @@ export type Database = {
           failed_at?: string | null
           format?: string
           hardware_role?: string | null
-          hw_command_id?: number | null
           id?: string
           intent?: string
           last_error?: string | null
@@ -51022,13 +50349,6 @@ export type Database = {
             columns: ["document_record_id"]
             isOneToOne: false
             referencedRelation: "document_records"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "print_jobs_hw_command_id_fkey"
-            columns: ["hw_command_id"]
-            isOneToOne: false
-            referencedRelation: "hardware_command_queue"
             referencedColumns: ["id"]
           },
           {
@@ -51092,70 +50412,6 @@ export type Database = {
           total_ms?: number
         }
         Relationships: []
-      }
-      printer_roles: {
-        Row: {
-          code: string
-          created_at: string
-          default_media_class: string | null
-          description: string | null
-          hardware_kind: string
-          id: string
-          is_active: boolean
-          is_system: boolean
-          label: string
-          organization_id: string
-          updated_at: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          default_media_class?: string | null
-          description?: string | null
-          hardware_kind: string
-          id?: string
-          is_active?: boolean
-          is_system?: boolean
-          label: string
-          organization_id: string
-          updated_at?: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          default_media_class?: string | null
-          description?: string | null
-          hardware_kind?: string
-          id?: string
-          is_active?: boolean
-          is_system?: boolean
-          label?: string
-          organization_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "printer_roles_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "printer_roles_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "printer_roles_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       procurement_contract_amendments: {
         Row: {
@@ -60923,121 +60179,6 @@ export type Database = {
           minute_bucket?: string
         }
         Relationships: []
-      }
-      scanner_device_labels: {
-        Row: {
-          branch_id: string | null
-          device_id: string
-          label: string
-          organization_id: string
-          session_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          device_id: string
-          label: string
-          organization_id: string
-          session_id: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          device_id?: string
-          label?: string
-          organization_id?: string
-          session_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      scanner_device_trust: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          device_id: string
-          device_label: string | null
-          id: string
-          issued_by: string
-          label: string
-          last_reclaimed_at: string | null
-          last_seen_at: string
-          organization_id: string
-          reclaim_count: number
-          revoked_at: string | null
-          revoked_reason: string | null
-          target_kind: string
-          trust_token_hash: string
-          trust_token_prefix: string
-          updated_at: string
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          device_id: string
-          device_label?: string | null
-          id?: string
-          issued_by: string
-          label: string
-          last_reclaimed_at?: string | null
-          last_seen_at?: string
-          organization_id: string
-          reclaim_count?: number
-          revoked_at?: string | null
-          revoked_reason?: string | null
-          target_kind: string
-          trust_token_hash: string
-          trust_token_prefix: string
-          updated_at?: string
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          device_id?: string
-          device_label?: string | null
-          id?: string
-          issued_by?: string
-          label?: string
-          last_reclaimed_at?: string | null
-          last_seen_at?: string
-          organization_id?: string
-          reclaim_count?: number
-          revoked_at?: string | null
-          revoked_reason?: string | null
-          target_kind?: string
-          trust_token_hash?: string
-          trust_token_prefix?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "scanner_device_trust_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "scanner_device_trust_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "scanner_device_trust_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       scanner_scope_policies: {
         Row: {
@@ -86673,10 +85814,6 @@ export type Database = {
         Returns: boolean
       }
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
-      _seed_default_printer_roles: {
-        Args: { p_organization_id: string }
-        Returns: undefined
-      }
       _sit_emit: {
         Args: { _id: string; _payload: Json; _state: string }
         Returns: undefined
@@ -90260,7 +89397,6 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      claim_label_runs: { Args: { p_limit?: number }; Returns: string[] }
       claim_next_business_event:
         | {
             Args: { p_limit?: number; p_org_id: string }
@@ -90401,86 +89537,6 @@ export type Database = {
               isSetofReturn: true
             }
           }
-      claim_next_hardware_command:
-        | {
-            Args: {
-              p_branch_id?: string
-              p_claimant: string
-              p_limit?: number
-              p_org_id: string
-            }
-            Returns: {
-              attempts: number
-              branch_id: string | null
-              business_event_id: string | null
-              claim_lease_seconds: number
-              claimed_at: string | null
-              claimed_by: string | null
-              completed_at: string | null
-              created_at: string
-              created_by: string | null
-              device_assignment_id: string | null
-              id: number
-              idempotency_key: string
-              last_error: string | null
-              max_attempts: number
-              next_attempt_at: string | null
-              op: string
-              org_id: string
-              payload: Json
-              role: string
-              source_doc_id: string | null
-              source_doc_type: string | null
-              status: Database["public"]["Enums"]["hardware_command_status"]
-              worker_id: string | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "hardware_command_queue"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
-        | {
-            Args: {
-              p_branch_id: string
-              p_claimant: string
-              p_device_assignment_id: string
-              p_limit: number
-              p_org_id: string
-            }
-            Returns: {
-              attempts: number
-              branch_id: string | null
-              business_event_id: string | null
-              claim_lease_seconds: number
-              claimed_at: string | null
-              claimed_by: string | null
-              completed_at: string | null
-              created_at: string
-              created_by: string | null
-              device_assignment_id: string | null
-              id: number
-              idempotency_key: string
-              last_error: string | null
-              max_attempts: number
-              next_attempt_at: string | null
-              op: string
-              org_id: string
-              payload: Json
-              role: string
-              source_doc_id: string | null
-              source_doc_type: string | null
-              status: Database["public"]["Enums"]["hardware_command_status"]
-              worker_id: string | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "hardware_command_queue"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
       claim_pick_task: { Args: { p_task_id: string }; Returns: Json }
       claim_print_jobs: {
         Args: { p_batch_size?: number }
@@ -90502,7 +89558,6 @@ export type Database = {
           failed_at: string | null
           format: string
           hardware_role: string | null
-          hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
@@ -90577,7 +89632,6 @@ export type Database = {
         }
       }
       cleanup_automation_tracker: { Args: never; Returns: undefined }
-      cleanup_old_hardware_exec_log: { Args: never; Returns: number }
       cleanup_old_spreadsheet_versions: { Args: never; Returns: number }
       cleanup_orphan_signups: {
         Args: never
@@ -90777,10 +89831,6 @@ export type Database = {
       complete_goods_receipt_atomic: {
         Args: { p_grn_id: string; p_user_id: string }
         Returns: Json
-      }
-      complete_hardware_command: {
-        Args: { p_error?: string; p_id: number; p_success: boolean }
-        Returns: undefined
       }
       complete_onboarding: {
         Args: {
@@ -91653,20 +90703,6 @@ export type Database = {
           _lines: Json
           _org_id: string
           _reference: string
-        }
-        Returns: string
-      }
-      create_label_run: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_copies?: number
-          p_entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          p_name?: string
-          p_selection_spec: Json
-          p_template_key: string
-          p_warehouse_id?: string
-          p_workflow: string
         }
         Returns: string
       }
@@ -94222,21 +93258,6 @@ export type Database = {
             Returns: string
           }
         | { Args: { p_transmission_id: string }; Returns: string }
-      enqueue_hardware_command: {
-        Args: {
-          p_branch_id: string
-          p_business_event_id?: string
-          p_device_assignment_id: string
-          p_idempotency_key: string
-          p_op: string
-          p_org_id: string
-          p_payload: Json
-          p_role: string
-          p_source_doc_id?: string
-          p_source_doc_type?: string
-        }
-        Returns: number
-      }
       enqueue_inventory_sms: {
         Args: {
           _business_id: string
@@ -94461,10 +93482,6 @@ export type Database = {
       }
       execute_due_scheduled_organization_deletions: {
         Args: never
-        Returns: Json
-      }
-      expand_label_run: {
-        Args: { p_batch_size?: number; p_run_id: string }
         Returns: Json
       }
       expense_approve: { Args: { p_expense_id: string }; Returns: Json }
@@ -97200,22 +96217,6 @@ export type Database = {
         Args: { _vcn_id: string }
         Returns: Json
       }
-      label_saved_view_filter: {
-        Args: { p_business_id: string; p_view_id: string }
-        Returns: Json
-      }
-      label_vars_for_carton: {
-        Args: { p_business_id: string; p_carton_id: string }
-        Returns: Json
-      }
-      label_vars_for_location: {
-        Args: { p_business_id: string; p_location_id: string }
-        Returns: Json
-      }
-      label_vars_for_product: {
-        Args: { p_business_id: string; p_product_id: string }
-        Returns: Json
-      }
       landed_cost_allocate_voucher: {
         Args: { p_actor?: string; p_voucher_id: string }
         Returns: Json
@@ -97985,14 +96986,6 @@ export type Database = {
       mark_po_billed: {
         Args: { p_bill_id: string; p_po_id: string }
         Returns: Json
-      }
-      mark_print_job_dispatched: {
-        Args: {
-          p_artifact_id?: string
-          p_hw_command_id?: number
-          p_job_id: string
-        }
-        Returns: undefined
       }
       mark_print_job_failed: {
         Args: { p_error: string; p_job_id: string }
@@ -100594,24 +99587,6 @@ export type Database = {
           warehouse_id: string
         }[]
       }
-      pos_rename_scanner_device: {
-        Args: { p_device_id: string; p_label: string; p_session: string }
-        Returns: {
-          branch_id: string | null
-          device_id: string
-          label: string
-          organization_id: string
-          session_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "scanner_device_labels"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       pos_resolve_cashier_fk: {
         Args: {
           _branch_id: string
@@ -100880,24 +99855,14 @@ export type Database = {
         }
         Returns: string
       }
-      print_job_mark_acked: {
-        Args: { p_hw_command_id: number }
-        Returns: number
-      }
       print_job_mark_acked_by_id: { Args: { p_id: string }; Returns: number }
       print_job_mark_failed: {
         Args: { p_error: string; p_id: string }
         Returns: undefined
       }
-      print_job_mark_sent: {
-        Args: { p_hw_command_id?: number; p_id: string }
-        Returns: undefined
-      }
+      print_job_mark_sent: { Args: { p_id: string }; Returns: undefined }
       print_job_resend: { Args: { p_id: string }; Returns: string }
-      print_jobs_settle: {
-        Args: { p_hw_command_id?: number; p_ids: string[] }
-        Returns: number
-      }
+      print_jobs_settle: { Args: { p_ids: string[] }; Returns: number }
       print_jobs_strand: {
         Args: { p_ids: string[]; p_reason?: string }
         Returns: number
@@ -101804,18 +100769,6 @@ export type Database = {
         }
         Returns: Json
       }
-      purge_label_run_lines: {
-        Args: { p_max_rows?: number; p_retention_days?: number }
-        Returns: Json
-      }
-      purge_label_runs: {
-        Args: {
-          p_business_id: string
-          p_older_than_days?: number
-          p_run_ids?: string[]
-        }
-        Returns: number
-      }
       purge_scan_events: { Args: never; Returns: undefined }
       raise_ar_dispute: {
         Args: {
@@ -101828,21 +100781,6 @@ export type Database = {
           _dispute_type?: string
           _document_id?: string
           _reason?: string
-        }
-        Returns: string
-      }
-      raise_label_demand: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_detail?: Json
-          p_entity_id: string
-          p_entity_type?: Database["public"]["Enums"]["label_entity_type"]
-          p_qty_hint?: number
-          p_reason: Database["public"]["Enums"]["label_demand_reason"]
-          p_source_doc_id?: string
-          p_source_doc_type?: string
-          p_suggested_template_key?: string
         }
         Returns: string
       }
@@ -101924,7 +100862,6 @@ export type Database = {
           reclaimed_id: string
         }[]
       }
-      reclaim_stale_hardware_commands: { Args: never; Returns: number }
       recompute_loan_schedule: { Args: { _loan_id: string }; Returns: number }
       recompute_payroll_liability_totals: {
         Args: { _liability_id: string }
@@ -102395,7 +101332,6 @@ export type Database = {
           total_delta: number
         }[]
       }
-      recount_label_run: { Args: { p_run_id: string }; Returns: undefined }
       recurring_next_start: {
         Args: {
           _anchor_day?: number
@@ -103268,7 +102204,6 @@ export type Database = {
           failed_at: string | null
           format: string
           hardware_role: string | null
-          hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
@@ -103561,73 +102496,6 @@ export type Database = {
         }
         Returns: Json
       }
-      resolve_device: {
-        Args: {
-          _business_id?: string
-          _organization_id: string
-          _role: string
-          _scope_id?: string
-          _scope_kind?: string
-        }
-        Returns: {
-          address: string | null
-          business_id: string | null
-          capabilities: Json
-          code128_native: boolean | null
-          columns_override: number | null
-          command_language: string | null
-          config: Json
-          created_at: string
-          created_by: string | null
-          cutter: string | null
-          device_key: string | null
-          display_name: string
-          dpi: number | null
-          driver: string
-          enabled: boolean
-          escpos_codepage: string | null
-          font: string | null
-          id: string
-          is_calibrated: boolean
-          is_default: boolean
-          last_error: string | null
-          last_seen_at: string | null
-          margin_cols: number | null
-          margins_mm: Json
-          notes: string | null
-          organization_id: string
-          paper_format: string | null
-          paper_size: string | null
-          qr_native: boolean | null
-          role: string
-          scope_id: string | null
-          scope_kind: string
-          status: string
-          supported_media_ids: string[]
-          transport: string
-          updated_at: string
-          workstation_id: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "device_assignments"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      resolve_device_for_workflow: {
-        Args: {
-          p_branch_id?: string
-          p_org_id: string
-          p_warehouse_id?: string
-          p_workflow: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Returns: {
-          binding_id: string
-          device_assignment_id: string
-          scope: string
-        }[]
-      }
       resolve_exchange_rate: {
         Args: {
           p_business_id: string
@@ -103675,23 +102543,6 @@ export type Database = {
       resolve_fx_unrealized_account: {
         Args: { p_business_id: string; p_kind: string }
         Returns: string
-      }
-      resolve_label_template: {
-        Args: {
-          p_branch_id?: string
-          p_media_profile_id?: string
-          p_org_id: string
-          p_template_key: string
-        }
-        Returns: {
-          body: string
-          engine: Database["public"]["Enums"]["label_engine"]
-          id: string
-          kind: string
-          media_profile_id: string
-          scope: string
-          version: number
-        }[]
       }
       resolve_liability_account_for_rule: {
         Args: {
@@ -104186,19 +103037,6 @@ export type Database = {
         Returns: number
       }
       resolve_trial_days: { Args: { p_app_id: string }; Returns: number }
-      resolve_workflow_printer: {
-        Args: {
-          p_branch_id?: string
-          p_org_id: string
-          p_warehouse_id?: string
-          p_workflow: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Returns: {
-          binding_id: string
-          printer_profile_id: string
-          scope: string
-        }[]
-      }
       restore_department: {
         Args: { _department_id: string }
         Returns: {
@@ -104307,7 +103145,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      retry_label_run_failures: { Args: { p_run_id: string }; Returns: number }
       revalue_fx_balances: {
         Args: {
           _base_currency?: string
@@ -104601,34 +103438,6 @@ export type Database = {
         }
         Returns: Json
       }
-      scanner_issue_trust: {
-        Args: {
-          p_device_id: string
-          p_device_label?: string
-          p_session_id: string
-        }
-        Returns: {
-          trust_token: string
-        }[]
-      }
-      scanner_reclaim_session: {
-        Args: { p_device_id: string; p_trust_token: string }
-        Returns: {
-          branch_id: string
-          business_id: string
-          channel_topic: string
-          expires_at: string
-          label: string
-          new_trust_token: string
-          organization_id: string
-          session_id: string
-          target_kind: string
-        }[]
-      }
-      scanner_revoke_trust: {
-        Args: { p_device_id: string; p_reason?: string }
-        Returns: undefined
-      }
       schedule_dock_appointment: {
         Args: {
           p_carrier_id?: string
@@ -104664,10 +103473,6 @@ export type Database = {
       seed_default_journal_books: {
         Args: { _business_id: string }
         Returns: undefined
-      }
-      seed_default_label_templates: {
-        Args: { p_org_id: string }
-        Returns: number
       }
       seed_default_loan_types: { Args: { _org_id: string }; Returns: undefined }
       seed_default_media_profiles: {
@@ -104857,13 +103662,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      set_label_run_status: {
-        Args: {
-          p_run_id: string
-          p_status: Database["public"]["Enums"]["label_run_status"]
-        }
-        Returns: undefined
       }
       set_last_org_id: { Args: { p_org_id: string }; Returns: undefined }
       set_manager_pin: {
@@ -108132,7 +106930,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      wms_packaging_label: { Args: { p_packaging_id: string }; Returns: string }
       wms_packaging_set_availability: {
         Args: {
           p_is_stocked?: boolean
@@ -108564,36 +107361,12 @@ export type Database = {
         Args: { _actor: string; _gr_id: string; _reason?: string }
         Returns: Json
       }
-      wms_seed_base_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_crossdock_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_default_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
       wms_seed_default_wave_strategies: {
         Args: { p_warehouse_id: string }
         Returns: number
       }
-      wms_seed_receiving_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
       wms_seed_returns_document_templates: {
         Args: { _actor?: string; _business_id: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_returns_label_templates: {
-        Args: { _actor?: string; _org_id: string }
-        Returns: undefined
-      }
-      wms_seed_yard_label_templates: {
-        Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
       wms_set_lpn_client: {
@@ -108733,14 +107506,6 @@ export type Database = {
         Returns: string
       }
       wms_sscc_is_valid: { Args: { p_sscc: string }; Returns: boolean }
-      wms_sscc_label_payload: {
-        Args: {
-          p_business_id: string
-          p_mark_printed?: boolean
-          p_sscc: string
-        }
-        Returns: Json
-      }
       wms_sscc_mark_printed: {
         Args: {
           p_business_id: string
@@ -109326,12 +108091,6 @@ export type Database = {
         | "wrong_item"
         | "expired"
         | "quality_hold"
-      hardware_command_status:
-        | "pending"
-        | "running"
-        | "done"
-        | "failed"
-        | "dead"
       inbound_shipment_status:
         | "draft"
         | "dispatched"
@@ -109356,31 +108115,6 @@ export type Database = {
         | "confirmed"
         | "voided"
       journal_status: "draft" | "posted" | "void"
-      label_demand_reason:
-        | "goods_receipt"
-        | "price_change"
-        | "barcode_enrolled"
-        | "product_import"
-        | "promotion"
-        | "recount"
-        | "manual"
-      label_demand_status: "open" | "queued" | "dismissed"
-      label_engine: "zpl" | "epl" | "escpos" | "pdf"
-      label_entity_type: "product" | "location" | "lot" | "carton" | "pallet"
-      label_run_line_status:
-        | "pending"
-        | "queued"
-        | "printed"
-        | "failed"
-        | "refused"
-      label_run_status:
-        | "draft"
-        | "expanding"
-        | "running"
-        | "paused"
-        | "completed"
-        | "failed"
-        | "cancelled"
       landed_cost_allocation_basis:
         | "value"
         | "quantity"
@@ -110537,7 +109271,6 @@ export const Constants = {
         "expired",
         "quality_hold",
       ],
-      hardware_command_status: ["pending", "running", "done", "failed", "dead"],
       inbound_shipment_status: [
         "draft",
         "dispatched",
@@ -110565,34 +109298,6 @@ export const Constants = {
         "voided",
       ],
       journal_status: ["draft", "posted", "void"],
-      label_demand_reason: [
-        "goods_receipt",
-        "price_change",
-        "barcode_enrolled",
-        "product_import",
-        "promotion",
-        "recount",
-        "manual",
-      ],
-      label_demand_status: ["open", "queued", "dismissed"],
-      label_engine: ["zpl", "epl", "escpos", "pdf"],
-      label_entity_type: ["product", "location", "lot", "carton", "pallet"],
-      label_run_line_status: [
-        "pending",
-        "queued",
-        "printed",
-        "failed",
-        "refused",
-      ],
-      label_run_status: [
-        "draft",
-        "expanding",
-        "running",
-        "paused",
-        "completed",
-        "failed",
-        "cancelled",
-      ],
       landed_cost_allocation_basis: [
         "value",
         "quantity",
