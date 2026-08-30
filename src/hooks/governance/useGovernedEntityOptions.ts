@@ -134,7 +134,7 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       .from("employee_loans")
       .select("id, employee_id, status, start_date, description, created_by")
       .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"])
+      .in("status", ["draft"])
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;

@@ -42,9 +42,7 @@ export function useDocumentTemplates(templateType?: DocumentTemplateType) {
       
       const parsedTemplates = (data || []).map(t => ({
         ...t,
-        columns_layout: typeof t.columns_layout === 'object' && t.columns_layout !== null 
-          ? t.columns_layout as Record<string, number>
-          : { description: 40, quantity: 10, unit_price: 15, tax: 10, amount: 15 },
+        columns_layout: { description: 40, quantity: 10, unit_price: 15, tax: 10, amount: 15 } as Record<string, number>,
         bank_details: typeof t.bank_details === 'object' && t.bank_details !== null
           ? t.bank_details as BankDetails
           : {},

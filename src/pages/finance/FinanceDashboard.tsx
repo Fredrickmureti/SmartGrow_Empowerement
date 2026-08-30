@@ -123,7 +123,7 @@ export default function FinanceDashboard() {
           .eq("organization_id", orgId);
         if (businessId) q = q.eq("business_id", businessId);
         if (branchId) q = q.eq("branch_id", branchId);
-        if (status) q = q.eq("status", status);
+        if (status) q = q.eq("status", status as "draft" | "posted" | "void");
         return q;
       };
 
