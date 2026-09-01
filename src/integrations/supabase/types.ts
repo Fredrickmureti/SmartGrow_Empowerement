@@ -86105,6 +86105,13 @@ export type Database = {
         Args: { p_account_id: string }
         Returns: boolean
       }
+      _payroll_needs_from: {
+        Args: { _parameters: Json; _rule_type: string }
+        Returns: {
+          needs_employee: boolean
+          needs_employer: boolean
+        }[]
+      }
       _payroll_payment_batch_emit_event: {
         Args: {
           p_batch: Database["public"]["Tables"]["payroll_payment_batches"]["Row"]
@@ -98968,6 +98975,15 @@ export type Database = {
       payroll_mark_stale_certificates: {
         Args: { p_business: string; p_fiscal_year?: number; p_org: string }
         Returns: number
+      }
+      payroll_pack_required_account_roles: {
+        Args: { p_pack_id: string }
+        Returns: {
+          account_type: string
+          detail_type: string
+          label: string
+          role_key: string
+        }[]
       }
       payroll_payment_batch_approve: {
         Args: { p_batch_id: string; p_note?: string }
