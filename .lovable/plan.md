@@ -15,12 +15,12 @@ Backend: already connected to Supabase project `xwxqunklduknceoryrha`.
 | C2 roles + `mf_account_mappings` + accounting-mappings settings screen | Confirmed — table exists in DB, `useMfAccountMappings.ts` present |
 | C3 schema (`mf_clients`, `mf_groups`, `mf_group_members`) | Confirmed — all three tables exist |
 | C3 client hook | Confirmed — `src/hooks/useMfClients.ts` present |
-| C3 groups hook | **Missing** — no `useMfGroups.ts` |
-| C3 UI (Clients, Groups pages) | **Missing** — both still `PlaceholderSurface` |
+| C3 groups hook | Done — `src/hooks/useMfGroups.ts` (groups + membership roll) |
+| C3 UI (Clients, Groups pages) | Done — real pages wired in `src/apps/lending/routes.tsx` |
 
-Genuine resume point: **mid-C3**, at the groups hook and the two real pages.
+**C3 is complete** (typecheck clean). Genuine resume point: **C4 — loan products**.
 
-## C3 (finish) — Clients & groups UI
+## C3 — Clients & groups UI — DONE
 
 1. `src/hooks/useMfGroups.ts` — group list/create/update, membership add/exit,
    leader-uniqueness violation surfaced as a friendly error.
@@ -97,8 +97,9 @@ inherited failing tests — after nothing reads them.
 
 ## Next action
 
-Finish C3: `useMfGroups.ts`, the real Clients page and the real Groups page,
-then typecheck and mark C3 done.
+Start C4 — loan products with immutable versions: `mf_loan_products` +
+`mf_loan_product_versions` migration (GRANTs + RLS in the same migration), a
+`useMfLoanProducts` hook, and the Products page replacing its placeholder.
 
 
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
