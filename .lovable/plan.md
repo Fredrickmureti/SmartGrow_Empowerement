@@ -1,148 +1,108 @@
-# Smart Grow Empowerment — convergence plan (reworked 2026-09-01)
+# Smart Grow Empowerment — convergence plan (re-verified 2026-09-02)
 
-Single source of truth. Strategy: reuse only three things from the inherited
-AccrualFlow platform — document engine, auth engine (PIN), navigation/UI
-foundation. Everything else ERP is unwired now and dropped in one sweep at the
-end. Build lending business logic immediately; no exploratory audits.
+Single source of truth. Reuse exactly three inherited things: document engine,
+auth engine (PIN), navigation/UI foundation. Finance is reused only as the
+posting target (chart of accounts, journal, GL, fiscal periods, fixed assets).
+Everything else ERP is unwired and dropped in one sweep at the end.
 
-Backend: already connected to Supabase project `xwxqunklduknceoryrha`.
+Backend: Supabase project `xwxqunklduknceoryrha` (already connected; no
+further connection step needed).
 
-## Verified state (checked directly today)
+## Verified state (checked directly against files and the live database)
 
-| Claim | Verdict |
-| --- | --- |
-| C1 registry prune, `LENDING_APP` + `/lending/*` scaffold | Confirmed — `src/apps/lending/` exists with nav, routes, placeholders |
-| C2 roles + `mf_account_mappings` + accounting-mappings settings screen | Confirmed — table exists in DB, `useMfAccountMappings.ts` present |
-| C3 schema (`mf_clients`, `mf_groups`, `mf_group_members`) | Confirmed — all three tables exist |
-| C3 client hook | Confirmed — `src/hooks/useMfClients.ts` present |
-| C3 groups hook | Done — `src/hooks/useMfGroups.ts` (groups + membership roll) |
-| C3 UI (Clients, Groups pages) | Done — real pages wired in `src/apps/lending/routes.tsx` |
+| Milestone | Previous claim | Verified reality |
+| --- | --- | --- |
+| C1 scaffold, `/lending/*` | Done | Confirmed |
+| C2 roles + `mf_account_mappings` + settings screen | Done | Confirmed — but **no RPC reads the mappings** |
+| C3 clients + groups | Done | Confirmed (tables, hooks, pages) |
+| C4 loan products | "ProductsPage missing" | **Stale** — `ProductsPage.tsx` exists and is routed. C4 complete |
+| C5 applications → assessment → decision | Not started | **Already built** — `mf_loan_applications`, `mf_application_assessments`, hooks, 4 UI files |
+| C6 loan + schedule + disbursement | Not started | **Built, unposted** — `mf_loans`, `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events` (append-only), `mf_generate_schedule`, `mf_create_loan_from_application`, `mf_disburse_loan`. Zero journal posting |
+| C7 repayments / allocation / arrears / collections | Not started | **Half built** — `mf_repayments`, `mf_repayment_batches`, `mf_repayment_allocations`, `mf_allocation_policy`, `mf_record_repayment` (reads policy), `mf_reverse_repayment`; balances + installment status are server views. **Missing:** GL posting, arrears/DPD/PAR, collections activity (visits, promises, outcomes), officer-portfolio scoping |
 
-**C3 is complete** (typecheck clean). Genuine resume point: **C4 — loan products**.
+Typecheck is clean. All 18 `mf_*` tables have RLS enabled.
 
-## C3 — Clients & groups UI — DONE
+**Genuine resume point: C6b — accounting hook.** Disbursement and repayment
+are business events with no accounting effect today; that violates rule 2 and
+must be fixed before any more lifecycle work lands on top of it.
 
-1. `src/hooks/useMfGroups.ts` — group list/create/update, membership add/exit,
-   leader-uniqueness violation surfaced as a friendly error.
-2. Clients page: list with search + branch/status filters, register/edit
-   dialog (KYC identity, branch, owning loan officer, status).
-3. Groups page: list, create, membership management with weekly meeting slot.
-4. Both built from `@/design-system` primitives only; replace the two
-   placeholders in `src/apps/lending/routes.tsx`.
-5. Verify: `tsgo --noEmit` clean, both screens open and load.
+## C6b — Accounting hook (next)
 
-Individual liability only — group membership never implies a joint loan.
-Clients survive loan closure.
+1. One migration per object (rule: small, single-purpose):
+   - `mf_post_event(loan_event_id)` — resolves debit/credit accounts from
+     `mf_account_mappings` by event kind, writes a balanced journal entry via the
+     existing journal path, stamps `journal_entry_id` on `mf_loan_events`.
+     Missing mapping = hard error, never a fallback account.
+   - `mf_disburse_loan` → calls `mf_post_event` (principal receivable DR /
+     cash-bank-mobile CR by disbursement method).
+   - `mf_record_repayment` → posts per allocation bucket (principal, interest,
+     fee, penalty) from the policy-driven allocation rows.
+   - `mf_reverse_repayment` → reversing journal, linked to the original.
+2. Idempotency: unique `(loan_event_id)` on the posting link; re-running posts
+   nothing.
+3. Verify: disburse + repay + reverse one loan; journal balances, GL matches
+   `mf_loan_balances`.
 
-## C4 — Loan products (immutable versions) — IN PROGRESS
+## C7b — Arrears, collections, portfolio scope
 
-Verified done: `mf_loan_products` + `mf_loan_product_versions` exist in the
-database with GRANTs, RLS and freeze triggers; `src/hooks/useMfLoanProducts.ts`,
-`ProductFormDialog.tsx` and `ProductVersionDialog.tsx` exist.
-
-Verified missing: `ProductsPage.tsx` — the `products` route in
-`src/apps/lending/routes.tsx` is still the placeholder.
-
-Remaining: build `ProductsPage.tsx` (product list, status filter, opens the two
-existing dialogs), swap the placeholder route, typecheck, open the screen.
-Amount band, term, frequency, interest method, fees, penalties, grace,
-eligibility, activation live on the frozen version record so live loans never
-reprice.
-
-
-## C5 — Applications → assessment → approval
-
-Draft → Submitted → Under review → Approved/Rejected → Ready for disbursement.
-Assessment is an attributable physical visit; approval bounded by authority
-limits and cycle eligibility. Requested ≠ approved. Approval ≠ disbursement.
-
-## C6 — Loan, schedule engine, disbursement
-
-Loan snapshots contractual terms. Server-side schedule engine per interest
-method and frequency (contractual, not a ledger). Disbursement is an idempotent
-guarded event posting through the C2 mappings into the existing journal/GL.
-
-## C7 — Repayments, allocation, arrears, collections
-
-Batch-per-meeting entry with per-member receipts; partial, over and reversal
-handling. Allocation order is configuration. Arrears, DPD and PAR derived
-server-side. Collections activity, visits, promises — scoped to officer
-portfolios.
+- Server views: `mf_loan_arrears` (due vs paid per installment → DPD, arrears
+  amount), `mf_par_summary` (PAR 1/30/90 by branch/officer).
+- Tables: `mf_collection_activities` (visit, call, promise-to-pay, outcome;
+  attributable to officer; append-only).
+- RLS: loan officers see only their own portfolio; branch managers their
+  branch; finance/audit roles read all. Apply the same scope to `mf_clients`,
+  `mf_loans`, `mf_repayments` (currently institution-wide).
+- Collections page becomes arrears worklist + activity log, not a balance list.
 
 ## C8 — Lifecycle exceptions
 
-Top-up, restructuring, write-off, closure as event-sourced processes with
-approval and accounting treatment. No destructive updates to loan history.
+Top-up, restructuring, write-off, closure as `mf_loan_events` with approval and
+`mf_post_event` treatment. New schedule versions, never edits to history.
 
 ## C9 — Reports & documents on the existing engines
 
-Portfolio, outstanding principal/interest, daily/officer/branch collections,
-arrears aging and PAR, client statement and exposure, applications/approvals/
-disbursements. Documents: loan agreement, repayment schedule, loan statement,
-payment receipt, disbursement confirmation, collection receipt. Existing
-renderers reused with institution data injected.
+Reports: portfolio, outstanding principal/interest, daily/officer/branch
+collections, arrears aging + PAR, client statement/exposure, applications/
+approvals/disbursements. Documents: loan agreement, repayment schedule, loan
+statement, payment receipt, disbursement confirmation, collection receipt.
+Register into the existing engines with institution data injected; no new
+renderers.
 
 ## C10 — Hardening + one bulk sweep
 
-RLS/grants audit on every `mf_*` table, reversal/duplicate/approval controls,
-security scan. Then one grouped drop of confirmed-dead ERP schema (retail/WMS,
-payroll, attendance, procurement, POS) plus deletion of their dead code and
-inherited failing tests — after nothing reads them.
+RLS/grants audit on every `mf_*` object, reversal/duplicate/approval controls,
+security scan. Then the single grouped removal of confirmed-dead ERP surfaces:
+
+- Finance registry entries: receivables, payables, customer credits, customer
+  statements, budgets, bank feeds, reconciliation (keep: chart of accounts,
+  journal entries, fiscal periods, fixed assets, banking, reports, settings).
+- Contacts app (customers/suppliers/companies) — clients live in `mf_clients`.
+- Employees app sub-surfaces: departments, job positions, work locations, org
+  chart, HR reports (keep: user list, role, branch assignment).
+- Dead schema: retail/WMS, payroll, attendance, procurement, POS, CRM, and
+  their tests.
 
 ## Working rules
 
-1. Financial state is derived server-side; React never owns balances, interest,
-   arrears, allocations or journal amounts.
-2. Every domain action is a business event with an accounting hook, not a CRUD
-   update. Account mappings stay configuration — never a hardcoded account UUID.
-3. Every new public table ships GRANTs + RLS + policies in the same migration;
-   migrations stay small and single-purpose.
-4. Inherited ERP rows are not this institution's data — no microfinance surface
-   reads legacy invoices, bills, POS, payroll, CRM or inventory rows.
-5. Permanently out of scope: SaaS/tenants/subscriptions/platform admin, payroll,
-   attendance, POS, inventory, warehouse, procurement, sales order-to-cash,
-   client portal, public registration, hardware estate.
-6. Per-milestone verification is typecheck + open the affected screens. Full
-   suite green is a C10 goal.
+1. Financial state is derived server-side; React never owns balances,
+   interest, arrears, allocations or journal amounts.
+2. Every domain action is a business event with an accounting hook. Account
+   mappings are configuration — never a hardcoded account UUID.
+3. Every new public object ships GRANTs + RLS in the same migration; one
+   object per migration.
+4. Inherited ERP rows are not this institution's data.
+5. Permanently out of scope: SaaS/tenants/subscriptions, payroll, attendance,
+   POS, inventory, warehouse, procurement, order-to-cash, client portal,
+   public registration, hardware.
+6. Per-milestone verification: typecheck + exercise the affected flow against
+   the live database. Full suite green is a C10 goal.
 7. No exploratory audits of code or tables already known to be out of scope.
+8. Update this file after every completed step; never trust a prior claim
+   without checking the file or table it names.
 
 ## Next action
 
-Finish C4: create `src/apps/lending/products/ProductsPage.tsx` (product list,
-status filter, opening the two existing dialogs), replace the `products`
-placeholder in `src/apps/lending/routes.tsx`, typecheck, open
-`/lending/products`. Then start C5 (applications → assessment → approval).
-
-
-
-
-=============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
-
-
-C7 UI is now in place: `src/hooks/useMfRepayments.ts` (receipts, batches, server-derived balances, allocation drill-down), `repayments/RepaymentsPage.tsx` (batch-per-meeting capture, receipts, append-only reversal), `collections/CollectionsPage.tsx` (arrears, DPD ageing buckets, PAR>30), and both routes swapped off placeholders in `src/apps/lending/routes.tsx`. All money figures come from `mf_loan_balances` / the RPCs — no financial maths in React.
-
-Remaining before C8:
-- Typecheck output was cut short mid-run — re-run `bunx tsgo --noEmit -p tsconfig.app.json` and open `/lending/repayments` and `/lending/collections` to confirm.
-- Optional: allocation-order setting on the lending configuration screen.
-- Update `.lovable/plan.md` to mark C7 done, then start C8 (top-up, restructuring, write-off, closure as event-sourced processes), followed by C9 reports/documents and the C10 hardening + single ERP drop sweep.
-
-
-NOTE
-=============
-And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
-
-The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
-
-What we want to **reuse** from the existing system is specifically:
-
-* **Document generation engine**
-* **Authentication/auth engine**
-* **Navigation and UI foundation**
-
-Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
-
-The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
-
-**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
-
-**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
+C6b step 1: migration creating `mf_post_event`, then wire it into
+`mf_disburse_loan`, `mf_record_repayment`, `mf_reverse_repayment`, one
+migration each. Then verify one full disburse → repay → reverse cycle in the
+journal.
