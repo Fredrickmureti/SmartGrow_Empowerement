@@ -120,12 +120,22 @@ placeholder in `src/apps/lending/routes.tsx`, typecheck, open
 
 
 
-C4 is done and verified; C5 (applications → assessment → approval) is next but I stopped before making changes.
+Work paused on C5 (loan applications). Here's where things stand:
 
-Remaining for C5:
-- Migration for `mf_loan_applications` (client, group, product version snapshot, requested amount/term, status Draft→Submitted→Under review→Approved/Rejected→Ready for disbursement, approved amount/term, decision actor and timestamp) and `mf_application_assessments` (attributable in-person visit record), each with GRANTs, RLS, policies and an `updated_at` trigger; plus a server-side transition guard so status changes are event-driven, not free-form updates.
-- `src/hooks/useMfApplications.ts` following the `useMfLoanProducts` pattern.
-- `src/apps/lending/applications/ApplicationsPage.tsx` (+ application form and assessment/decision dialogs), wired over the placeholder in `src/apps/lending/routes.tsx`.
+Verified before continuing — C1–C4 claims in the plan are genuine: the lending app scaffold, roles/account mappings, clients/groups schema + hooks + pages, and loan products with immutable versions (including `ProductsPage.tsx` wired over the placeholder) all exist in the codebase and database.
+
+Completed this session
+- Fixed a typecheck break in `useMfLoanProducts.ts` (version insert now passes the `version_no` sentinel the database trigger assigns).
+- Applied the C5 migration: `mf_loan_applications` and `mf_application_assessments` with GRANTs, RLS policies, indexes, and a server-side guard trigger enforcing the legal status path (draft → submitted → under review → approved/rejected → ready for disbursement), decision authority (branch manager/admin only), a mandatory assessment before any decision, approved amount/term inside the product version's band, a mandatory rejection reason, and immutability of decided applications.
+- Added `src/hooks/useMfApplications.ts` (applications list/create/update, guarded `transition`, assessments hook, reference numbering).
+- Added `src/apps/lending/applications/ApplicationFormDialog.tsx`.
+
+Remaining for C5
+1. `ApplicationDecisionDialog.tsx` — record an assessment (visit, income/expenses, obligations, collateral, recommendation) and then submit/review/approve/reject through the guarded transition.
+2. `ApplicationsPage.tsx` — list with status filter and search, opening both dialogs.
+3. Replace the `applications` placeholder in `src/apps/lending/routes.tsx`, run the typecheck, and open `/lending/applications`.
+
+Then C6 (loan creation, schedule engine, disbursement) is next per the plan.
 
 
 NOTE
