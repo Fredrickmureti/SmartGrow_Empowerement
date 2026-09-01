@@ -136,20 +136,19 @@ touches the database.
 
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
-Stopped here — no further tool calls.
 
-Done this turn (C2, partially):
+C3 is partially in place. Here's where things stand:
 
-Added the microfinance roles to the app_role enum: branch_manager, loan_officer, credit_officer, collections_officer, auditor (existing super_admin, admin, accountant, cashier reused).
-Created public.mf_account_mappings — business + optional branch scope, mapping_key (principal receivable, interest receivable/income, fee income, penalty income, cash, bank, mobile money, write-off expense, loan loss provision, suspended interest), account_id → accounts, unique per business/branch/key, GRANTs, RLS (read = business access; write = super admin/admin/accountant), updated_at trigger. No new linter findings (3652 before and after — all inherited).
-Granted fredrickmureti612@gmail.com the super_admin role in its organization.
-Added src/hooks/useMfAccountMappings.ts — typed mapping specs, branch-override resolution, and a save mutation.
-Remaining for C2:
+Done this turn
+- Database: `mf_clients` (KYC identity, branch, owning loan officer, status, completed cycles), `mf_groups` (group number, branch, officer, weekly meeting day/time/place, status) and `mf_group_members` (role in group, join/exit, single active leader per group, one active membership per client per group) — all with GRANTs, RLS and role-scoped write policies. The linter count is unchanged (3652), so no new security findings were introduced; the existing ones are inherited AccrualFlow issues already tracked for C10.
+- Code: `src/hooks/useMfClients.ts` — client list with branch/status filters, create and update mutations, and a sequential client-number helper.
 
-A "Accounting mappings" settings surface under /lending/settings/accounting (page + route + nav entry) using AccountCombobox and the new hook — the hook is written but nothing renders it yet.
-Verify typecheck/build after that page lands (src/hooks/useMfAccountMappings.ts is currently unused, which is safe but unverified).
-Update .lovable/plan.md: mark C2 schema/roles done, leave the settings surface as the open item, then C3 (clients & groups).
+Remaining for C3
+- `src/hooks/useMfGroups.ts` (groups + membership, leader enforcement surfaced as a friendly error).
+- Real Clients page (list, search/filter, register/edit dialog) and Groups page (list, create, membership management) replacing the two `PlaceholderSurface` entries in `src/apps/lending/routes.tsx`.
+- Typecheck/build verification and a plan update marking C3 done.
 
+Pick this up whenever you're ready and I'll continue straight from the hooks.
 
 
 
