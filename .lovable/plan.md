@@ -34,10 +34,21 @@ Backend: already connected to Supabase project `xwxqunklduknceoryrha`.
 Individual liability only — group membership never implies a joint loan.
 Clients survive loan closure.
 
-## C4 — Loan products (immutable versions)
+## C4 — Loan products (immutable versions) — IN PROGRESS
 
+Verified done: `mf_loan_products` + `mf_loan_product_versions` exist in the
+database with GRANTs, RLS and freeze triggers; `src/hooks/useMfLoanProducts.ts`,
+`ProductFormDialog.tsx` and `ProductVersionDialog.tsx` exist.
+
+Verified missing: `ProductsPage.tsx` — the `products` route in
+`src/apps/lending/routes.tsx` is still the placeholder.
+
+Remaining: build `ProductsPage.tsx` (product list, status filter, opens the two
+existing dialogs), swap the placeholder route, typecheck, open the screen.
 Amount band, term, frequency, interest method, fees, penalties, grace,
-eligibility, activation. Product versions frozen so live loans never mutate.
+eligibility, activation live on the frozen version record so live loans never
+reprice.
+
 
 ## C5 — Applications → assessment → approval
 
