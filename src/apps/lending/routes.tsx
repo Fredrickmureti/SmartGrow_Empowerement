@@ -15,6 +15,8 @@ import { GroupsPage } from "./groups/GroupsPage";
 import { ProductsPage } from "./products/ProductsPage";
 import { ApplicationsPage } from "./applications/ApplicationsPage";
 import { LoansPage } from "./loans/LoansPage";
+import { RepaymentsPage } from "./repayments/RepaymentsPage";
+import { CollectionsPage } from "./collections/CollectionsPage";
 
 const SURFACES: Array<{
   path: string;
@@ -22,21 +24,7 @@ const SURFACES: Array<{
   title: string;
   description: string;
   milestone: string;
-}> = [
-
-  {
-    path: "repayments",
-    title: "Repayments",
-    description: "Payment capture, allocation, receipts and reversals.",
-    milestone: "C7",
-  },
-  {
-    path: "collections",
-    title: "Collections",
-    description: "Arrears, days past due, visits and promises to pay by officer portfolio.",
-    milestone: "C7",
-  },
-];
+}> = [];
 
 export function LendingApp() {
   return (
