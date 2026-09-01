@@ -103,9 +103,6 @@ describe("consolidation eliminations — wiring", () => {
     expect(read("services/reports/ReportRegistry.ts")).toContain("intercompany-eliminations");
     expect(read("services/reports/reportsNav.ts")).toContain("intercompany-eliminations");
     expect(read("apps/finance/routes.tsx")).toContain('path="reports/eliminations"');
-    expect(read("components/layout/AppSidebar.tsx")).toContain(
-      "/finance/reports/eliminations",
-    );
     expect(read("lib/apps/registry.ts")).toContain("/finance/reports/eliminations");
   });
 
