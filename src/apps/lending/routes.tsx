@@ -68,6 +68,15 @@ export function LendingApp() {
             </InstitutionRoute>
           }
         />
+        <Route
+          path="products"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <ProductsPage />
+            </InstitutionRoute>
+          }
+        />
+
         {SURFACES.map(({ path, index, title, description, milestone }) => {
           const element = (
             <InstitutionRoute allowReadOnly>
