@@ -119,17 +119,10 @@ placeholder in `src/apps/lending/routes.tsx`, typecheck, open
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-Stopping here — no code changes were made this turn.
 
-Where things stand: C1–C5 are complete (clients, groups, loan products with immutable versions, and the applications → assessment → approval pipeline all wired and typechecking clean), and `.lovable/plan.md` reflects that.
+Verified state: C1–C4 (lending scaffold, roles/account mappings, clients & groups, loan products) are genuinely complete, and C5's schema (`mf_loan_applications`, `mf_application_assessments`, guard trigger) plus the hook and capture dialog already existed. I added the missing C5 UI — assessment dialog, approve/reject decision dialog, the applications pipeline page — and wired `/lending/applications` to it.
 
-Remaining for C6 (loans, schedule engine, disbursement):
-1. Migration for `mf_loans` (snapshotting the approved product version's terms) and `mf_loan_schedule_lines`, with GRANTs, RLS and policies.
-2. A server-side schedule generator per interest method and repayment frequency.
-3. An idempotent disbursement event posting through the C2 account mappings into the existing journal/GL.
-4. A `useMfLoans` hook, a Loans page, and replacing the `loans` placeholder in `src/apps/lending/routes.tsx`.
-
-Then C7 (repayments/arrears), C8 (lifecycle exceptions), C9 (reports/documents) and C10 (hardening plus the ERP drop sweep). Top up credits and I'll pick straight up at the C6 migration.
+Remaining: run the typecheck (`npx tsgo --noEmit`) and open `/lending/applications` to confirm, update `.lovable/plan.md` to mark C5 done, then continue with C6 (loan creation, schedule engine, disbursement).
 
 NOTE
 =============
