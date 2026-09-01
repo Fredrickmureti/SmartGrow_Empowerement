@@ -85,6 +85,7 @@ const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
 const FinanceApp = lazy(() => import("@/apps/finance/routes"));
 const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
+const LendingApp = lazy(() => import("@/apps/lending/routes"));
 const HRApp = lazy(() => import("@/apps/hr/routes"));
 // My Workspace — employee self-service shell (not an installable app, gated by employment)
 const MeApp = lazy(() => import("@/apps/me/MeApp"));
@@ -287,7 +288,20 @@ const App = () => (
                               }
                             />
                             
-                            {/* Sales App */}
+                            {/* Lending App — microfinance business domain */}
+                            <Route
+                              path="/lending/*"
+                              element={
+                                <InstitutionRoute allowReadOnly>
+                                  <PortalUserRoute>
+                                    <LazyRoute module="Lending">
+                                      <LendingApp />
+                                    </LazyRoute>
+                                  </PortalUserRoute>
+                                </InstitutionRoute>
+                              }
+                            />
+
                             
                             {/* Contacts App */}
                             <Route
