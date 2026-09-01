@@ -14,6 +14,7 @@ import { ClientsPage } from "./clients/ClientsPage";
 import { GroupsPage } from "./groups/GroupsPage";
 import { ProductsPage } from "./products/ProductsPage";
 import { ApplicationsPage } from "./applications/ApplicationsPage";
+import { LoansPage } from "./loans/LoansPage";
 
 const SURFACES: Array<{
   path: string;
@@ -23,12 +24,6 @@ const SURFACES: Array<{
   milestone: string;
 }> = [
 
-  {
-    path: "loans",
-    title: "Loans",
-    description: "Contractual loans, repayment schedules and disbursement.",
-    milestone: "C6",
-  },
   {
     path: "repayments",
     title: "Repayments",
@@ -68,6 +63,14 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <ApplicationsPage />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="loans"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <LoansPage />
             </InstitutionRoute>
           }
         />
