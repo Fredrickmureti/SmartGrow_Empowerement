@@ -449,7 +449,7 @@ export function getAppGroups(): AppGroup[] {
     (a.sortOrder || 0) - (b.sortOrder || 0);
 
   const CATEGORY_MEMBERSHIP: Array<{ label: string; ids: string[] }> = [
-    { label: "Core", ids: ["finance", "contacts"] },
+    { label: "Core", ids: ["lending", "finance", "contacts"] },
     { label: "Operations", ids: ["studio"] },
     { label: "Human Resources", ids: ["employees"] },
     { label: "Analytics", ids: ["reports"] },
