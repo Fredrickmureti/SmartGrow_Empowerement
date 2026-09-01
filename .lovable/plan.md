@@ -120,9 +120,18 @@ placeholder in `src/apps/lending/routes.tsx`, typecheck, open
 
 
 
-Verified state: C1–C4 (lending scaffold, roles/account mappings, clients & groups, loan products) are genuinely complete, and C5's schema (`mf_loan_applications`, `mf_application_assessments`, guard trigger) plus the hook and capture dialog already existed. I added the missing C5 UI — assessment dialog, approve/reject decision dialog, the applications pipeline page — and wired `/lending/applications` to it.
+Stopping here. Status of C6 (loans, schedule engine, disbursement):
 
-Remaining: run the typecheck (`npx tsgo --noEmit`) and open `/lending/applications` to confirm, update `.lovable/plan.md` to mark C5 done, then continue with C6 (loan creation, schedule engine, disbursement).
+Verified first: C1–C5 are genuinely complete — lending scaffold, roles/account mappings, clients & groups, loan products, and the full applications → assessment → approval pipeline all exist and the project typechecks clean.
+
+Done this session:
+- Database migration applied: `mf_loans`, `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events` (append-only), with GRANTs, RLS, term-freeze trigger, and a single-active-disbursement unique index.
+- Server-side engine: `mf_generate_schedule` (flat + declining balance, daily→quarterly frequencies, grace periods, upfront fees), `mf_create_loan_from_application` (snapshots the frozen product version, mints the loan number, generates the schedule, logs the event), and `mf_disburse_loan` (authority check, idempotency, amount integrity, schedule realignment to the real value date).
+- Frontend: `src/hooks/useMfLoans.ts`, `CreateLoanDialog.tsx`, `DisburseDialog.tsx`, `LoanScheduleDialog.tsx`.
+
+Remaining to close C6 (small, next session): create `src/apps/lending/loans/LoansPage.tsx` wiring those three dialogs into a filterable loan list, replace the `loans` placeholder in `src/apps/lending/routes.tsx`, run `npx tsgo --noEmit`, open `/lending/loans`, then mark C6 done in `.lovable/plan.md` and start C7 (repayments, allocation, arrears).
+
+
 
 NOTE
 =============
