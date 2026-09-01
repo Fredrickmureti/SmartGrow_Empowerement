@@ -31527,6 +31527,101 @@ export type Database = {
           },
         ]
       }
+      mf_application_assessments: {
+        Row: {
+          application_id: string
+          assessed_at: string
+          assessed_by: string
+          business_id: string
+          business_verified: boolean
+          character_notes: string | null
+          collateral_description: string | null
+          created_at: string
+          existing_obligations: number
+          id: string
+          monthly_expenses: number
+          monthly_income: number
+          notes: string | null
+          recommendation: string
+          recommended_amount: number | null
+          recommended_term_installments: number | null
+          updated_at: string
+          visit_date: string
+          visit_location: string | null
+        }
+        Insert: {
+          application_id: string
+          assessed_at?: string
+          assessed_by: string
+          business_id: string
+          business_verified?: boolean
+          character_notes?: string | null
+          collateral_description?: string | null
+          created_at?: string
+          existing_obligations?: number
+          id?: string
+          monthly_expenses?: number
+          monthly_income?: number
+          notes?: string | null
+          recommendation?: string
+          recommended_amount?: number | null
+          recommended_term_installments?: number | null
+          updated_at?: string
+          visit_date?: string
+          visit_location?: string | null
+        }
+        Update: {
+          application_id?: string
+          assessed_at?: string
+          assessed_by?: string
+          business_id?: string
+          business_verified?: boolean
+          character_notes?: string | null
+          collateral_description?: string | null
+          created_at?: string
+          existing_obligations?: number
+          id?: string
+          monthly_expenses?: number
+          monthly_income?: number
+          notes?: string | null
+          recommendation?: string
+          recommended_amount?: number | null
+          recommended_term_installments?: number | null
+          updated_at?: string
+          visit_date?: string
+          visit_location?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_application_assessments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_application_assessments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_application_assessments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_application_assessments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
       mf_clients: {
         Row: {
           branch_id: string
@@ -31798,6 +31893,140 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+        ]
+      }
+      mf_loan_applications: {
+        Row: {
+          application_number: string
+          approved_amount: number | null
+          approved_term_installments: number | null
+          branch_id: string
+          business_id: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          decision_at: string | null
+          decision_by: string | null
+          decision_notes: string | null
+          group_id: string | null
+          id: string
+          loan_officer_id: string | null
+          product_id: string
+          product_version_id: string | null
+          purpose: string | null
+          rejection_reason: string | null
+          requested_amount: number
+          requested_term_installments: number
+          review_started_at: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          application_number: string
+          approved_amount?: number | null
+          approved_term_installments?: number | null
+          branch_id: string
+          business_id: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          decision_at?: string | null
+          decision_by?: string | null
+          decision_notes?: string | null
+          group_id?: string | null
+          id?: string
+          loan_officer_id?: string | null
+          product_id: string
+          product_version_id?: string | null
+          purpose?: string | null
+          rejection_reason?: string | null
+          requested_amount: number
+          requested_term_installments: number
+          review_started_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          application_number?: string
+          approved_amount?: number | null
+          approved_term_installments?: number | null
+          branch_id?: string
+          business_id?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          decision_at?: string | null
+          decision_by?: string | null
+          decision_notes?: string | null
+          group_id?: string | null
+          id?: string
+          loan_officer_id?: string | null
+          product_id?: string
+          product_version_id?: string | null
+          purpose?: string | null
+          rejection_reason?: string | null
+          requested_amount?: number
+          requested_term_installments?: number
+          review_started_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_applications_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_product_version_id_fkey"
+            columns: ["product_version_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_product_versions"
+            referencedColumns: ["id"]
           },
         ]
       }
