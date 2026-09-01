@@ -36,17 +36,21 @@ Genuine resume point: **mid-C1**, at the registry prune.
 - Verified: `tsgo` typecheck clean; the four touched architecture test files
   pass. Remaining suite failures are inherited ERP tests, retired in C10.
 
-## C2 — Institution identity + RBAC + accounting mappings
+## C2 — Institution identity + RBAC + accounting mappings — DONE (2026-09-01)
 
-- Company settings become the single institution config root that reports and
-  documents read; branches remain operational scope.
-- Roles collapsed to the microfinance set (Super Admin, Branch Manager, Loan
-  Officer, Credit Officer, Cashier, Accountant, Collections Officer, Auditor,
-  Reporting) on the existing `user_roles` + `has_role` model. PIN auth kept.
-- New `mf_account_mappings` config table: principal receivable, interest income,
-  interest receivable, fee income, penalty income, cash, bank, mobile money,
-  write-off expense. Domain code never names an account UUID.
-- Seed `fredrickmureti612@gmail.com` as the development Super Admin.
+- `app_role` extended with `branch_manager`, `loan_officer`, `credit_officer`,
+  `collections_officer`, `auditor` (super_admin/admin/accountant/cashier
+  reused). All role maps in `src/lib/permissions.ts`, `Team.tsx`,
+  `EditRoleDialog`, `RemoveMemberDialog` now cover them; the new roles resolve
+  through `INTERNAL_BASE_PERMISSIONS` + Access Groups. PIN auth untouched.
+- `public.mf_account_mappings` created (business + optional branch scope,
+  `mapping_key` → `account_id`, unique per business/branch/key, GRANTs, RLS,
+  updated_at trigger). Domain code never names an account UUID.
+- `fredrickmureti612@gmail.com` granted `super_admin`.
+- `src/hooks/useMfAccountMappings.ts` (specs, branch-override resolution, save)
+  and the settings surface `Lending → Configuration → Accounting mappings`
+  (`/lending/configuration/accounting`) wired into the lending nav + routes.
+- Verified: `tsgo --noEmit` clean.
 
 ## C3 — Clients & groups
 
@@ -117,6 +121,11 @@ dead code and tests — after nothing reads them.
 7. No exploratory audits of code or tables we already know are out of scope.
 
 ## Next action
+
+Start C3 — client master (KYC, branch, owning loan officer, status, cycle
+history) and groups (leader, membership, weekly meeting slot). Individual
+liability only.
+
 
 Start C2 — institution identity (company settings as the single config root),
 the microfinance role set on the existing `user_roles`/`has_role` model, and
