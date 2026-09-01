@@ -105,8 +105,20 @@ Start C4 — loan products with immutable versions: `mf_loan_products` +
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-C3 is finished: real Clients and Groups pages (with membership roll) are wired into `/lending`, typecheck is clean, and the plan now resumes at C4 — loan products with immutable versions.
 
+I stopped part-way through C4 (loan products). Here's where things stand:
+
+Verified from the previous engineer's work: C1–C3 are genuinely done — `src/apps/lending/` exists with real Clients and Groups pages wired into `/lending`, and `useMfClients` / `useMfGroups` / `useMfAccountMappings` are present. Your Supabase project (`xwxqunklduknceoryrha`) was already connected; no new connection was needed.
+
+Completed this session (C4, partially):
+- Migration applied: `mf_loan_products` + `mf_loan_product_versions` with GRANTs, RLS policies matching the existing `mf_*` role model, and database triggers that make a published version immutable (auto version numbering, freeze guard on update/delete) so live loans are never repriced.
+- `src/hooks/useMfLoanProducts.ts` — products + version history, publish-a-new-version mutation, friendly constraint errors.
+- `src/apps/lending/products/ProductFormDialog.tsx` — product identity (code, name, status).
+- `src/apps/lending/products/ProductVersionDialog.tsx` — publish new version, seeded from the version in force, with frozen version history.
+
+Remaining to finish C4: create `src/apps/lending/products/ProductsPage.tsx` (list of products with status filter, opening the two dialogs), swap the `products` placeholder in `src/apps/lending/routes.tsx` for it, then run `tsgo --noEmit` and open the screen. After that C5 (applications → assessment → approval) is next per the plan.
+
+Note: the linter warnings reported after the migration are all inherited AccrualFlow issues (SECURITY DEFINER views/functions, one RLS-less legacy table) — none come from the new tables, which ship RLS, policies and pinned `search_path`.
 
 
 
