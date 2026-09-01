@@ -79,8 +79,6 @@ const FinancialReports = lazy(() => import("@/pages/reports/FinancialReports"));
 const TrialBalance = lazy(() => import("@/pages/reports/TrialBalance"));
 const GeneralLedger = lazy(() => import("@/pages/reports/GeneralLedger"));
 const AgingReport = lazy(() => import("@/pages/reports/AgingReport"));
-const SalesReports = lazy(() => import("@/pages/reports/SalesReports"));
-const PurchaseReports = lazy(() => import("@/pages/reports/PurchaseReports"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
 const CrossCompanyComparative = lazy(() => import("@/pages/reports/Consolidation"));
 const TaxReports = lazy(() => import("@/pages/reports/TaxReports"));
@@ -679,27 +677,7 @@ export function FinanceApp() {
           }
         />
         
-        <Route
-          path="reports/sales"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Sales Reports">
-                <SalesReports />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
-        <Route
-          path="reports/purchases"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Purchase Reports">
-                <PurchaseReports />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Cross-company comparative P&L — side-by-side, never summed */}
         <Route

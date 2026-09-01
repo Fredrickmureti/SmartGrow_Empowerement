@@ -62,12 +62,8 @@ const LEGACY_KPI_FORMATTERS = new Set([
   "BudgetReport.tsx",
   "DepreciationReport.tsx",
   "GeneralLedger.tsx",
-  "InventoryValuationReport.tsx",
   "ManagementReports.tsx",
   "PartnerLedger.tsx",
-  "SalesReports.tsx",
-  "StockAgingReport.tsx",
-  "StockReports.tsx",
   "TaxReports.tsx",
 ]);
 
