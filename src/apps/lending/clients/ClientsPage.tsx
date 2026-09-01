@@ -1,0 +1,206 @@
+/**
+ * Lending → Clients (C3).
+ *
+ * The client master: KYC identity, owning branch and loan officer, status and
+ * cycle history. Clients are institution records — they survive loan closure.
+ */
+
+import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+import {
+  PageHeader,
+  PageBody,
+  Section,
+  FilterBar,
+  EmptyState,
+  LoadingState,
+  ErrorState,
+  StatusBadge,
+} from "@/design-system";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useBranches } from "@/hooks/useBranches";
+import { useOrgMembers } from "@/hooks/useOrgMembers";
+import {
+  MF_CLIENT_STATUSES,
+  useMfClients,
+  type MfClient,
+  type MfClientStatus,
+} from "@/hooks/useMfClients";
+import { ClientFormDialog } from "./ClientFormDialog";
+
+const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "danger"> = {
+  prospect: "neutral",
+  active: "success",
+  dormant: "warning",
+  exited: "neutral",
+  blacklisted: "danger",
+};
+
+export function ClientsPage() {
+  const { branches } = useBranches();
+  const { getUserName } = useOrgMembers();
+  const [branchId, setBranchId] = useState<string>("all");
+  const [status, setStatus] = useState<MfClientStatus | "all">("all");
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<MfClient | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { clients, isLoading, error, createClient, updateClient } = useMfClients({
+    branchId: branchId === "all" ? null : branchId,
+    status,
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((c) =>
+      [c.full_name, c.client_number, c.phone, c.national_id]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [clients, search]);
+
+  const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? "—";
+
+  const openCreate = () => {
+    setEditing(null);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (client: MfClient) => {
+    setEditing(client);
+    setDialogOpen(true);
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Lending"
+        title="Clients"
+        description="Member records with KYC identity, owning branch and loan officer."
+        actions={
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Register client
+          </Button>
+        }
+      />
+      <PageBody>
+        <Section title="Client register" description={`${filtered.length} client(s)`}>
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            placeholder="Search name, number, phone or ID…"
+          >
+            <Select value={branchId} onValueChange={setBranchId}>
+              <SelectTrigger className="h-8 w-[180px] text-sm">
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v as MfClientStatus | "all")}
+            >
+              <SelectTrigger className="h-8 w-[150px] text-sm">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {MF_CLIENT_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterBar>
+
+          {error ? (
+            <ErrorState description={error.message} />
+          ) : isLoading ? (
+            <LoadingState />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              title="No clients yet"
+              description="Register the institution's first member to start lending."
+              action={<Button onClick={openCreate}>Register client</Button>}
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Number</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Loan officer</TableHead>
+                  <TableHead className="text-right">Cycles</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer"
+                    onClick={() => openEdit(c)}
+                  >
+                    <TableCell className="font-mono text-xs">{c.client_number}</TableCell>
+                    <TableCell className="font-medium">{c.full_name}</TableCell>
+                    <TableCell>{c.phone ?? "—"}</TableCell>
+                    <TableCell>{branchName(c.branch_id)}</TableCell>
+                    <TableCell>
+                      {c.loan_officer_id ? getUserName(c.loan_officer_id) : "Unassigned"}
+                    </TableCell>
+                    <TableCell className="text-right">{c.completed_cycles}</TableCell>
+                    <TableCell>
+                      <StatusBadge tone={STATUS_TONE[c.status]}>{c.status}</StatusBadge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
+      </PageBody>
+
+      <ClientFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        client={editing}
+        existingClients={clients}
+        onCreate={async (input) => {
+          await createClient.mutateAsync(input);
+        }}
+        onUpdate={async (id, patch) => {
+          await updateClient.mutateAsync({ id, ...patch });
+        }}
+      />
+    </>
+  );
+}
+
+export default ClientsPage;
