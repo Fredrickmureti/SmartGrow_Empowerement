@@ -12,6 +12,7 @@ import { PlaceholderSurface } from "./PlaceholderSurface";
 import { AccountingMappingsPage } from "./settings/AccountingMappingsPage";
 import { ClientsPage } from "./clients/ClientsPage";
 import { GroupsPage } from "./groups/GroupsPage";
+import { ProductsPage } from "./products/ProductsPage";
 
 const SURFACES: Array<{
   path: string;
@@ -20,12 +21,7 @@ const SURFACES: Array<{
   description: string;
   milestone: string;
 }> = [
-  {
-    path: "products",
-    title: "Loan products",
-    description: "Amount bands, terms, frequencies, interest methods, fees and penalties — versioned.",
-    milestone: "C4",
-  },
+
   {
     path: "applications",
     title: "Applications",
