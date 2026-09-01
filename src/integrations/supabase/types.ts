@@ -98600,6 +98600,10 @@ export type Database = {
         }
         Returns: string
       }
+      mf_resolve_account: {
+        Args: { p_branch_id: string; p_business_id: string; p_key: string }
+        Returns: string
+      }
       mf_reverse_repayment: {
         Args: { p_reason: string; p_repayment_id: string }
         Returns: undefined
