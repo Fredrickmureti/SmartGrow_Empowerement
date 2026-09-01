@@ -287,8 +287,11 @@ export function useMfLoanProductVersions(productId: string | null) {
           eligibility: input.version.eligibility as unknown as never,
           business_id: input.businessId,
           product_id: productId,
+          // 0 is a sentinel: the database trigger assigns the next version number.
+          version_no: 0,
           is_published: true,
           created_by: auth.user?.id ?? null,
+
         })
         .select("id")
         .single();
