@@ -98587,6 +98587,7 @@ export type Database = {
       }
       mf_generate_schedule: { Args: { p_loan_id: string }; Returns: number }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
+      mf_post_event: { Args: { p_event_id: string }; Returns: string }
       mf_record_repayment: {
         Args: {
           p_amount: number
