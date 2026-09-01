@@ -127,18 +127,19 @@ touches the database.
 
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
-Work paused mid-C1. Here's the state:
+Stopped here — no further tool calls.
 
-Done this session
-- Verified the previous engineer's claims: marketing/SaaS surface deletions hold and the build is clean; the registry prune, HR collapse and lending scaffold were not done.
-- Pruned `REPORTS_APP` of the Sales and the seven stock/inventory report modules.
-- Added `LENDING_APP` to the registry (Core group, sortOrder 2) plus a full lending shell: `src/apps/lending/` with `nav.ts`, `LendingLayout.tsx`, `PlaceholderSurface.tsx`, `routes.tsx`, `index.ts` — surfaces for Clients, Groups, Products, Applications, Loans, Repayments, Collections, each labelled with the milestone that fills it.
-- Mounted `/lending/*` in `src/App.tsx` and exported the app from `src/apps/index.ts`. Typecheck and build were clean at that point.
+Done this turn (C2, partially):
 
-In-flight, needs finishing next session
-- I began unwiring the Finance sales/purchase report routes. The `SalesReports`/`PurchaseReports` lazy imports in `src/apps/finance/routes.tsx` were replaced with a comment, the `reports/sales` route block was removed, and the Sales/Stock entries were dropped from `src/components/layout/AppSidebar.tsx` — but the `reports/purchases` block removal failed on a whitespace mismatch, so `src/apps/finance/routes.tsx` currently still renders `<PurchaseReports />` with no import, and `src/pages/reports/SalesReports.tsx` / `PurchaseReports.tsx` were deleted. This will not typecheck or build until the `reports/purchases` route block is removed — that is the single first fix next session.
-- Then: confirm every remaining nav item opens, and C1 is closed. C2 (institution identity, microfinance roles, `mf_account_mappings`) is next and is the first milestone touching the database.
+Added the microfinance roles to the app_role enum: branch_manager, loan_officer, credit_officer, collections_officer, auditor (existing super_admin, admin, accountant, cashier reused).
+Created public.mf_account_mappings — business + optional branch scope, mapping_key (principal receivable, interest receivable/income, fee income, penalty income, cash, bank, mobile money, write-off expense, loan loss provision, suspended interest), account_id → accounts, unique per business/branch/key, GRANTs, RLS (read = business access; write = super admin/admin/accountant), updated_at trigger. No new linter findings (3652 before and after — all inherited).
+Granted fredrickmureti612@gmail.com the super_admin role in its organization.
+Added src/hooks/useMfAccountMappings.ts — typed mapping specs, branch-override resolution, and a save mutation.
+Remaining for C2:
 
+A "Accounting mappings" settings surface under /lending/settings/accounting (page + route + nav entry) using AccountCombobox and the new hook — the hook is written but nothing renders it yet.
+Verify typecheck/build after that page lands (src/hooks/useMfAccountMappings.ts is currently unused, which is safe but unverified).
+Update .lovable/plan.md: mark C2 schema/roles done, leave the settings surface as the open item, then C3 (clients & groups).
 
 
 
