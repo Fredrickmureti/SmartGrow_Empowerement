@@ -32030,6 +32030,115 @@ export type Database = {
           },
         ]
       }
+      mf_loan_disbursements: {
+        Row: {
+          amount: number
+          business_id: string
+          created_at: string
+          disbursed_by: string | null
+          disbursed_on: string
+          id: string
+          loan_id: string
+          method: string
+          notes: string | null
+          received_by_name: string | null
+          reference: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          source_account_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          business_id: string
+          created_at?: string
+          disbursed_by?: string | null
+          disbursed_on: string
+          id?: string
+          loan_id: string
+          method: string
+          notes?: string | null
+          received_by_name?: string | null
+          reference?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          source_account_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          business_id?: string
+          created_at?: string
+          disbursed_by?: string | null
+          disbursed_on?: string
+          id?: string
+          loan_id?: string
+          method?: string
+          notes?: string | null
+          received_by_name?: string | null
+          reference?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          source_account_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_disbursements_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_loan_events: {
+        Row: {
+          actor_id: string | null
+          amount: number | null
+          business_id: string
+          created_at: string
+          event_at: string
+          event_type: string
+          id: string
+          loan_id: string
+          payload: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          amount?: number | null
+          business_id: string
+          created_at?: string
+          event_at?: string
+          event_type: string
+          id?: string
+          loan_id: string
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          amount?: number | null
+          business_id?: string
+          created_at?: string
+          event_at?: string
+          event_type?: string
+          id?: string
+          loan_id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_events_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_loan_product_versions: {
         Row: {
           business_id: string
@@ -32202,6 +32311,197 @@ export type Database = {
           {
             foreignKeyName: "mf_loan_products_current_version_fk"
             columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_product_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_loan_schedule: {
+        Row: {
+          business_id: string
+          closing_balance: number
+          created_at: string
+          due_date: string
+          fees_due: number
+          id: string
+          installment_no: number
+          interest_due: number
+          is_grace: boolean
+          loan_id: string
+          opening_balance: number
+          principal_due: number
+          total_due: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          closing_balance?: number
+          created_at?: string
+          due_date: string
+          fees_due?: number
+          id?: string
+          installment_no: number
+          interest_due?: number
+          is_grace?: boolean
+          loan_id: string
+          opening_balance?: number
+          principal_due?: number
+          total_due?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          closing_balance?: number
+          created_at?: string
+          due_date?: string
+          fees_due?: number
+          id?: string
+          installment_no?: number
+          interest_due?: number
+          is_grace?: boolean
+          loan_id?: string
+          opening_balance?: number
+          principal_due?: number
+          total_due?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_loans: {
+        Row: {
+          application_id: string
+          branch_id: string | null
+          business_id: string
+          client_id: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          disbursed_at: string | null
+          expected_disbursement_date: string | null
+          fees: Json
+          first_installment_date: string | null
+          grace_period_installments: number
+          group_id: string | null
+          id: string
+          interest_method: string
+          interest_rate: number
+          interest_rate_period: string
+          loan_number: string
+          loan_officer_id: string | null
+          penalty_basis: string | null
+          penalty_rate: number
+          principal: number
+          product_id: string
+          product_version_id: string
+          repayment_frequency: string
+          status: string
+          term_installments: number
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          branch_id?: string | null
+          business_id: string
+          client_id: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency_code: string
+          disbursed_at?: string | null
+          expected_disbursement_date?: string | null
+          fees?: Json
+          first_installment_date?: string | null
+          grace_period_installments?: number
+          group_id?: string | null
+          id?: string
+          interest_method: string
+          interest_rate?: number
+          interest_rate_period: string
+          loan_number: string
+          loan_officer_id?: string | null
+          penalty_basis?: string | null
+          penalty_rate?: number
+          principal: number
+          product_id: string
+          product_version_id: string
+          repayment_frequency: string
+          status?: string
+          term_installments: number
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          branch_id?: string | null
+          business_id?: string
+          client_id?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          disbursed_at?: string | null
+          expected_disbursement_date?: string | null
+          fees?: Json
+          first_installment_date?: string | null
+          grace_period_installments?: number
+          group_id?: string | null
+          id?: string
+          interest_method?: string
+          interest_rate?: number
+          interest_rate_period?: string
+          loan_number?: string
+          loan_officer_id?: string | null
+          penalty_basis?: string | null
+          penalty_rate?: number
+          principal?: number
+          product_id?: string
+          product_version_id?: string
+          repayment_frequency?: string
+          status?: string
+          term_installments?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loans_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "mf_loan_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_product_version_id_fkey"
+            columns: ["product_version_id"]
             isOneToOne: false
             referencedRelation: "mf_loan_product_versions"
             referencedColumns: ["id"]
@@ -97871,6 +98171,33 @@ export type Database = {
             }
             Returns: Json
           }
+      mf_add_period: {
+        Args: { p_date: string; p_freq: string; p_n: number }
+        Returns: string
+      }
+      mf_create_loan_from_application: {
+        Args: {
+          p_application_id: string
+          p_expected_disbursement_date?: string
+          p_first_installment_date?: string
+        }
+        Returns: string
+      }
+      mf_disburse_loan: {
+        Args: {
+          p_amount: number
+          p_disbursed_on: string
+          p_loan_id: string
+          p_method: string
+          p_notes?: string
+          p_received_by_name?: string
+          p_reference?: string
+          p_source_account_id?: string
+        }
+        Returns: string
+      }
+      mf_generate_schedule: { Args: { p_loan_id: string }; Returns: number }
+      mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       migrate_components_to_rules: {
         Args: { p_structure_id: string }
         Returns: {
