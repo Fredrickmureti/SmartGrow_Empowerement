@@ -63,6 +63,22 @@ export function LendingApp() {
           }
         />
         <Route
+          path="repayments"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <RepaymentsPage />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="collections"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <CollectionsPage />
+            </InstitutionRoute>
+          }
+        />
+        <Route
           path="products"
           element={
             <InstitutionRoute allowReadOnly>
