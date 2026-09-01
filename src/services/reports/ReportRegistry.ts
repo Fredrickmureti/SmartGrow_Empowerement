@@ -251,20 +251,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["aged payables", "ap aging", "ap", "overdue vendors", "payments due", "payables"],
   },
   {
-    id: "purchase-reports",
-    name: "Purchase Reports",
-    description: "Spend analysis by supplier, product, category, account, branch or month",
-    category: "payables",
-    path: "/finance/reports/purchases",
-    icon: TrendingUp,
-    requiredFeature: "reports_financial",
-    permission: "viewReports",
-    reportType: "purchases",
-    keywords: ["purchases", "spend", "supplier", "vendor", "bills", "procurement analysis"],
-    // Supplier → their bills for the period, in place (context preserved).
-    drillDown: "dialog",
-  },
-  {
     id: "partner-ledger",
     name: "Partner Ledger",
     description: "Transactions grouped by customer/supplier",
@@ -275,20 +261,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     permission: "viewReports",
     reportType: "partner-ledger",
     keywords: ["partner", "customer", "vendor", "supplier", "statement", "ledger"],
-  },
-  {
-    id: "sales-reports",
-    name: "Sales Reports",
-    description: "Revenue analysis by customer, product, period",
-    category: "receivables",
-    path: "/finance/reports/sales",
-    icon: TrendingUp,
-    requiredFeature: "reports_sales",
-    permission: "viewReports",
-    reportType: "sales",
-    keywords: ["sales", "revenue", "top customers", "top products"],
-    // Customer → their invoices for the period, in place (context preserved).
-    drillDown: "dialog",
   },
 
   // ─── Tax & Compliance ───
