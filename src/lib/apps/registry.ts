@@ -391,6 +391,7 @@ export const DASHBOARD_APP: AppDefinition = {
  */
 export const APP_REGISTRY: AppDefinition[] = [
   DASHBOARD_APP,
+  LENDING_APP,
   ME_APP,
   FINANCE_APP,
   CONTACTS_APP,
