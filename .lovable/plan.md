@@ -22,22 +22,19 @@ project used by the app (`xwxqunklduknceoryrha`). No new connection is needed;
 
 Genuine resume point: **mid-C1**, at the registry prune.
 
-## C1 (finish) — Unwire, don't demolish
+## C1 — Unwire, don't demolish — DONE (2026-09-01)
 
-Code only, no schema changes.
-
-1. Prune `REPORTS_APP.modules`: drop `sales`, `stock`, `inventory-valuation`,
-   `stock-ledger`, `stock-aging`, `lot-traceability`, `stock-adjustments`,
-   `stock-transfers`.
-2. Collapse `EMPLOYEES_APP` to actor surfaces only (employees, departments,
-   job positions, work locations, org chart, configuration) — no payroll,
-   attendance, benefits, onboarding, competency, exit entries.
-3. Add `LENDING_APP` (basePath `/lending`, modules: Clients, Groups, Products,
-   Applications, Loans, Repayments, Collections) with an empty placeholder
-   route scaffold so the shell renders and later milestones fill it in.
-4. Keep the visible app set to: Home/Dashboard, Lending, Contacts (Clients),
-   Finance, Reports, Studio (later review), Settings, My Workspace.
-5. Verify: typecheck + build clean, every remaining nav item opens.
+- `REPORTS_APP` pruned of Sales + the seven stock/inventory report modules.
+- `LENDING_APP` registered (basePath `/lending`) with the placeholder shell in
+  `src/apps/lending/` and `/lending/*` mounted in `src/App.tsx`.
+- `EMPLOYEES_APP` already actor-only (no payroll/attendance/benefits modules).
+- Finance `reports/sales` + `reports/purchases` routes, their lazy imports and
+  page files removed; `sales-reports` / `purchase-reports` dropped from
+  `ReportRegistry` (definitions + relation pairs); Sales/Stock links dropped
+  from the sidebar; the dead `AppSidebar` reference in the eliminations test
+  and the stale Sales/Stock entries in the reporting tests removed.
+- Verified: `tsgo` typecheck clean; the four touched architecture test files
+  pass. Remaining suite failures are inherited ERP tests, retired in C10.
 
 ## C2 — Institution identity + RBAC + accounting mappings
 
@@ -121,8 +118,10 @@ dead code and tests — after nothing reads them.
 
 ## Next action
 
-Finish C1 (registry prune, HR collapse, `LENDING_APP` scaffold, nav check),
-then start C2.
+Start C2 — institution identity (company settings as the single config root),
+the microfinance role set on the existing `user_roles`/`has_role` model, and
+the `mf_account_mappings` config table. This is the first milestone that
+touches the database.
 
 
 
