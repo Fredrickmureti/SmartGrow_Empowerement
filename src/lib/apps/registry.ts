@@ -187,6 +187,37 @@ export const EMPLOYEES_APP: AppDefinition = {
  */
 export const HR_APP: AppDefinition = EMPLOYEES_APP;
 
+/**
+ * Lending App — the microfinance business domain.
+ *
+ * Registered empty at C1 so the shell, nav and routing exist before any
+ * domain milestone (C3+) fills the surfaces in. Gated on `viewContacts`
+ * until the microfinance role/permission set lands in C2.
+ */
+export const LENDING_APP: AppDefinition = {
+  id: "lending",
+  name: "Lending",
+  description: "Clients, groups, loan products, applications, loans and collections",
+  icon: HandCoins,
+  color: "hsl(152, 60%, 40%)",
+  basePath: "/lending",
+  requiredPermissions: ["viewContacts"],
+  sortOrder: 2,
+  internalOnly: true,
+  defaultModule: "clients",
+  modules: [
+    { id: "clients", name: "Clients", path: "", icon: Users, permission: "viewContacts" },
+    { id: "groups", name: "Groups", path: "/groups", icon: Users, permission: "viewContacts" },
+    { id: "products", name: "Loan Products", path: "/products", icon: Tags, permission: "viewContacts" },
+    { id: "applications", name: "Applications", path: "/applications", icon: ClipboardList, permission: "viewContacts" },
+    { id: "loans", name: "Loans", path: "/loans", icon: HandCoins, permission: "viewContacts" },
+    { id: "repayments", name: "Repayments", path: "/repayments", icon: Wallet, permission: "viewContacts" },
+    { id: "collections", name: "Collections", path: "/collections", icon: Target, permission: "viewContacts" },
+  ],
+};
+
+
+
 
 /**
  * Reports App - Business intelligence and analytics
