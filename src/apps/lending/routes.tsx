@@ -13,6 +13,7 @@ import { AccountingMappingsPage } from "./settings/AccountingMappingsPage";
 import { ClientsPage } from "./clients/ClientsPage";
 import { GroupsPage } from "./groups/GroupsPage";
 import { ProductsPage } from "./products/ProductsPage";
+import { ApplicationsPage } from "./applications/ApplicationsPage";
 
 const SURFACES: Array<{
   path: string;
