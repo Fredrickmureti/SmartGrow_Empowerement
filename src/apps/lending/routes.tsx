@@ -10,6 +10,8 @@ import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { LendingLayout } from "./LendingLayout";
 import { PlaceholderSurface } from "./PlaceholderSurface";
 import { AccountingMappingsPage } from "./settings/AccountingMappingsPage";
+import { ClientsPage } from "./clients/ClientsPage";
+import { GroupsPage } from "./groups/GroupsPage";
 
 const SURFACES: Array<{
   path: string;
@@ -18,19 +20,6 @@ const SURFACES: Array<{
   description: string;
   milestone: string;
 }> = [
-  {
-    path: "",
-    index: true,
-    title: "Clients",
-    description: "Client master with KYC, branch, owning loan officer and cycle history.",
-    milestone: "C3",
-  },
-  {
-    path: "groups",
-    title: "Groups",
-    description: "Optional group structures with leader, membership and weekly meeting slot.",
-    milestone: "C3",
-  },
   {
     path: "products",
     title: "Loan products",
@@ -67,6 +56,22 @@ export function LendingApp() {
   return (
     <LendingLayout>
       <Routes>
+        <Route
+          index
+          element={
+            <InstitutionRoute allowReadOnly>
+              <ClientsPage />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="groups"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <GroupsPage />
+            </InstitutionRoute>
+          }
+        />
         {SURFACES.map(({ path, index, title, description, milestone }) => {
           const element = (
             <InstitutionRoute allowReadOnly>
