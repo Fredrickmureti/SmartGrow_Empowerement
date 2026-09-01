@@ -119,20 +119,12 @@ placeholder in `src/apps/lending/routes.tsx`, typecheck, open
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-I paused here — the C7 repayment backend is in place, but the UI work is still pending.
+C7 UI is now in place: `src/hooks/useMfRepayments.ts` (receipts, batches, server-derived balances, allocation drill-down), `repayments/RepaymentsPage.tsx` (batch-per-meeting capture, receipts, append-only reversal), `collections/CollectionsPage.tsx` (arrears, DPD ageing buckets, PAR>30), and both routes swapped off placeholders in `src/apps/lending/routes.tsx`. All money figures come from `mf_loan_balances` / the RPCs — no financial maths in React.
 
-Done this turn
-- Repayment schema: `mf_allocation_policy` (configurable allocation order, not hardcoded), `mf_repayment_batches` (per-meeting collection), `mf_repayments` (receipts), `mf_repayment_allocations` (server-written only) — all with GRANTs, RLS and role-scoped policies.
-- Server-side engine: `mf_record_repayment` (oldest-installment-first, allocates per the configured order, holds overpayment as advance, auto-closes a fully repaid loan, writes a loan event) and `mf_reverse_repayment` (append-only reversal, restores loan status, admin/branch-manager only).
-- Derived views: `mf_loan_installment_status` and `mf_loan_balances` (outstanding principal/interest/fees, amount overdue, DPD, next due date) — no financial maths in React.
-
-Remaining for C7
-1. `src/hooks/useMfRepayments.ts` — list receipts, batch capture, `mf_record_repayment` / `mf_reverse_repayment` mutations, plus a `useMfLoanBalances` read of the new views.
-2. `RepaymentsPage.tsx` (batch-per-meeting capture with per-member receipts, reversal) and `CollectionsPage.tsx` (arrears/DPD/PAR by officer portfolio), replacing the two placeholders in `src/apps/lending/routes.tsx`.
-3. Optional: allocation-order setting on the lending configuration screen.
-4. Then typecheck and open both screens; update `.lovable/plan.md` and move to C8.
-
-Note: the linter warnings listed are inherited AccrualFlow issues (SECURITY DEFINER views/functions, extensions in public) — the new `mf_*` tables all ship RLS and policies; that cleanup is the C10 hardening sweep.
+Remaining before C8:
+- Typecheck output was cut short mid-run — re-run `bunx tsgo --noEmit -p tsconfig.app.json` and open `/lending/repayments` and `/lending/collections` to confirm.
+- Optional: allocation-order setting on the lending configuration screen.
+- Update `.lovable/plan.md` to mark C7 done, then start C8 (top-up, restructuring, write-off, closure as event-sourced processes), followed by C9 reports/documents and the C10 hardening + single ERP drop sweep.
 
 
 NOTE
