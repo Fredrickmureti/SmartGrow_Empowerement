@@ -187,6 +187,37 @@ export const EMPLOYEES_APP: AppDefinition = {
  */
 export const HR_APP: AppDefinition = EMPLOYEES_APP;
 
+/**
+ * Lending App — the microfinance business domain.
+ *
+ * Registered empty at C1 so the shell, nav and routing exist before any
+ * domain milestone (C3+) fills the surfaces in. Gated on `viewContacts`
+ * until the microfinance role/permission set lands in C2.
+ */
+export const LENDING_APP: AppDefinition = {
+  id: "lending",
+  name: "Lending",
+  description: "Clients, groups, loan products, applications, loans and collections",
+  icon: HandCoins,
+  color: "hsl(152, 60%, 40%)",
+  basePath: "/lending",
+  requiredPermissions: ["viewContacts"],
+  sortOrder: 2,
+  internalOnly: true,
+  defaultModule: "clients",
+  modules: [
+    { id: "clients", name: "Clients", path: "", icon: Users, permission: "viewContacts" },
+    { id: "groups", name: "Groups", path: "/groups", icon: Users, permission: "viewContacts" },
+    { id: "products", name: "Loan Products", path: "/products", icon: Tags, permission: "viewContacts" },
+    { id: "applications", name: "Applications", path: "/applications", icon: ClipboardList, permission: "viewContacts" },
+    { id: "loans", name: "Loans", path: "/loans", icon: HandCoins, permission: "viewContacts" },
+    { id: "repayments", name: "Repayments", path: "/repayments", icon: Wallet, permission: "viewContacts" },
+    { id: "collections", name: "Collections", path: "/collections", icon: Target, permission: "viewContacts" },
+  ],
+};
+
+
+
 
 /**
  * Reports App - Business intelligence and analytics
@@ -220,18 +251,8 @@ export const REPORTS_APP: AppDefinition = {
     { id: "depreciation", name: "Depreciation", path: "/depreciation", icon: Building2, permission: "viewReports" },
     { id: "cash-flow", name: "Cash Flow", path: "/cash-flow", icon: Wallet, permission: "viewReports" },
     { id: "audit-trail", name: "Audit Trail", path: "/audit-trail", icon: History, permission: "viewReports" },
-    { id: "sales", name: "Sales Reports", path: "/sales", icon: FileText, permission: "viewReports" },
-    { id: "management", name: "Management", path: "/management", icon: BarChart3, permission: "viewReports" },
-    { id: "tax", name: "Tax Reports", path: "/tax", icon: Receipt, permission: "viewReports" },
-    // Inventory family — dual-hosted (ADR 0143). These paths are the Finance
-    // mounts; the Inventory shell mounts the same pages under /inventory-app.
-    { id: "stock", name: "Stock Reports", path: "/stock", icon: Package, permission: "viewReports" },
-    { id: "inventory-valuation", name: "Inventory Valuation", path: "/inventory-valuation", icon: Package, permission: "viewReports" },
-    { id: "stock-ledger", name: "Stock Ledger", path: "/stock-ledger", icon: BookOpen, permission: "viewReports" },
-    { id: "stock-aging", name: "Stock Aging", path: "/stock-aging", icon: Clock, permission: "viewReports" },
-    { id: "lot-traceability", name: "Lot Traceability", path: "/lot-traceability", icon: Package, permission: "viewReports" },
-    { id: "stock-adjustments", name: "Stock Adjustments", path: "/stock-adjustments", icon: Package, permission: "viewReports" },
-    { id: "stock-transfers", name: "Stock Transfers", path: "/stock-transfers", icon: Package, permission: "viewReports" },
+    // Sales and the inventory/stock report family were retired with the
+    // microfinance convergence — no order-to-cash or stock domain exists.
     { id: "intelligence", name: "Business Intelligence", path: "/intelligence", icon: BarChart3, permission: "viewReports" },
   ],
 };
@@ -370,6 +391,7 @@ export const DASHBOARD_APP: AppDefinition = {
  */
 export const APP_REGISTRY: AppDefinition[] = [
   DASHBOARD_APP,
+  LENDING_APP,
   ME_APP,
   FINANCE_APP,
   CONTACTS_APP,
@@ -427,7 +449,7 @@ export function getAppGroups(): AppGroup[] {
     (a.sortOrder || 0) - (b.sortOrder || 0);
 
   const CATEGORY_MEMBERSHIP: Array<{ label: string; ids: string[] }> = [
-    { label: "Core", ids: ["finance", "contacts"] },
+    { label: "Core", ids: ["lending", "finance", "contacts"] },
     { label: "Operations", ids: ["studio"] },
     { label: "Human Resources", ids: ["employees"] },
     { label: "Analytics", ids: ["reports"] },
