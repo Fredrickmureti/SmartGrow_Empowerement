@@ -31643,6 +31643,164 @@ export type Database = {
           },
         ]
       }
+      mf_group_members: {
+        Row: {
+          business_id: string
+          client_id: string
+          created_at: string
+          exited_on: string | null
+          group_id: string
+          id: string
+          is_active: boolean
+          joined_on: string
+          role_in_group: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          client_id: string
+          created_at?: string
+          exited_on?: string | null
+          group_id: string
+          id?: string
+          is_active?: boolean
+          joined_on?: string
+          role_in_group?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          client_id?: string
+          created_at?: string
+          exited_on?: string | null
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          joined_on?: string
+          role_in_group?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_group_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_groups: {
+        Row: {
+          branch_id: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          formed_on: string
+          group_number: string
+          id: string
+          loan_officer_id: string | null
+          meeting_day: number | null
+          meeting_place: string | null
+          meeting_time: string | null
+          name: string
+          notes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          formed_on?: string
+          group_number: string
+          id?: string
+          loan_officer_id?: string | null
+          meeting_day?: number | null
+          meeting_place?: string | null
+          meeting_time?: string | null
+          name: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          formed_on?: string
+          group_number?: string
+          id?: string
+          loan_officer_id?: string | null
+          meeting_day?: number | null
+          meeting_place?: string | null
+          meeting_time?: string | null
+          name?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_groups_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_groups_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+        ]
+      }
       migration_batches: {
         Row: {
           batch_hash: string
