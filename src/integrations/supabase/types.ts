@@ -32117,6 +32117,13 @@ export type Database = {
             foreignKeyName: "mf_loan_disbursements_loan_id_fkey"
             columns: ["loan_id"]
             isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_disbursements_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
             referencedRelation: "mf_loans"
             referencedColumns: ["id"]
           },
@@ -32157,6 +32164,13 @@ export type Database = {
           payload?: Json
         }
         Relationships: [
+          {
+            foreignKeyName: "mf_loan_events_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
           {
             foreignKeyName: "mf_loan_events_loan_id_fkey"
             columns: ["loan_id"]
@@ -32398,6 +32412,13 @@ export type Database = {
             foreignKeyName: "mf_loan_schedule_loan_id_fkey"
             columns: ["loan_id"]
             isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
             referencedRelation: "mf_loans"
             referencedColumns: ["id"]
           },
@@ -32571,6 +32592,13 @@ export type Database = {
             foreignKeyName: "mf_repayment_allocations_loan_id_fkey"
             columns: ["loan_id"]
             isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_repayment_allocations_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
             referencedRelation: "mf_loans"
             referencedColumns: ["id"]
           },
@@ -32717,6 +32745,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_repayments_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
           },
           {
             foreignKeyName: "mf_repayments_loan_id_fkey"
@@ -78895,6 +78930,71 @@ export type Database = {
           },
         ]
       }
+      mf_loan_balances: {
+        Row: {
+          amount_overdue: number | null
+          branch_id: string | null
+          business_id: string | null
+          client_id: string | null
+          currency_code: string | null
+          days_past_due: number | null
+          fees_outstanding: number | null
+          interest_outstanding: number | null
+          loan_id: string | null
+          loan_number: string | null
+          loan_officer_id: string | null
+          next_due_date: string | null
+          principal: number | null
+          principal_outstanding: number | null
+          status: string | null
+          total_contractual: number | null
+          total_outstanding: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_loan_installment_status: {
+        Row: {
+          business_id: string | null
+          due_date: string | null
+          fees_due: number | null
+          fees_outstanding: number | null
+          fees_paid: number | null
+          installment_no: number | null
+          interest_due: number | null
+          interest_outstanding: number | null
+          interest_paid: number | null
+          loan_id: string | null
+          principal_due: number | null
+          principal_outstanding: number | null
+          principal_paid: number | null
+          total_due: number | null
+          total_outstanding: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       one_on_ones_visible: {
         Row: {
           business_id: string | null
@@ -98417,6 +98517,22 @@ export type Database = {
       }
       mf_generate_schedule: { Args: { p_loan_id: string }; Returns: number }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
+      mf_record_repayment: {
+        Args: {
+          p_amount: number
+          p_batch_id?: string
+          p_loan_id: string
+          p_method: string
+          p_notes?: string
+          p_paid_on: string
+          p_reference?: string
+        }
+        Returns: string
+      }
+      mf_reverse_repayment: {
+        Args: { p_reason: string; p_repayment_id: string }
+        Returns: undefined
+      }
       migrate_components_to_rules: {
         Args: { p_structure_id: string }
         Returns: {
