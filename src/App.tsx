@@ -48,7 +48,6 @@ import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import AuthCallback from "./pages/AuthCallback";
 import AcceptInvitation from "./pages/AcceptInvitation";
-import AcceptOwnership from "./pages/AcceptOwnership";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
@@ -57,25 +56,11 @@ import Settings from "./pages/Settings";
 const WorkspaceSettings = lazy(() => import("./pages/settings/WorkspaceSettings"));
 const CompanySettings = lazy(() => import("./pages/settings/CompanySettings"));
 const GovernanceSoD = lazy(() => import("./pages/settings/GovernanceSoD"));
-import Demo from "./pages/Demo";
-const ResourcesIndex = lazy(() => import("./pages/resources/ResourcesIndex"));
-const ResourceDetail = lazy(() => import("./pages/resources/ResourceDetail"));
 import OnboardingSetup from "./pages/OnboardingSetup";
 import NotFound from "./pages/NotFound";
-import HelpCenter from "./pages/HelpCenter";
-import Documentation from "./pages/Documentation";
-import About from "./pages/About";
-import Careers from "./pages/Careers";
-import Blog from "./pages/Blog";
-import Features from "./pages/Features";
-import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
 import Home from "./pages/Home";
-import Downloads from "./pages/Downloads";
 import { PrintRecoveryMount } from "@/components/printing/PrintRecoveryMount";
-const PrivacyPolicyPage = lazy(() => import("./pages/legal/PrivacyPolicy"));
-const TermsOfServicePage = lazy(() => import("./pages/legal/TermsOfService"));
-const CookiePolicyPage = lazy(() => import("./pages/legal/CookiePolicy"));
 
 // Vendor Portal (lazy)
 
@@ -178,30 +163,14 @@ const App = () => (
                             <Route path="/verify-email" element={<VerifyEmail />} />
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
-                            <Route path="/demo" element={<Demo />} />
 
                            {/* Public: the learning library shows videos the platform
                                admin published for a public audience (RLS enforces
                                that); signed-in users additionally see internal ones. */}
-                           <Route path="/resources" element={<Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense>} />
-                           <Route path="/resources/:id" element={<Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense>} />
                            <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
 
                             <Route path="/reset-password" element={<RedirectIfAuthenticated allowRecoveryHash><ResetPassword /></RedirectIfAuthenticated>} />
                             <Route path="/accept-invitation" element={<AcceptInvitation />} />
-                            <Route path="/accept-ownership/:token" element={<AcceptOwnership />} />
-                            <Route path="/help" element={<HelpCenter />} />
-                            <Route path="/docs" element={<Documentation />} />
-                           <Route path="/about" element={<About />} />
-                           <Route path="/careers" element={<Careers />} />
-                            <Route path="/blog" element={<Blog />} />
-                            <Route path="/features" element={<Features />} />
-                            <Route path="/contact" element={<Contact />} />
-                            <Route path="/downloads" element={<Downloads />} />
-                            <Route path="/install" element={<Navigate to="/downloads" replace />} />
-                            <Route path="/privacy" element={<LazyRoute module="Legal"><PrivacyPolicyPage /></LazyRoute>} />
-                            <Route path="/terms" element={<LazyRoute module="Legal"><TermsOfServicePage /></LazyRoute>} />
-                            <Route path="/cookies" element={<LazyRoute module="Legal"><CookiePolicyPage /></LazyRoute>} />
 
                             {/* Scanner pairing — universal infrastructure, NOT POS-only.
                                 Must live outside /pos/* so InstitutionRoute
