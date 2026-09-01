@@ -24,12 +24,6 @@ const SURFACES: Array<{
 }> = [
 
   {
-    path: "applications",
-    title: "Applications",
-    description: "Draft to approval pipeline with assessment and approval authority.",
-    milestone: "C5",
-  },
-  {
     path: "loans",
     title: "Loans",
     description: "Contractual loans, repayment schedules and disbursement.",
@@ -66,6 +60,14 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <GroupsPage />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="applications"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <ApplicationsPage />
             </InstitutionRoute>
           }
         />
