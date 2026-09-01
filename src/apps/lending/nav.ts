@@ -12,6 +12,7 @@ import {
   HandCoins,
   Wallet,
   Target,
+  Settings,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -37,6 +38,16 @@ export const LENDING_NAV: WorkspaceNav = {
       items: [
         { to: "/lending/repayments", label: "Repayments", icon: Wallet },
         { to: "/lending/collections", label: "Collections", icon: Target },
+      ],
+    },
+    {
+      label: "Configuration",
+      items: [
+        {
+          to: "/lending/configuration/accounting",
+          label: "Accounting mappings",
+          icon: Settings,
+        },
       ],
     },
   ],

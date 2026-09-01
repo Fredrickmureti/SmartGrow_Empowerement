@@ -9,6 +9,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { LendingLayout } from "./LendingLayout";
 import { PlaceholderSurface } from "./PlaceholderSurface";
+import { AccountingMappingsPage } from "./settings/AccountingMappingsPage";
 
 const SURFACES: Array<{
   path: string;
@@ -83,6 +84,15 @@ export function LendingApp() {
             <Route key={path} path={path} element={element} />
           );
         })}
+
+        <Route
+          path="configuration/accounting"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <AccountingMappingsPage />
+            </InstitutionRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>

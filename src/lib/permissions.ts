@@ -119,6 +119,11 @@ export const ROLE_HIERARCHY: Record<AppRole, number> = {
   cashier: 20,    // legacy — same as internal
   viewer: 10,     // legacy — same as internal
   portal: 5,
+  branch_manager: 60,
+  loan_officer: 30,
+  credit_officer: 40,
+  collections_officer: 30,
+  auditor: 20,
 };
 
 // Define permissions for each role.
@@ -589,6 +594,11 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
   // Internal user type — permissions come entirely from Access Groups.
   // This is a minimal fallback when no groups are assigned.
   internal: { ...INTERNAL_BASE_PERMISSIONS },
+  branch_manager: { ...INTERNAL_BASE_PERMISSIONS },
+  loan_officer: { ...INTERNAL_BASE_PERMISSIONS },
+  credit_officer: { ...INTERNAL_BASE_PERMISSIONS },
+  collections_officer: { ...INTERNAL_BASE_PERMISSIONS },
+  auditor: { ...INTERNAL_BASE_PERMISSIONS },
 };
 
 // ============================================================
@@ -924,6 +934,11 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   cashier: "Internal User",   // legacy
   viewer: "Internal User",    // legacy
   portal: "Portal User",
+  branch_manager: "Branch Manager",
+  loan_officer: "Loan Officer",
+  credit_officer: "Credit Officer",
+  collections_officer: "Collections Officer",
+  auditor: "Auditor",
 };
 
 // Role descriptions for UI
@@ -937,4 +952,9 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   cashier: "Access determined by assigned Access Groups",    // legacy
   viewer: "Access determined by assigned Access Groups",     // legacy
   portal: "Self-service only — leave requests, timesheets, personal documents",
+  branch_manager: "Branch operations oversight; access refined by Access Groups",
+  loan_officer: "Owns a client portfolio; access refined by Access Groups",
+  credit_officer: "Credit assessment and approval; access refined by Access Groups",
+  collections_officer: "Arrears and collections follow-up; access refined by Access Groups",
+  auditor: "Read-only review access; refined by Access Groups",
 };
