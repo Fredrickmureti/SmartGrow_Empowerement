@@ -13,6 +13,7 @@ import { AccountingMappingsPage } from "./settings/AccountingMappingsPage";
 import { ClientsPage } from "./clients/ClientsPage";
 import { GroupsPage } from "./groups/GroupsPage";
 import { ProductsPage } from "./products/ProductsPage";
+import { ApplicationsPage } from "./applications/ApplicationsPage";
 
 const SURFACES: Array<{
   path: string;
@@ -22,12 +23,6 @@ const SURFACES: Array<{
   milestone: string;
 }> = [
 
-  {
-    path: "applications",
-    title: "Applications",
-    description: "Draft to approval pipeline with assessment and approval authority.",
-    milestone: "C5",
-  },
   {
     path: "loans",
     title: "Loans",
@@ -65,6 +60,14 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <GroupsPage />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="applications"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <ApplicationsPage />
             </InstitutionRoute>
           }
         />
