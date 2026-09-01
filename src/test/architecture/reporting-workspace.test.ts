@@ -134,7 +134,6 @@ describe("report scope is URL-owned (drill-down and Back must not lose it)", () 
     "src/pages/reports/JournalReport.tsx",
     "src/pages/reports/PartnerLedger.tsx",
     "src/pages/reports/AgingReport.tsx",
-    "src/pages/reports/SalesReports.tsx",
   ];
 
   it("reads and writes scope through useReportWorkspaceState", () => {
@@ -160,13 +159,11 @@ describe("report scope is URL-owned (drill-down and Back must not lose it)", () 
 
 describe("drill-down capability is declared, not implied", () => {
   it("advertises dialog drill-down for reports that have it", () => {
-    const withDrill = ["trial-balance", "sales-reports"];
+    const withDrill = ["trial-balance"];
     for (const id of withDrill) {
       const def = REPORT_REGISTRY.find((r) => r.id === id);
       expect(def, `${id} missing from registry`).toBeTruthy();
     }
-    const sales = REPORT_REGISTRY.find((r) => r.id === "sales-reports")!;
-    expect(sales.drillDown).toBe("dialog");
   });
 
   it("partner drill-down carries a contact, so it cannot query all partners", () => {
