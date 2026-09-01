@@ -31801,6 +31801,184 @@ export type Database = {
           },
         ]
       }
+      mf_loan_product_versions: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          effective_from: string
+          eligibility: Json
+          fees: Json
+          grace_period_installments: number
+          id: string
+          interest_method: string
+          interest_rate: number
+          interest_rate_period: string
+          is_published: boolean
+          max_amount: number
+          max_term_installments: number
+          min_amount: number
+          min_term_installments: number
+          penalty_basis: string
+          penalty_rate: number
+          product_id: string
+          published_at: string | null
+          repayment_frequency: string
+          updated_at: string
+          version_no: number
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          effective_from?: string
+          eligibility?: Json
+          fees?: Json
+          grace_period_installments?: number
+          id?: string
+          interest_method: string
+          interest_rate: number
+          interest_rate_period?: string
+          is_published?: boolean
+          max_amount: number
+          max_term_installments: number
+          min_amount: number
+          min_term_installments: number
+          penalty_basis?: string
+          penalty_rate?: number
+          product_id: string
+          published_at?: string | null
+          repayment_frequency: string
+          updated_at?: string
+          version_no: number
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          effective_from?: string
+          eligibility?: Json
+          fees?: Json
+          grace_period_installments?: number
+          id?: string
+          interest_method?: string
+          interest_rate?: number
+          interest_rate_period?: string
+          is_published?: boolean
+          max_amount?: number
+          max_term_installments?: number
+          min_amount?: number
+          min_term_installments?: number
+          penalty_basis?: string
+          penalty_rate?: number
+          product_id?: string
+          published_at?: string | null
+          repayment_frequency?: string
+          updated_at?: string
+          version_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_product_versions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_product_versions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_product_versions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_product_versions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_loan_products: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          description: string | null
+          id: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_products_current_version_fk"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_product_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       migration_batches: {
         Row: {
           batch_hash: string
