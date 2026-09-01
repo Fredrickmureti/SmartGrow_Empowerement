@@ -18,7 +18,11 @@ Backend: already connected to Supabase project `xwxqunklduknceoryrha`.
 | C3 groups hook | Done — `src/hooks/useMfGroups.ts` (groups + membership roll) |
 | C3 UI (Clients, Groups pages) | Done — real pages wired in `src/apps/lending/routes.tsx` |
 
-**C3 is complete** (typecheck clean). Genuine resume point: **C4 — loan products**.
+Re-verified 2026-09-02: C4 (products page + version dialogs) and C5
+(applications, assessment, decision) are complete and wired. C6 UI is now
+complete too — `LoansPage.tsx` lists the loan book and drives
+`mf_create_loan_from_application`, `mf_disburse_loan` and the schedule view.
+Genuine resume point: **C7 — repayments, allocation, arrears, collections**.
 
 ## C3 — Clients & groups UI — DONE
 
@@ -34,7 +38,7 @@ Backend: already connected to Supabase project `xwxqunklduknceoryrha`.
 Individual liability only — group membership never implies a joint loan.
 Clients survive loan closure.
 
-## C4 — Loan products (immutable versions) — IN PROGRESS
+## C4 — Loan products (immutable versions) — DONE
 
 Verified done: `mf_loan_products` + `mf_loan_product_versions` exist in the
 database with GRANTs, RLS and freeze triggers; `src/hooks/useMfLoanProducts.ts`,
@@ -50,13 +54,13 @@ eligibility, activation live on the frozen version record so live loans never
 reprice.
 
 
-## C5 — Applications → assessment → approval
+## C5 — DONE. Applications → assessment → approval
 
 Draft → Submitted → Under review → Approved/Rejected → Ready for disbursement.
 Assessment is an attributable physical visit; approval bounded by authority
 limits and cycle eligibility. Requested ≠ approved. Approval ≠ disbursement.
 
-## C6 — Loan, schedule engine, disbursement
+## C6 — DONE. Loan, schedule engine, disbursement
 
 Loan snapshots contractual terms. Server-side schedule engine per interest
 method and frequency (contractual, not a ledger). Disbursement is an idempotent
@@ -108,47 +112,7 @@ inherited failing tests — after nothing reads them.
 
 ## Next action
 
-Finish C4: create `src/apps/lending/products/ProductsPage.tsx` (product list,
-status filter, opening the two existing dialogs), replace the `products`
-placeholder in `src/apps/lending/routes.tsx`, typecheck, open
-`/lending/products`. Then start C5 (applications → assessment → approval).
-
-
-
-
-=============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
-
-
-
-Stopping here. Status of C6 (loans, schedule engine, disbursement):
-
-Verified first: C1–C5 are genuinely complete — lending scaffold, roles/account mappings, clients & groups, loan products, and the full applications → assessment → approval pipeline all exist and the project typechecks clean.
-
-Done this session:
-- Database migration applied: `mf_loans`, `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events` (append-only), with GRANTs, RLS, term-freeze trigger, and a single-active-disbursement unique index.
-- Server-side engine: `mf_generate_schedule` (flat + declining balance, daily→quarterly frequencies, grace periods, upfront fees), `mf_create_loan_from_application` (snapshots the frozen product version, mints the loan number, generates the schedule, logs the event), and `mf_disburse_loan` (authority check, idempotency, amount integrity, schedule realignment to the real value date).
-- Frontend: `src/hooks/useMfLoans.ts`, `CreateLoanDialog.tsx`, `DisburseDialog.tsx`, `LoanScheduleDialog.tsx`.
-
-Remaining to close C6 (small, next session): create `src/apps/lending/loans/LoansPage.tsx` wiring those three dialogs into a filterable loan list, replace the `loans` placeholder in `src/apps/lending/routes.tsx`, run `npx tsgo --noEmit`, open `/lending/loans`, then mark C6 done in `.lovable/plan.md` and start C7 (repayments, allocation, arrears).
-
-
-
-NOTE
-=============
-And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
-
-The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
-
-What we want to **reuse** from the existing system is specifically:
-
-* **Document generation engine**
-* **Authentication/auth engine**
-* **Navigation and UI foundation**
-
-Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
-
-The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
-
-**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
-
-**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
+C7 — repayments: `mf_repayments` + allocation RPC (configurable order, no
+hardcoded penalty→fee→interest→principal), per-meeting batch capture with
+per-member receipts, reversal event, server-derived arrears/DPD/PAR views, then
+the Repayments and Collections pages replacing their placeholders.
