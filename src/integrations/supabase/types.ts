@@ -31765,6 +31765,76 @@ export type Database = {
           },
         ]
       }
+      mf_event_postings: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          journal_entry_id: string
+          loan_event_id: string
+          posting_kind: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          journal_entry_id: string
+          loan_event_id: string
+          posting_kind?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          journal_entry_id?: string
+          loan_event_id?: string
+          posting_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_event_postings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_event_postings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_event_postings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_event_postings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_event_postings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_event_postings_loan_event_id_fkey"
+            columns: ["loan_event_id"]
+            isOneToOne: true
+            referencedRelation: "mf_loan_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_group_members: {
         Row: {
           business_id: string
