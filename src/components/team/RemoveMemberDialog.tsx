@@ -39,6 +39,11 @@ const roleColors: Record<AppRole, string> = {
   cashier: "bg-cyan-500/10 text-cyan-500",
   viewer: "bg-muted text-muted-foreground",
   portal: "bg-teal-500/10 text-teal-500",
+  branch_manager: "bg-amber-500/10 text-amber-500",
+  loan_officer: "bg-sky-500/10 text-sky-500",
+  credit_officer: "bg-violet-500/10 text-violet-500",
+  collections_officer: "bg-rose-500/10 text-rose-500",
+  auditor: "bg-slate-500/10 text-slate-500",
 };
 
 export function RemoveMemberDialog({ 
