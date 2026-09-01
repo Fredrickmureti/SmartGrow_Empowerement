@@ -34,10 +34,21 @@ Backend: already connected to Supabase project `xwxqunklduknceoryrha`.
 Individual liability only — group membership never implies a joint loan.
 Clients survive loan closure.
 
-## C4 — Loan products (immutable versions)
+## C4 — Loan products (immutable versions) — IN PROGRESS
 
+Verified done: `mf_loan_products` + `mf_loan_product_versions` exist in the
+database with GRANTs, RLS and freeze triggers; `src/hooks/useMfLoanProducts.ts`,
+`ProductFormDialog.tsx` and `ProductVersionDialog.tsx` exist.
+
+Verified missing: `ProductsPage.tsx` — the `products` route in
+`src/apps/lending/routes.tsx` is still the placeholder.
+
+Remaining: build `ProductsPage.tsx` (product list, status filter, opens the two
+existing dialogs), swap the placeholder route, typecheck, open the screen.
 Amount band, term, frequency, interest method, fees, penalties, grace,
-eligibility, activation. Product versions frozen so live loans never mutate.
+eligibility, activation live on the frozen version record so live loans never
+reprice.
+
 
 ## C5 — Applications → assessment → approval
 
@@ -97,47 +108,8 @@ inherited failing tests — after nothing reads them.
 
 ## Next action
 
-Start C4 — loan products with immutable versions: `mf_loan_products` +
-`mf_loan_product_versions` migration (GRANTs + RLS in the same migration), a
-`useMfLoanProducts` hook, and the Products page replacing its placeholder.
+Finish C4: create `src/apps/lending/products/ProductsPage.tsx` (product list,
+status filter, opening the two existing dialogs), replace the `products`
+placeholder in `src/apps/lending/routes.tsx`, typecheck, open
+`/lending/products`. Then start C5 (applications → assessment → approval).
 
-
-=============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
-
-
-
-I stopped part-way through C4 (loan products). Here's where things stand:
-
-Verified from the previous engineer's work: C1–C3 are genuinely done — `src/apps/lending/` exists with real Clients and Groups pages wired into `/lending`, and `useMfClients` / `useMfGroups` / `useMfAccountMappings` are present. Your Supabase project (`xwxqunklduknceoryrha`) was already connected; no new connection was needed.
-
-Completed this session (C4, partially):
-- Migration applied: `mf_loan_products` + `mf_loan_product_versions` with GRANTs, RLS policies matching the existing `mf_*` role model, and database triggers that make a published version immutable (auto version numbering, freeze guard on update/delete) so live loans are never repriced.
-- `src/hooks/useMfLoanProducts.ts` — products + version history, publish-a-new-version mutation, friendly constraint errors.
-- `src/apps/lending/products/ProductFormDialog.tsx` — product identity (code, name, status).
-- `src/apps/lending/products/ProductVersionDialog.tsx` — publish new version, seeded from the version in force, with frozen version history.
-
-Remaining to finish C4: create `src/apps/lending/products/ProductsPage.tsx` (list of products with status filter, opening the two dialogs), swap the `products` placeholder in `src/apps/lending/routes.tsx` for it, then run `tsgo --noEmit` and open the screen. After that C5 (applications → assessment → approval) is next per the plan.
-
-Note: the linter warnings reported after the migration are all inherited AccrualFlow issues (SECURITY DEFINER views/functions, one RLS-less legacy table) — none come from the new tables, which ship RLS, policies and pinned `search_path`.
-
-
-
-NOTE
-=============
-And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
-
-The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
-
-What we want to **reuse** from the existing system is specifically:
-
-* **Document generation engine**
-* **Authentication/auth engine**
-* **Navigation and UI foundation**
-
-Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
-
-The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
-
-**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
-
-**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
