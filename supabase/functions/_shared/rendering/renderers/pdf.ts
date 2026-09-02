@@ -160,8 +160,52 @@ const WAREHOUSE_LAYOUTS: Record<
     ),
 };
 
+/**
+ * Lending paperwork (`lending.*`).
+ *
+ * Same class as the ledger and warehouse artefacts: an installment ladder,
+ * an allocation ladder or a period ledger — never a Qty/Price/Tax line-item
+ * document with a balance due. Drawn by dedicated sheet-only layouts and
+ * registered BEFORE the thermal gate, so a misconfigured print policy can
+ * never route a signed loan agreement onto an 80 mm roll.
+ */
+const LENDING_LAYOUTS: Record<
+  string,
+  (
+    snapshot: Record<string, unknown>,
+    organization: unknown,
+    options: { paperFormat?: string; orientation?: "portrait" | "landscape" },
+  ) => Promise<Uint8Array>
+> = {
+  "lending.loan_agreement": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/lending.ts")).generateLoanAgreementPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "lending.repayment_schedule": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/lending.ts")).generateRepaymentSchedulePdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "lending.loan_statement": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/lending.ts")).generateLoanStatementPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "lending.payment_receipt": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/lending.ts")).generateLoanPaymentReceiptPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+};
+
 const COUNT_FORBIDDEN_BLOCKS = new Set(["party", "totals"]);
 const COUNT_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
+
 
 /**
  * Cycle-count templates may never grow invoice anatomy, and a blind sheet
