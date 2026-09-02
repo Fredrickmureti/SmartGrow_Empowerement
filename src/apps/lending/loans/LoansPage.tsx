@@ -270,6 +270,20 @@ export function LoansPage() {
         onOpenChange={setScheduleOpen}
         loan={scheduleTarget}
       />
+
+      <LoanLifecycleDialog
+        open={lifecycleOpen}
+        onOpenChange={setLifecycleOpen}
+        loan={lifecycleTarget}
+        action={lifecycleAction}
+        onWriteOff={async (input) => {
+          await writeOff.mutateAsync(input);
+        }}
+        onClose={async (input) => {
+          await closeLoan.mutateAsync(input);
+        }}
+      />
+
     </>
   );
 }
