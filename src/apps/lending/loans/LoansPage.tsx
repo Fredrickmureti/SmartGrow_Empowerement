@@ -214,6 +214,27 @@ export function LoansPage() {
                           Disburse
                         </Button>
                       )}
+                      {loan.status === "active" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openLifecycle(loan, "close")}
+                          >
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            Close
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openLifecycle(loan, "write_off")}
+                          >
+                            <Ban className="mr-1.5 h-3.5 w-3.5" />
+                            Write off
+                          </Button>
+                        </>
+                      )}
+
                     </TableCell>
                   </TableRow>
                 ))}
