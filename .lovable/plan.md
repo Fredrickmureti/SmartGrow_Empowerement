@@ -1,150 +1,100 @@
+# Smart Grow Empowerment — microfinance convergence plan (reworked 2026-09-02)
 
+Single source of truth. One institution, employee-operated. Reuse exactly three
+inherited things: the document engine, the auth engine (PIN), and the
+navigation/UI foundation. Finance is reused only as the posting target (chart of
+accounts, journal, GL, fiscal periods, fixed assets). Every other ERP surface is
+unwired and dropped in one sweep, not explored.
 
-# Smart Grow Empowerment — convergence plan (re-verified 2026-09-02)
+Backend: Supabase project `xwxqunklduknceoryrha` (already connected).
 
-Single source of truth. Reuse exactly three inherited things: document engine,
-auth engine (PIN), navigation/UI foundation. Finance is reused only as the
-posting target (chart of accounts, journal, GL, fiscal periods, fixed assets).
-Everything else ERP is unwired and dropped in one sweep at the end.
+## Verified state (checked against files and generated DB types, 2026-09-02)
 
-Backend: Supabase project `xwxqunklduknceoryrha` (already connected; no
-further connection step needed).
+| Milestone | Status |
+| --- | --- |
+| C1 lending scaffold, `/lending/*` routes, layout, nav | Done |
+| C2 roles, `mf_account_mappings`, mappings settings screen | Done |
+| C3 clients + groups (tables, hooks, pages) | Done |
+| C4 loan products + versioning | Done |
+| C5 applications → assessment → decision | Done |
+| C6 loan creation, schedule engine, disbursement | Done |
+| C6b accounting hook (`mf_post_event`, mapping-resolved, hard error on missing mapping) | Done |
+| C7 repayments, policy-driven allocation, reversal, server-derived balances | Done |
+| C7b arrears/DPD/PAR views, collections activities, officer/branch RLS scope | Done (collections page + `useMfCollections` present) |
+| C8a write-off + closure (`mf_write_off_loan`, `mf_close_loan`, wired in UI) | Done |
+| C8b top-up / restructuring | **Backend only** — `mf_reissue_loan`, loan lineage columns, successor settlement posting exist; **no UI, no hook** |
 
-## Verified state (checked directly against files and the live database)
+Nothing in the frontend calls `mf_reissue_loan`; `useMfLoans` wires create,
+disburse, write-off, close only.
 
-| Milestone | Previous claim | Verified reality |
-| --- | --- | --- |
-| C1 scaffold, `/lending/*` | Done | Confirmed |
-| C2 roles + `mf_account_mappings` + settings screen | Done | Confirmed — but **no RPC reads the mappings** |
-| C3 clients + groups | Done | Confirmed (tables, hooks, pages) |
-| C4 loan products | "ProductsPage missing" | **Stale** — `ProductsPage.tsx` exists and is routed. C4 complete |
-| C5 applications → assessment → decision | Not started | **Already built** — `mf_loan_applications`, `mf_application_assessments`, hooks, 4 UI files |
-| C6 loan + schedule + disbursement | Not started | **Built, unposted** — `mf_loans`, `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events` (append-only), `mf_generate_schedule`, `mf_create_loan_from_application`, `mf_disburse_loan`. Zero journal posting |
-| C7 repayments / allocation / arrears / collections | Not started | **Half built** — `mf_repayments`, `mf_repayment_batches`, `mf_repayment_allocations`, `mf_allocation_policy`, `mf_record_repayment` (reads policy), `mf_reverse_repayment`; balances + installment status are server views. **Missing:** GL posting, arrears/DPD/PAR, collections activity (visits, promises, outcomes), officer-portfolio scoping |
+**Resume point: C8b frontend.**
 
-Typecheck is clean. All 18 `mf_*` tables have RLS enabled.
+## C8b — Top-up / restructure UI (next)
 
-**Genuine resume point: C6b — accounting hook.** Disbursement and repayment
-are business events with no accounting effect today; that violates rule 2 and
-must be fixed before any more lifecycle work lands on top of it.
+1. `useMfLoans`: add a `reissueLoan` mutation calling `mf_reissue_loan`
+   (loan, kind, additional amount, term, rate, dates, reason), invalidating
+   loans + schedule + balances.
+2. `LoanLifecycleDialog`: add Top up and Restructure actions — reason required,
+   additional principal input disabled for restructure, product-flag gated
+   (`allow_topup` / `allow_restructure`).
+3. `LoansPage`: show lineage on the row (replaces / replaced by), successor loan
+   linked.
+4. Verify: reissue one active loan → successor in `pending_disbursement`,
+   schedule generated, predecessor closed only on successor disbursement, journal
+   balanced.
 
-## C6b — Accounting hook (next)
+## V1 — One live lifecycle proof
 
-1. One migration per object (rule: small, single-purpose):
-   - `mf_post_event(loan_event_id)` — resolves debit/credit accounts from
-     `mf_account_mappings` by event kind, writes a balanced journal entry via the
-     existing journal path, stamps `journal_entry_id` on `mf_loan_events`.
-     Missing mapping = hard error, never a fallback account.
-   - `mf_disburse_loan` → calls `mf_post_event` (principal receivable DR /
-     cash-bank-mobile CR by disbursement method).
-   - `mf_record_repayment` → posts per allocation bucket (principal, interest,
-     fee, penalty) from the policy-driven allocation rows.
-   - `mf_reverse_repayment` → reversing journal, linked to the original.
-2. Idempotency: unique `(loan_event_id)` on the posting link; re-running posts
-   nothing.
-3. Verify: disburse + repay + reverse one loan; journal balances, GL matches
-   `mf_loan_balances`.
+Single loan through disburse → repay → reverse → top-up → close. Confirm journal
+entries balance and GL agrees with `mf_loan_balances`. This gates C9.
 
-## C7b — Arrears, collections, portfolio scope
+## C9 — Reports & documents on the inherited engines
 
-- Server views: `mf_loan_arrears` (due vs paid per installment → DPD, arrears
-  amount), `mf_par_summary` (PAR 1/30/90 by branch/officer).
-- Tables: `mf_collection_activities` (visit, call, promise-to-pay, outcome;
-  attributable to officer; append-only).
-- RLS: loan officers see only their own portfolio; branch managers their
-  branch; finance/audit roles read all. Apply the same scope to `mf_clients`,
-  `mf_loans`, `mf_repayments` (currently institution-wide).
-- Collections page becomes arrears worklist + activity log, not a balance list.
+Register microfinance definitions into the existing report and document engines
+with institution settings injected. No new renderers, no new PDF path.
 
-## C8 — Lifecycle exceptions
+- Reports: loan portfolio, outstanding principal/interest, daily/officer/branch
+  collections, arrears aging + PAR, client statement/exposure,
+  applications/approvals/disbursements.
+- Documents: loan agreement, repayment schedule, loan statement, payment
+  receipt, disbursement confirmation, collection receipt.
 
-Top-up, restructuring, write-off, closure as `mf_loan_events` with approval and
-`mf_post_event` treatment. New schedule versions, never edits to history.
+## C10 — Hardening, then one bulk ERP removal sweep
 
-## C9 — Reports & documents on the existing engines
-
-Reports: portfolio, outstanding principal/interest, daily/officer/branch
-collections, arrears aging + PAR, client statement/exposure, applications/
-approvals/disbursements. Documents: loan agreement, repayment schedule, loan
-statement, payment receipt, disbursement confirmation, collection receipt.
-Register into the existing engines with institution data injected; no new
-renderers.
-
-## C10 — Hardening + one bulk sweep
-
-RLS/grants audit on every `mf_*` object, reversal/duplicate/approval controls,
-security scan. Then the single grouped removal of confirmed-dead ERP surfaces:
-
-- Finance registry entries: receivables, payables, customer credits, customer
-  statements, budgets, bank feeds, reconciliation (keep: chart of accounts,
-  journal entries, fiscal periods, fixed assets, banking, reports, settings).
-- Contacts app (customers/suppliers/companies) — clients live in `mf_clients`.
-- Employees app sub-surfaces: departments, job positions, work locations, org
-  chart, HR reports (keep: user list, role, branch assignment).
-- Dead schema: retail/WMS, payroll, attendance, procurement, POS, CRM, and
-  their tests.
+1. RLS/grants audit across `mf_*`; reversal, duplicate and approval controls;
+   security scan.
+2. Single grouped removal — no per-module investigation, these are already
+   decided out of scope:
+   - Apps/routes/nav: contacts, retail/POS, inventory, warehouse, procurement,
+     sales/order-to-cash, CRM, payroll, attendance, HR beyond user + role +
+     branch assignment.
+   - Finance registry: keep chart of accounts, journal entries, fiscal periods,
+     fixed assets, banking, reports, settings. Drop receivables, payables,
+     customer credits, customer statements, budgets, bank feeds, reconciliation.
+   - Their hooks, components, tests and dead schema go with them.
+3. Institution settings page (name, legal, address, contact, logo, currency,
+   financial settings) confirmed as the single source feeding reports and
+   documents.
 
 ## Working rules
 
-1. Financial state is derived server-side; React never owns balances,
-   interest, arrears, allocations or journal amounts.
-2. Every domain action is a business event with an accounting hook. Account
-   mappings are configuration — never a hardcoded account UUID.
-3. Every new public object ships GRANTs + RLS in the same migration; one
-   object per migration.
-4. Inherited ERP rows are not this institution's data.
+1. Financial state is derived server-side. React never owns balances, interest,
+   arrears, allocations or journal amounts.
+2. Every domain action is an append-only business event with an accounting hook.
+   Account mappings are configuration — never a hardcoded account UUID.
+3. Every new public object ships GRANTs + RLS in the same migration; one object
+   per migration.
+4. History is never edited. Top-up, restructure, write-off and closure create
+   new rows/events.
 5. Permanently out of scope: SaaS/tenants/subscriptions, payroll, attendance,
-   POS, inventory, warehouse, procurement, order-to-cash, client portal,
+   POS, inventory, warehouse, procurement, order-to-cash, CRM, client portal,
    public registration, hardware.
-6. Per-milestone verification: typecheck + exercise the affected flow against
-   the live database. Full suite green is a C10 goal.
-7. No exploratory audits of code or tables already known to be out of scope.
-8. Update this file after every completed step; never trust a prior claim
-   without checking the file or table it names.
+6. No exploratory audits of code or tables already known to be out of scope.
+   Removal happens once, in C10, as a sweep.
+7. Verification per milestone: typecheck + exercise the affected flow against the
+   live database. Update this file immediately after each step.
 
 ## Next action
 
-C6b step 1: migration creating `mf_post_event`, then wire it into
-`mf_disburse_loan`, `mf_record_repayment`, `mf_reverse_repayment`, one
-migration each. Then verify one full disburse → repay → reverse cycle in the
-journal.
-
-
-=============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
-
-
-
-Backend for C8b (top-up and restructuring) is now in place, applied as four small, single-purpose migrations:
-
-1. Loan lineage on `mf_loans` — `parent_loan_id`, `lineage_kind` (`new`/`topup`/`restructure`), `settled_by_loan_id`, with check constraints and a unique index so a loan can be replaced at most once. No existing loan row is ever edited.
-2. `mf_post_event` gained the `loan_settled_by_successor` treatment — DR cash/bank/mobile money, CR principal receivable for the carried principal, resolved through `mf_account_mappings` (missing mapping is still a hard error), plus `settled_on` added to the posting-date resolution.
-3. `mf_reissue_loan(loan, kind, additional, term, rate, dates, reason)` — role-guarded (super admin / admin / branch manager / credit officer), requires an active, not-yet-replaced loan and a reason; carries forward outstanding principal from `mf_loan_balances`, adds the top-up amount (a restructure may not add principal), creates the successor loan in `pending_disbursement`, generates its schedule, and records a `loan_topped_up` / `loan_restructured` event. EXECUTE revoked from `anon`/`public`.
-4. `mf_disburse_loan` now settles the predecessor — when a successor is paid out, it posts the settlement journal for the carried principal and closes the old loan in the same transaction, so a reissue can never leave two live loans against one balance.
-
-The linter's ~3,670 findings are unchanged inherited AccrualFlow surface already scheduled for the C10 sweep; the migrations added none.
-
-Remaining:
-- C8b frontend — `useMfLoans` mutation for `mf_reissue_loan`, and Top up / Restructure actions in `LoanLifecycleDialog`; show lineage (replaced by / replaces) on the loan row.
-- V1 — one live disburse → repay → reverse → close cycle plus one top-up, confirming the journal balances against `mf_loan_balances`.
-- C9 reports + documents on the inherited engines, then C10 hardening and the single ERP removal sweep.
-- `.lovable/plan.md` still shows C8b as the resume point; it should be marked backend-done / UI-pending.
-
-NOTE
-=============
-And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
-
-The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
-
-What we want to **reuse** from the existing system is specifically:
-
-* **Document generation engine**
-* **Authentication/auth engine**
-* **Navigation and UI foundation**
-
-Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
-
-The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
-
-**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
-
-**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
+C8b step 1 — `reissueLoan` in `useMfLoans`, then the Top up / Restructure
+actions in `LoanLifecycleDialog`, then lineage on `LoansPage`.
