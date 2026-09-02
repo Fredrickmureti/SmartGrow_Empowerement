@@ -32,24 +32,6 @@ export type Database = {
         }
         Relationships: []
       }
-      __v1_proof_results: {
-        Row: {
-          id: number
-          ran_at: string | null
-          result: Json | null
-        }
-        Insert: {
-          id?: number
-          ran_at?: string | null
-          result?: Json | null
-        }
-        Update: {
-          id?: number
-          ran_at?: string | null
-          result?: Json | null
-        }
-        Relationships: []
-      }
       _e2e_milk_log: {
         Row: {
           at: string
@@ -86280,7 +86262,6 @@ export type Database = {
         }
         Returns: string
       }
-      __v1_lifecycle_proof: { Args: never; Returns: Json }
       __v1_probe_disburse: {
         Args: { p_amount: number; p_loan: string }
         Returns: Json
