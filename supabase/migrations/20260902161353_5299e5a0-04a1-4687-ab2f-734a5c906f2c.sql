@@ -1,0 +1,2 @@
+ALTER TABLE public.mf_loan_applications DROP CONSTRAINT mf_apps_status_chk;
+ALTER TABLE public.mf_loan_applications ADD CONSTRAINT mf_apps_status_chk CHECK (status = ANY (ARRAY['draft'::text,'submitted'::text,'under_review'::text,'approved'::text,'rejected'::text,'ready_for_disbursement'::text,'disbursed'::text,'cancelled'::text]));
