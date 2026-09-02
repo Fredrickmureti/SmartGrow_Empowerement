@@ -108,6 +108,13 @@ export function LoansPage() {
     setDisburseOpen(true);
   };
 
+  const openLifecycle = (loan: MfLoan, action: LoanLifecycleAction) => {
+    setLifecycleTarget(loan);
+    setLifecycleAction(action);
+    setLifecycleOpen(true);
+  };
+
+
   return (
     <>
       <PageHeader
