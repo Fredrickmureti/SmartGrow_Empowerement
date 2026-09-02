@@ -20,7 +20,8 @@ export type MfMappingKey =
   | "mobile_money"
   | "write_off_expense"
   | "loan_loss_provision"
-  | "suspended_interest";
+  | "suspended_interest"
+  | "client_advance";
 
 export interface MfMappingSpec {
   key: MfMappingKey;
@@ -41,6 +42,7 @@ export const MF_MAPPING_SPECS: MfMappingSpec[] = [
   { key: "write_off_expense", label: "Write-off expense", description: "Loans written off.", accountType: "expense" },
   { key: "loan_loss_provision", label: "Loan loss provision", description: "Provision against expected losses.", accountType: "liability" },
   { key: "suspended_interest", label: "Suspended interest", description: "Interest suspended on non-performing loans.", accountType: "liability" },
+  { key: "client_advance", label: "Client advance / overpayment", description: "Client funds received beyond amounts due, held as a liability.", accountType: "liability" },
 ];
 
 export interface MfAccountMapping {
