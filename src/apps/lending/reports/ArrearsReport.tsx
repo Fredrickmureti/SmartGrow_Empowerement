@@ -26,6 +26,7 @@ import {
 } from "@/design-system/reports";
 import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { useMfArrears, useMfParSummary } from "@/hooks/useMfCollections";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 
 const COLUMNS: ReportColumn[] = [
   { key: "loan_number", header: "Loan", width: "w-[130px]", sticky: true },
@@ -109,7 +110,7 @@ export function ArrearsReport() {
   const asOf = format(new Date(), "d MMM yyyy");
 
   const getExportConfig = useCallback(
-    (): ExportConfigLike => ({
+    (): ExportConfig => ({
       title: "Arrears & PAR",
       asOf,
       columns: toExportColumns(COLUMNS as ReportColumn<never>[]),
@@ -171,7 +172,5 @@ export function ArrearsReport() {
     </ReportPageLayout>
   );
 }
-
-type ExportConfigLike = import("@/services/reports/ReportExportService").ExportConfig;
 
 export default ArrearsReport;
