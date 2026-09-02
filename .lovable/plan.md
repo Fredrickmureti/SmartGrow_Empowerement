@@ -104,19 +104,16 @@ actions in `LoanLifecycleDialog`, then lineage on `LoansPage`.
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
+I paused the lifecycle verification here. Progress so far:
 
-Stopping here — no further tool calls.
+Fixed (applied to the database):
+- The institution's owner account was locked out of every lending action — the loan create, disburse, repay-reversal, restructure, write-off and close functions, plus the application-decision guard, only accepted accounts explicitly labelled Super Administrator. They now accept the owner too. (The owner role itself is immutable, so widening the guards was the correct fix.)
+- No new security-linter issues were introduced (count unchanged at the inherited baseline).
 
-Where things stand: C1–C8b are complete (backend + frontend), and the frontend typecheck passes.
+Remaining — V1 lifecycle proof (not finished):
+The rollback-only test harness ran up to the assessment step and stopped on a value constraint: `mf_application_assessments.recommendation` doesn't accept `approve` (the allowed list still needs to be read from `mf_assess_recommendation_chk`). Once that value is corrected, the harness continues through: approval → loan creation + schedule → disbursement → two repayments → one reversal → top-up reissue and successor disbursement → journal debit/credit balance check against `mf_loan_balances`.
 
-What I had just verified in the live DB:
-- Institution `Smart Grow Empowerment` and a `Headquarters` branch exist; 101 chart-of-accounts rows and 13 fiscal periods are in place.
-- `mf_clients`, `mf_loan_products`, `mf_loans`, `mf_loan_balances` are all empty, and `mf_account_mappings` has no rows yet — so no posting can succeed until mappings are configured.
-
-What remains (V1, next session):
-1. Seed `mf_account_mappings` for the keys `mf_post_event` requires — `principal_receivable`, `cash`, `bank`, `mobile_money`, `interest_income`, `fee_income`, `penalty_income`, `client_advance`, and the write-off key — using existing accounts (e.g. 1120/1365 receivable, 1111 cash, 1112 bank, 1030 mobile money, 4310 loan interest income, 6420 write-off).
-2. Seed one product + version, one client, one application; then run disburse → repay → reverse → top-up → close and confirm each journal entry balances and ties to `mf_loan_balances`.
-3. Then C9 (reports/documents on the inherited document engine) and C10 (hardening + the single ERP removal sweep).
+Also noted for later (C10 hardening, not fixed): the `mf_loan_products` insert policy rejects the owner under real RLS, so product creation from the UI will likely fail for that account even though the function guards now pass — the RLS policies need the same owner allowance as the guards.
 
 NOTE
 =============
