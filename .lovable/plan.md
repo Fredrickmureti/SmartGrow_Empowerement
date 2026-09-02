@@ -113,22 +113,23 @@ journal.
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-Stopping here — the linter output above is inherited AccrualFlow posture (already scheduled for the C10 sweep), not something this migration introduced.
+Stopping here. Where things stand:
 
-What I verified (not taken on trust): C1–C5 are genuinely complete; C6/C7 were built but unposted; `mf_post_event`, `mf_resolve_account`, `mf_method_mapping_key`, `mf_event_postings` and the disbursement posting all exist as claimed.
+Verified (not taken on trust)
+- C1–C5 complete; C6/C7 built; `mf_post_event`, `mf_resolve_account`, `mf_disburse_loan`, `mf_record_repayment`, `mf_reverse_repayment` all exist and post — the previous engineer's C6b claims held up.
+- Only genuine gap in C6b was the UI config: `client_advance` existed in the DB constraint but not in the app's mapping list.
 
-What I just completed (C6b):
-- Added the configurable `client_advance` account slot so overpayments post as a liability instead of failing.
-- `mf_record_repayment` now posts its ledger entry atomically (cash/bank/mobile in; principal, interest, fee, penalty, advance out) via configured mappings only.
-- `mf_reverse_repayment` now writes a linked reversing entry and no longer destroys allocation history (balance views already exclude reversed receipts).
+Completed this session
+- C6b closed: added `client_advance` to `MfMappingKey` and `MF_MAPPING_SPECS`, so the overpayment liability account is configurable under Lending → Configuration → Accounting.
+- C7b backend (migration applied): `mf_loan_arrears` (per-installment due vs paid, arrears, DPD), `mf_par_summary` (PAR 1/30/90 by branch and officer), `mf_collection_activities` (append-only, officer-attributed, manager-only cancellation via trigger + RLS), and portfolio scoping — loan officers and collections officers now see only their own clients, loans and repayments; managers/accountants/auditors/admins keep full institution visibility.
+- C7b frontend: `src/hooks/useMfCollections.ts`, `LogActivityDialog.tsx`, and Collections rebuilt as worklist / overdue installments / activity log, with PAR read from the server view instead of computed in React.
 
-Remaining, in order:
-1. Add `client_advance` to `MF_MAPPING_SPECS` in `src/hooks/useMfAccountMappings.ts` (liability) so it's configurable in the UI — the only code change outstanding for C6b.
-2. Configure mappings under Lending → Configuration → Accounting, then run one disburse → repay → reverse cycle and confirm the journal balances against `mf_loan_balances`.
-3. C7b: arrears/DPD/PAR views, `mf_collection_activities`, officer-portfolio RLS on clients/loans/repayments.
-4. Then C8 (lifecycle exceptions), C9 (reports/documents on the existing engines), C10 (hardening + the single bulk ERP removal sweep).
+Remaining, in order
+1. Verify: configure the account mappings, then run one disburse → repay → reverse cycle and confirm the journal balances against `mf_loan_balances`; also confirm the new Collections tabs render (build check not yet read this turn).
+2. Update `.lovable/plan.md` — C6b done, C7b implemented pending live verification.
+3. C8 lifecycle exceptions (top-up, restructure, write-off, closure as events), C9 reports/documents on the existing engines, C10 hardening + the single bulk ERP removal sweep.
 
-`.lovable/plan.md` still shows C6b as "next" — its status line should be updated to reflect the three functions now posting.
+The linter's 3,670 findings are inherited AccrualFlow surface already scheduled for the C10 sweep, not new.
 
 
 NOTE
