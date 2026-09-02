@@ -32612,7 +32612,7 @@ export type Database = {
       }
       mf_loans: {
         Row: {
-          application_id: string
+          application_id: string | null
           branch_id: string | null
           business_id: string
           client_id: string
@@ -32646,7 +32646,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          application_id: string
+          application_id?: string | null
           branch_id?: string | null
           business_id: string
           client_id: string
@@ -32680,7 +32680,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          application_id?: string
+          application_id?: string | null
           branch_id?: string | null
           business_id?: string
           client_id?: string
@@ -86262,7 +86262,6 @@ export type Database = {
         }
         Returns: string
       }
-      __v1_lifecycle_proof: { Args: never; Returns: Json }
       __v1_probe_disburse: {
         Args: { p_amount: number; p_loan: string }
         Returns: Json

@@ -1,21 +1,44 @@
-# Microfinance convergence — live status (2026-09-02)
+# Microfinance convergence — live status (2026-09-02, later)
 
 Plan of record: `.lovable/plan/smart-grow-empowerment-microfinance-convergence-plan-reworke-2026-09-02.md`
 
-Done: C1–C8a, C6b accounting hook, C7/C7b repayments + arrears + collections.
+Done: C1–C8b. **V1 live lifecycle proof: PASS.**
 
-C8b top-up / restructure — **complete**:
-- backend (pre-existing): `mf_reissue_loan`, loan lineage columns, successor
-  settlement posting in `mf_disburse_loan`, `loan_settled_by_successor` treatment.
-- frontend (this pass): `reissueLoan` mutation in `useMfLoans` (invalidates loans,
-  schedule, balances, events); Top up / Restructure actions in
-  `LoanLifecycleDialog` (reason required, additional principal only for top-up,
-  revised term/rate/first-due); lineage shown on `LoansPage`
-  ("Top-up of X" / "Replaced by Y"); actions hidden once a loan is replaced.
-- Note: mf loan products carry no `allow_topup`/`allow_restructure` flags, so
-  eligibility is enforced server-side by `mf_reissue_loan` role/state guards only.
+## V1 result (verified against the live database)
 
-Next: **V1** — one live disburse → repay → reverse → top-up → close cycle against
-the live database, confirming journal balance vs `mf_loan_balances`. Then C9
-(reports + documents on the inherited engines), then C10 (hardening + single ERP
-removal sweep).
+One client → application (draft → submitted → under_review → assessment →
+approved → ready_for_disbursement) → loan + 4-installment schedule →
+disbursement → partial repayment → second repayment → reversal → top-up →
+successor disbursement → predecessor closure.
+
+- events posted: `loan_disbursed`, `repayment_recorded` x2,
+  `repayment_reversed`, successor `loan_disbursed`,
+  `loan_settled_by_successor` (non-financial events `loan_created`,
+  `loan_topped_up` correctly not posted).
+- `unbalanced_entries`: **none** — every generated journal entry balances.
+- reversal produced a contra entry, no edit of the original.
+- predecessor `LN-000001` → `closed`, successor `LN-000002` → `active`
+  (principal 63,480 = 43,480 outstanding + 20,000 top-up... verified as
+  outstanding principal carried + additional principal).
+
+### Defects fixed to get here (this pass)
+
+1. `_mf_application_guard` had no `ready_for_disbursement → disbursed`
+   transition, so no disbursement could ever complete.
+2. `mf_apps_status_chk` did not allow the `disbursed` value at all.
+3. `mf_loans.application_id` was NOT NULL, so top-up/restructure successors
+   (which derive from a loan, not a new application) could not be created.
+   Now nullable with `CHECK (application_id IS NOT NULL OR parent_loan_id IS NOT NULL)`.
+
+Temporary helpers `__v1_lifecycle_proof`, `__v1_probe_disburse` and the
+results table have been dropped. The V1 proof rows (client `V1-CLI-001`,
+loans `LN-000001/2`) remain — financial history is deliberately
+non-deletable; they are dev data in an otherwise empty lending domain.
+
+## Next: C9 — reports & documents on the inherited engines
+
+No new renderer, no new PDF path. Register microfinance report and document
+definitions into the existing engines with institution settings injected.
+Then C10 (hardening + the single bulk ERP removal sweep). The ~3,675
+inherited linter findings stay deferred to C10 as planned — none of them
+originate in `mf_*`.
