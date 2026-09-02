@@ -51,17 +51,20 @@ C9: write `pdf/layouts/lending.ts` and the first kind/template migration togethe
 
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
-I stopped mid-way through C9 (lending documents) — only one file was written this turn: `src/services/documents/snapshots/lending.ts`, containing the four snapshot builders (loan agreement, repayment schedule, loan statement, payment receipt) built off `mf_loans`, `mf_loan_schedule`, `mf_loan_balances`, `mf_repayments` and `mf_repayment_allocations`. Nothing else was changed, so the app is unaffected and still builds as before.
+I stopped partway through C9. Note: your Supabase project `xwxqunklduknceoryrha` is already connected — no new connection was needed.
 
-What remains for C9, in order:
+Done in this turn:
+- Verified the real state: lending snapshot builders (`src/services/documents/snapshots/lending.ts`) already exist for all four kinds; `document_template_ast` has 0 rows and, importantly, no `is_active` column in the live DB even though `resolveTemplateAst` filters on it.
+- Added `supabase/functions/_shared/pdf/layouts/lending.ts` — four sheet-only generators (`generateLoanAgreementPdf`, `generateRepaymentSchedulePdf`, `generateLoanStatementPdf`, `generateLoanPaymentReceiptPdf`) built purely from the frozen snapshot, with thermal refusal, facts grids, shared schedule table, allocation ladder, summary strip and signature strips.
+- Registered a `LENDING_LAYOUTS` map in `supabase/functions/_shared/rendering/renderers/pdf.ts` (before the thermal gate).
 
-1. `supabase/functions/_shared/pdf/layouts/lending.ts` — four generators (`generateLoanAgreementPdf`, `generateRepaymentSchedulePdf`, `generateLoanStatementPdf`, `generateLoanReceiptPdf`) modelled on `journal.ts` (PdfBuilder, branded header, facts grid, `drawDataTable`, notes, signature strip, sheet-paper assertion).
-2. `supabase/functions/_shared/rendering/renderers/pdf.ts` — add a `LENDING_LAYOUTS` map, include it in `hasDedicatedLayout()`, add an `assertLendingTemplateContract`, and route it before the thermal gate.
-3. Two migrations: (a) four `document_kinds` rows (`lending.loan_agreement`, `lending.repayment_schedule`, `lending.loan_statement`, `lending.payment_receipt`, domain `lending`, `a4_portrait`, pdf); (b) matching `document_templates` + system-scope `document_template_ast` rows pinning each `layout`. Note: `document_template_ast` is currently empty in this database — no kind has a template, so the render path fails for everything until these rows exist.
-4. Registry entries in `src/services/documents/resolveSourceDocumentRecord.ts` for the four new source types.
-5. UI wiring: Preview/Print/Download actions on `LoansPage` and `RepaymentsPage`, following the `useJournalEntryActions` + `useRecordPrint`/`useRecordDownload` pattern (a lending twin of those hooks is needed since the finance ones are typed to `journal_entry`).
+Remaining for C9:
+1. Finish the pdf.ts wiring: include `LENDING_LAYOUTS` in `hasDedicatedLayout()` and add the dispatch branch in the render function (currently the map is declared but not dispatched, so the fail-closed guard would reject these kinds).
+2. Migrations, one object each: four `document_kinds` rows (`lending.loan_agreement`, `lending.repayment_schedule`, `lending.loan_statement`, `lending.payment_receipt`), then the `document_template_ast` migration — which must add the missing `is_active` column before inserting the system-scope default rows, otherwise every render resolves against a column that doesn't exist.
+3. Registry entries in `src/services/documents/resolveSourceDocumentRecord.ts` mapping the four legacy doc types to the builders, then wire preview/download/print on the loan and repayment screens.
+4. Gate: `tsgo --noEmit` + build, then a live render of each kind.
 
-Then C10 (bulk ERP removal) and C11 (hardening) are still untouched.
+C10 (bulk ERP removal) and C11 (hardening) are untouched.
 
 NOTE
 =============
