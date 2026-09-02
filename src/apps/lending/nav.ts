@@ -13,6 +13,9 @@ import {
   Wallet,
   Target,
   Settings,
+  BarChart3,
+  AlertTriangle,
+  Landmark,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -38,6 +41,15 @@ export const LENDING_NAV: WorkspaceNav = {
       items: [
         { to: "/lending/repayments", label: "Repayments", icon: Wallet },
         { to: "/lending/collections", label: "Collections", icon: Target },
+      ],
+    },
+    {
+      label: "Insights",
+      items: [
+        { to: "/lending/reports/portfolio", label: "Loan portfolio", icon: BarChart3 },
+        { to: "/lending/reports/arrears", label: "Arrears & PAR", icon: AlertTriangle },
+        { to: "/lending/reports/collections", label: "Collections report", icon: Wallet },
+        { to: "/lending/reports/disbursements", label: "Disbursements", icon: Landmark },
       ],
     },
     {

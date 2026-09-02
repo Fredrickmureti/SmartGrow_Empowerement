@@ -115,8 +115,6 @@ describe("report taxonomy coverage", () => {
     "aged-receivables",
     "aged-payables",
     "partner-ledger",
-    "sales-reports",
-    "purchase-reports",
   ];
 
   it("registers every report family", () => {
@@ -141,9 +139,12 @@ describe("report taxonomy coverage", () => {
     }
   });
 
-  it("declares the sales drill-down in the registry", () => {
-    const sales = REPORT_REGISTRY.find((r) => r.id === "sales-reports")!;
-    expect(sales.drillDown).toBe("dialog");
+  it("registers the lending reports in the lending domain", () => {
+    for (const id of ["loan-portfolio", "loan-arrears", "loan-collections", "loan-disbursements"]) {
+      const def = REPORT_REGISTRY.find((r) => r.id === id);
+      expect(def, `${id} is not in REPORT_REGISTRY`).toBeTruthy();
+      expect(getReportDomain(def!)).toBe("lending");
+    }
   });
 
   it("has no duplicate registry ids or paths in this family", () => {

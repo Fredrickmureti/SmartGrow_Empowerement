@@ -13,7 +13,7 @@
 import {
   FileText, BarChart3, PieChart, TrendingUp, Calculator,
   Receipt, Users, ShieldCheck, Boxes, DollarSign, Clock, Scale,
-  Building2, BookOpen, Wallet, ScrollText, Landmark,
+  Building2, BookOpen, Wallet, ScrollText, Landmark, HandCoins,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
@@ -43,7 +43,8 @@ export type ReportDomain =
   | "inventory"
   | "pos"
   | "projects"
-  | "crm";
+  | "crm"
+  | "lending";
 
 export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   finance: "Finance",
@@ -54,6 +55,7 @@ export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   pos: "Point of sale",
   projects: "Projects",
   crm: "CRM",
+  lending: "Lending",
 };
 
 export interface ReportDefinition {
@@ -226,6 +228,54 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
   },
 
   // ─── Receivables ───
+  {
+    id: "loan-portfolio",
+    name: "Loan Portfolio",
+    description: "Outstanding principal, interest and fees per loan",
+    category: "management",
+    path: "/lending/reports/portfolio",
+    icon: HandCoins,
+    permission: "viewReports",
+    reportType: "loan-portfolio",
+    domain: "lending",
+    keywords: ["loan portfolio", "outstanding", "loans", "principal", "lending"],
+  },
+  {
+    id: "loan-arrears",
+    name: "Arrears & PAR",
+    description: "Overdue installments, aging buckets and portfolio at risk",
+    category: "management",
+    path: "/lending/reports/arrears",
+    icon: Clock,
+    permission: "viewReports",
+    reportType: "loan-arrears",
+    domain: "lending",
+    keywords: ["arrears", "par", "portfolio at risk", "aging", "dpd", "overdue"],
+  },
+  {
+    id: "loan-collections",
+    name: "Collections",
+    description: "Repayments received in the selected period",
+    category: "management",
+    path: "/lending/reports/collections",
+    icon: Wallet,
+    permission: "viewReports",
+    reportType: "loan-collections",
+    domain: "lending",
+    keywords: ["collections", "repayments", "receipts", "lending"],
+  },
+  {
+    id: "loan-disbursements",
+    name: "Disbursements",
+    description: "Loans disbursed in the selected period",
+    category: "management",
+    path: "/lending/reports/disbursements",
+    icon: Landmark,
+    permission: "viewReports",
+    reportType: "loan-disbursements",
+    domain: "lending",
+    keywords: ["disbursements", "disbursed", "payouts", "lending"],
+  },
   {
     id: "aged-receivables",
     name: "Aged Receivables",
@@ -588,6 +638,7 @@ const DOMAIN_BY_PATH_PREFIX: Array<[string, ReportDomain]> = [
   ["/pos/reports", "pos"],
   ["/projects-app/reports", "projects"],
   ["/crm/reports", "crm"],
+  ["/lending/reports", "lending"],
   ["/finance/reports", "finance"],
   ["/reports", "finance"],
 ];
