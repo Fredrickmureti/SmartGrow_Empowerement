@@ -32630,14 +32630,17 @@ export type Database = {
           interest_method: string
           interest_rate: number
           interest_rate_period: string
+          lineage_kind: string
           loan_number: string
           loan_officer_id: string | null
+          parent_loan_id: string | null
           penalty_basis: string | null
           penalty_rate: number
           principal: number
           product_id: string
           product_version_id: string
           repayment_frequency: string
+          settled_by_loan_id: string | null
           status: string
           term_installments: number
           updated_at: string
@@ -32661,14 +32664,17 @@ export type Database = {
           interest_method: string
           interest_rate?: number
           interest_rate_period: string
+          lineage_kind?: string
           loan_number: string
           loan_officer_id?: string | null
+          parent_loan_id?: string | null
           penalty_basis?: string | null
           penalty_rate?: number
           principal: number
           product_id: string
           product_version_id: string
           repayment_frequency: string
+          settled_by_loan_id?: string | null
           status?: string
           term_installments: number
           updated_at?: string
@@ -32692,14 +32698,17 @@ export type Database = {
           interest_method?: string
           interest_rate?: number
           interest_rate_period?: string
+          lineage_kind?: string
           loan_number?: string
           loan_officer_id?: string | null
+          parent_loan_id?: string | null
           penalty_basis?: string | null
           penalty_rate?: number
           principal?: number
           product_id?: string
           product_version_id?: string
           repayment_frequency?: string
+          settled_by_loan_id?: string | null
           status?: string
           term_installments?: number
           updated_at?: string
@@ -32727,6 +32736,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mf_loans_parent_loan_id_fkey"
+            columns: ["parent_loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_parent_loan_id_fkey"
+            columns: ["parent_loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mf_loans_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -32738,6 +32761,20 @@ export type Database = {
             columns: ["product_version_id"]
             isOneToOne: false
             referencedRelation: "mf_loan_product_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_settled_by_loan_id_fkey"
+            columns: ["settled_by_loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_settled_by_loan_id_fkey"
+            columns: ["settled_by_loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
             referencedColumns: ["id"]
           },
         ]
@@ -98777,6 +98814,19 @@ export type Database = {
           p_notes?: string
           p_paid_on: string
           p_reference?: string
+        }
+        Returns: string
+      }
+      mf_reissue_loan: {
+        Args: {
+          p_additional_principal?: number
+          p_expected_disbursement_date?: string
+          p_first_installment_date?: string
+          p_interest_rate?: number
+          p_kind: string
+          p_loan_id: string
+          p_reason?: string
+          p_term_installments?: number
         }
         Returns: string
       }
