@@ -36,6 +36,15 @@ export const MF_LOAN_STATUS_LABELS: Record<MfLoanStatus, string> = {
   cancelled: "Cancelled",
 };
 
+/** How a loan came into existence: fresh, a top-up, or a restructure. */
+export type MfLoanLineageKind = "new" | "topup" | "restructure";
+
+export const MF_LINEAGE_LABELS: Record<MfLoanLineageKind, string> = {
+  new: "New",
+  topup: "Top-up",
+  restructure: "Restructure",
+};
+
 export const MF_DISBURSEMENT_METHODS = [
   { value: "cash", label: "Cash" },
   { value: "bank_transfer", label: "Bank transfer" },
@@ -69,6 +78,9 @@ export interface MfLoan {
   status: MfLoanStatus;
   disbursed_at: string | null;
   closed_at: string | null;
+  parent_loan_id: string | null;
+  lineage_kind: MfLoanLineageKind;
+  settled_by_loan_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,7 +110,7 @@ export interface MfLoanEvent {
 }
 
 const LOAN_SELECT =
-  "id,business_id,branch_id,loan_number,application_id,client_id,group_id,product_id,product_version_id,loan_officer_id,currency_code,principal,term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,grace_period_installments,penalty_rate,penalty_basis,expected_disbursement_date,first_installment_date,status,disbursed_at,closed_at,created_at,updated_at";
+  "id,business_id,branch_id,loan_number,application_id,client_id,group_id,product_id,product_version_id,loan_officer_id,currency_code,principal,term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,grace_period_installments,penalty_rate,penalty_basis,expected_disbursement_date,first_installment_date,status,disbursed_at,closed_at,parent_loan_id,lineage_kind,settled_by_loan_id,created_at,updated_at";
 
 function friendly(error: unknown, fallback: string): string {
   const msg = error instanceof Error ? error.message : String(error ?? "");
@@ -139,6 +151,8 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     queryClient.invalidateQueries({ queryKey: ["mf-loans"] });
     queryClient.invalidateQueries({ queryKey: ["mf-loan-schedule"] });
     queryClient.invalidateQueries({ queryKey: ["mf-applications"] });
+    queryClient.invalidateQueries({ queryKey: ["mf-loan-balances"] });
+    queryClient.invalidateQueries({ queryKey: ["mf-loan-events"] });
   };
 
   /** Mint the contractual loan from an approved application (server-side). */
@@ -231,6 +245,48 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     onError: (e) => toast.error(friendly(e, "The closure was refused")),
   });
 
+  /**
+   * Lifecycle exception: replace an active loan with a successor (top-up or
+   * restructure). The server carries forward the outstanding principal, mints
+   * the successor in `pending_disbursement` with its own schedule, and settles
+   * the predecessor only when the successor is disbursed. History is never
+   * edited.
+   */
+  const reissueLoan = useMutation({
+    mutationFn: async (input: {
+      loanId: string;
+      kind: Exclude<MfLoanLineageKind, "new">;
+      additionalPrincipal?: number | null;
+      termInstallments?: number | null;
+      interestRate?: number | null;
+      expectedDisbursementDate?: string | null;
+      firstInstallmentDate?: string | null;
+      reason: string;
+    }) => {
+      const { data, error } = await supabase.rpc("mf_reissue_loan", {
+        p_loan_id: input.loanId,
+        p_kind: input.kind,
+        p_additional_principal: input.additionalPrincipal ?? 0,
+        p_term_installments: input.termInstallments ?? undefined,
+        p_interest_rate: input.interestRate ?? undefined,
+        p_expected_disbursement_date: input.expectedDisbursementDate ?? undefined,
+        p_first_installment_date: input.firstInstallmentDate ?? undefined,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_id, input) => {
+      invalidate();
+      toast.success(
+        input.kind === "topup"
+          ? "Top-up loan created — disburse it to settle the original"
+          : "Restructured loan created — disburse it to settle the original",
+      );
+    },
+    onError: (e) => toast.error(friendly(e, "The reissue was refused")),
+  });
+
   return {
     loans: query.data ?? [],
     isLoading: query.isLoading,
@@ -240,6 +296,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     disburse,
     writeOff,
     closeLoan,
+    reissueLoan,
     businessId,
   };
 }

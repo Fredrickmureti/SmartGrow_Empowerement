@@ -7,7 +7,15 @@
  * no balance, interest or schedule maths happens here.
  */
 import { useMemo, useState } from "react";
-import { Ban, CalendarRange, CheckCircle2, HandCoins, Plus } from "lucide-react";
+import {
+  Ban,
+  CalendarRange,
+  CheckCircle2,
+  HandCoins,
+  Plus,
+  RefreshCw,
+  TrendingUp,
+} from "lucide-react";
 
 import {
   PageHeader,
@@ -37,6 +45,7 @@ import {
 } from "@/components/ui/table";
 import { useMfClients } from "@/hooks/useMfClients";
 import {
+  MF_LINEAGE_LABELS,
   MF_LOAN_STATUSES,
   MF_LOAN_STATUS_LABELS,
   useMfLoans,
@@ -78,8 +87,16 @@ export function LoansPage() {
   const [lifecycleAction, setLifecycleAction] = useState<LoanLifecycleAction>("write_off");
   const [lifecycleOpen, setLifecycleOpen] = useState(false);
 
-  const { loans, isLoading, error, createFromApplication, disburse, writeOff, closeLoan } =
-    useMfLoans({ status });
+  const {
+    loans,
+    isLoading,
+    error,
+    createFromApplication,
+    disburse,
+    writeOff,
+    closeLoan,
+    reissueLoan,
+  } = useMfLoans({ status });
   const { clients } = useMfClients();
 
 
@@ -87,6 +104,11 @@ export function LoansPage() {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
     return (id: string) => map.get(id) ?? "—";
   }, [clients]);
+
+  const loanNumber = useMemo(() => {
+    const map = new Map(loans.map((l) => [l.id, l.loan_number]));
+    return (id: string | null) => (id ? (map.get(id) ?? "—") : null);
+  }, [loans]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -180,7 +202,20 @@ export function LoansPage() {
                     className="cursor-pointer"
                     onClick={() => openSchedule(loan)}
                   >
-                    <TableCell className="font-mono text-xs">{loan.loan_number}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {loan.loan_number}
+                      {loan.lineage_kind !== "new" && (
+                        <div className="mt-0.5 font-sans text-[11px] text-muted-foreground">
+                          {MF_LINEAGE_LABELS[loan.lineage_kind]} of{" "}
+                          {loanNumber(loan.parent_loan_id) ?? "—"}
+                        </div>
+                      )}
+                      {loan.settled_by_loan_id && (
+                        <div className="mt-0.5 font-sans text-[11px] text-muted-foreground">
+                          Replaced by {loanNumber(loan.settled_by_loan_id)}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{clientName(loan.client_id)}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {money(loan.principal, loan.currency_code)}
@@ -214,8 +249,24 @@ export function LoansPage() {
                           Disburse
                         </Button>
                       )}
-                      {loan.status === "active" && (
+                      {loan.status === "active" && !loan.settled_by_loan_id && (
                         <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openLifecycle(loan, "top_up")}
+                          >
+                            <TrendingUp className="mr-1.5 h-3.5 w-3.5" />
+                            Top up
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openLifecycle(loan, "restructure")}
+                          >
+                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                            Restructure
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -281,6 +332,9 @@ export function LoansPage() {
         }}
         onClose={async (input) => {
           await closeLoan.mutateAsync(input);
+        }}
+        onReissue={async (input) => {
+          await reissueLoan.mutateAsync(input);
         }}
       />
 
