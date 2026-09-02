@@ -116,10 +116,11 @@ security scan. Then the single grouped removal of confirmed-dead ERP surfaces:
 
 ## Next action
 
-C6b step 1: migration creating `mf_post_event`, then wire it into
-`mf_disburse_loan`, `mf_record_repayment`, `mf_reverse_repayment`, one
-migration each. Then verify one full disburse → repay → reverse cycle in the
-journal.
+C8 continued: top-up and restructuring as settle-and-reissue events — new
+schedule version on the same loan lineage, approval-guarded, with the
+`mf_post_event` treatment. Then C9 (reports + documents on the existing
+engines).
+
 
 
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
