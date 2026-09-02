@@ -74,9 +74,14 @@ export function LoansPage() {
   const [disburseOpen, setDisburseOpen] = useState(false);
   const [scheduleTarget, setScheduleTarget] = useState<MfLoan | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [lifecycleTarget, setLifecycleTarget] = useState<MfLoan | null>(null);
+  const [lifecycleAction, setLifecycleAction] = useState<LoanLifecycleAction>("write_off");
+  const [lifecycleOpen, setLifecycleOpen] = useState(false);
 
-  const { loans, isLoading, error, createFromApplication, disburse } = useMfLoans({ status });
+  const { loans, isLoading, error, createFromApplication, disburse, writeOff, closeLoan } =
+    useMfLoans({ status });
   const { clients } = useMfClients();
+
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
