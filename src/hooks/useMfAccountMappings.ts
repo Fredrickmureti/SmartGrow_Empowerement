@@ -20,7 +20,8 @@ export type MfMappingKey =
   | "mobile_money"
   | "write_off_expense"
   | "loan_loss_provision"
-  | "suspended_interest";
+  | "suspended_interest"
+  | "client_advance";
 
 export interface MfMappingSpec {
   key: MfMappingKey;
