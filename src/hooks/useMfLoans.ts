@@ -195,6 +195,42 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     onError: (e) => toast.error(friendly(e, "The disbursement was refused")),
   });
 
+  /** Lifecycle exception: write off an active loan (server-posted). */
+  const writeOff = useMutation({
+    mutationFn: async (input: { loanId: string; writtenOffOn: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("mf_write_off_loan", {
+        p_loan_id: input.loanId,
+        p_written_off_on: input.writtenOffOn,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Loan written off and posted to the ledger");
+    },
+    onError: (e) => toast.error(friendly(e, "The write-off was refused")),
+  });
+
+  /** Lifecycle exception: close a fully repaid loan. */
+  const closeLoan = useMutation({
+    mutationFn: async (input: { loanId: string; closedOn: string; notes?: string | null }) => {
+      const { data, error } = await supabase.rpc("mf_close_loan", {
+        p_loan_id: input.loanId,
+        p_closed_on: input.closedOn,
+        p_notes: input.notes ?? null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Loan closed");
+    },
+    onError: (e) => toast.error(friendly(e, "The closure was refused")),
+  });
+
   return {
     loans: query.data ?? [],
     isLoading: query.isLoading,
@@ -202,9 +238,12 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     refetch: query.refetch,
     createFromApplication,
     disburse,
+    writeOff,
+    closeLoan,
     businessId,
   };
 }
+
 
 /** Contractual schedule and event history for one loan. */
 export function useMfLoanSchedule(loanId?: string) {

@@ -7,7 +7,8 @@
  * no balance, interest or schedule maths happens here.
  */
 import { useMemo, useState } from "react";
-import { CalendarRange, HandCoins, Plus } from "lucide-react";
+import { Ban, CalendarRange, CheckCircle2, HandCoins, Plus } from "lucide-react";
+
 import {
   PageHeader,
   PageBody,
@@ -45,6 +46,8 @@ import {
 import { CreateLoanDialog } from "./CreateLoanDialog";
 import { DisburseDialog } from "./DisburseDialog";
 import { LoanScheduleDialog } from "./LoanScheduleDialog";
+import { LoanLifecycleDialog, type LoanLifecycleAction } from "./LoanLifecycleDialog";
+
 
 const STATUS_TONE: Record<
   MfLoanStatus,
@@ -71,9 +74,14 @@ export function LoansPage() {
   const [disburseOpen, setDisburseOpen] = useState(false);
   const [scheduleTarget, setScheduleTarget] = useState<MfLoan | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [lifecycleTarget, setLifecycleTarget] = useState<MfLoan | null>(null);
+  const [lifecycleAction, setLifecycleAction] = useState<LoanLifecycleAction>("write_off");
+  const [lifecycleOpen, setLifecycleOpen] = useState(false);
 
-  const { loans, isLoading, error, createFromApplication, disburse } = useMfLoans({ status });
+  const { loans, isLoading, error, createFromApplication, disburse, writeOff, closeLoan } =
+    useMfLoans({ status });
   const { clients } = useMfClients();
+
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -99,6 +107,13 @@ export function LoansPage() {
     setDisburseTarget(loan);
     setDisburseOpen(true);
   };
+
+  const openLifecycle = (loan: MfLoan, action: LoanLifecycleAction) => {
+    setLifecycleTarget(loan);
+    setLifecycleAction(action);
+    setLifecycleOpen(true);
+  };
+
 
   return (
     <>
@@ -199,6 +214,27 @@ export function LoansPage() {
                           Disburse
                         </Button>
                       )}
+                      {loan.status === "active" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openLifecycle(loan, "close")}
+                          >
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            Close
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openLifecycle(loan, "write_off")}
+                          >
+                            <Ban className="mr-1.5 h-3.5 w-3.5" />
+                            Write off
+                          </Button>
+                        </>
+                      )}
+
                     </TableCell>
                   </TableRow>
                 ))}
@@ -234,6 +270,20 @@ export function LoansPage() {
         onOpenChange={setScheduleOpen}
         loan={scheduleTarget}
       />
+
+      <LoanLifecycleDialog
+        open={lifecycleOpen}
+        onOpenChange={setLifecycleOpen}
+        loan={lifecycleTarget}
+        action={lifecycleAction}
+        onWriteOff={async (input) => {
+          await writeOff.mutateAsync(input);
+        }}
+        onClose={async (input) => {
+          await closeLoan.mutateAsync(input);
+        }}
+      />
+
     </>
   );
 }

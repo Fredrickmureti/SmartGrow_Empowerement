@@ -61,6 +61,18 @@ must be fixed before any more lifecycle work lands on top of it.
 Top-up, restructuring, write-off, closure as `mf_loan_events` with approval and
 `mf_post_event` treatment. New schedule versions, never edits to history.
 
+Status (2026-09-02):
+- DONE — write-off: `mf_post_event` gained the `loan_written_off` treatment
+  (DR write-off expense / CR principal + interest receivable, amounts taken
+  from `mf_loan_balances`, mappings resolved, missing mapping = hard error),
+  `mf_write_off_loan` (role-guarded, single-shot, reason required).
+- DONE — closure: `mf_close_loan` (refused while anything is outstanding,
+  records a `loan_closed` event, no posting needed).
+- UI: `LoanLifecycleDialog` + Close / Write off actions on active loans.
+- PENDING — top-up and restructuring (new schedule version, approval,
+  settle-and-reissue accounting).
+
+
 ## C9 — Reports & documents on the existing engines
 
 Reports: portfolio, outstanding principal/interest, daily/officer/branch
@@ -104,10 +116,11 @@ security scan. Then the single grouped removal of confirmed-dead ERP surfaces:
 
 ## Next action
 
-C6b step 1: migration creating `mf_post_event`, then wire it into
-`mf_disburse_loan`, `mf_record_repayment`, `mf_reverse_repayment`, one
-migration each. Then verify one full disburse → repay → reverse cycle in the
-journal.
+C8 continued: top-up and restructuring as settle-and-reissue events — new
+schedule version on the same loan lineage, approval-guarded, with the
+`mf_post_event` treatment. Then C9 (reports + documents on the existing
+engines).
+
 
 
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======

@@ -98736,6 +98736,10 @@ export type Database = {
         Args: { p_date: string; p_freq: string; p_n: number }
         Returns: string
       }
+      mf_close_loan: {
+        Args: { p_closed_on?: string; p_loan_id: string; p_notes?: string }
+        Returns: string
+      }
       mf_create_loan_from_application: {
         Args: {
           p_application_id: string
@@ -98783,6 +98787,10 @@ export type Database = {
       mf_reverse_repayment: {
         Args: { p_reason: string; p_repayment_id: string }
         Returns: undefined
+      }
+      mf_write_off_loan: {
+        Args: { p_loan_id: string; p_reason: string; p_written_off_on: string }
+        Returns: string
       }
       migrate_components_to_rules: {
         Args: { p_structure_id: string }
