@@ -68,13 +68,23 @@ function tone(dpd: number): "success" | "warning" | "danger" {
   return "danger";
 }
 
+type WorklistLoan = {
+  loan_id: string;
+  client_id: string;
+  branch_id: string | null;
+  loan_number: string;
+};
 
 export function CollectionsPage() {
   const [search, setSearch] = useState("");
   const [bucket, setBucket] = useState<string>("all");
+  const [activityLoan, setActivityLoan] = useState<WorklistLoan | null>(null);
 
   const { balances, isLoading, error } = useMfLoanBalances();
   const { clients } = useMfClients();
+  const { arrears, isLoading: arrearsLoading, error: arrearsError } = useMfArrears();
+  const { par } = useMfParSummary();
+  const { activities, isLoading: activitiesLoading } = useMfCollectionActivities();
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -86,20 +96,19 @@ export function CollectionsPage() {
     [balances],
   );
 
+  // Portfolio-at-risk comes from the server view; the page only totals the rows
+  // the caller is allowed to see.
   const portfolio = useMemo(() => {
-    const outstanding = active.reduce((s, b) => s + Number(b.total_outstanding ?? 0), 0);
-    const atRisk = active
-      .filter((b) => Number(b.days_past_due ?? 0) > 30)
-      .reduce((s, b) => s + Number(b.total_outstanding ?? 0), 0);
+    const outstanding = par.reduce((s, r) => s + Number(r.portfolio_outstanding ?? 0), 0);
+    const atRisk30 = par.reduce((s, r) => s + Number(r.par_30 ?? 0), 0);
     const overdue = active.reduce((s, b) => s + Number(b.amount_overdue ?? 0), 0);
     return {
       outstanding,
       overdue,
-      atRisk,
-      par30: outstanding > 0 ? (atRisk / outstanding) * 100 : 0,
+      par30: outstanding > 0 ? (atRisk30 / outstanding) * 100 : 0,
       inArrears: active.filter((b) => Number(b.amount_overdue ?? 0) > 0).length,
     };
-  }, [active]);
+  }, [par, active]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -112,6 +121,11 @@ export function CollectionsPage() {
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [active, bucket, search, clientName]);
+
+  const overdueInstallments = useMemo(
+    () => arrears.filter((a) => Number(a.arrears_amount ?? 0) > 0.005),
+    [arrears],
+  );
 
   const stats: Array<{ label: string; value: string }> = [
     { label: "Outstanding portfolio", value: money(portfolio.outstanding) },
@@ -139,79 +153,229 @@ export function CollectionsPage() {
           ))}
         </div>
 
-        <Section title="Portfolio" description={`${filtered.length} active loan(s)`}>
-          <FilterBar
-            search={search}
-            onSearchChange={setSearch}
-            placeholder="Search loan or client…"
-          >
-            <Select value={bucket} onValueChange={setBucket}>
-              <SelectTrigger className="h-8 w-[180px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All ageing buckets</SelectItem>
-                {BUCKETS.map((b) => (
-                  <SelectItem key={b.key} value={b.key}>
-                    {b.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterBar>
+        <Tabs defaultValue="worklist">
+          <TabsList>
+            <TabsTrigger value="worklist">Worklist</TabsTrigger>
+            <TabsTrigger value="installments">Overdue installments</TabsTrigger>
+            <TabsTrigger value="activity">Activity log</TabsTrigger>
+          </TabsList>
 
-          {error ? (
-            <ErrorState description={error.message} />
-          ) : isLoading ? (
-            <LoadingState />
-          ) : filtered.length === 0 ? (
-            <EmptyState
-              title="Nothing to collect"
-              description="No active loans match this filter."
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Loan</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  <TableHead className="text-right">Overdue</TableHead>
-                  <TableHead className="text-right">DPD</TableHead>
-                  <TableHead>Next due</TableHead>
-                  <TableHead>Ageing</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((b) => {
-                  const dpd = Number(b.days_past_due ?? 0);
-                  return (
-                    <TableRow key={b.loan_id}>
-                      <TableCell className="font-mono text-xs">{b.loan_number}</TableCell>
-                      <TableCell className="font-medium">{clientName(b.client_id)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {b.currency_code} {money(b.total_outstanding)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {money(b.amount_overdue)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{dpd}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {b.next_due_date ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge tone={tone(dpd)}>
-                          {BUCKETS.find((x) => x.test(dpd))?.label ?? "Current"}
-                        </StatusBadge>
-                      </TableCell>
+          <TabsContent value="worklist">
+            <Section title="Portfolio" description={`${filtered.length} active loan(s)`}>
+              <FilterBar
+                search={search}
+                onSearchChange={setSearch}
+                placeholder="Search loan or client…"
+              >
+                <Select value={bucket} onValueChange={setBucket}>
+                  <SelectTrigger className="h-8 w-[180px] text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ageing buckets</SelectItem>
+                    {BUCKETS.map((b) => (
+                      <SelectItem key={b.key} value={b.key}>
+                        {b.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterBar>
+
+              {error ? (
+                <ErrorState description={error.message} />
+              ) : isLoading ? (
+                <LoadingState />
+              ) : filtered.length === 0 ? (
+                <EmptyState
+                  title="Nothing to collect"
+                  description="No active loans match this filter."
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Loan</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead className="text-right">Outstanding</TableHead>
+                      <TableHead className="text-right">Overdue</TableHead>
+                      <TableHead className="text-right">DPD</TableHead>
+                      <TableHead>Next due</TableHead>
+                      <TableHead>Ageing</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </Section>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((b) => {
+                      const dpd = Number(b.days_past_due ?? 0);
+                      return (
+                        <TableRow key={b.loan_id}>
+                          <TableCell className="font-mono text-xs">{b.loan_number}</TableCell>
+                          <TableCell className="font-medium">{clientName(b.client_id)}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {b.currency_code} {money(b.total_outstanding)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(b.amount_overdue)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{dpd}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {b.next_due_date ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge tone={tone(dpd)}>
+                              {BUCKETS.find((x) => x.test(dpd))?.label ?? "Current"}
+                            </StatusBadge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setActivityLoan({
+                                  loan_id: b.loan_id,
+                                  client_id: b.client_id,
+                                  branch_id: b.branch_id,
+                                  loan_number: b.loan_number,
+                                })
+                              }
+                            >
+                              Log activity
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </Section>
+          </TabsContent>
+
+          <TabsContent value="installments">
+            <Section
+              title="Overdue installments"
+              description={`${overdueInstallments.length} installment(s) past due`}
+            >
+              {arrearsError ? (
+                <ErrorState description={arrearsError.message} />
+              ) : arrearsLoading ? (
+                <LoadingState />
+              ) : overdueInstallments.length === 0 ? (
+                <EmptyState
+                  title="No overdue installments"
+                  description="Every installment due to date has been settled."
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Loan</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead className="text-right">#</TableHead>
+                      <TableHead>Due date</TableHead>
+                      <TableHead className="text-right">Due</TableHead>
+                      <TableHead className="text-right">Paid</TableHead>
+                      <TableHead className="text-right">Arrears</TableHead>
+                      <TableHead className="text-right">DPD</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {overdueInstallments.map((a) => (
+                      <TableRow key={`${a.loan_id}-${a.installment_no}`}>
+                        <TableCell className="font-mono text-xs">{a.loan_number}</TableCell>
+                        <TableCell className="font-medium">{clientName(a.client_id)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {a.installment_no}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {a.due_date}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {money(a.total_due)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {money(a.total_paid)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {money(a.arrears_amount)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {a.days_past_due}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Section>
+          </TabsContent>
+
+          <TabsContent value="activity">
+            <Section
+              title="Collection activity"
+              description="Append-only record of calls, visits, promises and outcomes."
+            >
+              {activitiesLoading ? (
+                <LoadingState />
+              ) : activities.length === 0 ? (
+                <EmptyState
+                  title="No activity recorded"
+                  description="Log a call or visit from the worklist to start the collection history."
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>When</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Activity</TableHead>
+                      <TableHead>Outcome</TableHead>
+                      <TableHead className="text-right">Promised</TableHead>
+                      <TableHead>Promise date</TableHead>
+                      <TableHead>Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activities.map((a) => (
+                      <TableRow key={a.id} className={a.cancelled_at ? "opacity-50" : undefined}>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(a.activity_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="font-medium">{clientName(a.client_id)}</TableCell>
+                        <TableCell>{activityLabel(a.activity_type)}</TableCell>
+                        <TableCell>
+                          {a.cancelled_at ? (
+                            <StatusBadge tone="danger">Cancelled</StatusBadge>
+                          ) : (
+                            <span className="text-sm">{a.outcome ?? "—"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {a.promise_amount ? money(a.promise_amount) : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {a.promise_date ?? "—"}
+                        </TableCell>
+                        <TableCell className="max-w-[24rem] truncate text-sm text-muted-foreground">
+                          {a.notes ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Section>
+          </TabsContent>
+        </Tabs>
       </PageBody>
+
+      <LogActivityDialog
+        open={!!activityLoan}
+        onOpenChange={(open) => !open && setActivityLoan(null)}
+        loan={activityLoan}
+      />
     </>
   );
 }
+
