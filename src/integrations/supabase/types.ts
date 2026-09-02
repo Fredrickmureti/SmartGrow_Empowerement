@@ -98784,6 +98784,10 @@ export type Database = {
         Args: { p_reason: string; p_repayment_id: string }
         Returns: undefined
       }
+      mf_write_off_loan: {
+        Args: { p_loan_id: string; p_reason: string; p_written_off_on: string }
+        Returns: string
+      }
       migrate_components_to_rules: {
         Args: { p_structure_id: string }
         Returns: {
