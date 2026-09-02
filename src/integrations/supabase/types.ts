@@ -98817,6 +98817,19 @@ export type Database = {
         }
         Returns: string
       }
+      mf_reissue_loan: {
+        Args: {
+          p_additional_principal?: number
+          p_expected_disbursement_date?: string
+          p_first_installment_date?: string
+          p_interest_rate?: number
+          p_kind: string
+          p_loan_id: string
+          p_reason?: string
+          p_term_installments?: number
+        }
+        Returns: string
+      }
       mf_resolve_account: {
         Args: { p_branch_id: string; p_business_id: string; p_key: string }
         Returns: string
