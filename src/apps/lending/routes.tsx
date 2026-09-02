@@ -17,6 +17,10 @@ import { ApplicationsPage } from "./applications/ApplicationsPage";
 import { LoansPage } from "./loans/LoansPage";
 import { RepaymentsPage } from "./repayments/RepaymentsPage";
 import { CollectionsPage } from "./collections/CollectionsPage";
+import { PortfolioReport } from "./reports/PortfolioReport";
+import { ArrearsReport } from "./reports/ArrearsReport";
+import { CollectionsReport } from "./reports/CollectionsReport";
+import { DisbursementsReport } from "./reports/DisbursementsReport";
 
 const SURFACES: Array<{
   path: string;
@@ -83,6 +87,39 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <ProductsPage />
+            </InstitutionRoute>
+          }
+        />
+
+        <Route
+          path="reports/portfolio"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PortfolioReport />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/arrears"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <ArrearsReport />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/collections"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <CollectionsReport />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/disbursements"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <DisbursementsReport />
             </InstitutionRoute>
           }
         />
