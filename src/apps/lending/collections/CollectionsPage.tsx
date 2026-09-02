@@ -1,9 +1,10 @@
 /**
- * Lending → Collections (C7).
+ * Lending → Collections (C7b).
  *
  * Arrears, days past due and PAR are read straight from the server-derived
- * `mf_loan_balances` view. The page only groups and presents; it never derives
- * an authoritative financial figure.
+ * `mf_loan_balances`, `mf_loan_arrears` and `mf_par_summary` views. The page
+ * only groups and presents; it never derives an authoritative financial figure.
+ * Collection activities are append-only business events.
  */
 import { useMemo, useState } from "react";
 import {
@@ -23,7 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -34,6 +37,13 @@ import {
 } from "@/components/ui/table";
 import { useMfClients } from "@/hooks/useMfClients";
 import { useMfLoanBalances, type MfLoanBalance } from "@/hooks/useMfRepayments";
+import {
+  MF_ACTIVITY_TYPES,
+  useMfArrears,
+  useMfCollectionActivities,
+  useMfParSummary,
+} from "@/hooks/useMfCollections";
+import { LogActivityDialog } from "./LogActivityDialog";
 
 const BUCKETS = [
   { key: "current", label: "Current", test: (d: number) => d <= 0 },
@@ -49,11 +59,15 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const activityLabel = (value: string) =>
+  MF_ACTIVITY_TYPES.find((t) => t.value === value)?.label ?? value;
+
 function tone(dpd: number): "success" | "warning" | "danger" {
   if (dpd <= 0) return "success";
   if (dpd <= 30) return "warning";
   return "danger";
 }
+
 
 export function CollectionsPage() {
   const [search, setSearch] = useState("");
