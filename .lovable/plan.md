@@ -113,27 +113,22 @@ journal.
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-Progress this session, and exactly where it stops:
+Stopping here — the linter output above is inherited AccrualFlow posture (already scheduled for the C10 sweep), not something this migration introduced.
 
-Verified state (against files and the live database, not the previous notes)
-- C1–C5 are genuinely done, including the loan products page the old plan said was missing.
-- C6 (loans, schedule, disbursement) and half of C7 (repayments, policy-driven allocation, reversal, server-side balance views) were already built but never logged.
-- The real defect: no lending event posted to the general ledger, and nothing read `mf_account_mappings`. The reworked plan is approved and archived; it makes this accounting hook the resume point.
+What I verified (not taken on trust): C1–C5 are genuinely complete; C6/C7 were built but unposted; `mf_post_event`, `mf_resolve_account`, `mf_method_mapping_key`, `mf_event_postings` and the disbursement posting all exist as claimed.
 
-Done in the database (5 small migrations)
-- `mf_event_postings` — one-posting-per-event link table (RLS, grants).
-- `mf_resolve_account` — branch-then-institution mapping lookup; missing mapping = hard error.
-- `mf_method_mapping_key` — cash / bank transfer / cheque / mobile money → account key.
-- `mf_post_event` — the single posting engine: disbursement, repayment (per allocation component) and repayment reversal, through the existing `post_journal_entry_atomic`, idempotent per event, not callable by users.
-- `mf_disburse_loan` — now posts DR principal receivable / CR cash-bank-mobile atomically with the disbursement.
+What I just completed (C6b):
+- Added the configurable `client_advance` account slot so overpayments post as a liability instead of failing.
+- `mf_record_repayment` now posts its ledger entry atomically (cash/bank/mobile in; principal, interest, fee, penalty, advance out) via configured mappings only.
+- `mf_reverse_repayment` now writes a linked reversing entry and no longer destroys allocation history (balance views already exclude reversed receipts).
 
-Remaining for C6b (next steps, in order)
-1. `mf_record_repayment`: add `RETURNING id INTO v_ev` on the `repayment_recorded` event insert and `PERFORM public.mf_post_event(v_ev);` right after it. Also add an `'advance'` component mapping (a client-prepayment liability key) or the engine will reject overpaid receipts.
-2. `mf_reverse_repayment`: capture the reversal event id and call `mf_post_event`; stop deleting `mf_repayment_allocations` (destructive) once the installment-status view is confirmed to exclude reversed receipts.
-3. Configure the mappings under Lending → Configuration → Accounting for the test institution, then run one disburse → repay → reverse cycle and confirm the journal balances and matches `mf_loan_balances`.
-4. Update `.lovable/plan.md` with the result, then proceed to C7b (arrears/PAR views, collections activity, officer-portfolio RLS).
+Remaining, in order:
+1. Add `client_advance` to `MF_MAPPING_SPECS` in `src/hooks/useMfAccountMappings.ts` (liability) so it's configurable in the UI — the only code change outstanding for C6b.
+2. Configure mappings under Lending → Configuration → Accounting, then run one disburse → repay → reverse cycle and confirm the journal balances against `mf_loan_balances`.
+3. C7b: arrears/DPD/PAR views, `mf_collection_activities`, officer-portfolio RLS on clients/loans/repayments.
+4. Then C8 (lifecycle exceptions), C9 (reports/documents on the existing engines), C10 (hardening + the single bulk ERP removal sweep).
 
-The security linter output after each migration is inherited AccrualFlow posture already scheduled for the C10 sweep; none of it was introduced by this work.
+`.lovable/plan.md` still shows C6b as "next" — its status line should be updated to reflect the three functions now posting.
 
 
 NOTE
