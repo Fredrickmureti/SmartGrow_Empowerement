@@ -7,7 +7,8 @@
  * no balance, interest or schedule maths happens here.
  */
 import { useMemo, useState } from "react";
-import { CalendarRange, HandCoins, Plus } from "lucide-react";
+import { Ban, CalendarRange, CheckCircle2, HandCoins, Plus } from "lucide-react";
+
 import {
   PageHeader,
   PageBody,
