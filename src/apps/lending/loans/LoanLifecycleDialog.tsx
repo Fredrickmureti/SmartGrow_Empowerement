@@ -1,10 +1,12 @@
 /**
- * Loan lifecycle exceptions (C8) — write-off and closure.
+ * Loan lifecycle exceptions (C8) — write-off, closure, top-up and restructure.
  *
- * Both are guarded server-side business events: the write-off derives the
+ * All four are guarded server-side business events. Write-off derives its
  * amounts from the loan's own outstanding balances and posts the configured
- * accounting treatment; closure is refused while anything remains due. React
- * only collects intent and a reason.
+ * accounting treatment; closure is refused while anything remains due; a
+ * top-up or restructure mints a successor loan that carries forward the
+ * outstanding principal and settles the predecessor on disbursement. React
+ * only collects intent — no amount, interest or balance maths happens here.
  */
 import { useEffect, useState } from "react";
 import {
@@ -19,9 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { MfLoan } from "@/hooks/useMfLoans";
+import type { MfLoan, MfLoanLineageKind } from "@/hooks/useMfLoans";
 
-export type LoanLifecycleAction = "write_off" | "close";
+export type LoanLifecycleAction = "write_off" | "close" | "top_up" | "restructure";
 
 interface Props {
   open: boolean;
@@ -30,7 +32,35 @@ interface Props {
   action: LoanLifecycleAction;
   onWriteOff: (input: { loanId: string; writtenOffOn: string; reason: string }) => Promise<void>;
   onClose: (input: { loanId: string; closedOn: string; notes: string | null }) => Promise<void>;
+  onReissue: (input: {
+    loanId: string;
+    kind: Exclude<MfLoanLineageKind, "new">;
+    additionalPrincipal: number | null;
+    termInstallments: number | null;
+    interestRate: number | null;
+    expectedDisbursementDate: string | null;
+    firstInstallmentDate: string | null;
+    reason: string;
+  }) => Promise<void>;
 }
+
+const TITLES: Record<LoanLifecycleAction, string> = {
+  write_off: "Write off loan",
+  close: "Close loan",
+  top_up: "Top up loan",
+  restructure: "Restructure loan",
+};
+
+const DESCRIPTIONS: Record<LoanLifecycleAction, string> = {
+  write_off:
+    "The outstanding principal and interest are taken from the loan's own balances and posted to the configured write-off accounts. This cannot be undone.",
+  close:
+    "Closure is only accepted once the loan is fully settled. The loan and its history remain on record.",
+  top_up:
+    "A successor loan is created carrying forward this loan's outstanding principal plus the additional amount. Nothing is edited on this loan — it is settled when the successor is disbursed.",
+  restructure:
+    "A successor loan is created on revised terms carrying forward this loan's outstanding principal. No additional principal may be added, and this loan's history is preserved.",
+};
 
 export function LoanLifecycleDialog({
   open,
@@ -39,19 +69,33 @@ export function LoanLifecycleDialog({
   action,
   onWriteOff,
   onClose,
+  onReissue,
 }: Props) {
   const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
+  const [additional, setAdditional] = useState("");
+  const [term, setTerm] = useState("");
+  const [rate, setRate] = useState("");
+  const [firstDue, setFirstDue] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setDate(new Date().toISOString().slice(0, 10));
     setReason("");
+    setAdditional("");
+    setTerm(loan ? String(loan.term_installments) : "");
+    setRate(loan ? String(loan.interest_rate) : "");
+    setFirstDue("");
   }, [open, loan, action]);
 
   const isWriteOff = action === "write_off";
-  const canSubmit = !!loan && !!date && (!isWriteOff || reason.trim().length > 0);
+  const isClose = action === "close";
+  const isReissue = action === "top_up" || action === "restructure";
+  const reasonRequired = !isClose;
+
+  const canSubmit =
+    !!loan && !!date && (!reasonRequired || reason.trim().length > 0) && (!isReissue || !!term);
 
   const submit = async () => {
     if (!loan || !canSubmit) return;
@@ -59,8 +103,19 @@ export function LoanLifecycleDialog({
     try {
       if (isWriteOff) {
         await onWriteOff({ loanId: loan.id, writtenOffOn: date, reason: reason.trim() });
-      } else {
+      } else if (isClose) {
         await onClose({ loanId: loan.id, closedOn: date, notes: reason.trim() || null });
+      } else {
+        await onReissue({
+          loanId: loan.id,
+          kind: action === "top_up" ? "topup" : "restructure",
+          additionalPrincipal: action === "top_up" ? Number(additional || 0) : null,
+          termInstallments: term ? Number(term) : null,
+          interestRate: rate ? Number(rate) : null,
+          expectedDisbursementDate: date,
+          firstInstallmentDate: firstDue || null,
+          reason: reason.trim(),
+        });
       }
       onOpenChange(false);
     } finally {
@@ -73,18 +128,20 @@ export function LoanLifecycleDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isWriteOff ? "Write off loan" : "Close loan"} {loan?.loan_number ?? ""}
+            {TITLES[action]} {loan?.loan_number ?? ""}
           </DialogTitle>
-          <DialogDescription>
-            {isWriteOff
-              ? "The outstanding principal and interest are taken from the loan's own balances and posted to the configured write-off accounts. This cannot be undone."
-              : "Closure is only accepted once the loan is fully settled. The loan and its history remain on record."}
-          </DialogDescription>
+          <DialogDescription>{DESCRIPTIONS[action]}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="lifecycle-date">{isWriteOff ? "Write-off date" : "Closure date"}</Label>
+            <Label htmlFor="lifecycle-date">
+              {isWriteOff
+                ? "Write-off date"
+                : isClose
+                  ? "Closure date"
+                  : "Expected disbursement date"}
+            </Label>
             <Input
               id="lifecycle-date"
               type="date"
@@ -92,9 +149,67 @@ export function LoanLifecycleDialog({
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+
+          {isReissue && (
+            <>
+              {action === "top_up" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="lifecycle-additional">
+                    Additional principal ({loan?.currency_code ?? ""})
+                  </Label>
+                  <Input
+                    id="lifecycle-additional"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={additional}
+                    onChange={(e) => setAdditional(e.target.value)}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The outstanding principal is carried forward by the server and added to this
+                    amount.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="lifecycle-term">Term (installments)</Label>
+                  <Input
+                    id="lifecycle-term"
+                    type="number"
+                    min="1"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lifecycle-rate">Interest rate</Label>
+                  <Input
+                    id="lifecycle-rate"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lifecycle-first-due">First installment date (optional)</Label>
+                <Input
+                  id="lifecycle-first-due"
+                  type="date"
+                  value={firstDue}
+                  onChange={(e) => setFirstDue(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="lifecycle-reason">
-              {isWriteOff ? "Reason (required)" : "Notes (optional)"}
+              {reasonRequired ? "Reason (required)" : "Notes (optional)"}
             </Label>
             <Textarea
               id="lifecycle-reason"
@@ -104,7 +219,11 @@ export function LoanLifecycleDialog({
               placeholder={
                 isWriteOff
                   ? "Why is this loan being written off?"
-                  : "Anything worth recording about this closure"
+                  : isClose
+                    ? "Anything worth recording about this closure"
+                    : action === "top_up"
+                      ? "Why is this client being topped up?"
+                      : "Why is this loan being restructured?"
               }
             />
           </div>
@@ -119,7 +238,7 @@ export function LoanLifecycleDialog({
             onClick={submit}
             disabled={!canSubmit || saving}
           >
-            {saving ? "Working…" : isWriteOff ? "Write off loan" : "Close loan"}
+            {saving ? "Working…" : TITLES[action]}
           </Button>
         </DialogFooter>
       </DialogContent>
