@@ -19,50 +19,39 @@ project, no new connection.
 | C4 loan products + immutable versioning | Done |
 | C5 applications → assessment → decision | Done |
 | C6 loan creation, schedule engine, disbursement | Done |
-| C6b accounting hook `mf_post_event` (mapping-resolved, hard error on gap) | Code done, **never successfully posted** |
+| C6b accounting hook `mf_post_event` (mapping-resolved, hard error on gap) | Done — posting proven live |
 | C7 repayments, policy allocation, reversal, server-derived balances | Done |
 | C7b arrears/DPD/PAR, collections, officer/branch RLS scope | Done |
 | C8a write-off + closure | Done |
 | C8b top-up / restructure (RPC + `reissueLoan` + lifecycle dialog + lineage) | Done |
-| V1 live lifecycle proof | **Blocked — open defect below** |
+| F1 journal path enum fix | Done |
+| V1 live lifecycle proof | **PASS (2026-09-02)** |
 
-### The one real blocker
+## V1 — PASSED
 
-`journal_status` in this database has exactly three values: `draft`, `posted`,
-`void`. Microfinance accounting was written against an engine that also had
-`voided` / `reversed`. Two functions were already corrected; the trigger
-`enforce_journal_entry_immutability` still tests
-`OLD.status NOT IN ('posted','void','reversed')` and fails every posting.
+Ran end to end against the live database: application (draft → submitted →
+under_review → assessment → approved → ready_for_disbursement) → loan +
+4-installment schedule → disburse → partial repay → repay → reverse → top-up →
+successor disbursement → predecessor closure.
 
-Until this is fixed, **no microfinance accounting has ever succeeded**, so C6b,
-C7 postings and C8a treatments are unproven regardless of code completeness.
+- every generated journal entry balances; zero unbalanced entries,
+- reversal produced a contra entry, never an edit,
+- predecessor `LN-000001` closed only on successor disbursement,
+  successor `LN-000002` active with the carried outstanding principal,
+- non-financial events (`loan_created`, `loan_topped_up`) correctly unposted.
 
-**Resume point: F1 below.**
+Defects found and fixed to get there:
+1. `_mf_application_guard` lacked the `ready_for_disbursement → disbursed`
+   transition — this blocked every disbursement.
+2. `mf_apps_status_chk` did not allow the `disbursed` value.
+3. `mf_loans.application_id` was NOT NULL, blocking top-up/restructure
+   successors; now nullable with
+   `CHECK (application_id IS NOT NULL OR parent_loan_id IS NOT NULL)`.
 
-## F1 — Fix the journal path (one pass, no discovery loop)
+Temporary proof helpers dropped. V1 proof rows remain (financial history is
+deliberately non-deletable).
 
-1. One migration per function, smallest possible edit:
-   - `enforce_journal_entry_immutability` → valid enum literals only.
-   - Sweep only the functions the microfinance path actually touches
-     (`mf_post_event` chain, `void_journal_entry_atomic`, journal SoD guard) for
-     invalid `journal_status` literals and fix in the same pass.
-   - ERP functions carrying the same bug (POS, payroll, bills, invoices,
-     landed cost, expenses…) are **not fixed** — they are being deleted in C10.
-2. Verify: insert → post → void a journal entry directly; no trigger error.
-
-## V1 — One live lifecycle proof (gates everything after it)
-
-Single client, single loan: application → assessment → approval → loan +
-schedule → disburse → repay (partial + full) → reverse one repayment → top-up →
-successor disbursement → close.
-
-Assertions, all server-side:
-- every generated journal entry balances (Σ debit = Σ credit),
-- GL movement on the mapped accounts equals `mf_loan_balances`,
-- reversal produces a new contra entry, never an edit,
-- predecessor closes only on successor disbursement.
-
-Record the outcome in this file. No further feature work until V1 passes.
+**Resume point: C9.**
 
 ## C9 — Reports & documents on the inherited engines
 
