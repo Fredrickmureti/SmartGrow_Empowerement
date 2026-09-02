@@ -32,6 +32,24 @@ export type Database = {
         }
         Relationships: []
       }
+      __v1_proof_results: {
+        Row: {
+          id: number
+          ran_at: string | null
+          result: Json | null
+        }
+        Insert: {
+          id?: number
+          ran_at?: string | null
+          result?: Json | null
+        }
+        Update: {
+          id?: number
+          ran_at?: string | null
+          result?: Json | null
+        }
+        Relationships: []
+      }
       _e2e_milk_log: {
         Row: {
           at: string
