@@ -31765,6 +31765,122 @@ export type Database = {
           },
         ]
       }
+      mf_collection_activities: {
+        Row: {
+          activity_at: string
+          activity_type: string
+          amount_collected: number | null
+          branch_id: string | null
+          business_id: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_id: string
+          created_at: string
+          created_by: string
+          id: string
+          loan_id: string
+          notes: string | null
+          officer_id: string
+          outcome: string | null
+          promise_amount: number | null
+          promise_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          activity_at?: string
+          activity_type: string
+          amount_collected?: number | null
+          branch_id?: string | null
+          business_id: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_id: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          loan_id: string
+          notes?: string | null
+          officer_id?: string
+          outcome?: string | null
+          promise_amount?: number | null
+          promise_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activity_at?: string
+          activity_type?: string
+          amount_collected?: number | null
+          branch_id?: string | null
+          business_id?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          loan_id?: string
+          notes?: string | null
+          officer_id?: string
+          outcome?: string | null
+          promise_amount?: number | null
+          promise_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_collection_activities_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_event_postings: {
         Row: {
           business_id: string
@@ -79000,6 +79116,49 @@ export type Database = {
           },
         ]
       }
+      mf_loan_arrears: {
+        Row: {
+          arrears_amount: number | null
+          balance_due: number | null
+          branch_id: string | null
+          business_id: string | null
+          client_id: string | null
+          days_past_due: number | null
+          due_date: string | null
+          fees_due: number | null
+          installment_no: number | null
+          interest_due: number | null
+          loan_id: string | null
+          loan_number: string | null
+          loan_officer_id: string | null
+          principal_due: number | null
+          total_due: number | null
+          total_paid: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_loan_balances: {
         Row: {
           amount_overdue: number | null
@@ -79064,6 +79223,19 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mf_par_summary: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          loan_count: number | null
+          loan_officer_id: string | null
+          par_1: number | null
+          par_30: number | null
+          par_90: number | null
+          portfolio_outstanding: number | null
+        }
+        Relationships: []
       }
       one_on_ones_visible: {
         Row: {
@@ -98586,7 +98758,10 @@ export type Database = {
         Returns: string
       }
       mf_generate_schedule: { Args: { p_loan_id: string }; Returns: number }
+      mf_is_portfolio_restricted: { Args: { p_user: string }; Returns: boolean }
+      mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
+      mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       mf_post_event: { Args: { p_event_id: string }; Returns: string }
       mf_record_repayment: {
