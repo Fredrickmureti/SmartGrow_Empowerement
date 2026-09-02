@@ -90,6 +90,23 @@ Three real defects blocked it and are fixed: the application guard had no `ready
 Say the word and I start C9.
 
 
+
+Your Supabase project (`xwxqunklduknceoryrha`) is already connected — no reconnection was needed, so I went straight to the resume point (C9: microfinance reports and documents on the inherited engines).
+
+What I got done this pass:
+- Verified the microfinance data foundation in the live DB: `mf_loan_balances`, `mf_loan_arrears`, `mf_par_summary`, `mf_loan_installment_status` views exist and are the authoritative source of financial state.
+- Added `src/hooks/useMfReports.ts` — server-derived reads for portfolio, collections (repayments) and disbursements. No financial computation in React.
+- Added `src/apps/lending/reports/PortfolioReport.tsx` and `ArrearsReport.tsx`, built on the existing report engine (`ReportPageLayout` + `design-system/reports`), so export/PDF and institution-branding injection are inherited, not rebuilt.
+
+Remaining for C9 (next session):
+1. `CollectionsReport.tsx` and `DisbursementsReport.tsx` (hooks already written).
+2. Register the four reports in `src/services/reports/ReportRegistry.ts` with a new `lending` domain + label, add routes under `/lending/reports/*` in `src/apps/lending/routes.tsx`, and an "Insights" group in `src/apps/lending/nav.ts` — the routing-parity and domain-label guard tests require all three together.
+3. Documents (loan agreement, repayment schedule, loan statement, payment receipt) registered on the existing document engine.
+4. Then C10: `mf_*` RLS/grants hardening plus the single bulk ERP removal sweep.
+
+Note: `ArrearsReport.tsx` uses a local `ExportConfigLike` type alias declared at the bottom of the file — fold it into a normal top-level `import type` when work resumes, and run the build/tests, which I could not do before stopping.
+
+
 NOTE
 =============
 And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
