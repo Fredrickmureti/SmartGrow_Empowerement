@@ -104,14 +104,23 @@ actions in `LoanLifecycleDialog`, then lineage on `LoansPage`.
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-I fixed the loan accounting hook: `mf_post_event` was calling `post_journal_entry_atomic` with a parameter list that doesn't exist, so every lending action that posts to the ledger (disbursement, repayment, reversal, write-off, top-up settlement) was failing. It now calls the canonical engine with named arguments, passes the loan's currency and branch, and tags the entry subtype with the event type.
+I stopped mid-verification. Here's where things stand.
 
-Remaining work (not done):
-- Re-run the rollback-only V1 lifecycle harness end to end (product → application → loan → disburse → 2 repayments → reversal → top-up) and confirm balanced journals and correct balances/lineage.
-- C8b frontend: `reissueLoan` mutation in `src/hooks/useMfLoans.ts`, Top up / Restructure actions in `LoanLifecycleDialog` (reason required, gated by `allow_topup`/`allow_restructure`), and lineage display on `LoansPage`.
-- Then C9 (reports/documents) and C10 (hardening + the single bulk ERP removal sweep).
+Fixed (two real defects that blocked all loan accounting):
+1. The shared journal poster referenced a cancelled-entry status name (`voided`) that doesn't exist in this database (the enum has `void`) — every microfinance disbursement, repayment and write-off failed at the accounting step. Rewritten to use the correct value.
+2. The journal separation-of-duties guard compared the entry status using the wrong value type, failing the same posts. Now casts correctly.
 
-The linter output is the pre-existing project-wide baseline; my migration added no new issue types.
+Both went in as small, single-purpose migrations. The linter warnings shown afterwards are pre-existing inherited AccrualFlow posture (SECURITY DEFINER views/functions, RLS gaps), not introduced by these changes — they belong to the C10 hardening sweep.
+
+Still failing (third defect of the same family, not yet fixed):
+`enforce_journal_entry_immutability` tests `OLD.status NOT IN ('posted','void','reversed')` — `reversed` is also not a valid `journal_status` value. Same one-line class of fix as the first migration.
+
+What remains for V1:
+- Fix `enforce_journal_entry_immutability` (and sweep the remaining retained journal-path functions for any other invalid enum literals in one pass, rather than discovering them one error at a time).
+- Re-run the rolled-back lifecycle proof: application → assessment → approval → loan + schedule → disburse → repay → reverse → top-up → successor disbursement, asserting journal debits equal credits and `mf_loan_balances` ties to the ledger.
+- Then record the outcome in `.lovable/microfinance-status.md`.
+
+The headline finding: C6b's accounting hook was never actually exercised against this database — the inherited journal engine here differs from the one the microfinance code was written against, so those postings could never have succeeded. Worth completing the enum sweep before trusting any "done" claim on the accounting path.
 
 NOTE
 =============
