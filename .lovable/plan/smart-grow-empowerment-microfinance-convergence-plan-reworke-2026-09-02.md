@@ -99,5 +99,6 @@ mechanism.
 
 ## Next action
 
-F1 step 1 — migration correcting `enforce_journal_entry_immutability`, then the
-narrow enum sweep of the microfinance journal path, then run V1.
+C9 step 1 — register the microfinance report definitions in the inherited
+report engine (portfolio + arrears first), institution settings injected, no new
+renderer. Then the document definitions. Then C10.
