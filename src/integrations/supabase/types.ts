@@ -86262,6 +86262,7 @@ export type Database = {
         }
         Returns: string
       }
+      __v1_lifecycle_proof: { Args: never; Returns: Json }
       _account_is_postable: {
         Args: { p_account_id: string; p_business_id: string; p_org_id: string }
         Returns: boolean
