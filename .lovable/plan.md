@@ -61,6 +61,18 @@ must be fixed before any more lifecycle work lands on top of it.
 Top-up, restructuring, write-off, closure as `mf_loan_events` with approval and
 `mf_post_event` treatment. New schedule versions, never edits to history.
 
+Status (2026-09-02):
+- DONE — write-off: `mf_post_event` gained the `loan_written_off` treatment
+  (DR write-off expense / CR principal + interest receivable, amounts taken
+  from `mf_loan_balances`, mappings resolved, missing mapping = hard error),
+  `mf_write_off_loan` (role-guarded, single-shot, reason required).
+- DONE — closure: `mf_close_loan` (refused while anything is outstanding,
+  records a `loan_closed` event, no posting needed).
+- UI: `LoanLifecycleDialog` + Close / Write off actions on active loans.
+- PENDING — top-up and restructuring (new schedule version, approval,
+  settle-and-reissue accounting).
+
+
 ## C9 — Reports & documents on the existing engines
 
 Reports: portfolio, outstanding principal/interest, daily/officer/branch
