@@ -46,7 +46,7 @@ export function CollectionsReport() {
     const detail: ReportRow[] = data.map((r) => ({
       id: r.id,
       kind: "detail",
-      tone: r.status === "reversed" ? "muted" : "default",
+      tone: r.status === "reversed" ? "warning" : "default",
       values: {
         paid_on: r.paid_on,
         receipt_number: r.receipt_number ?? "—",

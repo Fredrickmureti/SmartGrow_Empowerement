@@ -44,7 +44,7 @@ export function DisbursementsReport() {
     const detail: ReportRow[] = data.map((r) => ({
       id: r.id,
       kind: "detail",
-      tone: r.reversed ? "muted" : "default",
+      tone: r.reversed ? "warning" : "default",
       values: {
         disbursed_on: r.disbursed_on,
         loan_number: r.loan_number,
