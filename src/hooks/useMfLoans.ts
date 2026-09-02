@@ -69,6 +69,9 @@ export interface MfLoan {
   status: MfLoanStatus;
   disbursed_at: string | null;
   closed_at: string | null;
+  parent_loan_id: string | null;
+  lineage_kind: MfLoanLineageKind;
+  settled_by_loan_id: string | null;
   created_at: string;
   updated_at: string;
 }
