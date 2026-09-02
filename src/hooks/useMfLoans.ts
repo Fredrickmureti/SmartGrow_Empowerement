@@ -36,6 +36,15 @@ export const MF_LOAN_STATUS_LABELS: Record<MfLoanStatus, string> = {
   cancelled: "Cancelled",
 };
 
+/** How a loan came into existence: fresh, a top-up, or a restructure. */
+export type MfLoanLineageKind = "new" | "topup" | "restructure";
+
+export const MF_LINEAGE_LABELS: Record<MfLoanLineageKind, string> = {
+  new: "New",
+  topup: "Top-up",
+  restructure: "Restructure",
+};
+
 export const MF_DISBURSEMENT_METHODS = [
   { value: "cash", label: "Cash" },
   { value: "bank_transfer", label: "Bank transfer" },
