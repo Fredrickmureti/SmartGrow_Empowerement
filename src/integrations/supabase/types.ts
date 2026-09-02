@@ -32630,7 +32630,7 @@ export type Database = {
       }
       mf_loans: {
         Row: {
-          application_id: string
+          application_id: string | null
           branch_id: string | null
           business_id: string
           client_id: string
@@ -32664,7 +32664,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          application_id: string
+          application_id?: string | null
           branch_id?: string | null
           business_id: string
           client_id: string
@@ -32698,7 +32698,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          application_id?: string
+          application_id?: string | null
           branch_id?: string | null
           business_id?: string
           client_id?: string
