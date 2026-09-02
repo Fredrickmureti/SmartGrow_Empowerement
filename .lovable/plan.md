@@ -104,16 +104,14 @@ actions in `LoanLifecycleDialog`, then lineage on `LoansPage`.
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-I paused the lifecycle verification here. Progress so far:
+I fixed the loan accounting hook: `mf_post_event` was calling `post_journal_entry_atomic` with a parameter list that doesn't exist, so every lending action that posts to the ledger (disbursement, repayment, reversal, write-off, top-up settlement) was failing. It now calls the canonical engine with named arguments, passes the loan's currency and branch, and tags the entry subtype with the event type.
 
-Fixed (applied to the database):
-- The institution's owner account was locked out of every lending action — the loan create, disburse, repay-reversal, restructure, write-off and close functions, plus the application-decision guard, only accepted accounts explicitly labelled Super Administrator. They now accept the owner too. (The owner role itself is immutable, so widening the guards was the correct fix.)
-- No new security-linter issues were introduced (count unchanged at the inherited baseline).
+Remaining work (not done):
+- Re-run the rollback-only V1 lifecycle harness end to end (product → application → loan → disburse → 2 repayments → reversal → top-up) and confirm balanced journals and correct balances/lineage.
+- C8b frontend: `reissueLoan` mutation in `src/hooks/useMfLoans.ts`, Top up / Restructure actions in `LoanLifecycleDialog` (reason required, gated by `allow_topup`/`allow_restructure`), and lineage display on `LoansPage`.
+- Then C9 (reports/documents) and C10 (hardening + the single bulk ERP removal sweep).
 
-Remaining — V1 lifecycle proof (not finished):
-The rollback-only test harness ran up to the assessment step and stopped on a value constraint: `mf_application_assessments.recommendation` doesn't accept `approve` (the allowed list still needs to be read from `mf_assess_recommendation_chk`). Once that value is corrected, the harness continues through: approval → loan creation + schedule → disbursement → two repayments → one reversal → top-up reissue and successor disbursement → journal debit/credit balance check against `mf_loan_balances`.
-
-Also noted for later (C10 hardening, not fixed): the `mf_loan_products` insert policy rejects the owner under real RLS, so product creation from the UI will likely fail for that account even though the function guards now pass — the RLS policies need the same owner allowance as the guards.
+The linter output is the pre-existing project-wide baseline; my migration added no new issue types.
 
 NOTE
 =============
