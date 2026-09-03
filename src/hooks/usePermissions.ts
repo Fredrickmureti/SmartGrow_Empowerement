@@ -11,7 +11,6 @@ import {
   isRoleHigherOrEqual,
   resolveEffectivePermissions,
   PermissionGroupRule,
-  ROLE_PERMISSIONS,
   AppRole 
 } from "@/lib/permissions";
 
