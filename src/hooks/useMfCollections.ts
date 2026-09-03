@@ -234,3 +234,37 @@ export function useMfCollectionActivities(loanId?: string) {
     cancelActivity,
   };
 }
+
+/**
+ * Penalty accrual. The server raises one penalty charge per overdue
+ * installment using the loan's own penalty rate and basis; running it twice
+ * for the same date is a no-op. React never computes a penalty amount.
+ */
+export function useMfAccruePenalties() {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (asOf?: string) => {
+      if (!businessId) throw new Error("No institution selected");
+      const { data, error } = await supabase.rpc("mf_accrue_penalties", {
+        p_business_id: businessId,
+        p_as_of: asOf ?? new Date().toISOString().slice(0, 10),
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["mf-loan-arrears"] });
+      queryClient.invalidateQueries({ queryKey: ["mf-loan-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["mf-loan-charges"] });
+      toast.success(
+        count > 0
+          ? `${count} penalty charge${count === 1 ? "" : "s"} raised`
+          : "No new penalties to raise",
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
