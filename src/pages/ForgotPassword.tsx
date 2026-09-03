@@ -76,8 +76,7 @@ export default function ForgotPassword() {
               <AlertDescription>
                 Heads up: you previously chose <strong>Start over with
                 this email</strong>, which removed your account. No reset
-                email will arrive because there's nothing to reset — please
-                sign up again instead.
+                email will arrive because there's nothing to reset.
               </AlertDescription>
             </Alert>
           )}
