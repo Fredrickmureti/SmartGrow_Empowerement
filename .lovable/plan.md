@@ -40,6 +40,18 @@ for their own sake.
 
 ## Remaining milestones — one at a time, verify before advancing
 
+C15a — ERP surface strip (DONE 2026-09-03)
+- `ACTIVE_PERMISSION_MODULES` trimmed to contacts/financials/lending/settings/team.
+- App registry lending entry now uses real lending permission keys
+  (`viewClients`, `viewLoanProducts`, `viewApplications`, `viewLoans`,
+  `recordRepayments`, `viewCollections`) instead of `viewContacts`.
+- `platform_apps` catalogue: `lending` added as a core app; sales, purchases,
+  inventory, pos, crm, projects, warehouse, employees, time-off, attendance,
+  timesheets, payroll, recruitment, sms marked unavailable + hidden.
+- Entitlement model already retired (`useAppAccess` / `useInstalledApps`
+  resolve from the local registry — no marketplace, no per-tenant installs).
+- Typecheck passes.
+
 C14 — Cash & settlement retarget (NEXT)
 - Reuse banking + reconciliation for microfinance cash: branch cash /
   mobile-money receipts, officer collection sheets, batch banking of daily
@@ -48,7 +60,7 @@ C14 — Cash & settlement retarget (NEXT)
 - Scope guard: no new engine. Adapt existing banking screens/services only
   where the lending flow needs them.
 
-C15 — Final ERP strip & hardening
+C15b — Final dead-code strip & hardening
 - Delete leftover ERP-only pages/services/features not imported by
   dashboard / finance / lending / platform / reports / studio (check
   `src/pages`, `src/features`, `src/services` by import graph first).
