@@ -245,7 +245,30 @@ export function LoansPage() {
                         <CalendarRange className="mr-1.5 h-3.5 w-3.5" />
                         Schedule
                       </Button>
+                      <LendingDocumentsMenu
+                        documents={[
+                          {
+                            documentType: "loan_agreement",
+                            documentId: loan.id,
+                            title: `Loan agreement ${loan.loan_number}`,
+                            filename: `loan-agreement-${loan.loan_number}`,
+                          },
+                          {
+                            documentType: "repayment_schedule",
+                            documentId: loan.id,
+                            title: `Repayment schedule ${loan.loan_number}`,
+                            filename: `repayment-schedule-${loan.loan_number}`,
+                          },
+                          {
+                            documentType: "loan_statement",
+                            documentId: loan.id,
+                            title: `Loan statement ${loan.loan_number}`,
+                            filename: `loan-statement-${loan.loan_number}`,
+                          },
+                        ]}
+                      />
                       {loan.status === "pending_disbursement" && (
+
                         <Button size="sm" onClick={() => openDisburse(loan)}>
                           <HandCoins className="mr-1.5 h-3.5 w-3.5" />
                           Disburse
