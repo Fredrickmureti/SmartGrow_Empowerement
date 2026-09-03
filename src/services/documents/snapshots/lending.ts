@@ -455,3 +455,151 @@ export async function fetchAndBuildLoanPaymentReceiptSnapshot(
   const base = result(ctx, snapshot, number, date);
   return { ...base, sourceDocId: repaymentId, branchId: str(r["branch_id"]) ?? base.branchId };
 }
+
+/* ------------------------------------------------------------------ */
+/* Client statement                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `lending.client_statement` — one client, every loan, every money movement.
+ * Entries come from the server-owned `mf_client_statement` view and the
+ * per-loan positions from `mf_loan_balances`. Nothing is computed here beyond
+ * printing the rows the ledger handed over.
+ */
+export async function fetchAndBuildClientStatementSnapshot(
+  supabase: SupabaseClient,
+  clientId: string,
+): Promise<BuildLendingSnapshotResult> {
+  const db = supabase as unknown as AnyClient;
+
+  const { data: client, error } = await db
+    .from("mf_clients")
+    .select("*")
+    .eq("id", clientId)
+    .single();
+  if (error || !client) {
+    throw new Error(
+      `lending snapshot: client ${clientId} not found: ${error?.message ?? "no row"}`,
+    );
+  }
+  const c = client as Row;
+
+  const [businessRes, branchRes, officerRes, entriesRes, balancesRes] = await Promise.all([
+    db
+      .from("businesses")
+      .select(
+        "id, organization_id, name, legal_name, base_currency, address, city, country, phone, email, logo_url, tax_id, registration_number",
+      )
+      .eq("id", c["business_id"] as string)
+      .maybeSingle(),
+    c["branch_id"]
+      ? db.from("branches").select("id, name").eq("id", c["branch_id"] as string).maybeSingle()
+      : Promise.resolve({ data: null }),
+    c["loan_officer_id"]
+      ? db
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .eq("user_id", c["loan_officer_id"] as string)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    db
+      .from("mf_client_statement")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("entry_date", { ascending: true }),
+    db.from("mf_loan_balances").select("*").eq("client_id", clientId),
+  ]);
+
+  const business = (businessRes?.data ?? null) as Row | null;
+  const officer = (officerRes?.data ?? null) as Row | null;
+  const entries = ((entriesRes?.data ?? []) as Row[]);
+  const balances = ((balancesRes?.data ?? []) as Row[]);
+
+  const organizationId = str(business?.["organization_id"]);
+  if (!organizationId) {
+    throw new Error("lending snapshot: business has no organization_id");
+  }
+
+  const currency =
+    str(entries[0]?.["currency_code"]) ?? str(business?.["base_currency"]) ?? "KES";
+
+  const totals = balances.reduce(
+    (acc, b) => ({
+      principal_outstanding: acc.principal_outstanding + num(b["principal_outstanding"]),
+      interest_outstanding: acc.interest_outstanding + num(b["interest_outstanding"]),
+      fees_outstanding: acc.fees_outstanding + num(b["fees_outstanding"]),
+      total_outstanding: acc.total_outstanding + num(b["total_outstanding"]),
+      total_collected: acc.total_collected + num(b["total_collected"]),
+    }),
+    {
+      principal_outstanding: 0,
+      interest_outstanding: 0,
+      fees_outstanding: 0,
+      total_outstanding: 0,
+      total_collected: 0,
+    },
+  );
+
+  const date = today();
+  const number = str(c["client_number"]) ?? clientId.slice(0, 8);
+
+  const snapshot: SnapshotBlob = {
+    document_type: "client_statement",
+    document_type_label: "CLIENT STATEMENT",
+    document_number: number,
+    issue_date: date,
+    currency,
+    business_id: str(c["business_id"]),
+    organization_id: organizationId,
+    branch_id: str(c["branch_id"]),
+    business_name: str(business?.["name"]),
+    business_legal_name: str(business?.["legal_name"]),
+    business_address:
+      [str(business?.["address"]), str(business?.["city"]), str(business?.["country"])]
+        .filter(Boolean)
+        .join(", ") || null,
+    business_phone: str(business?.["phone"]),
+    business_email: str(business?.["email"]),
+    business_registration: str(business?.["registration_number"]),
+    business_tax_id: str(business?.["tax_id"]),
+    branch_name: str((branchRes?.data as Row | null)?.["name"]),
+    officer_name: officer ? (str(officer["full_name"]) ?? str(officer["email"])) : null,
+    client_name: str(c["full_name"]),
+    client_number: str(c["client_number"]),
+    client_national_id: str(c["national_id"]),
+    client_phone: str(c["phone"]),
+    client_address: str(c["physical_address"]),
+    client_status: str(c["status"]),
+    entries: entries.map((e) => ({
+      date: str(e["entry_date"]),
+      loan_number: str(e["loan_number"]),
+      entry_type: str(e["entry_type"]),
+      description: str(e["description"]),
+      reference: str(e["reference"]),
+      method: str(e["method"]),
+      amount_in: num(e["amount_in"]),
+      amount_out: num(e["amount_out"]),
+    })),
+    loans: balances.map((b) => ({
+      loan_number: str(b["loan_number"]),
+      status: str(b["status"]),
+      principal_outstanding: num(b["principal_outstanding"]),
+      interest_outstanding: num(b["interest_outstanding"]),
+      fees_outstanding: num(b["fees_outstanding"]),
+      total_outstanding: num(b["total_outstanding"]),
+      total_collected: num(b["total_collected"]),
+    })),
+    ...totals,
+  };
+
+  return {
+    snapshot,
+    documentNumber: number,
+    documentDate: date,
+    organizationId,
+    businessId: str(c["business_id"]),
+    branchId: str(c["branch_id"]),
+    currency,
+    sourceDocId: clientId,
+  };
+}

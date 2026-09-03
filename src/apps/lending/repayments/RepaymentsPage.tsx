@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Undo2, Layers } from "lucide-react";
+import { Plus, Undo2, Layers, Landmark } from "lucide-react";
 import {
   PageHeader,
   PageBody,
@@ -40,8 +40,13 @@ import {
   useMfRepaymentBatches,
   useMfRepayments,
 } from "@/hooks/useMfRepayments";
+import {
+  useMfBankAccounts,
+  useMfCollectionBankings,
+} from "@/hooks/useMfCollectionBankings";
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
+import { BankBatchDialog } from "./BankBatchDialog";
 
 
 const money = (value: number, currency = "") =>
@@ -56,13 +61,36 @@ export function RepaymentsPage() {
   const [search, setSearch] = useState("");
   const [batchId, setBatchId] = useState<string>("none");
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
 
   const { batches, openBatch, closeBatch } = useMfRepaymentBatches();
   const { repayments, isLoading, error, record, reverse } = useMfRepayments();
   const { balances } = useMfLoanBalances();
   const { clients } = useMfClients();
+  const { bankAccounts } = useMfBankAccounts();
+  const { bankings, bankBatch } = useMfCollectionBankings();
 
   const activeBatchId = batchId === "none" ? null : batchId;
+  const activeBatch = useMemo(
+    () => batches.find((b) => b.id === activeBatchId) ?? null,
+    [batches, activeBatchId],
+  );
+  const bankedBatchIds = useMemo(
+    () => new Set(bankings.map((b) => b.batch_id)),
+    [bankings],
+  );
+  const canBankActiveBatch =
+    !!activeBatch &&
+    activeBatch.status === "closed" &&
+    !bankedBatchIds.has(activeBatch.id);
+  const batchLabel = useMemo(() => {
+    const map = new Map(batches.map((b) => [b.id, `${b.batch_number} · ${b.collected_on}`]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [batches]);
+  const bankAccountName = useMemo(() => {
+    const map = new Map(bankAccounts.map((a) => [a.id, a.name]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [bankAccounts]);
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -148,14 +176,23 @@ export function RepaymentsPage() {
                 ))}
               </SelectContent>
             </Select>
-            {canRecord && activeBatchId && (
+            {canRecord && activeBatch && activeBatch.status === "open" && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => closeBatch.mutate(activeBatchId)}
+                onClick={() => closeBatch.mutate(activeBatch.id)}
               >
                 Close batch
               </Button>
+            )}
+            {canRecord && canBankActiveBatch && (
+              <Button size="sm" variant="outline" onClick={() => setBankOpen(true)}>
+                <Landmark className="mr-1.5 h-4 w-4" />
+                Bank collections
+              </Button>
+            )}
+            {activeBatch && bankedBatchIds.has(activeBatch.id) && (
+              <StatusBadge tone="success">Banked</StatusBadge>
             )}
           </FilterBar>
 
@@ -225,6 +262,49 @@ export function RepaymentsPage() {
             </Table>
           )}
         </Section>
+
+        <Section
+          title="Banked collections"
+          description="Closed batches deposited into an institution bank account."
+        >
+          {bankings.length === 0 ? (
+            <EmptyState
+              title="Nothing banked yet"
+              description="Close a collection batch, then bank its cash and mobile-money receipts."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Banked on</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Bank account</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead className="text-right">Cash</TableHead>
+                  <TableHead className="text-right">Mobile money</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bankings.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="text-sm">{b.banked_on}</TableCell>
+                    <TableCell className="font-mono text-xs">{batchLabel(b.batch_id)}</TableCell>
+                    <TableCell className="text-sm">{bankAccountName(b.bank_account_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">{b.reference ?? "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(b.cash_amount)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {money(b.mobile_money_amount)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {money(b.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
       </PageBody>
 
       <RecordPaymentDialog
@@ -233,6 +313,17 @@ export function RepaymentsPage() {
         loans={openLoans}
         batchId={activeBatchId}
         onRecord={(input) => record.mutateAsync(input)}
+      />
+
+      <BankBatchDialog
+        open={bankOpen}
+        onOpenChange={setBankOpen}
+        batchLabel={activeBatch ? batchLabel(activeBatch.id) : "this batch"}
+        bankAccounts={bankAccounts}
+        defaultDate={new Date().toISOString().slice(0, 10)}
+        onBank={(input) =>
+          bankBatch.mutateAsync({ batchId: activeBatch!.id, ...input })
+        }
       />
     </>
   );
