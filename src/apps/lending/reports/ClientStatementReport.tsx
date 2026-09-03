@@ -30,6 +30,7 @@ import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState
 import { useMfClientStatement } from "@/hooks/useMfReports";
 import { useMfClients } from "@/hooks/useMfClients";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
+import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 
 const COLUMNS: ReportColumn[] = [
   { key: "entry_date", header: "Date", format: "date", width: "w-[120px]", sticky: true },
@@ -154,6 +155,20 @@ export function ClientStatementReport() {
               onChange={(e) => workspace.set({ to: e.target.value })}
             />
           </div>
+          {client ? (
+            <div className="flex items-end">
+              <LendingDocumentsMenu
+                documents={[
+                  {
+                    documentType: "client_statement",
+                    documentId: client.id,
+                    title: "Client Statement",
+                    filename: `client-statement-${client.client_number}`,
+                  },
+                ]}
+              />
+            </div>
+          ) : null}
         </div>
       }
     >
