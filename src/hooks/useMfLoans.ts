@@ -302,8 +302,18 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
 }
 
 
-/** Contractual schedule and event history for one loan. */
+/** Penalty charged / paid / outstanding for one installment. */
+export interface MfLoanPenaltyRow {
+  loan_id: string;
+  installment_no: number;
+  penalty_charged: number;
+  penalty_paid: number;
+  penalty_outstanding: number;
+}
+
+/** Contractual schedule, penalty position and event history for one loan. */
 export function useMfLoanSchedule(loanId?: string) {
+
   const schedule = useQuery({
     queryKey: ["mf-loan-schedule", loanId],
     queryFn: async () => {
