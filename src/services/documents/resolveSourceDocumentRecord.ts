@@ -53,6 +53,12 @@ import {
   fetchAndBuildCountDocumentSnapshot,
   COUNT_KIND_BY_DOCUMENT_TYPE,
 } from "@/services/documents/snapshots/wmsCount";
+import {
+  fetchAndBuildLoanAgreementSnapshot,
+  fetchAndBuildRepaymentScheduleSnapshot,
+  fetchAndBuildLoanStatementSnapshot,
+  fetchAndBuildLoanPaymentReceiptSnapshot,
+} from "@/services/documents/snapshots/lending";
 
 /** Tenancy fallbacks used only when the snapshot cannot resolve them. */
 export interface SourceDocumentContext {
@@ -365,6 +371,39 @@ const REGISTRY: Record<string, RegistryEntry> = {
         id,
         COUNT_KIND_BY_DOCUMENT_TYPE.count_audit_report,
       ),
+  },
+  /**
+   * Lending paperwork. The counterparty is an `mf_clients` row, not a
+   * contact, so `partyKind` is null — the client is carried inside the
+   * frozen snapshot. Each kind pins a dedicated sheet-only layout.
+   */
+  loan_agreement: {
+    kindCode: "lending.loan_agreement",
+    sourceModule: "lending",
+    sourceDocType: "loan_agreement",
+    partyKind: null,
+    build: wrap(fetchAndBuildLoanAgreementSnapshot),
+  },
+  repayment_schedule: {
+    kindCode: "lending.repayment_schedule",
+    sourceModule: "lending",
+    sourceDocType: "repayment_schedule",
+    partyKind: null,
+    build: wrap(fetchAndBuildRepaymentScheduleSnapshot),
+  },
+  loan_statement: {
+    kindCode: "lending.loan_statement",
+    sourceModule: "lending",
+    sourceDocType: "loan_statement",
+    partyKind: null,
+    build: wrap(fetchAndBuildLoanStatementSnapshot),
+  },
+  loan_payment_receipt: {
+    kindCode: "lending.payment_receipt",
+    sourceModule: "lending",
+    sourceDocType: "loan_payment_receipt",
+    partyKind: null,
+    build: wrap(fetchAndBuildLoanPaymentReceiptSnapshot),
   },
 };
 

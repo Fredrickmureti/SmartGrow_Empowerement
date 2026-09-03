@@ -312,6 +312,7 @@ function hasDedicatedLayout(kindCode: string): boolean {
     kindCode in STATEMENT_LAYOUTS ||
     kindCode in PROCUREMENT_LAYOUTS ||
     kindCode in WAREHOUSE_LAYOUTS ||
+    kindCode in LENDING_LAYOUTS ||
     STATEMENT_KIND_CODES.has(kindCode)
   );
 }
@@ -446,6 +447,16 @@ export async function renderAstToPdf(args: {
       { paperFormat: mediaClassToPaper(args.template.media_class) },
     );
   }
+
+  const lendingLayout = LENDING_LAYOUTS[args.template.kind_code];
+  if (lendingLayout) {
+    return await lendingLayout(
+      snap,
+      (snap["organization"] as unknown) ?? (args.context.business as unknown) ?? null,
+      { paperFormat: mediaClassToPaper(args.template.media_class) },
+    );
+  }
+
 
 
 
