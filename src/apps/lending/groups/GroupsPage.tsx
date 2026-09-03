@@ -55,6 +55,7 @@ const STATUS_TONE: Record<MfGroupStatus, "neutral" | "success" | "warning" | "da
 
 export function GroupsPage() {
   const { can } = usePermissions();
+  const canManage = can("manageClients");
   const { branches } = useBranches();
   const { getUserName } = useOrgMembers();
   const [branchId, setBranchId] = useState<string>("all");
