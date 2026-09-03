@@ -1,24 +1,23 @@
 /**
- * QuickActions Component
- * 
- * QuickBooks-inspired "Business at a Glance" quick action tiles.
- * Permission-aware and app-install-gated.
+ * Launcher quick actions — microfinance operations only.
+ *
+ * Permission-gated shortcuts into the lending, finance and reporting
+ * workspaces. ERP shortcuts (sales invoices, purchase bills, inventory,
+ * payroll) were removed with those domains.
  */
 
 import { Link } from "react-router-dom";
 import {
-  Calculator,
-  Receipt,
-  CreditCard,
-  Users,
-  Clock,
-  FileText,
-  Landmark,
-  ShoppingCart,
   BarChart3,
+  Calculator,
+  ClipboardList,
+  HandCoins,
+  Landmark,
+  Target,
+  Users,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface QuickActionItem {
@@ -30,77 +29,85 @@ interface QuickActionItem {
 }
 
 export function QuickActions() {
-  const { isInstalled } = useInstalledApps();
-  const permissions = usePermissions();
+  const { can, canViewFinancials, canManageFinancials, canViewReports } = usePermissions();
 
   const actions: QuickActionItem[] = [];
 
-  if (isInstalled("finance") && (permissions.canViewFinancials || permissions.canManageFinancials)) {
+  if (can("viewClients")) {
     actions.push({
-      label: "Accounting",
-      description: "Chart of accounts, journals",
-      icon: Calculator,
-      href: "/finance",
-      color: "hsl(142, 76%, 36%)",
-    });
-  }
-
-  if (isInstalled("purchases") && (permissions.canViewPurchases || permissions.canManagePurchases || permissions.canManageFinancials)) {
-    actions.push({
-      label: "Expenses & Pay Bills",
-      description: "Bills, payments, purchase orders",
-      icon: Receipt,
-      href: "/purchases/bills",
-      color: "hsl(25, 95%, 53%)",
-    });
-  }
-
-  if (isInstalled("sales") && (permissions.canViewSales || permissions.canManageSales)) {
-    actions.push({
-      label: "Sales & Get Paid",
-      description: "Invoices, payments, quotes",
-      icon: CreditCard,
-      href: "/sales/invoices",
-      color: "hsl(217, 91%, 60%)",
-    });
-  }
-
-  if (isInstalled("contacts") && (permissions.canViewContacts || permissions.canManageContacts)) {
-    actions.push({
-      label: "Customers",
-      description: "Manage contacts & companies",
+      label: "Clients",
+      description: "Members, groups & KYC",
       icon: Users,
-      href: "/contacts-app/customers",
+      href: "/lending",
       color: "hsl(262, 83%, 58%)",
     });
   }
 
-  if (isInstalled("hr") && (permissions.canViewPayroll || permissions.canManagePayroll || permissions.canRunPayroll || permissions.canApprovePayroll || permissions.canPostPayrollGL || permissions.canPayPayroll)) {
+  if (can("viewApplications")) {
     actions.push({
-      label: "Team",
-      description: "Employees, payroll, leave",
-      icon: Clock,
-      href: "/hr",
-      color: "hsl(45, 93%, 47%)",
+      label: "Applications",
+      description: "Apply, assess, decide",
+      icon: ClipboardList,
+      href: "/lending/applications",
+      color: "hsl(217, 91%, 60%)",
     });
   }
 
-  if (isInstalled("finance") && permissions.canViewFinancials) {
+  if (can("viewLoans")) {
     actions.push({
-      label: "Banking",
-      description: "Bank feeds & reconciliation",
-      icon: Landmark,
-      href: "/finance/banking",
+      label: "Loans",
+      description: "Schedules & disbursement",
+      icon: HandCoins,
+      href: "/lending/loans",
+      color: "hsl(142, 76%, 36%)",
+    });
+  }
+
+  if (can("recordRepayments")) {
+    actions.push({
+      label: "Repayments",
+      description: "Receipts & collection banking",
+      icon: Wallet,
+      href: "/lending/repayments",
       color: "hsl(173, 80%, 40%)",
     });
   }
 
-  if (isInstalled("reports") && permissions.canViewReports) {
+  if (can("viewCollections")) {
+    actions.push({
+      label: "Collections",
+      description: "Arrears follow-up & promises",
+      icon: Target,
+      href: "/lending/collections",
+      color: "hsl(25, 95%, 53%)",
+    });
+  }
+
+  if (canViewFinancials || canManageFinancials) {
+    actions.push(
+      {
+        label: "Accounting",
+        description: "Chart of accounts, journals",
+        icon: Calculator,
+        href: "/finance",
+        color: "hsl(45, 93%, 47%)",
+      },
+      {
+        label: "Banking",
+        description: "Bank accounts & reconciliation",
+        icon: Landmark,
+        href: "/finance/banking",
+        color: "hsl(199, 89%, 48%)",
+      },
+    );
+  }
+
+  if (canViewReports || can("viewLendingReports")) {
     actions.push({
       label: "Reports",
-      description: "P&L, balance sheet, tax",
+      description: "Portfolio, arrears, collections",
       icon: BarChart3,
-      href: "/finance/reports",
+      href: "/lending/reports/portfolio",
       color: "hsl(340, 82%, 52%)",
     });
   }
@@ -109,28 +116,28 @@ export function QuickActions() {
 
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Quick Actions
       </h2>
-      <div className="grid grid-cols-1 @[22rem]/page:grid-cols-2 @[36rem]/page:grid-cols-3 @[52rem]/page:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 gap-2 @[22rem]/page:grid-cols-2 @[36rem]/page:grid-cols-3 @[52rem]/page:grid-cols-4 sm:gap-3">
         {actions.map((action) => (
           <Link
             key={action.label}
             to={action.href}
             className={cn(
-              "group flex flex-col gap-1.5 rounded-xl border bg-card p-3 sm:p-4 transition-all",
-              "hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5"
+              "group flex flex-col gap-1.5 rounded-xl border bg-card p-3 transition-all sm:p-4",
+              "hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md",
             )}
           >
             <div
-              className="h-8 w-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition-transform group-hover:scale-110"
               style={{ backgroundColor: `${action.color}15`, color: action.color }}
             >
               <action.icon className="h-4 w-4" />
             </div>
             <div>
               <p className="text-sm font-semibold leading-tight">{action.label}</p>
-              <p className="text-xs text-muted-foreground leading-tight mt-0.5 hidden sm:block">
+              <p className="mt-0.5 hidden text-xs leading-tight text-muted-foreground sm:block">
                 {action.description}
               </p>
             </div>
