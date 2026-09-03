@@ -70,14 +70,36 @@ Scope guard held: adapted existing banking/settlement services and screens only.
 No new engine, no schema duplication, no savings product.
 
 
-### C15b — Dead-code strip & hardening (LAST)
+### C15c — Dashboard retarget — DONE (2026-09-03)
+
+- `src/pages/Dashboard.tsx` rebuilt as the microfinance command center:
+  KPIs (portfolio outstanding, arrears, PAR 30, collected today, disbursed
+  today, open applications, active clients), worst-arrears table and today's
+  receipts. Every figure from `mf_loan_balances`, `mf_loan_arrears`,
+  `mf_par_summary`, `mf_repayments`, `mf_loan_disbursements`; permission-gated
+  via `usePermissions`.
+- `QuickActions` and `QuickStats` (launcher `/`) retargeted to lending +
+  finance/banking + lending reports. No sales/purchases/inventory/HR entries.
+- Removed now-unreferenced ERP dashboard widgets: SalesSummary, Receivables,
+  CashFlow, ProfitMargin, ExpenseCategories, BankBalance, CreditAlert,
+  Backorder, UpcomingDeadlines, BranchComparison, ExecutiveDashboard +
+  `components/dashboard/executive/*`, DashboardCommandStrip, DashboardCreateBar,
+  DashboardScopeBadge, ActivityFeed; and hooks `useQuickStatsCounts`,
+  `useUpcomingDeadlines`. `DashboardSetupGuide` retained (FinanceDashboard uses it).
+- Verification: typecheck green after each step.
+
+### C15b — Dead-code strip & hardening (LAST — NEXT MILESTONE)
 
 - Remove ERP-only pages/services/features not reachable from dashboard,
   finance, lending, platform, reports, studio — confirm by import graph first.
+  Known candidates still present: `useDashboardStats`/`useDashboardAnalytics`
+  (ERP revenue/expense math, only reachable from AIInsightsWidget and
+  `useDashboardComposition`) and the module/entitlement gating they carry.
 - Prune `src/parked-modules.d.ts` stubs no retained file needs.
 - Close-out: typecheck, build, permission/RLS pass, one full loan lifecycle
   (apply → approve → disburse → repay → arrears → close/write-off), one report
-  render, one document render.
+  render, one document render, one record → close batch → bank → reconcile pass,
+  one client-statement render.
 
 ## Rules
 
