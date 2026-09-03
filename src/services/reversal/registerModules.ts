@@ -1,24 +1,18 @@
 /**
- * Canonical inventory of reversible business documents (ADR 0129, Phase 5.4).
+ * Canonical inventory of reversible business documents.
  *
  * This list is the contract between three things:
  *   1. the `public.reversal_register` view, which must contain one branch per
- *      entry here (enforced by
- *      `src/test/architecture/reversal-register-coverage.test.ts`),
+ *      entry here,
  *   2. the finance reversal-register screen's module/document filters,
  *   3. the governance action keys used for reversal approvals.
  *
- * Adding a new reversible document type means adding it here FIRST — the guard
- * test then fails until the register view and the screen cover it, which is the
- * point: no module may reverse business state invisibly.
+ * Microfinance scope: the only reversible financial documents are loan
+ * disbursements and loan repayments. Adding a new reversible document type
+ * means adding it here FIRST, then extending the register view.
  */
 
-export type ReversalModule =
-  | "sales"
-  | "purchases"
-  | "receiving"
-  | "pos";
-
+export type ReversalModule = "lending" | "collections";
 
 export interface ReversibleDocument {
   /** Matches `reversal_register.document_type`. */
@@ -31,46 +25,22 @@ export interface ReversibleDocument {
 }
 
 export const REVERSAL_MODULE_LABELS: Record<ReversalModule, string> = {
-  sales: "Sales",
-  purchases: "Purchases",
-  receiving: "Receiving",
-  pos: "Point of sale",
+  lending: "Lending",
+  collections: "Collections",
 };
 
 export const REVERSIBLE_DOCUMENTS: ReversibleDocument[] = [
-  { documentType: "invoice", module: "sales", label: "Customer invoice", table: "invoices" },
-  { documentType: "payment", module: "sales", label: "Customer payment", table: "payments" },
   {
-    documentType: "customer_refund",
-    module: "sales",
-    label: "Customer refund",
-    table: "customer_refunds",
-  },
-  { documentType: "bill", module: "purchases", label: "Supplier bill", table: "bills" },
-  {
-    documentType: "bill_payment",
-    module: "purchases",
-    label: "Supplier payment",
-    table: "bill_payments",
-  },
-  { documentType: "expense", module: "purchases", label: "Expense", table: "expenses" },
-  {
-    documentType: "vendor_credit_note",
-    module: "purchases",
-    label: "Vendor credit note",
-    table: "vendor_credit_notes",
+    documentType: "loan_disbursement",
+    module: "lending",
+    label: "Loan disbursement",
+    table: "mf_loan_disbursements",
   },
   {
-    documentType: "goods_receipt",
-    module: "receiving",
-    label: "Goods receipt",
-    table: "goods_receipts",
-  },
-  {
-    documentType: "pos_transaction",
-    module: "pos",
-    label: "POS transaction",
-    table: "pos_transactions",
+    documentType: "loan_repayment",
+    module: "collections",
+    label: "Loan repayment",
+    table: "mf_repayments",
   },
 ];
 
