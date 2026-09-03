@@ -16,6 +16,7 @@ import {
   BarChart3,
   AlertTriangle,
   Landmark,
+  FileText,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
@@ -50,6 +51,7 @@ export const LENDING_NAV: WorkspaceNav = {
         { to: "/lending/reports/arrears", label: "Arrears & PAR", icon: AlertTriangle },
         { to: "/lending/reports/collections", label: "Collections report", icon: Wallet },
         { to: "/lending/reports/disbursements", label: "Disbursements", icon: Landmark },
+        { to: "/lending/reports/client-statement", label: "Client statement", icon: FileText },
       ],
     },
     {

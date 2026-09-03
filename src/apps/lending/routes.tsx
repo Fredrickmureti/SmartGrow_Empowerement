@@ -21,6 +21,7 @@ import { PortfolioReport } from "./reports/PortfolioReport";
 import { ArrearsReport } from "./reports/ArrearsReport";
 import { CollectionsReport } from "./reports/CollectionsReport";
 import { DisbursementsReport } from "./reports/DisbursementsReport";
+import { ClientStatementReport } from "./reports/ClientStatementReport";
 
 const SURFACES: Array<{
   path: string;
@@ -112,6 +113,14 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <CollectionsReport />
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/client-statement"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <ClientStatementReport />
             </InstitutionRoute>
           }
         />

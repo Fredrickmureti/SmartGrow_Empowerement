@@ -277,6 +277,18 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["disbursements", "disbursed", "payouts", "lending"],
   },
   {
+    id: "client-statement",
+    name: "Client statement",
+    description: "Disbursements and repayments for one client across all their loans",
+    category: "management",
+    path: "/lending/reports/client-statement",
+    icon: Receipt,
+    permission: "viewReports",
+    reportType: "client-statement",
+    domain: "lending",
+    keywords: ["client statement", "statement", "account", "client", "history", "lending"],
+  },
+  {
     id: "aged-receivables",
     name: "Aged Receivables",
     description: "Outstanding customer invoices by age bucket",
