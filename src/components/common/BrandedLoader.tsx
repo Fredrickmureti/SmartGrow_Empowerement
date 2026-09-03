@@ -37,11 +37,15 @@ export function BrandedLoader({ message = "Loading...", fullScreen = true }: Bra
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          {/* Letter A */}
+          {/* Growth mark */}
           <svg viewBox="0 0 32 32" className="w-12 h-12">
             <path
-              d="M16 4 L8 26 L11 26 L12.5 22 L19.5 22 L21 26 L24 26 L16 4 Z M13.5 19 L16 11 L18.5 19 L13.5 19 Z"
-              fill="white"
+              d="M6 26 L13 17 L18 21 L26 9"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
             <motion.path
               d="M7 28 L25 28"
@@ -80,12 +84,13 @@ export function BrandedLoader({ message = "Loading...", fullScreen = true }: Bra
         transition={{ duration: 0.5, delay: 0.3 }}
       >
         <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-          Accrual
+          Smart Grow
         </span>
         <span className="text-2xl font-bold text-foreground">
-          Flow
+          Empowerment
         </span>
       </motion.div>
+
 
       {/* Loading message */}
       <motion.p
