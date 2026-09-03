@@ -739,28 +739,22 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
 };
 
 /**
- * Modules surfaced in the Access Groups admin UI. Excludes deprecated aliases
- * (`hr`, `timesheets`) — those still resolve at runtime but are hidden from new
- * rule editors so admins are guided toward the per-app modules.
+ * Modules surfaced in the Access Groups admin UI.
+ *
+ * Microfinance scope only: ERP modules (products, sales, purchases, pos,
+ * projects) and the HR/payroll family (employees, leave, attendance,
+ * recruitment, payroll, and the deprecated `hr` / `timesheets` aliases) are
+ * NOT surfaced. They remain in PERMISSION_MODULES so pre-existing rule rows
+ * still resolve, but no new rules can target them.
  */
 export const ACTIVE_PERMISSION_MODULES: PermissionModule[] = [
   "contacts",
-  "products",
-  "sales",
-  "purchases",
   "financials",
-  "employees",
-  "leave",
-  "attendance",
-  "recruitment",
-  "projects",
-  "payroll",
-  "pos",
   "lending",
-  // "sign" retired 2026-05-09
   "settings",
   "team",
 ];
+
 
 /**
  * Maps module + operation to Permission keys.
