@@ -317,6 +317,21 @@ export function RepaymentsPage() {
         onRecord={(input) => record.mutateAsync(input)}
       />
 
+      <GroupSheetDialog
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onOpenBatch={(input) =>
+          openBatch.mutateAsync({
+            collectedOn: input.collectedOn,
+            groupId: input.groupId,
+            branchId: input.branchId,
+            notes: input.notes,
+          })
+        }
+        onRecord={(input) => record.mutateAsync(input)}
+        onPosted={(id) => setBatchId(id)}
+      />
+
       <BankBatchDialog
         open={bankOpen}
         onOpenChange={setBankOpen}
