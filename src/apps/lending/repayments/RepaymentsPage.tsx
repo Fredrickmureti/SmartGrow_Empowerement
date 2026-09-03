@@ -47,6 +47,7 @@ import {
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { BankBatchDialog } from "./BankBatchDialog";
+import { GroupSheetDialog } from "./GroupSheetDialog";
 
 
 const money = (value: number, currency = "") =>
@@ -62,6 +63,7 @@ export function RepaymentsPage() {
   const [batchId, setBatchId] = useState<string>("none");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const { batches, openBatch, closeBatch } = useMfRepaymentBatches();
   const { repayments, isLoading, error, record, reverse } = useMfRepayments();
@@ -144,6 +146,10 @@ export function RepaymentsPage() {
             >
               <Layers className="mr-1.5 h-4 w-4" />
               Open batch
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
+              <Users className="mr-1.5 h-4 w-4" />
+              Group sheet
             </Button>
             <Button size="sm" onClick={() => setCaptureOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" />
@@ -313,6 +319,21 @@ export function RepaymentsPage() {
         loans={openLoans}
         batchId={activeBatchId}
         onRecord={(input) => record.mutateAsync(input)}
+      />
+
+      <GroupSheetDialog
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onOpenBatch={(input) =>
+          openBatch.mutateAsync({
+            collectedOn: input.collectedOn,
+            groupId: input.groupId,
+            branchId: input.branchId,
+            notes: input.notes,
+          })
+        }
+        onRecord={(input) => record.mutateAsync(input)}
+        onPosted={(id) => setBatchId(id)}
       />
 
       <BankBatchDialog
