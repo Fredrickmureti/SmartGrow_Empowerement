@@ -212,3 +212,60 @@ export function useMfDisbursementsReport(from: string, to: string) {
     error: query.error as Error | null,
   };
 }
+
+export interface MfClientStatementRow {
+  entry_id: string;
+  entry_date: string;
+  entry_type: "disbursement" | "repayment";
+  description: string;
+  loan_number: string;
+  method: string | null;
+  reference: string | null;
+  amount_out: number;
+  amount_in: number;
+}
+
+/**
+ * Client statement — every money movement for one client across all their
+ * loans, straight off the server-owned `mf_client_statement` view. The running
+ * balance is derived in order from those authoritative amounts only.
+ */
+export function useMfClientStatement(clientId: string | null, from: string, to: string) {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-client-statement", businessId, clientId, from, to],
+    queryFn: async (): Promise<MfClientStatementRow[]> => {
+      if (!businessId || !clientId) return [];
+      const { data, error } = await supabase
+        .from("mf_client_statement")
+        .select("*")
+        .eq("business_id", businessId)
+        .eq("client_id", clientId)
+        .gte("entry_date", from)
+        .lte("entry_date", to)
+        .order("entry_date", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      return rows.map((r) => ({
+        entry_id: r.entry_id as string,
+        entry_date: r.entry_date as string,
+        entry_type: r.entry_type as "disbursement" | "repayment",
+        description: r.description as string,
+        loan_number: (r.loan_number as string) ?? "—",
+        method: (r.method as string) ?? null,
+        reference: (r.reference as string) ?? null,
+        amount_out: Number(r.amount_out ?? 0),
+        amount_in: Number(r.amount_in ?? 0),
+      }));
+    },
+    enabled: !!businessId && !!clientId,
+  });
+
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
