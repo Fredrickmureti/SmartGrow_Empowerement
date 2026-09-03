@@ -48,3 +48,46 @@ Then **C12 hardening**: `mf_*` RLS/grants + linter sweep, RBAC enforcement per r
 5. Reuse before rebuild — retailor working Finance/banking/settlement/document/report engines.
 6. No client portal, no multi-tenancy, no payroll/HR product, no speculative abstractions.
 7. Each milestone ends with: tsgo clean, build OK, affected screens rendered, this file updated in place.
+
+
+=============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
+
+
+
+The C10 ERP removal sweep is complete and the plan of record is reworked.
+
+Done this session
+- Confirmed Supabase `Smart Grow Empowerment` (`xwxqunklduknceoryrha`) is already connected — nothing to reconnect.
+- Finished the half-done sweep: deleted 526 unreachable ERP modules (reachability scan from the real entrypoints), 45 obsolete ERP guard tests, and pruned report navigation/legacy route mappings for removed reports (partner ledger, budgets, tax, consolidation, analytic accounting, BI).
+- Verified: `tsgo --noEmit` clean, `build OK`, zero unresolved imports anywhere in `src`. Test suite went from 65 failing files to 13.
+- Rewrote `.lovable/plan.md` as a lean plan of record: reused foundations (auth/RBAC, shell/nav/UI, document engine, report engine, Finance incl. banking/reconciliation/settlement), removed ERP list, verified milestone status, and the exact next milestone.
+
+Remaining (recorded in the plan)
+- 13 failing test files, all pre-existing inherited debt not caused by the sweep: legacy SQL-migration guards (`je-description-no-uuid`, `pgcrypto-extension-prefix`, `single-audit-trigger-per-table`, `sql-businesses-currency-column`, `currency-ratchet`) and content-drift guards (banking gating ×2, finance-settings permissions, radix overlay, tanstack-router-in-spa, vendor-credit ADR, reporting related-reports for `aged-receivables`). Fix only the ones on retained surfaces, in C11/C12.
+- C11 — retailor retained Finance to microfinance (client statements, loan receivables vocabulary, mapping-resolved postings for every `mf_*` event, institution settings into report/document contexts).
+- C12 — `mf_*` RLS/grants + RBAC scope hardening and a live signed-in PDF render of each lending document.
+C10 is closed: the ERP scaffolding is gone, the tree typechecks and builds clean, and `.lovable/plan.md` now holds a lean, focused plan of record with C11 (retailor Finance to microfinance) as the exact next milestone.
+
+Want me to start C11 in a new request?
+
+NOTE
+=============
+And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
+
+The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
+
+What we want to **reuse** from the existing system is specifically:
+
+* **Document generation engine**
+* **Authentication/auth engine**
+* **Navigation and UI foundation**
+* *Banking and reconciliation , payables receivables but now tailored for microfinance**
+TO BE PRECISE, WHAT IS REUSABLE, KINDLY REUSE IT INCLUDING PAYMENT SETTLEMENT ENGINE FOR PAYABELES/RECEIVABLES, basically accross the Finance what is reusable use it as long as its microfuiannce tailored because we are building mciro fianance  if its statements instead of customer staments lest it be  talowred towards microfinance not the current sales oriented that was used by the old erp so dont just delete what is reusable and has solid engine that will be painful to rebuild from scratch, reason like a mircofiannce system developer not like a blind bot
+
+Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
+
+The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
+
+**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
+
+**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
