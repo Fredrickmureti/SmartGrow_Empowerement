@@ -23,6 +23,10 @@ import { ArrearsReport } from "./reports/ArrearsReport";
 import { CollectionsReport } from "./reports/CollectionsReport";
 import { DisbursementsReport } from "./reports/DisbursementsReport";
 import { ClientStatementReport } from "./reports/ClientStatementReport";
+import { OfficerCollectionsReport } from "./reports/OfficerCollectionsReport";
+import { ProductPerformanceReport } from "./reports/ProductPerformanceReport";
+import { ClientExposureReport } from "./reports/ClientExposureReport";
+import { ParAgingReport } from "./reports/ParAgingReport";
 
 const SURFACES: Array<{
   path: string;
@@ -143,6 +147,46 @@ export function LendingApp() {
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
               <ClientStatementReport />
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/officer-collections"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
+              <OfficerCollectionsReport />
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/product-performance"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
+              <ProductPerformanceReport />
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/client-exposure"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
+              <ClientExposureReport />
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/par-aging"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
+              <ParAgingReport />
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
