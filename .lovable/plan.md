@@ -48,17 +48,13 @@ gating anywhere.
 
 ## Open gaps (factual)
 
-1. Lending roles get UI access but no DB-side module permission from the
-   base-role branch of `user_has_module_permission` — only via Access Groups.
-2. The database still carries the inherited AccrualFlow ERP schema (~800
+1. The database still carries the inherited AccrualFlow ERP schema (~800
    tables, ~2,900 functions). Unused by the app, but it inflates the linter and
-   the surface area. Dropping is dependency-sensitive.
-3. Dead ERP hooks still present: `useDashboardStats`, `useDashboardComposition`,
-   `useEntityCreationLimits` (+ `src/parked-modules.d.ts` stubs).
-4. Authenticated end-to-end checks cannot be run from the sandbox (external
+   the surface area. Dropping is dependency-sensitive → M3.
+2. Authenticated end-to-end checks cannot be run from the sandbox (external
    Supabase, no mintable session) — owner verifies in the preview.
 
-## M1 — Owner verification pass (NEXT, no code until it reports)
+## M1 — Owner verification pass (open, owner-side)
 
 Sign in as owner in the preview and confirm; anything that fails gets fixed in
 code, not written up:
@@ -69,12 +65,22 @@ code, not written up:
    confirmation render through the shared document engine.
 5. Bank-reconciliation match of a banked collection.
 
-## M2 — Permissions data + dead-code strip
+## M2 — Permissions parity + dead-code strip — DONE (2026-09-03)
 
-- Seed one access group per lending role so DB checks agree with the UI matrix;
-  verify a loan_officer sees only own-portfolio clients.
-- Delete gap-3 hooks after an import-graph check; prune parked-module stubs.
-- Typecheck + build; RLS pass over `mf_*` tables and views.
+- `user_has_module_permission` now grants module `lending` straight from the
+  base role, mirroring `LENDING_ROLE_PERMISSIONS` in `src/lib/permissions.ts`:
+  read/export for all five lending roles; create for branch_manager,
+  credit_officer, loan_officer; write adds collections_officer; approve for
+  branch_manager + credit_officer; pay (disburse/receipt) for branch_manager,
+  loan_officer, collections_officer; close for branch_manager. Lending roles
+  also get `settings:read`. Chosen over per-org seed data: deterministic, no
+  data drift, one source of truth. Access Groups still layer on top.
+- `useEntityCreationLimits` deleted (zero references). `useDashboardStats` /
+  `useDashboardComposition` KEPT — they feed the live Finance dashboard, and the
+  cheap fix is retargeting their figures in M4, not deleting them.
+- RLS verified: all 19 `mf_*` tables have RLS enabled with policies.
+- Typecheck clean. Linter count unchanged at 3,672 (all pre-existing ERP
+  inheritance, addressed in M3).
 
 ## M3 — Database slimming and hardening
 
