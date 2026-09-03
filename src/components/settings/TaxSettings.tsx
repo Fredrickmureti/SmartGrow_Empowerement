@@ -258,17 +258,6 @@ export function TaxSettings() {
                         </div>
                       </TableCell>
                       <TableCell>{rate.rate}%</TableCell>
-                      {hasEtimsCodes && (
-                      <TableCell>
-                        {rate.etims_tax_code ? (
-                          <Badge variant="outline" className="font-mono">
-                            {rate.etims_tax_code} - {getStandardCodeByCode(rate.etims_tax_code)?.name || "Unknown"}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">Not mapped</span>
-                        )}
-                      </TableCell>
-                      )}
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {rate.is_inclusive && <Badge variant="outline" className="text-xs">Inclusive</Badge>}
