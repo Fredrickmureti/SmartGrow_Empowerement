@@ -25,33 +25,33 @@ export const LENDING_NAV: WorkspaceNav = {
     {
       label: "Portfolio",
       items: [
-        { to: "/lending", label: "Clients", icon: Users, end: true },
-        { to: "/lending/groups", label: "Groups", icon: Users },
-        { to: "/lending/loans", label: "Loans", icon: HandCoins },
+        { to: "/lending", label: "Clients", icon: Users, end: true, permission: "viewClients" },
+        { to: "/lending/groups", label: "Groups", icon: Users, permission: "viewClients" },
+        { to: "/lending/loans", label: "Loans", icon: HandCoins, permission: "viewLoans" },
       ],
     },
     {
       label: "Origination",
       items: [
-        { to: "/lending/products", label: "Loan products", icon: Tags },
-        { to: "/lending/applications", label: "Applications", icon: ClipboardList },
+        { to: "/lending/products", label: "Loan products", icon: Tags, permission: "viewLoanProducts" },
+        { to: "/lending/applications", label: "Applications", icon: ClipboardList, permission: "viewApplications" },
       ],
     },
     {
       label: "Servicing",
       items: [
-        { to: "/lending/repayments", label: "Repayments", icon: Wallet },
-        { to: "/lending/collections", label: "Collections", icon: Target },
+        { to: "/lending/repayments", label: "Repayments", icon: Wallet, permission: "recordRepayments" },
+        { to: "/lending/collections", label: "Collections", icon: Target, permission: "viewCollections" },
       ],
     },
     {
       label: "Insights",
       items: [
-        { to: "/lending/reports/portfolio", label: "Loan portfolio", icon: BarChart3 },
-        { to: "/lending/reports/arrears", label: "Arrears & PAR", icon: AlertTriangle },
-        { to: "/lending/reports/collections", label: "Collections report", icon: Wallet },
-        { to: "/lending/reports/disbursements", label: "Disbursements", icon: Landmark },
-        { to: "/lending/reports/client-statement", label: "Client statement", icon: FileText },
+        { to: "/lending/reports/portfolio", label: "Loan portfolio", icon: BarChart3, permission: "viewLendingReports" },
+        { to: "/lending/reports/arrears", label: "Arrears & PAR", icon: AlertTriangle, permission: "viewLendingReports" },
+        { to: "/lending/reports/collections", label: "Collections report", icon: Wallet, permission: "viewLendingReports" },
+        { to: "/lending/reports/disbursements", label: "Disbursements", icon: Landmark, permission: "viewLendingReports" },
+        { to: "/lending/reports/client-statement", label: "Client statement", icon: FileText, permission: "viewLendingReports" },
       ],
     },
     {
@@ -61,6 +61,7 @@ export const LENDING_NAV: WorkspaceNav = {
           to: "/lending/configuration/accounting",
           label: "Accounting mappings",
           icon: Settings,
+          permission: "manageLendingConfig",
         },
       ],
     },
