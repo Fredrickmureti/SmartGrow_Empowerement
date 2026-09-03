@@ -79156,6 +79156,25 @@ export type Database = {
           },
         ]
       }
+      mf_client_statement: {
+        Row: {
+          amount_in: number | null
+          amount_out: number | null
+          branch_id: string | null
+          business_id: string | null
+          client_id: string | null
+          currency_code: string | null
+          description: string | null
+          entry_date: string | null
+          entry_id: string | null
+          entry_type: string | null
+          loan_id: string | null
+          loan_number: string | null
+          method: string | null
+          reference: string | null
+        }
+        Relationships: []
+      }
       mf_loan_arrears: {
         Row: {
           arrears_amount: number | null
