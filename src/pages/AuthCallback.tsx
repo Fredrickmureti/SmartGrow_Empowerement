@@ -234,8 +234,8 @@ export default function AuthCallback() {
               which removed your unfinished account
               {outcome.email ? <> for <strong>{outcome.email}</strong></> : null}.
               The confirmation link you just clicked points at that removed
-              account, so it can't sign you in. Please sign up again — the
-              email is now free to reuse.
+              account, so it can't sign you in. Ask your administrator to send
+              a new invitation for this email.
             </AlertDescription>
           </Alert>
           <Button asChild className="w-full">
