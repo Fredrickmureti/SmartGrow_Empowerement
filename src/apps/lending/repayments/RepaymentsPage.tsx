@@ -262,6 +262,49 @@ export function RepaymentsPage() {
             </Table>
           )}
         </Section>
+
+        <Section
+          title="Banked collections"
+          description="Closed batches deposited into an institution bank account."
+        >
+          {bankings.length === 0 ? (
+            <EmptyState
+              title="Nothing banked yet"
+              description="Close a collection batch, then bank its cash and mobile-money receipts."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Banked on</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Bank account</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead className="text-right">Cash</TableHead>
+                  <TableHead className="text-right">Mobile money</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bankings.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="text-sm">{b.banked_on}</TableCell>
+                    <TableCell className="font-mono text-xs">{batchLabel(b.batch_id)}</TableCell>
+                    <TableCell className="text-sm">{bankAccountName(b.bank_account_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">{b.reference ?? "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(b.cash_amount)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {money(b.mobile_money_amount)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {money(b.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
       </PageBody>
 
       <RecordPaymentDialog
@@ -270,6 +313,17 @@ export function RepaymentsPage() {
         loans={openLoans}
         batchId={activeBatchId}
         onRecord={(input) => record.mutateAsync(input)}
+      />
+
+      <BankBatchDialog
+        open={bankOpen}
+        onOpenChange={setBankOpen}
+        batchLabel={activeBatch ? batchLabel(activeBatch.id) : "this batch"}
+        bankAccounts={bankAccounts}
+        defaultDate={new Date().toISOString().slice(0, 10)}
+        onBank={(input) =>
+          bankBatch.mutateAsync({ batchId: activeBatch!.id, ...input })
+        }
       />
     </>
   );
