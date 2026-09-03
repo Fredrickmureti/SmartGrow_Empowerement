@@ -47,7 +47,13 @@ export interface SessionOrganization {
   is_suspended: boolean;
   suspended_at: string | null;
   suspended_reason: string | null;
-  role: "super_admin" | "owner" | "admin" | "internal" | "accountant" | "staff" | "cashier" | "viewer" | "portal";
+  role:
+    | "super_admin" | "owner" | "admin" | "internal"
+    | "accountant" | "staff" | "cashier" | "viewer" | "portal"
+    // Microfinance operational roles (see LENDING_ROLE_PERMISSIONS)
+    | "branch_manager" | "loan_officer" | "credit_officer"
+    | "collections_officer" | "auditor";
+
   role_id: string;
   user_type: "internal" | "portal";
   /** Real-time usage counters for limit enforcement */
