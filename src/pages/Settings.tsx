@@ -26,7 +26,6 @@ const WORKSPACE_TABS = new Set([
   "notifications",
   "security",
   "access-groups",
-  "localization",
   "data",
 ]);
 
@@ -37,14 +36,10 @@ const COMPANY_TABS = new Set([
   "companies",          // legacy alias for "company"
   "branches",           // lives under the "company" tab (Companies & Branches)
   "currency",
-  "tax",
-  "payment-terms",
   "payments",
   "payment-gateways",   // legacy alias for "payments"
   "payment-methods",
   "email",
-  "tax-compliance",
-  "receipts",
   "templates",
   "printing",
 ]);
@@ -54,7 +49,6 @@ const COMPANY_TABS = new Set([
 const EXTERNAL_REDIRECTS: Record<string, string> = {
   accounting: "/finance/settings",   // Default GL accounts, fiscal periods, etc.
   defaults: "/finance/settings",     // Legacy alias used by the missing-system-account banner
-  plans: "/upgrade",                 // Subscription plan management
 };
 
 export default function Settings() {

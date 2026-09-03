@@ -27,7 +27,7 @@ export function AuthLayout({
                   <path d="M8 11h8" />
                 </svg>
               </div>
-              <Link to="/" className="text-2xl font-bold hover:opacity-80 transition-opacity">AccrualFlow</Link>
+              <Link to="/" className="text-2xl font-bold hover:opacity-80 transition-opacity">Smart Grow Empowerment</Link>
             </div>
             <h1 className="text-4xl font-bold mb-3 leading-tight">
               Every transaction,
@@ -60,7 +60,7 @@ export function AuthLayout({
                   <path d="M8 11h8" />
                 </svg>
               </div>
-              <Link to="/" className="text-xl font-bold text-foreground hover:opacity-80 transition-opacity">AccrualFlow</Link>
+              <Link to="/" className="text-xl font-bold text-foreground hover:opacity-80 transition-opacity">Smart Grow Empowerment</Link>
             </div>
           </div>
 
