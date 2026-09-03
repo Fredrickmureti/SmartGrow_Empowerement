@@ -62,6 +62,8 @@ const STATUS_TONE: Record<
 
 export function ApplicationsPage() {
   const { can } = usePermissions();
+  const canManage = can("manageApplications");
+  const canApprove = can("approveApplications");
   const [status, setStatus] = useState<MfApplicationStatus | "all" | "open">("all");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -119,10 +121,12 @@ export function ApplicationsPage() {
         title="Loan applications"
         description="Requested terms, physical assessment and an attributable approval — approval is not disbursement."
         actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New application
-          </Button>
+          canManage ? (
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              New application
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -159,7 +163,7 @@ export function ApplicationsPage() {
             <EmptyState
               title="No applications yet"
               description="Capture an application for a registered client on an active, priced product."
-              action={<Button onClick={openCreate}>New application</Button>}
+              action={canManage ? <Button onClick={openCreate}>New application</Button> : undefined}
             />
           ) : (
             <Table>
@@ -204,12 +208,12 @@ export function ApplicationsPage() {
                       className="space-x-1.5 text-right"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {a.status === "draft" && (
+                      {canManage && a.status === "draft" && (
                         <Button size="sm" variant="outline" onClick={() => move(a.id, "submitted")}>
                           Submit
                         </Button>
                       )}
-                      {a.status === "submitted" && (
+                      {canManage && a.status === "submitted" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -218,7 +222,7 @@ export function ApplicationsPage() {
                           Start review
                         </Button>
                       )}
-                      {(a.status === "submitted" || a.status === "under_review") && (
+                      {canManage && (a.status === "submitted" || a.status === "under_review") && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -231,7 +235,7 @@ export function ApplicationsPage() {
                           Assess
                         </Button>
                       )}
-                      {a.status === "under_review" && (
+                      {canApprove && a.status === "under_review" && (
                         <>
                           <Button size="sm" onClick={() => openDecision(a, "approve")}>
                             Approve
@@ -245,7 +249,7 @@ export function ApplicationsPage() {
                           </Button>
                         </>
                       )}
-                      {a.status === "approved" && (
+                      {canManage && a.status === "approved" && (
                         <Button
                           size="sm"
                           onClick={() => move(a.id, "ready_for_disbursement")}

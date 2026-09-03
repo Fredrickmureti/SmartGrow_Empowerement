@@ -55,6 +55,7 @@ const STATUS_TONE: Record<MfGroupStatus, "neutral" | "success" | "warning" | "da
 
 export function GroupsPage() {
   const { can } = usePermissions();
+  const canManage = can("manageClients");
   const { branches } = useBranches();
   const { getUserName } = useOrgMembers();
   const [branchId, setBranchId] = useState<string>("all");
@@ -104,10 +105,12 @@ export function GroupsPage() {
         title="Groups"
         description="Collection groups with a weekly meeting slot and membership roll."
         actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Create group
-          </Button>
+          canManage ? (
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Create group
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -156,7 +159,7 @@ export function GroupsPage() {
             <EmptyState
               title="No groups yet"
               description="Create a group to organise weekly meetings and collections."
-              action={<Button onClick={openCreate}>Create group</Button>}
+              action={canManage ? <Button onClick={openCreate}>Create group</Button> : undefined}
             />
           ) : (
             <Table>
@@ -175,8 +178,8 @@ export function GroupsPage() {
                 {filtered.map((g) => (
                   <TableRow
                     key={g.id}
-                    className="cursor-pointer"
-                    onClick={() => openEdit(g)}
+                    className={canManage ? "cursor-pointer" : undefined}
+                    onClick={canManage ? () => openEdit(g) : undefined}
                   >
                     <TableCell className="font-mono text-xs">{g.group_number}</TableCell>
                     <TableCell className="font-medium">{g.name}</TableCell>

@@ -54,6 +54,7 @@ const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "d
 
 export function ClientsPage() {
   const { can } = usePermissions();
+  const canManage = can("manageClients");
   const { branches } = useBranches();
   const { getUserName } = useOrgMembers();
   const [branchId, setBranchId] = useState<string>("all");
@@ -96,10 +97,12 @@ export function ClientsPage() {
         title="Clients"
         description="Member records with KYC identity, owning branch and loan officer."
         actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Register client
-          </Button>
+          canManage ? (
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Register client
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -148,7 +151,7 @@ export function ClientsPage() {
             <EmptyState
               title="No clients yet"
               description="Register the institution's first member to start lending."
-              action={<Button onClick={openCreate}>Register client</Button>}
+              action={canManage ? <Button onClick={openCreate}>Register client</Button> : undefined}
             />
           ) : (
             <Table>
@@ -167,8 +170,8 @@ export function ClientsPage() {
                 {filtered.map((c) => (
                   <TableRow
                     key={c.id}
-                    className="cursor-pointer"
-                    onClick={() => openEdit(c)}
+                    className={canManage ? "cursor-pointer" : undefined}
+                    onClick={canManage ? () => openEdit(c) : undefined}
                   >
                     <TableCell className="font-mono text-xs">{c.client_number}</TableCell>
                     <TableCell className="font-medium">{c.full_name}</TableCell>

@@ -80,6 +80,8 @@ const money = (value: number, currency: string) =>
 
 export function LoansPage() {
   const { can } = usePermissions();
+  const canManage = can("manageLoans");
+  const canDisburse = can("disburseLoans");
   const [status, setStatus] = useState<MfLoanStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -148,10 +150,12 @@ export function LoansPage() {
         title="Loans"
         description="Contractual loans with a frozen product snapshot, their schedules and guarded disbursement."
         actions={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Create loan
-          </Button>
+          canManage ? (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Create loan
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -184,7 +188,7 @@ export function LoansPage() {
             <EmptyState
               title="No loans yet"
               description="Approve an application, then create the loan to generate its contractual schedule."
-              action={<Button onClick={() => setCreateOpen(true)}>Create loan</Button>}
+              action={canManage ? <Button onClick={() => setCreateOpen(true)}>Create loan</Button> : undefined}
             />
           ) : (
             <Table>
@@ -269,14 +273,14 @@ export function LoansPage() {
                           },
                         ]}
                       />
-                      {loan.status === "pending_disbursement" && (
+                      {canDisburse && loan.status === "pending_disbursement" && (
 
                         <Button size="sm" onClick={() => openDisburse(loan)}>
                           <HandCoins className="mr-1.5 h-3.5 w-3.5" />
                           Disburse
                         </Button>
                       )}
-                      {loan.status === "active" && !loan.settled_by_loan_id && (
+                      {canManage && loan.status === "active" && !loan.settled_by_loan_id && (
                         <>
                           <Button
                             size="sm"
