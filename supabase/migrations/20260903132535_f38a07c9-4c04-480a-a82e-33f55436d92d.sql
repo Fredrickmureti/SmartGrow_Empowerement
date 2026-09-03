@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.mf_guard_batch_closure() FROM PUBLIC, anon, authenticated;
