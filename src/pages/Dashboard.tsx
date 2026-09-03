@@ -1,509 +1,369 @@
-import { useState, useEffect, useRef } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useBusinesses } from "@/hooks/useBusinesses";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useDashboardStats } from "@/hooks/useDashboardStats";
-import { useDashboardAnalytics } from "@/hooks/useDashboardAnalytics";
-import { useCurrency } from "@/hooks/useCurrency";
-import { useViewCurrencyPreference } from "@/hooks/useViewCurrencyPreference";
-import { usePendingBusinessSetup } from "@/hooks/usePendingBusinessSetup";
-import { Navigate } from "react-router-dom";
-import { DashboardAppLayout as DashboardLayout } from "@/apps/dashboard";
-import { PageHeader, PageBody } from "@/design-system";
-import { CurrencyToggle } from "@/components/common/CurrencyToggle";
-import { DashboardScopeBadge } from "@/components/dashboard/DashboardScopeBadge";
-import { ScopeBadge } from "@/components/common/ScopeBadge";
-import { BankBalanceWidget } from "@/components/dashboard/BankBalanceWidget";
-import { SalesSummaryWidget } from "@/components/dashboard/SalesSummaryWidget";
-import { CashFlowWidget } from "@/components/dashboard/CashFlowWidget";
-import { ProfitMarginWidget } from "@/components/dashboard/ProfitMarginWidget";
-import { ExpenseCategoriesWidget } from "@/components/dashboard/ExpenseCategoriesWidget";
-import { ReceivablesWidget } from "@/components/dashboard/ReceivablesWidget";
-import { CreditAlertWidget } from "@/components/dashboard/CreditAlertWidget";
-import { supabase } from "@/integrations/supabase/client";
-import { BackorderWidget } from "@/components/dashboard/BackorderWidget";
-import { BranchComparisonWidget } from "@/components/dashboard/BranchComparisonWidget";
-import { ExecutiveDashboard } from "@/components/dashboard/ExecutiveDashboard";
-
-import { AIInsightsWidget } from "@/components/ai/AIInsightsWidget";
-import { AISuggestionsWidget } from "@/components/ai/AISuggestionsWidget";
-import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
-import { SetupWizard } from "@/components/onboarding/SetupWizard";
-
-import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
-import { DashboardCommandStrip } from "@/components/dashboard/DashboardCommandStrip";
-import { DashboardSetupGuide } from "@/components/dashboard/DashboardSetupGuide";
-import { UpcomingDeadlinesWidget } from "@/components/dashboard/UpcomingDeadlinesWidget";
-import { QuickActions } from "@/components/home/QuickActions";
-import { DashboardCreateBar } from "@/components/dashboard/DashboardCreateBar";
-import { useDashboardComposition } from "@/hooks/useDashboardComposition";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Building2, LogOut, User, TrendingUp, TrendingDown, FileText, Receipt, ArrowUpRight, ArrowDownRight, Coins, LayoutDashboard, ShoppingCart, Wallet, PieChart, Users, Sparkles, Package, GitCompare } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+/**
+ * Command center — the microfinance operations overview.
+ *
+ * Every figure on this page is server-derived: portfolio and arrears come from
+ * `mf_loan_balances` / `mf_loan_arrears` / `mf_par_summary`, and today's cash
+ * movements come from the append-only `mf_repayments` / `mf_loan_disbursements`
+ * event tables. React only labels, filters by permission and lays out — it
+ * never computes outstanding principal, arrears, PAR or allocations.
+ *
+ * ERP dashboards (sales summary, receivables, backorders, low stock, payroll,
+ * AI upsell widgets) were removed with the ERP domains; do not reintroduce
+ * them here.
+ */
+import { useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  AlertTriangle,
+  ArrowRight,
+  ClipboardList,
+  HandCoins,
+  Landmark,
+  Loader2,
+  Target,
+  Users,
+  Wallet,
+} from "lucide-react";
+
+import { DashboardAppLayout as DashboardLayout } from "@/apps/dashboard";
+import { PageHeader, PageBody, Section } from "@/design-system";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useCurrency } from "@/hooks/useCurrency";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useMfPortfolioReport, useMfCollectionsReport, useMfDisbursementsReport } from "@/hooks/useMfReports";
+import { useMfArrears, useMfParSummary } from "@/hooks/useMfCollections";
+import { useMfApplications } from "@/hooks/useMfApplications";
+import { useMfClients } from "@/hooks/useMfClients";
+
+interface Kpi {
+  key: string;
+  title: string;
+  value: string;
+  hint?: string;
+  icon: React.ElementType;
+  href?: string;
+  tone?: "default" | "danger";
+}
+
+function KpiCard({ kpi, isLoading }: { kpi: Kpi; isLoading: boolean }) {
+  const body = (
+    <Card className="transition-all hover:border-primary/20 hover:shadow-md">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
+        <CardTitle className="text-xs font-medium text-muted-foreground">{kpi.title}</CardTitle>
+        <kpi.icon
+          className={
+            kpi.tone === "danger" ? "h-4 w-4 text-destructive" : "h-4 w-4 text-muted-foreground"
+          }
+        />
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        {isLoading ? (
+          <Skeleton className="h-7 w-24" />
+        ) : (
+          <div
+            className={
+              kpi.tone === "danger"
+                ? "text-xl font-bold tabular-nums text-destructive"
+                : "text-xl font-bold tabular-nums"
+            }
+          >
+            {kpi.value}
+          </div>
+        )}
+        {kpi.hint ? (
+          <p className="mt-1 text-xs text-muted-foreground">{kpi.hint}</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+
+  return kpi.href ? <Link to={kpi.href}>{body}</Link> : body;
+}
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
-  const { organizations, currentOrg, isLoading: orgLoading, refreshOrganizations } = useOrganization();
-  const { currentBusiness, businesses } = useBusinesses();
-  const { stats, isLoading: statsLoading } = useDashboardStats();
-  const { analytics, isLoading: analyticsLoading } = useDashboardAnalytics();
-  const { formatCurrency, convertCurrency, baseCurrency, getCurrencySymbol, isReady: currencyReady } = useCurrency();
-  const { viewCurrency, setViewCurrency } = useViewCurrencyPreference();
-  // Pass user metadata to enable server-side data access
-  const { getPendingSetup, clearPendingSetup } = usePendingBusinessSetup(user?.user_metadata);
-  // Platform-admin probe — used to bounce SaaS operators out of the customer
-  // dashboard. They land here only if they clicked a stale link; the empty
-  // state below is for tenant customers and would conflate the two roles.
-  // Module + permission awareness — drives which widgets/tabs render so the
-  // dashboard stops showing Low Stock to tenants without Inventory installed,
-  // Payroll widgets to tenants without HR, etc. (See dashboard audit plan.)
-  const composition = useDashboardComposition();
-  const {
-    hasSales,
-    hasPurchases,
-    hasInventory,
-    hasFinance,
-    hasHR,
-    showBankBalance,
-    showLowStock,
-    showCreditAlerts,
-    showBackorders,
-    showPendingApprovals,
-    showBranchComparison,
-    showAIInsights,
-    showPayrollSummary,
-    showUpcomingDeadlines,
-    isNewTenant,
-    setupGaps,
-    role,
-    allowsWidget,
-  } = composition;
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("overview");
-  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
 
-  const isLoading = orgLoading || !currencyReady;
+  const canViewLoans = can("viewLoans");
+  const canViewCollections = can("viewCollections");
+  const canViewClients = can("viewClients");
+  const canViewApplications = can("viewApplications");
+  const canRecordRepayments = can("recordRepayments");
 
-  // NOTE: Dashboard does NOT auto-create organizations from pending signup metadata.
-  // Onboarding is the single authoritative provisioning path (see OnboardingSetup +
-  // OnboardingGuard). Having two creation paths caused duplicate-key 409 races
-  // during signup. If a user lands here without an org, OnboardingGuard will route
-  // them to /onboarding-setup or /select-organization as appropriate.
+  const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
-  // Show setup wizard for new organizations that haven't completed it
-  useEffect(() => {
-    if (currentOrg && (currentOrg as any).setup_wizard_completed === false) {
-      setShowSetupWizard(true);
-    }
-  }, [currentOrg]);
+  const { rows: portfolio, isLoading: portfolioLoading } = useMfPortfolioReport("active");
+  const { arrears, isLoading: arrearsLoading } = useMfArrears();
+  const { par, isLoading: parLoading } = useMfParSummary();
+  const { rows: todaysCollections, isLoading: collectionsLoading } = useMfCollectionsReport(today, today);
+  const { rows: todaysDisbursements, isLoading: disbursementsLoading } = useMfDisbursementsReport(today, today);
+  const { applications, isLoading: applicationsLoading } = useMfApplications({ status: "open" });
+  const { clients, isLoading: clientsLoading } = useMfClients({ status: "active" });
 
-  const displayCurrency = viewCurrency || baseCurrency;
+  const money = (amount: number) => formatCurrency(amount, baseCurrency);
 
-  const displayAmount = (amount: number) => {
-    if (displayCurrency !== baseCurrency) {
-      const converted = convertCurrency(amount, baseCurrency, displayCurrency);
-      if (converted === null) return "—";
-      return formatCurrency(converted, displayCurrency);
-    }
-    return formatCurrency(amount, baseCurrency);
-  };
+  const portfolioOutstanding = portfolio.reduce((sum, r) => sum + r.total_outstanding, 0);
+  const arrearsAmount = arrears.reduce((sum, r) => sum + r.arrears_amount, 0);
+  const arrearsLoanCount = new Set(arrears.map((r) => r.loan_id)).size;
+  const par30 = par.reduce((sum, r) => sum + (r.par_30 ?? 0), 0);
+  const collectedToday = todaysCollections
+    .filter((r) => r.status !== "reversed")
+    .reduce((sum, r) => sum + r.amount, 0);
+  const disbursedToday = todaysDisbursements
+    .filter((r) => !r.reversed)
+    .reduce((sum, r) => sum + r.amount, 0);
 
-  if (isLoading) {
+  const kpis: Kpi[] = [];
+  if (canViewLoans) {
+    kpis.push({
+      key: "portfolio",
+      title: "Portfolio outstanding",
+      value: money(portfolioOutstanding),
+      hint: `${portfolio.length} active loan${portfolio.length === 1 ? "" : "s"}`,
+      icon: HandCoins,
+      href: "/lending/reports/portfolio",
+    });
+  }
+  if (canViewCollections) {
+    kpis.push(
+      {
+        key: "arrears",
+        title: "Arrears",
+        value: money(arrearsAmount),
+        hint: `${arrearsLoanCount} loan${arrearsLoanCount === 1 ? "" : "s"} in arrears`,
+        icon: AlertTriangle,
+        href: "/lending/reports/arrears",
+        tone: arrearsAmount > 0 ? "danger" : "default",
+      },
+      {
+        key: "par30",
+        title: "PAR 30",
+        value: money(par30),
+        hint: "Portfolio at risk over 30 days",
+        icon: Target,
+        href: "/lending/reports/arrears",
+      },
+    );
+  }
+  if (canRecordRepayments || canViewCollections) {
+    kpis.push({
+      key: "collected",
+      title: "Collected today",
+      value: money(collectedToday),
+      hint: `${todaysCollections.length} receipt${todaysCollections.length === 1 ? "" : "s"}`,
+      icon: Wallet,
+      href: "/lending/repayments",
+    });
+  }
+  if (canViewLoans) {
+    kpis.push({
+      key: "disbursed",
+      title: "Disbursed today",
+      value: money(disbursedToday),
+      hint: `${todaysDisbursements.length} disbursement${todaysDisbursements.length === 1 ? "" : "s"}`,
+      icon: Landmark,
+      href: "/lending/reports/disbursements",
+    });
+  }
+  if (canViewApplications) {
+    kpis.push({
+      key: "applications",
+      title: "Open applications",
+      value: String(applications.length),
+      hint: "Awaiting assessment or decision",
+      icon: ClipboardList,
+      href: "/lending/applications",
+    });
+  }
+  if (canViewClients) {
+    kpis.push({
+      key: "clients",
+      title: "Active clients",
+      value: String(clients.length),
+      icon: Users,
+      href: "/lending",
+    });
+  }
+
+  const kpiLoading =
+    !currencyReady ||
+    portfolioLoading ||
+    arrearsLoading ||
+    parLoading ||
+    collectionsLoading ||
+    disbursementsLoading ||
+    applicationsLoading ||
+    clientsLoading;
+
+  const worstArrears = useMemo(
+    () =>
+      [...arrears]
+        .sort((a, b) => b.days_past_due - a.days_past_due || b.arrears_amount - a.arrears_amount)
+        .slice(0, 8),
+    [arrears],
+  );
+
+  if (!currencyReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading your workspace...</p>
+      <DashboardLayout>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
-
-  // Single institution: workspaces are provisioned centrally, never self-served.
-  if (organizations.length === 0) {
-    return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
-          <div className="container flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-lg">Smart Grow Empowerment</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <User className="h-4 w-4" />
-                {user?.email}
-              </div>
-              <Button variant="ghost" size="sm" onClick={signOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </div>
-          </div>
-        </header>
-        <main className="container py-16">
-          <div className="max-w-xl mx-auto text-center">
-            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <Building2 className="w-10 h-10 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold mb-4">No institution access</h1>
-            <p className="text-lg text-muted-foreground">
-              Your account is not yet attached to the institution workspace. Ask a
-              Super Administrator to grant you access, then sign in again.
-            </p>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "invoice": return <FileText className="h-4 w-4 text-blue-600" />;
-      case "payment": return <Coins className="h-4 w-4 text-green-600" />;
-      case "expense": return <Receipt className="h-4 w-4 text-red-600" />;
-      case "bill": return <Receipt className="h-4 w-4 text-orange-600" />;
-      default: return <FileText className="h-4 w-4" />;
-    }
-  };
-
-  const getActivityBadge = (type: string) => {
-    switch (type) {
-      case "invoice": return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Invoice</Badge>;
-      case "payment": return <Badge variant="secondary" className="bg-green-100 text-green-800">Payment</Badge>;
-      case "expense": return <Badge variant="secondary" className="bg-red-100 text-red-800">Expense</Badge>;
-      case "bill": return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Bill</Badge>;
-      default: return <Badge variant="secondary">{type}</Badge>;
-    }
-  };
-
-  const chartData = stats.monthlyRevenue.map((rev, i) => ({
-    month: rev.month,
-    revenue: rev.amount,
-    expenses: stats.monthlyExpenses[i]?.amount || 0,
-  }));
-
-  const currencySymbol = getCurrencySymbol(displayCurrency);
-
-  // Cross-company consolidation lives at /reports/consolidation (Odoo-style).
-  // The dashboard always renders the active company; never an aggregated view.
 
   return (
     <DashboardLayout>
       <PageHeader
-        eyebrow="Overview"
-        title="Dashboard"
-        description="Welcome back! Here's an overview of your business."
-        actions={<CurrencyToggle />}
-      />
-      <PageBody fullWidth className="gap-4 sm:gap-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <DashboardScopeBadge />
-          <ScopeBadge declareScope={false} />
-          {role !== "generic" ? (
-            <Badge variant="outline" className="capitalize">
-              Viewing as {role}
-            </Badge>
-          ) : null}
-        </div>
-
-
-
-        {/*
-          Command strip — surfaces the highest-signal "needs attention"
-          counts (overdue invoices, bills due soon, low stock, unreconciled
-          bank txns) as deep-link chips that preserve dashboard scope. Hidden
-          entirely when nothing is actionable so the dashboard stays calm.
-        */}
-        <DashboardCommandStrip
-          hasSales={hasSales}
-          hasPurchases={hasPurchases}
-          hasInventory={hasInventory}
-          hasFinance={hasFinance}
-        />
-
-        {/* New-tenant setup guide — promoted above the widget wall when
-            the workspace is missing foundational data (bank, customers,
-            invoices). Replaces zeroed widgets with concrete CTAs. */}
-        {isNewTenant ? <DashboardSetupGuide gaps={setupGaps} /> : null}
-
-        {/* Verb-led Create bar — primary transactional actions, gated by
-            install + permission. Sits between the setup guide and the
-            tabs so any user (executive or operator) can start work in
-            one click without diving through sidebars. */}
-        <DashboardCreateBar />
-
-        {/* Tabbed Dashboard */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full sm:w-auto">
-            <TabsTrigger value="overview" className="gap-1.5 text-xs sm:text-sm">
-              <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            {hasSales && allowsWidget("revenueChart") ? (
-              <TabsTrigger value="sales" className="gap-1.5 text-xs sm:text-sm">
-                <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Sales</span>
-              </TabsTrigger>
+        title="Command center"
+        description="Today's lending operations — portfolio, arrears, collections and disbursements."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {canRecordRepayments ? (
+              <Button size="sm" onClick={() => navigate("/lending/repayments")}>
+                <Wallet className="h-4 w-4" />
+                Record repayment
+              </Button>
             ) : null}
-            {hasFinance && (role === "executive" || role === "accountant") ? (
-              <TabsTrigger value="cashflow" className="gap-1.5 text-xs sm:text-sm">
-                <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Cash Flow</span>
-              </TabsTrigger>
+            {canViewApplications ? (
+              <Button size="sm" variant="outline" onClick={() => navigate("/lending/applications")}>
+                <ClipboardList className="h-4 w-4" />
+                Applications
+              </Button>
             ) : null}
-            {hasPurchases && role !== "cashier" && role !== "sales" ? (
-              <TabsTrigger value="expenses" className="gap-1.5 text-xs sm:text-sm">
-                <PieChart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Expenses</span>
-              </TabsTrigger>
+            {canViewCollections ? (
+              <Button size="sm" variant="outline" onClick={() => navigate("/lending/collections")}>
+                <Target className="h-4 w-4" />
+                Collections
+              </Button>
             ) : null}
-            {(hasSales || hasPurchases) && role !== "cashier" && role !== "operations" ? (
-              <TabsTrigger value="receivables" className="gap-1.5 text-xs sm:text-sm">
-                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Receivables</span>
-              </TabsTrigger>
-            ) : null}
-          </TabsList>
-
-          {statsLoading || analyticsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              {/* Overview Tab */}
-              <TabsContent value="overview" className="space-y-4 sm:space-y-6">
-                {allowsWidget("kpi") ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4">
-                  <Card
-                    onClick={() => navigate("/finance/reports/financial?period=current_month")}
-                    role="link"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") navigate("/finance/reports/financial?period=current_month"); }}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardDescription className="text-xs sm:text-sm">Total Revenue</CardDescription>
-                      <TrendingUp className="h-4 w-4 text-success flex-shrink-0" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-xl font-bold tabular-nums break-words text-success" title={displayAmount(stats.totalRevenue)}>{displayAmount(stats.totalRevenue)}</div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        {stats.totalRevenueChange >= 0 ? <ArrowUpRight className="h-3 w-3 text-success" /> : <ArrowDownRight className="h-3 w-3 text-destructive" />}
-                        <span className={stats.totalRevenueChange >= 0 ? "text-success" : "text-destructive"}>{Math.abs(stats.totalRevenueChange).toFixed(1)}%</span>
-                        <span>vs last month</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    onClick={() => navigate("/sales/invoices?status=overdue,sent,partial")}
-                    role="link"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") navigate("/sales/invoices?status=overdue,sent,partial"); }}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardDescription className="text-xs sm:text-sm">Outstanding</CardDescription>
-                      <FileText className="h-4 w-4 text-warning flex-shrink-0" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-xl font-bold tabular-nums break-words text-warning" title={displayAmount(stats.outstandingInvoices)}>{displayAmount(stats.outstandingInvoices)}</div>
-                      <p className="text-xs text-muted-foreground mt-1">{stats.outstandingCount} invoice{stats.outstandingCount !== 1 ? "s" : ""} pending</p>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    onClick={() => navigate("/finance/reports/financial?period=current_month")}
-                    role="link"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") navigate("/finance/reports/financial?period=current_month"); }}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardDescription className="text-xs sm:text-sm">Expenses</CardDescription>
-                      <TrendingDown className="h-4 w-4 text-destructive flex-shrink-0" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-xl font-bold tabular-nums break-words text-destructive" title={displayAmount(stats.totalExpenses)}>{displayAmount(stats.totalExpenses)}</div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        {stats.totalExpensesChange >= 0 ? <ArrowUpRight className="h-3 w-3 text-destructive" /> : <ArrowDownRight className="h-3 w-3 text-success" />}
-                        <span className={stats.totalExpensesChange >= 0 ? "text-destructive" : "text-success"}>{Math.abs(stats.totalExpensesChange).toFixed(1)}%</span>
-                        <span>vs last month</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    onClick={() => navigate("/finance/reports/financial?period=current_month")}
-                    role="link"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") navigate("/finance/reports/financial?period=current_month"); }}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardDescription className="text-xs sm:text-sm">Net Profit</CardDescription>
-                      <Coins className={`h-4 w-4 flex-shrink-0 ${stats.netProfit >= 0 ? "text-success" : "text-destructive"}`} />
-                    </CardHeader>
-                    <CardContent>
-                      <div className={`text-xl font-bold tabular-nums break-words ${stats.netProfit >= 0 ? "text-success" : "text-destructive"}`} title={displayAmount(stats.netProfit)}>{displayAmount(stats.netProfit)}</div>
-                      <p className="text-xs text-muted-foreground mt-1">All time</p>
-                    </CardContent>
-                  </Card>
-                </div>
-                ) : null}
-
-
-                <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  {allowsWidget("revenueChart") ? (
-                  <Card className="md:col-span-2">
-                    <CardHeader>
-                      <CardTitle className="text-base sm:text-lg">Revenue vs Expenses</CardTitle>
-                      <CardDescription>Last 6 months</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {chartData.some(d => d.revenue > 0 || d.expenses > 0) ? (
-                        <div className="h-[200px] sm:h-[250px] min-w-0">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData} margin={{ left: -10, right: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                              <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 10 }} />
-                              <YAxis className="text-xs" tick={{ fontSize: 10 }} tickFormatter={(v) => `${currencySymbol}${(v / 1000).toFixed(0)}k`} width={50} />
-                              <Tooltip formatter={(value: number) => displayAmount(value)} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                              <Area type="monotone" dataKey="revenue" stroke="hsl(142, 76%, 36%)" fill="hsl(142, 76%, 36%, 0.2)" name="Revenue" />
-                              <Area type="monotone" dataKey="expenses" stroke="hsl(0, 84%, 60%)" fill="hsl(0, 84%, 60%, 0.2)" name="Expenses" />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-[200px] sm:h-[250px] text-muted-foreground">No data yet</div>
-                      )}
-                    </CardContent>
-                  </Card>
-                  ) : null}
-                  {allowsWidget("recentActivity") ? (
-                  <Card className="md:col-span-2 lg:col-span-1">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base sm:text-lg">Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {stats.recentActivity.length === 0 ? (
-                        <div className="flex items-center justify-center h-32 text-muted-foreground">No recent activity</div>
-                      ) : (
-                        <div className="space-y-3">
-                          {stats.recentActivity.slice(0, 5).map((activity) => (
-                            <div key={activity.id} className="flex items-center gap-2 sm:gap-3">
-                              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-muted flex-shrink-0">{getActivityIcon(activity.type)}</div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs sm:text-sm font-medium truncate">{activity.description}</p>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">{format(new Date(activity.date), "MMM d")}</p>
-                              </div>
-                              <p className={`text-xs sm:text-sm font-medium flex-shrink-0 ${activity.type === "expense" || activity.type === "bill" ? "text-destructive" : activity.type === "payment" ? "text-success" : ""}`}>
-                                {displayAmount(activity.amount)}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                  ) : null}
-                  {showBankBalance && allowsWidget("bankBalance") ? <BankBalanceWidget /> : null}
-                  {showCreditAlerts && allowsWidget("creditAlerts") ? <CreditAlertWidget /> : null}
-                  {showBackorders && allowsWidget("backorders") ? <BackorderWidget /> : null}
-                  {null}
-                  {showUpcomingDeadlines && allowsWidget("upcomingDeadlines") ? (
-                    <UpcomingDeadlinesWidget hasSales={hasSales} hasPurchases={hasPurchases} hasHR={hasHR} />
-                  ) : null}
-                  {allowsWidget("activityFeed") ? <ActivityFeed /> : null}
-                  {showBranchComparison && allowsWidget("branchComparison") ? <BranchComparisonWidget /> : null}
-                </div>
-
-                {/*
-                  Quick Actions — uses the shared QuickActions component so the
-                  dashboard, the home launcher, and any future surface share ONE
-                  source of truth for app-install + permission + correct-path
-                  routing. The previous inline buttons hard-coded /invoices,
-                  /contacts, /expenses which 404 because the real routes live
-                  under /sales/*, /contacts-app/*, /purchases/*.
-                */}
-                {allowsWidget("quickActions") ? <QuickActions /> : null}
-              </TabsContent>
-
-              {/* Sales Tab */}
-              <TabsContent value="sales">
-                {analytics?.salesSummary && (
-                  <SalesSummaryWidget data={analytics.salesSummary} displayCurrency={displayCurrency} />
-                )}
-              </TabsContent>
-
-              {/* Cash Flow Tab */}
-              <TabsContent value="cashflow">
-                {analytics?.cashFlow && (
-                  <CashFlowWidget data={analytics.cashFlow} cashBalance={analytics.cashBalance} displayCurrency={displayCurrency} />
-                )}
-              </TabsContent>
-
-              {/* Expenses Tab */}
-              <TabsContent value="expenses">
-                {analytics?.expenseCategories && (
-                  <ExpenseCategoriesWidget data={analytics.expenseCategories} displayCurrency={displayCurrency} />
-                )}
-              </TabsContent>
-
-              {/* Receivables Tab */}
-              <TabsContent value="receivables">
-                {analytics?.receivables && analytics?.payables && (
-                  <ReceivablesWidget receivables={analytics.receivables} payables={analytics.payables} displayCurrency={displayCurrency} />
-                )}
-              </TabsContent>
-            </>
-          )}
-        </Tabs>
-
-        {/* Onboarding Checklist — keeps fine-grained progress underneath
-            the DashboardSetupGuide. The setup guide handles the loud,
-            top-of-page CTAs for brand-new tenants. */}
-        <OnboardingChecklist />
-
-        {/* AI Insights — only meaningful once the tenant has live data. */}
-        {showAIInsights && allowsWidget("aiInsights") ? (
-          <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
-            <AIInsightsWidget />
-            <AISuggestionsWidget
-              pendingInvoices={stats?.outstandingCount ?? 0}
-              overdueAmount={analytics?.receivables?.totalOverdue || 0}
-            />
           </div>
+        }
+      />
+      <PageBody>
+        {kpis.length > 0 ? (
+          <Section title="Portfolio at a glance" unstyled>
+            <div className="grid grid-cols-1 gap-3 @[26rem]/page:grid-cols-2 @[52rem]/page:grid-cols-3 @[72rem]/page:grid-cols-6">
+              {kpis.map((kpi) => (
+                <KpiCard key={kpi.key} kpi={kpi} isLoading={kpiLoading} />
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {canViewCollections ? (
+          <Section
+            title="Worst arrears"
+            description="Highest days past due first — follow up from the collections workspace."
+          >
+            {arrearsLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : worstArrears.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No loan is in arrears today.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Loan</TableHead>
+                    <TableHead>Installment</TableHead>
+                    <TableHead>Due</TableHead>
+                    <TableHead className="text-right">Arrears</TableHead>
+                    <TableHead className="text-right">DPD</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {worstArrears.map((row) => (
+                    <TableRow key={`${row.loan_id}-${row.installment_no}`}>
+                      <TableCell className="font-medium">{row.loan_number}</TableCell>
+                      <TableCell>#{row.installment_no}</TableCell>
+                      <TableCell>{format(new Date(row.due_date), "dd MMM yyyy")}</TableCell>
+                      <TableCell className="text-right tabular-nums text-destructive">
+                        {money(row.arrears_amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="destructive">{row.days_past_due}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            <div className="mt-3">
+              <Button asChild size="sm" variant="ghost">
+                <Link to="/lending/reports/arrears">
+                  Full arrears &amp; PAR report
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
+          </Section>
+        ) : null}
+
+        {canRecordRepayments || canViewCollections ? (
+          <Section title="Today's receipts" description="Cash, bank and mobile-money repayments recorded today.">
+            {collectionsLoading ? (
+              <Skeleton className="h-32 w-full" />
+            ) : todaysCollections.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No repayment has been recorded today.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Receipt</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Loan</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {todaysCollections.slice(0, 8).map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.receipt_number ?? "—"}</TableCell>
+                      <TableCell>{row.client_name}</TableCell>
+                      <TableCell>{row.loan_number}</TableCell>
+                      <TableCell className="capitalize">{row.method.replace(/_/g, " ")}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.status === "reversed" ? (
+                          <span className="text-muted-foreground line-through">{money(row.amount)}</span>
+                        ) : (
+                          money(row.amount)
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            <div className="mt-3">
+              <Button asChild size="sm" variant="ghost">
+                <Link to="/lending/repayments">
+                  Repayments workspace
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
+          </Section>
         ) : null}
       </PageBody>
-
-
-
-      {/* Setup Wizard for new organizations */}
-      <SetupWizard 
-        open={showSetupWizard} 
-        onOpenChange={setShowSetupWizard}
-        onComplete={() => {
-          setShowSetupWizard(false);
-          refreshOrganizations();
-        }}
-      />
     </DashboardLayout>
   );
 }
