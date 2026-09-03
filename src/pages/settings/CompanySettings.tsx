@@ -34,18 +34,13 @@ import {
   Loader2,
   Building2,
   Coins,
-  Percent,
   CreditCard,
   Store,
-  Calendar,
   Mail,
-  FileCheck,
-  Receipt,
   FileText,
   Wallet,
   ArrowLeft,
   Mail as MailIcon,
-  Package,
 } from "lucide-react";
 
 import { CurrencySettings } from "@/components/settings/CurrencySettings";
