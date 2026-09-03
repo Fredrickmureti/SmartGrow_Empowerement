@@ -201,6 +201,12 @@ const LENDING_LAYOUTS: Record<
       org as never,
       opts as never,
     ),
+  "lending.client_statement": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/lending.ts")).generateClientStatementPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
 };
 
 const COUNT_FORBIDDEN_BLOCKS = new Set(["party", "totals"]);
