@@ -18,7 +18,7 @@ export function ThemeSettings() {
       <CardHeader>
         <CardTitle>Appearance</CardTitle>
         <CardDescription>
-          Customize how AccrualFlow looks on your device
+          Customize how Smart Grow Empowerment looks on your device
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

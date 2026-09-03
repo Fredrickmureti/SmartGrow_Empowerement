@@ -65,8 +65,8 @@ export default function GovernanceSoD() {
           Segregation of Duties
         </h1>
         <p className="text-muted-foreground mt-1">
-          Users currently holding incompatible duty combinations. Combinations follow standard
-          ERP control matrices (SAP GRC, Oracle Risk Cloud). Resolve by splitting duties across
+          Users currently holding incompatible duty combinations (e.g. approving and disbursing
+          the same loan, or creating and approving payments). Resolve by splitting duties across
           two people or by removing the conflicting permission.
         </p>
       </header>

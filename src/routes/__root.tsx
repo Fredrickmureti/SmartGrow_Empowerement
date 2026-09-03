@@ -77,15 +77,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AccrualFlow" },
-      { name: "description", content: "AccrualFlow — multi-entity accounting, consolidation, POS and financial reporting." },
-      { name: "author", content: "AccrualFlow" },
-      { property: "og:title", content: "AccrualFlow" },
-      { property: "og:description", content: "AccrualFlow — multi-entity accounting, consolidation, POS and financial reporting." },
+      { title: "Smart Grow Empowerment" },
+      { name: "description", content: "Smart Grow Empowerment — microfinance management system for clients, groups, loans, repayments and collections." },
+      { name: "author", content: "Smart Grow Empowerment" },
+      { property: "og:title", content: "Smart Grow Empowerment" },
+      { property: "og:description", content: "Smart Grow Empowerment — microfinance management system for clients, groups, loans, repayments and collections." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "AccrualFlow" },
-      { name: "twitter:description", content: "AccrualFlow — multi-entity accounting, consolidation, POS and financial reporting." },
+      { name: "twitter:title", content: "Smart Grow Empowerment" },
+      { name: "twitter:description", content: "Smart Grow Empowerment — microfinance management system for clients, groups, loans, repayments and collections." },
     ],
     links: [
       {

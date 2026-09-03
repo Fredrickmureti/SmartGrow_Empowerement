@@ -77,7 +77,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
                 <Bot className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="text-base font-semibold">AccrualFlow AI</span>
+                <span className="text-base font-semibold">Smart Grow Assistant</span>
                 <span className="text-xs text-muted-foreground font-normal">
                   {workingContext.appKey === "global"
                     ? "Your Financial Assistant"
@@ -189,7 +189,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4">
                 <Sparkles className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="font-semibold text-lg mb-1">Welcome to AccrualFlow AI</h3>
+              <h3 className="font-semibold text-lg mb-1">Welcome to Smart Grow Assistant</h3>
               <p className="text-sm text-muted-foreground mb-6 max-w-[280px]">
                 Your intelligent assistant for financial insights, accounting guidance, and data analysis.
               </p>
@@ -270,7 +270,7 @@ export function AIAssistantChat({ open, onOpenChange, currentPath }: AIAssistant
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask AccrualFlow AI..."
+              placeholder="Ask Smart Grow Assistant..."
               disabled={isLoading}
               className="rounded-full bg-muted/50 border-muted-foreground/20 focus-visible:ring-primary/30"
             />
