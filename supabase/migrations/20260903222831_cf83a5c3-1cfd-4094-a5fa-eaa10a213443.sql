@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS public.controlled_substance_register;
