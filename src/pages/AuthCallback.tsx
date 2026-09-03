@@ -239,10 +239,7 @@ export default function AuthCallback() {
             </AlertDescription>
           </Alert>
           <Button asChild className="w-full">
-            <Link to="/signup">Sign up again</Link>
-          </Button>
-          <Button asChild variant="outline" className="w-full">
-            <Link to="/login">I already have a different account</Link>
+            <Link to="/login">Back to sign in</Link>
           </Button>
         </div>
       </AuthLayout>
