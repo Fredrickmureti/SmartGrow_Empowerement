@@ -11,13 +11,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { useAccounts } from "@/hooks/useAccounts";
 import { MF_MAPPING_SPECS, useMfAccountMappings } from "@/hooks/useMfAccountMappings";
+import { AllocationPolicyCard } from "./AllocationPolicyCard";
 
 export function AccountingMappingsPage() {
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { resolved, isLoading, error, setMapping } = useMfAccountMappings();
 
   return (
-    <div className="p-6">
+    <div className="space-y-6 p-6">
+      <AllocationPolicyCard />
       <Card>
         <CardHeader>
           <CardTitle>Accounting mappings</CardTitle>

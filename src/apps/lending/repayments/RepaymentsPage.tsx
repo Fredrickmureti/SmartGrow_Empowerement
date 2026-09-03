@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Undo2, Layers, Landmark } from "lucide-react";
+import { Plus, Undo2, Layers, Landmark, Users } from "lucide-react";
 import {
   PageHeader,
   PageBody,
