@@ -151,8 +151,11 @@ export default function Dashboard() {
       {
         key: "par30",
         title: "PAR 30",
-        value: money(par30),
-        hint: "Portfolio at risk over 30 days",
+        value:
+          portfolioOutstanding > 0
+            ? `${((par30 / portfolioOutstanding) * 100).toFixed(1)}%`
+            : "0.0%",
+        hint: `${money(par30)} at risk over 30 days`,
         icon: Target,
         href: "/lending/reports/arrears",
       },
