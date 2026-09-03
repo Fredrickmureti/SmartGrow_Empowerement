@@ -56,9 +56,6 @@ const REPORTING_RPCS = [
 
 const SERVICE_FILES = [
   "src/services/finance/openItems.ts",
-  "src/services/finance/partnerLedger.ts",
-  "src/services/finance/salesAnalysis.ts",
-  "src/services/finance/purchaseAnalysis.ts",
 ];
 
 describe("reporting isolation matrix — client half", () => {

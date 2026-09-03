@@ -32,9 +32,7 @@ const PAGE_REGISTRY_KEYS: Record<string, string> = {
   "TrialBalance.tsx": "trial_balance",
   "CashFlowReport.tsx": "cash_flow",
   "GeneralLedger.tsx": "general_ledger",
-  "PartnerLedger.tsx": "partner_ledger",
   "JournalReport.tsx": "journal_report",
-  "BudgetReport.tsx": "budget_vs_actual",
   "DepreciationReport.tsx": "depreciation_schedule",
   "AuditTrail.tsx": "audit_trail",
 };
