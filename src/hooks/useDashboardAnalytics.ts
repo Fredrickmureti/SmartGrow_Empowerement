@@ -192,14 +192,6 @@ export function useDashboardAnalytics() {
         supabase.from("bank_accounts").select("*")
       ).eq("is_active", true);
 
-      // POS transactions — completed, no invoice_id (avoids double-counting credit sales)
-      const posQuery = applyScope(
-        supabase.from("pos_transactions").select("id, total, created_at, status")
-      ).eq("status", "completed").is("invoice_id", null);
-
-      // POS transaction items for top products — filtered downstream by transaction_id
-      const posItemsQuery = supabase.from("pos_transaction_items").select("description, quantity, line_total, transaction_id");
-
       const [
         { data: invoices },
         { data: payments },
@@ -221,14 +213,11 @@ export function useDashboardAnalytics() {
         ),
       ]);
 
-      // Fetch POS data separately to avoid deep type instantiation
-      const { data: posTransactions } = await posQuery;
-      const { data: posItems } = await posItemsQuery;
+      // POS is permanently out of scope for the microfinance platform.
+      // The arithmetic below keeps its shape with empty inputs.
+      const filteredPosItems: Array<{ description: string | null; quantity: number | null; line_total: number | null; transaction_id: string }> = [];
+      const posTxns: Array<{ id: string; total: number; created_at: string; status: string }> = [];
 
-      // Filter POS items to only include items from non-invoiced completed transactions
-      const posCompletedIds = new Set((posTransactions || []).map(t => t.id));
-      const filteredPosItems = (posItems || []).filter(item => posCompletedIds.has(item.transaction_id));
-      const posTxns = posTransactions || [];
 
       // Calculate Sales Summary — includes POS direct sales
       const paidInvoices = invoices?.filter(i => i.status === "paid") || [];
