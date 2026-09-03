@@ -17856,6 +17856,13 @@ export type Database = {
             foreignKeyName: "mf_collection_activities_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -18122,6 +18129,13 @@ export type Database = {
             foreignKeyName: "mf_group_members_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -18292,6 +18306,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "mf_loan_applications_client_id_fkey"
@@ -18777,6 +18798,13 @@ export type Database = {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -19013,6 +19041,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mf_repayment_batches"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_repayments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "mf_repayments_client_id_fkey"
@@ -30475,6 +30510,41 @@ export type Database = {
         }
         Relationships: []
       }
+      mf_client_exposure: {
+        Row: {
+          active_loan_count: number | null
+          amount_overdue: number | null
+          branch_id: string | null
+          business_id: string | null
+          client_id: string | null
+          client_number: string | null
+          client_status: string | null
+          fees_outstanding: number | null
+          full_name: string | null
+          interest_outstanding: number | null
+          loan_officer_id: string | null
+          next_due_date: string | null
+          principal_outstanding: number | null
+          total_outstanding: number | null
+          worst_days_past_due: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_clients_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_client_statement: {
         Row: {
           amount_in: number | null
@@ -30491,6 +30561,35 @@ export type Database = {
           loan_number: string | null
           method: string | null
           reference: string | null
+        }
+        Relationships: []
+      }
+      mf_collections_by_branch: {
+        Row: {
+          amount_collected: number | null
+          branch_id: string | null
+          business_id: string | null
+          cash_collected: number | null
+          client_count: number | null
+          mobile_money_collected: number | null
+          other_collected: number | null
+          paid_on: string | null
+          receipt_count: number | null
+        }
+        Relationships: []
+      }
+      mf_collections_by_officer: {
+        Row: {
+          amount_collected: number | null
+          branch_id: string | null
+          business_id: string | null
+          cash_collected: number | null
+          client_count: number | null
+          loan_officer_id: string | null
+          mobile_money_collected: number | null
+          other_collected: number | null
+          paid_on: string | null
+          receipt_count: number | null
         }
         Relationships: []
       }
@@ -30532,6 +30631,13 @@ export type Database = {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -30558,6 +30664,13 @@ export type Database = {
           total_outstanding: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
           {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
@@ -30602,6 +30715,22 @@ export type Database = {
           },
         ]
       }
+      mf_par_aging: {
+        Row: {
+          branch_id: string | null
+          bucket_1_30: number | null
+          bucket_31_60: number | null
+          bucket_61_90: number | null
+          bucket_90_plus: number | null
+          business_id: string | null
+          current_outstanding: number | null
+          loan_count: number | null
+          loan_officer_id: string | null
+          loans_in_arrears: number | null
+          portfolio_outstanding: number | null
+        }
+        Relationships: []
+      }
       mf_par_summary: {
         Row: {
           branch_id: string | null
@@ -30617,6 +30746,32 @@ export type Database = {
           portfolio_outstanding: number | null
         }
         Relationships: []
+      }
+      mf_product_performance: {
+        Row: {
+          active_loan_count: number | null
+          amount_overdue: number | null
+          business_id: string | null
+          closed_loan_count: number | null
+          loan_count: number | null
+          outstanding: number | null
+          principal_contracted: number | null
+          principal_disbursed: number | null
+          product_code: string | null
+          product_id: string | null
+          product_name: string | null
+          worst_days_past_due: number | null
+          written_off_loan_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loans_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       one_on_ones_visible: {
         Row: {

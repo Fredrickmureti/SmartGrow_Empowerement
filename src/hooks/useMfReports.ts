@@ -269,3 +269,231 @@ export function useMfClientStatement(clientId: string | null, from: string, to: 
     error: query.error as Error | null,
   };
 }
+
+export interface MfCollectionsByScopeRow {
+  branch_id: string | null;
+  loan_officer_id: string | null;
+  paid_on: string;
+  receipt_count: number;
+  client_count: number;
+  amount_collected: number;
+  cash_collected: number;
+  mobile_money_collected: number;
+  other_collected: number;
+}
+
+/**
+ * Collections aggregated by loan officer or by branch for a period, from the
+ * server views `mf_collections_by_officer` / `mf_collections_by_branch`. The
+ * browser only sums the already-aggregated day rows for display totals.
+ */
+export function useMfCollectionsByScope(
+  scope: "officer" | "branch",
+  from: string,
+  to: string,
+) {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-collections-scope", scope, businessId, from, to],
+    queryFn: async (): Promise<MfCollectionsByScopeRow[]> => {
+      if (!businessId) return [];
+      const view = scope === "officer" ? "mf_collections_by_officer" : "mf_collections_by_branch";
+      const { data, error } = await supabase
+        .from(view)
+        .select("*")
+        .eq("business_id", businessId)
+        .gte("paid_on", from)
+        .lte("paid_on", to)
+        .order("paid_on", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      return rows.map((r) => ({
+        branch_id: (r.branch_id as string) ?? null,
+        loan_officer_id: (r.loan_officer_id as string) ?? null,
+        paid_on: r.paid_on as string,
+        receipt_count: Number(r.receipt_count ?? 0),
+        client_count: Number(r.client_count ?? 0),
+        amount_collected: Number(r.amount_collected ?? 0),
+        cash_collected: Number(r.cash_collected ?? 0),
+        mobile_money_collected: Number(r.mobile_money_collected ?? 0),
+        other_collected: Number(r.other_collected ?? 0),
+      }));
+    },
+    enabled: !!businessId,
+  });
+
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
+
+export interface MfProductPerformanceRow {
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  loan_count: number;
+  active_loan_count: number;
+  closed_loan_count: number;
+  written_off_loan_count: number;
+  principal_contracted: number;
+  principal_disbursed: number;
+  outstanding: number;
+  amount_overdue: number;
+  worst_days_past_due: number;
+}
+
+/** Product performance — disbursed, outstanding and overdue per loan product. */
+export function useMfProductPerformance() {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-product-performance", businessId],
+    queryFn: async (): Promise<MfProductPerformanceRow[]> => {
+      if (!businessId) return [];
+      const { data, error } = await supabase
+        .from("mf_product_performance")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("product_name", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      return rows.map((r) => ({
+        product_id: r.product_id as string,
+        product_code: (r.product_code as string) ?? "—",
+        product_name: (r.product_name as string) ?? "—",
+        loan_count: Number(r.loan_count ?? 0),
+        active_loan_count: Number(r.active_loan_count ?? 0),
+        closed_loan_count: Number(r.closed_loan_count ?? 0),
+        written_off_loan_count: Number(r.written_off_loan_count ?? 0),
+        principal_contracted: Number(r.principal_contracted ?? 0),
+        principal_disbursed: Number(r.principal_disbursed ?? 0),
+        outstanding: Number(r.outstanding ?? 0),
+        amount_overdue: Number(r.amount_overdue ?? 0),
+        worst_days_past_due: Number(r.worst_days_past_due ?? 0),
+      }));
+    },
+    enabled: !!businessId,
+  });
+
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
+
+export interface MfClientExposureRow {
+  client_id: string;
+  client_number: string;
+  full_name: string;
+  client_status: string;
+  branch_id: string | null;
+  loan_officer_id: string | null;
+  active_loan_count: number;
+  principal_outstanding: number;
+  interest_outstanding: number;
+  fees_outstanding: number;
+  total_outstanding: number;
+  amount_overdue: number;
+  worst_days_past_due: number;
+  next_due_date: string | null;
+}
+
+/** Client exposure — total outstanding and overdue per client, server-derived. */
+export function useMfClientExposure() {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-client-exposure", businessId],
+    queryFn: async (): Promise<MfClientExposureRow[]> => {
+      if (!businessId) return [];
+      const { data, error } = await supabase
+        .from("mf_client_exposure")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("full_name", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      return rows.map((r) => ({
+        client_id: r.client_id as string,
+        client_number: (r.client_number as string) ?? "—",
+        full_name: (r.full_name as string) ?? "—",
+        client_status: (r.client_status as string) ?? "—",
+        branch_id: (r.branch_id as string) ?? null,
+        loan_officer_id: (r.loan_officer_id as string) ?? null,
+        active_loan_count: Number(r.active_loan_count ?? 0),
+        principal_outstanding: Number(r.principal_outstanding ?? 0),
+        interest_outstanding: Number(r.interest_outstanding ?? 0),
+        fees_outstanding: Number(r.fees_outstanding ?? 0),
+        total_outstanding: Number(r.total_outstanding ?? 0),
+        amount_overdue: Number(r.amount_overdue ?? 0),
+        worst_days_past_due: Number(r.worst_days_past_due ?? 0),
+        next_due_date: (r.next_due_date as string) ?? null,
+      }));
+    },
+    enabled: !!businessId,
+  });
+
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
+
+export interface MfParAgingRow {
+  branch_id: string | null;
+  loan_officer_id: string | null;
+  loan_count: number;
+  loans_in_arrears: number;
+  portfolio_outstanding: number;
+  current_outstanding: number;
+  bucket_1_30: number;
+  bucket_31_60: number;
+  bucket_61_90: number;
+  bucket_90_plus: number;
+}
+
+/** PAR aging — outstanding split into DPD buckets per branch and officer. */
+export function useMfParAging() {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-par-aging", businessId],
+    queryFn: async (): Promise<MfParAgingRow[]> => {
+      if (!businessId) return [];
+      const { data, error } = await supabase
+        .from("mf_par_aging")
+        .select("*")
+        .eq("business_id", businessId);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      return rows.map((r) => ({
+        branch_id: (r.branch_id as string) ?? null,
+        loan_officer_id: (r.loan_officer_id as string) ?? null,
+        loan_count: Number(r.loan_count ?? 0),
+        loans_in_arrears: Number(r.loans_in_arrears ?? 0),
+        portfolio_outstanding: Number(r.portfolio_outstanding ?? 0),
+        current_outstanding: Number(r.current_outstanding ?? 0),
+        bucket_1_30: Number(r.bucket_1_30 ?? 0),
+        bucket_31_60: Number(r.bucket_31_60 ?? 0),
+        bucket_61_90: Number(r.bucket_61_90 ?? 0),
+        bucket_90_plus: Number(r.bucket_90_plus ?? 0),
+      }));
+    },
+    enabled: !!businessId,
+  });
+
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
