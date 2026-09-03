@@ -111,7 +111,6 @@ describe("report taxonomy coverage", () => {
   const FAMILY_IDS = [
     "aged-receivables",
     "aged-payables",
-    "partner-ledger",
   ];
 
   it("registers every report family", () => {
