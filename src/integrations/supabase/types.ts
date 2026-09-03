@@ -7907,69 +7907,6 @@ export type Database = {
         }
         Relationships: []
       }
-      controlled_substance_register: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          movement_date: string
-          movement_type: string
-          notes: string | null
-          organization_id: string
-          patient_reference: string | null
-          prescriber_license: string | null
-          prescriber_name: string | null
-          product_id: string
-          quantity: number
-          recorded_by: string
-          running_balance: number
-          schedule_class: string
-          source_document_id: string | null
-          source_document_type: string | null
-          witness_user_id: string | null
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          movement_date?: string
-          movement_type: string
-          notes?: string | null
-          organization_id: string
-          patient_reference?: string | null
-          prescriber_license?: string | null
-          prescriber_name?: string | null
-          product_id: string
-          quantity: number
-          recorded_by: string
-          running_balance: number
-          schedule_class: string
-          source_document_id?: string | null
-          source_document_type?: string | null
-          witness_user_id?: string | null
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          movement_date?: string
-          movement_type?: string
-          notes?: string | null
-          organization_id?: string
-          patient_reference?: string | null
-          prescriber_license?: string | null
-          prescriber_name?: string | null
-          product_id?: string
-          quantity?: number
-          recorded_by?: string
-          running_balance?: number
-          schedule_class?: string
-          source_document_id?: string | null
-          source_document_type?: string | null
-          witness_user_id?: string | null
-        }
-        Relationships: []
-      }
       core_field_overrides: {
         Row: {
           created_at: string
