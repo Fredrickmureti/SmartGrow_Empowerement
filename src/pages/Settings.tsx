@@ -26,6 +26,7 @@ const WORKSPACE_TABS = new Set([
   "notifications",
   "security",
   "access-groups",
+  "governance",
   "data",
 ]);
 
