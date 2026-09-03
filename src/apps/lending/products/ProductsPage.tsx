@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { History, Plus } from "lucide-react";
 import {
   PageHeader,
@@ -51,6 +52,7 @@ const STATUS_TONE: Record<MfProductStatus, "neutral" | "success" | "warning" | "
 };
 
 export function ProductsPage() {
+  const { can } = usePermissions();
   const [status, setStatus] = useState<MfProductStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfLoanProduct | null>(null);

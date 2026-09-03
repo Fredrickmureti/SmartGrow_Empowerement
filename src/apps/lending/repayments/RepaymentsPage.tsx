@@ -6,6 +6,7 @@
  * page performs no allocation or balance maths.
  */
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Plus, Undo2, Layers } from "lucide-react";
 import {
   PageHeader,
@@ -50,6 +51,7 @@ const money = (value: number, currency = "") =>
   })}`.trim();
 
 export function RepaymentsPage() {
+  const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [batchId, setBatchId] = useState<string>("none");
   const [captureOpen, setCaptureOpen] = useState(false);

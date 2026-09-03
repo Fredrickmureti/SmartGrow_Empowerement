@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Plus } from "lucide-react";
 import {
   PageHeader,
@@ -52,6 +53,7 @@ const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "d
 };
 
 export function ClientsPage() {
+  const { can } = usePermissions();
   const { branches } = useBranches();
   const { getUserName } = useOrgMembers();
   const [branchId, setBranchId] = useState<string>("all");

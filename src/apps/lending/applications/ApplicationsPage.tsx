@@ -7,6 +7,7 @@
  * pipeline and collects the operator's intent.
  */
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { ClipboardCheck, Plus } from "lucide-react";
 import {
   PageHeader,
@@ -60,6 +61,7 @@ const STATUS_TONE: Record<
 };
 
 export function ApplicationsPage() {
+  const { can } = usePermissions();
   const [status, setStatus] = useState<MfApplicationStatus | "all" | "open">("all");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
