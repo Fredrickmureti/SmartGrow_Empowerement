@@ -247,11 +247,8 @@ export default function AcceptInvitation() {
             )}
           </p>
           <div className="flex gap-3">
-            <Button variant="outline" asChild>
-              <Link to="/login">Go to Login</Link>
-            </Button>
             <Button asChild>
-              <Link to="/signup">Create Account</Link>
+              <Link to="/login">Go to Login</Link>
             </Button>
           </div>
         </div>

@@ -135,13 +135,13 @@ export default function VerifyEmail() {
         }
         if (!availability.exists || availability.reaped) {
           toast({
-            title: "No pending signup found",
+            title: "No pending account found",
             description:
-              "We can't resend a verification link because there's no pending account for this email. Please sign up again.",
+              "There's no pending account for this email. Ask your administrator to send you an invitation.",
             variant: "destructive",
           });
           setIsResending(false);
-          navigate("/signup");
+          navigate("/login");
           return;
         }
         // exists && !confirmed → pending_verification, fall through to resend.

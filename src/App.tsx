@@ -44,7 +44,9 @@ import { getLegacyRedirectRoutes } from "@/routes/-LegacyRedirects";
 // ============================================
 import Index from "./pages/Index";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+// Public self-service registration is intentionally removed: this is a
+// single-institution, invite-only system. Accounts are created through
+// /accept-invitation only.
 import VerifyEmail from "./pages/VerifyEmail";
 import AuthCallback from "./pages/AuthCallback";
 import AcceptInvitation from "./pages/AcceptInvitation";
@@ -150,7 +152,8 @@ const App = () => (
                             {/* ============================================== */}
                             <Route path="/" element={<Index />} />
                             <Route path="/login" element={<RedirectIfAuthenticated><Login /></RedirectIfAuthenticated>} />
-                            <Route path="/signup" element={<RedirectIfAuthenticated><Signup /></RedirectIfAuthenticated>} />
+                            {/* Invite-only: legacy /signup links land on the sign-in screen. */}
+                            <Route path="/signup" element={<Navigate to="/login" replace />} />
                             <Route path="/verify-email" element={<VerifyEmail />} />
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
