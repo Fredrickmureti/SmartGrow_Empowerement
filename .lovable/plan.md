@@ -59,7 +59,7 @@ C12 — RBAC hardening (DONE, verified 2026-09-03)
   fredrickmureti612@gmail.com exists with role `owner`.
 
 
-C13 — Accounting integration close-out
+C13 — Accounting integration close-out (NEXT)
 - Every business event (disbursement, repayment allocation, reversal,
   write-off, closure) posts through mf_post_event → mf_resolve_account → GL.
 - Verify a full lifecycle produces a balanced, traceable journal trail.
