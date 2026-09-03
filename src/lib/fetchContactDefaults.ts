@@ -15,8 +15,6 @@ export interface ContactDefaults {
   tax_exemption_number: string | null;
   credit_hold: boolean | null;
   credit_limit: number | null;
-  customer_group_id: string | null;
-  price_list_id: string | null;
   default_currency: string | null;
   default_payment_method_id: string | null;
   opening_balance: number | null;
@@ -32,8 +30,6 @@ const EMPTY_DEFAULTS: ContactDefaults = {
   tax_exemption_number: null,
   credit_hold: null,
   credit_limit: null,
-  customer_group_id: null,
-  price_list_id: null,
   default_currency: null,
   default_payment_method_id: null,
   opening_balance: null,
@@ -49,7 +45,7 @@ export async function fetchContactDefaults(contactId: string | null): Promise<Co
   const { data, error } = await supabase
     .from("contacts")
     .select(
-      "payment_term_id, default_receivable_account_id, default_payable_account_id, default_expense_account_id, default_tax_rate_id, withholding_tax_rate, tax_exemption_number, credit_hold, credit_limit, customer_group_id, price_list_id, default_currency, default_payment_method_id, opening_balance"
+      "payment_term_id, default_receivable_account_id, default_payable_account_id, default_expense_account_id, default_tax_rate_id, withholding_tax_rate, tax_exemption_number, credit_hold, credit_limit, default_currency, default_payment_method_id, opening_balance"
     )
     .eq("id", contactId)
     .maybeSingle();
@@ -66,8 +62,6 @@ export async function fetchContactDefaults(contactId: string | null): Promise<Co
     tax_exemption_number: data.tax_exemption_number ?? null,
     credit_hold: data.credit_hold ?? null,
     credit_limit: data.credit_limit ?? null,
-    customer_group_id: data.customer_group_id ?? null,
-    price_list_id: data.price_list_id ?? null,
     default_currency: data.default_currency ?? null,
     default_payment_method_id: data.default_payment_method_id ?? null,
     opening_balance: data.opening_balance ?? null,
