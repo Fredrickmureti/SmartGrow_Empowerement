@@ -37,15 +37,22 @@ No SaaS, no multi-tenancy, no client portal, no payroll/HR/sales/inventory/POS/C
 
 Milestones C1–C11 are complete. Do not re-open them.
 
-## C12 — hardening (current milestone, in order)
+## C12 — hardening (current milestone)
 
-1. `mf_*` data security: RLS policies + GRANTs on every `mf_*` table, then a Supabase linter
-   sweep; fix only findings on retained surfaces.
-2. RBAC roles wired end to end: Super Admin, Branch Manager, Loan Officer, Credit Officer,
+1. **DONE — `mf_*` data security.** Every `mf_*` table has RLS enabled with GRANTs to
+   authenticated + service_role. Linter sweep done: dropped `storage_orphan_inventory`
+   (ERP view exposing `auth.users`) and the three ERP scratch log tables
+   (`_pret_sim_log`, `_e2e_milk_log`, `__ts_wave5_results`). Zero ERROR-level findings remain
+   outside inherited ERP `SECURITY DEFINER` views/functions (see debt below).
+2. **DONE — loan-officer data scope.** `mf_clients`, `mf_loans`, `mf_repayments` and
+   `mf_collection_activities` already scoped; this pass added `mf_officer_in_scope` /
+   `mf_loan_in_scope` to the SELECT policies of `mf_loan_applications`, `mf_groups`,
+   `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events`, `mf_repayment_allocations`.
+3. RBAC roles wired end to end: Super Admin, Branch Manager, Loan Officer, Credit Officer,
    Cashier, Accountant, Collections Officer, Auditor, Reporting User — server-side enforcement
    is authoritative, nav hiding is cosmetic.
-3. Loan-officer / branch data scope: a loan officer sees only their portfolio's clients, loans,
-   repayments and collections.
+   `app_role` already carries super_admin, admin, branch_manager, loan_officer, credit_officer,
+   cashier, accountant, collections_officer, auditor, viewer (= Reporting User).
 4. Audit + immutability proof: every lending business event attributable to a user; reversals,
    not edits; no destructive deletion of financial history.
 5. Live signed-in render of each lending document (agreement, schedule, statement, receipt) and
@@ -64,5 +71,5 @@ four PDFs rendered signed-in, `tsgo` clean, build OK.
 
 Legacy SQL-migration guards (`je-description-no-uuid`, `pgcrypto-extension-prefix`,
 `single-audit-trigger-per-table`, `sql-businesses-currency-column`, `currency-ratchet`) and
-content-drift guards (banking gating ×2, finance-settings permissions, radix overlay,
+inherited ERP `SECURITY DEFINER` views (30) and functions (~3.5k linter warnings), plus content-drift guards (banking gating ×2, finance-settings permissions, radix overlay,
 tanstack-router-in-spa, aged-receivables related-reports). Pre-existing.
