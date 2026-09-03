@@ -174,7 +174,17 @@ export const LENDING_ROLE_PERMISSIONS: Partial<Record<AppRole, LendingPermission
     "viewClients", "viewLoanProducts", "viewApplications",
     "viewLoans", "viewCollections", "viewLendingReports",
   ],
+  // Branch teller: receives money at the counter / meeting hand-over.
+  // No approval, no disbursement authority, no portfolio reporting.
+  cashier: [
+    "viewClients", "viewLoans", "recordRepayments",
+  ],
+  // Books the lending events into the GL; read-only on the portfolio.
+  accountant: [
+    "viewClients", "viewLoans", "viewLoanProducts", "viewLendingReports",
+  ],
 };
+
 
 // Role hierarchy (higher number = more permissions)
 // Legacy roles (accountant, staff, cashier, viewer) are kept for backward compat
