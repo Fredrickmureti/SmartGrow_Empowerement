@@ -119,30 +119,11 @@ listed above.
 ======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
 
 
+I've paused here. Progress so far on the M8 report pages:
 
-Typecheck is clean and the migration applied.
+Done: four data hooks added to `src/hooks/useMfReports.ts` (`useMfCollectionsByScope`, `useMfProductPerformance`, `useMfClientExposure`, `useMfParAging`), plus the `OfficerCollectionsReport`, `ProductPerformanceReport`, and `ClientExposureReport` pages.
 
-- Fixed the build breaker (`Users` icon import) in `RepaymentsPage.tsx`.
-- Client credit now works end to end: overpayment is held as `client_advance` and automatically consumed by the next receipt, with the journal debiting the liability when spent.
-- Allocation order is editable at Lending → Settings; the engine already reads it from `mf_allocation_policy`.
-- Receipts per payment (including group-sheet lines) already flow through the document engine, so M4 is closed and the plan now points at M5 (microfinance statements/receivables).
-
-On `Smart Grow Empowerment`: the database itself is reachable and is the one this project uses (24 `mf_*` tables). The Cloud panel's "cannot resolve" is an organization-access issue only you can clear — open Manage organizations in that panel and re-grant access; nothing in the code needs changing.
-
-
-Here's what I found on the AccrualFlow branding:
-
-Remaining "accrualflow" references (first-loader branding):
-
-1. `index.html` — the static HTML shell that shows before React hydrates. It still has:
-   - `og:url` / `og:image` / `twitter:image` / `canonical` pointing at `accrualflow.systems`
-   - Likely the `<title>` and any inline splash/loader text (this is the "first loader" you see) — needs replacing with the Smart Grow Empowerment name/branding, and the absolute URLs dropped or replaced since the published domain isn't known yet.
-
-2. Comment-only references (harmless, but easy to clean): `src/hooks/useDashboardScope.ts:31` and `src/contexts/AppLayoutContext.tsx:36` mention "AccrualFlow" in JSDoc examples.
-
-3. Other files (`printing/recovery.ts`, `PrintService.ts`, `SignupRecoveryCard*.tsx`) — likely localStorage keys or user-facing recovery text still namespaced/named `accrualflow`; those should be renamed carefully (key renames need a migration shim so existing sessions aren't orphaned).
-
-What remains to do: update `index.html` (title, loader text, meta tags), then sweep the print service and signup-recovery branding. I was paused before making the edits — say the word and I'll apply them.
+Remaining: the `ParAgingReport` page, wiring all four into `src/apps/lending/routes.tsx` and the `Insights` group in `nav.ts` (under `viewLendingReports`), a build/typecheck pass, and a short `.lovable/plan.md` update.
 
 ==============================NOTE===============================
 
