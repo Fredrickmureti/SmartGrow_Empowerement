@@ -336,10 +336,28 @@ export function useMfLoanSchedule(loanId?: string) {
     enabled: !!loanId,
   });
 
+  // Penalty position per installment. Server-owned view — never derived here.
+  const penalties = useQuery({
+    queryKey: ["mf-loan-penalty-status", loanId],
+    queryFn: async () => {
+      if (!loanId) return [] as MfLoanPenaltyRow[];
+      const { data, error } = await supabase
+        .from("mf_loan_penalty_status")
+        .select("loan_id,installment_no,penalty_charged,penalty_paid,penalty_outstanding")
+        .eq("loan_id", loanId)
+        .order("installment_no");
+      if (error) throw error;
+      return (data ?? []) as unknown as MfLoanPenaltyRow[];
+    },
+    enabled: !!loanId,
+  });
+
   return {
     schedule: schedule.data ?? [],
     events: events.data ?? [],
+    penalties: penalties.data ?? [],
     isLoading: schedule.isLoading,
     error: schedule.error as Error | null,
   };
 }
+
