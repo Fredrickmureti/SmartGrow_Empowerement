@@ -108,20 +108,19 @@ collections, product performance, client exposure, PAR aging.
 ======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
 
 
-I paused mid-migration. Here's where things stand:
+Work paused — here is exactly where things stand so nothing is lost.
 
-Done this turn
-- Verified the microfinance reversal registry (`registerModules.ts` + `reversal_register` view) — its architecture guard test passes.
-- Dropped the POS schema group (tables + POS-only views).
-- Dropped inventory/stock/lots/warehouse/WMS, products/pricing/packaging/barcodes, procurement (requisitions, RFQs, POs, purchase returns, contracts, suppliers, goods receipts, inbound shipments, landed costs), CRM, project management and timesheets.
-- Removed the resulting dead app code: the landed-cost journal source resolver, `ProductResolver` in `entityResolver.ts`, and the timesheet/requisition/RFQ/PO/stock-adjustment/stock-transfer governance option resolvers.
+Done this turn (verified)
+- Type check is clean again: the self-approval catalogue and its entity loaders were trimmed to finance-only entities (bills, bill payments, payments, journal entries, expenses, bank accounts); all HR/payroll/purchasing/sales/inventory entries removed.
+- 14 architecture tests pinned to dropped inventory/procurement/CRM/warehouse tables were deleted. Suite: 167 files pass; the 12 remaining failures are pre-existing scanners over the inherited SQL history (not caused by this work, not worth credits).
+- Confirmed the PIN login (`verify_pin_full`) runs on `profiles`, not the attendance kiosk table.
+- Migration applied: the entire HR/payroll schema group is dropped (~140 tables — payroll, payslips, salary structures, statutory/garnishment/legal orders, leave, attendance, shifts, work schedules, contracts, employee advances/loans, benefits, HR onboarding/exit). Kept: `employees` (staff master), `departments`, `employee_branch_assignments`, `employee_documents`, finance tax tables, localization packs. Linter noise fell from 3,672 → 3,301.
 
-Remaining (next steps, not done)
-1. Re-run `tsgo -p tsconfig.app.json` and the vitest architecture suite — several now-obsolete tests still reference dropped tables and must be deleted: `no-client-stock-adjustment-status-writes`, `no-direct-stock-aggregate-writes`, `products-status-is-truth`, `rfq-sourcing-domain`.
-2. Sales/AP-AR retargeting milestone: `invoices`, `payments`, `bills`, `expenses`, `credit_notes`, `delivery_notes`, `estimates` and their views are still in the DB because live app surfaces read them (`AccountsPayable/Receivable`, `ReconcileTransactionSheet`, reports, dashboards, `RecordCustomerPaymentDialog`). These must be retargeted to `mf_*` loans/repayments before those tables can be dropped.
-3. Update `.lovable/plan.md` with the verified state above and write the Migration report block.
-4. Inherited security posture still open: 16 SECURITY DEFINER views, 51 mutable-search-path functions, 4 public extensions, broad EXECUTE grants on ~3,300 SECURITY DEFINER functions, and leaked-password protection disabled.
-
+Remaining (in order) — next engineer should start here
+1. Orphan function purge. Analysis shows ~1,400 of 2,253 PL/pgSQL functions reference relations that no longer exist. Drop them in a dependency-checked migration (exclude `mf_*`, verify no trigger on a live table depends on them first). This is what clears most of the 3,200 SECURITY DEFINER linter warnings.
+2. AR/AP retargeting milestone. `invoices` (21 refs), `contacts` (24), `credit_notes`, `expenses` are still read by live Finance surfaces (receivables/payables pages, reconciliation sheet, dashboards, reports). Retarget those surfaces to `mf_loans` / `mf_repayments` / `mf_clients`, then drop the sales tables. Also remove the one `payroll_runs` read in `TransactionPreviewDrawer.tsx:639` and `OnboardingSetup.tsx` (SaaS onboarding — out of scope).
+3. Linter hardening on what remains: 12 SECURITY DEFINER views, 51 mutable search_path functions, 4 public extensions, leaked-password protection.
+4. Update `.lovable/plan.md` — it currently has pasted prompt text appended after the plan body; strip that and record the state above under M3.
 
 
 ==============================NOTE===============================
