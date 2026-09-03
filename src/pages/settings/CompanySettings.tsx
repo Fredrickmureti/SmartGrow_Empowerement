@@ -49,19 +49,15 @@ import {
 } from "lucide-react";
 
 import { CurrencySettings } from "@/components/settings/CurrencySettings";
-import { TaxSettings } from "@/components/settings/TaxSettings";
 import { PaymentGatewaySettings } from "@/components/settings/PaymentGatewaySettings";
 import { MpesaProviderCard } from "@/components/settings/MpesaProviderCard";
 import { MpesaC2BProviderCard } from "@/components/settings/MpesaC2BProviderCard";
 import { BusinessBranchSettings } from "@/components/settings/BusinessBranchSettings";
-import { PaymentTermsSettings } from "@/components/settings/PaymentTermsSettings";
-import { TaxComplianceSettings } from "@/components/settings/TaxComplianceSettings";
 import { PaymentsDebugger } from "@/components/settings/PaymentsDebugger";
 import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
 import { DocumentTemplateSettings } from "@/components/settings/DocumentTemplateSettings";
 // PrintingSettings moved to /platform/hardware/policies (Wave 9d Phase 4).
 import { PaymentMethodsSettings } from "@/components/settings/PaymentMethodsSettings";
-import { InventorySettings } from "@/components/settings/InventorySettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -94,8 +90,6 @@ function CompanySettingsInner() {
   // in the UI. Read-only / expired-trial lifecycle states still SHOW the
   // tab; the inputs inside enforce edit-disabled via per-form gates.
   const hasFinance = appsLoading || isInstalled("finance");
-  const hasSales = appsLoading || isInstalled("sales");
-  const hasPos = appsLoading || isInstalled("pos");
   const hasDocuments = appsLoading || isInstalled("finance");
 
   return (
@@ -178,14 +172,6 @@ function CompanySettingsInner() {
             <CurrencySettings />
           </TabsContent>
 
-          <TabsContent value="tax">
-            <TaxSettings />
-          </TabsContent>
-
-          <TabsContent value="payment-terms">
-            <PaymentTermsSettings />
-          </TabsContent>
-
           <TabsContent value="payments" className="space-y-6">
             {["KE", "TZ", "UG", "RW", "MZ", "GH"].includes(orgCountry) && (
               <>
@@ -195,10 +181,6 @@ function CompanySettingsInner() {
             )}
             <PaymentGatewaySettings />
             <PaymentsDebugger />
-          </TabsContent>
-
-          <TabsContent value="tax-compliance">
-            <TaxComplianceSettings />
           </TabsContent>
 
 
@@ -223,10 +205,6 @@ function CompanySettingsInner() {
               </CardContent>
             </Card>
             <EmailTemplateEditor />
-          </TabsContent>
-
-          <TabsContent value="inventory">
-            <InventorySettings />
           </TabsContent>
 
 
