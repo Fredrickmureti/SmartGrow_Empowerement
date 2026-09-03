@@ -16,6 +16,7 @@ import type { PermissionModule, PermissionGroupRule } from "@/lib/permissions";
  */
 export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
   contacts:    ["contacts"],
+  lending:     ["lending"],
   financials:  ["finance", "reports"],
   employees:   ["employees"],
   settings:    ["platform", "studio"],
