@@ -43,11 +43,21 @@ carries its permission. `bunx tsgo --noEmit -p tsconfig.app.json` passes.
 
 ## Remaining milestones (execute one at a time, verify before advancing)
 
-C12 — RBAC hardening (NEXT)
-- Gate lending routes/actions on the new permissions (not just nav).
-- Confirm DB-side scoping matches UI gates for loan_officer,
-  collections_officer, credit_officer, branch_manager, auditor.
-- Seed/verify the dev admin identity fredrickmureti612@gmail.com.
+C12 — RBAC hardening (DONE, verified 2026-09-03)
+- All 13 lending routes wrapped in `PermissionProtectedRoute`.
+- Write actions gated with `can(...)` on every lending page: clients/groups →
+  `manageClients`; products → `manageLoanProducts`; applications → `manageApplications`
+  (submit/review/assess/mark-ready) and `approveApplications` (approve/reject);
+  loans → `manageLoans` (create, top-up, restructure, close, write-off) and
+  `disburseLoans`; repayments → `recordRepayments` (batch open/close, capture,
+  reverse); collections → `manageCollections` (log activity). Read-only users keep
+  view + document access only.
+- `bunx tsgo --noEmit -p tsconfig.app.json` passes.
+- DB-side: every `mf_*` table carries RLS policies (read/insert/update/delete or
+  append-only where required); officer/branch scoping via
+  `mf_officer_in_scope` / `mf_loan_in_scope`. Dev admin
+  fredrickmureti612@gmail.com exists with role `owner`.
+
 
 C13 — Accounting integration close-out
 - Every business event (disbursement, repayment allocation, reversal,
