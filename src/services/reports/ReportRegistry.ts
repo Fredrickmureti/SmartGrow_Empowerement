@@ -111,8 +111,8 @@ export interface ReportDefinition {
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   statutory: "Financial Statements",
   management: "Management & Analytics",
-  receivables: "Receivables & Sales",
-  payables: "Payables & Purchases",
+  receivables: "Receivables",
+  payables: "Payables",
   cash_bank: "Cash & Banking",
   tax: "Tax & Compliance",
   budget: "Budget & Planning",
