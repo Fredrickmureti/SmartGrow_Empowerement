@@ -91,26 +91,29 @@ code, not written up.
 
 
 
-I got most of the group flow verified before stopping, and found one real bug.
+I fixed the two real blockers and verified the group + cash legs end to end.
 
-Verified working (server-side, as an authenticated officer): bank account creation via `bank_account_create`, group creation, three clients, group memberships, applications through the full lifecycle (submitted → under_review → approved with assessment + role checks enforced), loan creation from application, disbursement of all three loans, the repayment batch with two cash repayments and one mobile-money part payment, and batch closure.
+Fixed (migrations applied)
+- Dropped the obsolete `_tg_stamp_bank_transaction_currency` trigger/function (referenced `original_currency`/`exchange_rate` columns that no longer exist) — this was the error blocking collection banking. Also dropped the leftover payroll matching trigger on `bank_transactions`.
+- Rewrote `mf_bank_collection_batch` to supply `external_transaction_id` on the bank transaction it creates (second, previously undiscovered bug: NOT NULL violation).
 
-Bug found — banking a collection batch fails. `mf_bank_collection_batch` inserts into `bank_transactions`, and the trigger function `_tg_stamp_bank_transaction_currency()` references `NEW.original_currency` / `NEW.exchange_rate`, which no longer exist on that table:
+Verified live (as the authenticated officer)
+- Group leg: `GRP-001 Umoja Women Group` with a leader + 2 members, three applications through submitted → under_review → assessment → approved (guards correctly refused approval without an assessment), loan creation, and disbursement of all three.
+- Group-meeting batch `BATCH-001`: 2 cash repayments (2,500 each) + 1 mobile-money part payment (1,200), each allocated against its own member's loan — no joint liability leaked into individual balances; batch closed.
+- Cash leg: batch banked — journal balanced (Dr 1112 Bank 6,200 / Cr 1111 Cash 5,000 / Cr 1030 Mobile Money 1,200), bank transaction and `mf_collection_bankings` row created.
+- Balances/arrears views recompute correctly per loan.
 
-```
-ERROR: 42703: record "new" has no field "original_currency"
-```
+Remaining (not done, credits ran out)
+1. `mf_par_summary` returns NULL for `par_1/30/90` when nothing is overdue — should coalesce to 0 and expose the ratio, not just the amount.
+2. Loan `LN-000001` sits at `status='closed'` with 44,920 outstanding — legacy test artifact from the earlier lifecycle; `mf_close_loan` itself guards correctly, so the row just needs correcting.
+3. Bank-reconciliation match of the banked transaction; dashboard KPI, one report render, client statement, repayment receipt and disbursement confirmation against this data.
+4. Replace stale AccrualFlow branding on the login page and root metadata; fix the shell hydration mismatch.
+5. M2 strip: `useDashboardStats`, `useDashboardAnalytics`, entitlement gating, `parked-modules.d.ts` stubs, then typecheck/build.
 
-So no group scenario data is committed — the whole block rolled back atomically. Nothing was left behind.
+The plan file still reflects this order; items 1–2 are new findings to add at the top of M1.
 
-Remaining work:
-1. Fix the currency-stamping trigger (drop or rewrite it to match the current `bank_transactions` columns) via a migration, then re-run the group scenario to complete banking + the collection activity.
-2. Verify KPIs, arrears/PAR views, client statements and receipts against that data.
-3. Replace the stale AccrualFlow branding/metadata on the login page and in `src/routes/__root.tsx`.
-4. M2 cleanup: remove `useDashboardStats`/`useDashboardAnalytics` and their obsolete ERP consumers, prune `src/parked-modules.d.ts`, then typecheck/build.
 
-Also worth noting: `bank_accounts` has no table grants at all to `authenticated`, so direct table writes are impossible — all bank-account changes must go through the `bank_account_*` RPCs. Confirm the UI does that.
-
+ALSO in the settings, if the governance can be used use it but its not applicable delete it  in the settings we still have references to previous erp achirecture such as tax, notifications still shows previous erp work, like basically the settings needs to be scrutnized besides the fact that I am an admin but when I attempt to access lending app I get access denied,  
 
 ==============================NOTE===============================
 
