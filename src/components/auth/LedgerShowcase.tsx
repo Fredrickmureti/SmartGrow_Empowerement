@@ -8,15 +8,15 @@
  */
 
 const lines = [
-  { account: "1200 · Accounts Receivable", debit: "12,400.00", credit: null },
-  { account: "4000 · Sales Revenue", debit: null, credit: "10,689.66" },
-  { account: "2200 · VAT Payable (16%)", debit: null, credit: "1,710.34" },
+  { account: "1010 · Cash at branch", debit: "12,400.00", credit: null },
+  { account: "1300 · Loan principal receivable", debit: null, credit: "9,800.00" },
+  { account: "4100 · Interest income", debit: null, credit: "2,600.00" },
 ];
 
 const flow = [
-  { step: "Invoice INV-2041", meta: "Issued · Acme Ltd" },
+  { step: "Repayment RCP-2041", meta: "Received · Group 12" },
   { step: "Journal posted", meta: "Auto-balanced" },
-  { step: "Ledger & reports", meta: "Live" },
+  { step: "Portfolio & reports", meta: "Live" },
 ];
 
 export function LedgerShowcase() {
