@@ -691,3 +691,109 @@ export async function generateLoanPaymentReceiptPdf(
 }
 
 export default generateLoanAgreementPdf;
+
+/* ------------------------------------------------------------------ */
+/* lending.client_statement                                            */
+/* ------------------------------------------------------------------ */
+
+export async function generateClientStatementPdf(
+  snapshot: Snapshot,
+  organization: OrganizationBranding | null | undefined,
+  options: LendingRenderOptions = {},
+): Promise<Uint8Array> {
+  assertSheetPaper("generateClientStatementPdf", options);
+  const builder = await startSheet(snapshot, organization, options, "CLIENT STATEMENT");
+  const currency = str(snapshot["currency"]);
+  const typography = resolveTypography("ledger");
+
+  drawFactsGrid(builder, "Client", [
+    ["Client", str(snapshot["client_name"])],
+    ["Client number", str(snapshot["client_number"])],
+    ["National ID", str(snapshot["client_national_id"])],
+    ["Phone", str(snapshot["client_phone"])],
+    ["Status", str(snapshot["client_status"])?.toUpperCase() ?? null],
+    ["Branch", str(snapshot["branch_name"])],
+    ["Loan officer", str(snapshot["officer_name"])],
+    ["Issued on", date(snapshot["issue_date"])],
+  ]);
+
+  const entries = rows(snapshot, "entries");
+  drawSectionLabel(builder, "Account Activity");
+  if (entries.length === 0) {
+    builder.ensureSpace(20);
+    builder.page.drawText("No movements recorded for this client.", {
+      x: builder.state.margin,
+      y: builder.y,
+      size: 8.5,
+      font: builder.fontRegular,
+      color: theme.color.medGray,
+    });
+    builder.y -= 18;
+  } else {
+    drawDataTable(builder, {
+      typography,
+      currency: currency ?? undefined,
+      columns: [
+        { key: "date", header: "Date", width: 12, align: "left" },
+        { key: "loan_number", header: "Loan", width: 15, align: "left" },
+        { key: "description", header: "Description", width: 26, align: "left" },
+        { key: "reference", header: "Reference", width: 15, align: "left" },
+        { key: "amount_out", header: "Disbursed", width: 16, format: "currency", align: "right" },
+        { key: "amount_in", header: "Received", width: 16, format: "currency", align: "right" },
+      ],
+      rows: entries.map((e) => ({
+        date: date(e["date"]) ?? "",
+        loan_number: str(e["loan_number"]) ?? "",
+        description: str(e["description"]) ?? (humanise(e["entry_type"]) ?? ""),
+        reference: str(e["reference"]) ?? "",
+        amount_out: num(e["amount_out"]) || "",
+        amount_in: num(e["amount_in"]) || "",
+      })),
+    });
+    builder.y -= 8;
+  }
+
+  const loans = rows(snapshot, "loans");
+  if (loans.length > 0) {
+    drawSectionLabel(builder, "Loan Positions");
+    drawDataTable(builder, {
+      typography,
+      currency: currency ?? undefined,
+      columns: [
+        { key: "loan_number", header: "Loan", width: 20, align: "left" },
+        { key: "status", header: "Status", width: 14, align: "left" },
+        { key: "principal_outstanding", header: "Principal", width: 17, format: "currency", align: "right" },
+        { key: "interest_outstanding", header: "Interest", width: 16, format: "currency", align: "right" },
+        { key: "fees_outstanding", header: "Fees", width: 15, format: "currency", align: "right" },
+        { key: "total_outstanding", header: "Outstanding", width: 18, format: "currency", align: "right" },
+      ],
+      rows: loans.map((l) => ({
+        loan_number: str(l["loan_number"]) ?? "",
+        status: humanise(l["status"]) ?? "",
+        principal_outstanding: num(l["principal_outstanding"]),
+        interest_outstanding: num(l["interest_outstanding"]),
+        fees_outstanding: num(l["fees_outstanding"]),
+        total_outstanding: num(l["total_outstanding"]),
+      })),
+    });
+    builder.y -= 8;
+  }
+
+  drawSectionLabel(builder, "Position");
+  drawFactsGrid(builder, "Total exposure", [
+    ["Principal outstanding", money(snapshot["principal_outstanding"], currency)],
+    ["Interest outstanding", money(snapshot["interest_outstanding"], currency)],
+    ["Fees outstanding", money(snapshot["fees_outstanding"], currency)],
+    ["Total outstanding", money(snapshot["total_outstanding"], currency)],
+    ["Total collected", money(snapshot["total_collected"], currency)],
+  ]);
+
+  drawFinalFooter(builder, builder.page, {
+    footerNote:
+      "Client statement. Balances and allocations are computed and maintained " +
+      "by the lender's ledger as at the date of issue.",
+    includeGeneratedStamp: true,
+  });
+
+  return await builder.save();
+}
