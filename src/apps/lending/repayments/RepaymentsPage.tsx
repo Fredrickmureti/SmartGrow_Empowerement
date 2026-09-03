@@ -40,8 +40,13 @@ import {
   useMfRepaymentBatches,
   useMfRepayments,
 } from "@/hooks/useMfRepayments";
+import {
+  useMfBankAccounts,
+  useMfCollectionBankings,
+} from "@/hooks/useMfCollectionBankings";
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
+import { BankBatchDialog } from "./BankBatchDialog";
 
 
 const money = (value: number, currency = "") =>
