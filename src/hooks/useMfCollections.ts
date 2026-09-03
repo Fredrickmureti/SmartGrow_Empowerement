@@ -59,10 +59,16 @@ export interface MfParSummary {
   loan_officer_id: string | null;
   loan_count: number;
   portfolio_outstanding: number;
-  par_1: number | null;
-  par_30: number | null;
-  par_90: number | null;
+  /** Outstanding at risk. Server-coalesced to 0 — never null. */
+  par_1: number;
+  par_30: number;
+  par_90: number;
+  /** Percent of this row's outstanding at risk, computed by the view. */
+  par_1_ratio: number;
+  par_30_ratio: number;
+  par_90_ratio: number;
 }
+
 
 export interface MfCollectionActivity {
   id: string;
