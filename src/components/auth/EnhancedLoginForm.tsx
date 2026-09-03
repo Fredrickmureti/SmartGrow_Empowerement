@@ -501,13 +501,7 @@ export function EnhancedLoginForm() {
       )}
 
       <p className="text-center text-sm text-muted-foreground">
-        Don't have an account?{" "}
-        <Link
-          to="/signup"
-          className="text-primary font-medium hover:underline"
-        >
-          Create one
-        </Link>
+        Accounts are created by invitation only. Ask your administrator to invite you.
       </p>
 
       {/*
