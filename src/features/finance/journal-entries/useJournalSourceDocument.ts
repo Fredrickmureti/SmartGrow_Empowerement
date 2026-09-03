@@ -23,24 +23,9 @@ export interface JournalSourceDocument {
 
 type Resolver = (sourceId: string) => Promise<JournalSourceDocument | null>;
 
-const RESOLVERS: Record<string, Resolver> = {
-  landed_cost_voucher: async (sourceId) => {
-    const { data, error } = await supabase
-      .from("landed_cost_vouchers")
-      .select("id, voucher_number, capitalized_amount, expensed_amount")
-      .eq("id", sourceId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return {
-      label: data.voucher_number ?? "Landed cost voucher",
-      href: `/purchases/landed-costs/${data.id}`,
-      facts: [
-        { label: "Capitalised to inventory", amount: Number(data.capitalized_amount ?? 0) },
-        { label: "Charged to cost of sales", amount: Number(data.expensed_amount ?? 0) },
-      ],
-    };
-  },
-};
+// Microfinance scope: no ERP document resolvers remain. Add lending document
+// resolvers here as the posting surfaces land.
+const RESOLVERS: Record<string, Resolver> = {};
 
 export function useJournalSourceDocument(entry: JournalEntry | undefined) {
   const sourceType = entry?.source_type ?? null;
