@@ -312,6 +312,7 @@ function hasDedicatedLayout(kindCode: string): boolean {
     kindCode in STATEMENT_LAYOUTS ||
     kindCode in PROCUREMENT_LAYOUTS ||
     kindCode in WAREHOUSE_LAYOUTS ||
+    kindCode in LENDING_LAYOUTS ||
     STATEMENT_KIND_CODES.has(kindCode)
   );
 }
