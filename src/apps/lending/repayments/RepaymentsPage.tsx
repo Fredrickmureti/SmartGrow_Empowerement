@@ -176,14 +176,23 @@ export function RepaymentsPage() {
                 ))}
               </SelectContent>
             </Select>
-            {canRecord && activeBatchId && (
+            {canRecord && activeBatch && activeBatch.status === "open" && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => closeBatch.mutate(activeBatchId)}
+                onClick={() => closeBatch.mutate(activeBatch.id)}
               >
                 Close batch
               </Button>
+            )}
+            {canRecord && canBankActiveBatch && (
+              <Button size="sm" variant="outline" onClick={() => setBankOpen(true)}>
+                <Landmark className="mr-1.5 h-4 w-4" />
+                Bank collections
+              </Button>
+            )}
+            {activeBatch && bankedBatchIds.has(activeBatch.id) && (
+              <StatusBadge tone="success">Banked</StatusBadge>
             )}
           </FilterBar>
 
