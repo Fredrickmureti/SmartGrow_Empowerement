@@ -123,6 +123,17 @@ Your Supabase project is already connected (ref `xwxqunklduknceoryrha`), so no r
 - Deleted the 15 now-unreferenced ERP dashboard widgets (sales summary, receivables, cash flow, profit margin, expense categories, executive suite, backorders, deadlines, etc.) and 2 orphaned hooks; typecheck and build green.
 - Plan updated: next milestone is C15b — the final ERP dead-code strip (starting with `useDashboardStats`/`useDashboardAnalytics` and the parked-module stubs) and the lifecycle/report/document hardening pass.
 
+
+ALSO FOR THE DASHARD /dashboard --> "Empty" is expected right now, not a bug: the command center reads only from the mf_* tables/views, and this fresh Smart Grow Empowerment database has no loan data yet — no clients, applications, loans, repayments or disbursements, so every KPI is zero and both tables show their empty states.
+
+What remains, in order:
+
+Seed the operating baseline (needed before anything renders): loan product(s) + versions, accounting mappings, and a first client — then run one real flow through the UI (client → application → approve → disburse → repayment) so the dashboard, arrears/PAR and reports have data.
+Verify the dashboard against that data — confirm PAR 30's semantics in mf_par_summary (amount vs percentage) so the KPI label matches the view.
+C15b (last milestone) — strip the remaining ERP dead code (useDashboardStats, useDashboardAnalytics, the entitlement/module gating they carry, and stale src/parked-modules.d.ts stubs) after import-graph confirmation, then the close-out pass: typecheck, build, permission/RLS check, full loan lifecycle, one report render, one document render, and record → close batch → bank → reconcile.
+Minor: a hydration mismatch is logged on the shell (pre-existing, unrelated to the dashboard content) — worth fixing during hardening.
+I'd suggest starting with step 1, since it also doubles as the lifecycle verification C15b needs.
+
 ==============================NOTE===============================
 
 NOTE
