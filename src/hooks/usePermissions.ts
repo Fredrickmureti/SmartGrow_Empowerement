@@ -11,7 +11,6 @@ import {
   isRoleHigherOrEqual,
   resolveEffectivePermissions,
   PermissionGroupRule,
-  ROLE_PERMISSIONS,
   AppRole 
 } from "@/lib/permissions";
 
@@ -31,15 +30,17 @@ export function usePermissions() {
     // SessionContext may not be available in all render trees
   }
 
-  // Resolve effective permissions: if groups assigned, use dynamic resolution; else base role
-  const effectivePerms = useMemo(() => {
-    if (groupRules.length > 0) {
-      return resolveEffectivePermissions(role, groupRules);
-    }
-    // Fallback to base role permissions
-    if (!role) return {} as Record<Permission, boolean>;
-    return { ...ROLE_PERMISSIONS[role] };
-  }, [role, groupRules]);
+  // Single resolution path. `resolveEffectivePermissions` owns the base-role
+  // literals, the lending matrix (kept out of those literals) and the
+  // admin/owner/super_admin full-access rule, then layers access-group rules on
+  // top. Falling back to raw ROLE_PERMISSIONS here used to drop every lending
+  // permission for users without access groups — which locked the owner out of
+  // the Lending app.
+  const effectivePerms = useMemo(
+    () => resolveEffectivePermissions(role, groupRules),
+    [role, groupRules],
+  );
+
 
   const checkPerm = (permission: Permission): boolean => {
     return effectivePerms[permission] ?? false;

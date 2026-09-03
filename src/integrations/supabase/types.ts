@@ -79366,8 +79366,11 @@ export type Database = {
           loan_count: number | null
           loan_officer_id: string | null
           par_1: number | null
+          par_1_ratio: number | null
           par_30: number | null
+          par_30_ratio: number | null
           par_90: number | null
+          par_90_ratio: number | null
           portfolio_outstanding: number | null
         }
         Relationships: []
