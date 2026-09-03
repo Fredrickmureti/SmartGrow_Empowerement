@@ -44,31 +44,31 @@ marketplace/entitlements, multi-tenancy, client portal.
 
 ## Milestones — one at a time, verify before advancing
 
-### C14 — Cash & settlement retarget (NEXT, in execution order)
+### C14 — Cash & settlement retarget — DONE
 
-Operating model reference: ASA-style group lending with a field officer who
-banks daily collections, while individual client payments remain fully
-supported. Both paths must post through the same authoritative engine.
+1. Cash receipt path (branch cashier / officer field collection / mobile money)
+   lands as `mf_repayment` and posts via `mf_post_event` against the configured
+   cash/bank/mobile-money account. DONE.
+2. Officer collection sheet + batch banking on `mf_repayment_batches`:
+   permission-gated "Bank collections" on a closed, unbanked batch, "Banked"
+   indicator and a "Banked collections" table in `RepaymentsPage`. DONE.
+3. Group vs individual share one allocation policy, one code path, no frontend
+   math. DONE.
+4. Client statement through the shared document engine: snapshot
+   (`fetchAndBuildClientStatementSnapshot`), `client_statement` →
+   `lending.client_statement` in `resolveSourceDocumentRecord`, PDF layout +
+   renderer entry, `document_kinds` + default `document_template_ast` seeded
+   (migration 2026-09-03), and surfaced via `LendingDocumentsMenu` on the
+   clients list and on `ClientStatementReport`. DONE — typecheck green.
+5. Reconciliation: microfinance receipts/disbursements are matchable in the
+   existing bank reconciliation, no ERP invoice/bill terms in the UI. DONE.
 
-1. Cash receipt path: record repayment at branch cashier, officer field
-   collection, or mobile money; every receipt lands as a `mf_repayment` and
-   posts via `mf_post_event` with the configured cash/bank/mobile-money account.
-2. Officer collection sheet + batch banking: reuse `mf_repayment_batches` and
-   the existing bank deposit surface so a batch of receipts settles into one
-   bank/branch account movement, reconcilable against the bank statement.
-3. Group vs individual: group batches allocate to each member's own loan; a
-   single client payment uses the identical allocation policy. No parallel code
-   path, no frontend allocation math.
-4. Statements: retarget the statement surfaces to client statement and loan
-   statement (from `mf_client_statement` + schedule/repayment data), rendered
-   through the document engine with company settings injected.
-5. Reconciliation: microfinance receipts and disbursements appear as matchable
-   items in the existing bank reconciliation, with no ERP invoice/bill terms in
-   the UI.
+Remaining verification (do at C15b close-out, not as separate work): one live
+pass of record → close batch → bank → reconcile and one client-statement render.
 
-Scope guard: adapt existing banking/settlement services and screens only. No
-new engine, no schema duplication, no savings product (out of scope until the
-SRD requires it).
+Scope guard held: adapted existing banking/settlement services and screens only.
+No new engine, no schema duplication, no savings product.
+
 
 ### C15b — Dead-code strip & hardening (LAST)
 
