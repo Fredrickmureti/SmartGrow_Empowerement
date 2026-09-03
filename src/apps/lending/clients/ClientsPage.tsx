@@ -43,6 +43,7 @@ import {
   type MfClientStatus,
 } from "@/hooks/useMfClients";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 
 const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "danger"> = {
   prospect: "neutral",
