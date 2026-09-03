@@ -95,19 +95,20 @@ SRD requires it).
 
 
 
-Stopped mid-C14. Here's where things stand:
+Work paused mid-C14. Here's the state:
 
-Done this turn
-- Reworked `.lovable/plan.md` into a lean, verified plan (reuse list finalized; C14 then C15b as the only remaining milestones).
-- Migration applied: `mf_collection_bankings` table (append-only, branch/officer-scoped RLS) plus `mf_bank_collection_batch(...)` RPC — banks a closed collection batch, posts bank debit / cash + mobile-money credit through `post_journal_entry_atomic`, and writes a reconcilable `bank_transactions` deposit line. Duplicate banking and unclosed batches are refused server-side.
-- Frontend added: `src/hooks/useMfCollectionBankings.ts` (bankable accounts, bankings list, `bankBatch` mutation) and `src/apps/lending/repayments/BankBatchDialog.tsx`.
+Completed this session
+- Wired the collection-banking flow into `RepaymentsPage`: a permission-gated "Bank collections" action on a closed, not-yet-banked batch, a "Banked" indicator, and a "Banked collections" table (date, batch, bank account, reference, cash / mobile-money / total). Typecheck passed after this change.
+- Added the client statement to the shared document engine rather than a second implementation:
+  - `fetchAndBuildClientStatementSnapshot` in `src/services/documents/snapshots/lending.ts` — reads `mf_clients`, `mf_client_statement` and `mf_loan_balances`; no browser-side math.
+  - Registered `client_statement` → kind `lending.client_statement` in `resolveSourceDocumentRecord.ts`.
+  - `generateClientStatementPdf` layout in `supabase/functions/_shared/pdf/layouts/lending.ts` and its entry in the PDF renderer map.
 
 Remaining in C14
-1. Wire the dialog into `RepaymentsPage` (a "Bank collections" action on a closed batch, gated by `can("recordRepayments")`) and add a "Banked collections" section listing bankings with amounts and deposit reference.
-2. Retarget statement surfaces to client statement / loan statement via the document engine.
-3. Typecheck + a live pass through record → close batch → bank → reconcile.
-
-Then C15b (dead-code strip and hardening) closes the convergence.
+1. A migration seeding the `lending.client_statement` row in `document_kinds` plus its default `document_template_ast` (mirror `20260903044332_*.sql`) — without it the new document type will not render.
+2. Surface it: a `LendingDocumentsMenu` entry (`documentType: "client_statement"`, `documentId: client.id`) on the clients list/detail and on `ClientStatementReport`.
+3. Typecheck/build and a live pass: record → close batch → bank → reconcile, plus one client-statement render.
+4. Update `.lovable/plan.md` to reflect the above, then C15b (dead-code strip and hardening) closes the convergence.
 
 
 ==============================NOTE===============================
