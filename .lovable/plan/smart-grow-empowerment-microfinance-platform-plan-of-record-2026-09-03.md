@@ -1,105 +1,87 @@
-# Smart Grow Empowerment — microfinance platform (plan of record)
+# Smart Grow Empowerment — Microfinance Platform, Plan of Record
 
-One institution. Staff-operated lending. Backend: Supabase `xwxqunklduknceoryrha`.
-No SaaS, no multi-tenancy, no client portal, no payroll/HR/sales/inventory/POS/CRM.
+Reworked 2026-09-03 (second pass, after live database verification). One
+institution, employee-operated microfinance platform on the ASA-style branch /
+loan-officer / group model, built on the existing platform engines. Supabase
+project `xwxqunklduknceoryrha` (Smart Grow Empowerment) is already connected —
+no reconnection work needed.
 
-## Binding scope contract
+## Locked decisions — do not re-litigate
 
-**Reuse (tailored to microfinance, never rebuilt):** auth/PIN/invitations, RBAC, app shell +
-navigation + design system, document engine (kinds, template AST, PDF renderer), report engine,
-and the Finance core — chart of accounts, journals/GL, fiscal periods, banking, bank feeds,
-reconciliation, the payment settlement/allocation engine, and accounting events + reversals.
+REUSE as infrastructure, adapt data and wording only, never rebuild: auth/PIN +
+invitation engine, document generation engine, navigation / app shell / UI
+system, Chart of Accounts + journals + GL + fiscal periods, banking + bank
+reconciliation, payment settlement + allocation engine, fixed assets, company &
+general settings, audit logging, reporting engine, storage/files.
 
-**Retarget, do not delete:** the settlement engine and statement machinery. "Customer statement"
-becomes the client loan statement; "vendor/payables" becomes institution payables. The engine
-stays; the vocabulary, data source and screens become microfinance.
+ALREADY ADAPTED to microfinance: settlement receipts → loan repayment receipts
+and disbursement confirmations; customer statement → client + loan statement;
+receivables ageing → arrears / PAR; deposits → officer banking of daily cash and
+mobile money.
 
-**Leave out:** every other ERP surface. A bug in a removed ERP surface is not a bug.
+OUT permanently: sales, purchases, POS, inventory/products, warehouse, CRM,
+projects, HR, payroll, recruitment, attendance, timesheets, marketplace /
+entitlements, multi-tenancy, client portal.
 
-**Non-negotiables**
-- Financial state is derived server-side. React never owns balances, interest, arrears,
-  allocations or journal amounts.
-- Append-only business events; postings resolved through configured mappings. `UPDATE loans SET`
-  is not a business process. Reversals, never edits.
-- One object per migration; GRANTs + RLS in the same migration.
-- Every milestone ends with: `tsgo` clean, build OK, affected screens rendered signed-in, this
-  file updated. No re-auditing closed milestones.
+## Verified state (checked against code and the live database, 2026-09-03)
 
-## Payment reception model (decided — do not re-litigate)
+- `src/apps` = dashboard, finance, lending, platform, reports, studio. `src/pages`
+  holds only auth, platform, finance (accounts, journals, fiscal periods, fixed
+  assets, banking, feeds, reconciliation), reports, settings, team, studio. No
+  ERP sales/purchase/inventory/HR/payroll surface remains.
+- 25 `mf_*` objects live (20 tables + 5 derived views). Financial authority is
+  server-side: `mf_post_event` → `mf_resolve_account` →
+  `post_journal_entry_atomic`; balances, arrears, PAR, installment status and
+  client statement are database views.
+- Lending frontend complete: clients, groups, products + versions, applications
+  (form → assessment → decision), loans (create, disburse, schedule, lifecycle),
+  repayments (individual and group-meeting batch on one allocation policy),
+  collections, 5 reports, accounting mappings, documents via the shared engine.
+- RBAC gating, accounting integration, cash & settlement retarget, ERP surface
+  strip and dashboard retarget: DONE.
+- Baseline data now exists and one individual lifecycle has run end to end:
+  12 account mappings, 1 allocation policy, 1 product + version, 1 client,
+  1 application + assessment, 2 loans, 2 disbursements, 8 loan events,
+  10 schedule rows, 2 repayments, 3 allocations, 6 event postings.
+- Not yet exercised anywhere: groups (0), group members (0), repayment batches
+  (0), collection activities (0), collection bankings (0). The group and cash
+  banking legs are therefore unverified, not unbuilt.
 
-ASA-style group oversight without forcing group loans:
-- A **loan** always belongs to one client. A group is an operational/collection structure, not a
-  borrower substitute.
-- The cashier/officer can receive a payment **per client** or as a **group collection sheet**: one
-  meeting, one officer, many client payments captured together, each line settling that client's
-  own loan through the same server-side allocation path. A group sheet is a batch wrapper over
-  individual `payment_received` events — never a single blended balance.
-- Allocation order is policy-driven (configurable per product/institution), not hardcoded.
-- Over/short payments produce client credit or arrears via the settlement engine, not ad-hoc UI math.
+## M1 — Close the unverified legs (NEXT, only remaining functional work)
 
-## Verified state (2026-09-03)
+1. Group leg: create one group with a leader and 3 members under a branch loan
+   officer; run one group-loan application → approval → disbursement.
+2. Group-meeting repayment batch: collect from several members in one batch,
+   confirm each member's allocation follows the single allocation policy and that
+   group membership creates no joint liability on individual balances; close the
+   batch (closed batch must stay immutable — already enforced server-side).
+3. Cash leg: record a collection activity, bank the day's cash/mobile money via
+   collection banking, then match it in bank reconciliation; confirm the journal
+   postings land on the mapped accounts.
+4. Verify against this data: dashboard KPIs, arrears / PAR (`mf_par_summary`
+   must return amount and percentage and match the KPI label), one report
+   render, one client statement, one repayment receipt, one disbursement
+   confirmation.
+5. Fix the shell hydration mismatch logged on load.
 
-- Shell modules: `dashboard`, `lending`, `finance`, `reports`, `studio`, `platform`. ERP modules gone.
-- Lending domain live under `src/apps/lending/*` (clients, groups, products, applications, loans,
-  repayments, collections, documents, reports, settings) on the `mf_*` schema.
-- `mf_post_event` posts disbursement, settlement-by-successor (top-up/restructure), repayment per
-  allocation component, repayment reversal, write-off — via `mf_resolve_account` +
-  `post_journal_entry_atomic`, idempotent through `mf_event_postings`. No account ids in app code.
-- Finance retained with microfinance vocabulary (loan receivables, institution payables,
-  journals, cash & bank, reconciliation, bank feeds, accounting events).
-- Documents: `journal_entry` + the four lending kinds only; institution identity injected from
-  `businesses`. Client statement reads the server-owned `mf_client_statement` view.
-- All `mf_*` tables: RLS on, GRANTs correct, loan-officer scope predicates applied.
-  Write paths role-gated server-side; financial-history tables are SELECT-only to clients.
-- Inherited customer/vendor statement dataset services verified unreferenced and deleted.
+Exit: every step observed working in the running app; discrepancies fixed in
+code, not written up.
 
-Milestones C1–C11 and C12 steps 1–2 (data security, officer scoping) and the database half of
-step 3 (RBAC server enforcement) are **complete and closed**.
+## M2 — Dead-code strip and hardening (LAST)
 
-## C12 — hardening (current, remaining work only)
+- Confirm by import graph, then remove `useDashboardStats`,
+  `useDashboardAnalytics` (ERP revenue/expense math, reachable only from
+  `AIInsightsWidget` and `useDashboardComposition`) and the module/entitlement
+  gating they carry.
+- Prune `src/parked-modules.d.ts` stubs no retained file needs.
+- Close out: typecheck, build, permission/RLS pass.
 
-1. **Close public registration.** `/signup` is still reachable in the shell. Make account creation
-   invite-only: remove the public signup route/links, keep `AcceptInvitation` + admin invite flow.
-2. **UI role gating matches the matrix.** Nav and action visibility for Super Admin, Branch Manager,
-   Loan Officer, Credit Officer, Cashier, Accountant, Collections Officer, Auditor, Reporting User.
-   Cosmetic layer only — the server remains authoritative.
-3. **Audit + immutability proof.** Every lending event attributable to a user; reversal-not-edit
-   demonstrated; no destructive deletion of financial history.
-4. **Fix the hydration mismatch on the auth screens.**
-5. **Signed-in render proof:** the four lending documents (agreement, schedule, statement, receipt)
-   and each lending report through the retained engines.
+## Rules
 
-Exit gate: no public signup path, role matrix demonstrated, portfolio scoping demonstrated, four
-PDFs rendered signed-in, `tsgo` clean, build OK.
-
-## C13 — lending completeness
-
-- `fee_charged` and `penalty_accrued` events + their account mappings in `mf_post_event`.
-- Configurable repayment allocation order surfaced in lending settings (policy row, server-read).
-- Arrears / days-past-due / PAR derived server-side from schedule-vs-payments, verified on real data.
-
-## C14 — group collections & cash discipline
-
-- Group collection sheet: officer opens a meeting, captures per-client payments, posts as a batch
-  of individual `payment_received` events with one shared reference.
-- Cashier day: opening float, receipts, banking of collections, close-off reconciled against the
-  retained bank/reconciliation engine.
-- Collection receipt document per client line; officer/branch collection reports.
-
-## C15 — final hardening
-
-Remove residual unused ERP code only where it is provably unreferenced, then full regression:
-lifecycle test (application → approval → disbursement → schedule → repayment → arrears →
-closure/write-off), report and document suite, permission matrix, build.
-
-## Known inherited debt (touch only when it blocks a retained surface)
-
-Legacy SQL-migration guards (`je-description-no-uuid`, `pgcrypto-extension-prefix`,
-`single-audit-trigger-per-table`, `sql-businesses-currency-column`, `currency-ratchet`), inherited
-ERP `SECURITY DEFINER` views (30) and function linter warnings, and content-drift guards
-(banking gating ×2, finance-settings permissions, radix overlay, tanstack-router-in-spa,
-aged-receivables related-reports). All pre-existing; not in scope.
-
-## Next action
-
-C12 step 1 — make registration invite-only.
+- No payroll, HR product, multi-tenancy, client portal, or ERP workflow revival.
+- Never a second implementation where a mature engine exists — adapt it.
+- No frontend-authoritative financial math; balances, interest, arrears and
+  allocations come from the database.
+- Individual and group repayment share one code path and one allocation policy.
+- Do not investigate, document, or polish anything outside microfinance scope;
+  no standalone audit reports.
