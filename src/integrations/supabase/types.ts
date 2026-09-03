@@ -34925,7 +34925,6 @@ export type Database = {
         Args: { p_account_id: string; p_business_id: string; p_org_id: string }
         Returns: boolean
       }
-      _admin_exec_sql: { Args: { p_sql: string }; Returns: undefined }
       _approval_match_rule: {
         Args: {
           _action_key: string
@@ -35080,6 +35079,10 @@ export type Database = {
         Args: { _session_id: string }
         Returns: Json
       }
+      _bank_reconciliation_recompute: {
+        Args: { _session_id: string }
+        Returns: Json
+      }
       _budget_assert_manage: {
         Args: { _budget_id: string }
         Returns: {
@@ -35131,6 +35134,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _confirm_invoice_core: {
+        Args: {
+          p_final_status?: string
+          p_invoice_id: string
+          p_main_lines?: Json
+          p_user_id: string
+        }
+        Returns: Json
       }
       _consolidation_fy_start: {
         Args: { _business_id: string; _on_date: string }
@@ -35415,6 +35427,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _pc_snapshot_version: {
+        Args: { _contract_id: string; _effective_from: string }
+        Returns: number
+      }
       _pick_exchange_rate_row: {
         Args: {
           p_base_currency: string
@@ -35520,6 +35536,15 @@ export type Database = {
           _exclude_credit_note_id?: string
           _invoice_id: string
           _item: Json
+        }
+        Returns: Json
+      }
+      _resolve_invoice_gl_accounts: {
+        Args: {
+          p_business_id: string
+          p_contact_id: string
+          p_org_id: string
+          p_product_ids: string[]
         }
         Returns: Json
       }
@@ -35796,6 +35821,10 @@ export type Database = {
       accounting_event_for_pos_statement: {
         Args: { p_statement_id: string }
         Returns: string
+      }
+      accounting_post_event: {
+        Args: { p_event_id: string; p_idempotency_key?: string }
+        Returns: Json
       }
       acknowledge_employee_document: {
         Args: { _document_id: string }
@@ -36727,6 +36756,27 @@ export type Database = {
         Args: { _max_amount?: number; _session_id: string }
         Returns: Json
       }
+      bank_statement_import_batch: {
+        Args: {
+          _bank_account_id: string
+          _rows: Json
+          _source?: string
+          _statement?: Json
+        }
+        Returns: Json
+      }
+      bank_transaction_apply_rules: {
+        Args: {
+          _amount: number
+          _bank_account_id: string
+          _business_id: string
+          _description: string
+          _organization_id: string
+          _reference: string
+          _transaction_type: string
+        }
+        Returns: Json
+      }
       bank_transaction_fingerprint: {
         Args: {
           _amount: number
@@ -36770,6 +36820,10 @@ export type Database = {
         }[]
       }
       build_invoice_je_lines: { Args: { p_invoice_id: string }; Returns: Json }
+      business_currency_readiness: {
+        Args: { p_business_id: string }
+        Returns: Json
+      }
       calculate_leave_days: {
         Args: {
           p_end_date: string
@@ -36831,6 +36885,15 @@ export type Database = {
         Returns: Json
       }
       canonicalize_role_key: { Args: { _key: string }; Returns: string }
+      change_business_base_currency: {
+        Args: {
+          p_business_id: string
+          p_confirm_impacts?: boolean
+          p_new_currency: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       check_automation_circuit_breaker: {
         Args: {
           _automation_id: string
@@ -37360,6 +37423,18 @@ export type Database = {
         }
         Returns: string
       }
+      compute_unit_cost: {
+        Args: {
+          p_business_id: string
+          p_product_id: string
+          p_warehouse_id?: string
+        }
+        Returns: number
+      }
+      confirm_bill_atomic: {
+        Args: { _bill_id: string; _user_id: string }
+        Returns: Json
+      }
       confirm_credit_note_atomic: {
         Args: { p_cn_id: string; p_main_lines: Json; p_user_id: string }
         Returns: Json
@@ -37398,6 +37473,31 @@ export type Database = {
         Args: { p_so_id: string; p_user_id: string }
         Returns: Json
       }
+      consolidation_diagnose_eliminations: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          business_a_currency: string
+          business_a_id: string
+          business_a_name: string
+          business_b_currency: string
+          business_b_id: string
+          business_b_name: string
+          cause: string
+          difference_amount: number
+          difference_signed: number
+          effective_policy: string
+          effective_tolerance: number
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          finding_kind: string
+          is_cross_currency: boolean
+          message: string
+          presentation_currency: string
+          remedies: string[]
+          rule_exists: boolean
+          suggested_tolerance: number
+          would_refuse: boolean
+        }[]
+      }
       consolidation_effective_tolerance: {
         Args: {
           _business_a: string
@@ -37416,6 +37516,43 @@ export type Database = {
           tolerance_reason: string
         }[]
       }
+      consolidation_elimination_evidence: {
+        Args: {
+          _counterparty_business_id: string
+          _date_from: string
+          _date_to: string
+          _declaring_business_id: string
+          _elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          _group_account_id: string
+          _group_id: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          basis: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          credit_base: number
+          credit_presentation: number
+          debit_base: number
+          debit_presentation: number
+          declaring_business_id: string
+          declaring_business_name: string
+          entry_date: string
+          entry_description: string
+          entry_number: string
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          journal_entry_id: string
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+          viewer_can_open_ledger: boolean
+        }[]
+      }
       consolidation_eliminations_balance: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -37426,9 +37563,52 @@ export type Database = {
           total_debit: number
         }[]
       }
+      consolidation_fx_remedy_note: {
+        Args: { _as_of: string; _business_id: string }
+        Returns: string
+      }
+      consolidation_generate_eliminations: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          difference_amount: number
+          eliminated_credit: number
+          eliminated_debit: number
+          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
+          line_count: number
+          pair_count: number
+        }[]
+      }
       consolidation_group_uses_group_chart: {
         Args: { _group_id: string }
         Returns: boolean
+      }
+      consolidation_intercompany_entry_lines: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          basis: string
+          counterparty_business_id: string
+          counterparty_business_name: string
+          credit_base: number
+          credit_presentation: number
+          debit_base: number
+          debit_presentation: number
+          declaring_business_id: string
+          declaring_business_name: string
+          entry_date: string
+          entry_description: string
+          entry_number: string
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          journal_entry_id: string
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+        }[]
       }
       consolidation_intercompany_flows: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
@@ -37511,6 +37691,19 @@ export type Database = {
           partner_id: string
         }[]
       }
+      consolidation_reverse_eliminations: {
+        Args: {
+          _date_from: string
+          _date_to: string
+          _group_id: string
+          _reason: string
+        }
+        Returns: {
+          reversed_leg_count: number
+          reversed_total_credit: number
+          reversed_total_debit: number
+        }[]
+      }
       consolidation_scope_member_count: {
         Args: { _as_of: string; _group_id: string }
         Returns: number
@@ -37526,6 +37719,47 @@ export type Database = {
       consolidation_tolerance_rounding_bound: {
         Args: { _currency: string }
         Returns: number
+      }
+      consolidation_translate_member: {
+        Args: {
+          _business_id: string
+          _date_from: string
+          _date_to: string
+          _group_id: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          base_currency: string
+          business_id: string
+          business_name: string
+          closing_balance: number
+          is_nominal: boolean
+          opening_balance: number
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+          total_credit: number
+          total_debit: number
+          translated_closing: number
+          translated_credit: number
+          translated_debit: number
+          translated_opening: number
+        }[]
+      }
+      consolidation_unmapped_accounts: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          business_id: string
+          business_name: string
+          closing_balance: number
+        }[]
       }
       consume_so_reservation: {
         Args: {
@@ -37592,6 +37826,15 @@ export type Database = {
           p_header: Json
           p_idempotency_key?: string
           p_items?: Json
+          p_user_id?: string
+        }
+        Returns: Json
+      }
+      create_invoice_atomic: {
+        Args: {
+          p_header: Json
+          p_idempotency_key?: string
+          p_items: Json
           p_user_id?: string
         }
         Returns: Json
@@ -37862,6 +38105,21 @@ export type Database = {
       delete_vendor_credit_note_atomic: {
         Args: { _vcn_id: string }
         Returns: Json
+      }
+      describe_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: {
+          effective_date: string
+          provider_key: string
+          rate: number
+          scope: string
+          source: string
+        }[]
       }
       diagnose_default_account_mappings: {
         Args: { _business_id: string; _org_id: string }
@@ -38469,8 +38727,16 @@ export type Database = {
         Args: { p_transmission_id: string }
         Returns: boolean
       }
+      fx_exposure_by_currency: {
+        Args: { _as_of?: string; _business_id: string }
+        Returns: Json
+      }
       fx_exposure_dimensions: {
         Args: { _as_of?: string; _business_id: string; _currency?: string }
+        Returns: Json
+      }
+      fx_exposure_open_items: {
+        Args: { _as_of?: string; _business_id: string; _currency: string }
         Returns: Json
       }
       fx_is_monetary_account: {
@@ -38493,6 +38759,36 @@ export type Database = {
           _date_from: string
           _date_to: string
           _from_currency: string
+          _org_id: string
+          _to_currency: string
+        }
+        Returns: number
+      }
+      fx_rate_coverage: {
+        Args: { p_business_id: string }
+        Returns: {
+          coverage_start: string
+          currency: string
+          document_count: number
+          first_used_on: string
+          last_used_on: string
+          latest_rate: number
+          latest_rate_date: string
+          latest_source: string
+          rate_dates: number
+          status: string
+          uncovered_documents: number
+        }[]
+      }
+      fx_rate_coverage_summary: {
+        Args: { p_business_id: string }
+        Returns: Json
+      }
+      fx_rate_on: {
+        Args: {
+          _business_id: string
+          _from_currency: string
+          _on_date: string
           _org_id: string
           _to_currency: string
         }
@@ -38522,6 +38818,16 @@ export type Database = {
           p_org: string
         }
         Returns: Record<string, unknown>
+      }
+      fx_unrecognised_exchange_difference: {
+        Args: { _as_of: string; _business_id: string }
+        Returns: {
+          carried_rate: number
+          closing_rate: number
+          currency: string
+          foreign_balance: number
+          unrecognised: number
+        }[]
       }
       garnishment_apply_pack_to_org: {
         Args: { p_org_id: string; p_pack_id: string }
@@ -38647,6 +38953,10 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      generate_loan_schedule: {
+        Args: { _dry_run?: boolean; _loan_id: string }
+        Returns: Json
       }
       generate_next_je_number: {
         Args: { _business_id?: string; _org_id: string }
@@ -38820,6 +39130,27 @@ export type Database = {
               status: string
             }[]
           }
+      get_budget_variance_report: {
+        Args: { _budget_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual_amount: number
+          budgeted_amount: number
+          fiscal_period_id: string
+          is_favourable: boolean
+          is_unbudgeted: boolean
+          period_end: string
+          period_month: number
+          period_ordinal: number
+          period_start: string
+          period_status: string
+          variance_amount: number
+          variance_percent: number
+        }[]
+      }
       get_commercial_timeline: {
         Args: { _before?: string; _limit?: number; _org_id: string }
         Returns: {
@@ -38900,6 +39231,36 @@ export type Database = {
           translation_reserve: number
         }[]
       }
+      get_consolidated_trial_balance_translated: {
+        Args: { _date_from: string; _date_to: string; _group_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: Database["public"]["Enums"]["account_type"]
+          base_currency: string
+          business_id: string
+          business_name: string
+          closing_balance: number
+          group_account_code: string
+          group_account_id: string
+          group_account_name: string
+          is_mapped: boolean
+          is_nominal: boolean
+          is_parent: boolean
+          opening_balance: number
+          ownership_percent: number
+          presentation_currency: string
+          rate_class: string
+          rate_used: number
+          total_credit: number
+          total_debit: number
+          translated_closing: number
+          translated_credit: number
+          translated_debit: number
+          translated_opening: number
+        }[]
+      }
       get_control_account_reconciliation: {
         Args: {
           _branch_id?: string
@@ -38920,6 +39281,15 @@ export type Database = {
       get_current_employee: {
         Args: { _organization_id?: string }
         Returns: string
+      }
+      get_dashboard_activity: {
+        Args: {
+          _branch_id: string
+          _business_id: string
+          _kind: string
+          _limit?: number
+        }
+        Returns: Json
       }
       get_dashboard_stats: {
         Args: {
@@ -39229,6 +39599,10 @@ export type Database = {
         Args: { _business_id?: string; _org_id: string }
         Returns: string
       }
+      get_next_journal_entry_number: {
+        Args: { _org_id: string }
+        Returns: string
+      }
       get_next_lead_number: {
         Args: { p_business_id?: string; p_org_id: string }
         Returns: string
@@ -39324,6 +39698,22 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_period_budget_variance: {
+        Args: { _fiscal_period_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual_amount: number
+          budget_id: string
+          budgeted_amount: number
+          is_favourable: boolean
+          is_unbudgeted: boolean
+          variance_amount: number
+          variance_percent: number
+        }[]
       }
       get_platform_admin_permissions: {
         Args: { _user_id: string }
@@ -39757,6 +40147,15 @@ export type Database = {
           updated_at: string
           user_id: string
         }[]
+      }
+      hr_notify_approval_event: {
+        Args: {
+          _actor?: string
+          _entity_id: string
+          _entity_type: string
+          _event: string
+        }
+        Returns: Json
       }
       identity_code_candidates: { Args: { p_raw: string }; Returns: string[] }
       insert_payroll_run_atomic: {
@@ -40230,6 +40629,14 @@ export type Database = {
         Returns: undefined
       }
       mask_sensitive_value: { Args: { p_value: string }; Returns: string }
+      match_bill_atomic: {
+        Args: {
+          _actor: string
+          _bill_id: string
+          _landed_cost_bill_id?: string
+        }
+        Returns: Json
+      }
       match_bill_with_landed_cost: {
         Args: { _actor: string; _bill_id: string; _landed_cost_bill_id: string }
         Returns: Json
@@ -40369,6 +40776,15 @@ export type Database = {
       normalize_profile_change_value: {
         Args: { p_field_key: string; p_raw: string }
         Returns: string
+      }
+      notify_admins_new_signup: {
+        Args: {
+          _email: string
+          _full_name: string
+          _signed_up_at: string
+          _user_id: string
+        }
+        Returns: undefined
       }
       notify_app_trial_expiring: {
         Args: { p_app_id: string; p_days_left: number; p_org_id: string }
@@ -40655,6 +41071,15 @@ export type Database = {
         Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
         Returns: Json
       }
+      platform_delete_organization: {
+        Args: { p_confirmation_token: string; p_org_id: string }
+        Returns: Json
+      }
+      po_resync_billed_state: { Args: { _po_id: string }; Returns: undefined }
+      po_resync_billed_state_for_bill: {
+        Args: { _bill_id: string }
+        Returns: undefined
+      }
       pos_payment_session_allocated: {
         Args: { p_session_id: string }
         Returns: number
@@ -40749,6 +41174,29 @@ export type Database = {
           }
         | {
             Args: {
+              _amounts_in_document_currency?: boolean
+              _branch_id?: string
+              _business_id: string
+              _created_by: string
+              _currency?: string
+              _description: string
+              _entry_date: string
+              _entry_number: string
+              _exchange_rate?: number
+              _is_adjusting: boolean
+              _is_closing: boolean
+              _is_opening_entry?: boolean
+              _lines: Json
+              _org_id: string
+              _reference: string
+              _source_id: string
+              _source_subtype?: string
+              _source_type: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
               _business_id: string
               _created_by: string
               _description: string
@@ -40795,7 +41243,15 @@ export type Database = {
         Args: { _document_id: string; _document_type: string }
         Returns: Json
       }
+      preview_reversal_consequences_core: {
+        Args: { _document_id: string; _document_type: string }
+        Returns: Json
+      }
       preview_reversal_extras_customer_refund: {
+        Args: { _document_id: string }
+        Returns: Json
+      }
+      preview_reversal_extras_expense: {
         Args: { _document_id: string }
         Returns: Json
       }
@@ -41068,6 +41524,18 @@ export type Database = {
           _business_type?: string
           _country: string
           _currency: string
+          _legal_name?: string
+          _name: string
+          _org_id: string
+        }
+        Returns: string
+      }
+      provision_company_full: {
+        Args: {
+          _business_type?: string
+          _country: string
+          _currency: string
+          _is_first?: boolean
           _legal_name?: string
           _name: string
           _org_id: string
@@ -41818,7 +42286,9 @@ export type Database = {
       }
       reset_module__ancillaries: { Args: { org_id: string }; Returns: Json }
       reset_module__banking: { Args: { org_id: string }; Returns: Json }
+      reset_module__costing: { Args: { org_id: string }; Returns: Json }
       reset_module__events: { Args: { org_id: string }; Returns: Json }
+      reset_module__finance: { Args: { org_id: string }; Returns: Json }
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
       reset_module__hr: { Args: { org_id: string }; Returns: Json }
       reset_module__pos: { Args: { org_id: string }; Returns: Json }
@@ -41873,6 +42343,16 @@ export type Database = {
             }
             Returns: string
           }
+      resolve_adjustment_unit_cost: {
+        Args: {
+          p_business_id: string
+          p_org_id: string
+          p_product_id: string
+          p_provided: number
+          p_warehouse_id: string
+        }
+        Returns: number
+      }
       resolve_ar_dispute: {
         Args: {
           _dispute_id: string
@@ -41949,6 +42429,15 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: number
+      }
       resolve_expense_default_account: {
         Args: { p_business_id: string; p_org_id: string; p_setting_key: string }
         Returns: string
@@ -41981,6 +42470,36 @@ export type Database = {
           p_rule_code: string
         }
         Returns: string
+      }
+      resolve_line_base_quantity: {
+        Args: {
+          p_business_id: string
+          p_display_quantity: number
+          p_display_uom_id?: string
+          p_packaging_id?: string
+          p_product_id: string
+        }
+        Returns: Json
+      }
+      resolve_line_tax_rate: {
+        Args: {
+          p_business_id: string
+          p_contact_id: string
+          p_date?: string
+          p_product_id: string
+        }
+        Returns: Json
+      }
+      resolve_line_unit_price: {
+        Args: {
+          p_business_id: string
+          p_contact_id?: string
+          p_display_quantity?: number
+          p_display_uom_id?: string
+          p_packaging_id?: string
+          p_product_id: string
+        }
+        Returns: Json
       }
       resolve_my_employee: {
         Args: never
@@ -42028,6 +42547,15 @@ export type Database = {
       }
       resolve_posting_account: {
         Args: { p_branch_id?: string; p_business_id: string; p_key: string }
+        Returns: string
+      }
+      resolve_product_account_override: {
+        Args: {
+          p_business_id: string
+          p_org_id: string
+          p_product_id: string
+          p_purpose: string
+        }
         Returns: string
       }
       resolve_product_gl_account: {
@@ -42178,6 +42706,15 @@ export type Database = {
         }
       }
       restore_owner_role: { Args: { p_org_id: string }; Returns: boolean }
+      restore_so_reservation: {
+        Args: {
+          p_org_id: string
+          p_product_id: string
+          p_qty: number
+          p_so_id: string
+        }
+        Returns: number
+      }
       resume_my_invitation: { Args: never; Returns: Json }
       retry_failed_business_event: {
         Args: { p_event_id: string }
@@ -42341,6 +42878,10 @@ export type Database = {
       schedule_organization_deletion: {
         Args: { p_grace_days?: number; p_org_id: string; p_reason?: string }
         Returns: Json
+      }
+      seed_app_data: {
+        Args: { p_app_id: string; p_org_id: string }
+        Returns: undefined
       }
       seed_default_journal_books: {
         Args: { _business_id: string }
