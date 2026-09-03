@@ -40,6 +40,7 @@ import { useMfClients } from "@/hooks/useMfClients";
 import { useMfLoanBalances, type MfLoanBalance } from "@/hooks/useMfRepayments";
 import {
   MF_ACTIVITY_TYPES,
+  useMfAccruePenalties,
   useMfArrears,
   useMfCollectionActivities,
   useMfParSummary,
@@ -79,6 +80,7 @@ type WorklistLoan = {
 export function CollectionsPage() {
   const { can } = usePermissions();
   const canManageCollections = can("manageCollections");
+  const accruePenalties = useMfAccruePenalties();
   const [search, setSearch] = useState("");
   const [bucket, setBucket] = useState<string>("all");
   const [activityLoan, setActivityLoan] = useState<WorklistLoan | null>(null);
@@ -143,6 +145,17 @@ export function CollectionsPage() {
         eyebrow="Lending"
         title="Collections"
         description="Arrears, days past due and portfolio at risk, derived from the contractual schedule against posted payments."
+        actions={
+          canManageCollections ? (
+            <Button
+              variant="outline"
+              onClick={() => accruePenalties.mutate(undefined)}
+              disabled={accruePenalties.isPending}
+            >
+              {accruePenalties.isPending ? "Raising penalties…" : "Run penalty accrual"}
+            </Button>
+          ) : undefined
+        }
       />
       <PageBody>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
