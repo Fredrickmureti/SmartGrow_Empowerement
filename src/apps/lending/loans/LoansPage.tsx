@@ -52,10 +52,12 @@ import {
   type MfLoan,
   type MfLoanStatus,
 } from "@/hooks/useMfLoans";
+import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { CreateLoanDialog } from "./CreateLoanDialog";
 import { DisburseDialog } from "./DisburseDialog";
 import { LoanScheduleDialog } from "./LoanScheduleDialog";
 import { LoanLifecycleDialog, type LoanLifecycleAction } from "./LoanLifecycleDialog";
+
 
 
 const STATUS_TONE: Record<
