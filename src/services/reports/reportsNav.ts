@@ -69,7 +69,7 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     key: "subledgers",
     label: "Receivables & payables",
     icon: Users,
-    reportIds: ["aged-receivables", "aged-payables", "partner-ledger"],
+    reportIds: ["aged-receivables", "aged-payables"],
   },
   {
     key: "cash",
@@ -84,16 +84,10 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     reportIds: ["fx-revaluation", "fx-exposure", "fx-realized"],
   },
   {
-    key: "tax",
-    label: "Tax & compliance",
-    icon: Receipt,
-    reportIds: ["tax-reports"],
-  },
-  {
     key: "planning",
-    label: "Budget & assets",
+    label: "Assets",
     icon: Target,
-    reportIds: ["budget-report", "depreciation-report"],
+    reportIds: ["depreciation-report"],
   },
   {
     key: "integrity",
@@ -107,30 +101,10 @@ export const REPORT_FAMILIES: ReportFamily[] = [
   },
 
   {
-    key: "consolidation",
-    label: "Consolidation & group",
-    icon: Network,
-    reportIds: [
-      "cross-company-comparative",
-      "consolidated-trial-balance",
-      "consolidated-statements",
-      "intercompany-identification",
-      "intercompany-eliminations",
-    ],
-  },
-  {
     key: "analytics",
     label: "Analytics",
     icon: BarChart3,
-    reportIds: [
-      "management-reports",
-      "business-intelligence",
-
-      // Analytic accounting consumers — the management dimension of the GL.
-      "analytic-account-statement",
-      "analytic-profit-and-loss",
-      "analytic-budget-vs-actual",
-    ],
+    reportIds: ["management-reports"],
   },
 
 ];
