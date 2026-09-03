@@ -138,7 +138,7 @@ export function OfficerCollectionsReport() {
   const getExportConfig = useCallback(
     (): ExportConfig => ({
       title: scope === "branch" ? "Branch collections" : "Officer collections",
-      period: `${from} to ${to}`,
+      dateRange: `${from} to ${to}`,
       columns: toExportColumns(COLUMNS as ReportColumn<never>[]),
       rows: toExportRows(rows, COLUMNS as ReportColumn<never>[]),
       sheetName: "Collections",
