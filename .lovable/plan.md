@@ -1,113 +1,105 @@
 # Smart Grow Empowerment — microfinance platform (plan of record)
 
-One institution, staff-only lending operations. Backend: Supabase `xwxqunklduknceoryrha`.
+One institution. Staff-operated lending. Backend: Supabase `xwxqunklduknceoryrha`.
 No SaaS, no multi-tenancy, no client portal, no payroll/HR/sales/inventory/POS/CRM.
 
-## Scope contract (binding)
+## Binding scope contract
 
-- Reuse, tailored to microfinance: auth/RBAC/PIN + invitations, app shell + nav + design system,
-  document engine (kinds + template AST + PDF renderer), report engine, and the Finance core
-  (chart of accounts, journals/GL, fiscal periods, fixed assets, banking, bank feeds,
-  reconciliation, settlement engine, accounting events, reversal register).
-- Remove/leave out: everything else inherited from the ERP.
-- Financial state is derived server-side; React never owns balances, interest, arrears,
+**Reuse (tailored to microfinance, never rebuilt):** auth/PIN/invitations, RBAC, app shell +
+navigation + design system, document engine (kinds, template AST, PDF renderer), report engine,
+and the Finance core — chart of accounts, journals/GL, fiscal periods, banking, bank feeds,
+reconciliation, the payment settlement/allocation engine, and accounting events + reversals.
+
+**Retarget, do not delete:** the settlement engine and statement machinery. "Customer statement"
+becomes the client loan statement; "vendor/payables" becomes institution payables. The engine
+stays; the vocabulary, data source and screens become microfinance.
+
+**Leave out:** every other ERP surface. A bug in a removed ERP surface is not a bug.
+
+**Non-negotiables**
+- Financial state is derived server-side. React never owns balances, interest, arrears,
   allocations or journal amounts.
-- Append-only business events with mapping-resolved postings. `UPDATE loans SET ...` is not a
-  business process.
+- Append-only business events; postings resolved through configured mappings. `UPDATE loans SET`
+  is not a business process. Reversals, never edits.
 - One object per migration; GRANTs + RLS in the same migration.
-- A bug in a removed ERP surface is not a bug. No re-auditing verified milestones.
-- Each milestone ends with: `tsgo` clean, build OK, affected screens rendered, this file updated.
+- Every milestone ends with: `tsgo` clean, build OK, affected screens rendered signed-in, this
+  file updated. No re-auditing closed milestones.
 
-## Verified state (2026-09-03, re-checked against the codebase)
+## Payment reception model (decided — do not re-litigate)
 
-- Shell contains only `dashboard`, `lending`, `finance`, `reports`, `studio`, `platform`.
+ASA-style group oversight without forcing group loans:
+- A **loan** always belongs to one client. A group is an operational/collection structure, not a
+  borrower substitute.
+- The cashier/officer can receive a payment **per client** or as a **group collection sheet**: one
+  meeting, one officer, many client payments captured together, each line settling that client's
+  own loan through the same server-side allocation path. A group sheet is a batch wrapper over
+  individual `payment_received` events — never a single blended balance.
+- Allocation order is policy-driven (configurable per product/institution), not hardcoded.
+- Over/short payments produce client credit or arrears via the settlement engine, not ad-hoc UI math.
+
+## Verified state (2026-09-03)
+
+- Shell modules: `dashboard`, `lending`, `finance`, `reports`, `studio`, `platform`. ERP modules gone.
 - Lending domain live under `src/apps/lending/*` (clients, groups, products, applications, loans,
-  repayments, collections, documents, reports, settings) on the `mf_*` schema via `useMf*` hooks.
-- Finance retained as accounting infrastructure with microfinance vocabulary in `FINANCE_NAV`
-  (loan receivables, institution payables, journal entries, cash & bank, reconciliation,
-  bank feeds, accounting events).
-- `mf_post_event` posts disbursement, settlement-by-successor (top-up/restructure), repayment
-  per allocation component, repayment reversal, and write-off through `mf_resolve_account` +
-  `post_journal_entry_atomic`, idempotent via `mf_event_postings`. No account ids in app code.
-- Documents: only `journal_entry` + the four lending kinds are registered; institution identity
-  (name, legal name, address, phone, email, registration, tax id) is injected from `businesses`.
-- Client statement reads the server-owned `mf_client_statement` view.
-- **Closed this pass:** the inherited `customerStatementDataset/Ledger` and
-  `vendorStatementDataset/Ledger` services were verified unreferenced and deleted. `tsgo` clean.
+  repayments, collections, documents, reports, settings) on the `mf_*` schema.
+- `mf_post_event` posts disbursement, settlement-by-successor (top-up/restructure), repayment per
+  allocation component, repayment reversal, write-off — via `mf_resolve_account` +
+  `post_journal_entry_atomic`, idempotent through `mf_event_postings`. No account ids in app code.
+- Finance retained with microfinance vocabulary (loan receivables, institution payables,
+  journals, cash & bank, reconciliation, bank feeds, accounting events).
+- Documents: `journal_entry` + the four lending kinds only; institution identity injected from
+  `businesses`. Client statement reads the server-owned `mf_client_statement` view.
+- All `mf_*` tables: RLS on, GRANTs correct, loan-officer scope predicates applied.
+  Write paths role-gated server-side; financial-history tables are SELECT-only to clients.
+- Inherited customer/vendor statement dataset services verified unreferenced and deleted.
 
-Milestones C1–C11 are complete. Do not re-open them.
+Milestones C1–C11 and C12 steps 1–2 (data security, officer scoping) and the database half of
+step 3 (RBAC server enforcement) are **complete and closed**.
 
-## C12 — hardening (current milestone)
+## C12 — hardening (current, remaining work only)
 
-1. **DONE — `mf_*` data security.** Every `mf_*` table has RLS enabled with GRANTs to
-   authenticated + service_role. Linter sweep done: dropped `storage_orphan_inventory`
-   (ERP view exposing `auth.users`) and the three ERP scratch log tables
-   (`_pret_sim_log`, `_e2e_milk_log`, `__ts_wave5_results`). Zero ERROR-level findings remain
-   outside inherited ERP `SECURITY DEFINER` views/functions (see debt below).
-2. **DONE — loan-officer data scope.** `mf_clients`, `mf_loans`, `mf_repayments` and
-   `mf_collection_activities` already scoped; this pass added `mf_officer_in_scope` /
-   `mf_loan_in_scope` to the SELECT policies of `mf_loan_applications`, `mf_groups`,
-   `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events`, `mf_repayment_allocations`.
-3. RBAC roles wired end to end: Super Admin, Branch Manager, Loan Officer, Credit Officer,
-   Cashier, Accountant, Collections Officer, Auditor, Reporting User — server-side enforcement
-   is authoritative, nav hiding is cosmetic.
-   `app_role` already carries super_admin, admin, branch_manager, loan_officer, credit_officer,
-   cashier, accountant, collections_officer, auditor, viewer (= Reporting User).
-4. Audit + immutability proof: every lending business event attributable to a user; reversals,
-   not edits; no destructive deletion of financial history.
-5. Live signed-in render of each lending document (agreement, schedule, statement, receipt) and
-   each lending report through the retained engines.
+1. **Close public registration.** `/signup` is still reachable in the shell. Make account creation
+   invite-only: remove the public signup route/links, keep `AcceptInvitation` + admin invite flow.
+2. **UI role gating matches the matrix.** Nav and action visibility for Super Admin, Branch Manager,
+   Loan Officer, Credit Officer, Cashier, Accountant, Collections Officer, Auditor, Reporting User.
+   Cosmetic layer only — the server remains authoritative.
+3. **Audit + immutability proof.** Every lending event attributable to a user; reversal-not-edit
+   demonstrated; no destructive deletion of financial history.
+4. **Fix the hydration mismatch on the auth screens.**
+5. **Signed-in render proof:** the four lending documents (agreement, schedule, statement, receipt)
+   and each lending report through the retained engines.
 
-Exit gate: linter clean on `mf_*`, role matrix demonstrated, portfolio scoping demonstrated,
-four PDFs rendered signed-in, `tsgo` clean, build OK.
+Exit gate: no public signup path, role matrix demonstrated, portfolio scoping demonstrated, four
+PDFs rendered signed-in, `tsgo` clean, build OK.
 
-## C13 — remaining lending gaps (only after C12)
+## C13 — lending completeness
 
-- Fee-charged and penalty-accrued events + their mappings in `mf_post_event`.
-- Configurable repayment allocation order (policy-driven, not hardcoded).
-- Arrears/PAR derivation verified against schedule-vs-payments on real data.
+- `fee_charged` and `penalty_accrued` events + their account mappings in `mf_post_event`.
+- Configurable repayment allocation order surfaced in lending settings (policy row, server-read).
+- Arrears / days-past-due / PAR derived server-side from schedule-vs-payments, verified on real data.
 
-## Known inherited debt (fix only when it blocks a retained surface)
+## C14 — group collections & cash discipline
+
+- Group collection sheet: officer opens a meeting, captures per-client payments, posts as a batch
+  of individual `payment_received` events with one shared reference.
+- Cashier day: opening float, receipts, banking of collections, close-off reconciled against the
+  retained bank/reconciliation engine.
+- Collection receipt document per client line; officer/branch collection reports.
+
+## C15 — final hardening
+
+Remove residual unused ERP code only where it is provably unreferenced, then full regression:
+lifecycle test (application → approval → disbursement → schedule → repayment → arrears →
+closure/write-off), report and document suite, permission matrix, build.
+
+## Known inherited debt (touch only when it blocks a retained surface)
 
 Legacy SQL-migration guards (`je-description-no-uuid`, `pgcrypto-extension-prefix`,
-`single-audit-trigger-per-table`, `sql-businesses-currency-column`, `currency-ratchet`) and
-inherited ERP `SECURITY DEFINER` views (30) and functions (~3.5k linter warnings), plus content-drift guards (banking gating ×2, finance-settings permissions, radix overlay,
-tanstack-router-in-spa, aged-receivables related-reports). Pre-existing.
+`single-audit-trigger-per-table`, `sql-businesses-currency-column`, `currency-ratchet`), inherited
+ERP `SECURITY DEFINER` views (30) and function linter warnings, and content-drift guards
+(banking gating ×2, finance-settings permissions, radix overlay, tanstack-router-in-spa,
+aged-receivables related-reports). All pre-existing; not in scope.
 
+## Next action
 
-======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
-C12 step 3 (RBAC) is verified as far as the database layer goes:
-
-- Every `mf_*` write path is role-gated server-side via `has_role(...)` plus `user_has_business_access(...)` — client/group/application writes limited to admin, branch manager, loan officer, credit officer; loan creation to admin/branch manager/credit officer; repayments to cashier/collections/loan officer; mappings and allocation policy to admin/accountant only.
-- Financial history tables (`mf_loan_events`, `mf_event_postings`, `mf_loan_schedule`, `mf_loan_disbursements`, `mf_repayment_allocations`) have SELECT-only policies — they can only be written through `mf_post_event`, so the frontend cannot own balances or postings.
-
-Remaining in C12:
-1. Confirm the UI nav/action gating matches the role matrix (cosmetic layer only) and that no public registration path is reachable — `/signup` still exists in the shell and should become invite-only.
-2. Audit/immutability proof: attribution on each lending event, reversal-not-edit behaviour.
-3. Signed-in render of the four lending documents and the lending reports.
-4. Fix the hydration mismatch surfacing on the auth screens.
-
-
-==============================NOTE===============================
-
-NOTE
-=============
-And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
-
-The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
-
-What we want to **reuse** from the existing system is specifically:
-
-* **Document generation engine**
-* **Authentication/auth engine**
-* **Navigation and UI foundation**
-* *Banking and reconciliation , payables receivables but now tailored for microfinance**
-TO BE PRECISE, WHAT IS REUSABLE, KINDLY REUSE IT INCLUDING PAYMENT SETTLEMENT ENGINE FOR PAYABELES/RECEIVABLES, basically accross the Finance what is reusable use it as long as its microfuiannce tailored because we are building mciro fianance  if its statements instead of customer staments lest it be  talowred towards microfinance not the current sales oriented that was used by the old erp so dont just delete what is reusable and has solid engine that will be painful to rebuild from scratch, reason like a mircofiannce system developer not like a blind bot,  and  if its payment being receuived,  and on the payment reception we need to reason critically here because this sytem is almost operating almost like ASA international kenya which uses the typical old microfinance tradition because this is an upcoming microfiannce startapp  where we have something loan officer overseeign a group but still that does not mean tje system should not allow single customer payment so this means I need you to help me reason here, dont ask me question, just know you are dealign with a microfiannce system  and such not the old erp which dealth with the typical procurement and sales kind of flow no room for an error, be anaytical and critical executioner, 
-
-Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
-
-The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
-
-**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
-
-**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
+C12 step 1 — make registration invite-only.
