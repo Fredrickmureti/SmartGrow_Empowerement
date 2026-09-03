@@ -178,3 +178,20 @@ The client does **not** need another complicated ERP. We are building a focused 
 **Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
 
 **Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
+
+## Status update (M3, pricing group)
+
+Done: removed the sales pricing engine — line-pricing triggers on invoice /
+estimate / credit-note / proforma / sales-order items, `_pricing_normalize_line`,
+`resolve_line_unit_price`, `pos_resolve_line`, the `contacts.customer_group_id`
+and `contacts.price_list_id` columns, and the `customer_groups`, `price_lists`,
+`price_list_items` tables. Code side (`fetchContactDefaults`, `useContacts`)
+cleaned; typecheck green. Linter count 2025 -> 2021, all inherited, none new.
+
+Scope decision (deliberate, to avoid credit burn): delivery notes, sales orders,
+recurring invoices, sales returns and the eTIMS group are NOT worth a deep
+schema scrub — their identifiers are woven through the shared document engine,
+outbox, audit and studio metadata that we are keeping. They are left inert
+(no navigation, no hooks, no UI). Next work goes to microfinance business logic:
+retargeting receivables/payables and the payment settlement engine to loans,
+group/individual collections, and microfinance-tailored statements.
