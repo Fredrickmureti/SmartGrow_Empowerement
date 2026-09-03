@@ -63,6 +63,7 @@ export function RepaymentsPage() {
   const [batchId, setBatchId] = useState<string>("none");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const { batches, openBatch, closeBatch } = useMfRepaymentBatches();
   const { repayments, isLoading, error, record, reverse } = useMfRepayments();
