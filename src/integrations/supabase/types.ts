@@ -16185,14 +16185,15 @@ export type Database = {
           footer_id: string | null
           header_id: string | null
           id: string
-          is_default: boolean | null
+          is_active: boolean
+          is_default: boolean
           kind_code: string | null
           label: string | null
           media_class: string | null
-          organization_id: string
+          organization_id: string | null
           published_at: string | null
           scope: string | null
-          template_id: string
+          template_id: string | null
           theme_id: string | null
           updated_at: string
           version: number
@@ -16205,14 +16206,15 @@ export type Database = {
           footer_id?: string | null
           header_id?: string | null
           id?: string
-          is_default?: boolean | null
+          is_active?: boolean
+          is_default?: boolean
           kind_code?: string | null
           label?: string | null
           media_class?: string | null
-          organization_id: string
+          organization_id?: string | null
           published_at?: string | null
           scope?: string | null
-          template_id: string
+          template_id?: string | null
           theme_id?: string | null
           updated_at?: string
           version?: number
@@ -16225,14 +16227,15 @@ export type Database = {
           footer_id?: string | null
           header_id?: string | null
           id?: string
-          is_default?: boolean | null
+          is_active?: boolean
+          is_default?: boolean
           kind_code?: string | null
           label?: string | null
           media_class?: string | null
-          organization_id?: string
+          organization_id?: string | null
           published_at?: string | null
           scope?: string | null
-          template_id?: string
+          template_id?: string | null
           theme_id?: string | null
           updated_at?: string
           version?: number
