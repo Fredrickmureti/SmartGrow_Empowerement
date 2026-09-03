@@ -87,25 +87,24 @@ bank reconciliation.
 
 ======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
 
+Work landed this session (all typechecked clean, build unaffected):
 
-I hardened the repayment and data-scope layer before stopping. Two migrations landed:
+M9 — Hardening, continued
+1. RBAC read-through — completed the lending role matrix in `src/lib/permissions.ts`: `cashier` (teller: clients, loans, record repayments — deliberately no approval, no disbursement, no portfolio reports) and `accountant` (read-only portfolio + lending reports). `manageLendingConfig` stays admin/owner-only. Client-side gates remain a rail; RLS is the boundary.
+2. Penalties are now real (closing the hardcoded-`0` gap):
+   - `mf_loan_charges` — penalty/manual charge per installment, reversible, with an idempotent accrual key; RLS-scoped to the caller's portfolio, no client writes.
+   - `mf_loan_penalty_status` (security-invoker view) — penalty charged vs paid vs outstanding per installment.
+   - `mf_record_repayment` rewritten to allocate penalty from real outstanding charges in the configured `mf_allocation_policy` order, to reach installments that carry only a penalty, and to auto-close a loan only when schedule and penalties are clear.
+   - `mf_accrue_penalties(business, as_of)` — one charge per overdue installment from the loan's own `penalty_rate` / `penalty_basis`, safely re-runnable; execute revoked from anon.
+   - Penalty income keeps posting through the existing `penalty_income` mapping on receipt — no second accounting path.
+   - Operated from Lending → Collections via a "Run penalty accrual" action gated by `manageCollections`, backed by `useMfAccruePenalties`.
 
-Officer data scope — `mf_loan_balances` and `mf_loan_installment_status` were running as definer views, so they bypassed row-level security and could expose loans outside an officer's portfolio. Both are now `security_invoker`, which means every balance and installment read is filtered by the same `mf_officer_in_scope` rules already enforced on clients, groups, applications, loans, schedules and repayments.
-
-Repayment integrity — three real defects fixed in `mf_record_repayment`:
-- Client credit from overpayments was summed across all allocations, including receipts that had been reversed, so a reversed payment's credit could be spent again. It now excludes reversed receipts.
-- Receipt numbers were generated with `COUNT(*)+1`, which could collide under concurrent posting (a group meeting sheet posting many lines). Numbering is now max-based with a bounded retry on unique violation.
-- No duplicate guard on payment references. A partial unique index plus an explicit check now block recording the same reference twice on a loan.
-
-Disbursement was audited and needs no change: it already locks the loan, enforces role, requires `pending_disbursement` status, rejects a second unreversed disbursement, and matches the amount to approved principal.
-
-Remaining in M9 (next session):
-1. RBAC pass — confirm each role reaches only its permitted lending surfaces (routes are gated by `viewLendingReports` / `viewLoanProducts` etc.; the role→permission map still needs a read-through).
-2. Penalty allocation is hardcoded to `0` in the allocation loop — decide whether penalties are in scope and wire them, or document the omission.
-3. The deferred inherited linter posture (~2,019 findings, all pre-existing AccrualFlow surface).
-4. Your signed-in preview verification listed in `.lovable/plan.md`.
-
-`.lovable/plan.md` and `roadmap.md` still reflect M9 as the active milestone; they need a short update recording the two fixes above when work resumes.
+Remaining (next session, in this order)
+1. Update `.lovable/plan.md` and `roadmap.md` with the above — I ran out of credits before writing them; the plan still shows penalties as an open M9 item.
+2. Surface penalties on the loan detail and loan/client statement (charges list + penalty outstanding line).
+3. Deferred inherited linter posture (~2,020 findings, all pre-existing AccrualFlow surface plus the one new gated function).
+4. Your signed-in preview verification pass listed in `.lovable/plan.md`.
+and remviing the accrualflow branded loader
 
 ==============================NOTE===============================
 
