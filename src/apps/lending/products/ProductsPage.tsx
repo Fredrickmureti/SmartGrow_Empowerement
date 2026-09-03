@@ -53,6 +53,7 @@ const STATUS_TONE: Record<MfProductStatus, "neutral" | "success" | "warning" | "
 
 export function ProductsPage() {
   const { can } = usePermissions();
+  const canManage = can("manageLoanProducts");
   const [status, setStatus] = useState<MfProductStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfLoanProduct | null>(null);
@@ -95,10 +96,12 @@ export function ProductsPage() {
         title="Loan products"
         description="Product identity with immutable priced versions — repricing publishes a new version, never edits a live one."
         actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New product
-          </Button>
+          canManage ? (
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              New product
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -134,7 +137,7 @@ export function ProductsPage() {
             <EmptyState
               title="No loan products yet"
               description="Create a product, then publish its first priced version before it can be lent on."
-              action={<Button onClick={openCreate}>New product</Button>}
+              action={canManage ? <Button onClick={openCreate}>New product</Button> : undefined}
             />
           ) : (
             <Table>
@@ -152,8 +155,8 @@ export function ProductsPage() {
                 {filtered.map((p) => (
                   <TableRow
                     key={p.id}
-                    className="cursor-pointer"
-                    onClick={() => openEdit(p)}
+                    className={canManage ? "cursor-pointer" : undefined}
+                    onClick={canManage ? () => openEdit(p) : undefined}
                   >
                     <TableCell className="font-mono text-xs">{p.code}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
