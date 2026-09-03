@@ -34,7 +34,26 @@ Then C11 (retailor banking + AR/AP to microfinance) and C12 (hardening), per the
 =============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT======
 
 
-C9 is done: loans and repayments now expose Preview/Download for all four lending documents through the existing document engine (typecheck clean, both pages rendering 200) — say the word and I'll run the C10 ERP removal sweep.
+The Supabase project `Smart Grow Empowerment` (ref `xwxqunklduknceoryrha`) is already connected — nothing to reconnect. I'll verify the current state quickly, then execute the remaining milestone (C10 sweep).
+
+Work paused mid-sweep (credits exhausted). Here's exactly where things stand so the next session can resume without re-investigation.
+
+Supabase: `Smart Grow Empowerment` (`xwxqunklduknceoryrha`) was already connected — nothing to do there.
+
+C10 sweep — done so far (uncommitted edits in the working tree):
+- `src/lib/apps/registry.ts` rewritten: only Home / Lending / Finance / Reports / Studio / Settings remain; Contacts, Employees/HR, My Workspace, budgets, customer credits/statements, consolidation, BI, migration and compliance modules removed.
+- `src/App.tsx`: `/hr/*`, `/contacts-app/*`, `/me/*`, `/compliance*`, `/settings/{compliance,carriers,migration}`, print-latency diagnostic and consolidation redirects removed; `-lazyRoutes.tsx` trimmed to Studio + Audit Logs.
+- `src/apps/finance/routes.tsx` + `nav.ts`: customer/vendor credits, budgets, analytic accounts, consolidation, tax, BI, partner ledger, budget/analytic reports, POS/contact redirects removed.
+- `src/services/reports/ReportRegistry.ts`: 13 ERP report entries removed; receivables/payables relabelled.
+- Deleted: `src/apps/{hr,contacts,me}`, `src/pages/{hr,me,contacts}`, `src/features/{hr,contacts}`, `features/finance/{budgets,customer-credits,analytic-accounts}`, ~25 ERP pages, 27 ERP edge functions (`mpesa-*` kept). `src/apps/index.ts` and `appOptions.ts` updated.
+
+Remaining to close C10 (in order):
+1. Fix 4 broken imports: delete `src/components/hr/ManagerTriageBanner.tsx` (and its callers) and `src/test/architecture/nav-app-coherence.test.ts`; the `styles.css?url` warning is pre-existing/benign.
+2. Dead-code pass: reachability scan found 542 unreachable files — biggest clusters are `src/hooks` (136), `src/components/employees` (38), `src/hooks/hr` (24), `components/{migration,hr,contacts,payments,me}`, `lib/{importConfigs,hr,migration,inventory,gs1,receipt,purchases}`. Delete by cluster, re-run the scan, repeat.
+3. Delete tests that reference removed surfaces; run `tsgo --noEmit`, check `build-errors.log`, then render `/dashboard`, `/lending/*`, `/finance/*`, `/settings` and confirm the sidebar shows only Dashboard / Lending / Finance / Reports / Settings.
+4. Update `.lovable/plan.md` (C10 → DONE, next = C11 banking/AR/AP retailoring).
+
+Note: the tree is currently mid-change and may not build until step 1 is done.
 
 NOTE
 =============
