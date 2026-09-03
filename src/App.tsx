@@ -44,7 +44,9 @@ import { getLegacyRedirectRoutes } from "@/routes/-LegacyRedirects";
 // ============================================
 import Index from "./pages/Index";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+// Public self-service registration is intentionally removed: this is a
+// single-institution, invite-only system. Accounts are created through
+// /accept-invitation only.
 import VerifyEmail from "./pages/VerifyEmail";
 import AuthCallback from "./pages/AuthCallback";
 import AcceptInvitation from "./pages/AcceptInvitation";
