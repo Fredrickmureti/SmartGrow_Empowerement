@@ -37,9 +37,6 @@ export const FINANCE_NAV: WorkspaceNav = {
         { to: "/finance/dashboard", label: "Overview", icon: LayoutGrid, end: true },
         { to: "/finance/receivables", label: "Receivables", icon: Receipt },
         { to: "/finance/payables", label: "Payables", icon: FileText },
-        { to: "/finance/customer-credits", label: "Customer credits", icon: Coins },
-        { to: "/finance/vendor-credits", label: "Vendor credits", icon: Coins },
-        { to: "/finance/statements", label: "Statements", icon: ScrollText },
         { to: "/finance/journal-entries", label: "Journal entries", icon: BookOpen },
         { to: "/finance/banking", label: "Banking", icon: Landmark },
         { to: "/finance/reconciliation", label: "Reconciliation", icon: GitCompare },
@@ -72,8 +69,6 @@ export const FINANCE_NAV: WorkspaceNav = {
       items: [
         { to: "/finance/accounts", label: "Chart of accounts", icon: BookOpen },
         { to: "/finance/fiscal-periods", label: "Fiscal periods", icon: CalendarCheck },
-        { to: "/finance/budgets", label: "Budgets", icon: Target },
-        { to: "/finance/analytic-accounts", label: "Analytic accounts", icon: Tags },
         { to: "/finance/fixed-assets", label: "Fixed assets", icon: Briefcase },
         { to: "/finance/settings", label: "Settings", icon: Settings },
       ],
