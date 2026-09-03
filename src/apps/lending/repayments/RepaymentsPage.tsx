@@ -47,6 +47,7 @@ import {
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { BankBatchDialog } from "./BankBatchDialog";
+import { GroupSheetDialog } from "./GroupSheetDialog";
 
 
 const money = (value: number, currency = "") =>
