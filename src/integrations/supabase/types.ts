@@ -14,72 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      __ts_wave5_results: {
-        Row: {
-          id: string
-          ran_at: string
-          result: Json
-        }
-        Insert: {
-          id?: string
-          ran_at?: string
-          result: Json
-        }
-        Update: {
-          id?: string
-          ran_at?: string
-          result?: Json
-        }
-        Relationships: []
-      }
-      _e2e_milk_log: {
-        Row: {
-          at: string
-          detail: Json | null
-          id: number
-          status: string
-          step: string
-        }
-        Insert: {
-          at?: string
-          detail?: Json | null
-          id?: number
-          status: string
-          step: string
-        }
-        Update: {
-          at?: string
-          detail?: Json | null
-          id?: number
-          status?: string
-          step?: string
-        }
-        Relationships: []
-      }
-      _pret_sim_log: {
-        Row: {
-          at: string
-          detail: Json | null
-          id: number
-          ok: boolean
-          step: string
-        }
-        Insert: {
-          at?: string
-          detail?: Json | null
-          id?: number
-          ok: boolean
-          step: string
-        }
-        Update: {
-          at?: string
-          detail?: Json | null
-          id?: number
-          ok?: boolean
-          step?: string
-        }
-        Relationships: []
-      }
       account_change_audit_log: {
         Row: {
           account_id: string | null
@@ -80402,51 +80336,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      storage_orphan_inventory: {
-        Row: {
-          bucket_id: string | null
-          entity_id: string | null
-          entity_type: string | null
-          inferred_at: string | null
-          is_legacy_path: boolean | null
-          is_orphan: boolean | null
-          module: string | null
-          needs_review: boolean | null
-          object_name: string | null
-          organization_id: string | null
-          owner_kind: string | null
-          owner_user_id: string | null
-        }
-        Insert: {
-          bucket_id?: string | null
-          entity_id?: string | null
-          entity_type?: string | null
-          inferred_at?: string | null
-          is_legacy_path?: boolean | null
-          is_orphan?: never
-          module?: string | null
-          needs_review?: boolean | null
-          object_name?: string | null
-          organization_id?: string | null
-          owner_kind?: string | null
-          owner_user_id?: string | null
-        }
-        Update: {
-          bucket_id?: string | null
-          entity_id?: string | null
-          entity_type?: string | null
-          inferred_at?: string | null
-          is_legacy_path?: boolean | null
-          is_orphan?: never
-          module?: string | null
-          needs_review?: boolean | null
-          object_name?: string | null
-          organization_id?: string | null
-          owner_kind?: string | null
-          owner_user_id?: string | null
-        }
-        Relationships: []
       }
       v_attendance_events_effective_time: {
         Row: {
