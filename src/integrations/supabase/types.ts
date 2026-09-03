@@ -38288,6 +38288,10 @@ export type Database = {
         }
         Returns: Json
       }
+      mf_accrue_penalties: {
+        Args: { p_as_of?: string; p_business_id: string }
+        Returns: number
+      }
       mf_add_period: {
         Args: { p_date: string; p_freq: string; p_n: number }
         Returns: string
