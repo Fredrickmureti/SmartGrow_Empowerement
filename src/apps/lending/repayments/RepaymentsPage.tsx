@@ -39,7 +39,9 @@ import {
   useMfRepaymentBatches,
   useMfRepayments,
 } from "@/hooks/useMfRepayments";
+import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
+
 
 const money = (value: number, currency = "") =>
   `${currency} ${Number(value ?? 0).toLocaleString(undefined, {
@@ -192,7 +194,18 @@ export function RepaymentsPage() {
                         {r.status === "posted" ? "Posted" : "Reversed"}
                       </StatusBadge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="space-x-1.5 text-right">
+                      <LendingDocumentsMenu
+                        label="Receipt"
+                        documents={[
+                          {
+                            documentType: "loan_payment_receipt",
+                            documentId: r.id,
+                            title: `Payment receipt ${r.receipt_number}`,
+                            filename: `payment-receipt-${r.receipt_number}`,
+                          },
+                        ]}
+                      />
                       {r.status === "posted" && (
                         <Button size="sm" variant="outline" onClick={() => doReverse(r.id)}>
                           <Undo2 className="mr-1.5 h-3.5 w-3.5" />
@@ -200,6 +213,7 @@ export function RepaymentsPage() {
                         </Button>
                       )}
                     </TableCell>
+
                   </TableRow>
                 ))}
               </TableBody>
