@@ -104,7 +104,77 @@ export type Permission =
   | "exportFinancials"     // Export GL / financial reports
   | "exportPayroll"        // Export payroll registers / bank files
   | "exportSales"          // Export sales / AR data
-  | "exportPurchases";     // Export purchase / AP data
+  | "exportPurchases"      // Export purchase / AP data
+  // Microfinance lending domain (see LENDING_ROLE_PERMISSIONS for the role matrix)
+  | LendingPermission;
+
+/**
+ * Lending (microfinance) permissions.
+ *
+ * These are UI/navigation gates only — the authoritative enforcement lives in
+ * the database (RLS + officer/branch scoping) and in the server-side event
+ * handlers. Adding one here never widens backend access.
+ */
+export type LendingPermission =
+  | "viewClients"          // View client records and groups
+  | "manageClients"        // Create/edit clients, groups, KYC documents
+  | "viewLoanProducts"     // View loan product catalog
+  | "manageLoanProducts"   // Create/edit loan products and pricing
+  | "viewApplications"     // View loan applications and assessments
+  | "manageApplications"   // Capture/edit applications and assessments
+  | "approveApplications"  // Approve or decline applications (maker-checker)
+  | "viewLoans"            // View loans, schedules, statements
+  | "manageLoans"          // Restructure, top-up, write-off, close loans
+  | "disburseLoans"        // Release approved loan funds
+  | "recordRepayments"     // Record client repayments / receipts
+  | "viewCollections"      // View arrears, PAR and collection sheets
+  | "manageCollections"    // Run collection sheets, log follow-ups, promises
+  | "viewLendingReports"   // Portfolio, arrears, collections, disbursement reports
+  | "manageLendingConfig"; // Loan accounting mappings and lending settings
+
+export const LENDING_PERMISSIONS: LendingPermission[] = [
+  "viewClients", "manageClients",
+  "viewLoanProducts", "manageLoanProducts",
+  "viewApplications", "manageApplications", "approveApplications",
+  "viewLoans", "manageLoans", "disburseLoans",
+  "recordRepayments",
+  "viewCollections", "manageCollections",
+  "viewLendingReports",
+  "manageLendingConfig",
+];
+
+/**
+ * Base-role lending matrix. Roles absent from this map get lending access only
+ * through Access Groups (module: "lending").
+ */
+export const LENDING_ROLE_PERMISSIONS: Partial<Record<AppRole, LendingPermission[]>> = {
+  branch_manager: [
+    "viewClients", "manageClients", "viewLoanProducts",
+    "viewApplications", "manageApplications", "approveApplications",
+    "viewLoans", "manageLoans", "disburseLoans",
+    "recordRepayments", "viewCollections", "manageCollections",
+    "viewLendingReports",
+  ],
+  credit_officer: [
+    "viewClients", "manageClients", "viewLoanProducts",
+    "viewApplications", "manageApplications", "approveApplications",
+    "viewLoans", "viewCollections", "viewLendingReports",
+  ],
+  loan_officer: [
+    "viewClients", "manageClients", "viewLoanProducts",
+    "viewApplications", "manageApplications",
+    "viewLoans", "recordRepayments", "viewCollections",
+    "viewLendingReports",
+  ],
+  collections_officer: [
+    "viewClients", "viewLoans", "recordRepayments",
+    "viewCollections", "manageCollections", "viewLendingReports",
+  ],
+  auditor: [
+    "viewClients", "viewLoanProducts", "viewApplications",
+    "viewLoans", "viewCollections", "viewLendingReports",
+  ],
+};
 
 // Role hierarchy (higher number = more permissions)
 // Legacy roles (accountant, staff, cashier, viewer) are kept for backward compat
