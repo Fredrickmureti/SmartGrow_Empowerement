@@ -32,7 +32,16 @@ const money = (v: number) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
-  const { schedule, events, isLoading } = useMfLoanSchedule(open ? loan?.id : undefined);
+  const { schedule, events, penalties, isLoading } = useMfLoanSchedule(
+    open ? loan?.id : undefined,
+  );
+
+  const penaltyByInstallment = new Map(penalties.map((p) => [p.installment_no, p]));
+  const penaltyOutstanding = penalties.reduce(
+    (acc, p) => acc + Number(p.penalty_outstanding ?? 0),
+    0,
+  );
+  const penaltyCharged = penalties.reduce((acc, p) => acc + Number(p.penalty_charged ?? 0), 0);
 
   const totals = schedule.reduce(
     (acc, r) => ({
@@ -69,6 +78,7 @@ export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
                 <TableHead className="text-right">Principal</TableHead>
                 <TableHead className="text-right">Interest</TableHead>
                 <TableHead className="text-right">Fees</TableHead>
+                <TableHead className="text-right">Penalty due</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Closing</TableHead>
               </TableRow>
@@ -88,6 +98,9 @@ export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
                     {money(r.interest_due)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{money(r.fees_due)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {money(penaltyByInstallment.get(r.installment_no)?.penalty_outstanding ?? 0)}
+                  </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
                     {money(r.total_due)}
                   </TableCell>
@@ -110,12 +123,32 @@ export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
                   {money(totals.fees)}
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">
+                  {money(penaltyOutstanding)}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
                   {money(totals.total)}
                 </TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
           </Table>
+        )}
+
+        {penalties.length > 0 && (
+          <div className="space-y-1 border-t pt-3">
+            <p className="text-sm font-medium">
+              Penalty charges — {money(penaltyCharged)} charged, {money(penaltyOutstanding)}{" "}
+              outstanding
+            </p>
+            <ul className="space-y-1 text-xs text-muted-foreground">
+              {penalties.map((p) => (
+                <li key={p.installment_no}>
+                  Installment {p.installment_no} · charged {money(p.penalty_charged)} · paid{" "}
+                  {money(p.penalty_paid)} · outstanding {money(p.penalty_outstanding)}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {events.length > 0 && (
