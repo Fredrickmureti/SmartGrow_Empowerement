@@ -82,9 +82,10 @@ export default function ForgotPassword() {
             </Alert>
           )}
           {wasReaped && (
-            <Button asChild className="w-full">
-              <Link to="/signup">Sign up again</Link>
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              Accounts are created by invitation only — ask your administrator
+              to send you a new invitation.
+            </p>
           )}
           <Button asChild variant={wasReaped ? "outline" : "default"} className="w-full">
             <Link to="/login">
