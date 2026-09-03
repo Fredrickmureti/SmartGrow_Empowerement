@@ -147,6 +147,10 @@ export function RepaymentsPage() {
               <Layers className="mr-1.5 h-4 w-4" />
               Open batch
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
+              <Users className="mr-1.5 h-4 w-4" />
+              Group sheet
+            </Button>
             <Button size="sm" onClick={() => setCaptureOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" />
               Record payment
