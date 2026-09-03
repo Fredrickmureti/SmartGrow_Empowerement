@@ -140,25 +140,13 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Currency</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageTaxSettings && hasFinance && (
-                <TabsTrigger value="tax" className="gap-1.5 text-xs sm:text-sm">
-                  <Percent className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Tax</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canEditSettings && (hasFinance || hasSales) && (
-                <TabsTrigger value="payment-terms" className="gap-1.5 text-xs sm:text-sm">
-                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Terms</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canManagePaymentGateways && (hasFinance || hasSales) && (
+              {!isPortalUser && permissions.canManagePaymentGateways && hasFinance && (
                 <TabsTrigger value="payments" className="gap-1.5 text-xs sm:text-sm">
                   <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Payments</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canEditSettings && (hasFinance || hasSales) && (
+              {!isPortalUser && permissions.canEditSettings && hasFinance && (
                 <TabsTrigger value="payment-methods" className="gap-1.5 text-xs sm:text-sm">
                   <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Pay Methods</span>
@@ -170,30 +158,13 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Email</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageTaxSettings && hasFinance && (
-                <TabsTrigger value="tax-compliance" className="gap-1.5 text-xs sm:text-sm">
-                  <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Compliance</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canEditSettings && hasPos && (
-                <TabsTrigger value="receipts" className="gap-1.5 text-xs sm:text-sm">
-                  <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Receipts</span>
-                </TabsTrigger>
-              )}
               {!isPortalUser && permissions.canEditSettings && hasDocuments && (
                 <TabsTrigger value="templates" className="gap-1.5 text-xs sm:text-sm">
                   <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Templates</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageBusiness && (
-                <TabsTrigger value="inventory" className="gap-1.5 text-xs sm:text-sm">
-                  <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Inventory</span>
-                </TabsTrigger>
-              )}
+
               {/* Audit log surfaced centrally at /settings/audit-logs?tab=settings */}
 
             </TabsList>
