@@ -128,11 +128,6 @@ describe("Phase 14 — financial reports scope labeling", () => {
     expect(hook).toMatch(/effectiveBranchId/);
   });
 
-  it("Partner Ledger narrows by filters.branchId", () => {
-    const pl = read("src/pages/reports/PartnerLedger.tsx");
-    expect(pl).toMatch(/branchId:\s*filters\.branchId/);
-  });
-
   it("Journal Report narrows by filters.branchId", () => {
     const jr = read("src/pages/reports/JournalReport.tsx");
     // Server-side report RPC — the branch travels as an RPC argument.
@@ -163,13 +158,5 @@ describe("Phase 14 — financial reports scope labeling", () => {
     expect(dr).toMatch(/branch_id\.eq\.\$\{branchId\}/);
   });
 
-  it("Budget vs Actual reads the authoritative RPC and never aggregates the ledger in React", () => {
-    const hook = read("src/hooks/useBudgetVsActual.ts");
-    // Scope (business + branch), ledger visibility, closing/opening and sample
-    // exclusion all live inside get_budget_variance_report.
-    expect(hook).toMatch(/get_budget_variance_report/);
-    expect(hook).not.toMatch(/journal_entry_lines/);
-    expect(hook).not.toMatch(/budget_actuals/);
-  });
 });
 

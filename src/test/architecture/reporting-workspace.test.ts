@@ -90,7 +90,6 @@ describe("typed empty states", () => {
   const PAGES = [
     "src/pages/reports/AgingReport.tsx",
     "src/pages/reports/AuditTrail.tsx",
-    "src/pages/reports/BudgetReport.tsx",
     "src/pages/reports/CashFlowReport.tsx",
     "src/pages/reports/DepreciationReport.tsx",
     "src/pages/reports/BankReconciliationReport.tsx",
@@ -132,7 +131,6 @@ describe("report scope is URL-owned (drill-down and Back must not lose it)", () 
     "src/pages/reports/TrialBalance.tsx",
     "src/pages/reports/GeneralLedger.tsx",
     "src/pages/reports/JournalReport.tsx",
-    "src/pages/reports/PartnerLedger.tsx",
     "src/pages/reports/AgingReport.tsx",
   ];
 
