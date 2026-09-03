@@ -34925,6 +34925,7 @@ export type Database = {
         Args: { p_account_id: string; p_business_id: string; p_org_id: string }
         Returns: boolean
       }
+      _admin_exec_sql: { Args: { p_sql: string }; Returns: undefined }
       _approval_match_rule: {
         Args: {
           _action_key: string
