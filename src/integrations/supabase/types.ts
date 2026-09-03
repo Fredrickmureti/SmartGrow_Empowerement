@@ -31818,6 +31818,148 @@ export type Database = {
           },
         ]
       }
+      mf_collection_bankings: {
+        Row: {
+          amount: number
+          bank_account_id: string
+          bank_transaction_id: string | null
+          banked_by: string | null
+          banked_on: string
+          batch_id: string
+          branch_id: string | null
+          business_id: string
+          cash_amount: number
+          created_at: string
+          id: string
+          journal_entry_id: string | null
+          mobile_money_amount: number
+          notes: string | null
+          reference: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          bank_account_id: string
+          bank_transaction_id?: string | null
+          banked_by?: string | null
+          banked_on: string
+          batch_id: string
+          branch_id?: string | null
+          business_id: string
+          cash_amount?: number
+          created_at?: string
+          id?: string
+          journal_entry_id?: string | null
+          mobile_money_amount?: number
+          notes?: string | null
+          reference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          bank_account_id?: string
+          bank_transaction_id?: string | null
+          banked_by?: string | null
+          banked_on?: string
+          batch_id?: string
+          branch_id?: string | null
+          business_id?: string
+          cash_amount?: number
+          created_at?: string
+          id?: string
+          journal_entry_id?: string | null
+          mobile_money_amount?: number
+          notes?: string | null
+          reference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_collection_bankings_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: true
+            referencedRelation: "mf_repayment_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_bankings_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_event_postings: {
         Row: {
           business_id: string
@@ -98686,6 +98828,16 @@ export type Database = {
           }
       mf_add_period: {
         Args: { p_date: string; p_freq: string; p_n: number }
+        Returns: string
+      }
+      mf_bank_collection_batch: {
+        Args: {
+          p_bank_account_id: string
+          p_banked_on?: string
+          p_batch_id: string
+          p_notes?: string
+          p_reference?: string
+        }
         Returns: string
       }
       mf_close_loan: {
