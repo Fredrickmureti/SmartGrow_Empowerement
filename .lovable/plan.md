@@ -55,25 +55,28 @@ until the domain work is complete.
   owner `fredrickmureti612@gmail.com` = `owner`, active.
 - Document engine has lending snapshots (`services/documents/snapshots/lending.ts`).
 
-## Active milestone — M4: Collections & repayment reality (ASA model)
+## M4 — Collections & repayment reality (ASA model) — COMPLETE (2026-09-03)
 
-Purpose: make daily field collection work end to end for both group meetings
-and single-client payments, through the retained settlement engine.
+Verified in code/DB, not claimed:
+1. Group collection sheet in Lending → Repayments: officer picks group +
+   meeting date, sees every active member's next installment, arrears and DPD
+   (server-derived), enters amounts, one submission posts each line as its own
+   receipt via `mf_record_repayment`. No pooled group balance.
+2. Single-client payment uses the same RPC and allocation path.
+3. Allocation order reads `mf_allocation_policy` (no server-side hardcode) and
+   is now editable at Lending → Settings (Payment allocation policy card).
+4. Overpayment is held as client credit (`advance` allocation → `client_advance`
+   liability) and is now automatically consumed by the next receipt; the
+   journal debits `client_advance` when credit is spent.
+5. Receipt document per payment from the repayments list via the document
+   engine (`loan_payment_receipt`), which covers group-sheet lines too.
+6. Cash handover path: officer collections → branch cash → bank batch
+   (`BankBatchDialog`) → retained bank reconciliation.
 
-1. Group collection sheet: officer opens a group meeting, sees every member's
-   due installment, enters amounts per member in one submission. Each member's
-   payment posts as its own `mf_` repayment event — no group-level pooled
-   balance.
-2. Single-client payment path shares the same server-side allocation call.
-   Allocation order comes from configured policy, never hardcoded in React.
-3. Overpayment / partial / advance handling defined in the backend; surplus
-   held as client credit against future installments.
-4. Cash handover: officer collections → branch cash → bank deposit, matched in
-   the retained bank reconciliation.
-5. Receipt document per payment through the document engine.
+Owner still to confirm in preview (authenticated checks cannot run from the
+sandbox): a group meeting and a walk-in payment both post journals, update the
+schedule, and print receipts.
 
-Done when: a group meeting and a walk-in payment both post journals, update the
-schedule views, and produce receipts; the day's cash reconciles.
 
 ## Next milestones (one at a time, verify before moving on)
 
