@@ -81,19 +81,20 @@ export const LENDING_APP: AppDefinition = {
   icon: HandCoins,
   color: "hsl(152, 60%, 40%)",
   basePath: "/lending",
-  requiredPermissions: ["viewContacts"],
+  requiredPermissions: ["viewClients"],
   sortOrder: 2,
   internalOnly: true,
   defaultModule: "clients",
   modules: [
-    { id: "clients", name: "Clients", path: "", icon: Users, permission: "viewContacts" },
-    { id: "groups", name: "Groups", path: "/groups", icon: Users, permission: "viewContacts" },
-    { id: "products", name: "Loan Products", path: "/products", icon: Tags, permission: "viewContacts" },
-    { id: "applications", name: "Applications", path: "/applications", icon: ClipboardList, permission: "viewContacts" },
-    { id: "loans", name: "Loans", path: "/loans", icon: HandCoins, permission: "viewContacts" },
-    { id: "repayments", name: "Repayments", path: "/repayments", icon: Wallet, permission: "viewContacts" },
-    { id: "collections", name: "Collections", path: "/collections", icon: Target, permission: "viewContacts" },
+    { id: "clients", name: "Clients", path: "", icon: Users, permission: "viewClients" },
+    { id: "groups", name: "Groups", path: "/groups", icon: Users, permission: "viewClients" },
+    { id: "products", name: "Loan Products", path: "/products", icon: Tags, permission: "viewLoanProducts" },
+    { id: "applications", name: "Applications", path: "/applications", icon: ClipboardList, permission: "viewApplications" },
+    { id: "loans", name: "Loans", path: "/loans", icon: HandCoins, permission: "viewLoans" },
+    { id: "repayments", name: "Repayments", path: "/repayments", icon: Wallet, permission: "recordRepayments" },
+    { id: "collections", name: "Collections", path: "/collections", icon: Target, permission: "viewCollections" },
   ],
+
 };
 
 /**
