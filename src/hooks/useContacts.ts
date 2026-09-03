@@ -41,8 +41,6 @@ export interface Contact {
   credit_limit: number | null;
   credit_hold: boolean | null;
   payment_term_id: string | null;
-  price_list_id: string | null;
-  customer_group_id: string | null;
   // Accounting configuration fields
   default_expense_account_id: string | null;
   default_payable_account_id: string | null;

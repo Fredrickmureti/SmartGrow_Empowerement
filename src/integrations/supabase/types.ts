@@ -7562,7 +7562,6 @@ export type Database = {
           created_at: string
           credit_hold: boolean | null
           credit_limit: number | null
-          customer_group_id: string | null
           customer_rank: number
           default_currency: string | null
           default_expense_account_id: string | null
@@ -7588,7 +7587,6 @@ export type Database = {
           phone: string | null
           portal_user_id: string | null
           postal_code: string | null
-          price_list_id: string | null
           sms_consent: boolean | null
           state: string | null
           supplier_rank: number
@@ -7611,7 +7609,6 @@ export type Database = {
           created_at?: string
           credit_hold?: boolean | null
           credit_limit?: number | null
-          customer_group_id?: string | null
           customer_rank?: number
           default_currency?: string | null
           default_expense_account_id?: string | null
@@ -7637,7 +7634,6 @@ export type Database = {
           phone?: string | null
           portal_user_id?: string | null
           postal_code?: string | null
-          price_list_id?: string | null
           sms_consent?: boolean | null
           state?: string | null
           supplier_rank?: number
@@ -7660,7 +7656,6 @@ export type Database = {
           created_at?: string
           credit_hold?: boolean | null
           credit_limit?: number | null
-          customer_group_id?: string | null
           customer_rank?: number
           default_currency?: string | null
           default_expense_account_id?: string | null
@@ -7686,7 +7681,6 @@ export type Database = {
           phone?: string | null
           portal_user_id?: string | null
           postal_code?: string | null
-          price_list_id?: string | null
           sms_consent?: boolean | null
           state?: string | null
           supplier_rank?: number
@@ -7710,13 +7704,6 @@ export type Database = {
             columns: ["commercial_partner_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_customer_group_id_fkey"
-            columns: ["customer_group_id"]
-            isOneToOne: false
-            referencedRelation: "customer_groups"
             referencedColumns: ["id"]
           },
           {
@@ -8710,74 +8697,6 @@ export type Database = {
             columns: ["refund_id"]
             isOneToOne: false
             referencedRelation: "customer_refunds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      customer_groups: {
-        Row: {
-          business_id: string
-          created_at: string | null
-          description: string | null
-          discount_percent: number | null
-          id: string
-          is_active: boolean | null
-          name: string
-          organization_id: string
-          sort_order: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          business_id: string
-          created_at?: string | null
-          description?: string | null
-          discount_percent?: number | null
-          id?: string
-          is_active?: boolean | null
-          name: string
-          organization_id: string
-          sort_order?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          business_id?: string
-          created_at?: string | null
-          description?: string | null
-          discount_percent?: number | null
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          organization_id?: string
-          sort_order?: number | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customer_groups_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_groups_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "customer_groups_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "customer_groups_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -39939,17 +39858,6 @@ export type Database = {
         }
         Returns: Json
       }
-      resolve_line_unit_price: {
-        Args: {
-          p_business_id: string
-          p_contact_id?: string
-          p_display_quantity?: number
-          p_display_uom_id?: string
-          p_packaging_id?: string
-          p_product_id: string
-        }
-        Returns: Json
-      }
       resolve_my_employee: {
         Args: never
         Returns: {
@@ -40831,7 +40739,6 @@ export type Database = {
           created_at: string
           credit_hold: boolean | null
           credit_limit: number | null
-          customer_group_id: string | null
           customer_rank: number
           default_currency: string | null
           default_expense_account_id: string | null
@@ -40857,7 +40764,6 @@ export type Database = {
           phone: string | null
           portal_user_id: string | null
           postal_code: string | null
-          price_list_id: string | null
           sms_consent: boolean | null
           state: string | null
           supplier_rank: number
