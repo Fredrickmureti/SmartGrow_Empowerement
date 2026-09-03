@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBranches, CreateBranchInput } from "@/hooks/useBranches";
 import { Loader2, MapPin } from "lucide-react";
 
@@ -208,7 +207,6 @@ export function CreateBranchDialog({ open, onOpenChange, businessId }: CreateBra
               </Button>
             </div>
           </form>
-        )}
       </DialogContent>
     </Dialog>
   );

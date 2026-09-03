@@ -151,12 +151,6 @@ export const ROUTE_CATALOG: Record<string, CatalogEntry> = {
   // `/settings/company`) with `?tab=` segments — there is no flat
   // `/settings/<thing>` URL. Keep the catalog pointing at real, working
   // destinations; do not invent flat paths.
-  "settings.localization": {
-    id: "settings.localization",
-    label: "Localization Settings",
-    path: "/settings/workspace?tab=localization",
-    description: "Configure country localization for this workspace (currency, date format, statutory pack selection).",
-  },
   "settings.access_groups": {
     id: "settings.access_groups",
     label: "Access Groups",
