@@ -18344,6 +18344,72 @@ export type Database = {
           },
         ]
       }
+      mf_loan_charges: {
+        Row: {
+          accrual_key: string | null
+          amount: number
+          branch_id: string | null
+          business_id: string
+          charged_on: string
+          created_at: string
+          created_by: string | null
+          id: string
+          installment_no: number
+          kind: string
+          loan_id: string
+          reason: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accrual_key?: string | null
+          amount: number
+          branch_id?: string | null
+          business_id: string
+          charged_on?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          installment_no: number
+          kind?: string
+          loan_id: string
+          reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accrual_key?: string | null
+          amount?: number
+          branch_id?: string | null
+          business_id?: string
+          charged_on?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          installment_no?: number
+          kind?: string
+          loan_id?: string
+          reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_charges_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_charges_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_loan_disbursements: {
         Row: {
           amount: number
@@ -30708,6 +30774,32 @@ export type Database = {
           },
           {
             foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_loan_penalty_status: {
+        Row: {
+          business_id: string | null
+          installment_no: number | null
+          loan_id: string | null
+          penalty_charged: number | null
+          penalty_outstanding: number | null
+          penalty_paid: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_charges_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_charges_loan_id_fkey"
             columns: ["loan_id"]
             isOneToOne: false
             referencedRelation: "mf_loans"
