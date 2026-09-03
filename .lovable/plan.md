@@ -16,10 +16,12 @@ Milestones C1–C10 (stack repair, environment isolation, foundation, institutio
 
 In order, no new engines, no speculative refactors:
 
-1. **Settlement + statements** — keep the receivables/payables settlement engine; its microfinance face is loan receivables (portfolio exposure) and institution payables. Customer statement → **client statement**, same statement engine, fed by `mf_*` balances. (Client statement report exists; wire remaining statement surfaces to `mf_client_statement`.)
-2. **Vocabulary + surfaces** — finance nav/labels reworded around lending: receivables → loan receivables; banking/reconciliation framed as disbursement and collection accounts (cash, bank, mobile money). Labels and data sources only.
-3. **Mapping-resolved postings** — every `mf_*` event (disbursement, repayment allocation, fee, penalty, write-off, reversal) resolves accounts through the mapping table (`useMfAccountMappings`). Zero account ids in React or `mf_*` code.
-4. **Institution settings** — single-institution identity (name, legal, address, contacts, logo, currency, financial settings) flows into report and document contexts; nothing hardcoded.
+1. **Settlement + statements** — DONE for the client-facing surface: `ClientStatementReport` reads the server-owned `mf_client_statement` view. REMAINING: the inherited `customerStatementDataset` / `customerStatementLedger` / `vendorStatementDataset` services still serve the finance receivables/payables statement surfaces on ERP AR/AP subledgers — repoint or retire them.
+2. **Vocabulary + surfaces** — DONE. `FINANCE_NAV` reads: loan receivables, institution payables, journal entries, cash & bank accounts, reconciliation, bank feeds, accounting events; Insights and Setup unchanged.
+3. **Mapping-resolved postings** — DONE. `mf_post_event` posts every lending event through `mf_resolve_account` + `post_journal_entry_atomic`, keyed on `mf_account_mappings` and idempotent via `mf_event_postings`: disbursement, settlement-by-successor (top-up/restructure), repayment (per allocation component), repayment reversal (mirror of the original lines), write-off. No account ids in React or `mf_*` code. Gap to add when the events exist: fee charged and penalty accrued.
+4. **Institution settings** — DONE for documents: the lending snapshot builder injects institution name, legal name, address, phone, email, registration and tax id from `businesses`; the report engine masthead already resolves the same row.
+
+5. **ERP document scaffolding removed (this pass)** — deleted 20 sales/purchases/wms/HR snapshot builders plus their 3 helpers; `resolveSourceDocumentRecord` now registers only `journal_entry` and the four lending kinds (agreement, schedule, statement, payment receipt). Two ERP-only tests deleted. `tsgo` clean; `/dashboard`, `/lending/loans`, `/finance/receivables`, `/finance/reports` all 200.
 
 Gate: `tsgo` clean, `build OK`, `/dashboard`, `/lending/*`, `/finance/*`, `/settings` render, sidebar shows only microfinance surfaces.
 
