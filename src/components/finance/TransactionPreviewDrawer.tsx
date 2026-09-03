@@ -620,72 +620,7 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
       };
     }
 
-    case "payroll": {
-      // Always show the JE itself first — the JE is the thing the user is
-      // looking at in Finance and they're entitled to see its totals.
-      const { data: je } = await supabase
-        .from("journal_entries")
-        .select("id, entry_date, entry_number, description, reference, status, total_debit, total_credit, source_id")
-        .eq("source_type", "payroll")
-        .eq("source_id", sourceId)
-        .maybeSingle();
-
-      if (!je) throw new Error("Payroll journal entry not found");
-
-      // Try to fetch the underlying payroll run. RLS will silently filter
-      // it out if the caller lacks payroll visibility for this run's
-      // org/business, which is exactly the desired permission model.
-      const { data: run } = await supabase
-        .from("payroll_runs")
-        .select("id, payroll_number, pay_period_start, pay_period_end, payment_date, status, employee_count, total_gross, total_net, business_id")
-        .eq("id", sourceId)
-        .maybeSingle();
-
-      const totalAmt = Number(je.total_debit ?? je.total_credit ?? 0);
-
-      if (run) {
-        const totalDeductions = Math.max(0, Number(run.total_gross ?? 0) - Number(run.total_net ?? 0));
-        return {
-          type: "payroll",
-          title: `Payroll ${run.payroll_number}`,
-          subtitle: je.entry_number || "",
-          status: run.status || je.status || "posted",
-          amount: Number(run.total_net ?? totalAmt),
-          date: je.entry_date,
-          details: [
-            { icon: Calendar, label: "Pay Period", value: `${format(new Date(run.pay_period_start), "MMM d")} – ${format(new Date(run.pay_period_end), "MMM d, yyyy")}` },
-            { icon: Calendar, label: "Payment Date", value: run.payment_date ? format(new Date(run.payment_date), "MMM d, yyyy") : "—" },
-            { icon: User, label: "Employees", value: String(run.employee_count ?? "—") },
-            { icon: Coins, label: "Gross Pay", value: String(run.total_gross ?? 0) },
-            { icon: Coins, label: "Total Deductions", value: String(totalDeductions) },
-            { icon: Coins, label: "Net Pay", value: String(run.total_net ?? 0) },
-            { icon: Hash, label: "JE #", value: je.entry_number || "—" },
-            { icon: FileText, label: "Reference", value: je.reference || je.description || "—" },
-          ],
-          navigateTo: `/hr/payroll/runs/${run.id}`,
-        };
-      }
-
-      // No access to the payroll run — show the JE numbers honestly,
-      // hide the drilldown, and explain why.
-      return {
-        type: "payroll",
-        title: `Payroll Journal Entry`,
-        subtitle: je.entry_number || "",
-        status: je.status || "posted",
-        amount: totalAmt,
-        date: je.entry_date,
-        details: [
-          { icon: Calendar, label: "Date", value: format(new Date(je.entry_date), "MMM d, yyyy") },
-          { icon: Hash, label: "JE #", value: je.entry_number || "—" },
-          { icon: FileText, label: "Description", value: je.description || "—" },
-          { icon: Tag, label: "Reference", value: je.reference || "—" },
-          { icon: Coins, label: "Total Debit", value: String(je.total_debit ?? 0) },
-          { icon: Coins, label: "Total Credit", value: String(je.total_credit ?? 0) },
-        ],
-        accessNote: "You don't have permission to view the underlying payroll run. Ask a Payroll administrator for access.",
-      };
-    }
+    case "payroll":
 
     case "manual":
     case "year_end_closing":
