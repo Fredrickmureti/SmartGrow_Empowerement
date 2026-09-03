@@ -3022,29 +3022,8 @@ export type Database = {
             foreignKeyName: "attendance_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "attendance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "attendance_employee_id_fkey"
@@ -3244,29 +3223,8 @@ export type Database = {
             foreignKeyName: "attendance_device_trust_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_device_trust_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "attendance_device_trust_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_device_trust_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "attendance_device_trust_employee_id_fkey"
@@ -7954,345 +7912,6 @@ export type Database = {
           },
         ]
       }
-      calibration_adjustments: {
-        Row: {
-          applied_at: string | null
-          created_at: string
-          cycle_id: string
-          decided_at: string | null
-          decided_by: string | null
-          decision: string
-          employee_id: string
-          id: string
-          organization_id: string
-          original_rating: number | null
-          proposed_by: string
-          proposed_rating: number
-          rationale: string
-          review_id: string
-          session_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          applied_at?: string | null
-          created_at?: string
-          cycle_id: string
-          decided_at?: string | null
-          decided_by?: string | null
-          decision?: string
-          employee_id: string
-          id?: string
-          organization_id: string
-          original_rating?: number | null
-          proposed_by: string
-          proposed_rating: number
-          rationale: string
-          review_id: string
-          session_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          applied_at?: string | null
-          created_at?: string
-          cycle_id?: string
-          decided_at?: string | null
-          decided_by?: string | null
-          decision?: string
-          employee_id?: string
-          id?: string
-          organization_id?: string
-          original_rating?: number | null
-          proposed_by?: string
-          proposed_rating?: number
-          rationale?: string
-          review_id?: string
-          session_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calibration_adjustments_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "calibration_adjustments_review_id_fkey"
-            columns: ["review_id"]
-            isOneToOne: false
-            referencedRelation: "performance_reviews"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "calibration_adjustments_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "calibration_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      calibration_session_participants: {
-        Row: {
-          attended: boolean | null
-          created_at: string
-          id: string
-          organization_id: string
-          participant_user_id: string
-          role: string
-          session_id: string
-        }
-        Insert: {
-          attended?: boolean | null
-          created_at?: string
-          id?: string
-          organization_id: string
-          participant_user_id: string
-          role?: string
-          session_id: string
-        }
-        Update: {
-          attended?: boolean | null
-          created_at?: string
-          id?: string
-          organization_id?: string
-          participant_user_id?: string
-          role?: string
-          session_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calibration_session_participants_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "calibration_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      calibration_sessions: {
-        Row: {
-          created_at: string
-          created_by: string
-          cycle_id: string
-          facilitator_user_id: string | null
-          id: string
-          location: string | null
-          name: string
-          notes: string | null
-          organization_id: string
-          scheduled_at: string | null
-          scope_department_ids: string[] | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          cycle_id: string
-          facilitator_user_id?: string | null
-          id?: string
-          location?: string | null
-          name: string
-          notes?: string | null
-          organization_id: string
-          scheduled_at?: string | null
-          scope_department_ids?: string[] | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          cycle_id?: string
-          facilitator_user_id?: string | null
-          id?: string
-          location?: string | null
-          name?: string
-          notes?: string | null
-          organization_id?: string
-          scheduled_at?: string | null
-          scope_department_ids?: string[] | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calibration_sessions_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      candidate_applications: {
-        Row: {
-          applied_at: string
-          business_id: string | null
-          candidate_id: string
-          converted_employee_id: string | null
-          created_at: string
-          id: string
-          organization_id: string
-          rejection_reason: string | null
-          requisition_id: string
-          stage: Database["public"]["Enums"]["application_stage"]
-          stage_updated_at: string
-          updated_at: string
-        }
-        Insert: {
-          applied_at?: string
-          business_id?: string | null
-          candidate_id: string
-          converted_employee_id?: string | null
-          created_at?: string
-          id?: string
-          organization_id: string
-          rejection_reason?: string | null
-          requisition_id: string
-          stage?: Database["public"]["Enums"]["application_stage"]
-          stage_updated_at?: string
-          updated_at?: string
-        }
-        Update: {
-          applied_at?: string
-          business_id?: string | null
-          candidate_id?: string
-          converted_employee_id?: string | null
-          created_at?: string
-          id?: string
-          organization_id?: string
-          rejection_reason?: string | null
-          requisition_id?: string
-          stage?: Database["public"]["Enums"]["application_stage"]
-          stage_updated_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "candidate_applications_candidate_id_fkey"
-            columns: ["candidate_id"]
-            isOneToOne: false
-            referencedRelation: "candidates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_converted_employee_id_fkey"
-            columns: ["converted_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_applications_requisition_id_fkey"
-            columns: ["requisition_id"]
-            isOneToOne: false
-            referencedRelation: "job_requisitions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      candidates: {
-        Row: {
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          current_company: string | null
-          current_title: string | null
-          email: string | null
-          full_name: string
-          id: string
-          linkedin_url: string | null
-          notes: string | null
-          organization_id: string
-          phone: string | null
-          resume_url: string | null
-          source: string | null
-          tags: string[]
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_company?: string | null
-          current_title?: string | null
-          email?: string | null
-          full_name: string
-          id?: string
-          linkedin_url?: string | null
-          notes?: string | null
-          organization_id: string
-          phone?: string | null
-          resume_url?: string | null
-          source?: string | null
-          tags?: string[]
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_company?: string | null
-          current_title?: string | null
-          email?: string | null
-          full_name?: string
-          id?: string
-          linkedin_url?: string | null
-          notes?: string | null
-          organization_id?: string
-          phone?: string | null
-          resume_url?: string | null
-          source?: string | null
-          tags?: string[]
-          updated_at?: string
-        }
-        Relationships: []
-      }
       carrier_services: {
         Row: {
           business_id: string
@@ -8523,272 +8142,6 @@ export type Database = {
           org_id?: string
           payload?: Json
           plan_id?: string | null
-        }
-        Relationships: []
-      }
-      competencies: {
-        Row: {
-          category: string | null
-          created_at: string
-          description: string | null
-          id: string
-          is_active: boolean
-          is_core: boolean
-          name: string
-          organization_id: string
-          owner_department_id: string | null
-          scale_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          category?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          is_core?: boolean
-          name: string
-          organization_id: string
-          owner_department_id?: string | null
-          scale_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          category?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          is_core?: boolean
-          name?: string
-          organization_id?: string
-          owner_department_id?: string | null
-          scale_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competencies_owner_department_id_fkey"
-            columns: ["owner_department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competencies_scale_id_fkey"
-            columns: ["scale_id"]
-            isOneToOne: false
-            referencedRelation: "competency_scales"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competency_assessments: {
-        Row: {
-          assessed_at: string | null
-          competency_id: string
-          created_at: string
-          cycle_id: string | null
-          employee_id: string
-          final_level: number | null
-          id: string
-          manager_comment: string | null
-          manager_level: number | null
-          organization_id: string
-          required_level: number | null
-          self_comment: string | null
-          self_level: number | null
-          source: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          assessed_at?: string | null
-          competency_id: string
-          created_at?: string
-          cycle_id?: string | null
-          employee_id: string
-          final_level?: number | null
-          id?: string
-          manager_comment?: string | null
-          manager_level?: number | null
-          organization_id: string
-          required_level?: number | null
-          self_comment?: string | null
-          self_level?: number | null
-          source?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          assessed_at?: string | null
-          competency_id?: string
-          created_at?: string
-          cycle_id?: string | null
-          employee_id?: string
-          final_level?: number | null
-          id?: string
-          manager_comment?: string | null
-          manager_level?: number | null
-          organization_id?: string
-          required_level?: number | null
-          self_comment?: string | null
-          self_level?: number | null
-          source?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competency_assessments_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_assessments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competency_role_requirements: {
-        Row: {
-          competency_id: string
-          created_at: string
-          department_id: string | null
-          id: string
-          is_critical: boolean
-          job_position_id: string | null
-          organization_id: string
-          required_level: number
-          updated_at: string
-        }
-        Insert: {
-          competency_id: string
-          created_at?: string
-          department_id?: string | null
-          id?: string
-          is_critical?: boolean
-          job_position_id?: string | null
-          organization_id: string
-          required_level: number
-          updated_at?: string
-        }
-        Update: {
-          competency_id?: string
-          created_at?: string
-          department_id?: string | null
-          id?: string
-          is_critical?: boolean
-          job_position_id?: string | null
-          organization_id?: string
-          required_level?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competency_role_requirements_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_role_requirements_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competency_role_requirements_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competency_scales: {
-        Row: {
-          created_at: string
-          id: string
-          is_default: boolean
-          levels: Json
-          name: string
-          organization_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_default?: boolean
-          levels?: Json
-          name: string
-          organization_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_default?: boolean
-          levels?: Json
-          name?: string
-          organization_id?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -10492,179 +9845,6 @@ export type Database = {
           },
         ]
       }
-      continuous_feedback: {
-        Row: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          body: string
-          business_id: string | null
-          competency_id: string | null
-          created_at: string
-          feedback_type: string
-          from_employee_id: string | null
-          from_user_id: string
-          from_user_id_admin: string | null
-          goal_id: string | null
-          id: string
-          is_anonymous: boolean
-          organization_id: string
-          to_employee_id: string
-          updated_at: string
-          visibility: string
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          body: string
-          business_id?: string | null
-          competency_id?: string | null
-          created_at?: string
-          feedback_type: string
-          from_employee_id?: string | null
-          from_user_id: string
-          from_user_id_admin?: string | null
-          goal_id?: string | null
-          id?: string
-          is_anonymous?: boolean
-          organization_id: string
-          to_employee_id: string
-          updated_at?: string
-          visibility?: string
-        }
-        Update: {
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          body?: string
-          business_id?: string | null
-          competency_id?: string | null
-          created_at?: string
-          feedback_type?: string
-          from_employee_id?: string | null
-          from_user_id?: string
-          from_user_id_admin?: string | null
-          goal_id?: string | null
-          id?: string
-          is_anonymous?: boolean
-          organization_id?: string
-          to_employee_id?: string
-          updated_at?: string
-          visibility?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "continuous_feedback_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "continuous_feedback_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       contract_amendments: {
         Row: {
           actor_user_id: string | null
@@ -10751,27 +9931,6 @@ export type Database = {
             foreignKeyName: "contract_amendments_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
             referencedRelation: "v_hr_contract_expiry_pipeline"
             referencedColumns: ["contract_id"]
           },
@@ -10793,29 +9952,8 @@ export type Database = {
             foreignKeyName: "contract_amendments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "contract_amendments_employee_id_fkey"
@@ -10858,27 +9996,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "employee_contracts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_successor_contract_id_fkey"
-            columns: ["successor_contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_successor_contract_id_fkey"
-            columns: ["successor_contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_amendments_successor_contract_id_fkey"
-            columns: ["successor_contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["active_contract_id"]
           },
           {
             foreignKeyName: "contract_amendments_successor_contract_id_fkey"
@@ -10949,27 +10066,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "employee_contracts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contract_compensation_components_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_compensation_components_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_compensation_components_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["active_contract_id"]
           },
           {
             foreignKeyName: "contract_compensation_components_contract_id_fkey"
@@ -14873,29 +13969,8 @@ export type Database = {
             foreignKeyName: "departments_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "departments_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "departments_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "departments_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "departments_manager_id_fkey"
@@ -15216,210 +14291,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      development_plan_items: {
-        Row: {
-          competency_id: string | null
-          completed_at: string | null
-          created_at: string
-          description: string | null
-          due_date: string | null
-          enrollment_id: string | null
-          goal_id: string | null
-          id: string
-          item_type: string
-          organization_id: string
-          plan_id: string
-          progress_pct: number
-          sort_order: number
-          status: string
-          title: string
-          training_course_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          competency_id?: string | null
-          completed_at?: string | null
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          enrollment_id?: string | null
-          goal_id?: string | null
-          id?: string
-          item_type: string
-          organization_id: string
-          plan_id: string
-          progress_pct?: number
-          sort_order?: number
-          status?: string
-          title: string
-          training_course_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          competency_id?: string | null
-          completed_at?: string | null
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          enrollment_id?: string | null
-          goal_id?: string | null
-          id?: string
-          item_type?: string
-          organization_id?: string
-          plan_id?: string
-          progress_pct?: number
-          sort_order?: number
-          status?: string
-          title?: string
-          training_course_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "development_plan_items_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plan_items_enrollment_id_fkey"
-            columns: ["enrollment_id"]
-            isOneToOne: false
-            referencedRelation: "training_enrollments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plan_items_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plan_items_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "development_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plan_items_training_course_id_fkey"
-            columns: ["training_course_id"]
-            isOneToOne: false
-            referencedRelation: "training_courses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      development_plans: {
-        Row: {
-          approved_at: string | null
-          approved_by: string | null
-          created_at: string
-          cycle_id: string | null
-          employee_id: string
-          id: string
-          manager_user_id: string | null
-          organization_id: string
-          start_date: string | null
-          status: string
-          summary: string | null
-          target_completion_date: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string
-          cycle_id?: string | null
-          employee_id: string
-          id?: string
-          manager_user_id?: string | null
-          organization_id: string
-          start_date?: string | null
-          status?: string
-          summary?: string | null
-          target_completion_date?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string
-          cycle_id?: string | null
-          employee_id?: string
-          id?: string
-          manager_user_id?: string | null
-          organization_id?: string
-          start_date?: string | null
-          status?: string
-          summary?: string | null
-          target_completion_date?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "development_plans_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "development_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
           },
         ]
@@ -17113,29 +15984,8 @@ export type Database = {
             foreignKeyName: "employee_advances_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_advances_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_advances_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_advances_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_advances_employee_id_fkey"
@@ -17307,29 +16157,8 @@ export type Database = {
             foreignKeyName: "employee_benefits_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_benefits_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_benefits_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_benefits_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_benefits_employee_id_fkey"
@@ -17440,29 +16269,8 @@ export type Database = {
             foreignKeyName: "employee_branch_assignments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_branch_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_branch_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_branch_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_branch_assignments_employee_id_fkey"
@@ -17550,29 +16358,8 @@ export type Database = {
             foreignKeyName: "employee_compensation_history_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_compensation_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_compensation_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_compensation_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_compensation_history_employee_id_fkey"
@@ -17600,102 +16387,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      employee_competencies: {
-        Row: {
-          assessed_at: string
-          assessor_user_id: string | null
-          competency_id: string
-          created_at: string
-          employee_id: string
-          id: string
-          level: number
-          notes: string | null
-          organization_id: string
-          updated_at: string
-        }
-        Insert: {
-          assessed_at?: string
-          assessor_user_id?: string | null
-          competency_id: string
-          created_at?: string
-          employee_id: string
-          id?: string
-          level: number
-          notes?: string | null
-          organization_id: string
-          updated_at?: string
-        }
-        Update: {
-          assessed_at?: string
-          assessor_user_id?: string | null
-          competency_id?: string
-          created_at?: string
-          employee_id?: string
-          id?: string
-          level?: number
-          notes?: string | null
-          organization_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "employee_competencies_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_competencies_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
           },
         ]
@@ -17835,29 +16526,8 @@ export type Database = {
             foreignKeyName: "employee_contracts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_contracts_employee_id_fkey"
@@ -17934,29 +16604,8 @@ export type Database = {
             foreignKeyName: "employee_credentials_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: true
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_credentials_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: true
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_credentials_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: true
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_credentials_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: true
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_credentials_employee_id_fkey"
@@ -18202,29 +16851,8 @@ export type Database = {
             foreignKeyName: "employee_custom_deductions_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_custom_deductions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_custom_deductions_employee_id_fkey"
@@ -18279,29 +16907,8 @@ export type Database = {
             foreignKeyName: "employee_custom_fields_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_custom_fields_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_custom_fields_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_custom_fields_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_custom_fields_employee_id_fkey"
@@ -18381,29 +16988,8 @@ export type Database = {
             foreignKeyName: "employee_device_identifiers_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_device_identifiers_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_device_identifiers_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_device_identifiers_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_device_identifiers_employee_id_fkey"
@@ -18531,29 +17117,8 @@ export type Database = {
             foreignKeyName: "employee_documents_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_documents_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_documents_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_documents_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_documents_employee_id_fkey"
@@ -18656,29 +17221,8 @@ export type Database = {
             foreignKeyName: "employee_exit_clearance_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_exit_clearance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_exit_clearance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_exit_clearance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_exit_clearance_employee_id_fkey"
@@ -19193,29 +17737,8 @@ export type Database = {
             foreignKeyName: "employee_loans_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_loans_employee_id_fkey"
@@ -19438,29 +17961,8 @@ export type Database = {
             foreignKeyName: "employee_onboarding_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_onboarding_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_onboarding_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_onboarding_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_onboarding_employee_id_fkey"
@@ -19636,29 +18138,8 @@ export type Database = {
             foreignKeyName: "employee_position_history_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_position_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_position_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_position_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_position_history_employee_id_fkey"
@@ -19737,29 +18218,8 @@ export type Database = {
             foreignKeyName: "employee_profile_change_requests_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_profile_change_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_profile_change_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_profile_change_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_profile_change_requests_employee_id_fkey"
@@ -19853,29 +18313,8 @@ export type Database = {
             foreignKeyName: "employee_statutory_identifiers_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_statutory_identifiers_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_statutory_identifiers_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_statutory_identifiers_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_statutory_identifiers_employee_id_fkey"
@@ -20131,13 +18570,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "employees_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "employees_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
@@ -20155,29 +18587,8 @@ export type Database = {
             foreignKeyName: "employees_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employees_manager_id_fkey"
@@ -20294,29 +18705,8 @@ export type Database = {
             foreignKeyName: "employments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employments_employee_id_fkey"
@@ -21749,29 +20139,8 @@ export type Database = {
             foreignKeyName: "expenses_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "expenses_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "expenses_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "expenses_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expenses_employee_id_fkey"
@@ -22473,29 +20842,8 @@ export type Database = {
             foreignKeyName: "fixed_assets_assigned_to_employee_id_fkey"
             columns: ["assigned_to_employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_assigned_to_employee_id_fkey"
-            columns: ["assigned_to_employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_assigned_to_employee_id_fkey"
-            columns: ["assigned_to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_assigned_to_employee_id_fkey"
-            columns: ["assigned_to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "fixed_assets_assigned_to_employee_id_fkey"
@@ -22522,29 +20870,8 @@ export type Database = {
             foreignKeyName: "fixed_assets_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "fixed_assets_assigned_to_fkey"
@@ -23477,154 +21804,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      goal_check_ins: {
-        Row: {
-          author_user_id: string
-          created_at: string
-          goal_id: string
-          id: string
-          note: string
-          organization_id: string
-          progress_pct: number | null
-        }
-        Insert: {
-          author_user_id: string
-          created_at?: string
-          goal_id: string
-          id?: string
-          note: string
-          organization_id: string
-          progress_pct?: number | null
-        }
-        Update: {
-          author_user_id?: string
-          created_at?: string
-          goal_id?: string
-          id?: string
-          note?: string
-          organization_id?: string
-          progress_pct?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goal_check_ins_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      goal_milestones: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          due_date: string | null
-          goal_id: string
-          id: string
-          notes: string | null
-          organization_id: string
-          sort_order: number
-          status: string
-          title: string
-          updated_at: string
-          weight: number
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          due_date?: string | null
-          goal_id: string
-          id?: string
-          notes?: string | null
-          organization_id: string
-          sort_order?: number
-          status?: string
-          title: string
-          updated_at?: string
-          weight?: number
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          due_date?: string | null
-          goal_id?: string
-          id?: string
-          notes?: string | null
-          organization_id?: string
-          sort_order?: number
-          status?: string
-          title?: string
-          updated_at?: string
-          weight?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goal_milestones_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      goal_updates: {
-        Row: {
-          author_role: string | null
-          author_user_id: string | null
-          comment: string | null
-          created_at: string
-          goal_id: string
-          id: string
-          milestone_id: string | null
-          organization_id: string
-          progress_pct: number | null
-          status_to: string | null
-          update_type: string
-        }
-        Insert: {
-          author_role?: string | null
-          author_user_id?: string | null
-          comment?: string | null
-          created_at?: string
-          goal_id: string
-          id?: string
-          milestone_id?: string | null
-          organization_id: string
-          progress_pct?: number | null
-          status_to?: string | null
-          update_type?: string
-        }
-        Update: {
-          author_role?: string | null
-          author_user_id?: string | null
-          comment?: string | null
-          created_at?: string
-          goal_id?: string
-          id?: string
-          milestone_id?: string | null
-          organization_id?: string
-          progress_pct?: number | null
-          status_to?: string | null
-          update_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goal_updates_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "goal_updates_milestone_id_fkey"
-            columns: ["milestone_id"]
-            isOneToOne: false
-            referencedRelation: "goal_milestones"
             referencedColumns: ["id"]
           },
         ]
@@ -24744,65 +22923,6 @@ export type Database = {
           },
         ]
       }
-      interview_feedback: {
-        Row: {
-          application_id: string
-          concerns: string | null
-          created_at: string
-          id: string
-          notes: string | null
-          organization_id: string
-          rating: number | null
-          recommendation:
-            | Database["public"]["Enums"]["interview_recommendation"]
-            | null
-          reviewer_user_id: string
-          stage_name: string | null
-          strengths: string | null
-          updated_at: string
-        }
-        Insert: {
-          application_id: string
-          concerns?: string | null
-          created_at?: string
-          id?: string
-          notes?: string | null
-          organization_id: string
-          rating?: number | null
-          recommendation?:
-            | Database["public"]["Enums"]["interview_recommendation"]
-            | null
-          reviewer_user_id: string
-          stage_name?: string | null
-          strengths?: string | null
-          updated_at?: string
-        }
-        Update: {
-          application_id?: string
-          concerns?: string | null
-          created_at?: string
-          id?: string
-          notes?: string | null
-          organization_id?: string
-          rating?: number | null
-          recommendation?:
-            | Database["public"]["Enums"]["interview_recommendation"]
-            | null
-          reviewer_user_id?: string
-          stage_name?: string | null
-          strengths?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "interview_feedback_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "candidate_applications"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       inventory_cost_revaluations: {
         Row: {
           amount_applied: number
@@ -25717,199 +23837,6 @@ export type Database = {
           },
         ]
       }
-      job_positions: {
-        Row: {
-          business_id: string
-          code: string | null
-          created_at: string
-          created_by: string | null
-          department_id: string | null
-          description: string | null
-          id: string
-          is_active: boolean
-          name: string
-          organization_id: string
-          target_headcount: number | null
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          code?: string | null
-          created_at?: string
-          created_by?: string | null
-          department_id?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          organization_id: string
-          target_headcount?: number | null
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          code?: string | null
-          created_at?: string
-          created_by?: string | null
-          department_id?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          organization_id?: string
-          target_headcount?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_positions_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      job_requisitions: {
-        Row: {
-          business_id: string | null
-          closed_at: string | null
-          created_at: string
-          created_by: string
-          currency: string | null
-          department_id: string | null
-          description: string | null
-          employment_type: string | null
-          headcount: number
-          hiring_manager_id: string | null
-          id: string
-          job_position_id: string | null
-          max_salary: number | null
-          min_salary: number | null
-          opened_at: string | null
-          organization_id: string
-          status: Database["public"]["Enums"]["requisition_status"]
-          title: string
-          updated_at: string
-          work_location_id: string | null
-        }
-        Insert: {
-          business_id?: string | null
-          closed_at?: string | null
-          created_at?: string
-          created_by: string
-          currency?: string | null
-          department_id?: string | null
-          description?: string | null
-          employment_type?: string | null
-          headcount?: number
-          hiring_manager_id?: string | null
-          id?: string
-          job_position_id?: string | null
-          max_salary?: number | null
-          min_salary?: number | null
-          opened_at?: string | null
-          organization_id: string
-          status?: Database["public"]["Enums"]["requisition_status"]
-          title: string
-          updated_at?: string
-          work_location_id?: string | null
-        }
-        Update: {
-          business_id?: string | null
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string
-          currency?: string | null
-          department_id?: string | null
-          description?: string | null
-          employment_type?: string | null
-          headcount?: number
-          hiring_manager_id?: string | null
-          id?: string
-          job_position_id?: string | null
-          max_salary?: number | null
-          min_salary?: number | null
-          opened_at?: string | null
-          organization_id?: string
-          status?: Database["public"]["Enums"]["requisition_status"]
-          title?: string
-          updated_at?: string
-          work_location_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_requisitions_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_hiring_manager_id_fkey"
-            columns: ["hiring_manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_requisitions_work_location_id_fkey"
-            columns: ["work_location_id"]
-            isOneToOne: false
-            referencedRelation: "work_locations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       journal_books: {
         Row: {
           business_id: string
@@ -26644,29 +24571,8 @@ export type Database = {
             foreignKeyName: "kudos_from_employee_id_fkey"
             columns: ["from_employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "kudos_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "kudos_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "kudos_from_employee_id_fkey"
-            columns: ["from_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "kudos_from_employee_id_fkey"
@@ -26693,29 +24599,8 @@ export type Database = {
             foreignKeyName: "kudos_to_employee_id_fkey"
             columns: ["to_employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "kudos_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "kudos_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "kudos_to_employee_id_fkey"
-            columns: ["to_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "kudos_to_employee_id_fkey"
@@ -27334,192 +25219,6 @@ export type Database = {
           },
         ]
       }
-      learning_path_courses: {
-        Row: {
-          course_id: string
-          created_at: string
-          id: string
-          is_required: boolean
-          organization_id: string
-          path_id: string
-          sequence_no: number
-        }
-        Insert: {
-          course_id: string
-          created_at?: string
-          id?: string
-          is_required?: boolean
-          organization_id: string
-          path_id: string
-          sequence_no?: number
-        }
-        Update: {
-          course_id?: string
-          created_at?: string
-          id?: string
-          is_required?: boolean
-          organization_id?: string
-          path_id?: string
-          sequence_no?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "learning_path_courses_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "training_courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_courses_path_id_fkey"
-            columns: ["path_id"]
-            isOneToOne: false
-            referencedRelation: "learning_paths"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      learning_path_enrollments: {
-        Row: {
-          assigned_by: string | null
-          completed_at: string | null
-          created_at: string
-          employee_id: string
-          id: string
-          organization_id: string
-          path_id: string
-          started_at: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          assigned_by?: string | null
-          completed_at?: string | null
-          created_at?: string
-          employee_id: string
-          id?: string
-          organization_id: string
-          path_id: string
-          started_at?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          assigned_by?: string | null
-          completed_at?: string | null
-          created_at?: string
-          employee_id?: string
-          id?: string
-          organization_id?: string
-          path_id?: string
-          started_at?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learning_path_enrollments_path_id_fkey"
-            columns: ["path_id"]
-            isOneToOne: false
-            referencedRelation: "learning_paths"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      learning_paths: {
-        Row: {
-          business_id: string | null
-          category: string | null
-          cover_image_url: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          is_active: boolean
-          name: string
-          organization_id: string
-          target_role: string | null
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          category?: string | null
-          cover_image_url?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          organization_id: string
-          target_role?: string | null
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          category?: string | null
-          cover_image_url?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          organization_id?: string
-          target_role?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       leave_allocations: {
         Row: {
           allocation_type: string
@@ -27621,29 +25320,8 @@ export type Database = {
             foreignKeyName: "leave_allocations_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leave_allocations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "leave_allocations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leave_allocations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "leave_allocations_employee_id_fkey"
@@ -27823,29 +25501,8 @@ export type Database = {
             foreignKeyName: "leave_requests_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leave_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "leave_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leave_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "leave_requests_employee_id_fkey"
@@ -28855,29 +26512,8 @@ export type Database = {
             foreignKeyName: "employee_garnishments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_garnishments_employee_id_fkey"
@@ -31213,170 +28849,6 @@ export type Database = {
             columns: ["permission_group_id"]
             isOneToOne: false
             referencedRelation: "permission_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merit_recommendations: {
-        Row: {
-          applied_at: string | null
-          applied_by: string | null
-          applied_history_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          currency_code: string | null
-          current_salary: number
-          cycle_id: string
-          effective_date: string
-          employee_id: string
-          final_rating: number | null
-          id: string
-          new_salary: number
-          notes: string | null
-          organization_id: string
-          proposed_at: string | null
-          proposed_by: string | null
-          recommended_amount: number
-          recommended_pct: number
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          review_id: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          applied_at?: string | null
-          applied_by?: string | null
-          applied_history_id?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency_code?: string | null
-          current_salary?: number
-          cycle_id: string
-          effective_date?: string
-          employee_id: string
-          final_rating?: number | null
-          id?: string
-          new_salary?: number
-          notes?: string | null
-          organization_id: string
-          proposed_at?: string | null
-          proposed_by?: string | null
-          recommended_amount?: number
-          recommended_pct?: number
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejection_reason?: string | null
-          review_id?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          applied_at?: string | null
-          applied_by?: string | null
-          applied_history_id?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency_code?: string | null
-          current_salary?: number
-          cycle_id?: string
-          effective_date?: string
-          employee_id?: string
-          final_rating?: number | null
-          id?: string
-          new_salary?: number
-          notes?: string | null
-          organization_id?: string
-          proposed_at?: string | null
-          proposed_by?: string | null
-          recommended_amount?: number
-          recommended_pct?: number
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejection_reason?: string | null
-          review_id?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merit_recommendations_applied_history_id_fkey"
-            columns: ["applied_history_id"]
-            isOneToOne: false
-            referencedRelation: "employee_compensation_history"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merit_recommendations_review_id_fkey"
-            columns: ["review_id"]
-            isOneToOne: false
-            referencedRelation: "performance_reviews"
             referencedColumns: ["id"]
           },
         ]
@@ -33844,74 +31316,6 @@ export type Database = {
           },
         ]
       }
-      offer_letters: {
-        Row: {
-          application_id: string
-          base_salary: number | null
-          bonus_target: number | null
-          business_id: string | null
-          created_at: string
-          created_by: string
-          currency: string | null
-          decision_at: string | null
-          expires_at: string | null
-          id: string
-          letter_body: string | null
-          notes: string | null
-          organization_id: string
-          sent_at: string | null
-          start_date: string | null
-          status: Database["public"]["Enums"]["offer_status"]
-          updated_at: string
-        }
-        Insert: {
-          application_id: string
-          base_salary?: number | null
-          bonus_target?: number | null
-          business_id?: string | null
-          created_at?: string
-          created_by: string
-          currency?: string | null
-          decision_at?: string | null
-          expires_at?: string | null
-          id?: string
-          letter_body?: string | null
-          notes?: string | null
-          organization_id: string
-          sent_at?: string | null
-          start_date?: string | null
-          status?: Database["public"]["Enums"]["offer_status"]
-          updated_at?: string
-        }
-        Update: {
-          application_id?: string
-          base_salary?: number | null
-          bonus_target?: number | null
-          business_id?: string | null
-          created_at?: string
-          created_by?: string
-          currency?: string | null
-          decision_at?: string | null
-          expires_at?: string | null
-          id?: string
-          letter_body?: string | null
-          notes?: string | null
-          organization_id?: string
-          sent_at?: string | null
-          start_date?: string | null
-          status?: Database["public"]["Enums"]["offer_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "offer_letters_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "candidate_applications"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       onboarding_attempts: {
         Row: {
           business_id: string | null
@@ -34412,29 +31816,8 @@ export type Database = {
             foreignKeyName: "one_on_ones_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "one_on_ones_employee_id_fkey"
@@ -34461,29 +31844,8 @@ export type Database = {
             foreignKeyName: "one_on_ones_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "one_on_ones_manager_id_fkey"
@@ -35726,29 +33088,8 @@ export type Database = {
             foreignKeyName: "overtime_requests_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "overtime_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "overtime_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "overtime_requests_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "overtime_requests_employee_id_fkey"
@@ -37689,29 +35030,8 @@ export type Database = {
             foreignKeyName: "payroll_correction_adjustments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_correction_adjustments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "payroll_correction_adjustments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_correction_adjustments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payroll_correction_adjustments_employee_id_fkey"
@@ -40635,29 +37955,8 @@ export type Database = {
             foreignKeyName: "payroll_rule_traces_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_rule_traces_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payroll_rule_traces_employee_id_fkey"
@@ -41326,29 +38625,8 @@ export type Database = {
             foreignKeyName: "payroll_run_loan_skip_overrides_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_run_loan_skip_overrides_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "payroll_run_loan_skip_overrides_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_run_loan_skip_overrides_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payroll_run_loan_skip_overrides_employee_id_fkey"
@@ -41719,29 +38997,8 @@ export type Database = {
             foreignKeyName: "payroll_runs_final_settlement_employee_id_fkey"
             columns: ["final_settlement_employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_runs_final_settlement_employee_id_fkey"
-            columns: ["final_settlement_employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "payroll_runs_final_settlement_employee_id_fkey"
-            columns: ["final_settlement_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_runs_final_settlement_employee_id_fkey"
-            columns: ["final_settlement_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payroll_runs_final_settlement_employee_id_fkey"
@@ -42658,29 +39915,8 @@ export type Database = {
             foreignKeyName: "payroll_work_entries_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_work_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "payroll_work_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_work_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payroll_work_entries_employee_id_fkey"
@@ -43294,29 +40530,8 @@ export type Database = {
             foreignKeyName: "payslips_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payslips_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "payslips_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payslips_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "payslips_employee_id_fkey"
@@ -43495,377 +40710,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_payroll_cost_by_department"
             referencedColumns: ["payroll_run_id"]
-          },
-        ]
-      }
-      performance_cycles: {
-        Row: {
-          business_id: string | null
-          calibration_open_at: string | null
-          created_at: string
-          created_by: string
-          default_template_id: string | null
-          description: string | null
-          goal_setting_due_at: string | null
-          goal_setting_open_at: string | null
-          id: string
-          manager_review_due_at: string | null
-          manager_review_open_at: string | null
-          name: string
-          organization_id: string
-          peer_review_due_at: string | null
-          peer_review_open_at: string | null
-          period_end: string
-          period_start: string
-          phase: string
-          scope: string
-          scope_department_ids: string[] | null
-          self_review_due_at: string | null
-          self_review_open_at: string | null
-          sign_off_due_at: string | null
-          status: Database["public"]["Enums"]["performance_cycle_status"]
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          calibration_open_at?: string | null
-          created_at?: string
-          created_by: string
-          default_template_id?: string | null
-          description?: string | null
-          goal_setting_due_at?: string | null
-          goal_setting_open_at?: string | null
-          id?: string
-          manager_review_due_at?: string | null
-          manager_review_open_at?: string | null
-          name: string
-          organization_id: string
-          peer_review_due_at?: string | null
-          peer_review_open_at?: string | null
-          period_end: string
-          period_start: string
-          phase?: string
-          scope?: string
-          scope_department_ids?: string[] | null
-          self_review_due_at?: string | null
-          self_review_open_at?: string | null
-          sign_off_due_at?: string | null
-          status?: Database["public"]["Enums"]["performance_cycle_status"]
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          calibration_open_at?: string | null
-          created_at?: string
-          created_by?: string
-          default_template_id?: string | null
-          description?: string | null
-          goal_setting_due_at?: string | null
-          goal_setting_open_at?: string | null
-          id?: string
-          manager_review_due_at?: string | null
-          manager_review_open_at?: string | null
-          name?: string
-          organization_id?: string
-          peer_review_due_at?: string | null
-          peer_review_open_at?: string | null
-          period_end?: string
-          period_start?: string
-          phase?: string
-          scope?: string
-          scope_department_ids?: string[] | null
-          self_review_due_at?: string | null
-          self_review_open_at?: string | null
-          sign_off_due_at?: string | null
-          status?: Database["public"]["Enums"]["performance_cycle_status"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      performance_goals: {
-        Row: {
-          alignment: string
-          assigned_at: string | null
-          assigned_by: string | null
-          category: string | null
-          created_at: string
-          created_by: string
-          current_value: number | null
-          cycle_id: string | null
-          description: string | null
-          employee_id: string
-          final_rating: number | null
-          id: string
-          last_check_in_at: string | null
-          manager_comment: string | null
-          measurement_type: string
-          next_check_in_due_at: string | null
-          organization_id: string
-          parent_goal_id: string | null
-          progress_pct: number
-          status: Database["public"]["Enums"]["goal_status"]
-          target_date: string | null
-          target_value: number | null
-          title: string
-          unit: string | null
-          updated_at: string
-          weight: number
-        }
-        Insert: {
-          alignment?: string
-          assigned_at?: string | null
-          assigned_by?: string | null
-          category?: string | null
-          created_at?: string
-          created_by: string
-          current_value?: number | null
-          cycle_id?: string | null
-          description?: string | null
-          employee_id: string
-          final_rating?: number | null
-          id?: string
-          last_check_in_at?: string | null
-          manager_comment?: string | null
-          measurement_type?: string
-          next_check_in_due_at?: string | null
-          organization_id: string
-          parent_goal_id?: string | null
-          progress_pct?: number
-          status?: Database["public"]["Enums"]["goal_status"]
-          target_date?: string | null
-          target_value?: number | null
-          title: string
-          unit?: string | null
-          updated_at?: string
-          weight?: number
-        }
-        Update: {
-          alignment?: string
-          assigned_at?: string | null
-          assigned_by?: string | null
-          category?: string | null
-          created_at?: string
-          created_by?: string
-          current_value?: number | null
-          cycle_id?: string | null
-          description?: string | null
-          employee_id?: string
-          final_rating?: number | null
-          id?: string
-          last_check_in_at?: string | null
-          manager_comment?: string | null
-          measurement_type?: string
-          next_check_in_due_at?: string | null
-          organization_id?: string
-          parent_goal_id?: string | null
-          progress_pct?: number
-          status?: Database["public"]["Enums"]["goal_status"]
-          target_date?: string | null
-          target_value?: number | null
-          title?: string
-          unit?: string | null
-          updated_at?: string
-          weight?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "performance_goals_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_goals_parent_goal_id_fkey"
-            columns: ["parent_goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      performance_reviews: {
-        Row: {
-          acknowledged_at: string | null
-          calibration_notes: string | null
-          created_at: string
-          cycle_id: string
-          development_areas: string | null
-          due_at: string | null
-          employee_id: string
-          final_rating: number | null
-          id: string
-          organization_id: string
-          overall_rating: number | null
-          review_type: string
-          reviewer_user_id: string
-          signed_off_at: string | null
-          signed_off_by: string | null
-          status: Database["public"]["Enums"]["performance_review_status"]
-          strengths: string | null
-          submitted_at: string | null
-          summary: string | null
-          template_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          calibration_notes?: string | null
-          created_at?: string
-          cycle_id: string
-          development_areas?: string | null
-          due_at?: string | null
-          employee_id: string
-          final_rating?: number | null
-          id?: string
-          organization_id: string
-          overall_rating?: number | null
-          review_type?: string
-          reviewer_user_id: string
-          signed_off_at?: string | null
-          signed_off_by?: string | null
-          status?: Database["public"]["Enums"]["performance_review_status"]
-          strengths?: string | null
-          submitted_at?: string | null
-          summary?: string | null
-          template_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          acknowledged_at?: string | null
-          calibration_notes?: string | null
-          created_at?: string
-          cycle_id?: string
-          development_areas?: string | null
-          due_at?: string | null
-          employee_id?: string
-          final_rating?: number | null
-          id?: string
-          organization_id?: string
-          overall_rating?: number | null
-          review_type?: string
-          reviewer_user_id?: string
-          signed_off_at?: string | null
-          signed_off_by?: string | null
-          status?: Database["public"]["Enums"]["performance_review_status"]
-          strengths?: string | null
-          submitted_at?: string | null
-          summary?: string | null
-          template_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "performance_reviews_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "performance_reviews_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "review_templates"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -54735,29 +51579,8 @@ export type Database = {
             foreignKeyName: "project_cost_entries_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_cost_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "project_cost_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_cost_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "project_cost_entries_employee_id_fkey"
@@ -57561,13 +54384,6 @@ export type Database = {
             foreignKeyName: "quiz_attempts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quiz_attempts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
           },
@@ -57575,35 +54391,7 @@ export type Database = {
             foreignKeyName: "quiz_attempts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quiz_attempts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quiz_attempts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quiz_attempts_enrollment_id_fkey"
-            columns: ["enrollment_id"]
-            isOneToOne: false
-            referencedRelation: "training_enrollments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quiz_attempts_quiz_id_fkey"
-            columns: ["quiz_id"]
-            isOneToOne: false
-            referencedRelation: "training_quizzes"
             referencedColumns: ["id"]
           },
         ]
@@ -57648,15 +54436,7 @@ export type Database = {
           quiz_id?: string
           sequence_no?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "quiz_questions_quiz_id_fkey"
-            columns: ["quiz_id"]
-            isOneToOne: false
-            referencedRelation: "training_quizzes"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       recurring_invoice_definition_versions: {
         Row: {
@@ -59045,385 +55825,6 @@ export type Database = {
           label?: string
           requires_comment?: boolean
           sort_order?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      review_participants: {
-        Row: {
-          created_at: string
-          cycle_id: string
-          employee_id: string
-          id: string
-          invited_at: string
-          organization_id: string
-          participant_employee_id: string | null
-          participant_user_id: string
-          review_id: string | null
-          role: string
-          status: string
-          submitted_at: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          cycle_id: string
-          employee_id: string
-          id?: string
-          invited_at?: string
-          organization_id: string
-          participant_employee_id?: string | null
-          participant_user_id: string
-          review_id?: string | null
-          role: string
-          status?: string
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          cycle_id?: string
-          employee_id?: string
-          id?: string
-          invited_at?: string
-          organization_id?: string
-          participant_employee_id?: string | null
-          participant_user_id?: string
-          review_id?: string | null
-          role?: string
-          status?: string
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "review_participants_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_participant_employee_id_fkey"
-            columns: ["participant_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_participants_review_id_fkey"
-            columns: ["review_id"]
-            isOneToOne: false
-            referencedRelation: "performance_reviews"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      review_responses: {
-        Row: {
-          comment: string | null
-          competency_id: string | null
-          created_at: string
-          goal_id: string | null
-          id: string
-          organization_id: string
-          question_id: string | null
-          rating: number | null
-          review_id: string
-          updated_at: string
-        }
-        Insert: {
-          comment?: string | null
-          competency_id?: string | null
-          created_at?: string
-          goal_id?: string | null
-          id?: string
-          organization_id: string
-          question_id?: string | null
-          rating?: number | null
-          review_id: string
-          updated_at?: string
-        }
-        Update: {
-          comment?: string | null
-          competency_id?: string | null
-          created_at?: string
-          goal_id?: string | null
-          id?: string
-          organization_id?: string
-          question_id?: string | null
-          rating?: number | null
-          review_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "review_responses_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_responses_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "performance_goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_responses_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "review_template_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_responses_review_id_fkey"
-            columns: ["review_id"]
-            isOneToOne: false
-            referencedRelation: "performance_reviews"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      review_template_questions: {
-        Row: {
-          audiences: string[]
-          competency_id: string | null
-          created_at: string
-          id: string
-          is_required: boolean
-          organization_id: string
-          prompt: string
-          question_type: string
-          section_id: string | null
-          sort_order: number
-          template_id: string
-        }
-        Insert: {
-          audiences?: string[]
-          competency_id?: string | null
-          created_at?: string
-          id?: string
-          is_required?: boolean
-          organization_id: string
-          prompt: string
-          question_type?: string
-          section_id?: string | null
-          sort_order?: number
-          template_id: string
-        }
-        Update: {
-          audiences?: string[]
-          competency_id?: string | null
-          created_at?: string
-          id?: string
-          is_required?: boolean
-          organization_id?: string
-          prompt?: string
-          question_type?: string
-          section_id?: string | null
-          sort_order?: number
-          template_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "review_template_questions_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_template_questions_section_id_fkey"
-            columns: ["section_id"]
-            isOneToOne: false
-            referencedRelation: "review_template_sections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_template_questions_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "review_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      review_template_sections: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          organization_id: string
-          sort_order: number
-          template_id: string
-          title: string
-          weight: number
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          organization_id: string
-          sort_order?: number
-          template_id: string
-          title: string
-          weight?: number
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          organization_id?: string
-          sort_order?: number
-          template_id?: string
-          title?: string
-          weight?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "review_template_sections_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "review_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      review_templates: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          includes_manager: boolean
-          includes_peer: boolean
-          includes_self: boolean
-          includes_skip_level: boolean
-          is_active: boolean
-          name: string
-          organization_id: string
-          rating_scale: Json
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          includes_manager?: boolean
-          includes_peer?: boolean
-          includes_self?: boolean
-          includes_skip_level?: boolean
-          is_active?: boolean
-          name: string
-          organization_id: string
-          rating_scale?: Json
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          includes_manager?: boolean
-          includes_peer?: boolean
-          includes_self?: boolean
-          includes_skip_level?: boolean
-          is_active?: boolean
-          name?: string
-          organization_id?: string
-          rating_scale?: Json
           updated_at?: string
         }
         Relationships: []
@@ -62488,29 +58889,8 @@ export type Database = {
             foreignKeyName: "shift_assignments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "shift_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "shift_assignments_employee_id_fkey"
@@ -62615,29 +58995,8 @@ export type Database = {
             foreignKeyName: "shift_swap_requests_requester_employee_id_fkey"
             columns: ["requester_employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_swap_requests_requester_employee_id_fkey"
-            columns: ["requester_employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "shift_swap_requests_requester_employee_id_fkey"
-            columns: ["requester_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_swap_requests_requester_employee_id_fkey"
-            columns: ["requester_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "shift_swap_requests_requester_employee_id_fkey"
@@ -62671,29 +59030,8 @@ export type Database = {
             foreignKeyName: "shift_swap_requests_target_employee_id_fkey"
             columns: ["target_employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_swap_requests_target_employee_id_fkey"
-            columns: ["target_employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "shift_swap_requests_target_employee_id_fkey"
-            columns: ["target_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_swap_requests_target_employee_id_fkey"
-            columns: ["target_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "shift_swap_requests_target_employee_id_fkey"
@@ -65507,210 +61845,6 @@ export type Database = {
           },
         ]
       }
-      succession_plans: {
-        Row: {
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          criticality: string
-          id: string
-          incumbent_employee_id: string | null
-          is_active: boolean
-          job_position_id: string | null
-          notes: string | null
-          organization_id: string
-          role_title: string
-          updated_at: string
-          vacancy_risk: string
-        }
-        Insert: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          criticality?: string
-          id?: string
-          incumbent_employee_id?: string | null
-          is_active?: boolean
-          job_position_id?: string | null
-          notes?: string | null
-          organization_id: string
-          role_title: string
-          updated_at?: string
-          vacancy_risk?: string
-        }
-        Update: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          criticality?: string
-          id?: string
-          incumbent_employee_id?: string | null
-          is_active?: boolean
-          job_position_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          role_title?: string
-          updated_at?: string
-          vacancy_risk?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "succession_plans_incumbent_employee_id_fkey"
-            columns: ["incumbent_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      successors: {
-        Row: {
-          added_at: string
-          added_by: string | null
-          created_at: string
-          development_notes: string | null
-          employee_id: string
-          id: string
-          organization_id: string
-          plan_id: string
-          rank: number
-          readiness: string
-          updated_at: string
-        }
-        Insert: {
-          added_at?: string
-          added_by?: string | null
-          created_at?: string
-          development_notes?: string | null
-          employee_id: string
-          id?: string
-          organization_id: string
-          plan_id: string
-          rank?: number
-          readiness?: string
-          updated_at?: string
-        }
-        Update: {
-          added_at?: string
-          added_by?: string | null
-          created_at?: string
-          development_notes?: string | null
-          employee_id?: string
-          id?: string
-          organization_id?: string
-          plan_id?: string
-          rank?: number
-          readiness?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "succession_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "successors_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "v_succession_bench_strength"
-            referencedColumns: ["plan_id"]
-          },
-        ]
-      }
       supplier_bank_accounts: {
         Row: {
           account_name: string
@@ -66478,368 +62612,6 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "system_account_roles"
             referencedColumns: ["role_key"]
-          },
-        ]
-      }
-      talent_audit_log: {
-        Row: {
-          action: string
-          actor_user_id: string
-          after_state: Json | null
-          before_state: Json | null
-          created_at: string
-          entity_id: string
-          entity_type: string
-          id: string
-          organization_id: string
-          reason: string | null
-        }
-        Insert: {
-          action: string
-          actor_user_id: string
-          after_state?: Json | null
-          before_state?: Json | null
-          created_at?: string
-          entity_id: string
-          entity_type: string
-          id?: string
-          organization_id: string
-          reason?: string | null
-        }
-        Update: {
-          action?: string
-          actor_user_id?: string
-          after_state?: Json | null
-          before_state?: Json | null
-          created_at?: string
-          entity_id?: string
-          entity_type?: string
-          id?: string
-          organization_id?: string
-          reason?: string | null
-        }
-        Relationships: []
-      }
-      talent_pool_members: {
-        Row: {
-          added_at: string
-          added_by: string | null
-          created_at: string
-          employee_id: string
-          id: string
-          notes: string | null
-          organization_id: string
-          pool_id: string
-          readiness: string | null
-          updated_at: string
-        }
-        Insert: {
-          added_at?: string
-          added_by?: string | null
-          created_at?: string
-          employee_id: string
-          id?: string
-          notes?: string | null
-          organization_id: string
-          pool_id: string
-          readiness?: string | null
-          updated_at?: string
-        }
-        Update: {
-          added_at?: string
-          added_by?: string | null
-          created_at?: string
-          employee_id?: string
-          id?: string
-          notes?: string | null
-          organization_id?: string
-          pool_id?: string
-          readiness?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_pool_members_pool_id_fkey"
-            columns: ["pool_id"]
-            isOneToOne: false
-            referencedRelation: "talent_pools"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      talent_pools: {
-        Row: {
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          is_active: boolean
-          name: string
-          organization_id: string
-          pool_type: string
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          organization_id: string
-          pool_type?: string
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          organization_id?: string
-          pool_type?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      talent_potential_ratings: {
-        Row: {
-          created_at: string
-          cycle_id: string
-          employee_id: string
-          id: string
-          organization_id: string
-          performance: number
-          placed_at: string
-          placed_by: string | null
-          placement_reason: string | null
-          potential: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          cycle_id: string
-          employee_id: string
-          id?: string
-          organization_id: string
-          performance: number
-          placed_at?: string
-          placed_by?: string | null
-          placement_reason?: string | null
-          potential: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          cycle_id?: string
-          employee_id?: string
-          id?: string
-          organization_id?: string
-          performance?: number
-          placed_at?: string
-          placed_by?: string | null
-          placement_reason?: string | null
-          potential?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_potential_ratings_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_potential_ratings_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      talent_settings: {
-        Row: {
-          action_item_reminder_days: number
-          auto_close_cycles: boolean
-          calibration_requires_approval: boolean
-          created_at: string
-          default_competency_scale_id: string | null
-          default_review_scale_max: number
-          default_review_scale_min: number
-          devplan_activation_requires_approval: boolean
-          goal_checkin_reminder_days: number
-          hipo_performance_threshold: number
-          hipo_potential_threshold: number
-          merit_requires_approval: boolean
-          oneonone_reminder_hours: number
-          organization_id: string
-          require_manager_ack_on_review: boolean
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          action_item_reminder_days?: number
-          auto_close_cycles?: boolean
-          calibration_requires_approval?: boolean
-          created_at?: string
-          default_competency_scale_id?: string | null
-          default_review_scale_max?: number
-          default_review_scale_min?: number
-          devplan_activation_requires_approval?: boolean
-          goal_checkin_reminder_days?: number
-          hipo_performance_threshold?: number
-          hipo_potential_threshold?: number
-          merit_requires_approval?: boolean
-          oneonone_reminder_hours?: number
-          organization_id: string
-          require_manager_ack_on_review?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          action_item_reminder_days?: number
-          auto_close_cycles?: boolean
-          calibration_requires_approval?: boolean
-          created_at?: string
-          default_competency_scale_id?: string | null
-          default_review_scale_max?: number
-          default_review_scale_min?: number
-          devplan_activation_requires_approval?: boolean
-          goal_checkin_reminder_days?: number
-          hipo_performance_threshold?: number
-          hipo_potential_threshold?: number
-          merit_requires_approval?: boolean
-          oneonone_reminder_hours?: number
-          organization_id?: string
-          require_manager_ack_on_review?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_settings_default_competency_scale_id_fkey"
-            columns: ["default_competency_scale_id"]
-            isOneToOne: false
-            referencedRelation: "competency_scales"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_settings_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: true
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "talent_settings_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: true
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "talent_settings_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: true
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -67777,29 +63549,8 @@ export type Database = {
             foreignKeyName: "timesheet_submissions_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheet_submissions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "timesheet_submissions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheet_submissions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "timesheet_submissions_employee_id_fkey"
@@ -68001,29 +63752,8 @@ export type Database = {
             foreignKeyName: "timesheets_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "timesheets_employee_id_fkey"
@@ -68079,326 +63809,6 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      training_course_materials: {
-        Row: {
-          content_text: string | null
-          course_id: string
-          created_at: string
-          created_by: string | null
-          description: string | null
-          external_url: string | null
-          file_name: string | null
-          file_path: string | null
-          file_size: number | null
-          id: string
-          kind: string
-          mime_type: string | null
-          organization_id: string
-          position: number
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          content_text?: string | null
-          course_id: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          external_url?: string | null
-          file_name?: string | null
-          file_path?: string | null
-          file_size?: number | null
-          id?: string
-          kind: string
-          mime_type?: string | null
-          organization_id: string
-          position?: number
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          content_text?: string | null
-          course_id?: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          external_url?: string | null
-          file_name?: string | null
-          file_path?: string | null
-          file_size?: number | null
-          id?: string
-          kind?: string
-          mime_type?: string | null
-          organization_id?: string
-          position?: number
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "training_course_materials_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "training_courses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      training_courses: {
-        Row: {
-          business_id: string | null
-          category: string | null
-          competency_ids: string[]
-          cover_image_url: string | null
-          created_at: string
-          created_by: string
-          delivery_mode: string | null
-          description: string | null
-          duration_hours: number | null
-          id: string
-          is_active: boolean
-          is_self_enroll: boolean
-          name: string
-          objectives: string | null
-          organization_id: string
-          pass_score: number | null
-          provider: string | null
-          recertify_months: number | null
-          requires_certificate: boolean
-          status: string
-          target_level: number | null
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          category?: string | null
-          competency_ids?: string[]
-          cover_image_url?: string | null
-          created_at?: string
-          created_by: string
-          delivery_mode?: string | null
-          description?: string | null
-          duration_hours?: number | null
-          id?: string
-          is_active?: boolean
-          is_self_enroll?: boolean
-          name: string
-          objectives?: string | null
-          organization_id: string
-          pass_score?: number | null
-          provider?: string | null
-          recertify_months?: number | null
-          requires_certificate?: boolean
-          status?: string
-          target_level?: number | null
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          category?: string | null
-          competency_ids?: string[]
-          cover_image_url?: string | null
-          created_at?: string
-          created_by?: string
-          delivery_mode?: string | null
-          description?: string | null
-          duration_hours?: number | null
-          id?: string
-          is_active?: boolean
-          is_self_enroll?: boolean
-          name?: string
-          objectives?: string | null
-          organization_id?: string
-          pass_score?: number | null
-          provider?: string | null
-          recertify_months?: number | null
-          requires_certificate?: boolean
-          status?: string
-          target_level?: number | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      training_enrollments: {
-        Row: {
-          assigned_by: string | null
-          certificate_url: string | null
-          completed_at: string | null
-          course_id: string
-          created_at: string
-          development_plan_item_id: string | null
-          due_date: string | null
-          employee_id: string
-          enrolled_at: string
-          expires_at: string | null
-          id: string
-          notes: string | null
-          organization_id: string
-          score: number | null
-          source: string
-          started_at: string | null
-          status: Database["public"]["Enums"]["training_enrollment_status"]
-          updated_at: string
-        }
-        Insert: {
-          assigned_by?: string | null
-          certificate_url?: string | null
-          completed_at?: string | null
-          course_id: string
-          created_at?: string
-          development_plan_item_id?: string | null
-          due_date?: string | null
-          employee_id: string
-          enrolled_at?: string
-          expires_at?: string | null
-          id?: string
-          notes?: string | null
-          organization_id: string
-          score?: number | null
-          source?: string
-          started_at?: string | null
-          status?: Database["public"]["Enums"]["training_enrollment_status"]
-          updated_at?: string
-        }
-        Update: {
-          assigned_by?: string | null
-          certificate_url?: string | null
-          completed_at?: string | null
-          course_id?: string
-          created_at?: string
-          development_plan_item_id?: string | null
-          due_date?: string | null
-          employee_id?: string
-          enrolled_at?: string
-          expires_at?: string | null
-          id?: string
-          notes?: string | null
-          organization_id?: string
-          score?: number | null
-          source?: string
-          started_at?: string | null
-          status?: Database["public"]["Enums"]["training_enrollment_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "training_enrollments_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "training_courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_development_plan_item_id_fkey"
-            columns: ["development_plan_item_id"]
-            isOneToOne: false
-            referencedRelation: "development_plan_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_enrollments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      training_quizzes: {
-        Row: {
-          course_id: string
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          is_active: boolean
-          max_attempts: number
-          organization_id: string
-          pass_score: number
-          time_limit_minutes: number | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          course_id: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          max_attempts?: number
-          organization_id: string
-          pass_score?: number
-          time_limit_minutes?: number | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          course_id?: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          max_attempts?: number
-          organization_id?: string
-          pass_score?: number
-          time_limit_minutes?: number | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "training_quizzes_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "training_courses"
             referencedColumns: ["id"]
           },
         ]
@@ -73727,29 +69137,8 @@ export type Database = {
             foreignKeyName: "wms_operators_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_operators_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "wms_operators_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_operators_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wms_operators_employee_id_fkey"
@@ -77965,27 +73354,6 @@ export type Database = {
             foreignKeyName: "contract_compensation_components_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_compensation_components_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_compensation_components_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["active_contract_id"]
-          },
-          {
-            foreignKeyName: "contract_compensation_components_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
             referencedRelation: "v_hr_contract_expiry_pipeline"
             referencedColumns: ["contract_id"]
           },
@@ -78285,29 +73653,8 @@ export type Database = {
             foreignKeyName: "employee_contracts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_contracts_employee_id_fkey"
@@ -78553,13 +73900,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "employees_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "employees_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
@@ -78577,29 +73917,8 @@ export type Database = {
             foreignKeyName: "employees_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employees_manager_id_fkey"
@@ -79049,29 +74368,8 @@ export type Database = {
             foreignKeyName: "employee_garnishments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_garnishments_employee_id_fkey"
@@ -79452,29 +74750,8 @@ export type Database = {
             foreignKeyName: "one_on_ones_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "one_on_ones_employee_id_fkey"
@@ -79501,29 +74778,8 @@ export type Database = {
             foreignKeyName: "one_on_ones_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "one_on_ones_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "one_on_ones_manager_id_fkey"
@@ -80658,55 +75914,6 @@ export type Database = {
         }
         Relationships: []
       }
-      v_competency_gap_heatmap: {
-        Row: {
-          avg_current_level: number | null
-          avg_required_level: number | null
-          competency_id: string | null
-          department_id: string | null
-          employees_below: number | null
-          employees_evaluated: number | null
-          gap: number | null
-          organization_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competency_role_requirements_competency_id_fkey"
-            columns: ["competency_id"]
-            isOneToOne: false
-            referencedRelation: "competencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       v_cost_layer_basis: {
         Row: {
           business_id: string | null
@@ -80724,210 +75931,6 @@ export type Database = {
           employee_id: string | null
         }
         Relationships: []
-      }
-      v_employee_directory: {
-        Row: {
-          _draft_owner_id: string | null
-          _lifecycle_status:
-            | Database["public"]["Enums"]["employee_lifecycle_status"]
-            | null
-          active_contract_end_date: string | null
-          active_contract_housing_allowance: number | null
-          active_contract_id: string | null
-          active_contract_other_allowances: Json | null
-          active_contract_start_date: string | null
-          active_contract_transport_allowance: number | null
-          active_contract_wage: number | null
-          address_line1: string | null
-          address_line2: string | null
-          avatar_url: string | null
-          bank_account_number: string | null
-          bank_branch: string | null
-          bank_code: string | null
-          bank_name: string | null
-          basic_salary: number | null
-          branch_id: string | null
-          business_id: string | null
-          city: string | null
-          cost_rate_override: number | null
-          country: string | null
-          county: string | null
-          created_at: string | null
-          created_by: string | null
-          date_of_birth: string | null
-          department: string | null
-          department_id: string | null
-          department_name: string | null
-          email: string | null
-          emergency_contact_name: string | null
-          emergency_contact_phone: string | null
-          emergency_contact_relationship: string | null
-          employee_number: string | null
-          employment_type: string | null
-          first_name: string | null
-          gender: string | null
-          health_verdict: string | null
-          hire_date: string | null
-          housing_allowance: number | null
-          id: string | null
-          insurance_premium: number | null
-          is_active: boolean | null
-          job_position_id: string | null
-          labor_burden_pct: number | null
-          last_name: string | null
-          lifecycle_status: string | null
-          manager_first_name: string | null
-          manager_id: string | null
-          manager_last_name: string | null
-          marital_status: string | null
-          national_id: string | null
-          organization_id: string | null
-          other_allowances: Json | null
-          personal_phone: string | null
-          phone: string | null
-          position: string | null
-          position_title: string | null
-          postal_code: string | null
-          sms_consent: boolean | null
-          sms_consent_recorded_at: string | null
-          statutory_country_code: string | null
-          termination_date: string | null
-          transport_allowance: number | null
-          updated_at: string | null
-          user_access_status: string | null
-          user_id: string | null
-          work_email: string | null
-          work_location_id: string | null
-          work_schedule_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "employees_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_location_id_fkey"
-            columns: ["work_location_id"]
-            isOneToOne: false
-            referencedRelation: "work_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_schedule_id_fkey"
-            columns: ["work_schedule_id"]
-            isOneToOne: false
-            referencedRelation: "work_schedules"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       v_employee_setup_health: {
         Row: {
@@ -80961,459 +75964,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_employees_canonical: {
-        Row: {
-          _draft_owner_id: string | null
-          _lifecycle_status:
-            | Database["public"]["Enums"]["employee_lifecycle_status"]
-            | null
-          active_contract_end_date: string | null
-          active_contract_housing_allowance: number | null
-          active_contract_id: string | null
-          active_contract_other_allowances: Json | null
-          active_contract_start_date: string | null
-          active_contract_transport_allowance: number | null
-          active_contract_wage: number | null
-          address_line1: string | null
-          address_line2: string | null
-          avatar_url: string | null
-          bank_account_number: string | null
-          bank_branch: string | null
-          bank_code: string | null
-          bank_name: string | null
-          basic_salary: number | null
-          branch_id: string | null
-          branch_ids: string[] | null
-          business_id: string | null
-          city: string | null
-          cost_rate_override: number | null
-          country: string | null
-          county: string | null
-          created_at: string | null
-          created_by: string | null
-          date_of_birth: string | null
-          department: string | null
-          department_id: string | null
-          department_name: string | null
-          email: string | null
-          emergency_contact_name: string | null
-          emergency_contact_phone: string | null
-          emergency_contact_relationship: string | null
-          employee_number: string | null
-          employment_type: string | null
-          first_name: string | null
-          gender: string | null
-          hire_date: string | null
-          housing_allowance: number | null
-          id: string | null
-          insurance_premium: number | null
-          is_active: boolean | null
-          is_directory_visible: boolean | null
-          is_operationally_active: boolean | null
-          is_payroll_eligible: boolean | null
-          job_position_id: string | null
-          labor_burden_pct: number | null
-          last_name: string | null
-          lifecycle_bucket: string | null
-          lifecycle_status: string | null
-          manager_id: string | null
-          marital_status: string | null
-          national_id: string | null
-          organization_id: string | null
-          other_allowances: Json | null
-          personal_phone: string | null
-          phone: string | null
-          position: string | null
-          position_title: string | null
-          postal_code: string | null
-          primary_branch_id: string | null
-          sms_consent: boolean | null
-          sms_consent_recorded_at: string | null
-          statutory_country_code: string | null
-          termination_date: string | null
-          transport_allowance: number | null
-          updated_at: string | null
-          user_access_status: string | null
-          user_id: string | null
-          work_email: string | null
-          work_location_id: string | null
-          work_schedule_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "employees_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_location_id_fkey"
-            columns: ["work_location_id"]
-            isOneToOne: false
-            referencedRelation: "work_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_schedule_id_fkey"
-            columns: ["work_schedule_id"]
-            isOneToOne: false
-            referencedRelation: "work_schedules"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_employees_safe: {
-        Row: {
-          active_contract_end_date: string | null
-          active_contract_housing_allowance: number | null
-          active_contract_id: string | null
-          active_contract_other_allowances: Json | null
-          active_contract_start_date: string | null
-          active_contract_transport_allowance: number | null
-          active_contract_wage: number | null
-          address_line1: string | null
-          address_line2: string | null
-          avatar_url: string | null
-          bank_account_number: string | null
-          bank_branch: string | null
-          bank_code: string | null
-          bank_name: string | null
-          basic_salary: number | null
-          branch_id: string | null
-          business_id: string | null
-          city: string | null
-          cost_rate_override: number | null
-          country: string | null
-          county: string | null
-          created_at: string | null
-          created_by: string | null
-          date_of_birth: string | null
-          department: string | null
-          department_id: string | null
-          department_name: string | null
-          email: string | null
-          emergency_contact_name: string | null
-          emergency_contact_phone: string | null
-          emergency_contact_relationship: string | null
-          employee_number: string | null
-          employment_type: string | null
-          first_name: string | null
-          gender: string | null
-          hire_date: string | null
-          housing_allowance: number | null
-          id: string | null
-          insurance_premium: number | null
-          is_active: boolean | null
-          job_position_id: string | null
-          labor_burden_pct: number | null
-          last_name: string | null
-          lifecycle_status: string | null
-          manager_id: string | null
-          marital_status: string | null
-          national_id: string | null
-          organization_id: string | null
-          other_allowances: Json | null
-          personal_phone: string | null
-          phone: string | null
-          position: string | null
-          position_title: string | null
-          postal_code: string | null
-          sms_consent: boolean | null
-          sms_consent_recorded_at: string | null
-          statutory_country_code: string | null
-          termination_date: string | null
-          transport_allowance: number | null
-          updated_at: string | null
-          user_access_status: string | null
-          user_id: string | null
-          work_email: string | null
-          work_location_id: string | null
-          work_schedule_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "employees_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "employees_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_location_id_fkey"
-            columns: ["work_location_id"]
-            isOneToOne: false
-            referencedRelation: "work_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_schedule_id_fkey"
-            columns: ["work_schedule_id"]
-            isOneToOne: false
-            referencedRelation: "work_schedules"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_exec_talent_rollup: {
-        Row: {
-          avg_rating: number | null
-          department_id: string | null
-          headcount: number | null
-          learning_assigned: number | null
-          learning_completed: number | null
-          learning_compliance_pct: number | null
-          organization_id: string | null
-          rating_distribution: Json | null
-          review_completion_pct: number | null
-          reviews_done: number | null
-          reviews_total: number | null
-          succession_key_roles: number | null
-          successors_ready_1_2y: number | null
-          successors_ready_3_5y: number | null
-          successors_ready_now: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "employees_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -81502,29 +76052,8 @@ export type Database = {
             foreignKeyName: "employee_contracts_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_contracts_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_contracts_employee_id_fkey"
@@ -81689,22 +76218,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      v_hr_org_change_history: {
-        Row: {
-          actor_user_id: string | null
-          business_id: string | null
-          change_kind: Database["public"]["Enums"]["org_change_kind"] | null
-          entity_id: string | null
-          entity_kind: Database["public"]["Enums"]["org_entity_kind"] | null
-          entity_name: string | null
-          id: string | null
-          occurred_at: string | null
-          organization_id: string | null
-          payload: Json | null
-          summary: string | null
-        }
-        Relationships: []
       }
       v_hr_payroll_distribution_by_department: {
         Row: {
@@ -82101,29 +76614,8 @@ export type Database = {
             foreignKeyName: "leave_allocations_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leave_allocations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "leave_allocations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leave_allocations_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "leave_allocations_employee_id_fkey"
@@ -82313,29 +76805,8 @@ export type Database = {
             foreignKeyName: "employee_loans_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_loans_employee_id_fkey"
@@ -82560,29 +77031,8 @@ export type Database = {
             foreignKeyName: "employee_loans_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_loans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employee_loans_employee_id_fkey"
@@ -82745,94 +77195,6 @@ export type Database = {
           },
         ]
       }
-      v_manager_team_rollup: {
-        Row: {
-          active_goals: number | null
-          at_risk_goals: number | null
-          devplan_coverage_pct: number | null
-          employees_with_devplan: number | null
-          kudos_last_30d: number | null
-          manager_employee_id: string | null
-          organization_id: string | null
-          overdue_check_ins: number | null
-          review_completion_pct: number | null
-          reviews_done: number | null
-          reviews_total: number | null
-          team_size: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees_active"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employee_setup_health"
-            referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_my_employee_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "employees_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       v_my_employee_profile: {
         Row: {
           address_line1: string | null
@@ -82988,13 +77350,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "employees_job_position_id_fkey"
-            columns: ["job_position_id"]
-            isOneToOne: false
-            referencedRelation: "job_positions"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "employees_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
@@ -83012,29 +77367,8 @@ export type Database = {
             foreignKeyName: "employees_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "employees_manager_id_fkey"
@@ -83062,24 +77396,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_nine_box_grid: {
-        Row: {
-          cycle_id: string | null
-          employee_count: number | null
-          organization_id: string | null
-          performance: number | null
-          potential: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_potential_ratings_cycle_id_fkey"
-            columns: ["cycle_id"]
-            isOneToOne: false
-            referencedRelation: "performance_cycles"
             referencedColumns: ["id"]
           },
         ]
@@ -84782,20 +79098,6 @@ export type Database = {
           },
         ]
       }
-      v_succession_bench_strength: {
-        Row: {
-          bench_strength: string | null
-          criticality: string | null
-          organization_id: string | null
-          plan_id: string | null
-          ready_1_2y_count: number | null
-          ready_3_5y_count: number | null
-          ready_now_count: number | null
-          role_title: string | null
-          successor_count: number | null
-        }
-        Relationships: []
-      }
       v_supplier_coverage: {
         Row: {
           active_conditions: number | null
@@ -84905,29 +79207,8 @@ export type Database = {
             foreignKeyName: "timesheets_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "timesheets_employee_id_fkey"
@@ -85093,29 +79374,8 @@ export type Database = {
             foreignKeyName: "timesheets_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "timesheets_employee_id_fkey"
@@ -85211,29 +79471,8 @@ export type Database = {
             foreignKeyName: "timesheets_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "timesheets_employee_id_fkey"
@@ -85320,29 +79559,8 @@ export type Database = {
             foreignKeyName: "timesheets_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timesheets_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "timesheets_employee_id_fkey"
@@ -86114,29 +80332,8 @@ export type Database = {
             foreignKeyName: "wms_operators_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "v_employee_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_operators_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
             referencedRelation: "v_employee_setup_health"
             referencedColumns: ["employee_id"]
-          },
-          {
-            foreignKeyName: "wms_operators_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_canonical"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_operators_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "v_employees_safe"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wms_operators_employee_id_fkey"
@@ -95296,100 +89493,6 @@ export type Database = {
           full_name: string
           user_id: string
         }[]
-      }
-      filtered_employee_directory: {
-        Args: {
-          p_branch_ids?: string[]
-          p_business_id: string
-          p_department_id?: string
-          p_health?: string
-          p_location_id?: string
-          p_mine_only?: boolean
-          p_org_id: string
-          p_position_id?: string
-          p_search?: string
-          p_status?: string
-        }
-        Returns: {
-          _draft_owner_id: string | null
-          _lifecycle_status:
-            | Database["public"]["Enums"]["employee_lifecycle_status"]
-            | null
-          active_contract_end_date: string | null
-          active_contract_housing_allowance: number | null
-          active_contract_id: string | null
-          active_contract_other_allowances: Json | null
-          active_contract_start_date: string | null
-          active_contract_transport_allowance: number | null
-          active_contract_wage: number | null
-          address_line1: string | null
-          address_line2: string | null
-          avatar_url: string | null
-          bank_account_number: string | null
-          bank_branch: string | null
-          bank_code: string | null
-          bank_name: string | null
-          basic_salary: number | null
-          branch_id: string | null
-          business_id: string | null
-          city: string | null
-          cost_rate_override: number | null
-          country: string | null
-          county: string | null
-          created_at: string | null
-          created_by: string | null
-          date_of_birth: string | null
-          department: string | null
-          department_id: string | null
-          department_name: string | null
-          email: string | null
-          emergency_contact_name: string | null
-          emergency_contact_phone: string | null
-          emergency_contact_relationship: string | null
-          employee_number: string | null
-          employment_type: string | null
-          first_name: string | null
-          gender: string | null
-          health_verdict: string | null
-          hire_date: string | null
-          housing_allowance: number | null
-          id: string | null
-          insurance_premium: number | null
-          is_active: boolean | null
-          job_position_id: string | null
-          labor_burden_pct: number | null
-          last_name: string | null
-          lifecycle_status: string | null
-          manager_first_name: string | null
-          manager_id: string | null
-          manager_last_name: string | null
-          marital_status: string | null
-          national_id: string | null
-          organization_id: string | null
-          other_allowances: Json | null
-          personal_phone: string | null
-          phone: string | null
-          position: string | null
-          position_title: string | null
-          postal_code: string | null
-          sms_consent: boolean | null
-          sms_consent_recorded_at: string | null
-          statutory_country_code: string | null
-          termination_date: string | null
-          transport_allowance: number | null
-          updated_at: string | null
-          user_access_status: string | null
-          user_id: string | null
-          work_email: string | null
-          work_location_id: string | null
-          work_schedule_id: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "v_employee_directory"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       finalize_employee_draft: {
         Args: { p_employee: Json; p_employee_id: string; p_identifiers?: Json }
@@ -105832,427 +99935,13 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: undefined
       }
-      talent_acknowledge_review: {
-        Args: { _review_id: string }
-        Returns: {
-          acknowledged_at: string | null
-          calibration_notes: string | null
-          created_at: string
-          cycle_id: string
-          development_areas: string | null
-          due_at: string | null
-          employee_id: string
-          final_rating: number | null
-          id: string
-          organization_id: string
-          overall_rating: number | null
-          review_type: string
-          reviewer_user_id: string
-          signed_off_at: string | null
-          signed_off_by: string | null
-          status: Database["public"]["Enums"]["performance_review_status"]
-          strengths: string | null
-          submitted_at: string | null
-          summary: string | null
-          template_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "performance_reviews"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      talent_advance_cycle_phase: {
-        Args: { _cycle_id: string; _next_phase: string }
-        Returns: {
-          business_id: string | null
-          calibration_open_at: string | null
-          created_at: string
-          created_by: string
-          default_template_id: string | null
-          description: string | null
-          goal_setting_due_at: string | null
-          goal_setting_open_at: string | null
-          id: string
-          manager_review_due_at: string | null
-          manager_review_open_at: string | null
-          name: string
-          organization_id: string
-          peer_review_due_at: string | null
-          peer_review_open_at: string | null
-          period_end: string
-          period_start: string
-          phase: string
-          scope: string
-          scope_department_ids: string[] | null
-          self_review_due_at: string | null
-          self_review_open_at: string | null
-          sign_off_due_at: string | null
-          status: Database["public"]["Enums"]["performance_cycle_status"]
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "performance_cycles"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       talent_bulk_create_reviews: {
         Args: { _cycle_id: string; _review_type: string }
         Returns: {
           created_count: number
         }[]
       }
-      talent_calibrate_review: {
-        Args: {
-          _calibration_notes?: string
-          _final_rating: number
-          _review_id: string
-        }
-        Returns: {
-          acknowledged_at: string | null
-          calibration_notes: string | null
-          created_at: string
-          cycle_id: string
-          development_areas: string | null
-          due_at: string | null
-          employee_id: string
-          final_rating: number | null
-          id: string
-          organization_id: string
-          overall_rating: number | null
-          review_type: string
-          reviewer_user_id: string
-          signed_off_at: string | null
-          signed_off_by: string | null
-          status: Database["public"]["Enums"]["performance_review_status"]
-          strengths: string | null
-          submitted_at: string | null
-          summary: string | null
-          template_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "performance_reviews"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      talent_calibration_apply_adjustment: {
-        Args: { _adjustment_id: string }
-        Returns: {
-          applied_at: string | null
-          created_at: string
-          cycle_id: string
-          decided_at: string | null
-          decided_by: string | null
-          decision: string
-          employee_id: string
-          id: string
-          organization_id: string
-          original_rating: number | null
-          proposed_by: string
-          proposed_rating: number
-          rationale: string
-          review_id: string
-          session_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "calibration_adjustments"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      talent_calibration_reject_adjustment: {
-        Args: { _adjustment_id: string; _reason?: string }
-        Returns: {
-          applied_at: string | null
-          created_at: string
-          cycle_id: string
-          decided_at: string | null
-          decided_by: string | null
-          decision: string
-          employee_id: string
-          id: string
-          organization_id: string
-          original_rating: number | null
-          proposed_by: string
-          proposed_rating: number
-          rationale: string
-          review_id: string
-          session_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "calibration_adjustments"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      talent_devplan_item_complete: {
-        Args: { _item_id: string }
-        Returns: {
-          competency_id: string | null
-          completed_at: string | null
-          created_at: string
-          description: string | null
-          due_date: string | null
-          enrollment_id: string | null
-          goal_id: string | null
-          id: string
-          item_type: string
-          organization_id: string
-          plan_id: string
-          progress_pct: number
-          sort_order: number
-          status: string
-          title: string
-          training_course_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "development_plan_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       talent_emit_due_notifications: { Args: never; Returns: number }
-      talent_merit_apply: {
-        Args: { _ids: string[] }
-        Returns: {
-          applied_at: string | null
-          applied_by: string | null
-          applied_history_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          currency_code: string | null
-          current_salary: number
-          cycle_id: string
-          effective_date: string
-          employee_id: string
-          final_rating: number | null
-          id: string
-          new_salary: number
-          notes: string | null
-          organization_id: string
-          proposed_at: string | null
-          proposed_by: string | null
-          recommended_amount: number
-          recommended_pct: number
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          review_id: string | null
-          status: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "merit_recommendations"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      talent_merit_approve: {
-        Args: { _ids: string[] }
-        Returns: {
-          applied_at: string | null
-          applied_by: string | null
-          applied_history_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          currency_code: string | null
-          current_salary: number
-          cycle_id: string
-          effective_date: string
-          employee_id: string
-          final_rating: number | null
-          id: string
-          new_salary: number
-          notes: string | null
-          organization_id: string
-          proposed_at: string | null
-          proposed_by: string | null
-          recommended_amount: number
-          recommended_pct: number
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          review_id: string | null
-          status: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "merit_recommendations"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      talent_merit_draft_from_review: {
-        Args: {
-          _cycle_id: string
-          _default_pct?: number
-          _effective_date: string
-          _review_id: string
-        }
-        Returns: {
-          applied_at: string | null
-          applied_by: string | null
-          applied_history_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          currency_code: string | null
-          current_salary: number
-          cycle_id: string
-          effective_date: string
-          employee_id: string
-          final_rating: number | null
-          id: string
-          new_salary: number
-          notes: string | null
-          organization_id: string
-          proposed_at: string | null
-          proposed_by: string | null
-          recommended_amount: number
-          recommended_pct: number
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          review_id: string | null
-          status: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "merit_recommendations"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      talent_merit_propose: {
-        Args: { _cycle_id: string; _items: Json }
-        Returns: {
-          applied_at: string | null
-          applied_by: string | null
-          applied_history_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          currency_code: string | null
-          current_salary: number
-          cycle_id: string
-          effective_date: string
-          employee_id: string
-          final_rating: number | null
-          id: string
-          new_salary: number
-          notes: string | null
-          organization_id: string
-          proposed_at: string | null
-          proposed_by: string | null
-          recommended_amount: number
-          recommended_pct: number
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          review_id: string | null
-          status: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "merit_recommendations"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      talent_merit_reject: {
-        Args: { _ids: string[]; _reason: string }
-        Returns: {
-          applied_at: string | null
-          applied_by: string | null
-          applied_history_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          currency_code: string | null
-          current_salary: number
-          cycle_id: string
-          effective_date: string
-          employee_id: string
-          final_rating: number | null
-          id: string
-          new_salary: number
-          notes: string | null
-          organization_id: string
-          proposed_at: string | null
-          proposed_by: string | null
-          recommended_amount: number
-          recommended_pct: number
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          review_id: string | null
-          status: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "merit_recommendations"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      talent_place_on_nine_box: {
-        Args: {
-          _cycle_id: string
-          _employee_id: string
-          _performance_override?: number
-          _placement_reason?: string
-          _potential: number
-        }
-        Returns: {
-          created_at: string
-          cycle_id: string
-          employee_id: string
-          id: string
-          organization_id: string
-          performance: number
-          placed_at: string
-          placed_by: string | null
-          placement_reason: string | null
-          potential: number
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "talent_potential_ratings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       talent_quiz_grade: {
         Args: { _answers: Json; _attempt_id: string }
         Returns: {
@@ -106280,80 +99969,6 @@ export type Database = {
       talent_remove_from_nine_box: {
         Args: { _rating_id: string }
         Returns: undefined
-      }
-      talent_sign_off_review: {
-        Args: {
-          _calibration_notes?: string
-          _final_rating?: number
-          _review_id: string
-        }
-        Returns: {
-          acknowledged_at: string | null
-          calibration_notes: string | null
-          created_at: string
-          cycle_id: string
-          development_areas: string | null
-          due_at: string | null
-          employee_id: string
-          final_rating: number | null
-          id: string
-          organization_id: string
-          overall_rating: number | null
-          review_type: string
-          reviewer_user_id: string
-          signed_off_at: string | null
-          signed_off_by: string | null
-          status: Database["public"]["Enums"]["performance_review_status"]
-          strengths: string | null
-          submitted_at: string | null
-          summary: string | null
-          template_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "performance_reviews"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      talent_submit_review: {
-        Args: {
-          _development_areas?: string
-          _overall_rating?: number
-          _review_id: string
-          _strengths?: string
-          _summary?: string
-        }
-        Returns: {
-          acknowledged_at: string | null
-          calibration_notes: string | null
-          created_at: string
-          cycle_id: string
-          development_areas: string | null
-          due_at: string | null
-          employee_id: string
-          final_rating: number | null
-          id: string
-          organization_id: string
-          overall_rating: number | null
-          review_type: string
-          reviewer_user_id: string
-          signed_off_at: string | null
-          signed_off_by: string | null
-          status: Database["public"]["Enums"]["performance_review_status"]
-          strengths: string | null
-          submitted_at: string | null
-          summary: string | null
-          template_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "performance_reviews"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       tasks_due_soon: {
         Args: { _biz?: string; _org: string; _within_days?: number }
