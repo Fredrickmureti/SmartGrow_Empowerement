@@ -155,6 +155,10 @@ Remaining in M3: the FK-then-drop for `customer_groups`; then the code-then-sche
 
 `.lovable/plan.md` reflects the plan but not these three drops; it needs a one-line status update when work resumes.
 
+
+
+Removed the sales pricing engine (customer groups, price lists, pricing triggers/functions and contact columns) with code and schema in sync — typecheck and build green, no new linter findings. I also drew a line in the plan: delivery notes, sales orders and eTIMS stay inert rather than deep-scrubbed, since they're entangled with the document/audit engines we're keeping, so next credits go straight into microfinance loan receivables, collections and statements.
+
 ==============================NOTE===============================
 
 NOTE
