@@ -43,7 +43,6 @@ const ALLOWLIST = new Set<string>(
     "src/pages/Settings.tsx",
     "src/pages/settings/UserProfilePage.tsx",
     // Tax-compliance fallback when no business is selected — never used in documents
-    "src/hooks/useTaxCompliance.ts",
   ].map((p) => p.split("/").join(sep)),
 );
 

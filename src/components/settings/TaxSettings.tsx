@@ -34,7 +34,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Pencil, Trash2, FileCheck2 } from "lucide-react";
-import { useEtimsStandardCodes } from "@/hooks/useEtimsStandardCodes";
 import { Separator } from "@/components/ui/separator";
 import { normalizeError } from "@/services/resilience";
 
@@ -42,14 +41,8 @@ export function TaxSettings() {
   const { taxRates, isLoading, createTaxRate, updateTaxRate, deleteTaxRate } = useTaxRates();
   const { canManageTaxSettings } = usePermissions();
   const { currentBusiness } = useBusinesses();
-  const { codes: etimsStandardCodes } = useEtimsStandardCodes("tax_type");
-  const getStandardCodeByCode = (code: string) => etimsStandardCodes.find(c => c.code === code);
   const taxTerms = useMemo(() => getTaxTerminology(currentBusiness?.country ?? undefined), [currentBusiness?.country]);
-  // Data-driven: the eTIMS column / KRA-specific copy is shown when the
-  // active localization pack actually ships eTIMS standard codes — never
-  // gated by a hardcoded `country_code === "KE"` check. Any pack that
-  // seeds `etims_standard_codes` (today: Kenya) will light up the column.
-  const hasEtimsCodes = etimsStandardCodes.length > 0;
+  const hasEtimsCodes = false;
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
   const [editingRate, setEditingRate] = useState<TaxRate | null>(null);
@@ -265,17 +258,6 @@ export function TaxSettings() {
                         </div>
                       </TableCell>
                       <TableCell>{rate.rate}%</TableCell>
-                      {hasEtimsCodes && (
-                      <TableCell>
-                        {rate.etims_tax_code ? (
-                          <Badge variant="outline" className="font-mono">
-                            {rate.etims_tax_code} - {getStandardCodeByCode(rate.etims_tax_code)?.name || "Unknown"}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">Not mapped</span>
-                        )}
-                      </TableCell>
-                      )}
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {rate.is_inclusive && <Badge variant="outline" className="text-xs">Inclusive</Badge>}
