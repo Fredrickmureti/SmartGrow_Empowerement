@@ -152,7 +152,8 @@ const App = () => (
                             {/* ============================================== */}
                             <Route path="/" element={<Index />} />
                             <Route path="/login" element={<RedirectIfAuthenticated><Login /></RedirectIfAuthenticated>} />
-                            <Route path="/signup" element={<RedirectIfAuthenticated><Signup /></RedirectIfAuthenticated>} />
+                            {/* Invite-only: legacy /signup links land on the sign-in screen. */}
+                            <Route path="/signup" element={<Navigate to="/login" replace />} />
                             <Route path="/verify-email" element={<VerifyEmail />} />
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="/onboarding-setup" element={<OnboardingSetup />} />
