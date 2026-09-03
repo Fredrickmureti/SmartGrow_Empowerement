@@ -112,23 +112,6 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: map.get(r.employee_id) ?? null,
     }));
   },
-  timesheet_submission: async (orgId) => {
-    const { data, error } = await supabase
-      .from("timesheet_submissions")
-      .select("id, employee_id, period_start, period_end, status, total_hours")
-      .eq("organization_id", orgId)
-      .in("status", ["submitted", "pending_approval"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    const map = await resolveEmployeeUserIds((data ?? []).map((r: any) => r.employee_id));
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: `Timesheet ${fmtDate(r.period_start)}→${fmtDate(r.period_end)}`,
-      hint: `${r.total_hours ?? 0} h • ${r.status}`,
-      subject_user_id: map.get(r.employee_id) ?? null,
-    }));
-  },
   employee_loan: async (orgId) => {
     const { data, error } = await supabase
       .from("employee_loans")
@@ -258,54 +241,6 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.created_by ?? null,
     }));
   },
-  purchase_requisition: async (orgId) => {
-    const { data, error } = await supabase
-      .from("purchase_requisitions")
-      .select("id, requisition_number, estimated_total, currency, status, requester_id, submitted_by")
-      .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: r.requisition_number ?? `Requisition ${r.id.slice(0, 8)}`,
-      hint: `${fmtMoney(r.estimated_total, r.currency)} • ${r.status}`,
-      subject_user_id: r.submitted_by ?? r.requester_id ?? null,
-    }));
-  },
-  rfq: async (orgId) => {
-    const { data, error } = await supabase
-      .from("rfqs")
-      .select("id, rfq_number, currency, status, submitted_by")
-      .eq("organization_id", orgId)
-      .in("status", ["draft", "pending_approval", "sent", "responses_received", "under_evaluation"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: r.rfq_number ?? `RFQ ${r.id.slice(0, 8)}`,
-      hint: `${r.currency ?? ""} • ${r.status}`,
-      subject_user_id: r.submitted_by ?? null,
-    }));
-  },
-  purchase_order: async (orgId) => {
-    const { data, error } = await supabase
-      .from("purchase_orders")
-      .select("id, po_number, total, currency, status, created_by")
-      .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: r.po_number ?? `PO ${r.id.slice(0, 8)}`,
-      hint: `${fmtMoney(r.total, r.currency)} • ${r.status}`,
-      subject_user_id: r.created_by ?? null,
-    }));
-  },
   vendor_credit_note: async (orgId) => {
     const { data, error } = await supabase
       .from("vendor_credit_notes")
@@ -338,22 +273,6 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.created_by ?? null,
     }));
   },
-  stock_adjustment: async (orgId) => {
-    const { data, error } = await supabase
-      .from("stock_adjustments")
-      .select("id, status, notes, created_by")
-      .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: `Adjustment ${r.id.slice(0, 8)}`,
-      hint: r.notes ?? r.status,
-      subject_user_id: r.created_by ?? null,
-    }));
-  },
   physical_count: async (orgId) => {
     const { data, error } = await supabase
       .from("physical_counts")
@@ -368,22 +287,6 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       label: r.count_number ?? `Count ${r.id.slice(0, 8)}`,
       hint: r.state,
       subject_user_id: r.created_by ?? null,
-    }));
-  },
-  stock_transfer: async (orgId) => {
-    const { data, error } = await supabase
-      .from("stock_transfers")
-      .select("id, status, notes")
-      .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval", "in_transit"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: `Transfer ${r.id.slice(0, 8)}`,
-      hint: r.notes ?? r.status,
-      subject_user_id: null,
     }));
   },
   expense: async (orgId) => {
