@@ -6,25 +6,12 @@
  */
 
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate, useSearchParams } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
 import { FinanceLayout } from "./FinanceLayout";
 
-// Redirect /finance/contact?id=X → /contacts-app/profile?id=X
-function ContactRedirect() {
-  const [searchParams] = useSearchParams();
-  const id = searchParams.get("id") || "";
-  return <Navigate to={`/contacts-app/profile?id=${id}`} replace />;
-}
 
-// Redirect legacy /finance/pos-posting-queue → /finance/operations/accounting-events
-// Preserves ?shift=… (POS deep-link) so bookmarks and email links keep working.
-function LegacyPosQueueRedirect() {
-  const [searchParams] = useSearchParams();
-  const qs = searchParams.toString();
-  return <Navigate to={`/finance/operations/accounting-events${qs ? `?${qs}` : ""}`} replace />;
-}
 
 // Eager imports for commonly accessed pages
 import Accounts from "@/pages/Accounts";
@@ -33,14 +20,9 @@ const AccountEditPage = lazy(() => import("@/features/finance/accounts/AccountEd
 const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard"));
 const AccountRegister = lazy(() => import("@/pages/finance/AccountRegister"));
 const ReportCenter = lazy(() => import("@/pages/finance/ReportCenter"));
-const ConsolidatedTrialBalanceReport = lazy(() => import("@/pages/reports/ConsolidatedTrialBalance"));
-const ConsolidatedStatementsReport = lazy(() => import("@/pages/reports/ConsolidatedStatements"));
-const ConsolidationIntercompanyReport = lazy(() => import("@/pages/reports/ConsolidationIntercompany"));
-const ConsolidationEliminationsReport = lazy(() => import("@/pages/reports/ConsolidationEliminations"));
 // ContactDetail removed — unified into /contacts-app/profile via ContactRedirect (see route below)
 const AccountsReceivable = lazy(() => import("@/pages/finance/AccountsReceivable"));
 const AccountsPayable = lazy(() => import("@/pages/finance/AccountsPayable"));
-const CustomerCredits = lazy(() => import("@/pages/finance/CustomerCredits"));
 
 // Lazy imports for less frequently accessed pages
 const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
@@ -53,17 +35,10 @@ const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRe
 const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const FiscalPeriodDetail = lazy(() => import("@/pages/finance/FiscalPeriodDetail"));
 const YearEndClosePage = lazy(() => import("@/features/finance/year-end-close/YearEndClosePage"));
-const Budgets = lazy(() => import("@/pages/Budgets"));
-const BudgetCreatePage = lazy(() => import("@/features/finance/budgets/BudgetCreatePage"));
-const BudgetEditPage = lazy(() => import("@/features/finance/budgets/BudgetEditPage"));
 const FixedAssets = lazy(() => import("@/pages/FixedAssets"));
-const AnalyticAccounts = lazy(() => import("@/pages/AnalyticAccounts"));
 const Banking = lazy(() => import("@/pages/Banking"));
 const BankReconciliation = lazy(() => import("@/pages/BankReconciliation"));
 const StartReconciliationPage = lazy(() => import("@/features/finance/reconciliation/StartReconciliationPage"));
-const ApplyCreditWizardPage = lazy(() => import("@/features/finance/customer-credits/ApplyCreditWizardPage"));
-const ProcessRefundWizardPage = lazy(() => import("@/features/finance/customer-credits/ProcessRefundWizardPage"));
-const VendorCredits = lazy(() => import("@/pages/finance/VendorCredits"));
 const AssetCreatePage = lazy(() => import("@/features/finance/fixed-assets/AssetCreatePage"));
 const AssetEditPage = lazy(() => import("@/features/finance/fixed-assets/AssetEditPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
@@ -80,17 +55,9 @@ const TrialBalance = lazy(() => import("@/pages/reports/TrialBalance"));
 const GeneralLedger = lazy(() => import("@/pages/reports/GeneralLedger"));
 const AgingReport = lazy(() => import("@/pages/reports/AgingReport"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
-const CrossCompanyComparative = lazy(() => import("@/pages/reports/Consolidation"));
-const TaxReports = lazy(() => import("@/pages/reports/TaxReports"));
-const BusinessIntelligence = lazy(() => import("@/pages/BusinessIntelligence"));
 const Reports = lazy(() => import("@/pages/Reports"));
-const PartnerLedger = lazy(() => import("@/pages/reports/PartnerLedger"));
 const JournalReport = lazy(() => import("@/pages/reports/JournalReport"));
-const BudgetReport = lazy(() => import("@/pages/reports/BudgetReport"));
 // Analytic accounting reports (Phase 5 consumers).
-const AnalyticAccountStatement = lazy(() => import("@/pages/reports/AnalyticAccountStatement"));
-const AnalyticProfitAndLoss = lazy(() => import("@/pages/reports/AnalyticProfitAndLoss"));
-const AnalyticBudgetVsActual = lazy(() => import("@/pages/reports/AnalyticBudgetVsActual"));
 
 const DepreciationReport = lazy(() => import("@/pages/reports/DepreciationReport"));
 const CashFlowReport = lazy(() => import("@/pages/reports/CashFlowReport"));
@@ -168,50 +135,10 @@ export function FinanceApp() {
         />
 
         {/* Customer Credits — apply + refund wizards (list route below). */}
-        <Route
-          path="customer-credits/:id/apply"
-          element={
-            <InstitutionRoute>
-              <LazyRoute module="Apply Customer Credit">
-                <ApplyCreditWizardPage />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
-        <Route
-          path="customer-credits/:id/refund"
-          element={
-            <InstitutionRoute>
-              <LazyRoute module="Process Credit Refund">
-                <ProcessRefundWizardPage />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Customer Credits */}
-        <Route
-          path="customer-credits"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Customer Credits">
-                <CustomerCredits />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Vendor Credits — AP mirror of Customer Credits (ADR 0028). */}
-        <Route
-          path="vendor-credits"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Vendor Credits">
-                <VendorCredits />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Customer Statements */}
 
@@ -274,12 +201,6 @@ export function FinanceApp() {
         />
         
         {/* Contact Detail - Redirect to unified profile */}
-        <Route
-          path="contact"
-          element={
-            <ContactRedirect />
-          }
-        />
         {/* Journal Entries */}
         <Route
           path="journal-entries"
@@ -386,48 +307,8 @@ export function FinanceApp() {
         {/* Budgets */}
         {/* /new + /:id/edit MUST precede the list to avoid the list
             swallowing "new" as a param. */}
-        <Route
-          path="budgets/new"
-          element={
-            <InstitutionRoute>
-              <LazyRoute module="New Budget">
-                <BudgetCreatePage />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
-        <Route
-          path="budgets/:id/edit"
-          element={
-            <InstitutionRoute>
-              <LazyRoute module="Edit Budget">
-                <BudgetEditPage />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
-        <Route
-          path="budgets"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Budgets">
-                <Budgets />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
         {/* Analytic Accounts */}
-        <Route
-          path="analytic-accounts"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Analytic Accounts">
-                <AnalyticAccounts />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
         {/* Fixed Assets — /new + /:id/edit routes must precede the list. */}
         <Route
@@ -611,49 +492,9 @@ export function FinanceApp() {
           }
         />
 
-        <Route
-          path="reports/consolidated-trial-balance"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Consolidated Trial Balance">
-                <ConsolidatedTrialBalanceReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
-        <Route
-          path="reports/consolidated-statements"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Consolidated Statements">
-                <ConsolidatedStatementsReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
-        <Route
-          path="reports/intercompany"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Intercompany Identification">
-                <ConsolidationIntercompanyReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
-        <Route
-          path="reports/eliminations"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Intercompany Eliminations">
-                <ConsolidationEliminationsReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         <Route
           path="reports/general-ledger"
@@ -680,16 +521,6 @@ export function FinanceApp() {
         
 
         {/* Cross-company comparative P&L — side-by-side, never summed */}
-        <Route
-          path="reports/cross-company"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Cross-Company Comparative">
-                <CrossCompanyComparative />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         <Route
           path="reports/management"
@@ -702,43 +533,13 @@ export function FinanceApp() {
           }
         />
         
-        <Route
-          path="reports/tax"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Tax Reports">
-                <TaxReports />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
 
         {/* Inventory reports — Finance mount (ADR 0143 dual host) */}
         
         {/* Business Intelligence — premium cross-cutting feature */}
-        <Route
-          path="reports/intelligence"
-          element={
-            <InstitutionRoute requiredFeature="business_intelligence" allowReadOnly>
-              <LazyRoute module="Business Intelligence">
-                <BusinessIntelligence />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
         {/* Partner Ledger */}
-        <Route
-          path="reports/partner-ledger"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Partner Ledger">
-                <PartnerLedger />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
         {/* Journal Report */}
         <Route
@@ -753,50 +554,10 @@ export function FinanceApp() {
         />
         
         {/* Budget vs Actual */}
-        <Route
-          path="reports/budget"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Budget vs Actual">
-                <BudgetReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
         {/* Analytic accounting reports — management dimension of the GL */}
-        <Route
-          path="reports/analytic-statement"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Analytic Account Statement">
-                <AnalyticAccountStatement />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
-        <Route
-          path="reports/analytic-profit-and-loss"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Analytic Profit & Loss">
-                <AnalyticProfitAndLoss />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
-        <Route
-          path="reports/analytic-budget-vs-actual"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Analytic Budget vs Actual">
-                <AnalyticBudgetVsActual />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Depreciation Report */}
         <Route
@@ -974,10 +735,6 @@ export function FinanceApp() {
         {/* Legacy POS Posting Queue URL — 301-style client redirect to the
             new producer-agnostic workspace. Preserves ?shift=… so existing
             deep-links from POS ops keep working. */}
-        <Route
-          path="pos-posting-queue"
-          element={<LegacyPosQueueRedirect />}
-        />
 
 
 

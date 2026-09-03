@@ -70,25 +70,15 @@ import { PrintRecoveryMount } from "@/components/printing/PrintRecoveryMount";
 import {
   // Studio & Compliance (platform-level, stay standalone)
   Studio,
-  Compliance,
-  FiscalComplianceWorkspace,
   AuditLogs,
 } from "./routes/-lazyRoutes";
 
 // ============================================
 // APP MODULES (Odoo-style app navigation)
-// ============================================
-const MigrationPage = lazy(() => import("@/pages/settings/MigrationPage"));
 const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDiagnostic"));
-const PrintLatencyDiagnostic = lazy(() => import("@/pages/diagnostics/PrintLatency"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
-const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
 const FinanceApp = lazy(() => import("@/apps/finance/routes"));
-const ContactsApp = lazy(() => import("@/apps/contacts/routes"));
 const LendingApp = lazy(() => import("@/apps/lending/routes"));
-const HRApp = lazy(() => import("@/apps/hr/routes"));
-// My Workspace — employee self-service shell (not an installable app, gated by employment)
-const MeApp = lazy(() => import("@/apps/me/MeApp"));
 // Scanner pairing page — mounted at top level (NOT under /pos/*) so that
 // non-POS modules (Inventory, Sales, Purchases, etc.) can pair a phone
 // without the POS subscription gate redirecting the phone to /dashboard.
@@ -187,23 +177,15 @@ const App = () => (
                             {/* Auth-only routes (no subscription check) */}
                             {/* Legacy mounts — consolidated reports now live inside the
                                 Finance reports shell so the sidebar & reports nav reach them. */}
-                            <Route path="/reports/consolidation" element={<Navigate to="/finance/reports/cross-company" replace />} />
-                            <Route path="/reports/consolidated-trial-balance" element={<Navigate to="/finance/reports/consolidated-trial-balance" replace />} />
-                            <Route path="/reports/consolidated-statements" element={<Navigate to="/finance/reports/consolidated-statements" replace />} />
-                            <Route path="/reports/intercompany" element={<Navigate to="/finance/reports/intercompany" replace />} />
                            <Route path="/settings" element={<ProtectedRoute><NonVendorRoute><Settings /></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/workspace" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><WorkspaceSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                            <Route path="/settings/company" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><CompanySettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/team" element={<InstitutionRoute requiredFeature="team_management" allowReadOnly><PortalUserRoute><Team /></PortalUserRoute></InstitutionRoute>} />
                             <Route path="/settings/studio" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Studio"><Studio /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/audit-logs" element={<InstitutionRoute allowReadOnly><PortalUserRoute><LazyRoute module="Audit Logs"><AuditLogs /></LazyRoute></PortalUserRoute></InstitutionRoute>} />
-                            <Route path="/settings/compliance" element={<InstitutionRoute allowReadOnly><PortalUserRoute><LazyRoute module="Compliance"><Compliance /></LazyRoute></PortalUserRoute></InstitutionRoute>} />
                             <Route path="/settings/governance/sod" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><GovernanceSoD /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/settings/migration" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Migration"><MigrationPage /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/diagnostics/branch-null" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Branch-NULL Diagnostic"><BranchNullDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
-                            <Route path="/settings/diagnostics/print-latency" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Print Latency Diagnostic"><PrintLatencyDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/profile" element={<ProtectedRoute><LazyRoute module="Profile"><UserProfilePage /></LazyRoute></ProtectedRoute>} />
-                            <Route path="/settings/carriers" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Carriers"><CarriersSettings /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/notifications" element={<ProtectedRoute><NonVendorRoute><Notifications /></NonVendorRoute></ProtectedRoute>} />
 
 
@@ -249,25 +231,6 @@ const App = () => (
                               }
                             />
 
-                            {/* Compliance */}
-                            <Route
-                              path="/compliance"
-                              element={
-                                <InstitutionRoute allowReadOnly>
-                                  <LazyRoute module="Compliance"><Compliance /></LazyRoute>
-                                </InstitutionRoute>
-                              }
-                            />
-                            <Route
-                              path="/compliance/etims"
-                              element={
-                                <InstitutionRoute allowReadOnly>
-                                  <LazyRoute module="FiscalComplianceWorkspace">
-                                    <FiscalComplianceWorkspace />
-                                  </LazyRoute>
-                                </InstitutionRoute>
-                              }
-                            />
 
 
                             {/* ============================================== */}
@@ -303,19 +266,6 @@ const App = () => (
                             />
 
                             
-                            {/* Contacts App */}
-                            <Route
-                              path="/contacts-app/*"
-                              element={
-                                <InstitutionRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <LazyRoute module="Contacts">
-                                      <ContactsApp />
-                                    </LazyRoute>
-                                  </PortalUserRoute>
-                                </InstitutionRoute>
-                              }
-                            />
                             
                             {/* Purchases App */}
                             
@@ -326,29 +276,7 @@ const App = () => (
                             {/* Warehouse mobile / RF shell (Phase 13) */}
                             
                             
-                            {/* HR App */}
-                            <Route
-                              path="/hr/*"
-                              element={
-                                <InstitutionRoute allowReadOnly>
-                                  <PortalUserRoute>
-                                    <LazyRoute module="HR">
-                                      <HRApp />
-                                    </LazyRoute>
-                                  </PortalUserRoute>
-                                </InstitutionRoute>
-                              }
-                            />
 
-                            {/* My Workspace — employee self-service (no subscription gate; available to any employee) */}
-                            <Route
-                              path="/me/*"
-                              element={
-                                <LazyRoute module="My Workspace">
-                                  <MeApp />
-                                </LazyRoute>
-                              }
-                            />
                             
                             {/* CRM App */}
                             
