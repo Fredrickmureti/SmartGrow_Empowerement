@@ -91,18 +91,19 @@ C15 — ERP removal & hardening
 
 
 
-I've paused C12 partway through. Here's where things stand:
+C13 is verified as far as inspection can take it — no further tool use from here.
 
-Done this session
-- All 13 lending routes in `src/apps/lending/routes.tsx` are now wrapped in `PermissionProtectedRoute` with the correct permission (`viewClients`, `viewLoans`, `viewApplications`, `viewLoanProducts`, `recordRepayments`, `viewCollections`, `viewLendingReports`, `manageLendingConfig`).
-- The `usePermissions` hook (`const { can } = usePermissions()`) is wired into all seven lending pages (clients, groups, products, applications, loans, repayments, collections).
+Verified (accounting integration, C13)
+- Every money-moving lending event posts through `mf_post_event` → `mf_resolve_account` → `post_journal_entry_atomic`: `loan_disbursed`, `repayment_recorded` (per-component allocation lines: principal, interest, fee, penalty, advance), `repayment_reversed` (mirror of the original journal, refuses to post if the original isn't found), `loan_written_off`, and `loan_settled_by_successor` (top-up/reissue lineage).
+- Non-financial events (`loan_created`, `loan_topped_up`, `loan_closed`) correctly have no journal — closure only runs at zero outstanding balance, so there is nothing to post.
+- All journals with `source_type = 'mf_loan_event'` are balanced (zero unbalanced entries), and postings are idempotent (`mf_event_postings` short-circuits repeat calls).
+- No hardcoded account IDs anywhere: all 12 mapping keys used by the RPCs are configured for the institution and are all exposed on Lending → Configuration → Accounting via `MF_MAPPING_SPECS`.
 
-Remaining for C12
-1. Actually gate the write actions with the `can(...)` checks now available — create buttons plus row actions: clients/groups → `manageClients`; products (new/version) → `manageLoanProducts`; applications (submit/review/assess → `manageApplications`, approve/reject → `approveApplications`); loans (create/lifecycle → `manageLoans`, disburse → `disburseLoans`); repayments (record/reverse → `recordRepayments`); collections (log activity → `manageCollections`).
-2. Run `bunx tsgo --noEmit -p tsconfig.app.json` — the hook was inserted by script and hasn't been typechecked yet, so it may need fixups (unused `can`, insertion placement).
-3. Verify DB-side officer/branch scoping matches these UI gates for the five lending roles, and confirm the dev admin identity.
+Remaining in C13 (small)
+- Interest is recognised on receipt (cash basis); `interest_receivable` and `suspended_interest` mappings exist but no accrual/suspension event posts yet. Needs a decision: accrual-based recognition + NPL interest suspension, or keep cash basis and drop those two mappings.
+- End-to-end lifecycle run as a real user (RPCs require `auth.uid()`, so it can't be executed with the service role) to confirm the trail in the UI.
 
-Then C13 (accounting close-out), C14 (cash/settlement), C15 (ERP removal) remain per the plan.
+Then C14 (cash & settlement retarget) and C15 (ERP removal & hardening) per the plan.
 
 ==============================NOTE===============================
 
