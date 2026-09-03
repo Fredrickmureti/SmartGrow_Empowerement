@@ -116,9 +116,12 @@ No new engine, no schema duplication, no savings product.
 ======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
 
 
-C14 is closed: the client statement now renders through the shared document engine (kind + default template seeded, snapshot, PDF layout, menu on the clients list and the statement report), typecheck green — next milestone is C15b, the dead-code strip and hardening close-out.
+Your Supabase project is already connected (ref `xwxqunklduknceoryrha`), so no reconnection was needed. Per the plan's remaining scope I did the dashboard retarget and its dead-code strip:
 
-also /dashboard needs to be tailored towards the core domain so work on it because it showijg things like add products, etc which are from previous erp
+- `/dashboard` is now the microfinance command center: portfolio outstanding, arrears, PAR 30, collected today, disbursed today, open applications, active clients, plus a worst-arrears table and today's receipts — all read from the server-owned `mf_*` views/event tables, permission-gated.
+- Launcher `/` quick actions and stats retargeted to Clients / Applications / Loans / Repayments / Collections / Accounting / Banking / Lending reports — no products, invoices, bills, inventory or payroll entries.
+- Deleted the 15 now-unreferenced ERP dashboard widgets (sales summary, receivables, cash flow, profit margin, expense categories, executive suite, backorders, deadlines, etc.) and 2 orphaned hooks; typecheck and build green.
+- Plan updated: next milestone is C15b — the final ERP dead-code strip (starting with `useDashboardStats`/`useDashboardAnalytics` and the parked-module stubs) and the lifecycle/report/document hardening pass.
 
 ==============================NOTE===============================
 
