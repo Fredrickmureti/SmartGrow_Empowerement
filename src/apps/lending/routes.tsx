@@ -7,6 +7,7 @@
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { InstitutionRoute } from "@/components/auth/InstitutionRoute";
+import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
 import { LendingLayout } from "./LendingLayout";
 import { PlaceholderSurface } from "./PlaceholderSurface";
 import { AccountingMappingsPage } from "./settings/AccountingMappingsPage";
@@ -39,7 +40,9 @@ export function LendingApp() {
           index
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewClients">
               <ClientsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -47,7 +50,9 @@ export function LendingApp() {
           path="groups"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewClients">
               <GroupsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -55,7 +60,9 @@ export function LendingApp() {
           path="applications"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewApplications">
               <ApplicationsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -63,7 +70,9 @@ export function LendingApp() {
           path="loans"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLoans">
               <LoansPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -71,7 +80,9 @@ export function LendingApp() {
           path="repayments"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="recordRepayments">
               <RepaymentsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -79,7 +90,9 @@ export function LendingApp() {
           path="collections"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewCollections">
               <CollectionsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -87,7 +100,9 @@ export function LendingApp() {
           path="products"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLoanProducts">
               <ProductsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -96,7 +111,9 @@ export function LendingApp() {
           path="reports/portfolio"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
               <PortfolioReport />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -104,7 +121,9 @@ export function LendingApp() {
           path="reports/arrears"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
               <ArrearsReport />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -112,7 +131,9 @@ export function LendingApp() {
           path="reports/collections"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
               <CollectionsReport />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -120,7 +141,9 @@ export function LendingApp() {
           path="reports/client-statement"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
               <ClientStatementReport />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -128,7 +151,9 @@ export function LendingApp() {
           path="reports/disbursements"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
               <DisbursementsReport />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />
@@ -155,7 +180,9 @@ export function LendingApp() {
           path="configuration/accounting"
           element={
             <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="manageLendingConfig">
               <AccountingMappingsPage />
+            </PermissionProtectedRoute>
             </InstitutionRoute>
           }
         />

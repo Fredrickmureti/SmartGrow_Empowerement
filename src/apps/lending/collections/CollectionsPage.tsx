@@ -7,6 +7,7 @@
  * Collection activities are append-only business events.
  */
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   PageHeader,
   PageBody,
@@ -76,6 +77,7 @@ type WorklistLoan = {
 };
 
 export function CollectionsPage() {
+  const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [bucket, setBucket] = useState<string>("all");
   const [activityLoan, setActivityLoan] = useState<WorklistLoan | null>(null);

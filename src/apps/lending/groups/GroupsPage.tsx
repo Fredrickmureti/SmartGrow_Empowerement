@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Plus, Users } from "lucide-react";
 import {
   PageHeader,
@@ -53,6 +54,7 @@ const STATUS_TONE: Record<MfGroupStatus, "neutral" | "success" | "warning" | "da
 };
 
 export function GroupsPage() {
+  const { can } = usePermissions();
   const { branches } = useBranches();
   const { getUserName } = useOrgMembers();
   const [branchId, setBranchId] = useState<string>("all");

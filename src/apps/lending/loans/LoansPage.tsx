@@ -7,6 +7,7 @@
  * no balance, interest or schedule maths happens here.
  */
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   Ban,
   CalendarRange,
@@ -78,6 +79,7 @@ const money = (value: number, currency: string) =>
   })}`;
 
 export function LoansPage() {
+  const { can } = usePermissions();
   const [status, setStatus] = useState<MfLoanStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
