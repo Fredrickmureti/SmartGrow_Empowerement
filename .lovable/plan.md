@@ -58,6 +58,37 @@ never build microfinance surfaces over legacy ERP rows.
   `localization_pack_*` tables + `v_org_active_localization_pack`), zero code
   references.
 
+## M3 progress log (2026-09-03, latest pass)
+
+Dropped in earlier passes: `controlled_substance_register`, `customer_loyalty`
++ `loyalty_transactions`, `physical_counts` + 4 children.
+
+This pass — eTIMS / fiscal-sales subsystem removed:
+- Code deleted: `useEtimsStandardCodes.ts`, `useTaxCompliance.ts`,
+  `TaxComplianceSettings.tsx` (never routed), `useBackorders.ts`,
+  `types/deliveryNote.ts`, and four dead architecture tests
+  (delivery-note engine, wms returns, outbound lot stamping, pos barcode cast).
+  `TaxSettings.tsx` keeps tax rates (fee excise) but no eTIMS mapping.
+- Tables dropped (one migration, all zero-dependency): `etims_tax_categories`,
+  `etims_standard_codes`, `delivery_proofs`, `carrier_services`,
+  `fiscal_provider_circuit`.
+- Typecheck (`tsconfig.app.json`) clean; build OK.
+
+Blocked-by-dependency, resolve in this order next:
+- `customer_groups` — FK from `contacts.customer_group_id` AND referenced by
+  `resolve_line_unit_price`; edit the function first.
+- `carriers` — used by `update_delivery_logistics_atomic` /
+  `dispatch_delivery_atomic`; drop those delivery functions with the table.
+- `fiscal_device_credentials` / `fiscal_transmissions` — referenced by
+  `resolve_fiscal_provider`, `fiscal_transmission_resend`,
+  `enqueue_fiscal_receipt_required`, `tg_fiscal_transmission_link_original`,
+  `preview_reversal_consequences_core`. The last one is retained; strip its
+  fiscal branch rather than dropping it.
+- `etims_transmission_logs` — only referenced by the reset/preview helpers
+  (`reset_module__ancillaries`, `preview_organization_reset`); edit those, then drop.
+- `sales_document_idempotency` — STAYS until `create_invoice_atomic` /
+  `create_estimate_atomic` are retargeted to loan receivables.
+
 ## M3 — Remaining ERP strip (active milestone)
 
 Order matters: strip the CODE that reads a table group, then drop the group in
