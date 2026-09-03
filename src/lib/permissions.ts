@@ -204,7 +204,8 @@ export const ROLE_HIERARCHY: Record<AppRole, number> = {
 // (admins always pass `user_has_module_permission`).
 const NEVER_BY_BASE_ROLE = ["postJournalEntry", "exportFinancials", "exportPayroll", "exportSales", "exportPurchases"] as const;
 type GroupOnlyPermission = typeof NEVER_BY_BASE_ROLE[number];
-type RolePermissionMap = Record<Exclude<Permission, GroupOnlyPermission>, boolean> & Partial<Record<GroupOnlyPermission, boolean>>;
+type RolePermissionMap = Record<Exclude<Permission, GroupOnlyPermission | LendingPermission>, boolean>
+  & Partial<Record<GroupOnlyPermission | LendingPermission, boolean>>;
 
 // Single source of truth for "internal-class" roles.
 // `internal`, `accountant`, `staff`, `cashier`, `viewer` all resolve through
@@ -709,6 +710,7 @@ export const PERMISSION_MODULES = [
   "projects",
   "payroll",
   "pos",
+  "lending",
   "settings",
   "team",
 ] as const;
@@ -730,6 +732,7 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   projects: "Projects",
   payroll: "Payroll",
   pos: "Point of Sale",
+  lending: "Lending (Microfinance)",
   // sign: retired 2026-05-09
   settings: "Settings",
   team: "Team & Audit",
@@ -753,6 +756,7 @@ export const ACTIVE_PERMISSION_MODULES: PermissionModule[] = [
   "projects",
   "payroll",
   "pos",
+  "lending",
   // "sign" retired 2026-05-09
   "settings",
   "team",
@@ -803,6 +807,15 @@ const MODULE_PERMISSION_MAP: Record<PermissionModule, {
   // into any granular operation here — action surfaces must check the specific granular permission.
   payroll:    { read: ["viewPayroll", "viewRemittances"], create: ["runPayroll", "manageEmployeeLoans"], write: ["managePayroll", "manageStatutoryRules", "manageSalaryStructures", "manageRemittances"], delete: ["runPayroll"], approve: ["approvePayroll"], post: ["postPayrollGL"], pay: ["payPayroll"], export: ["exportPayroll"] },
   pos:        { read: ["viewPOS", "viewPOSReports"], create: ["managePOS", "processSales", "manageShifts", "manageCashDrawer", "applyDiscounts"], write: ["managePOS", "processReturns", "voidTransactions"], delete: ["managePOS"] },
+  lending:    {
+    read:   ["viewClients", "viewLoanProducts", "viewApplications", "viewLoans", "viewCollections", "viewLendingReports"],
+    create: ["manageClients", "manageApplications"],
+    write:  ["manageClients", "manageApplications", "manageLoans", "manageCollections", "manageLoanProducts", "manageLendingConfig"],
+    delete: ["manageClients", "manageLoanProducts"],
+    approve:["approveApplications"],
+    pay:    ["disburseLoans"],
+    post:   ["recordRepayments"],
+  },
   // sign: retired 2026-05-09
   settings:   { read: ["editSettings"],   create: ["manageBusiness", "manageOrganization", "manageTaxSettings", "manageCurrency", "managePaymentGateways", "manageEmailSettings"], write: ["manageBusiness", "manageOrganization", "manageTaxSettings"], delete: ["manageBusiness"] },
   team:       { read: ["viewAuditLogs"],  create: ["manageTeam"],      write: ["manageTeam"],      delete: ["manageTeam"] },
@@ -883,10 +896,13 @@ export function resolveEffectivePermissions(
     "manageApplicants","viewMyPayslip","viewMyLeave","viewMyAttendance","viewMyTimesheet",
     "viewSign","manageSign","deleteSign","manageApps",
     "postJournalEntry","exportFinancials","exportPayroll","exportSales","exportPurchases",
+    ...LENDING_PERMISSIONS,
   ];
   const baseRaw = baseRole ? (ROLE_PERMISSIONS[baseRole] as Record<string, boolean | undefined>) : null;
   const base: Record<Permission, boolean> = {} as Record<Permission, boolean>;
   for (const k of ALL_PERMISSIONS) base[k] = baseRaw ? Boolean(baseRaw[k]) : false;
+  // Lending grants live in their own matrix (kept out of the legacy role literals).
+  if (baseRole) for (const k of LENDING_ROLE_PERMISSIONS[baseRole] ?? []) base[k] = true;
 
   // Admin-like roles: full access including group-only permissions.
   if (baseRole === "admin" || baseRole === "owner" || baseRole === "super_admin") {
