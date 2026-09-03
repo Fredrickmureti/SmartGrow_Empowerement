@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBranches, CreateBranchInput } from "@/hooks/useBranches";
-import { useEntityCreationLimits } from "@/hooks/useEntityCreationLimits";
-import { Loader2, MapPin, AlertCircle, ArrowUpCircle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Loader2, MapPin } from "lucide-react";
 
 interface CreateBranchDialogProps {
   open: boolean;
@@ -19,16 +17,7 @@ interface CreateBranchDialogProps {
 
 export function CreateBranchDialog({ open, onOpenChange, businessId }: CreateBranchDialogProps) {
   const { createBranch } = useBranches();
-  const { checkBranchLimit } = useEntityCreationLimits();
-  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingLimit, setIsCheckingLimit] = useState(false);
-  const [limitCheck, setLimitCheck] = useState<{
-    canCreate: boolean;
-    currentCount: number;
-    maxAllowed: number | null;
-    isUnlimited: boolean;
-  } | null>(null);
   const [formData, setFormData] = useState<Omit<CreateBranchInput, "business_id">>({
     name: "",
     code: "",
@@ -42,25 +31,9 @@ export function CreateBranchDialog({ open, onOpenChange, businessId }: CreateBra
     is_headquarters: false,
   });
 
-  // Check limits when dialog opens
-  useEffect(() => {
-    if (open && businessId) {
-      setIsCheckingLimit(true);
-      checkBranchLimit(businessId).then((result) => {
-        setLimitCheck(result);
-        setIsCheckingLimit(false);
-      });
-    }
-  }, [open, businessId, checkBranchLimit]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
-
-    // Check limit again before creating
-    if (limitCheck && !limitCheck.canCreate) {
-      return;
-    }
 
     setIsLoading(true);
     try {
@@ -94,13 +67,6 @@ export function CreateBranchDialog({ open, onOpenChange, businessId }: CreateBra
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleUpgrade = () => {
-    onOpenChange(false);
-    navigate("/upgrade");
-  };
-
-  const showLimitReached = limitCheck && !limitCheck.canCreate && !limitCheck.isUnlimited;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -111,41 +77,7 @@ export function CreateBranchDialog({ open, onOpenChange, businessId }: CreateBra
           </DialogTitle>
         </DialogHeader>
 
-        {isCheckingLimit ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : showLimitReached ? (
-          <div className="space-y-4">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                You've reached the maximum of {limitCheck.maxAllowed} branch{limitCheck.maxAllowed !== 1 ? 'es' : ''} for your current plan.
-                Currently using {limitCheck.currentCount} of {limitCheck.maxAllowed}.
-              </AlertDescription>
-            </Alert>
-            <div className="flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleUpgrade}>
-                <ArrowUpCircle className="mr-2 h-4 w-4" />
-                Upgrade Plan
-              </Button>
-            </div>
-          </div>
-        ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
-            {limitCheck && !limitCheck.isUnlimited && (
-              <p className="text-sm text-muted-foreground">
-                Branches: {limitCheck.currentCount} of {limitCheck.maxAllowed} used
-              </p>
-            )}
-
             {/* Basic Information */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
