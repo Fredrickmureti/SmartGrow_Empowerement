@@ -61,13 +61,36 @@ export function RepaymentsPage() {
   const [search, setSearch] = useState("");
   const [batchId, setBatchId] = useState<string>("none");
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
 
   const { batches, openBatch, closeBatch } = useMfRepaymentBatches();
   const { repayments, isLoading, error, record, reverse } = useMfRepayments();
   const { balances } = useMfLoanBalances();
   const { clients } = useMfClients();
+  const { bankAccounts } = useMfBankAccounts();
+  const { bankings, bankBatch } = useMfCollectionBankings();
 
   const activeBatchId = batchId === "none" ? null : batchId;
+  const activeBatch = useMemo(
+    () => batches.find((b) => b.id === activeBatchId) ?? null,
+    [batches, activeBatchId],
+  );
+  const bankedBatchIds = useMemo(
+    () => new Set(bankings.map((b) => b.batch_id)),
+    [bankings],
+  );
+  const canBankActiveBatch =
+    !!activeBatch &&
+    activeBatch.status === "closed" &&
+    !bankedBatchIds.has(activeBatch.id);
+  const batchLabel = useMemo(() => {
+    const map = new Map(batches.map((b) => [b.id, `${b.batch_number} · ${b.collected_on}`]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [batches]);
+  const bankAccountName = useMemo(() => {
+    const map = new Map(bankAccounts.map((a) => [a.id, a.name]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [bankAccounts]);
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
