@@ -94,22 +94,9 @@ No new engine, no schema duplication, no savings product.
 ======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
 
 
+C14 is closed: the client statement now renders through the shared document engine (kind + default template seeded, snapshot, PDF layout, menu on the clients list and the statement report), typecheck green — next milestone is C15b, the dead-code strip and hardening close-out.
 
-Work paused mid-C14. Here's the state:
-
-Completed this session
-- Wired the collection-banking flow into `RepaymentsPage`: a permission-gated "Bank collections" action on a closed, not-yet-banked batch, a "Banked" indicator, and a "Banked collections" table (date, batch, bank account, reference, cash / mobile-money / total). Typecheck passed after this change.
-- Added the client statement to the shared document engine rather than a second implementation:
-  - `fetchAndBuildClientStatementSnapshot` in `src/services/documents/snapshots/lending.ts` — reads `mf_clients`, `mf_client_statement` and `mf_loan_balances`; no browser-side math.
-  - Registered `client_statement` → kind `lending.client_statement` in `resolveSourceDocumentRecord.ts`.
-  - `generateClientStatementPdf` layout in `supabase/functions/_shared/pdf/layouts/lending.ts` and its entry in the PDF renderer map.
-
-Remaining in C14
-1. A migration seeding the `lending.client_statement` row in `document_kinds` plus its default `document_template_ast` (mirror `20260903044332_*.sql`) — without it the new document type will not render.
-2. Surface it: a `LendingDocumentsMenu` entry (`documentType: "client_statement"`, `documentId: client.id`) on the clients list/detail and on `ClientStatementReport`.
-3. Typecheck/build and a live pass: record → close batch → bank → reconcile, plus one client-statement render.
-4. Update `.lovable/plan.md` to reflect the above, then C15b (dead-code strip and hardening) closes the convergence.
-
+also /dashboard needs to be tailored towards the core domain so work on it because it showijg things like add products, etc which are from previous erp
 
 ==============================NOTE===============================
 
