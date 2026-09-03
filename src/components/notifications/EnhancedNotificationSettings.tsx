@@ -1,13 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NotificationSettings } from "./NotificationSettings";
-import { NotificationThresholdSettings } from "./NotificationThresholdSettings";
 import { NotificationDiagnostics } from "./NotificationDiagnostics";
 import { useSession } from "@/contexts/SessionContext";
-import { Bell, Sliders, Activity } from "lucide-react";
+import { Bell, Activity } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useCallback } from "react";
 
-const VALID_SUBTABS = ["preferences", "thresholds", "diagnostics"] as const;
+const VALID_SUBTABS = ["preferences", "diagnostics"] as const;
 type SubTab = (typeof VALID_SUBTABS)[number];
 
 export function EnhancedNotificationSettings() {
@@ -16,7 +15,7 @@ export function EnhancedNotificationSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Portal users only see notification preferences (filtered to relevant categories)
-  // They don't need org-level alert thresholds for invoices, inventory, etc.
+  // They see the same preference matrix, filtered to relevant categories.
   if (isPortalUser) {
     return (
       <div className="space-y-6">
@@ -51,10 +50,6 @@ export function EnhancedNotificationSettings() {
             <Bell className="h-4 w-4" />
             Preferences
           </TabsTrigger>
-          <TabsTrigger value="thresholds" className="gap-2">
-            <Sliders className="h-4 w-4" />
-            Alert Thresholds
-          </TabsTrigger>
           <TabsTrigger value="diagnostics" className="gap-2">
             <Activity className="h-4 w-4" />
             Diagnostics
@@ -63,10 +58,6 @@ export function EnhancedNotificationSettings() {
 
         <TabsContent value="preferences">
           <NotificationSettings />
-        </TabsContent>
-
-        <TabsContent value="thresholds">
-          <NotificationThresholdSettings />
         </TabsContent>
 
         <TabsContent value="diagnostics">

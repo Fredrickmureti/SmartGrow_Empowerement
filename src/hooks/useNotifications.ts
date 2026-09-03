@@ -38,23 +38,19 @@ export interface NotificationPreference {
   sms_enabled?: boolean;
 }
 
+// Microfinance notification categories. ERP categories (invoices, inventory,
+// POS, HR/payroll) were removed with those modules.
 const ALL_NOTIFICATION_CATEGORIES = [
-  { value: 'invoice', label: 'Invoices' },
-  { value: 'payment', label: 'Payments' },
-  { value: 'inventory', label: 'Inventory' },
+  { value: 'loan', label: 'Loans (applications, approvals, disbursements)' },
+  { value: 'payment', label: 'Repayments & payments' },
+  { value: 'collection', label: 'Arrears & collections' },
   { value: 'expense', label: 'Expenses' },
   { value: 'team', label: 'Team' },
-  { value: 'pos', label: 'Point of Sale' },
   { value: 'system', label: 'System' },
-  { value: 'leave', label: 'Leave Requests' },
-  { value: 'timesheet', label: 'Timesheets' },
-  { value: 'payslip', label: 'Payslips' },
-  { value: 'loan', label: 'Loans & Advances' },
-  { value: 'talent', label: 'Talent (goals, reviews, development)' },
 ];
 
 // Categories portal users are allowed to see (self-service relevant only)
-const PORTAL_ALLOWED_CATEGORIES = ['system', 'leave', 'timesheet', 'payslip', 'loan', 'talent'];
+const PORTAL_ALLOWED_CATEGORIES = ['system', 'loan', 'payment'];
 
 // Re-export a computed version for components
 const NOTIFICATION_CATEGORIES = ALL_NOTIFICATION_CATEGORIES;

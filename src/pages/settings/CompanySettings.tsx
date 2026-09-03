@@ -34,34 +34,25 @@ import {
   Loader2,
   Building2,
   Coins,
-  Percent,
   CreditCard,
   Store,
-  Calendar,
   Mail,
-  FileCheck,
-  Receipt,
   FileText,
   Wallet,
   ArrowLeft,
   Mail as MailIcon,
-  Package,
 } from "lucide-react";
 
 import { CurrencySettings } from "@/components/settings/CurrencySettings";
-import { TaxSettings } from "@/components/settings/TaxSettings";
 import { PaymentGatewaySettings } from "@/components/settings/PaymentGatewaySettings";
 import { MpesaProviderCard } from "@/components/settings/MpesaProviderCard";
 import { MpesaC2BProviderCard } from "@/components/settings/MpesaC2BProviderCard";
 import { BusinessBranchSettings } from "@/components/settings/BusinessBranchSettings";
-import { PaymentTermsSettings } from "@/components/settings/PaymentTermsSettings";
-import { TaxComplianceSettings } from "@/components/settings/TaxComplianceSettings";
 import { PaymentsDebugger } from "@/components/settings/PaymentsDebugger";
 import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
 import { DocumentTemplateSettings } from "@/components/settings/DocumentTemplateSettings";
 // PrintingSettings moved to /platform/hardware/policies (Wave 9d Phase 4).
 import { PaymentMethodsSettings } from "@/components/settings/PaymentMethodsSettings";
-import { InventorySettings } from "@/components/settings/InventorySettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -94,8 +85,6 @@ function CompanySettingsInner() {
   // in the UI. Read-only / expired-trial lifecycle states still SHOW the
   // tab; the inputs inside enforce edit-disabled via per-form gates.
   const hasFinance = appsLoading || isInstalled("finance");
-  const hasSales = appsLoading || isInstalled("sales");
-  const hasPos = appsLoading || isInstalled("pos");
   const hasDocuments = appsLoading || isInstalled("finance");
 
   return (
@@ -140,25 +129,13 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Currency</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageTaxSettings && hasFinance && (
-                <TabsTrigger value="tax" className="gap-1.5 text-xs sm:text-sm">
-                  <Percent className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Tax</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canEditSettings && (hasFinance || hasSales) && (
-                <TabsTrigger value="payment-terms" className="gap-1.5 text-xs sm:text-sm">
-                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Terms</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canManagePaymentGateways && (hasFinance || hasSales) && (
+              {!isPortalUser && permissions.canManagePaymentGateways && hasFinance && (
                 <TabsTrigger value="payments" className="gap-1.5 text-xs sm:text-sm">
                   <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Payments</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canEditSettings && (hasFinance || hasSales) && (
+              {!isPortalUser && permissions.canEditSettings && hasFinance && (
                 <TabsTrigger value="payment-methods" className="gap-1.5 text-xs sm:text-sm">
                   <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Pay Methods</span>
@@ -170,30 +147,13 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Email</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageTaxSettings && hasFinance && (
-                <TabsTrigger value="tax-compliance" className="gap-1.5 text-xs sm:text-sm">
-                  <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Compliance</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canEditSettings && hasPos && (
-                <TabsTrigger value="receipts" className="gap-1.5 text-xs sm:text-sm">
-                  <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Receipts</span>
-                </TabsTrigger>
-              )}
               {!isPortalUser && permissions.canEditSettings && hasDocuments && (
                 <TabsTrigger value="templates" className="gap-1.5 text-xs sm:text-sm">
                   <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Templates</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageBusiness && (
-                <TabsTrigger value="inventory" className="gap-1.5 text-xs sm:text-sm">
-                  <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Inventory</span>
-                </TabsTrigger>
-              )}
+
               {/* Audit log surfaced centrally at /settings/audit-logs?tab=settings */}
 
             </TabsList>
@@ -207,14 +167,6 @@ function CompanySettingsInner() {
             <CurrencySettings />
           </TabsContent>
 
-          <TabsContent value="tax">
-            <TaxSettings />
-          </TabsContent>
-
-          <TabsContent value="payment-terms">
-            <PaymentTermsSettings />
-          </TabsContent>
-
           <TabsContent value="payments" className="space-y-6">
             {["KE", "TZ", "UG", "RW", "MZ", "GH"].includes(orgCountry) && (
               <>
@@ -224,10 +176,6 @@ function CompanySettingsInner() {
             )}
             <PaymentGatewaySettings />
             <PaymentsDebugger />
-          </TabsContent>
-
-          <TabsContent value="tax-compliance">
-            <TaxComplianceSettings />
           </TabsContent>
 
 
@@ -252,10 +200,6 @@ function CompanySettingsInner() {
               </CardContent>
             </Card>
             <EmailTemplateEditor />
-          </TabsContent>
-
-          <TabsContent value="inventory">
-            <InventorySettings />
           </TabsContent>
 
 
