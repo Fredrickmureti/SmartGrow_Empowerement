@@ -53,6 +53,12 @@ import {
   fetchAndBuildCountDocumentSnapshot,
   COUNT_KIND_BY_DOCUMENT_TYPE,
 } from "@/services/documents/snapshots/wmsCount";
+import {
+  fetchAndBuildLoanAgreementSnapshot,
+  fetchAndBuildRepaymentScheduleSnapshot,
+  fetchAndBuildLoanStatementSnapshot,
+  fetchAndBuildLoanPaymentReceiptSnapshot,
+} from "@/services/documents/snapshots/lending";
 
 /** Tenancy fallbacks used only when the snapshot cannot resolve them. */
 export interface SourceDocumentContext {
