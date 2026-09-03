@@ -523,7 +523,13 @@ export async function fetchAndBuildClientStatementSnapshot(
   const currency =
     str(entries[0]?.["currency_code"]) ?? str(business?.["base_currency"]) ?? "KES";
 
-  const totals = balances.reduce(
+  const totals = balances.reduce<{
+    principal_outstanding: number;
+    interest_outstanding: number;
+    fees_outstanding: number;
+    total_outstanding: number;
+    total_collected: number;
+  }>(
     (acc, b) => ({
       principal_outstanding: acc.principal_outstanding + num(b["principal_outstanding"]),
       interest_outstanding: acc.interest_outstanding + num(b["interest_outstanding"]),
@@ -539,6 +545,7 @@ export async function fetchAndBuildClientStatementSnapshot(
       total_collected: 0,
     },
   );
+
 
   const date = today();
   const number = str(c["client_number"]) ?? clientId.slice(0, 8);

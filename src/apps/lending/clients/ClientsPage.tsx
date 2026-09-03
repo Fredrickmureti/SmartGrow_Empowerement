@@ -43,6 +43,7 @@ import {
   type MfClientStatus,
 } from "@/hooks/useMfClients";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 
 const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "danger"> = {
   prospect: "neutral",
@@ -164,6 +165,7 @@ export function ClientsPage() {
                   <TableHead>Loan officer</TableHead>
                   <TableHead className="text-right">Cycles</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Documents</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -184,8 +186,24 @@ export function ClientsPage() {
                     <TableCell>
                       <StatusBadge tone={STATUS_TONE[c.status]}>{c.status}</StatusBadge>
                     </TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <LendingDocumentsMenu
+                        documents={[
+                          {
+                            documentType: "client_statement",
+                            documentId: c.id,
+                            title: "Client Statement",
+                            filename: `client-statement-${c.client_number}`,
+                          },
+                        ]}
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
+
               </TableBody>
             </Table>
           )}
