@@ -447,6 +447,16 @@ export async function renderAstToPdf(args: {
     );
   }
 
+  const lendingLayout = LENDING_LAYOUTS[args.template.kind_code];
+  if (lendingLayout) {
+    return await lendingLayout(
+      snap,
+      (snap["organization"] as unknown) ?? (args.context.business as unknown) ?? null,
+      { paperFormat: mediaClassToPaper(args.template.media_class) },
+    );
+  }
+
+
 
 
   if (STATEMENT_KIND_CODES.has(args.template.kind_code)) {
