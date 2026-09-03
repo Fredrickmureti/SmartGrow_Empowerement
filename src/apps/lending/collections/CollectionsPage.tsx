@@ -78,6 +78,7 @@ type WorklistLoan = {
 
 export function CollectionsPage() {
   const { can } = usePermissions();
+  const canManageCollections = can("manageCollections");
   const [search, setSearch] = useState("");
   const [bucket, setBucket] = useState<string>("all");
   const [activityLoan, setActivityLoan] = useState<WorklistLoan | null>(null);
@@ -230,6 +231,7 @@ export function CollectionsPage() {
                             </StatusBadge>
                           </TableCell>
                           <TableCell className="text-right">
+                            {canManageCollections && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -244,6 +246,7 @@ export function CollectionsPage() {
                             >
                               Log activity
                             </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

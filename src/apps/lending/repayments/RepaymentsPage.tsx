@@ -52,6 +52,7 @@ const money = (value: number, currency = "") =>
 
 export function RepaymentsPage() {
   const { can } = usePermissions();
+  const canRecord = can("recordRepayments");
   const [search, setSearch] = useState("");
   const [batchId, setBatchId] = useState<string>("none");
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -101,6 +102,7 @@ export function RepaymentsPage() {
         title="Repayments"
         description="Collection batches, per-client receipts and server-side allocation."
         actions={
+          canRecord ? (
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -120,6 +122,7 @@ export function RepaymentsPage() {
               Record payment
             </Button>
           </div>
+          ) : undefined
         }
       />
       <PageBody>
@@ -145,7 +148,7 @@ export function RepaymentsPage() {
                 ))}
               </SelectContent>
             </Select>
-            {activeBatchId && (
+            {canRecord && activeBatchId && (
               <Button
                 size="sm"
                 variant="outline"
@@ -164,7 +167,7 @@ export function RepaymentsPage() {
             <EmptyState
               title="No receipts yet"
               description="Open a collection batch for the meeting, then capture each member's payment."
-              action={<Button onClick={() => setCaptureOpen(true)}>Record payment</Button>}
+              action={canRecord ? <Button onClick={() => setCaptureOpen(true)}>Record payment</Button> : undefined}
             />
           ) : (
             <Table>
@@ -208,7 +211,7 @@ export function RepaymentsPage() {
                           },
                         ]}
                       />
-                      {r.status === "posted" && (
+                      {canRecord && r.status === "posted" && (
                         <Button size="sm" variant="outline" onClick={() => doReverse(r.id)}>
                           <Undo2 className="mr-1.5 h-3.5 w-3.5" />
                           Reverse
