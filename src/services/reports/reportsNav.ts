@@ -31,12 +31,9 @@ import {
   Users,
   Wallet,
   Coins,
-  Receipt,
   Target,
-  Boxes,
   ShieldCheck,
   BarChart3,
-  Network,
   type LucideIcon,
 } from "lucide-react";
 

@@ -26,7 +26,7 @@ describe("app switcher coverage", () => {
   });
 
   it("in-scope apps are registered and grouped", () => {
-    for (const id of ["finance", "contacts", "employees", "platform"]) {
+    for (const id of ["finance", "lending", "reports", "platform"]) {
       expect(APP_REGISTRY.some((a) => a.id === id), `${id} not in APP_REGISTRY`).toBe(true);
       expect(groupedIds.has(id), `${id} not grouped`).toBe(true);
     }

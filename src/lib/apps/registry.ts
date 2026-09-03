@@ -271,7 +271,6 @@ export const LEGACY_ROUTE_MAPPINGS: Record<string, string> = {
   "/reports/trial-balance": "/finance/reports/trial-balance",
   "/reports/general-ledger": "/finance/reports/general-ledger",
   "/reports/aging": "/finance/reports/aging",
-  "/reports/management": "/finance/reports/management",
   "/settings": "/settings",
   "/team": "/settings/team",
   "/studio": "/settings/studio",

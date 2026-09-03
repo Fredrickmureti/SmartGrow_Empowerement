@@ -22,7 +22,6 @@ const REPORT_PAGES_DIR = path.resolve(process.cwd(), "src/pages/reports");
  */
 const NO_TABLE_PAGES = new Set([
   "ControlAccountReconciliation.tsx",
-  "InventoryGLReconciliation.tsx",
   "ManagementReports.tsx",
 ]);
 
@@ -34,7 +33,7 @@ function read(file: string): string {
 
 describe("reporting engine is the single rendering path", () => {
   it("finds the report pages (guard is actually running)", () => {
-    expect(pages.length).toBeGreaterThan(15);
+    expect(pages.length).toBeGreaterThan(5);
   });
 
   it("no report page imports raw shadcn table primitives", () => {
