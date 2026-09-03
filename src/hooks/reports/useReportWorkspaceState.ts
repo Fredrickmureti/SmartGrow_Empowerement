@@ -34,6 +34,9 @@ export const REPORT_SCOPE_KEYS = [
   "department",
   "employee",
   "contact",
+  // Microfinance client scope: the borrower a statement or portfolio report is
+  // scoped to. Distinct from "contact", which is the inherited commercial party.
+  "client",
   "run",
   "basis",
   "group",
