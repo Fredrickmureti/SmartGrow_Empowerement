@@ -54,6 +54,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Team from "./pages/Team";
+import AllApps from "./pages/AllApps";
 import Settings from "./pages/Settings";
 const WorkspaceSettings = lazy(() => import("./pages/settings/WorkspaceSettings"));
 const CompanySettings = lazy(() => import("./pages/settings/CompanySettings"));
@@ -203,6 +204,10 @@ const App = () => (
                             <Route
                               path="/dashboard"
                               element={<InstitutionRoute><PortalUserRoute><Dashboard /></PortalUserRoute></InstitutionRoute>}
+                            />
+                            <Route
+                              path="/apps"
+                              element={<InstitutionRoute><PortalUserRoute><AllApps /></PortalUserRoute></InstitutionRoute>}
                             />
                             <Route
                               path="/team"
