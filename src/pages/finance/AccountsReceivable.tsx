@@ -229,10 +229,6 @@ export default function AccountsReceivable() {
             ]}
             tooltip="Refresh AR data"
           />
-          <Button variant="outline" size="sm" onClick={() => navigate("/finance/reports/aging?type=receivable")}>
-            <BarChart3 className="h-4 w-4 mr-1" />
-            AR Aging Report
-          </Button>
         </div>
       </div>
 

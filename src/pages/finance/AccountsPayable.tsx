@@ -386,10 +386,6 @@ export default function AccountsPayable() {
             ]}
             tooltip="Refresh AP data"
           />
-          <Button variant="outline" size="sm" onClick={() => navigate("/finance/reports/aging?type=payable")}>
-            <BarChart3 className="h-4 w-4 mr-1" />
-            AP Aging Report
-          </Button>
         </div>
       </div>
 
