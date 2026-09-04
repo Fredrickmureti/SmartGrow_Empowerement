@@ -92,6 +92,10 @@ Closed: M2 reports, M3 money-in/out, M4 finance config, M6 FX purge, M5 sales /
 purchasing / logistics / projects steps.
 
 ## Progress log (latest first)
+### 2026-09-04 — KYC images: private `mf-kyc` bucket (RLS by business folder),
+5 path columns on `mf_clients`, in-app camera capture + upload slots for client
+photo, ID front/back, optional kin ID front/back in `ClientFormDialog`. Owner to
+verify in preview (M1 item).
 ### 2026-09-04 — Plan re-verified by new owner. Projects removal confirmed in DB
 and code. Remaining ERP tables reduced to `contacts`, `payments`,
 `payment_allocations`. Dashboard-widget sweep folded into M5a. Milestone M10
